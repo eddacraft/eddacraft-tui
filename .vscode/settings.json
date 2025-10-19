@@ -2,7 +2,6 @@
   "nxConsole.generateAiAgentRules": true,
   "editor.formatOnSave": true,
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit",
     "source.organizeImports": "explicit"
   },
   "eslint.format.enable": true,
@@ -80,7 +79,7 @@
     "excludeDirectories": ["**/node_modules", "**/.nx", "**/dist", "**/tmp"]
   },
   "git.ignoreLimitWarning": true,
-  "git.untrackedChanges": "hidden",
+  "git.untrackedChanges": "mixed",
   "githubPullRequests.fileListLayout": "flat",
   "githubPullRequests.queries": [],
   "githubRepositories.autoRefresh": false

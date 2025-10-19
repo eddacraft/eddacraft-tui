@@ -45,9 +45,8 @@ export default typescriptEslint.config(
     files: ['**/*.{ts,tsx,mts,cts}'],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: false,
         tsconfigRootDir: import.meta.dirname,
-        allowDefaultProject: true,
       },
     },
     rules: {
@@ -74,9 +73,8 @@ export default typescriptEslint.config(
     ],
     languageOptions: {
       parserOptions: {
-        projectService: true,
+        project: false,
         tsconfigRootDir: import.meta.dirname,
-        allowDefaultProject: true,
       },
     },
     rules: {
