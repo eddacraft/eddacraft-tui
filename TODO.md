@@ -475,7 +475,7 @@ boundary.
 **Critical**: This is where Anvil's core value proposition is delivered - safe,
 auditable, reversible changes.
 
-#### Apply Systm
+#### Apply System
 
 - [ ] **Implement idempotent apply** (`sidecar/src/apply/`)
   - [ ] Parse proposed_changes from APS
@@ -608,7 +608,7 @@ engine deferred.
   - [ ] Test coverage check
   - [ ] Documentation presence check
   - [ ] Lint configuration check
-  - [ ] Basic security scan (secrets, known vulns)
+  - [ ] Basic security scan (secrets, known vulnerabilities)
   - [ ] Simple scoring system
   - **Acceptance**: Scanner identifies obvious gaps
   - **Target**:
