@@ -1,5 +1,10 @@
 # Copilot Instructions for Anvil
 
+## Language Convention
+
+**Use UK English** for all documentation, comments, variable names, and
+user-facing text throughout the codebase.
+
 ## Project Overview
 
 Anvil is a deterministic development automation platform that transforms AI and
