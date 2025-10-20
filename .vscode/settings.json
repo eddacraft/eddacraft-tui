@@ -42,7 +42,9 @@
     "**/*.log": true,
     "**/.pnpm-store/**": true,
     "**/*.map": true,
-    "**/*.d.ts.map": true
+    "**/*.d.ts.map": true,
+    "**/.cursor/**": true,
+    "**/*.d.ts": true
   },
   "search.exclude": {
     "**/node_modules": true,
@@ -56,7 +58,9 @@
     "pnpm-lock.yaml": true,
     "**/.pnpm-store": true,
     "**/*.map": true,
-    "**/*.d.ts.map": true
+    "**/*.d.ts.map": true,
+    "**/.cursor": true,
+    "**/*.d.ts": true
   },
   "files.exclude": {
     "**/.git": false,
@@ -81,6 +85,15 @@
   "git.ignoreLimitWarning": true,
   "git.untrackedChanges": "mixed",
   "githubPullRequests.fileListLayout": "flat",
-  "githubPullRequests.queries": [],
+  "githubPullRequests.queries": [
+    {
+      "label": "Local Pull Request Branches",
+      "query": "default"
+    },
+    {
+      "label": "All Open",
+      "query": "default"
+    }
+  ],
   "githubRepositories.autoRefresh": false
 }
