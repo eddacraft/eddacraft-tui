@@ -69,7 +69,7 @@ describe('APSValidator', () => {
 
       expect(result.valid).toBe(false);
       expect(result.issues?.[0].path).toBe('intent');
-      expect(result.issues?.[0].message).toContain('minimum');
+      expect(result.issues?.[0].message).toContain('too small');
     });
 
     it('should reject invalid schema version', async () => {

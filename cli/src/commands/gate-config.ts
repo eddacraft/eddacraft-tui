@@ -84,13 +84,13 @@ async function runInteractiveConfig(configManager: GateConfigManager): Promise<v
       default: config.thresholds.overall_score,
       validate: (input: number) => (input >= 0 && input <= 100) || 'Must be between 0 and 100',
     },
-  ]);
+  ] as any); // eslint-disable-line @typescript-eslint/no-explicit-any -- inquirer types require any
 
   config.thresholds.overall_score = overallThreshold;
 
   // Configure individual checks
   for (const check of config.checks) {
-    const answers: { enabled: boolean; minScore?: number } = await inquirer.prompt([
+    const answers = await inquirer.prompt([
       {
         type: 'confirm',
         name: 'enabled',
@@ -105,7 +105,7 @@ async function runInteractiveConfig(configManager: GateConfigManager): Promise<v
         validate: (input: number) => (input >= 0 && input <= 100) || 'Must be between 0 and 100',
         when: (answers: { enabled: boolean }) => answers.enabled,
       },
-    ]);
+    ] as any); // eslint-disable-line @typescript-eslint/no-explicit-any -- inquirer types require any
 
     check.enabled = answers.enabled;
     if (answers.enabled && answers.minScore !== undefined) {

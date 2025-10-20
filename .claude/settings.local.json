@@ -14,7 +14,8 @@
       "Bash(npx nx build:*)",
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "WebFetch(domain:context7.com)"
+      "WebFetch(domain:context7.com)",
+      "Bash(pnpm lint:check:*)"
     ],
     "deny": [],
     "ask": []

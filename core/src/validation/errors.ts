@@ -78,31 +78,16 @@ function formatZodMessage(issue: ZodIssue): string {
 
   switch (issue.code) {
     case 'invalid_type':
-      return `Invalid type ${path}: expected ${issue.expected}, received ${issue.received}`;
-
-    case 'invalid_literal':
-      return `Invalid value ${path}: expected ${JSON.stringify(issue.expected)}`;
+      return `Invalid type ${path}: ${issue.message}`;
 
     case 'too_small':
-      if (issue.type === 'string') {
-        return `String ${path} too short: minimum length is ${issue.minimum}`;
-      }
-      return `Value ${path} too small: minimum is ${issue.minimum}`;
+      return `Value ${path} too small: ${issue.message}`;
 
     case 'too_big':
-      if (issue.type === 'string') {
-        return `String ${path} too long: maximum length is ${issue.maximum}`;
-      }
-      return `Value ${path} too large: maximum is ${issue.maximum}`;
-
-    case 'invalid_string':
-      if (issue.validation === 'regex') {
-        return `Invalid format ${path}: value does not match expected pattern`;
-      }
-      return `Invalid string ${path}: ${issue.validation} validation failed`;
+      return `Value ${path} too large: ${issue.message}`;
 
     case 'unrecognized_keys': {
-      const keys = issue.keys.join(', ');
+      const keys = (issue as any).keys?.join(', ') || 'unknown'; // eslint-disable-line @typescript-eslint/no-explicit-any -- Zod v4 type narrowing
       return `Unexpected properties ${path}: ${keys}`;
     }
 

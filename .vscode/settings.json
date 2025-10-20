@@ -95,5 +95,14 @@
       "query": "default"
     }
   ],
-  "githubRepositories.autoRefresh": false
+  "githubRepositories.autoRefresh": false,
+  "cSpell.words": [
+    "anvilrc",
+    "BMAD",
+    "checkmarks",
+    "nodenext",
+    "scriptability",
+    "speckit",
+    "WORKTREE"
+  ]
 }

@@ -86,8 +86,8 @@ describe('Error Formatting', () => {
         const formatted = formatZodErrors(result.error.issues);
 
         expect(formatted).toHaveLength(2);
-        expect(formatted[0].message).toContain('minimum is 5');
-        expect(formatted[1].message).toContain('maximum is 3');
+        expect(formatted[0].message).toContain('too small');
+        expect(formatted[1].message).toContain('too large');
       }
     });
 
