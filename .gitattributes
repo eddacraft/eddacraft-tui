@@ -3,10 +3,14 @@
 
 # Force specific file types to always use LF
 *.sh text eol=lf
+*.ts text eol=lf
+*.js text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
 *.json text eol=lf
+*.html text eol=lf
+*.css text eol=lf
 
 # Force specific file types to always use CRLF (rare, e.g. Windows batch files)
 *.bat text eol=crlf

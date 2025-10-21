@@ -15,7 +15,9 @@
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:context7.com)",
-      "Bash(pnpm lint:check:*)"
+      "Bash(pnpm lint:check:*)",
+      "SlashCommand(/feature \"CLI integration with SpecKit adapter - implement format auto-detection, enhanced validate/gate/export commands, and evidence bundle integration to enable users to run anvil commands on SpecKit documents without format conversion\")",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

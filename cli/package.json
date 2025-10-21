@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@anvil/core": "workspace:*",
+    "@anvil/adapters": "workspace:*",
     "commander": "^14.0.1",
     "chalk": "^5.3.0",
     "ora": "^9.0.0",
