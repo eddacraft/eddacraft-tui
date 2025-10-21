@@ -33,6 +33,11 @@ these formats impact Anvil usage.
 
 ## 1. Format Analysis
 
+> **Note**: Full template examples are available in:
+>
+> - [SpecKit Templates](formats/speckit-templates.md)
+> - [BMAD Templates](formats/bmad-templates.md)
+
 ### 1.1 SpecKit Format (GitHub Official)
 
 **Philosophy**: Spec-Driven Development with AI agents **Primary Use Case**:
@@ -40,236 +45,41 @@ AI-assisted feature development with clear WHAT/WHY/HOW separation
 
 #### Document Structure
 
-**spec.md** - Requirements (WHAT and WHY)
-
-```markdown
-# Feature: [Feature Name]
-
-**Branch**: `feature/xxx-name` **Date**: YYYY-MM-DD **Status**: Draft | In
-Progress | Review | Complete
-
-## User Scenarios & Testing
-
-### P1: [High Priority Scenario]
-
-**As a** [user type] **I want to** [action] **So that** [benefit]
-
-**Acceptance Scenarios:**
-
-- Given [context], When [action], Then [outcome]
-
-**Edge Cases:**
-
-- [Edge case description]
-- [NEEDS CLARIFICATION: question]
-
-### P2: [Medium Priority Scenario]
-
-[Same structure...]
-
-### P3+: [Low Priority Scenarios]
-
-[Same structure...]
-
-## Requirements
-
-### Functional Requirements
-
-**FR-001**: System MUST [requirement] **FR-002**: [NEEDS CLARIFICATION: unclear
-requirement]
-
-### Key Entities
-
-**EntityName**
-
-- Represents: [description]
-- Key Attributes: [attr1, attr2]
-- Relationships: [related entities]
-
-## Success Criteria
-
-### Quantitative Metrics
-
-- [Measurable metric]
-
-### Qualitative Metrics
-
-- [Quality metric]
-
-### Performance Metrics (optional)
-
-- [Performance target]
-
-### Security Metrics (optional)
-
-- [Security requirement]
-```
-
-**plan.md** - Implementation (HOW)
-
-```markdown
-# Implementation Plan: [Feature Name]
-
-**Branch**: `feature/xxx-name` **Date**: YYYY-MM-DD **Input**:
-specs/xxx-feature-name/spec.md
-
-## Summary
-
-[Feature requirements from spec + technical approach]
-
-## Technical Context
-
-- **Language & Version**: [e.g., TypeScript 5.0]
-- **Dependencies**: [key libraries]
-- **Storage**: [database/storage approach]
-- **Testing Framework**: [framework choice]
-- **Platform**: [target platform]
-- **Project Type**: [CLI, web app, etc.]
-- **Performance Goals**: [targets]
-- **Constraints**: [limitations]
-- **Scale & Scope**: [scale considerations]
-
-## Constitution Check
-
-- **Phase**: Before Phase 0 / After Phase 1
-- **Status**: ✅ PASSED / ⚠️ REVIEWED / ❌ BLOCKED
-- **Notes**: [evaluation notes]
-
-## Project Structure
-
-### Documentation
-
-- `specs/###-feature-name/plan.md` (this file)
-- `specs/###-feature-name/spec.md`
-- `specs/###-feature-name/research.md`
-- `specs/###-feature-name/data-model.md`
-- `specs/###-feature-name/contracts/` (API contracts)
-- `specs/###-feature-name/quickstart.md`
-- `specs/###-feature-name/tasks.md`
-
-### Source Code
-
-**Option A: Single Project**
-```
-
-src/ ├── models/ ├── services/ ├── cli/ └── lib/
-
-```
-
-**Option B: Web Application**
-```
-
-backend/ ├── src/ └── tests/ frontend/ ├── src/ └── tests/
-
-```
-
-## Implementation Details
-### Database Schema
-[Schema details]
-
-### API Endpoints
-[Endpoint specifications]
-
-### Component Architecture
-[Architecture details]
-
-## Complexity Tracking
-| Complexity Item | Justification | Alternatives Rejected |
-|-----------------|---------------|----------------------|
-| [Item] | [Why needed] | [Why not simpler] |
-```
-
-**tasks.md** - Execution Breakdown
-
-````markdown
-# Tasks: [Feature Name]
-
-**Input**: specs/###-feature-name/spec.md **Output**: Implemented feature
-
-## Prerequisites
-
-- [ ] spec.md completed and reviewed
-- [ ] plan.md completed and reviewed
-- [ ] research.md completed
-- [ ] data-model.md completed
-
-## Task ID Format
-
-- `TASK-###`: Sequential task number
-- `[~]`: Can run in parallel with previous task
-- `[STORY-###]`: Links to user story
-
-## Phase 1: Setup
-
-- `TASK-001`: Initialize project structure
-- `TASK-002` [~]: Configure linting and formatting
-- `TASK-003`: Install core dependencies
-
-## Phase 2: Foundational ⚠️ CRITICAL
-
-- `TASK-004`: Set up database/ORM
-- `TASK-005`: Implement authentication middleware
-- `TASK-006`: Set up API routing
-- `TASK-007`: Implement error handling
-
-**Checkpoint**: Foundational infrastructure complete and tested
-
-## Phase 3: User Stories (P1)
-
-### [STORY-001]: [User Story Title]
-
-**Goal**: [Story goal] **Tests**:
-
-- [ ] Contract tests passing
-- [ ] Integration tests passing
-
-**Implementation Tasks**:
-
-- `TASK-008`: [Task description]
-- `TASK-009` [~]: [Parallel task]
-- `TASK-010`: [Dependent task]
-
-**Checkpoint**: Story independently testable and complete
-
-### [STORY-002]: [Next P1 Story]
-
-[Same structure...]
-
-## Phase 4: User Stories (P2)
-
-[Same structure as Phase 3...]
-
-## Phase 5: Polish & Cross-Cutting Concerns
-
-- `TASK-050`: Complete documentation
-- `TASK-051`: Refactor and optimize
-- `TASK-052`: Security hardening
-- `TASK-053`: Performance validation
-
-## Dependencies & Execution Order
-
-```mermaid
-graph TD
-    TASK-001 --> TASK-004
-    TASK-002 -.parallel.-> TASK-001
-    TASK-004 --> TASK-008
-```
-````
-
-## Implementation Strategies
-
-- **MVP First**: Implement P1 stories first
-- **Independent Stories**: Each story is independently testable
-- **Incremental Delivery**: Deploy stories as completed
-- **Team Parallelization**: Multiple stories can be developed concurrently
-
-````
+SpecKit uses a **3-document format**:
+
+1. **spec.md** - Requirements (WHAT and WHY)
+   - Metadata: Branch, date, status
+   - User scenarios with priorities (P1, P2, P3+)
+   - User story format: As a/I want to/So that
+   - Acceptance scenarios and edge cases
+   - Functional requirements (FR-XXX)
+   - Key entities with attributes and relationships
+   - Success criteria (quantitative, qualitative, performance, security)
+   - Clarification markers: `[NEEDS CLARIFICATION: ...]`
+
+2. **plan.md** - Implementation (HOW)
+   - Summary and technical context
+   - Constitution check (✅ PASSED / ⚠️ REVIEWED / ❌ BLOCKED)
+   - Project structure (documentation + source code)
+   - Implementation details (database, API, components)
+   - Complexity tracking table
+
+3. **tasks.md** - Execution Breakdown
+   - Prerequisites checklist
+   - Task ID format: `TASK-###`, `[~]` for parallel execution, `[STORY-###]` for
+     links
+   - Phases: Setup → Foundational → User Stories (P1) → User Stories (P2) →
+     Polish
+   - Checkpoints at key milestones
+   - Dependencies and execution order (mermaid diagrams)
+   - Implementation strategies (MVP first, independent stories)
 
 #### Key Characteristics
 
 1. **Priority-Driven**: P1 (high), P2 (medium), P3+ (low)
 2. **Clarification Markers**: `[NEEDS CLARIFICATION: ...]` throughout
-3. **Independent Testability**: Each user scenario must be independently testable
+3. **Independent Testability**: Each user scenario must be independently
+   testable
 4. **Constitution Check**: Gating mechanism for architectural decisions
 5. **Phase-Based Tasks**: Setup → Foundational → Stories → Polish
 6. **Parallel Execution**: Tasks marked with `[~]` can run in parallel
@@ -278,420 +88,59 @@ graph TD
 
 ### 1.2 BMAD Method Format
 
-**Philosophy**: AI-Agent Framework for Agile Development
-**Primary Use Case**: Agent-driven planning with human-in-the-loop validation
+**Philosophy**: AI-Agent Framework for Agile Development **Primary Use Case**:
+Agent-driven planning with human-in-the-loop validation
 
 #### Document Structure
 
-**PRD (docs/prd.md)** - Product Requirements
-```markdown
-# Product Requirements Document
-**Version**: 2.0
-**Date**: YYYY-MM-DD
-**Author**: [PM Agent / Human]
-
-## Change Log
-| Date | Version | Description | Author |
-|------|---------|-------------|--------|
-| ... | ... | ... | ... |
-
-## Goals and Background Context
-### Goals
-- [Desired outcome 1]
-- [Desired outcome 2]
-
-### Background Context
-[1-2 paragraphs explaining the problem and landscape]
-
-## Requirements
-### Functional (FR)
-**FR-001**: [Requirement description]
-**FR-002**: [Requirement description]
-
-### Non-Functional (NFR)
-**NFR-001**: [Requirement description]
-**NFR-002**: [Requirement description]
-
-## User Interface Design Goals
-### Overall UX Vision
-[Vision description]
-
-### Key Interaction Paradigms
-[Interaction patterns]
-
-### Core Screens and Views
-[High-level screen descriptions]
-
-### Accessibility
-- Choice: None | WCAG AA | WCAG AAA
-
-### Branding
-[Branding elements]
-
-### Target Platforms
-- Choice: Web Responsive | Mobile Only | Desktop Only | Cross-Platform
-
-## Technical Assumptions
-### Repository Structure
-- Choice: Monorepo | Polyrepo
-
-### Service Architecture
-- Choice: Monolith | Microservices | Serverless
-
-### Testing Requirements
-- Choice: Unit Only | Unit + Integration | Full Pyramid
-
-### Additional Technical Assumptions
-[Other assumptions]
-
-## Epic List
-1. **[Epic Title]**: [Single-sentence goal]
-2. **[Epic Title]**: [Single-sentence goal]
-
-## Epic Details
-### Epic 1: [Title]
-**Expanded Goal**: [2-3 sentence description]
-
-**User Stories:**
-- **US-001**: As a [user], I want [action], so that [benefit]
-- **US-002**: As a [user], I want [action], so that [benefit]
-
-**Acceptance Criteria (US-001):**
-1. [Testable condition]
-2. [Testable condition]
-
-**Acceptance Criteria (US-002):**
-1. [Testable condition]
-2. [Testable condition]
-
-### Epic 2: [Title]
-[Same structure...]
-
-## Next Steps
-- UX Expert: Create detailed UX specification
-- Architect: Create architecture document from this PRD
-````
-
-**Architecture (docs/architecture.md)** - Technical Design
-
-````markdown
-# Architecture Document
-
-**Version**: 2.0 **Date**: YYYY-MM-DD **Author**: [Architect Agent / Human]
-**References**: docs/prd.md, docs/front-end-spec.md
-
-## Change Log
-
-| Date | Version | Description | Author |
-| ---- | ------- | ----------- | ------ |
-| ...  | ...     | ...         | ...    |
-
-## Introduction
-
-### Project Overview
-
-[Overview and relationship to frontend architecture]
-
-### Starter Template Assessment
-
-[Assessment of existing codebase if applicable]
-
-## High-Level Architecture
-
-### Technical Summary
-
-[3-5 sentence overview of architecture style, components, and tech choices]
-
-### High-Level Overview
-
-- **Architectural Style**: [Monolith / Microservices / Serverless]
-- **Repository Structure**: [Monorepo / Polyrepo]
-- **Service Architecture**: [Details]
-- **Data Flows**: [Flow descriptions]
-
-### Project Diagram
-
-```mermaid
-graph TD
-    A[Client] --> B[API Gateway]
-    B --> C[Service 1]
-    B --> D[Service 2]
-    C --> E[Database]
-```
-````
-
-### Architectural Patterns
-
-**Pattern 1: [Pattern Name]**
-
-- **Option A**: [Description] [RECOMMENDED]
-- **Option B**: [Description]
-- **Rationale**: [Why Option A chosen]
-
-## Tech Stack (DEFINITIVE - Single Source of Truth)
-
-### Cloud Infrastructure
-
-- **Provider**: [AWS / Azure / GCP]
-- **Services**: [List of cloud services]
-- **Regions**: [Deployment regions]
-
-### Technology Stack
-
-| Category  | Technology | Version | Purpose            | Rationale             |
-| --------- | ---------- | ------- | ------------------ | --------------------- |
-| Runtime   | Node.js    | 18.17.0 | Server runtime     | LTS, widely supported |
-| Framework | Express    | 4.18.2  | Web framework      | Mature, flexible      |
-| Database  | PostgreSQL | 15.3    | Primary data store | ACID, relational      |
-| ORM       | Prisma     | 5.0.0   | Database access    | Type-safe, modern     |
-
-**Note**: NO "latest" versions - all pinned explicitly
-
-## Data Models
-
-### Model 1: [Entity Name]
-
-**Purpose**: [Business purpose]
-
-**Attributes**:
-
-- `id`: UUID, Primary Key
-- `name`: string, required
-- `email`: string, unique, required
-- `created_at`: timestamp
-
-**Relationships**:
-
-- One-to-Many with [Other Entity]
-- Many-to-Many with [Other Entity] via [Junction Table]
-
-**Design Decisions**:
-
-- [Rationale for key design choices]
-
-### Model 2: [Entity Name]
-
-[Same structure...]
-
-## Components
-
-### Component 1: [Component Name]
-
-**Responsibility**: [Primary purpose]
-
-**Interfaces/APIs**:
-
-- `POST /api/endpoint`: [Description]
-- `GET /api/endpoint`: [Description]
-
-**Dependencies**:
-
-- [Component dependencies]
-
-**Technology**: [Specific tech for this component]
-
-**Diagram**:
-
-```mermaid
-sequenceDiagram
-    Client->>API: Request
-    API->>Service: Process
-    Service-->>API: Response
-    API-->>Client: Result
-```
-
-### Component 2: [Component Name]
-
-[Same structure...]
-
-## External APIs
-
-### API 1: [Service Name]
-
-**Purpose**: [Why we integrate with this] **Documentation**: [URL]
-**Authentication**: [Auth method] **Rate Limits**: [Limits] **Endpoints Used**:
-
-- `GET /endpoint`: [Purpose]
-
-### API 2: [Service Name]
-
-[Same structure...]
-
-## Core Workflows
-
-### Workflow 1: [User Journey Name]
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant C as Client
-    participant A as API
-    participant D as Database
-
-    U->>C: Initiate action
-    C->>A: API request
-    A->>D: Query data
-    D-->>A: Return data
-    A-->>C: Response
-    C-->>U: Display result
-```
-
-**Error Handling**:
-
-- [Error scenarios and handling]
-
-**Async Operations**:
-
-- [Async operation handling]
-
-### Workflow 2: [Another Journey]
-
-[Same structure...]
-
-## REST API Specification
-
-```yaml
-openapi: 3.0.0
-info:
-  title: [Project API]
-  version: 1.0.0
-paths:
-  /api/resource:
-    get:
-      summary: [Description]
-      parameters:
-        - name: id
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id: { type: string }
-                  name: { type: string }
-```
-
-## Deployment & Operations
-
-### Deployment Strategy
-
-[Deployment approach]
-
-### Monitoring & Observability
-
-[Monitoring tools and approach]
-
-### Scaling Strategy
-
-[How system scales]
-
-## Security Considerations
-
-[Security design decisions]
-
-## Performance Considerations
-
-[Performance optimizations]
-
-## Next Steps
-
-- Dev Agent: Begin implementation based on this architecture
-- QA Agent: Develop test strategy
-
-````
-
-**Story Files (docs/stories/{epic}.{story}.md)** - Individual Stories
-```markdown
-# Story: [Story Title]
-**Epic**: [Epic Name]
-**ID**: {epic}.{story}
-**Priority**: P0 | P1 | P2
-
-## User Story
-As a [user type], I want [action], so that [benefit]
-
-## Acceptance Criteria
-1. Given [context], When [action], Then [outcome]
-2. Given [context], When [action], Then [outcome]
-
-## Implementation Notes
-[Technical implementation details]
-
-## Dev/QA Notes
-[Notes that carry forward between iterations]
-
-## Links
-- PRD: docs/prd.md
-- Architecture: docs/architecture.md
-- QA Assessment: docs/qa/assessments/{epic}.{story}-risk-profile-YYYYMMDD.md
-````
-
-**QA Assessments (docs/qa/assessments/{epic}.{story}-risk-profile-YYYYMMDD.md)**
-
-```markdown
-# Risk Profile: {epic}.{story}
-
-**Date**: YYYY-MM-DD **Story**: [Story title]
-
-## Risk Assessment
-
-| Risk Category | Probability (1-3) | Impact (1-3) | Score (P×I) | Mitigation            |
-| ------------- | ----------------- | ------------ | ----------- | --------------------- |
-| Security      | 2                 | 3            | 6           | [Mitigation strategy] |
-| Performance   | 1                 | 2            | 2           | [Mitigation strategy] |
-
-## Test Strategy
-
-### Unit Tests (P0)
-
-- [Test description]
-
-### Integration Tests (P1)
-
-- [Test description]
-
-### E2E Tests (P2)
-
-- [Test description]
-
-## Requirements Traceability
-
-**FR-001**: [Requirement]
-
-- **Test Coverage**:
-  - Given [context]
-  - When [action]
-  - Then [outcome]
-
-## NFR Validation
-
-**NFR-001**: [Requirement]
-
-- **Evidence**: [How it's validated]
-```
-
-**Quality Gates (docs/qa/gates/{epic}.{story}-{slug}.yml)**
-
-```yaml
-story: "{epic}.{story}"
-gate: "{gate-name}"
-status: "PASS" | "CONCERNS" | "FAIL" | "WAIVED"
-date: "YYYY-MM-DD"
-assessor: "[QA Agent / Human]"
-
-concerns:
-  - concern: "[Description]"
-    severity: "HIGH" | "MEDIUM" | "LOW"
-    recommendation: "[Action needed]"
-
-waiver_reason: "[If status is WAIVED, explain why]"
-```
+BMAD uses a **multi-document format**:
+
+1. **PRD (docs/prd.md)** - Product Requirements
+   - Change log and version control
+   - Goals and background context
+   - Functional (FR-XXX) and non-functional (NFR-XXX) requirements
+   - UI design goals (UX vision, interaction paradigms, accessibility, branding,
+     platforms)
+   - Technical assumptions (repo structure, service architecture, testing
+     requirements)
+   - Epic list with single-sentence goals
+   - Epic details with user stories (US-XXX) and acceptance criteria
+   - Next steps for agents
+
+2. **Architecture (docs/architecture.md)** - Technical Design
+   - Change log and references to PRD/frontend spec
+   - Project overview and starter template assessment
+   - High-level architecture (style, repo structure, data flows)
+   - Project diagram (mermaid)
+   - Architectural patterns with rationale
+   - Tech stack table (DEFINITIVE - pinned versions, NO "latest")
+   - Data models with purpose, attributes, relationships, design decisions
+   - Components with responsibilities, APIs, dependencies, diagrams
+   - External APIs documentation
+   - Core workflows with sequence diagrams
+   - REST API specification (OpenAPI YAML)
+   - Deployment, monitoring, scaling strategies
+   - Security and performance considerations
+
+3. **Story Files (docs/stories/{epic}.{story}.md)** - Individual Stories
+   - Epic, ID, priority
+   - User story format
+   - Acceptance criteria (Given/When/Then)
+   - Implementation notes
+   - Dev/QA notes (carry forward between iterations)
+   - Links to PRD, Architecture, QA Assessment
+
+4. **QA Assessments
+   (docs/qa/assessments/{epic}.{story}-risk-profile-YYYYMMDD.md)**
+   - Risk assessment matrix (probability × impact)
+   - Test strategy (unit, integration, E2E with priorities)
+   - Requirements traceability (FR/NFR → tests)
+   - NFR validation with evidence
+
+5. **Quality Gates (docs/qa/gates/{epic}.{story}-{slug}.yml)**
+   - Gate validation results (PASS/CONCERNS/FAIL/WAIVED)
+   - Concerns with severity and recommendations
+   - Waiver reasons if applicable
 
 #### Key Characteristics
 
