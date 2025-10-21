@@ -1,4 +1,4 @@
-import type { APSPlan, ProposedChange, ValidationResult } from '@anvil/core';
+import type { APSPlan, Change, ValidationResult } from '@anvil/core';
 import type {
   ConversionError,
   ConversionResult,
@@ -18,27 +18,36 @@ export class SpecKitExportAdapter extends BaseAdapter {
   }
 
   async validateSpec(spec: APSPlan): Promise<ValidationResult> {
-    const errors: Array<{ field: string; message: string }> = [];
-    const warnings: Array<{ field: string; message: string }> = [];
+    const issues: Array<{
+      path: string;
+      message: string;
+      code: string;
+      severity: 'error' | 'warning';
+    }> = [];
 
     if (!spec.intent || spec.intent.length < 10) {
-      errors.push({
-        field: 'intent',
+      issues.push({
+        path: 'intent',
         message: 'Intent is required and must be at least 10 characters',
+        code: 'INVALID_INTENT',
+        severity: 'error',
       });
     }
 
     if (spec.proposed_changes.length === 0) {
-      warnings.push({
-        field: 'proposed_changes',
+      issues.push({
+        path: 'proposed_changes',
         message: 'No changes to export',
+        code: 'EMPTY_CHANGES',
+        severity: 'warning',
       });
     }
 
     return {
-      valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-      warnings: warnings.length > 0 ? warnings : undefined,
+      valid: issues.length === 0,
+      data: spec,
+      issues: issues.length > 0 ? issues : undefined,
+      summary: issues.length === 0 ? 'Validation passed' : `Found ${issues.length} issue(s)`,
     };
   }
 
@@ -106,26 +115,26 @@ export class SpecKitExportAdapter extends BaseAdapter {
     sections.push(spec.intent);
     sections.push('');
 
-    if (spec.metadata?.overview) {
+    if (spec.metadata?.['overview']) {
       sections.push(`## Overview`);
       sections.push('');
-      sections.push(spec.metadata.overview as string);
+      sections.push(spec.metadata['overview'] as string);
       sections.push('');
     }
 
-    if (spec.metadata?.goals && Array.isArray(spec.metadata.goals)) {
+    if (spec.metadata?.['goals'] && Array.isArray(spec.metadata['goals'])) {
       sections.push(`## Goals`);
       sections.push('');
-      for (const goal of spec.metadata.goals as string[]) {
+      for (const goal of spec.metadata['goals'] as string[]) {
         sections.push(`- ${goal}`);
       }
       sections.push('');
     }
 
-    if (spec.metadata?.requirements && Array.isArray(spec.metadata.requirements)) {
+    if (spec.metadata?.['requirements'] && Array.isArray(spec.metadata['requirements'])) {
       sections.push(`## Requirements`);
       sections.push('');
-      for (const req of spec.metadata.requirements as string[]) {
+      for (const req of spec.metadata['requirements'] as string[]) {
         sections.push(`- ${req}`);
       }
       sections.push('');
@@ -274,10 +283,16 @@ export class SpecKitExportAdapter extends BaseAdapter {
 
       for (const execution of spec.executions) {
         sections.push(`### ${new Date(execution.timestamp).toLocaleString()}`);
+        sections.push(`- Operation: ${execution.operation}`);
         sections.push(`- Status: ${execution.status}`);
-        sections.push(`- Executor: ${execution.executor}`);
-        if (execution.error) {
-          sections.push(`- Error: ${execution.error}`);
+        if (execution.executed_by) {
+          sections.push(`- Executed by: ${execution.executed_by}`);
+        }
+        if (execution.changes_failed && execution.changes_failed.length > 0) {
+          sections.push(`- Failed changes: ${execution.changes_failed.join(', ')}`);
+        }
+        if (execution.logs && execution.logs.length > 0) {
+          sections.push(`- Logs: ${execution.logs.length} entries`);
         }
         sections.push('');
       }
@@ -286,8 +301,8 @@ export class SpecKitExportAdapter extends BaseAdapter {
     return sections.join('\n');
   }
 
-  private groupChangesByType(changes: ProposedChange[]): Record<string, ProposedChange[]> {
-    const groups: Record<string, ProposedChange[]> = {};
+  private groupChangesByType(changes: Change[]): Record<string, Change[]> {
+    const groups: Record<string, Change[]> = {};
 
     for (const change of changes) {
       if (!groups[change.type]) {
@@ -367,7 +382,7 @@ export class SpecKitExportAdapter extends BaseAdapter {
     return custom;
   }
 
-  private convertChangesToSteps(changes: ProposedChange[]): Array<{
+  private convertChangesToSteps(changes: Change[]): Array<{
     title: string;
     details: string;
     dependencies: string[];
@@ -402,7 +417,7 @@ export class SpecKitExportAdapter extends BaseAdapter {
     return steps;
   }
 
-  private convertChangesToTasks(changes: ProposedChange[]): Array<{
+  private convertChangesToTasks(changes: Change[]): Array<{
     description: string;
     completed: boolean;
     subtasks: Array<{

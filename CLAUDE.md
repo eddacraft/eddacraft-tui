@@ -154,7 +154,7 @@ npx nx graph
 9. TypeScript project references ensure proper build order
 10. Dependencies between packages use `workspace:*` protocol
 
-## Current Implementation Status (as of October 16, 2025)
+## Current Implementation Status (as of October 21, 2025)
 
 ### ✅ Completed Components
 
@@ -177,24 +177,34 @@ npx nx graph
    - Import and export adapters
    - ~2,469 LOC, 51 tests (49 passing, 2 minor fixes pending)
 
-4. **Gate v1** (`packages/gate/`)
+4. **Gate v1** (`core/src/gate/`)
    - ESLint integration
    - Test coverage checks
    - Secret scanning
    - Evidence collection
 
-### ⏳ In Progress
+5. **CLI Integration** (`cli/src/`) - 80% complete
+   - Format auto-detection service
+   - Plan loader with multi-format support
+   - Enhanced `validate` command with adapter support
+   - Enhanced `gate` command with adapter support
+   - Type system for CLI integration
 
-1. **BMAD Adapter** (Week 5-6 target)
-   - PRD/architecture document format
-   - Requirement extraction (REQ-XXX format)
+### 🚧 In Progress
+
+1. **CLI Integration Completion** (Week 6 - current)
+   - Fix TypeScript build errors
+   - Test end-to-end with SpecKit documents
+   - Evidence injection (deferred to later sprint)
 
 ### 📋 Planned
 
-1. CLI integration with adapter auto-detection
-2. Policy engine (OPA/Rego)
-3. Sidecar (dry-run, apply, rollback)
-4. GitHub Action integration
+1. BMAD Adapter (Week 7-8)
+2. Export command (format conversion)
+3. Evidence injection
+4. Policy engine (OPA/Rego)
+5. Sidecar (dry-run, apply, rollback)
+6. GitHub Action integration
 
 ## Package Structure
 

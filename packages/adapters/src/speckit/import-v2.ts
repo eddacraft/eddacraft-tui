@@ -9,7 +9,7 @@
  * Can import individual files or complete feature directories
  */
 
-import { createPlan, type APSPlan, type ProposedChange, type Provenance } from '@anvil/core';
+import { createPlan, type APSPlan, type Change, type Provenance } from '@anvil/core';
 import type {
   AdapterConfig,
   ConversionError,
@@ -67,7 +67,7 @@ export class SpecKitImportAdapterV2 extends BaseAdapter {
     };
 
     // Generate a simple spec.md file creation change
-    const changes: ProposedChange[] = [
+    const changes: Change[] = [
       {
         type: 'file_create',
         path: 'specs/new-feature/spec.md',
@@ -90,7 +90,7 @@ export class SpecKitImportAdapterV2 extends BaseAdapter {
     } as APSPlan;
   }
 
-  async validateSpec(spec: APSPlan): Promise<import('@anvil/aps-schema').ValidationResult> {
+  async validateSpec(spec: APSPlan): Promise<import('@anvil/core').ValidationResult> {
     const errors: Array<{ field: string; message: string }> = [];
     const warnings: Array<{ field: string; message: string }> = [];
 
@@ -101,10 +101,31 @@ export class SpecKitImportAdapterV2 extends BaseAdapter {
       });
     }
 
+    const issues: Array<{
+      path: string;
+      message: string;
+      code: string;
+      severity: 'error' | 'warning';
+    }> = [
+      ...errors.map((e) => ({
+        path: e.field,
+        message: e.message,
+        code: 'VALIDATION_ERROR',
+        severity: 'error' as const,
+      })),
+      ...warnings.map((w) => ({
+        path: w.field,
+        message: w.message,
+        code: 'VALIDATION_WARNING',
+        severity: 'warning' as const,
+      })),
+    ];
+
     return {
       valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-      warnings: warnings.length > 0 ? warnings : undefined,
+      data: spec,
+      issues: issues.length > 0 ? issues : undefined,
+      summary: errors.length === 0 ? 'Validation passed' : `Found ${errors.length} error(s)`,
     };
   }
 
@@ -202,13 +223,13 @@ export class SpecKitImportAdapterV2 extends BaseAdapter {
 
     // Build provenance
     const provenance: Provenance = {
-      timestamp: (metadata?.timestamp as string) || new Date().toISOString(),
+      timestamp: (metadata?.['timestamp'] as string) || new Date().toISOString(),
       source: 'cli',
       version: this.version,
-      author: (metadata?.author as string) || parsedSpec.metadata.branch,
-      repository: metadata?.repository as string,
+      author: (metadata?.['author'] as string) || parsedSpec.metadata.branch,
+      repository: metadata?.['repository'] as string,
       branch: parsedSpec.metadata.branch as string,
-      commit: metadata?.commit as string,
+      commit: metadata?.['commit'] as string,
     };
 
     const planId = `aps-${Date.now().toString(16).substring(0, 8)}`;
@@ -267,15 +288,15 @@ export class SpecKitImportAdapterV2 extends BaseAdapter {
     parsedPlan: ParsedPlan | undefined,
     parsedTasks: ParsedTasks | undefined,
     warnings: ConversionWarning[]
-  ): ProposedChange[] {
-    const changes: ProposedChange[] = [];
+  ): Change[] {
+    const changes: Change[] = [];
 
     // Strategy: Convert user scenarios to proposed changes
     // Each scenario represents a feature to implement
     for (const scenario of parsedSpec.userScenarios) {
       // Create a change for each P1/P2 user scenario
       if (scenario.priority === 'P1' || scenario.priority === 'P2') {
-        const change: ProposedChange = {
+        const change: Change = {
           type: 'file_create',
           path: this.inferPathFromScenario(scenario, parsedPlan),
           description: `Implement ${scenario.title}: ${scenario.iWantTo}`,

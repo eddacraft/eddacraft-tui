@@ -1,4 +1,4 @@
-import { createPlan, type APSPlan, type ProposedChange, type Provenance } from '@anvil/core';
+import { createPlan, type APSPlan, type Change, type Provenance } from '@anvil/core';
 import type {
   AdapterConfig,
   ConversionError,
@@ -40,7 +40,7 @@ export class SpecKitImportAdapter extends BaseAdapter {
       commit: context.commit,
     };
 
-    const changes: ProposedChange[] = [
+    const changes: Change[] = [
       {
         type: 'file_create',
         path: 'spec.md',
@@ -64,7 +64,7 @@ export class SpecKitImportAdapter extends BaseAdapter {
     return plan;
   }
 
-  async validateSpec(spec: APSPlan): Promise<import('@anvil/aps-schema').ValidationResult> {
+  async validateSpec(spec: APSPlan): Promise<import('@anvil/core').ValidationResult> {
     const errors: Array<{ field: string; message: string }> = [];
     const warnings: Array<{ field: string; message: string }> = [];
 
@@ -92,10 +92,31 @@ export class SpecKitImportAdapter extends BaseAdapter {
       }
     }
 
+    const issues: Array<{
+      path: string;
+      message: string;
+      code: string;
+      severity: 'error' | 'warning';
+    }> = [
+      ...errors.map((e) => ({
+        path: e.field,
+        message: e.message,
+        code: 'VALIDATION_ERROR',
+        severity: 'error' as const,
+      })),
+      ...warnings.map((w) => ({
+        path: w.field,
+        message: w.message,
+        code: 'VALIDATION_WARNING',
+        severity: 'warning' as const,
+      })),
+    ];
+
     return {
       valid: errors.length === 0,
-      errors: errors.length > 0 ? errors : undefined,
-      warnings: warnings.length > 0 ? warnings : undefined,
+      data: spec,
+      issues: issues.length > 0 ? issues : undefined,
+      summary: errors.length === 0 ? 'Validation passed' : `Found ${errors.length} error(s)`,
     };
   }
 
@@ -149,13 +170,13 @@ export class SpecKitImportAdapter extends BaseAdapter {
       const intent = parsed.intent || parsed.overview || 'Specification from SpecKit';
 
       const provenance: Provenance = {
-        timestamp: (spec.metadata?.timestamp as string) || new Date().toISOString(),
+        timestamp: (spec.metadata?.['timestamp'] as string) || new Date().toISOString(),
         source: 'cli',
         version: this.version,
-        author: spec.metadata?.author as string,
-        repository: spec.metadata?.repository as string,
-        branch: spec.metadata?.branch as string,
-        commit: spec.metadata?.commit as string,
+        author: spec.metadata?.['author'] as string,
+        repository: spec.metadata?.['repository'] as string,
+        branch: spec.metadata?.['branch'] as string,
+        commit: spec.metadata?.['commit'] as string,
       };
 
       const planId = `aps-${Date.now().toString(16).substring(0, 8)}`;
@@ -215,8 +236,8 @@ export class SpecKitImportAdapter extends BaseAdapter {
     changes: Array<{ type: string; description: string; path?: string; content?: string }>,
     errors: ConversionError[],
     warnings: ConversionWarning[]
-  ): ProposedChange[] {
-    const apsChanges: ProposedChange[] = [];
+  ): Change[] {
+    const apsChanges: Change[] = [];
 
     for (let i = 0; i < changes.length; i++) {
       const change = changes[i];
@@ -250,8 +271,8 @@ export class SpecKitImportAdapter extends BaseAdapter {
         change.type = 'script_execute';
       }
 
-      const apsChange: ProposedChange = {
-        type: change.type as ProposedChange['type'],
+      const apsChange: Change = {
+        type: change.type as Change['type'],
         path: change.path || '',
         description: change.description,
       };

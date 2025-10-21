@@ -1,21 +1,26 @@
 /**
- * Validate Command - Validates APS plans
+ * Validate Command - Validates APS plans and external formats
  */
 
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { validateAPSPlan, verifyHash } from '@anvil/core';
+import { verifyHash } from '@anvil/core';
 import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
+import { PlanLoader } from '../services/plan-loader.js';
+import type { ValidateOptions } from '../types/command-options.js';
 import { existsSync } from 'fs';
 
 export function createValidateCommand(): Command {
   return new Command('validate')
-    .description('Validate an Anvil plan')
+    .description('Validate an Anvil plan (supports APS and external formats like SpecKit)')
     .argument('<plan>', 'Plan file path or plan ID')
     .option('-v, --verbose', 'Show detailed validation results')
-    .action(async (planPathOrId: string, options: { verbose: boolean }) => {
-      const spinner = ora('Validating plan...').start();
+    .option('--format <format>', 'Explicitly specify input format (bypasses auto-detection)')
+    .option('--native', 'Skip format detection and treat as native APS')
+    .option('--validate-hash', 'Validate hash integrity', true)
+    .action(async (planPathOrId: string, options: ValidateOptions) => {
+      const spinner = ora('Loading plan...').start();
 
       try {
         // Resolve plan path
@@ -35,47 +40,104 @@ export function createValidateCommand(): Command {
           throw new Error(`Plan file not found: ${planPath}`);
         }
 
-        // Load the plan (this will also validate the schema)
-        const plan = await loadPlan(planPath);
+        // Load plan using PlanLoader (supports APS and external formats)
+        let plan;
+        let sourceFormat;
+        let warnings;
+        let validationResult;
 
-        spinner.text = 'Checking schema compliance...';
+        if (options.native) {
+          // Use legacy loadPlan for native APS
+          spinner.text = 'Loading native APS plan...';
+          plan = await loadPlan(planPath);
+          validationResult = { valid: true, data: plan };
+        } else {
+          // Use PlanLoader for auto-detection and external formats
+          const planLoader = new PlanLoader();
+          spinner.text = 'Detecting format...';
 
-        // Validate the plan
-        const validationResult = await validateAPSPlan(plan);
+          const loadResult = await planLoader.loadPlan(planPath, {
+            format: options.inputFormat,
+            validateHash: options.validateHash ?? true,
+            strict: false,
+          });
 
+          plan = loadResult.plan;
+          validationResult = loadResult.validation;
+          sourceFormat = loadResult.sourceFormat;
+          warnings = loadResult.warnings;
+
+          // Show detected format if applicable
+          if (sourceFormat) {
+            spinner.succeed(
+              chalk.green(
+                `✓ Detected format: ${chalk.cyan(sourceFormat.format)} (${sourceFormat.confidence}% confidence)`
+              )
+            );
+            spinner.start('Validating plan...');
+          } else {
+            spinner.text = 'Validating plan...';
+          }
+        }
+
+        // Check validation result
         if (!validationResult.valid) {
           spinner.fail(chalk.red('✗ Plan validation failed'));
           console.error(chalk.red('\nValidation Errors:'));
 
           if (options.verbose && validationResult.issues) {
             // Show detailed errors
-            validationResult.issues.forEach((error) => {
-              console.error(chalk.yellow(`  - ${error.path || 'root'}:`), error.message);
+            validationResult.issues.forEach((issue: { path?: string; message: string }) => {
+              console.error(chalk.yellow(`  - ${issue.path || 'root'}:`), issue.message);
             });
-          } else if (validationResult.formattedErrors) {
-            // Show formatted summary
-            console.error(validationResult.formattedErrors);
+          } else if (validationResult.issues) {
+            // Show error summary
+            console.error(
+              chalk.red(`  Found ${validationResult.issues.length} validation error(s)`)
+            );
+            validationResult.issues.slice(0, 3).forEach((issue: { message: string }) => {
+              console.error(chalk.yellow(`  - ${issue.message}`));
+            });
+            if (validationResult.issues.length > 3) {
+              console.error(chalk.gray(`  ... and ${validationResult.issues.length - 3} more`));
+            }
           }
 
           process.exit(1);
         }
 
-        spinner.text = 'Verifying plan hash...';
+        // Show warnings if any
+        if (warnings && warnings.length > 0) {
+          console.log(chalk.yellow('\n⚠ Warnings:'));
+          warnings.forEach((warning) => {
+            console.log(chalk.yellow(`  - ${warning.message}`));
+          });
+        }
 
-        // Verify hash integrity
-        const hashValid = verifyHash(plan, plan.hash);
+        // Verify hash integrity if requested
+        if (options.validateHash) {
+          spinner.text = 'Verifying plan hash...';
+          const hashValid = verifyHash(plan, plan.hash);
 
-        if (!hashValid) {
-          spinner.fail(chalk.red('✗ Hash verification failed'));
-          console.error(chalk.red('\nThe plan hash does not match its content.'));
-          console.error(chalk.yellow('This may indicate the plan has been tampered with.'));
-          process.exit(1);
+          if (!hashValid) {
+            spinner.fail(chalk.red('✗ Hash verification failed'));
+            console.error(chalk.red('\nThe plan hash does not match its content.'));
+            console.error(chalk.yellow('This may indicate the plan has been tampered with.'));
+            process.exit(1);
+          }
         }
 
         spinner.succeed(chalk.green('✓ Plan is valid'));
 
         // Display plan details
         console.log('\n' + chalk.bold('Plan Details:'));
+
+        // Show source format if detected
+        if (sourceFormat) {
+          console.log(chalk.gray('  Source Format:'), chalk.cyan(sourceFormat.format));
+          console.log(chalk.gray('  Adapter:      '), chalk.cyan(sourceFormat.adapter));
+        }
+
         console.log(chalk.gray('  ID:           '), chalk.cyan(plan.id));
         console.log(chalk.gray('  Schema:       '), chalk.cyan(plan.schema_version));
         console.log(chalk.gray('  Hash:         '), chalk.cyan(plan.hash.substring(0, 16) + '...'));

@@ -13,37 +13,47 @@ A modern monorepo workspace powered by Nx, pnpm, and TypeScript.
 
 ## 📊 Project Status
 
-| Phase                   | Status         | Progress |
-| ----------------------- | -------------- | -------- |
-| Phase 1: Infrastructure | ✅ Complete    | 100%     |
-| Phase 2: APS Core       | ✅ Complete    | 95%      |
-| Phase 3: CLI Foundation | 🚧 In Progress | 30%      |
-| Phase 4: Gate v1        | ✅ Complete    | 100%     |
-| Phase 5: OPA/Rego       | ⏳ Planned     | 0%       |
-| **Overall Progress**    | **~18%**       | **MVP**  |
+| Phase                        | Status         | Progress |
+| ---------------------------- | -------------- | -------- |
+| Phase 1: Infrastructure      | ✅ Complete    | 100%     |
+| Phase 2: APS Core            | ✅ Complete    | 100%     |
+| Phase 2.5: Adapter Framework | ✅ Complete    | 100%     |
+| Phase 2.5: SpecKit Adapter   | ✅ Complete    | 100%     |
+| Phase 3: CLI Integration     | 🚧 In Progress | 80%      |
+| Phase 4: Gate v1             | ✅ Complete    | 100%     |
+| Phase 5: OPA/Rego            | ⏳ Planned     | 0%       |
+| **Overall Progress**         | **~35%**       | **MVP**  |
 
 See [TODO.md](./TODO.md) for detailed task tracking and [PLAN.md](./PLAN.md) for
 the strategic roadmap.
 
 ### 🎉 Recent Milestones
 
+- **2025-10-21**: CLI integration with SpecKit adapter (In Progress)
+  - Format auto-detection service implemented
+  - Plan loader with multi-format support
+  - Enhanced `validate` and `gate` commands with adapter support
+  - Type system for CLI integration complete
+  - **Next**: Fix build errors and test end-to-end
+
+- **2025-10-14**: SpecKit adapter complete
+  - Full v1 and v2 format support
+  - Import and export adapters
+  - 51 tests (49 passing, 2 minor fixes pending)
+  - Comprehensive parser for spec.md, plan.md, tasks.md
+  - Registry integration with auto-detection
+
+- **2025-10-13**: Adapter framework complete
+  - FormatAdapter interface and base types
+  - AdapterRegistry with auto-detection
+  - Testing utilities and documentation
+  - 22 framework tests (100% passing)
+
 - **2025-10-10**: CLI + APS integration complete
   - Core package exports all APS utilities
   - CLI successfully imports and uses core functionality
   - TypeScript configuration fixed for proper build outputs
   - Gate types aligned with APS schema v0.1.0
-  - All 116 tests passing
-
-- **2025-09-26**: APS Core implementation complete
-  - Schema validation with Zod
-  - Hash generation and verification
-  - Plan ID generation
-  - Comprehensive test coverage
-
-- **2025-09-22**: Project infrastructure established
-  - Nx monorepo setup
-  - CI/CD pipeline with GitHub Actions
-  - Quality gates (ESLint, Prettier, Husky)
 
 ## 🚀 Features
 
@@ -60,12 +70,18 @@ the strategic roadmap.
 
 ```
 anvil/
-├── cli/          # Command-line interface application
-├── ui/           # User interface components
-├── core/         # Shared core functionality
-├── packs/        # Package bundles
-├── packages/     # Additional library packages
-└── e2e/          # End-to-end tests
+├── cli/                      # Command-line interface application
+│   ├── src/commands/         # CLI commands (validate, gate, etc.)
+│   ├── src/services/         # Format detection, plan loading
+│   └── src/types/            # TypeScript type definitions
+├── ui/                       # User interface components
+├── core/                     # Shared core functionality (APS schema, validation, hashing)
+├── packages/adapters/        # Format adapters
+│   ├── src/base/             # Adapter framework (registry, types)
+│   ├── src/speckit/          # SpecKit adapter ✅
+│   └── src/bmad/             # BMAD adapter (planned)
+├── packs/                    # Package bundles (future)
+└── e2e/                      # End-to-end tests
 ```
 
 ## 🛠️ Getting Started
