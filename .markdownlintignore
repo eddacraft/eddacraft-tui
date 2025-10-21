@@ -1,67 +1,32 @@
-# Ignore node_modules and generated files
+# Ignore node_modules across all packages (monorepo structure)
+**/node_modules/**
 
-**/node_modules/** dist/ .nx/ \*.tsbuildinfo
-
-# Ignore CLI node_modules specifically (lots of third-party README issues)
-
-cli/node_modules/
+# Ignore build artifacts and generated files
+dist/
+.nx/
+*.tsbuildinfo
 
 # Ignore test fixtures (they may have intentional formatting issues for testing)
-
-**/**fixtures**/** # Ignore node_modules node_modules
-
-# Ignore build artifacts
-
-dist .nx \*.tsbuildinfo
-
-# Ignore test fixtures
-
-**/**fixtures** **/fixtures
-
-# Ignore archived documents
-
-archive
-
-# Ignore auto-generated files
-
-\*.d.ts core/src/schema/aps.schema.json
+**/fixtures/**
 
 # Ignore test reports
+playwright-report/
+test-results/
+coverage/
 
-playwright-report test-results
-
-# Ignore pnpm lockfile
-
+# Ignore pnpm lockfile (generated)
 pnpm-lock.yaml
 
 # Ignore configuration directories
-
-.claude .anvil .verdaccio
+.claude/**
+.anvil/**
+.verdaccio/**
 
 # Ignore archived documents (legacy format, not worth fixing)
+archive/**
 
-archive/\*\*
+# Ignore auto-generated TypeScript declaration files
+*.d.ts
 
-# Ignore auto-generated files
-
-\*.d.ts core/src/schema/aps.schema.json
-
-# Ignore playwright reports
-
-playwright-report/ test-results/
-
-# Ignore pnpm lockfile (generated)
-
-pnpm-lock.yaml
-
-# Ignore .claude directory (assistant configuration)
-
-.claude/\*\*
-
-# Ignore .anvil directory (tool configuration)
-
-.anvil/\*\*
-
-# Ignore .verdaccio directory (local registry)
-
-.verdaccio/\*\*
+# Ignore generated JSON schema
+core/src/schema/aps.schema.json
