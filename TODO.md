@@ -5,13 +5,50 @@ following the three-act strategic vision whilst maintaining practical MVP focus.
 Tasks are organised by phase and epic with detailed acceptance criteria. For
 strategic context, see [PLAN.md](./PLAN.md).
 
+## 🚨 IMMEDIATE NEXT STEPS (Resume from October 21, 2025)
+
+### Current Work: Fix 3 Export Adapter Test Failures
+
+**Status**: 48/51 tests passing, 3 export tests failing
+
+**Failing Tests** (in `packages/adapters/src/__tests__/speckit-export.test.ts`):
+
+1. Line 178: "should handle APS with execution history" - expects "Error: Build
+   failed" in execution history output
+2. Line 202: "should validate specs before export" - expects `result.errors` to
+   be defined when validation fails
+3. Line 214: "should warn about empty changes" - expects `result.valid` to be
+   true with warning when no changes
+
+**Root Cause**: `validateSpec` method in
+`packages/adapters/src/speckit/export.ts:20` returns `ValidationResult` with
+`issues` array, but tests expect different structure with `errors` field.
+
+**Next Actions**:
+
+1. Read full `validateSpec` implementation (export.ts lines 20-52)
+2. Read failing test expectations to understand required return structure
+3. Align implementation with test expectations OR update tests to match current
+   implementation
+4. Run tests to verify fixes
+5. Update todo list when complete
+
+**Files to Review**:
+
+- `packages/adapters/src/speckit/export.ts` - Implementation
+- `packages/adapters/src/__tests__/speckit-export.test.ts` lines 165-220 - Test
+  expectations
+- `packages/adapters/src/base/types.ts` - ValidationResult interface
+
+---
+
 ## Executive Summary
 
 **Current Status**: Phase 2 (APS Core) 100% complete, Phase 2.5 (Adapters) 50%
-complete (SpecKit ✅ done), Phase 4 (Gate) 100% complete
+complete (SpecKit ✅ 94% tests passing), Phase 4 (Gate) 100% complete
 
-**Next Critical Path**: CLI Integration → BMAD Adapter → Dry-run →
-Apply/Rollback
+**Next Critical Path**: Fix Export Tests → CLI Integration → BMAD Adapter →
+Dry-run → Apply/Rollback
 
 **Target MVP**: 10-12 weeks from current state
 
@@ -843,17 +880,37 @@ Each phase must meet:
 - Show `anvil gate plan.md` with SpecKit format
 - Show `anvil export spec.md --to=aps` format conversion
 
-### Recent Progress (October 14-18, 2025)
+### Recent Progress (October 14-21, 2025)
 
 **Completed**:
 
 - SpecKit adapter framework (586 LOC, 22 tests passing)
-- SpecKit parser (2,469 LOC, 51 tests, 49 passing)
+- SpecKit parser (2,469 LOC, 51 tests)
 - V1 and V2 format support
 - Import and export adapters
 - Comprehensive test coverage
+- Documentation cleanup (extracted templates to separate files)
+- Fixed 2 spec-parser test failures (metadata and user story parsing)
+- Fixed import test loader errors (built @anvil/core)
 
-**In Progress**:
+**In Progress (October 21, 2025)**:
+
+- **CURRENT**: Fixing 3 remaining export adapter test failures (48/51 tests
+  passing)
+  - Test 1: "should handle APS with execution history" - expects "Error: Build
+    failed" in output
+  - Test 2: "should validate specs before export" - expects `result.errors` to
+    be defined
+  - Test 3: "should warn about empty changes" - expects `result.valid` to be
+    true
+  - **Files**: `packages/adapters/src/__tests__/speckit-export.test.ts` lines
+    165-220
+  - **Issue**: `validateSpec` method in `export.ts:20` not matching test
+    expectations
+  - **Next**: Read validateSpec implementation and fix to match test
+    expectations
+
+**Blocked Until Tests Pass**:
 
 - CLI integration with adapter framework
 - Format auto-detection
