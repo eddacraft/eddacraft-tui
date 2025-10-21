@@ -102,7 +102,8 @@ export class SpecParser {
     }
 
     // Extract bold key-value pairs (** Key **: value)
-    const metadataRegex = /\*\*([^*]+)\*\*:\s*`?([^`\n]+)`?/g;
+    // Stop at next ** or newline to handle multiple metadata on same line
+    const metadataRegex = /\*\*([^*]+)\*\*:\s*`?([^`*\n]+?)`?\s*(?=\*\*|\n|$)/g;
     let match;
     while ((match = metadataRegex.exec(content)) !== null) {
       const key = match[1].trim().toLowerCase().replace(/\s+/g, '_');
@@ -150,10 +151,10 @@ export class SpecParser {
     const priority = titleMatch[1];
     const title = titleMatch[2].trim();
 
-    // Extract user story components
-    const asAMatch = block.match(/\*\*As a\*\*\s+(.+)/i);
-    const iWantToMatch = block.match(/\*\*I want(?:\s+to)?\*\*\s+(.+)/i);
-    const soThatMatch = block.match(/\*\*So that\*\*\s+(.+)/i);
+    // Extract user story components (handle multiline with line breaks)
+    const asAMatch = block.match(/\*\*As a\*\*\s+(.+?)(?=\s*\*\*|\n\n|$)/is);
+    const iWantToMatch = block.match(/\*\*I want(?:\s+to)?\*\*\s+(.+?)(?=\s*\*\*|\n\n|$)/is);
+    const soThatMatch = block.match(/\*\*So(?:\s+|\n)that\*\*\s+(.+?)(?=\s*\n\n|$)/is);
 
     // Extract acceptance scenarios
     const acceptanceScenarios: string[] = [];
