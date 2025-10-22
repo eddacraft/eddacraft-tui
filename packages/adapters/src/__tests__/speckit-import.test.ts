@@ -167,12 +167,16 @@ describe('SpecKitImportAdapter', () => {
           source: 'cli' as const,
           version: '1.0.0',
         },
+        validations: {
+          required_checks: [],
+          skip_checks: [],
+        },
       };
 
       const result = await adapter.validateSpec(spec);
 
       expect(result.valid).toBe(true);
-      expect(result.errors).toBeUndefined();
+      expect(result.issues).toBeUndefined();
     });
 
     it('should warn about empty changes', async () => {
@@ -192,8 +196,9 @@ describe('SpecKitImportAdapter', () => {
       const result = await adapter.validateSpec(spec);
 
       expect(result.valid).toBe(true);
-      expect(result.warnings).toBeDefined();
-      expect(result.warnings?.[0].message).toContain('No changes');
+      expect(result.issues).toBeDefined();
+      expect(result.issues?.[0].severity).toBe('warning');
+      expect(result.issues?.[0].message).toContain('No changes');
     });
   });
 });

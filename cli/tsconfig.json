@@ -1,4 +1,5 @@
 {
+  "extends": "../tsconfig.base.json",
   "compilerOptions": {
     "target": "es2022",
     "module": "nodenext",
@@ -20,6 +21,9 @@
   "references": [
     {
       "path": "../core"
+    },
+    {
+      "path": "../packages/adapters"
     }
   ]
 }

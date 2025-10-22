@@ -19,7 +19,7 @@
     "customConditions": ["@anvil/source"],
     "paths": {
       "@anvil/core": ["core/dist/index.d.ts"],
-      "@anvil/adapters": ["packages/adapters/dist/index.d.ts"]
+      "@anvil/adapters": ["dist/packages/adapters/src/index.d.ts"]
     }
   },
   "exclude": ["node_modules", "dist", ".nx", "tmp", "coverage", "playwright-report", "test-results"]

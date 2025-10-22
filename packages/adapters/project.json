@@ -16,7 +16,7 @@
       "executor": "@nx/js:tsc",
       "outputs": ["{options.outputPath}"],
       "options": {
-        "outputPath": "dist/packages/adapters",
+        "outputPath": "packages/adapters/dist",
         "main": "packages/adapters/src/index.ts",
         "tsConfig": "packages/adapters/tsconfig.lib.json",
         "assets": ["packages/adapters/*.md"]

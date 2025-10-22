@@ -22,13 +22,11 @@ export type {
 
 // Auto-register adapters when module is imported
 import { registry as baseRegistry } from './base/index.js';
-// TODO: SpecKit adapters need to be migrated to FormatAdapter interface
-// import { SpecKitImportAdapter, SpecKitExportAdapter } from './speckit/index.js';
+import { SpecKitImportAdapter, SpecKitExportAdapter } from './speckit/index.js';
 
 // Register SpecKit adapters
-// TODO: These need to implement FormatAdapter interface before registration
-// baseRegistry.register(new SpecKitImportAdapter());
-// baseRegistry.register(new SpecKitExportAdapter());
+baseRegistry.register(new SpecKitImportAdapter());
+baseRegistry.register(new SpecKitExportAdapter());
 
 // Export the registry instance as default export
 export { baseRegistry as registry };

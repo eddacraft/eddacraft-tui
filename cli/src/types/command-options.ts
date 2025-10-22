@@ -52,15 +52,13 @@ export interface GateOptions {
  */
 export interface ExportOptions {
   /** Target format to export to */
-  format: string;
-  /** Output file path */
+  to: string;
+  /** Output file path or directory */
   output?: string;
-  /** Pretty-print output */
-  pretty?: boolean;
-  /** Preserve comments and formatting from original */
-  preserveFormatting?: boolean;
-  /** Include evidence in exported document */
-  includeEvidence?: boolean;
+  /** Source format (auto-detected if not specified) */
+  from?: string;
+  /** Compact JSON output (no pretty-printing) */
+  compact?: boolean;
   /** Adapter-specific options */
   adapterOptions?: AdapterOptions;
 }
