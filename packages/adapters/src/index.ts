@@ -22,11 +22,19 @@ export type {
 
 // Auto-register adapters when module is imported
 import { registry as baseRegistry } from './base/index.js';
-import { SpecKitImportAdapter, SpecKitExportAdapter } from './speckit/index.js';
+// TODO: SpecKit adapters need to be migrated to FormatAdapter interface
+// import { SpecKitImportAdapter, SpecKitExportAdapter } from './speckit/index.js';
 
 // Register SpecKit adapters
-baseRegistry.register(new SpecKitImportAdapter());
-baseRegistry.register(new SpecKitExportAdapter());
+// TODO: Implement FormatAdapter interface in SpecKit adapters before auto-registration
+// Currently SpecKit adapters use BaseAdapter interface. Need to:
+// 1. Add metadata property with FormatMetadata type
+// 2. Implement detect() method for format auto-detection
+// 3. Implement parse() and serialize() methods for content handling
+// 4. Implement validate() method that returns FormatValidationResult
+// See: packages/adapters/src/base/types.ts for FormatAdapter interface
+// baseRegistry.register(new SpecKitImportAdapter());
+// baseRegistry.register(new SpecKitExportAdapter());
 
 // Export the registry instance as default export
 export { baseRegistry as registry };

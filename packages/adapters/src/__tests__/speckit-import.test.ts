@@ -191,6 +191,10 @@ describe('SpecKitImportAdapter', () => {
           source: 'cli' as const,
           version: '1.0.0',
         },
+        validations: {
+          required_checks: [],
+          skip_checks: [],
+        },
       };
 
       const result = await adapter.validateSpec(spec);

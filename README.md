@@ -7,9 +7,61 @@
 [![Nx](https://img.shields.io/badge/Nx-21.5.2-143055.svg?style=flat-square)](https://nx.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
-[![Nx](https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png)](https://nx.dev)
+> **Deterministic development automation platform that makes AI-generated code
+> changes safe for production**
 
-A modern monorepo workspace powered by Nx, pnpm, and TypeScript.
+## 🎯 What is Anvil?
+
+Anvil is a validation and execution pipeline that transforms AI and human intent
+into validated, auditable, and reversible changes. It solves a critical problem:
+**making AI-generated code changes safe for production** by enforcing quality
+gates, maintaining complete audit trails, and ensuring every change is
+reversible.
+
+### What Makes Anvil Different
+
+- **Format Agnostic**: Work with SpecKit, BMAD, or native APS – your choice
+- **Comprehensive Gates**: ESLint, Vitest, coverage thresholds, secret scanning,
+  OPA policies
+- **Production Safety**: Snapshot-based rollback with transactional execution
+- **Full Provenance**: Track who, what, when, why for every change
+- **GitHub Native**: First-class PR integration that blocks unsafe merges
+
+### Core Design Principles
+
+1. **Interoperability First**: Users keep their existing planning formats. Anvil
+   works with them through pluggable adapters rather than forcing format
+   adoption.
+2. **Determinism**: Same input → same output, always. Hash-stable plans enable
+   reproducible validation, tamper detection, and confident reviews.
+3. **Safety by Default**: Every change creates a snapshot before application.
+   Rollback is a first-class operation, not an afterthought.
+4. **Transparency**: Immutable, append-only evidence bundles provide complete
+   audit trails for compliance and debugging.
+5. **Composability**: Parse → Validate → Execute are independent, composable
+   stages. Each component has clear interfaces and can be used in library mode.
+
+## 🏗️ Architecture & Pipeline Flow
+
+Anvil operates as a validation and execution pipeline built around the **Anvil
+Plan Specification (APS)** – a hash-stable, internal interchange format that
+enables deterministic validation and governance:
+
+```
+User Formats (SpecKit, BMAD, etc.)
+    ↓
+Adapters (parse to APS)
+    ↓
+Quality Gates (lint, test, coverage, secrets, policies)
+    ↓
+Safe Execution (apply with snapshots, rollback capability)
+    ↓
+Immutable Audit Trail
+```
+
+**Key Insight**: APS is the moat. It's hash-stable (SHA-256), schema-validated
+(Zod), and enables deterministic validation. Users work in their preferred
+format; Anvil translates everything to APS internally.
 
 ## 📊 Project Status
 

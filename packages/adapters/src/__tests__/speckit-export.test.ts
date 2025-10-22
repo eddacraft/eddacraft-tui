@@ -38,6 +38,10 @@ describe('SpecKitExportAdapter', () => {
         version: '1.0.0',
         author: 'test@example.com',
       },
+      validations: {
+        required_checks: ['lint', 'test'],
+        skip_checks: [],
+      },
       metadata: {
         goals: ['Secure API endpoints', 'Implement JWT authentication'],
         requirements: ['Node.js 18+', 'Express.js'],
