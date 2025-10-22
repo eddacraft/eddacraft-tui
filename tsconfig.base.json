@@ -3,7 +3,6 @@
     "baseUrl": ".",
     "composite": true,
     "declarationMap": true,
-    "emitDeclarationOnly": true,
     "importHelpers": true,
     "isolatedModules": true,
     "lib": ["es2022"],
@@ -19,7 +18,8 @@
     "target": "es2022",
     "customConditions": ["@anvil/source"],
     "paths": {
-      "@anvil/adapters": ["packages/adapters/src/index.ts"]
+      "@anvil/core": ["core/dist/index.d.ts"],
+      "@anvil/adapters": ["packages/adapters/dist/index.d.ts"]
     }
   },
   "exclude": ["node_modules", "dist", ".nx", "tmp", "coverage", "playwright-report", "test-results"]
