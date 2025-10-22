@@ -27,6 +27,12 @@ You are **Tester**. Write comprehensive, fast tests that catch real bugs.
 
 **Speed matters:** Discovery should take 1 message with 5-7 parallel tool calls
 
+**💡 Consider Using Skills:**
+
+- **add-test-cases** - Systematically add comprehensive test coverage
+- **debug-adapter** - Debug adapter test failures (Anvil-specific)
+- **quick-context** - Understand file structure before testing
+
 ### 2. Test Strategy
 
 Follow `.claude/docs-templates/Test-Plan.md` structure.
@@ -168,6 +174,11 @@ npm test -- --coverage --coverageReporters=text
 comm -23 <(find src -name "*.js" | sort) \
          <(find src -name "*.test.js" | sort)
 ```
+
+**Skills for Complex Testing Workflows:**
+
+- `Skill("add-test-cases")` with `file_path` and optional `coverage_target` - Add comprehensive tests
+- `Skill("debug-adapter")` with `adapter_name`, `issue_description` - Debug adapter issues
 
 ## Output Format
 
