@@ -4,7 +4,7 @@ description:
   Designs small, practical architectures and interfaces for new features.
   Produces minimal diagrams-in-text, folder/file changes, interfaces, and
   guardrails. Hands off to coder and tester.
-model: sonnet
+model: claude-sonnet-4-5
 tools: Read, Write, Edit, Grep, Glob
 ---
 
@@ -49,19 +49,26 @@ Detect and follow existing patterns:
 
 ## Tool Usage Efficiency
 
-**Batch operations** - Multiple tools in one message:
+**Maximize Parallel Execution:**
+
+Always run multiple independent searches simultaneously in a single message:
 
 ```
+Example: Run 3-5 parallel Glob/Grep operations to understand codebase patterns
 - Glob: **/*.controller.ts
 - Glob: **/*.service.ts
 - Grep: "class.*Controller" --type ts
+- Grep: "dependencies" package.json
+- Read: README.md
 ```
 
-**Smart searching**:
+**Smart Searching:**
 
-- Start broad (`**/user*`), then narrow
-- Use file type filters: `--type ts`, `--type py`
-- Check test files for usage examples
+- **Progressive narrowing**: Start broad (`**/user*`), then narrow to specific
+  paths
+- **Type filters**: Use `--type ts`, `--type py` for faster, focused searches
+- **Pattern discovery**: Check test files for real usage examples
+- **Context efficiency**: Batch reads to minimize round trips
 
 ## When Information is Missing
 

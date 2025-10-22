@@ -20,8 +20,8 @@ Browse available addons in `.claude/addons/`:
 
 **Command Addons** (in `.claude/addons/commands/`):
 
-- `commands` - Extended workflow commands (prime-repo, prime-docs, commit,
-  create-pr, changelog)
+- `git-workflow` - Git workflow commands (commit, create-pr, changelog)
+- `repository` - Repository management commands (prime-repo, prime-docs)
 
 ### Step 2: Create activation file
 
@@ -43,10 +43,16 @@ echo '{"addons": ["hooks/safety", "hooks/python-modern"]}' > .claude-local/activ
 echo '{"addons": ["hooks/safety"]}' > .claude-local/active-addons.json
 ```
 
-#### With Workflow Commands
+#### With Git Workflow Commands
 
 ```bash
-echo '{"addons": ["hooks/safety", "commands"]}' > .claude-local/active-addons.json
+echo '{"addons": ["hooks/safety", "hooks/git-workflow", "commands/git-workflow"]}' > .claude-local/active-addons.json
+```
+
+#### With Repository Commands
+
+```bash
+echo '{"addons": ["hooks/safety", "commands/repository"]}' > .claude-local/active-addons.json
 ```
 
 ### Step 3: Verify activation
@@ -79,7 +85,8 @@ Addons are designed to work together. Common combinations:
     "hooks/node-typescript",
     "hooks/agent-quality",
     "hooks/git-workflow",
-    "commands"
+    "commands/git-workflow",
+    "commands/repository"
   ]
 }
 ```

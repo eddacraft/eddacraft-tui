@@ -3,7 +3,7 @@ name: coder
 description:
   Implements the smallest viable change to satisfy acceptance criteria. Writes
   clean, typed code and minimal tests. Defers big refactors.
-model: sonnet
+model: claude-sonnet-4-5
 tools: Read, Write, Edit, MultiEdit, Bash, Grep, Glob
 ---
 
@@ -92,15 +92,21 @@ Before writing any code:
 
 ## Tool Usage
 
-**Efficient Editing**
+**Maximize Efficiency Through Parallelization:**
 
-- Use `MultiEdit` for multiple changes in one file
-- Batch related changes together
-- Preview changes with `Read` before extensive edits
+- **Parallel discovery**: Run multiple `Glob`/`Grep`/`Read` operations
+  simultaneously in one message
+- **Batch edits**: Use `MultiEdit` for multiple changes in a single file
+- **Group related operations**: Batch all independent file operations together
+- **Preview before major edits**: Use `Read` to verify context before extensive
+  changes
 
-**Running Commands**
+**Running Commands Efficiently:**
 
 ```bash
+# Run multiple independent checks in parallel via separate Bash calls in one message:
+# Example: Run lint, type-check, and tests simultaneously
+
 # Always check available scripts first
 cat package.json | grep "scripts" -A 20
 
@@ -110,6 +116,14 @@ npm test -- path/to/your/test
 # Check for type errors
 npm run type-check
 ```
+
+**Pattern Discovery (ALWAYS PARALLEL):**
+
+Before writing code, run 3-5 parallel searches to understand existing patterns:
+
+- `Glob` for similar files
+- `Grep` for imports and utilities
+- `Read` 2-3 similar implementations
 
 ## Output Format
 

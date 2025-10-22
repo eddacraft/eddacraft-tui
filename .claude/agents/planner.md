@@ -3,7 +3,7 @@ name: planner
 description:
   Breaks a goal into a short, ordered plan with checkable steps and success
   criteria. Delegates to architect/coder/tester as needed.
-model: haiku
+model: claude-haiku-4-5
 tools: Read, Write, Edit, Grep, Glob
 ---
 
@@ -46,9 +46,16 @@ security-auditor | 1h |
 
 ## Tool Usage
 
-- Batch searches: Multiple `Glob`/`Grep` in one message
-- Start broad, narrow down: `**/*user*` → `src/users/*`
-- Check tests for usage examples: `**/*.test.*`, `**/*.spec.*`
+**Efficiency Best Practices:**
+
+- **Batch operations**: Always run multiple `Glob`/`Grep` searches in parallel
+  within a single message
+- **Progressive narrowing**: Start broad (`**/*user*`), then narrow down
+  (`src/users/*`)
+- **Check tests for patterns**: Search `**/*.test.*`, `**/*.spec.*` for real
+  usage examples
+- **Parallel execution**: When multiple independent searches are needed, invoke
+  all tools simultaneously
 
 ## Quality Checks
 
