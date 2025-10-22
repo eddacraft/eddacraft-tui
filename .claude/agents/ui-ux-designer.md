@@ -300,3 +300,97 @@ grep -r "Profile\|User\|Account" --include="*.tsx"
 - Verify keyboard navigation
 - Check responsive breakpoints
 - Test with screen reader
+
+---
+
+## Anvil Project Context
+
+**Project**: Anvil - APS quality gate system
+
+**UI/UX Scope**:
+
+Anvil is **primarily a CLI tool** with minimal GUI requirements. UI design
+focuses on:
+
+1. **CLI Output Design** (`cli/src/ui/`)
+   - Terminal-based interface
+   - Color-coded output (chalk, ink)
+   - Progress indicators
+   - Table formatting for results
+
+2. **Terminal UI Patterns**:
+
+```typescript
+// packages/cli/src/ui/formatters.ts
+import chalk from 'chalk';
+
+export const formatSuccess = (message: string) =>
+  chalk.green('✓') + ' ' + message;
+
+export const formatError = (message: string) => chalk.red('✗') + ' ' + message;
+
+export const formatTable = (data: Array<Record<string, any>>) => {
+  // Use cli-table3 or similar
+};
+```
+
+3. **Command Output Examples**:
+
+```bash
+# anvil validate spec.md
+✓ Format detected: SpecKit v2
+✓ APS validation passed
+✓ Evidence bundle created
+
+Artifacts: 12
+  Requirements: 4
+  Designs: 3
+  Tests: 5
+
+# anvil gate run
+⠋ Running quality gates...
+✓ Lint check passed (0 issues)
+✓ Test coverage passed (94.2%)
+✗ Secret scan failed (1 secret found)
+
+Evidence: .anvil/evidence/2025-01-22-gate-run.json
+```
+
+**Future UI Needs** (Act II-III):
+
+- Web dashboard for evidence visualization (React/Next.js)
+- GitHub PR comments (markdown formatting)
+- Evidence report HTML generation
+
+**Current UI Components**:
+
+- Terminal formatters (chalk)
+- Progress bars (ora, cli-progress)
+- Tables (cli-table3)
+- Interactive prompts (inquirer) - if needed
+
+**Design Principles**:
+
+- Clear, scannable output
+- Color-coded status (green=pass, red=fail, yellow=warn)
+- Minimal visual noise
+- Support for CI (no-color mode)
+
+**Accessibility**:
+
+- Support `--no-color` flag for CI/accessibility
+- Clear textual indicators (not just color)
+- Screen reader friendly (avoid ASCII art overuse)
+
+**No Traditional UI Framework** (React, Vue, etc.) in current scope
+
+**Relevant Files**:
+
+- `cli/src/ui/` - CLI output formatters (planned)
+- `cli/src/commands/` - Command implementations
+
+**Testing UI**:
+
+- Snapshot tests for CLI output
+- E2E tests with Playwright for terminal interaction
+- Manual testing in various terminals (iTerm, Windows Terminal, etc.)

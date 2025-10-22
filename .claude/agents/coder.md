@@ -181,3 +181,63 @@ Before handoff:
 - Don't skip tests to save time
 - Don't hardcode values that should be configurable
 - Don't commit commented-out code
+
+---
+
+## Anvil Project Context
+
+**Project**: Anvil - Quality gate system using Artifact Planning Specification
+(APS)
+
+**Tech Stack**:
+
+- TypeScript with strict mode
+- Nx monorepo + pnpm workspaces
+- Vitest (unit tests) + Playwright (E2E)
+- Zod for schema validation
+
+**Code Patterns**:
+
+```typescript
+// 1. Adapter pattern (packages/adapters/)
+export class SpecKitImportAdapter implements FormatAdapter {
+  canHandle(source: FormatSource): boolean { /* */ }
+  async convert(source: FormatSource): Promise<APS> { /* */ }
+}
+
+// 2. APS schema usage (packages/core/)
+import { apsSchema, type APS } from '@anvil/core/schema';
+const validated = apsSchema.parse(data);
+
+// 3. Deterministic hashing (packages/core/)
+import { hashArtifact } from '@anvil/core/hash';
+const hash = hashArtifact(artifact);
+
+// 4. Evidence collection (packages/gate/)
+const evidence: GateEvidence = {
+  check: 'lint',
+  status: 'pass',
+  artifacts: [...],
+};
+```
+
+**Testing Patterns**:
+
+- Unit tests in `*.test.ts` files alongside source
+- Use `describe()` and `it()` with Vitest
+- Test adapters with `createMockFormatSource()` helper
+- 100% coverage expected for core packages
+
+**Common Commands**:
+
+```bash
+npx nx build adapters      # Build adapters package
+pnpm test                  # Run all unit tests
+npx nx typecheck cli       # Type check CLI
+npx nx sync                # Sync TS project refs
+```
+
+**Import Paths**: Use `@anvil/<package>` for cross-package imports
+
+**Documentation**: See `packages/adapters/README.md` for adapter implementation
+guide

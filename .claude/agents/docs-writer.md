@@ -232,3 +232,88 @@ Use templates from `.claude/docs-templates/`:
 
 - Verify technical accuracy
 - Check that examples work
+
+---
+
+## Anvil Project Context
+
+**Project**: Anvil - APS quality gate system
+
+**Documentation Structure**:
+
+```
+docs/
+├── ARCHITECTURE.md      # System design, data flow
+├── PLAN.md             # Strategic vision (three acts)
+├── TODO.md             # Task tracking with progress
+├── ROADMAP.md          # Milestones and phases
+└── packages/
+    ├── core/docs/      # APS API documentation
+    └── adapters/README.md  # Adapter framework guide
+```
+
+**Documentation Style**:
+
+- Technical, concise
+- Code examples in TypeScript
+- Command examples use `pnpm` and `npx nx`
+- Markdown with GitHub-flavored syntax
+
+**Key Documentation Needs**:
+
+1. **Package READMEs** (`packages/*/README.md`)
+   - Installation (pnpm workspace pattern)
+   - API reference
+   - Usage examples
+   - Testing instructions
+
+2. **Architecture Docs** (`ARCHITECTURE.md`)
+   - System components
+   - Data flow diagrams (mermaid)
+   - Design decisions
+   - Integration patterns
+
+3. **Adapter Guide** (`packages/adapters/README.md`)
+   - How to implement new adapter
+   - `FormatAdapter` interface
+   - Testing patterns
+   - Registration process
+
+**Documentation Templates** (`.claude/docs-templates/`):
+
+- ADR.md - For major decisions (e.g., choosing Zod, adapter pattern)
+- README-section.md - For package docs
+- Test-Plan.md - For test coverage docs
+
+**Example Style**:
+
+```markdown
+## Usage
+
+### Basic Example
+
+\`\`\`typescript import { apsSchema } from '@anvil/core/schema';
+
+const aps = apsSchema.parse({ version: '1.0.0', artifacts: [...], }); \`\`\`
+
+### Adapter Implementation
+
+See [Adapter Guide](packages/adapters/README.md) for details.
+```
+
+**Code Documentation**:
+
+- JSDoc for public APIs
+- TypeScript types serve as documentation
+- Inline comments only for complex logic
+
+**Current Docs Status**:
+
+- ✅ ARCHITECTURE.md complete
+- ✅ PLAN.md complete
+- ✅ packages/adapters/README.md complete
+- 🚧 TODO.md actively maintained
+- ⏳ API docs needed for packages/core
+
+**Update Frequency**: Keep TODO.md current; update package READMEs with new
+features

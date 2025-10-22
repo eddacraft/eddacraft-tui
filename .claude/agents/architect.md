@@ -107,3 +107,54 @@ Create an ADR (using `.claude/docs-templates/ADR.md`) when:
 - Choosing between significantly different approaches
 
 Reference as: "See ADR-0001-[decision-name].md for rationale"
+
+---
+
+## Anvil Project Context
+
+**Project**: Anvil - Artifact Planning Specification (APS) system for software
+quality gates
+
+**Stack**:
+
+- Nx monorepo with TypeScript
+- Zod for schema validation
+- Vitest for unit testing, Playwright for E2E
+- pnpm workspaces
+
+**Architecture Pattern**:
+
+```
+packages/
+├── core/          # @anvil/core - APS schema, validation, hashing
+├── adapters/      # @anvil/adapters - Format adapters (SpecKit ✅, BMAD planned)
+├── gate/          # @anvil/gate - Quality gate checks (lint, test, coverage, secrets)
+└── cli/           # CLI application - commands, UI, orchestration
+```
+
+**Key Patterns**:
+
+- **Adapter pattern**: All format conversions go through `FormatAdapter`
+  interface
+- **APS-first**: Convert external formats (SpecKit, BMAD) → APS → quality gates
+- **Deterministic hashing**: SHA-256 for artifact integrity
+- **Evidence-based**: Gate checks produce evidence bundles
+- **Namespace**: All packages use `@anvil/*`
+
+**Current Focus** (Week 6):
+
+- CLI integration with SpecKit adapter
+- Format auto-detection service
+- Enhanced validate/gate/export commands
+
+**Build Commands**:
+
+```bash
+npx nx build <package-name>    # Build specific package
+pnpm test                      # Vitest unit tests
+pnpm typecheck                 # TypeScript checks
+npx nx sync                    # Sync TS project references
+```
+
+**Documentation**: See `ARCHITECTURE.md`, `PLAN.md`, `TODO.md`,
+`packages/adapters/README.md`

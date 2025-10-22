@@ -216,3 +216,80 @@ Coverage:** Adequate | Needs improvement
    - Null/undefined handling
    - Race conditions
    - Type mismatches
+
+---
+
+## Anvil Project Context
+
+**Project**: Anvil - APS quality gate system
+
+**Review Focus Areas**:
+
+1. **APS Schema Compliance** (`packages/core/`)
+   - All external formats must convert to valid APS
+   - Check `apsSchema.parse()` usage
+   - Verify Zod validation patterns
+
+2. **Adapter Pattern Adherence** (`packages/adapters/`)
+   - Must implement `FormatAdapter` interface
+   - `canHandle()` must be deterministic
+   - `convert()` must handle errors gracefully
+   - Export path must preserve APS semantics
+
+3. **Deterministic Hashing** (`packages/core/`)
+   - Use `hashArtifact()` from `@anvil/core/hash`
+   - No Date.now() or random values in hashed data
+   - Verify hash stability across runs
+
+4. **Evidence Collection** (`packages/gate/`)
+   - All gate checks must produce `GateEvidence`
+   - Include artifacts and metadata
+   - Timestamps in ISO 8601 format
+
+**Code Quality Standards**:
+
+```typescript
+// ✅ Good: Type-safe adapter
+export class SpecKitImportAdapter implements FormatAdapter {
+  canHandle(source: FormatSource): boolean {
+    return source.format === 'speckit' && source.version === 'v2';
+  }
+
+  async convert(source: FormatSource): Promise<APS> {
+    const result = apsSchema.parse(convertedData);
+    return result;
+  }
+}
+
+// ❌ Bad: No validation
+export class BadAdapter {
+  convert(source: any) {
+    return convertedData; // Missing APS validation!
+  }
+}
+```
+
+**TypeScript Standards**:
+
+- Strict mode enforced
+- No `any` types (use `unknown` if needed)
+- Explicit return types on public APIs
+- Import from package roots: `@anvil/core`
+
+**Testing Requirements**:
+
+- Unit tests alongside implementation
+- Coverage: core 100%, adapters 80%+, CLI 70%+
+- Use Vitest describe/it structure
+- Mock external dependencies
+
+**Commands for Review**:
+
+```bash
+pnpm typecheck            # Type check all packages
+pnpm test                 # Run unit tests
+pnpm lint:check           # ESLint check
+npx nx build <package>    # Build specific package
+```
+
+**Documentation**: Check `ARCHITECTURE.md`, package READMEs for patterns
