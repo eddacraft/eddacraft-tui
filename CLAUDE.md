@@ -1,250 +1,393 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with
-code in this repository.
+> **📖 Primary Reference**: See [README.md](./README.md) for the single source
+> of truth on:
+>
+> - Project overview and architecture
+> - Development workflows and commands
+> - Testing strategies and patterns
+> - Configuration details
+> - Contributing guidelines
 
-## Project Overview
+This file contains **Claude Code specific** guidance and shortcuts.
 
-This is an Nx monorepo workspace for JavaScript/TypeScript packages. The
-workspace is configured to manage multiple packages under the `packages/`
-directory using Nx build system and uses pnpm for package management.
+## 🚀 Quick Start for Claude
 
-## Commands
+### First Time in This Repo
 
-### Install dependencies
-
-```sh
-pnpm install
+```
+/prime-repo
 ```
 
-### Build commands
+This scans the entire codebase and provides comprehensive context about:
 
-```sh
-# Build a specific package
-npx nx build <package-name>
+- Architecture and design patterns
+- Current implementation status
+- Key files and their purposes
+- Development conventions
 
-# Build all packages
-pnpm build
+### Common Workflows
 
-# Build with pnpm directly
-pnpm --filter <package-name> build
+```bash
+# Add a new feature
+/feature "implement BMAD adapter"
+
+# Review and prepare for release
+/ship "review CLI integration PR"
+
+# Generate documentation
+/docs-writer "update adapter README"
+
+# Debug an issue
+Use skill: .claude/skills/debug-adapter.md
+Use skill: .claude/skills/fix-build.md
+
+# Create a PRD for planning
+/full-spec "Add policy engine with OPA/Rego"
+```
+
+## 🤖 Available Agents & Commands
+
+### Agents (in `.claude/agents/`)
+
+- **planner** – Break down goals into actionable steps
+- **architect** – Design interfaces and file structures
+- **product-manager** – Write PRDs with use cases
+- **coder** – Implement changes with minimal diffs
+- **tester** – Generate test plans and test code
+- **reviewer** – Code review with pragmatic feedback
+- **docs-writer** – Update documentation
+- **security-auditor** – Security and compliance checks
+
+### Slash Commands (in `.claude/commands/`)
+
+Core Commands:
+
+- `/new-project` – Scaffold new features/modules
+- `/feature` – End-to-end feature implementation
+- `/full-spec` – Detailed PRD and API spec
+- `/ship` – Review, audit, and document for release
+- `/demo` – Build minimal demo with UI
+
+Git Workflow (via addon):
+
+- `/commit` – Standardized commit messages
+- `/create-pr` – Create pull requests
+- `/changelog` – Generate changelogs
+
+Repository (via addon):
+
+- `/prime-repo` – Deep repository analysis
+- `/prime-docs` – Documentation scanning
+
+### Skills (in `.claude/skills/`)
+
+Practical troubleshooting guides:
+
+- `debug-adapter.md` – Debug format adapter issues
+- `feature-adapter.md` – Add new adapters (SpecKit, BMAD, etc.)
+- `fix-build.md` – Resolve TypeScript/build errors
+- `implement-pattern.md` – Implement design patterns
+- `refactor-safe.md` – Safe refactoring workflows
+- `trace-data-flow.md` – Understand data transformations
+
+**Usage**: Reference skills in your prompts:
+
+```
+Using .claude/skills/debug-adapter.md, help me debug the SpecKit parser issue
+```
+
+## 📋 Doc Templates (in `.claude/docs-templates/`)
+
+Available templates:
+
+- **PRD.md** – Product Requirements Document
+- **ADR.md** – Architecture Decision Record
+- **Architecture-Design.md** – Technical blueprints
+- **Test-Plan.md** – Comprehensive test strategies
+- **Security-Audit.md** – Security review checklist
+- **Runbook.md** – Operational guides
+
+The `docs-writer` agent can automatically fill these in.
+
+## 📦 Anvil-Specific Context
+
+### The Big Picture
+
+Anvil is a **deterministic development automation platform**. The key
+architectural insight:
+
+```
+User Formats (SpecKit, BMAD) → Adapters → APS (internal) → Gates → Execution
+```
+
+**APS (Anvil Plan Specification)** is the moat:
+
+- Hash-stable (SHA-256) for deterministic validation
+- Schema-validated (Zod) for type safety
+- Users never see it – we work with their existing formats
+
+### Current Implementation Status (October 2025)
+
+✅ **Complete**:
+
+- APS Core (schema, validation, hashing) – 100%
+- Adapter Framework (base types, registry) – 100%
+- SpecKit Adapter (v1 + v2, 51 tests) – 100%
+- Gate v1 (lint, test, coverage, secrets) – 100%
+
+🚧 **In Progress**:
+
+- CLI Integration (format detection, multi-format support) – 80%
+
+📋 **Planned**:
+
+- BMAD Adapter (PRD/architecture docs)
+- Policy Engine (OPA/Rego)
+- Apply/Rollback with snapshots
+- GitHub Action integration
+
+### Key Design Principles
+
+1. **Interoperability First** – Support existing formats, don't force adoption
+2. **Determinism** – Same input → same output, always
+3. **Safety by Default** – Snapshot before apply, rollback is first-class
+4. **Transparency** – Immutable evidence bundles for audit trails
+5. **Composability** – Parse → Validate → Execute are independent stages
+
+## 🛠️ Development Commands
+
+See [README.md](./README.md#-available-scripts) for complete command reference.
+
+### Quick Reference
+
+```bash
+# Install & build
+pnpm install && pnpm build
+
+# Test & quality checks
+pnpm test                    # Unit tests
+pnpm test:coverage           # With coverage
+pnpm typecheck               # Type checking
+pnpm lint                    # Lint & fix
+
+# Nx commands
+npx nx build core            # Build specific package
+npx nx test adapters         # Test specific package
+npx nx graph                 # Visualize dependencies
+
+# Package-specific
+pnpm -F core run generate:schema          # Regenerate APS JSON schema
+pnpm -F core run update-golden-hashes     # Update golden test hashes
+```
+
+### Critical: Build Before Testing
+
+TypeScript project references require builds before cross-package imports work:
+
+```bash
+pnpm build    # Always build first
+pnpm test     # Then test
+```
+
+## 🎯 Common Claude Workflows
+
+### Adding a New Adapter
+
+1. Start with planning:
+
+   ```
+   /feature "add BMAD adapter for PRD documents"
+   ```
+
+2. Reference the skill:
+
+   ```
+   Using .claude/skills/feature-adapter.md, help me implement the BMAD adapter
+   ```
+
+3. Follow SpecKit as reference:
+   - Study `packages/adapters/src/speckit/import-adapter-v2.ts`
+   - Implement `FormatAdapter` interface from `base/types.ts`
+   - Register with `AdapterRegistry`
+   - Add comprehensive tests (see `__tests__/speckit-import-v2.test.ts`)
+
+### Debugging Build Issues
+
+```
+Using .claude/skills/fix-build.md, help me resolve the TypeScript error in packages/adapters
+```
+
+Common issues:
+
+- Missing `.js` extensions in imports (ESM requirement)
+- Need to run `pnpm build` before testing
+- TypeScript project references not configured
+- `rootDir` mismatch in `tsconfig.spec.json`
+
+### Implementing a Gate Check
+
+1. Plan the check:
+
+   ```
+   /architect "design OPA policy check for gate runner"
+   ```
+
+2. Implement `Check` interface:
+   - See `core/src/gate/check.interface.ts`
+   - Reference existing checks: `checks/eslint.check.ts`,
+     `checks/coverage.check.ts`
+   - Return `GateResult` with `{ check, passed, message, score?, details? }`
+
+3. Register in `gate-runner.ts`:
+   - Add to `registerDefaultChecks()`
+
+### Reviewing Code
+
+```
+/ship "review adapter integration PR"
+```
+
+This will:
+
+- Run the reviewer agent
+- Check code quality, tests, documentation
+- Generate review comments
+- Suggest improvements
+
+## 🧠 Anvil Mental Models
+
+### The Adapter Pattern
+
+**Problem**: Users have existing planning formats (SpecKit, BMAD, ADRs)  
+**Solution**: Adapters parse external formats → APS → validate → serialize back
+
+```typescript
+// Adapter flow
+ExternalFormat → adapter.parse() → APS
+APS → validation → gates → evidence
+APS → adapter.serialize() → ExternalFormat (with evidence)
+```
+
+**Key files**:
+
+- `packages/adapters/src/base/types.ts` – FormatAdapter interface
+- `packages/adapters/src/base/registry.ts` – Auto-detection registry
+- `packages/adapters/src/speckit/import-adapter-v2.ts` – Complete example
+
+### The Gate System
+
+**Purpose**: Validate plans before execution (lint, test, coverage, secrets,
+policies)
+
+```typescript
+// Gate flow
+Plan → GateRunner.runGate() → [Check, Check, Check] → GateResult
+```
+
+**Key files**:
+
+- `core/src/gate/gate-runner.ts` – Orchestrates checks
+- `core/src/gate/check.interface.ts` – Check contract
+- `core/src/gate/checks/*.check.ts` – Individual checks
+
+### The APS Schema
+
+**Purpose**: Internal, deterministic representation of plans
+
+```typescript
+// APS structure
+{
+  schema_version: "0.1.0",
+  intent: { description, objectives, constraints },
+  proposed_changes: [{ type, path, description, content }],
+  provenance: { timestamp, author, source },
+  validation: { required_checks, policy_version },
+  evidence: [{ check, status, timestamp, details }]
+}
+```
+
+**Key files**:
+
+- `core/src/schema/aps.schema.ts` – Zod schema definition
+- `core/src/validation/aps-validator.ts` – Validation logic
+- `core/src/crypto/hash.ts` – Deterministic hashing
+
+## 🚨 Important Conventions
+
+### Language
+
+**Always use UK English** for:
+
+- Documentation and comments
+- Variable names (`colour` not `color`)
+- Function names (`initialise` not `initialize`)
+- User-facing text
+
+### TypeScript
+
+**ES Modules** – All imports require `.js` extensions:
+
+```typescript
+// ✅ Correct
+import { foo } from './utils.js';
+
+// ❌ Wrong
+import { foo } from './utils';
+```
+
+**Zod-First Schemas** – Define with Zod, export TypeScript types:
+
+```typescript
+export const MySchema = z.object({
+  field: z.string(),
+});
+export type MyType = z.infer<typeof MySchema>;
 ```
 
 ### Testing
 
-```sh
-# Run unit tests with Vitest
-pnpm test
+- Co-locate tests with source (`.test.ts` or `.spec.ts`)
+- Use `__fixtures__/` for test data
+- Golden files in `core/src/__fixtures__/golden-plans/`
+- Update golden hashes after schema changes:
+  ```bash
+  pnpm -F core run update-golden-hashes
+  ```
 
-# Run tests with UI
-pnpm test:ui
+## 📖 Key Documentation
 
-# Run tests with coverage
-pnpm test:coverage
+**Architecture & Design**:
 
-# Run E2E tests with Playwright
-pnpm test:e2e
+- [ARCHITECTURE.md](./ARCHITECTURE.md) – System design (1,575 lines)
+- [PLAN.md](./PLAN.md) – Strategic vision (three acts)
+- [docs/adr/](./docs/adr/) – Architecture decisions
 
-# Run E2E tests with UI
-pnpm test:e2e:ui
-```
+**Package Documentation**:
 
-### Linting and formatting
+- [core/API.md](./core/API.md) – APS Core API
+- [packages/adapters/README.md](./packages/adapters/README.md) – Adapter
+  framework
+- [packages/adapters/ADAPTER_WORKFLOW_GUIDE.md](./packages/adapters/ADAPTER_WORKFLOW_GUIDE.md)
+  – Adding adapters
 
-```sh
-# Lint and fix issues
-pnpm lint
+**Development**:
 
-# Check linting without fixing
-pnpm lint:check
+- [README.md](./README.md) – Single source of truth
+- [TODO.md](./TODO.md) – Task tracking
+- [.claude/USAGE.md](./.claude/USAGE.md) – Claude Projects Lite guide
 
-# Format code with Prettier
-pnpm format
+## 💡 Pro Tips
 
-# Check formatting without fixing
-pnpm format:check
-```
+1. **Always run `/prime-repo` first** when starting work on this codebase
+2. **Reference skills** for common patterns:
+   `Using .claude/skills/debug-adapter.md...`
+3. **Use SpecKit adapter as reference** when building new adapters
+4. **Check TODO.md** for current sprint focus and what's in progress
+5. **Build before testing** to avoid import errors
+6. **Update golden hashes** after APS schema changes
 
-### Type checking
+---
 
-```sh
-# Type check entire workspace
-pnpm typecheck
-
-# Type check specific package
-npx nx typecheck <package-name>
-
-# Type check with pnpm directly
-pnpm --filter <package-name> typecheck
-```
-
-### Generate a new library package
-
-```sh
-npx nx g @nx/js:lib packages/<package-name> --publishable --importPath=@anvil/<package-name>
-```
-
-### Sync TypeScript project references
-
-```sh
-npx nx sync
-```
-
-### Check TypeScript references in CI
-
-```sh
-npx nx sync:check
-```
-
-### Release packages
-
-```sh
-npx nx release
-```
-
-Add `--dry-run` to preview changes without releasing.
-
-### Explore project graph
-
-```sh
-npx nx graph
-```
-
-## Architecture
-
-- **Monorepo structure**:
-  - `cli/` - Command-line interface application
-  - `ui/` - User interface components
-  - `core/` - Shared core functionality (APS schema, validation, hashing)
-  - `gate/` - Quality gate checks (lint, test, coverage, secrets)
-  - `packages/adapters/` - Format adapters (SpecKit ✅, BMAD planned)
-  - `packs/` - Package bundles (future: feature flags, telemetry)
-  - `packages/` - Additional library packages
-  - `e2e/` - End-to-end tests using Playwright
-  - `docs/` - Project documentation
-- **Build system**: Nx with TypeScript plugin for automatic task inference
-- **TypeScript configuration**:
-  - Base config in `tsconfig.base.json` with strict mode enabled
-  - Uses TypeScript project references for better build performance
-  - Configured for Node.js ES2022 with ES modules
-  - Each app folder has its own `tsconfig.json` with project references
-- **Package management**: Uses pnpm workspaces (defined in
-  `pnpm-workspace.yaml`)
-- **Testing frameworks**:
-  - Unit testing: Vitest with coverage support
-  - E2E testing: Playwright
-- **Code quality tools**:
-  - ESLint with TypeScript support (configured in `eslint.config.mjs`)
-  - Prettier for code formatting
-  - Husky for Git hooks
-  - Lint-staged for pre-commit checks
-- **Nx plugins**: Currently using `@nx/js/typescript` plugin for automatic
-  TypeScript build and typecheck targets
-
-## Development Workflow
-
-1. Core shared functionality goes in `core/` (APS schema, validation, utilities)
-2. Format adapters go in `packages/adapters/` (SpecKit, BMAD, etc.)
-3. Quality gate checks go in `gate/` (lint, test, coverage, secrets)
-4. CLI application code goes in `cli/` (commands, UI, orchestration)
-5. UI components go in `ui/`
-6. Package bundles go in `packs/` (future: feature flags, telemetry)
-7. Additional libraries can be created under `packages/`
-8. All packages use `@anvil/*` namespace
-9. TypeScript project references ensure proper build order
-10. Dependencies between packages use `workspace:*` protocol
-
-## Current Implementation Status (as of October 21, 2025)
-
-### ✅ Completed Components
-
-1. **APS Core** (`packages/core/`)
-   - Zod schema with full TypeScript types
-   - Deterministic hashing (SHA-256)
-   - Validation engine
-   - Comprehensive test coverage
-
-2. **Adapter Framework** (`packages/adapters/src/base/`)
-   - FormatAdapter interface
-   - AdapterRegistry with auto-detection
-   - Testing utilities
-   - ~586 LOC, 22 tests (100% passing)
-
-3. **SpecKit Adapter** (`packages/adapters/src/speckit/`)
-   - Complete implementation for GitHub's official spec-kit format
-   - Support for spec.md, plan.md, and tasks.md
-   - V1 (simple) and V2 (official) format parsers
-   - Import and export adapters
-   - ~2,469 LOC, 51 tests (49 passing, 2 minor fixes pending)
-
-4. **Gate v1** (`core/src/gate/`)
-   - ESLint integration
-   - Test coverage checks
-   - Secret scanning
-   - Evidence collection
-
-5. **CLI Integration** (`cli/src/`) - 80% complete
-   - Format auto-detection service
-   - Plan loader with multi-format support
-   - Enhanced `validate` command with adapter support
-   - Enhanced `gate` command with adapter support
-   - Type system for CLI integration
-
-### 🚧 In Progress
-
-1. **CLI Integration Completion** (Week 6 - current)
-   - Fix TypeScript build errors
-   - Test end-to-end with SpecKit documents
-   - Evidence injection (deferred to later sprint)
-
-### 📋 Planned
-
-1. BMAD Adapter (Week 7-8)
-2. Export command (format conversion)
-3. Evidence injection
-4. Policy engine (OPA/Rego)
-5. Sidecar (dry-run, apply, rollback)
-6. GitHub Action integration
-
-## Package Structure
-
-```
-packages/
-├── core/                      # @anvil/core
-│   ├── src/
-│   │   ├── schema/           # APS Zod schema
-│   │   ├── hash/             # Deterministic hashing
-│   │   ├── validation/       # Validation engine
-│   │   └── index.ts
-│   └── README.md
-├── adapters/                  # @anvil/adapters
-│   ├── src/
-│   │   ├── base/             # Framework core (586 LOC)
-│   │   │   ├── types.ts      # FormatAdapter interface
-│   │   │   ├── registry.ts   # Adapter registry
-│   │   │   ├── utils.ts      # Utilities
-│   │   │   └── testing.ts    # Test helpers
-│   │   ├── speckit/          # SpecKit adapter (2,469 LOC) ✅
-│   │   │   ├── parser.ts     # Core parser
-│   │   │   ├── import.ts     # V1 import
-│   │   │   ├── import-v2.ts  # V2 import
-│   │   │   ├── export.ts     # Export adapter
-│   │   │   └── parsers/      # Specialized parsers
-│   │   └── bmad/             # BMAD adapter (planned) ⏳
-│   └── README.md
-└── gate/                      # @anvil/gate
-    ├── src/
-    │   ├── checks/           # Individual gate checks
-    │   ├── runner.ts         # Gate runner
-    │   └── index.ts
-    └── README.md
-```
-
-## Key Documentation Files
-
-- `ARCHITECTURE.md` - Detailed system architecture and design decisions
-- `PLAN.md` - Strategic plan and three-act vision
-- `TODO.md` - Comprehensive implementation task list with progress tracking
-- `ROADMAP.md` - High-level milestones and phases
-- `packages/adapters/README.md` - Adapter framework documentation
-- `packages/core/docs/` - APS core API documentation
+**For complete development workflows, commands, and contributing guidelines, see
+[README.md](./README.md)**
