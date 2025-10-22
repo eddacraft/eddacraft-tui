@@ -3,6 +3,7 @@
 Quickly understand a file's purpose and context in the project.
 
 ## Parameters
+
 - **file_path**: Path to the file to analyze
 
 ## Tasks
@@ -39,8 +40,7 @@ Quickly understand a file's purpose and context in the project.
    - Highlight if file was recently modified
    - Note any TODO/FIXME comments
 
-7. **Context Summary**
-   Provide a brief summary including:
+7. **Context Summary** Provide a brief summary including:
    - File role in the project
    - Key responsibilities
    - Important patterns or conventions used

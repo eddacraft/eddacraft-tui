@@ -1,9 +1,12 @@
 # implement-pattern
 
-Find and follow existing patterns when implementing new code. Ensures consistency with the codebase.
+Find and follow existing patterns when implementing new code. Ensures
+consistency with the codebase.
 
 ## Parameters
-- **pattern_type**: Type of pattern to follow (e.g., "parser", "adapter", "validator", "CLI command", "test suite")
+
+- **pattern_type**: Type of pattern to follow (e.g., "parser", "adapter",
+  "validator", "CLI command", "test suite")
 - **target**: What you're implementing (brief description)
 
 ## Tasks
@@ -69,6 +72,7 @@ Find and follow existing patterns when implementing new code. Ensures consistenc
 ## Pattern-Specific Guidelines
 
 ### Adapter Pattern
+
 ```typescript
 // Structure: packages/adapters/src/<format>/
 // Required files: import.ts, export.ts, parser.ts
@@ -87,6 +91,7 @@ export class MyFormatImportAdapter implements FormatAdapter {
 ```
 
 ### Parser Pattern
+
 ```typescript
 // Pure functions, well-tested
 export function parseMyFormat(content: string): ParsedData {
@@ -98,21 +103,25 @@ export function parseMyFormat(content: string): ParsedData {
 ```
 
 ### CLI Command Pattern
+
 ```typescript
 // Located in: cli/src/commands/<name>.ts
 export const myCommand = {
   name: 'my-command',
   description: 'Brief description',
-  options: [/* yargs options */],
+  options: [
+    /* yargs options */
+  ],
   handler: async (argv) => {
     // 1. Load plan/config
     // 2. Execute operation
     // 3. Display results
-  }
+  },
 };
 ```
 
 ### Validator Pattern
+
 ```typescript
 // Uses Zod schemas
 export const mySchema = z.object({
@@ -141,13 +150,16 @@ import { parseBMAD } from './parser';
 
 export class BMADImportAdapter implements FormatAdapter {
   readonly name = 'bmad-import';
-  readonly description = 'Import BMAD (Blueprint Model-Based Artifact Description) format';
+  readonly description =
+    'Import BMAD (Blueprint Model-Based Artifact Description) format';
 
   canHandle(source: FormatSource): boolean {
     // Check for BMAD format markers
-    return source.content.includes('---') &&
-           source.content.includes('artifact:') &&
-           source.content.includes('blueprint:');
+    return (
+      source.content.includes('---') &&
+      source.content.includes('artifact:') &&
+      source.content.includes('blueprint:')
+    );
   }
 
   async convert(source: FormatSource): Promise<APS> {

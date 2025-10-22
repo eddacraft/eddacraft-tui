@@ -78,8 +78,10 @@ Example: Run 3-5 parallel Glob/Grep operations to understand codebase patterns
 
 **Skills for Deep Analysis:**
 
-- `Skill("trace-data-flow")` with `entry_point` and `data_type` - Map data transformations
-- `Skill("quick-context")` with `file_path` - Understand file purpose and context
+- `Skill("trace-data-flow")` with `entry_point` and `data_type` - Map data
+  transformations
+- `Skill("quick-context")` with `file_path` - Understand file purpose and
+  context
 - `Skill("implement-pattern")` with `pattern_type` - Discover existing patterns
 
 ## When Information is Missing

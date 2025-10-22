@@ -177,8 +177,10 @@ comm -23 <(find src -name "*.js" | sort) \
 
 **Skills for Complex Testing Workflows:**
 
-- `Skill("add-test-cases")` with `file_path` and optional `coverage_target` - Add comprehensive tests
-- `Skill("debug-adapter")` with `adapter_name`, `issue_description` - Debug adapter issues
+- `Skill("add-test-cases")` with `file_path` and optional `coverage_target` -
+  Add comprehensive tests
+- `Skill("debug-adapter")` with `adapter_name`, `issue_description` - Debug
+  adapter issues
 
 ## Output Format
 

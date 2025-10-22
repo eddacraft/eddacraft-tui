@@ -1,11 +1,14 @@
 # debug-adapter
 
-Debug an adapter issue using systematic approach. Helps diagnose parsing, import, or export problems.
+Debug an adapter issue using systematic approach. Helps diagnose parsing,
+import, or export problems.
 
 ## Parameters
+
 - **adapter_name**: Name of the adapter with the issue (e.g., "speckit", "bmad")
 - **issue_description**: Brief description of the problem
-- **test_file**: (Optional) Path to failing test or example file that reproduces the issue
+- **test_file**: (Optional) Path to failing test or example file that reproduces
+  the issue
 
 ## Tasks
 
@@ -79,24 +82,27 @@ Debug an adapter issue using systematic approach. Helps diagnose parsing, import
 ## Common Adapter Issues
 
 ### Regex Parsing Problems
+
 ```typescript
 // Problem: Greedy regex captures too much
-const bad = /title: (.+)/;  // Captures everything including newlines
+const bad = /title: (.+)/; // Captures everything including newlines
 
 // Fix: Use non-greedy or specific patterns
-const good = /title: (.+?)$/m;  // Stops at line end
+const good = /title: (.+?)$/m; // Stops at line end
 ```
 
 ### Metadata Extraction
+
 ```typescript
 // Problem: Optional fields cause undefined
-const title = metadata.title.trim();  // Crashes if undefined
+const title = metadata.title.trim(); // Crashes if undefined
 
 // Fix: Use optional chaining and defaults
 const title = metadata.title?.trim() ?? 'Untitled';
 ```
 
 ### Multiline Content
+
 ```typescript
 // Problem: Single-line regex misses multiline content
 const pattern = /description: (.+)/;
@@ -106,6 +112,7 @@ const pattern = /description:\s*\n([\s\S]+?)(?=\n\w+:|$)/;
 ```
 
 ### Format Detection
+
 ```typescript
 // Problem: canHandle() too permissive
 canHandle(source: FormatSource): boolean {

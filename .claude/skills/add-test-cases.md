@@ -3,6 +3,7 @@
 Add comprehensive test coverage for a module, focusing on untested code paths.
 
 ## Parameters
+
 - **file_path**: Path to the file that needs test coverage
 - **coverage_target**: (Optional) Target coverage percentage (default: 90%)
 
@@ -41,16 +42,15 @@ Add comprehensive test coverage for a module, focusing on untested code paths.
      - Error paths (try/catch)
    - Note edge cases not tested
 
-4. **Plan Test Cases**
-   For each untested path, identify:
+4. **Plan Test Cases** For each untested path, identify:
    - **Happy path**: Normal, expected usage
    - **Edge cases**: Empty values, boundaries, max/min
    - **Error cases**: Invalid input, exceptions, timeouts
    - **Integration points**: External dependencies, APIs
    - **Side effects**: State changes, I/O operations
 
-5. **Write Unit Tests**
-   Following existing patterns:
+5. **Write Unit Tests** Following existing patterns:
+
    ```typescript
    describe('ModuleName', () => {
      describe('functionName', () => {
@@ -76,8 +76,7 @@ Add comprehensive test coverage for a module, focusing on untested code paths.
    });
    ```
 
-6. **Add Edge Case Tests**
-   Critical edge cases to cover:
+6. **Add Edge Case Tests** Critical edge cases to cover:
    - **Null/undefined**: `null`, `undefined`, missing properties
    - **Empty**: `''`, `[]`, `{}`
    - **Boundaries**: 0, -1, MAX_VALUE, MIN_VALUE
@@ -86,11 +85,13 @@ Add comprehensive test coverage for a module, focusing on untested code paths.
    - **Concurrent**: Race conditions, async timing
 
 7. **Add Error Scenario Tests**
+
    ```typescript
    describe('error handling', () => {
      it('should throw descriptive error for invalid format', () => {
-       expect(() => parse(invalidContent))
-         .toThrow('Invalid format: missing required section');
+       expect(() => parse(invalidContent)).toThrow(
+         'Invalid format: missing required section'
+       );
      });
 
      it('should handle network failure gracefully', async () => {
@@ -99,9 +100,8 @@ Add comprehensive test coverage for a module, focusing on untested code paths.
      });
 
      it('should validate required fields', () => {
-       const incomplete = { name: 'test' };  // missing required field
-       expect(() => validate(incomplete))
-         .toThrow('Missing required field: id');
+       const incomplete = { name: 'test' }; // missing required field
+       expect(() => validate(incomplete)).toThrow('Missing required field: id');
      });
    });
    ```
@@ -120,8 +120,8 @@ Add comprehensive test coverage for a module, focusing on untested code paths.
    - No flaky tests (random failures)
    - Tests clean up after themselves
 
-10. **Document Special Test Cases**
-    Add comments for non-obvious tests:
+10. **Document Special Test Cases** Add comments for non-obvious tests:
+
     ```typescript
     // Test for issue #123: Parser fails on multiline metadata
     it('should parse multiline metadata values', () => {
@@ -137,6 +137,7 @@ Add comprehensive test coverage for a module, focusing on untested code paths.
 ## Test Categories by Code Type
 
 ### Pure Functions
+
 ```typescript
 // Test: inputs → outputs, no side effects
 describe('hashArtifact', () => {
@@ -155,6 +156,7 @@ describe('hashArtifact', () => {
 ```
 
 ### Classes/Objects
+
 ```typescript
 // Test: state management, method interactions
 describe('FormatAdapter', () => {
@@ -175,6 +177,7 @@ describe('FormatAdapter', () => {
 ```
 
 ### Async Operations
+
 ```typescript
 // Test: promises, async/await, timing
 describe('async operations', () => {
@@ -184,13 +187,13 @@ describe('async operations', () => {
   });
 
   it('should timeout after 5 seconds', async () => {
-    await expect(slowOperation())
-      .rejects.toThrow('Operation timed out');
+    await expect(slowOperation()).rejects.toThrow('Operation timed out');
   }, 6000);
 });
 ```
 
 ### Parsers
+
 ```typescript
 // Test: various input formats, malformed data
 describe('parseSpecKit', () => {
@@ -205,8 +208,7 @@ describe('parseSpecKit', () => {
   });
 
   it('should reject malformed input', () => {
-    expect(() => parseSpecKit(malformed))
-      .toThrow('Invalid format');
+    expect(() => parseSpecKit(malformed)).toThrow('Invalid format');
   });
 });
 ```

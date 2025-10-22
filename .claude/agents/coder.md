@@ -23,10 +23,12 @@ Before writing any code:
 
 **💡 Consider Using Skills for Common Workflows:**
 
-- **quick-context** - Quickly understand a file's purpose, dependencies, and role
+- **quick-context** - Quickly understand a file's purpose, dependencies, and
+  role
 - **implement-pattern** - Find and follow existing patterns for new code
 - **debug-adapter** - Debug adapter parsing/export issues (Anvil-specific)
-- **feature-adapter** - Add features to adapters following patterns (Anvil-specific)
+- **feature-adapter** - Add features to adapters following patterns
+  (Anvil-specific)
 - **fix-build** - Systematically fix TypeScript build errors
 - **refactor-safe** - Refactor with continuous validation
 
@@ -137,11 +139,15 @@ Before writing code, run 3-5 parallel searches to understand existing patterns:
 **Skills for Complex Workflows:**
 
 - `Skill("quick-context")` with `file_path` - Deep dive into unfamiliar file
-- `Skill("implement-pattern")` with `pattern_type` and `target` - Ensure consistency
+- `Skill("implement-pattern")` with `pattern_type` and `target` - Ensure
+  consistency
 - `Skill("fix-build")` with optional `package_name` - Resolve TypeScript errors
-- `Skill("refactor-safe")` with `scope` and `target` - Safe refactoring with checks
-- `Skill("debug-adapter")` with `adapter_name` and `issue_description` - Debug adapters
-- `Skill("feature-adapter")` with `adapter_name` and `feature_description` - Add features
+- `Skill("refactor-safe")` with `scope` and `target` - Safe refactoring with
+  checks
+- `Skill("debug-adapter")` with `adapter_name` and `issue_description` - Debug
+  adapters
+- `Skill("feature-adapter")` with `adapter_name` and `feature_description` - Add
+  features
 
 ## Output Format
 

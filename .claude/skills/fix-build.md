@@ -3,7 +3,9 @@
 Systematically fix TypeScript build and type errors in the monorepo.
 
 ## Parameters
-- **package_name**: (Optional) Specific package to fix (e.g., "adapters", "cli"), or "all" for entire workspace
+
+- **package_name**: (Optional) Specific package to fix (e.g., "adapters",
+  "cli"), or "all" for entire workspace
 
 ## Tasks
 
@@ -19,8 +21,7 @@ Systematically fix TypeScript build and type errors in the monorepo.
      - `pnpm typecheck > typecheck.log 2>&1 || true`
    - Parse and categorize errors
 
-3. **Group Errors by Type**
-   Organize errors into categories:
+3. **Group Errors by Type** Organize errors into categories:
    - **Import errors**: Cannot find module, no exported member
    - **Type mismatches**: Type X is not assignable to type Y
    - **Missing types**: Property X does not exist on type Y
@@ -37,7 +38,7 @@ Systematically fix TypeScript build and type errors in the monorepo.
 
 5. **Fix Import Errors First**
    - Check if imported module exists
-   - Verify import path is correct (relative vs @anvil/*)
+   - Verify import path is correct (relative vs @anvil/\*)
    - Ensure package is built: `npx nx build <package>`
    - Check package.json exports field
    - Update import statement if API changed
@@ -83,6 +84,7 @@ Systematically fix TypeScript build and type errors in the monorepo.
 ## Common TypeScript Issues in Anvil
 
 ### Workspace Protocol Issues
+
 ```typescript
 // Problem: Can't resolve @anvil/* imports
 // Fix: Ensure package is built first
@@ -91,6 +93,7 @@ npx nx build adapters  // Then dependent package
 ```
 
 ### Type Exports Not Found
+
 ```typescript
 // Problem: Module '"@anvil/core"' has no exported member 'APS'
 // Fix: Check package.json exports and tsconfig
@@ -104,6 +107,7 @@ import type { APS } from '@anvil/core/schema';
 ```
 
 ### Strict Mode Violations
+
 ```typescript
 // Problem: Object is possibly 'undefined'
 const title = artifact.metadata.title.toUpperCase();
@@ -113,30 +117,32 @@ const title = artifact.metadata?.title?.toUpperCase() ?? 'UNTITLED';
 ```
 
 ### Discriminated Union Issues
+
 ```typescript
 // Problem: Property 'X' does not exist on type 'A | B'
 function handle(item: TypeA | TypeB) {
-  console.log(item.specificField);  // Error!
+  console.log(item.specificField); // Error!
 }
 
 // Fix: Use type narrowing
 function handle(item: TypeA | TypeB) {
   if ('specificField' in item) {
-    console.log(item.specificField);  // OK
+    console.log(item.specificField); // OK
   }
 }
 ```
 
 ### Generic Constraints
+
 ```typescript
 // Problem: Type 'T' does not satisfy constraint 'HasId'
 function process<T>(items: T[]): void {
-  items.forEach(item => console.log(item.id));  // Error
+  items.forEach((item) => console.log(item.id)); // Error
 }
 
 // Fix: Add constraint
 function process<T extends HasId>(items: T[]): void {
-  items.forEach(item => console.log(item.id));  // OK
+  items.forEach((item) => console.log(item.id)); // OK
 }
 ```
 
@@ -153,6 +159,7 @@ Packages have dependencies that require specific build order:
 ```
 
 If build fails, rebuild in dependency order:
+
 ```bash
 npx nx build core && \
 npx nx build adapters && \

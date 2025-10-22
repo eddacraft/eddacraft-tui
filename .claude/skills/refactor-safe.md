@@ -3,13 +3,14 @@
 Perform safe refactoring with continuous validation at each step.
 
 ## Parameters
-- **scope**: What to refactor (e.g., "rename function", "extract module", "simplify logic", "remove duplication")
+
+- **scope**: What to refactor (e.g., "rename function", "extract module",
+  "simplify logic", "remove duplication")
 - **target**: Specific file, function, or symbol to refactor
 
 ## Tasks
 
-1. **Establish Baseline**
-   Before making any changes:
+1. **Establish Baseline** Before making any changes:
    - Run full test suite: `pnpm test`
    - Run typecheck: `pnpm typecheck`
    - Run linter: `pnpm lint:check`
@@ -28,16 +29,15 @@ Perform safe refactoring with continuous validation at each step.
      - Imports: Find all import statements
    - Estimate blast radius (small/medium/large)
 
-3. **Plan Refactoring Steps**
-   Break refactoring into smallest possible increments:
+3. **Plan Refactoring Steps** Break refactoring into smallest possible
+   increments:
    - **Rename**: Update symbol, update imports, update tests
    - **Extract**: Create new function, replace old code, update tests
    - **Move**: Create new location, update imports, remove old
    - **Simplify**: Reduce complexity one condition at a time
    - Each step should be independently verifiable
 
-4. **Refactor Incrementally**
-   For EACH small change:
+4. **Refactor Incrementally** For EACH small change:
    - Make the change (use Edit tool)
    - Run typecheck: `npx nx typecheck <package>`
    - If typecheck fails:
@@ -51,6 +51,7 @@ Perform safe refactoring with continuous validation at each step.
      - Do NOT proceed until green
 
 5. **Safety Gates** (run after each increment)
+
    ```bash
    # Gate 1: TypeScript compilation
    npx nx typecheck <package> || { echo "Revert!"; exit 1; }
@@ -62,8 +63,7 @@ Perform safe refactoring with continuous validation at each step.
    pnpm lint:check || echo "Fix linting before completion"
    ```
 
-6. **Update Tests**
-   After code changes:
+6. **Update Tests** After code changes:
    - Update test descriptions if behavior changed
    - Update mock calls if signatures changed
    - Add new tests if new paths created
@@ -76,8 +76,8 @@ Perform safe refactoring with continuous validation at each step.
    - If behavior change intended, ensure tests reflect it
    - Look for unintended side effects
 
-8. **Run Full Validation**
-   Before considering refactoring complete:
+8. **Run Full Validation** Before considering refactoring complete:
+
    ```bash
    # Sync TypeScript references
    npx nx sync
@@ -105,8 +105,7 @@ Perform safe refactoring with continuous validation at each step.
      - Inconsistent formatting
    - Ensure code quality improved, not degraded
 
-10. **Document If Significant**
-    For major refactorings:
+10. **Document If Significant** For major refactorings:
     - Add comment explaining why code structure changed
     - Update module documentation if needed
     - Note any breaking changes
@@ -115,6 +114,7 @@ Perform safe refactoring with continuous validation at each step.
 ## Refactoring Patterns
 
 ### Rename Function
+
 ```typescript
 // Step 1: Create new function with new name
 export function newName(...args) {
@@ -140,6 +140,7 @@ export function oldName(...args) { ... }
 ```
 
 ### Extract Function
+
 ```typescript
 // Before
 function complex() {
@@ -168,6 +169,7 @@ function complex() {
 ```
 
 ### Simplify Logic
+
 ```typescript
 // Before
 if (a) {
@@ -193,6 +195,7 @@ return x;
 ```
 
 ### Remove Duplication
+
 ```typescript
 // Before: Duplicated code in multiple places
 
@@ -212,19 +215,23 @@ function shared(params) { ... }
 ## Rollback Strategy
 
 If refactoring gets stuck:
+
 1. **Partial rollback**: Undo last change using git
+
    ```bash
    git diff  # See what changed
    git checkout -- <file>  # Revert specific file
    ```
 
 2. **Full rollback**: Revert all changes
+
    ```bash
    git status  # See all changes
    git reset --hard  # Nuclear option
    ```
 
-3. **Restart with smaller steps**: Break refactoring into even smaller increments
+3. **Restart with smaller steps**: Break refactoring into even smaller
+   increments
 
 ## Anti-Patterns to Avoid
 

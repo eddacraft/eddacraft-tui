@@ -1,10 +1,14 @@
 # trace-data-flow
 
-Trace how data flows through the system from input to output. Useful for understanding complex transformations.
+Trace how data flows through the system from input to output. Useful for
+understanding complex transformations.
 
 ## Parameters
-- **entry_point**: Where data enters (e.g., "CLI validate command", "SpecKit import", "gate runner")
-- **data_type**: Type of data being traced (e.g., "spec.md file", "APS document", "gate evidence")
+
+- **entry_point**: Where data enters (e.g., "CLI validate command", "SpecKit
+  import", "gate runner")
+- **data_type**: Type of data being traced (e.g., "spec.md file", "APS
+  document", "gate evidence")
 
 ## Tasks
 
@@ -19,8 +23,7 @@ Trace how data flows through the system from input to output. Useful for underst
      - Initial validation
      - First transformation step
 
-2. **Trace Function Call Chain**
-   For each function in the flow:
+2. **Trace Function Call Chain** For each function in the flow:
    - Record function name and file location
    - Note input type
    - Note output type
@@ -28,8 +31,7 @@ Trace how data flows through the system from input to output. Useful for underst
    - Track error handling paths
    - Follow the call to the next function
 
-3. **Identify Validation Points**
-   Find where data is validated:
+3. **Identify Validation Points** Find where data is validated:
    - **Schema validation**: Zod schema parsing
    - **Type guards**: Runtime type checking
    - **Business rules**: Custom validation logic
@@ -40,8 +42,8 @@ Trace how data flows through the system from input to output. Useful for underst
    - What happens on validation failure
    - What errors can be thrown
 
-4. **Map Data Transformations**
-   Document each transformation:
+4. **Map Data Transformations** Document each transformation:
+
    ```
    Input → [Function] → Output
 
@@ -51,29 +53,28 @@ Trace how data flows through the system from input to output. Useful for underst
    HashedAPS → [validateAPS] → ValidatedAPS
    ```
 
-5. **Highlight Key Types**
-   List important types in the flow:
+5. **Highlight Key Types** List important types in the flow:
    - Input type (what enters the system)
    - Intermediate types (transformations)
    - Output type (final result)
    - Error types (what can go wrong)
 
    Show type definitions:
+
    ```typescript
-   type FormatSource = { fileName: string; content: string; }
-   type APS = { metadata: Metadata; requirements: Requirement[]; }
+   type FormatSource = { fileName: string; content: string };
+   type APS = { metadata: Metadata; requirements: Requirement[] };
    ```
 
-6. **Identify Side Effects**
-   Note operations that aren't pure transformations:
+6. **Identify Side Effects** Note operations that aren't pure transformations:
    - **File I/O**: Reading, writing files
    - **Network**: API calls, fetching data
    - **Logging**: Console output, log files
    - **State**: Mutations, cache updates
    - **Database**: Queries, inserts, updates
 
-7. **Show Error Paths**
-   Trace what happens when errors occur:
+7. **Show Error Paths** Trace what happens when errors occur:
+
    ```
    Entry → Validation → [FAIL] → Error handler → Format error → Return to user
                      ↓
@@ -86,8 +87,8 @@ Trace how data flows through the system from input to output. Useful for underst
                         Success
    ```
 
-8. **Create Visual Flow Diagram**
-   Generate ASCII diagram showing the flow:
+8. **Create Visual Flow Diagram** Generate ASCII diagram showing the flow:
+
    ```
    User Input (spec.md)
         ↓
@@ -115,16 +116,14 @@ Trace how data flows through the system from input to output. Useful for underst
    [Display to user]
    ```
 
-9. **Identify Optimization Opportunities**
-   Look for:
+9. **Identify Optimization Opportunities** Look for:
    - Redundant transformations
    - Unnecessary copying
    - Multiple passes over same data
    - Opportunities for streaming
    - Expensive operations that could be cached
 
-10. **Document Flow**
-    Create summary:
+10. **Document Flow** Create summary:
     - Entry point and trigger
     - High-level flow (3-5 steps)
     - Key transformations
@@ -135,6 +134,7 @@ Trace how data flows through the system from input to output. Useful for underst
 ## Data Flow Patterns in Anvil
 
 ### CLI Command Flow
+
 ```
 User command
   ↓
@@ -154,6 +154,7 @@ Display to user
 ```
 
 ### Adapter Import Flow
+
 ```
 Format file (spec.md)
   ↓
@@ -171,6 +172,7 @@ APS document
 ```
 
 ### Gate Execution Flow
+
 ```
 Plan (APS)
   ↓
@@ -188,6 +190,7 @@ Summary report
 ```
 
 ### Hash Calculation Flow
+
 ```
 APS document
   ↓

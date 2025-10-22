@@ -1,22 +1,26 @@
 # feature-adapter
 
-Implement a new feature in an adapter following established patterns. Guides through adapter-specific development.
+Implement a new feature in an adapter following established patterns. Guides
+through adapter-specific development.
 
 ## Parameters
+
 - **adapter_name**: Target adapter (e.g., "speckit", "bmad")
-- **feature_description**: What to implement (e.g., "metadata extraction", "validation rules", "export formatting")
+- **feature_description**: What to implement (e.g., "metadata extraction",
+  "validation rules", "export formatting")
 
 ## Tasks
 
 1. **Search for Similar Implementations**
    - Look in other adapters for similar features:
      - If implementing for `bmad`, check how `speckit` does it
-     - Search for pattern across all adapters: `Grep` pattern in `packages/adapters/src/`
+     - Search for pattern across all adapters: `Grep` pattern in
+       `packages/adapters/src/`
    - Read 2-3 implementations in parallel
    - Identify common approach
 
-2. **Identify Relevant Files to Modify**
-   Adapter structure:
+2. **Identify Relevant Files to Modify** Adapter structure:
+
    ```
    packages/adapters/src/<adapter-name>/
    ├── import.ts       # Import adapter (format → APS)
@@ -41,14 +45,14 @@ Implement a new feature in an adapter following established patterns. Guides thr
      // parser.ts
      export interface ParsedMetadata {
        title: string;
-       newFeature?: string;  // Add new field
+       newFeature?: string; // Add new field
      }
      ```
    - Update APS mapping types if needed
    - Ensure types flow through entire pipeline
 
-4. **Implement Parsing Logic**
-   Following existing patterns:
+4. **Implement Parsing Logic** Following existing patterns:
+
    ```typescript
    // parsers/metadata.ts
    export function extractNewFeature(content: string): string | undefined {
@@ -64,8 +68,8 @@ Implement a new feature in an adapter following established patterns. Guides thr
    - Return undefined for optional fields
    - Throw descriptive errors for required fields
 
-5. **Update Import Adapter**
-   Integrate new feature into import flow:
+5. **Update Import Adapter** Integrate new feature into import flow:
+
    ```typescript
    // import-v2.ts
    async convert(source: FormatSource): Promise<APS> {
@@ -82,8 +86,8 @@ Implement a new feature in an adapter following established patterns. Guides thr
    }
    ```
 
-6. **Update Export Adapter** (if applicable)
-   Ensure round-trip compatibility:
+6. **Update Export Adapter** (if applicable) Ensure round-trip compatibility:
+
    ```typescript
    // export.ts
    async convert(aps: APS): Promise<string> {
@@ -100,6 +104,7 @@ Implement a new feature in an adapter following established patterns. Guides thr
 
 7. **Add Comprehensive Tests**
    - Test parsing in isolation:
+
      ```typescript
      describe('extractNewFeature', () => {
        it('should extract new feature from content', () => {
@@ -114,10 +119,11 @@ Implement a new feature in an adapter following established patterns. Guides thr
      ```
 
    - Test import adapter:
+
      ```typescript
      it('should import new feature field', async () => {
        const source = createMockFormatSource({
-         content: specWithNewFeature
+         content: specWithNewFeature,
        });
        const aps = await adapter.convert(source);
        expect(aps.metadata.newFeature).toBe('expected value');
@@ -134,35 +140,31 @@ Implement a new feature in an adapter following established patterns. Guides thr
        const exported = await exportAdapter.convert(original);
        const reimported = await importAdapter.convert({
          fileName: 'test',
-         content: exported
+         content: exported,
        });
        expect(reimported.metadata.newFeature).toBe('test');
      });
      ```
 
-8. **Update Adapter README**
-   Document the new feature:
+8. **Update Adapter README** Document the new feature:
+
    ```markdown
    ## Features
 
    ### Metadata Extraction
+
    - Title, version, description
    - **New Feature**: Extracts XYZ from format (added v1.2)
 
    ### Example
 
-   Input format:
-   \`\`\`
-   new-feature: value here
-   \`\`\`
+   Input format: \`\`\` new-feature: value here \`\`\`
 
-   Maps to APS:
-   \`\`\`json
-   { "metadata": { "newFeature": "value here" } }
-   \`\`\`
+   Maps to APS: \`\`\`json { "metadata": { "newFeature": "value here" } } \`\`\`
    ```
 
 9. **Run Adapter-Specific Tests**
+
    ```bash
    # Run all adapter tests
    npx nx test adapters -- src/${adapter_name}
@@ -174,8 +176,8 @@ Implement a new feature in an adapter following established patterns. Guides thr
    pnpm test -- parser.test.ts --watch
    ```
 
-10. **Verify Integration**
-    Test end-to-end through CLI if applicable:
+10. **Verify Integration** Test end-to-end through CLI if applicable:
+
     ```bash
     # Test import
     pnpm anvil validate examples/${adapter_name}/spec.md
@@ -187,6 +189,7 @@ Implement a new feature in an adapter following established patterns. Guides thr
 ## Adapter Feature Patterns
 
 ### Metadata Fields
+
 ```typescript
 // Always optional unless explicitly required by spec
 interface Metadata {
@@ -199,17 +202,19 @@ const optional = extractField(content) ?? defaultValue;
 ```
 
 ### Requirement Parsing
+
 ```typescript
 // Requirements are typically lists
 function parseRequirements(section: string): Requirement[] {
   const lines = section.split('\n');
   return lines
-    .filter(line => line.trim().startsWith('-'))
-    .map(line => parseRequirementLine(line));
+    .filter((line) => line.trim().startsWith('-'))
+    .map((line) => parseRequirementLine(line));
 }
 ```
 
 ### User Story Parsing
+
 ```typescript
 // User stories may be multiline
 function extractUserStory(content: string): string | undefined {
@@ -222,19 +227,18 @@ function extractUserStory(content: string): string | undefined {
 ```
 
 ### Section Extraction
+
 ```typescript
 // Sections delimited by headers
 function extractSection(content: string, header: string): string {
-  const regex = new RegExp(
-    `^## ${header}\\s*\\n([\\s\\S]*?)(?=^## |$)`,
-    'gm'
-  );
+  const regex = new RegExp(`^## ${header}\\s*\\n([\\s\\S]*?)(?=^## |$)`, 'gm');
   const match = regex.exec(content);
   return match?.[1]?.trim() ?? '';
 }
 ```
 
 ### Validation Rules
+
 ```typescript
 // Validate during parsing, throw descriptive errors
 function parseWithValidation(content: string): Parsed {
@@ -269,14 +273,14 @@ function parseWithValidation(content: string): Parsed {
 // 1. Update type
 interface SpecKitMetadata {
   title: string;
-  tags?: string[];  // NEW
+  tags?: string[]; // NEW
 }
 
 // 2. Add parser (parsers/metadata.ts)
 export function extractTags(content: string): string[] {
   const match = content.match(/^tags:\s*(.+)$/m);
   if (!match) return [];
-  return match[1].split(',').map(t => t.trim());
+  return match[1].split(',').map((t) => t.trim());
 }
 
 // 3. Update import (import-v2.ts)
