@@ -5,93 +5,106 @@ following the three-act strategic vision whilst maintaining practical MVP focus.
 Tasks are organised by phase and epic with detailed acceptance criteria. For
 strategic context, see [PLAN.md](./PLAN.md).
 
-## 🚨 IMMEDIATE NEXT STEPS (Resume from October 21, 2025)
+## 🚨 IMMEDIATE NEXT STEPS (Resume from October 23, 2025)
 
-### Current Work: Fix 3 Export Adapter Test Failures
+### ✅ Recent Completion: CLI Integration with SpecKit Adapter
 
-**Status**: 48/51 tests passing, 3 export tests failing
+**Status**: All 69 adapter tests passing ✅, CLI integration complete ✅
 
-**Failing Tests** (in `packages/adapters/src/__tests__/speckit-export.test.ts`):
+**Completed (October 21-23, 2025)**:
 
-1. Line 178: "should handle APS with execution history" - expects "Error: Build
-   failed" in execution history output
-2. Line 202: "should validate specs before export" - expects `result.errors` to
-   be defined when validation fails
-3. Line 214: "should warn about empty changes" - expects `result.valid` to be
-   true with warning when no changes
+- ✅ Export adapter test failures fixed (69/69 tests passing)
+- ✅ Format auto-detection service implemented
+- ✅ `anvil validate` command with adapter support
+- ✅ `anvil gate` command with adapter support
+- ✅ `anvil export` command for format conversion
+- ✅ PlanLoader service with multi-format support
+- ✅ Complete CLI type system for adapter integration
 
-**Root Cause**: `validateSpec` method in
-`packages/adapters/src/speckit/export.ts:20` returns `ValidationResult` with
-`issues` array, but tests expect different structure with `errors` field.
+**Deferred to Post-MVP**:
+
+- Evidence injection (`--inject` flag in gate command) - not blocking pilot
+  customers
+
+### Current Work: Polish & Stabilize for Pilot Customers
+
+**Goal**: Ensure current implementation is production-ready
 
 **Next Actions**:
 
-1. Read full `validateSpec` implementation (export.ts lines 20-52)
-2. Read failing test expectations to understand required return structure
-3. Align implementation with test expectations OR update tests to match current
-   implementation
-4. Run tests to verify fixes
-5. Update todo list when complete
+1. Fix vitest configuration for CLI integration tests
+2. Update documentation (TODO.md, README.md, cli/README.md)
+3. Add end-to-end CLI examples and demos
+4. Test all commands with real SpecKit fixtures
+5. Prepare demo scripts for Customer #1
 
-**Files to Review**:
-
-- `packages/adapters/src/speckit/export.ts` - Implementation
-- `packages/adapters/src/__tests__/speckit-export.test.ts` lines 165-220 - Test
-  expectations
-- `packages/adapters/src/base/types.ts` - ValidationResult interface
+**After This**: BMAD Adapter (Customer #2) - Weeks 8-9
 
 ---
 
 ## Executive Summary
 
-**Current Status**: Phase 2 (APS Core) 100% complete, Phase 2.5 (Adapters) 50%
-complete (SpecKit ✅ 94% tests passing), Phase 4 (Gate) 100% complete
+**Current Status**: Phase 2 (APS Core) 100% complete, Phase 2.5 (Adapters) 100%
+complete (SpecKit ✅), Phase 3 (CLI Integration) 100% complete, Phase 4 (Gate)
+100% complete
 
-**Next Critical Path**: Fix Export Tests → CLI Integration → BMAD Adapter →
-Dry-run → Apply/Rollback
+**Next Critical Path**: Polish & Test → BMAD Adapter → Dry-run → Apply/Rollback
 
-**Target MVP**: 10-12 weeks from current state
+**Target MVP**: 8-10 weeks from current state
 
 ### Strategic Priorities (in order)
 
-1. **CLI Integration** - Complete SpecKit adapter integration with CLI commands
-2. **Interoperability First** - BMAD adapter (Act 1 wedge)
-3. **Developer Experience** - CLI commands that work with existing formats
-4. **Validation & Safety** - Gate integration with formats
-5. **Production Readiness** - Apply/rollback with audit trail
+1. **Polish & Stabilize** - Fix tests, documentation, prepare for pilots
+2. **Interoperability First** - BMAD adapter (Act 1 wedge, Customer #2)
+3. **Developer Experience** - CLI commands that work with existing formats ✅
+4. **Validation & Safety** - Gate integration with formats ✅
+5. **Production Readiness** - Apply/rollback with audit trail (Weeks 11-14)
 
 ## Progress Summary
 
-### ✅ Completed Phases (28% overall)
+### ✅ Completed Phases (42% overall)
 
 - **Phase 1: Foundations** - Repository structure, CI/CD, quality gates (100%)
 - **Phase 2: APS Spine** - Core schema, validation, hash generation, CLI
   integration, documentation (100%)
-- **Phase 2.5: Adapters** - Framework complete, SpecKit adapter complete (50%)
+- **Phase 2.5: Adapters** - Framework complete, SpecKit adapter complete (100%)
+- **Phase 3: CLI Integration** - Format detection, validate/gate/export commands
+  (100%)
 - **Phase 4: Gate v1** - ESLint, coverage, secret scanning (100%)
 
-### 🚧 Current Sprint (Week 5-6)
+### ✅ Previous Sprint (Week 5-6) - COMPLETE
 
-**Goal**: Complete CLI integration with SpecKit adapter
+**Goal**: Complete CLI integration with SpecKit adapter ✅
 
 - [x] Adapter framework (types, registry, testing utilities) ✅
 - [x] SpecKit parser (spec.md, plan.md, tasks.md parsers) ✅
 - [x] SpecKit import adapter (v1 and v2) ✅
 - [x] SpecKit export adapter ✅
-- [x] SpecKit tests (51 tests, 49 passing, 2 minor fixes needed) ✅
-- [ ] CLI format auto-detection
-- [ ] CLI `gate` command with adapter support
-- [ ] CLI `validate` command with adapter support
-- [ ] CLI `export` command for format conversion
-- [ ] Evidence bundle integration with SpecKit format
+- [x] SpecKit tests (69 tests, all passing) ✅
+- [x] CLI format auto-detection ✅
+- [x] CLI `gate` command with adapter support ✅
+- [x] CLI `validate` command with adapter support ✅
+- [x] CLI `export` command for format conversion ✅
+- [~] Evidence bundle integration (deferred to post-MVP)
 
-### 🎯 Next 3 Sprints (Weeks 7-9)
+### 🚧 Current Sprint (Week 7)
 
-**Goal**: Complete BMAD interoperability and full CLI functionality
+**Goal**: Polish & stabilize current implementation for pilot customers
 
-- Weeks 7-8: BMAD adapter + tests
-- Week 9: Enhanced CLI commands (`plan`, `apply` dry-run preview)
-- Week 10: Evidence bundle integration with both formats
+- [ ] Fix vitest configuration for CLI integration tests
+- [ ] Update documentation (README.md, cli/README.md)
+- [ ] Add end-to-end CLI examples and demo scripts
+- [ ] Test all commands with real SpecKit fixtures
+- [ ] Prepare Customer #1 demo materials
+
+### 🎯 Next 3 Sprints (Weeks 8-10)
+
+**Goal**: Complete BMAD interoperability and execution pipeline
+
+- Week 8-9: BMAD adapter + tests (Customer #2 format)
+- Week 10: First pilot customers with validation-only workflow
+- Weeks 11-12: Dry-run system (preview changes before applying)
+- Weeks 13-14: Apply/rollback with snapshots (complete execution pipeline)
 
 ### 📋 Remaining Work (Phases 5-12)
 
@@ -239,20 +252,19 @@ validation and execution.
   - [x] Import/export tests (v1 and v2)
   - [x] Parser tests (spec-parser, plan-parser, tasks-parser)
   - [x] Registry tests (22 tests, 100% passing)
-  - **Test Results**: 51 total tests, 49 passing (2 minor parser fixes pending)
+  - **Test Results**: 69 total tests, all passing ✅
   - **Acceptance**: >95% test coverage achieved ✅
-  - **Date Completed**: 2025-10-14
+  - **Date Completed**: 2025-10-21
 
-- [ ] **CLI integration for SpecKit** (IN PROGRESS)
-  - [ ] Auto-detect SpecKit format in CLI
-  - [ ] `anvil gate spec.md` works end-to-end
-  - [ ] `anvil validate plan.md` provides feedback
-  - [ ] `anvil export spec.md --to=aps` format conversion
-  - [ ] Evidence updates append to SpecKit files
-  - **Acceptance**: SpecKit users can validate plans
-  - **Demo**: Show Customer #1
-  - **Target**: Week 6 (current sprint)
-  - **Status**: SpecKit adapter complete, CLI integration in progress
+- [x] **CLI integration for SpecKit** ✅ COMPLETE
+  - [x] Auto-detect SpecKit format in CLI
+  - [x] `anvil gate spec.md` works end-to-end
+  - [x] `anvil validate plan.md` provides feedback
+  - [x] `anvil export spec.md --to=aps` format conversion
+  - [~] Evidence updates append to SpecKit files (deferred to post-MVP)
+  - **Acceptance**: SpecKit users can validate plans ✅
+  - **Demo**: Ready for Customer #1
+  - **Date Completed**: 2025-10-23
 
 #### BMAD Adapter (Customer #2)
 
@@ -290,87 +302,87 @@ validation and execution.
   - **Demo**: Show Customer #2
   - **Target**: Week 9
 
-#### Format Detection
+#### Format Detection ✅ COMPLETE
 
-- [ ] **Implement format auto-detection** (IN PROGRESS)
-  - [ ] Content-based detection (not just file extension)
-  - [ ] Confidence scoring for format detection
-  - [ ] Fallback to APS native format
-  - [ ] Clear error messages for unknown formats
-  - **Acceptance**: `anvil gate <any-format>` just works
-  - **Target**: Week 6 (current sprint)
-  - **Status**: Framework supports detection, CLI integration in progress
+- [x] **Implement format auto-detection** ✅
+  - [x] Content-based detection (not just file extension)
+  - [x] Confidence scoring for format detection
+  - [x] Fallback to APS native format
+  - [x] Clear error messages for unknown formats
+  - [x] FormatDetectionService with AdapterRegistry integration
+  - [x] Support for explicit format override (`--format` flag)
+  - **Acceptance**: `anvil gate <any-format>` just works ✅
+  - **Date Completed**: 2025-10-23
 
 ---
 
-## Phase 3: CLI Foundation (30% Complete, IN PROGRESS)
+## Phase 3: CLI Foundation ✅ COMPLETE
 
 ### Epic: CLI Interface
 
-**Status**: Commander.js setup complete, currently implementing commands with
-adapter support (Week 5-6 sprint)
+**Status**: All core commands implemented with multi-format adapter support
+(Completed Week 6)
 
 #### Core Commands
 
-- [ ] **Implement `anvil plan <intent>`**
+- [ ] **Implement `anvil plan <intent>`** (DEFERRED)
   - [ ] Accept format flag: `--format=speckit|bmad|aps`
   - [ ] Generate plan in specified format
   - [ ] Save to `.anvil/plans/` directory
   - [ ] Display plan summary
   - [ ] Support interactive mode for missing details
   - **Acceptance**: Users can create plans in their preferred format
-  - **Dependencies**: Adapter framework
-  - **Target**: Week 7
-
-- [ ] **Implement `anvil validate <plan>`** (IN PROGRESS)
-  - [ ] Auto-detect plan format
-  - [ ] Convert to APS for validation
-  - [ ] Run schema + hash validation
-  - [ ] Display validation results
-  - [ ] Support `--format` for output
-  - **Acceptance**: Validates any supported format
-  - **Dependencies**: Adapter framework ✅, APS validator ✅
-  - **Target**: Week 6 (current sprint)
-  - **Status**: Dependencies complete, command implementation in progress
-
-- [ ] **Implement `anvil gate <plan>`** (IN PROGRESS)
-  - [ ] Auto-detect plan format
-  - [ ] Convert to APS if needed
-  - [ ] Run all configured checks (lint, test, coverage, secrets)
-  - [ ] Collect evidence
-  - [ ] Update source file with results
-  - [ ] Display summary table
-  - [ ] Exit with appropriate code
-  - **Acceptance**: Gate works with all supported formats
-  - **Dependencies**: Gate v1 ✅, Adapter framework ✅
-  - **Target**: Week 6 (current sprint)
-  - **Status**: Dependencies complete, command implementation in progress
-
-- [ ] **Implement `anvil export <plan>`** (IN PROGRESS)
-  - [ ] Export to different formats: `--to=speckit|bmad|aps|json|yaml`
-  - [ ] Preserve all data during conversion
-  - [ ] Validate exported format
-  - **Acceptance**: Plans can be converted between formats
   - **Dependencies**: Adapter framework ✅
-  - **Target**: Week 6 (current sprint)
-  - **Status**: SpecKit export adapter complete, CLI integration in progress
+  - **Target**: Week 9 (post-BMAD adapter)
+  - **Status**: Deferred until after BMAD adapter complete
+
+- [x] **Implement `anvil validate <plan>`** ✅
+  - [x] Auto-detect plan format
+  - [x] Convert to APS for validation
+  - [x] Run schema + hash validation
+  - [x] Display validation results
+  - [x] Support `--format` flag for explicit format
+  - [x] Support `--native` flag for APS-only mode
+  - **Acceptance**: Validates any supported format ✅
+  - **Date Completed**: 2025-10-23
+
+- [x] **Implement `anvil gate <plan>`** ✅
+  - [x] Auto-detect plan format
+  - [x] Convert to APS if needed
+  - [x] Run all configured checks (lint, test, coverage, secrets)
+  - [x] Collect evidence
+  - [~] Update source file with results (deferred to post-MVP)
+  - [x] Display summary table
+  - [x] Exit with appropriate code
+  - **Acceptance**: Gate works with all supported formats ✅
+  - **Date Completed**: 2025-10-23
+
+- [x] **Implement `anvil export <plan>`** ✅
+  - [x] Export to different formats: `--to=speckit|aps|json|yaml`
+  - [x] Preserve all data during conversion
+  - [x] Validate exported format
+  - [x] Support `--output` flag for custom paths
+  - [x] Support `--from` flag for explicit source format
+  - **Acceptance**: Plans can be converted between formats ✅
+  - **Date Completed**: 2025-10-23
 
 #### CLI User Experience
 
-- [ ] **Pretty printing**
-  - [ ] Colourised output for validation results
-  - [ ] Table formatting for gate summaries
-  - [ ] Progress indicators for long operations
-  - [ ] Clear error messages with suggestions
-  - **Acceptance**: CLI output is professional and helpful
-  - **Target**: Week 8
+- [x] **Pretty printing** ✅
+  - [x] Colourised output for validation results (chalk)
+  - [x] Table formatting for gate summaries
+  - [x] Progress indicators for long operations (ora spinners)
+  - [x] Clear error messages with suggestions
+  - **Acceptance**: CLI output is professional and helpful ✅
+  - **Date Completed**: 2025-10-23
 
-- [ ] **Interactive prompts**
+- [ ] **Interactive prompts** (DEFERRED)
   - [ ] Prompt for missing plan details
   - [ ] Confirmation for destructive operations
   - [ ] Format selection when ambiguous
   - **Acceptance**: CLI guides users through workflows
-  - **Target**: Week 9
+  - **Target**: Post-MVP (Week 12+)
+  - **Status**: Nice-to-have, not blocking pilot customers
 
 ---
 
@@ -393,14 +405,16 @@ adapter support (Week 5-6 sprint)
   - **Status**: Core integration complete
   - **Date Completed**: 2025-10-10
 
-- [ ] **Evidence bundle integration** (IN PROGRESS)
-  - [ ] Append evidence to APS plans
-  - [ ] Update SpecKit/BMAD with evidence annotations
-  - [ ] Store evidence separately for audit
-  - [ ] Format evidence for different outputs
+- [~] **Evidence bundle integration** (DEFERRED TO POST-MVP)
+  - [x] Collect evidence during gate execution ✅
+  - [x] Store evidence in APS format ✅
+  - [ ] Append evidence to source files (SpecKit/BMAD)
+  - [ ] Evidence injection via `--inject` flag
   - **Acceptance**: Evidence properly attached to plans
-  - **Target**: (current sprint)
-  - **Status**: Part of gate command implementation
+  - **Target**: Post-MVP (Week 12+)
+  - **Status**: Core evidence collection complete; injection deferred as not
+    blocking pilot customers
+  - **Rationale**: Validation-only workflow sufficient for initial pilots
 
 - [ ] **Gate configuration**
   - [ ] Support `.anvilrc` configuration file

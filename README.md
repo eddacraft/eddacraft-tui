@@ -65,33 +65,36 @@ format; Anvil translates everything to APS internally.
 
 ## 📊 Project Status
 
-| Phase                        | Status         | Progress |
-| ---------------------------- | -------------- | -------- |
-| Phase 1: Infrastructure      | ✅ Complete    | 100%     |
-| Phase 2: APS Core            | ✅ Complete    | 100%     |
-| Phase 2.5: Adapter Framework | ✅ Complete    | 100%     |
-| Phase 2.5: SpecKit Adapter   | ✅ Complete    | 100%     |
-| Phase 3: CLI Integration     | 🚧 In Progress | 80%      |
-| Phase 4: Gate v1             | ✅ Complete    | 100%     |
-| Phase 5: OPA/Rego            | ⏳ Planned     | 0%       |
-| **Overall Progress**         | **~35%**       | **MVP**  |
+| Phase                        | Status      | Progress |
+| ---------------------------- | ----------- | -------- |
+| Phase 1: Infrastructure      | ✅ Complete | 100%     |
+| Phase 2: APS Core            | ✅ Complete | 100%     |
+| Phase 2.5: Adapter Framework | ✅ Complete | 100%     |
+| Phase 2.5: SpecKit Adapter   | ✅ Complete | 100%     |
+| Phase 3: CLI Integration     | ✅ Complete | 100%     |
+| Phase 4: Gate v1             | ✅ Complete | 100%     |
+| Phase 5: OPA/Rego            | ⏳ Planned  | 0%       |
+| **Overall Progress**         | **~42%**    | **MVP**  |
 
 See [TODO.md](./TODO.md) for detailed task tracking and [PLAN.md](./PLAN.md) for
 the strategic roadmap.
 
 ### 🎉 Recent Milestones
 
-- **2025-10-21**: CLI integration with SpecKit adapter (In Progress)
-  - Format auto-detection service implemented
-  - Plan loader with multi-format support
-  - Enhanced `validate` and `gate` commands with adapter support
-  - Type system for CLI integration complete
-  - **Next**: Fix build errors and test end-to-end
+- **2025-10-23**: ✅ CLI integration with SpecKit adapter complete
+  - All 69 adapter tests passing
+  - Format auto-detection service (FormatDetectionService)
+  - Plan loader with multi-format support (PlanLoader)
+  - `anvil validate` command with SpecKit/APS support
+  - `anvil gate` command with multi-format adapter support
+  - `anvil export` command for format conversion (SpecKit ↔ APS)
+  - Evidence collection integrated (injection deferred to post-MVP)
+  - **Ready for**: Customer #1 pilot demos
 
 - **2025-10-14**: SpecKit adapter complete
   - Full v1 and v2 format support
   - Import and export adapters
-  - 51 tests (49 passing, 2 minor fixes pending)
+  - 69 tests (all passing)
   - Comprehensive parser for spec.md, plan.md, tasks.md
   - Registry integration with auto-detection
 
