@@ -262,7 +262,7 @@ export function analyzeContent(content: string): DetectionIndicators {
       (r) => r.type === RequirementType.NON_FUNCTIONAL
     ),
     hasUserStories: requirements.some((r) => r.type === RequirementType.USER_STORY),
-    hasUserStoryFormat: /As an?\s+.+,\s*\nI want\s+.+,\s*\nso that/im.test(content),
+    hasUserStoryFormat: /As an?\s+.+[,\s]+I want\s+.+[,\s]+so that/i.test(content),
     hasChangeLogTable: /\|\s*Date\s*\|\s*Version\s*\|\s*Description\s*\|\s*Author\s*\|/i.test(
       content
     ),

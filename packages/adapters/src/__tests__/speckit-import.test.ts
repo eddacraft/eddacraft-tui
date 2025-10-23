@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SpecKitImportAdapter } from '../speckit/import.js';
 import type { ExternalSpec, SpecContext } from '../common/types.js';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const fixturesDir = join(__dirname, 'fixtures');
 
 describe('SpecKitImportAdapter', () => {
