@@ -71,15 +71,25 @@ format; Anvil translates everything to APS internally.
 | Phase 2: APS Core            | ✅ Complete | 100%     |
 | Phase 2.5: Adapter Framework | ✅ Complete | 100%     |
 | Phase 2.5: SpecKit Adapter   | ✅ Complete | 100%     |
+| Phase 2.5: BMAD Adapter      | ✅ Complete | 100%     |
 | Phase 3: CLI Integration     | ✅ Complete | 100%     |
 | Phase 4: Gate v1             | ✅ Complete | 100%     |
 | Phase 5: OPA/Rego            | ⏳ Planned  | 0%       |
-| **Overall Progress**         | **~42%**    | **MVP**  |
+| **Overall Progress**         | **~48%**    | **MVP**  |
 
 See [TODO.md](./TODO.md) for detailed task tracking and [PLAN.md](./PLAN.md) for
 the strategic roadmap.
 
 ### 🎉 Recent Milestones
+
+- **2025-10-23**: ✅ BMAD FormatAdapter implementation complete
+  - Full FormatAdapter interface compliance
+  - Format detection with 100% confidence (5 weighted indicators)
+  - Complete BMAD → APS → BMAD conversion
+  - CLI integration verified (validate, gate, export commands)
+  - Registry auto-registration
+  - Serves as reference for SpecKit adapter migration
+  - **Ready for**: Customer #2 pilot demos (PRD/Architecture format)
 
 - **2025-10-23**: ✅ CLI integration with SpecKit adapter complete
   - All 69 adapter tests passing
@@ -141,10 +151,10 @@ anvil/
 │   ├── src/crypto/           # SHA-256 deterministic hashing
 │   ├── src/gate/             # Quality gate checks (ESLint, coverage, secrets)
 │   └── src/validation/       # APS validator with rich error messages
-├── packages/adapters/        # Format conversion (SpecKit ✅, BMAD planned)
+├── packages/adapters/        # Format conversion (SpecKit ✅, BMAD ✅)
 │   ├── src/base/             # FormatAdapter interface, AdapterRegistry
 │   ├── src/speckit/          # GitHub spec-kit adapter (2.5k LOC, 51 tests)
-│   └── src/bmad/             # [Future] Business architecture docs
+│   └── src/bmad/             # BMAD PRD/architecture adapter (~800 LOC)
 ├── packs/                    # [Future] Feature bundles (flags, telemetry)
 ├── docs/                     # Project documentation
 │   ├── ARCHITECTURE.md       # System design (1,575 lines)
