@@ -7,6 +7,8 @@ strategic context, see [PLAN.md](./PLAN.md).
 
 ## 🚨 IMMEDIATE NEXT STEPS (Resume from October 23, 2025)
 
+## 🚨 IMMEDIATE NEXT STEPS (Resume from October 23, 2025)
+
 ### ✅ Recent Completion: BMAD FormatAdapter Implementation
 
 **Status**: ✅ Complete - All core functionality implemented and CLI integration

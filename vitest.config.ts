@@ -25,6 +25,7 @@ export default defineConfig({
       'cli/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'ui/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packs/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'packages/adapters/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: ['**/node_modules/**', '**/dist/**', '**/.nx/**', '**/playwright-report/**'],
   },
@@ -34,6 +35,7 @@ export default defineConfig({
       '@anvil/cli': resolve(__dirname, './cli/src'),
       '@anvil/ui': resolve(__dirname, './ui/src'),
       '@anvil/packs': resolve(__dirname, './packs/src'),
+      '@anvil/adapters': resolve(__dirname, './packages/adapters/src'),
     },
   },
 });
