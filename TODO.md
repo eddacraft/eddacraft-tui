@@ -7,15 +7,19 @@ strategic context, see [PLAN.md](./PLAN.md).
 
 ## 🚨 IMMEDIATE NEXT STEPS (Resume from October 23, 2025)
 
+## 🚨 IMMEDIATE NEXT STEPS (Resume from October 23, 2025)
+
 ### ✅ Recent Completion: BMAD FormatAdapter Implementation
 
-**Status**: ✅ Complete - All core functionality implemented and CLI integration verified
+**Status**: ✅ Complete - All core functionality implemented and CLI integration
+verified
 
 **Completed (October 23, 2025)**:
 
 - ✅ BMAD format research (Context7 library, 3001 code snippets)
 - ✅ BMAD adapter specification (BMAD_ADAPTER_SPEC.md)
-- ✅ Format detection with confidence scoring (100% confidence on valid BMAD docs)
+- ✅ Format detection with confidence scoring (100% confidence on valid BMAD
+  docs)
 - ✅ Parser implementation (BMAD → APS)
 - ✅ Serializer implementation (APS → BMAD)
 - ✅ Validation implementation
@@ -60,17 +64,19 @@ strategic context, see [PLAN.md](./PLAN.md).
 4. Migrate SpecKit adapters to FormatAdapter interface (using BMAD as reference)
 5. Prepare for first pilot customers
 
-**After This**: First pilot customers (Week 10), then Apply/Rollback (Weeks 11-14)
+**After This**: First pilot customers (Week 10), then Apply/Rollback (Weeks
+11-14)
 
 ---
 
 ## Executive Summary
 
 **Current Status**: Phase 2 (APS Core) 100% complete, Phase 2.5 (Adapters) 100%
-complete (SpecKit ✅, BMAD ✅), Phase 3 (CLI Integration) 100% complete, Phase 4 (Gate)
-100% complete
+complete (SpecKit ✅, BMAD ✅), Phase 3 (CLI Integration) 100% complete, Phase 4
+(Gate) 100% complete
 
-**Next Critical Path**: BMAD Testing → SpecKit Migration → First Pilots → Apply/Rollback
+**Next Critical Path**: BMAD Testing → SpecKit Migration → First Pilots →
+Apply/Rollback
 
 **Target MVP**: 6-8 weeks from current state
 
@@ -89,7 +95,8 @@ complete (SpecKit ✅, BMAD ✅), Phase 3 (CLI Integration) 100% complete, Phase
 - **Phase 1: Foundations** - Repository structure, CI/CD, quality gates (100%)
 - **Phase 2: APS Spine** - Core schema, validation, hash generation, CLI
   integration, documentation (100%)
-- **Phase 2.5: Adapters** - Framework complete, SpecKit adapter complete (100%), BMAD adapter complete (100%)
+- **Phase 2.5: Adapters** - Framework complete, SpecKit adapter complete (100%),
+  BMAD adapter complete (100%)
 - **Phase 3: CLI Integration** - Format detection, validate/gate/export commands
   (100%)
 - **Phase 4: Gate v1** - ESLint, coverage, secret scanning (100%)
@@ -128,7 +135,8 @@ complete (SpecKit ✅, BMAD ✅), Phase 3 (CLI Integration) 100% complete, Phase
 
 - [ ] Add comprehensive unit tests for BMAD adapter (target: 50+ tests)
 - [ ] Create test fixtures (valid-prd.md, valid-architecture.md, etc.)
-- [ ] Migrate SpecKit adapters to FormatAdapter interface (using BMAD as reference)
+- [ ] Migrate SpecKit adapters to FormatAdapter interface (using BMAD as
+      reference)
 - [ ] Update documentation with BMAD examples
 - [ ] Prepare Customer #1 and #2 demo materials
 
@@ -136,7 +144,8 @@ complete (SpecKit ✅, BMAD ✅), Phase 3 (CLI Integration) 100% complete, Phase
 
 **Goal**: First pilots and execution pipeline
 
-- Week 9-10: Complete testing, first pilot customers with validation-only workflow
+- Week 9-10: Complete testing, first pilot customers with validation-only
+  workflow
 - Weeks 11-12: Dry-run system (preview changes before applying)
 - Weeks 13-14: Apply/rollback with snapshots (complete execution pipeline)
 

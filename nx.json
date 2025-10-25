@@ -42,7 +42,15 @@
     }
   ],
   "targetDefaults": {
+    "build": {
+      "dependsOn": ["^build"]
+    },
     "@nx/js:tsc": {
+      "cache": true,
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"]
+    },
+    "nx:run-commands": {
       "cache": true,
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]

@@ -1,6 +1,7 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
+    "baseUrl": "..",
     "target": "es2022",
     "module": "nodenext",
     "moduleResolution": "nodenext",
@@ -14,7 +15,8 @@
     "noEmitOnError": true,
     "declaration": true,
     "emitDeclarationOnly": false,
-    "composite": true
+    "composite": true,
+    "noImplicitOverride": false
   },
   "include": ["src/**/*"],
   "exclude": ["**/*.test.ts", "**/__tests__/**"],
