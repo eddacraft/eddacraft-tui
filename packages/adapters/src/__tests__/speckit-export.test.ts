@@ -38,6 +38,10 @@ describe('SpecKitExportAdapter', () => {
         version: '1.0.0',
         author: 'test@example.com',
       },
+      validations: {
+        required_checks: ['lint', 'test'],
+        skip_checks: [],
+      },
       metadata: {
         goals: ['Secure API endpoints', 'Implement JWT authentication'],
         requirements: ['Node.js 18+', 'Express.js'],
@@ -152,16 +156,18 @@ describe('SpecKitExportAdapter', () => {
         ...sampleAPSPlan,
         executions: [
           {
+            operation: 'apply' as const,
             timestamp: '2024-01-16T12:00:00Z',
             status: 'success',
-            executor: 'ci-bot',
-            completed_changes: ['change-1', 'change-2'],
+            executed_by: 'ci-bot',
+            changes_applied: ['change-1', 'change-2'],
           },
           {
+            operation: 'apply' as const,
             timestamp: '2024-01-16T13:00:00Z',
             status: 'failed',
-            executor: 'developer@example.com',
-            error: 'Build failed',
+            executed_by: 'developer@example.com',
+            logs: ['Error: Build failed'],
           },
         ],
       };
@@ -199,8 +205,9 @@ describe('SpecKitExportAdapter', () => {
       const result = await adapter.validateSpec(invalidSpec);
 
       expect(result.valid).toBe(false);
-      expect(result.errors).toBeDefined();
-      expect(result.errors?.[0].field).toBe('intent');
+      expect(result.issues).toBeDefined();
+      expect(result.issues?.[0].path).toBe('intent');
+      expect(result.issues?.[0].severity).toBe('error');
     });
 
     it('should warn about empty changes', async () => {
@@ -212,8 +219,9 @@ describe('SpecKitExportAdapter', () => {
       const result = await adapter.validateSpec(emptySpec);
 
       expect(result.valid).toBe(true);
-      expect(result.warnings).toBeDefined();
-      expect(result.warnings?.[0].message).toContain('No changes');
+      expect(result.issues).toBeDefined();
+      expect(result.issues?.[0].severity).toBe('warning');
+      expect(result.issues?.[0].message).toContain('No changes');
     });
   });
 });

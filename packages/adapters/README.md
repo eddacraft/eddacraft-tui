@@ -180,24 +180,136 @@ if (result.success) {
 - **Implementation Details** → `metadata.implementationDetails`
 - **Phases & Tasks** → `metadata.phases[]`, `metadata.taskDependencies[]`
 
-### BMAD ⏳ PLANNED
+### BMAD ✅ COMPLETE
 
 Business Model and Architecture Document format - enterprise requirements and
 PRD format.
 
-- **Extensions**: `.md` (PRD format)
-- **Status**: ⏳ Not yet implemented (planned for Week 5-6)
-- **Target**: November 2025
+- **Extensions**: `.md` (PRD, Architecture, Epic, Story formats)
+- **Status**: ✅ Fully implemented (October 2025)
+- **Version**: 1.0.0
+- **Code**: ~800 lines
+- **Tests**: Pending (CLI integration verified)
+- **CLI Integration**: 100% (validate, gate, export commands)
 
-#### Expected Document Structure
+#### Document Types Supported
 
-BMAD documents typically include:
+**PRD (Product Requirements Document)**
 
-- Problem Statement → APS `intent`
-- Functional Requirements (REQ-XXX format) → APS `proposed_changes[]`
-- Non-Functional Requirements (PERF-XXX, SEC-XXX) → APS `metadata.nfr[]`
-- Architecture section → APS `metadata.architecture`
-- Acceptance Criteria → APS `metadata.acceptance_criteria[]`
+- Functional Requirements (FR-01, FR-02, etc.)
+- Non-Functional Requirements (NFR-01, NFR-02, etc.)
+- Epics and User Stories (US-01, US-02, etc.)
+- YAML front-matter metadata
+- Change log tables
+
+**Architecture Documents**
+
+- Technical Summary
+- High Level Architecture
+- System Components
+- Tech Stack
+- API Specifications
+
+**Epic and Story Documents**
+
+- Epic goals and related stories
+- User story format: "As a... I want... so that..."
+- Acceptance criteria
+- Implementation details
+
+#### Format Detection
+
+Confidence-based algorithm with 5 weighted indicators (100-point scale):
+
+- YAML front-matter: 30 points
+- Requirement identifiers (FR/NFR/US): 25 points
+- User story format: 20 points
+- Change log table: 15 points
+- Document title: 10 points
+- **Detection threshold**: 50%
+- **Typical confidence**: 90-100% for valid BMAD documents
+
+#### Usage Example
+
+```typescript
+import { BMADFormatAdapter } from '@anvil/adapters/bmad';
+
+const adapter = new BMADFormatAdapter();
+
+// Detect BMAD format
+const detection = adapter.detect(content);
+console.log(`Confidence: ${detection.confidence}%`);
+
+// Parse BMAD to APS
+const parseResult = await adapter.parse(content);
+if (parseResult.success) {
+  console.log('Parsed plan:', parseResult.data);
+}
+
+// Serialize APS to BMAD
+const serializeResult = await adapter.serialize(apsPlan);
+if (serializeResult.success) {
+  console.log('Generated BMAD:', serializeResult.content);
+}
+```
+
+#### CLI Integration
+
+```bash
+# Validate BMAD PRD
+anvil validate docs/prd.md
+# ✓ Detected format: bmad (100% confidence)
+
+# Run quality gates on BMAD document
+anvil gate docs/architecture.md
+# ✓ All quality gates passed
+
+# Convert BMAD to APS
+anvil export docs/prd.md --to aps
+# ✓ Export complete (6 functional requirements, 3 non-functional requirements)
+
+# Roundtrip verification
+# Parse → Serialize → Parse preserves document structure
+```
+
+#### APS Mapping
+
+- **Functional Requirements (FR-XX)** → `proposed_changes[]` with type
+  `file_create` or `file_update`
+- **Non-Functional Requirements (NFR-XX)** → `proposed_changes[]` with type
+  `config_update`
+- **User Stories (US-XX)** → `proposed_changes[]` with acceptance criteria in
+  description
+- **YAML Front-matter** → `provenance` (author, date, version)
+- **Document Title/Summary** → `intent.description`
+- **Change Log** → `metadata.changeLog[]`
+
+#### Implementation Details
+
+**Files**:
+
+- `format-adapter.ts` - Main FormatAdapter implementation
+- `parser.ts` - BMAD → APS conversion
+- `serializer.ts` - APS → BMAD generation
+- `types.ts` - BMAD-specific TypeScript types
+- `utils.ts` - Helper functions (metadata extraction, requirement parsing)
+
+**Registry Integration**:
+
+- Auto-registered with `AdapterRegistry` on module import
+- Discoverable by CLI's `FormatDetectionService`
+
+**Validation**:
+
+- Content validation without full parse
+- Returns `ValidationIssue[]` with severity levels (error, warning, info)
+- Checks format indicators and document structure
+
+**Next Steps**:
+
+- Add comprehensive unit tests (target: 50+ tests like SpecKit)
+- Create test fixtures (valid/invalid BMAD documents)
+- Serves as reference implementation for SpecKit FormatAdapter migration
 
 ## Development
 

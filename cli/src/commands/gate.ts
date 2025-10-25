@@ -61,7 +61,7 @@ export function createGateCommand(): Command {
           spinner.text = 'Detecting format...';
 
           const loadResult = await planLoader.loadPlan(planPath, {
-            format: options.inputFormat,
+            format: options.format as string | undefined,
             validateHash: false, // Gate doesn't require hash validation
             strict: false,
           });

@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SpecKitImportAdapterV2 } from '../speckit/import-v2.js';
 import type { ExternalSpec } from '../common/types.js';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const fixturesDir = join(__dirname, 'fixtures/speckit-official/auth-feature');
 
 describe('SpecKitImportAdapterV2 - Official Format', () => {

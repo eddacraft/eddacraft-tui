@@ -13,10 +13,8 @@ export interface ValidateOptions {
   verbose?: boolean;
   /** Validate hash integrity */
   validateHash?: boolean;
-  /** Output format (cli, json, yaml) */
-  format?: 'cli' | 'json' | 'yaml';
   /** Explicitly specify input format (bypasses auto-detection) */
-  inputFormat?: string;
+  format?: string;
   /** Adapter-specific options */
   adapterOptions?: AdapterOptions;
   /** Skip format detection and treat as native APS */
@@ -34,7 +32,7 @@ export interface GateOptions {
   /** Inject evidence back into source document */
   inject?: boolean;
   /** Explicitly specify input format */
-  inputFormat?: string;
+  format?: string;
   /** Skip format detection and treat as native APS */
   native?: boolean;
   /** Skip specific checks */
@@ -52,15 +50,13 @@ export interface GateOptions {
  */
 export interface ExportOptions {
   /** Target format to export to */
-  format: string;
-  /** Output file path */
+  to: string;
+  /** Output file path or directory */
   output?: string;
-  /** Pretty-print output */
-  pretty?: boolean;
-  /** Preserve comments and formatting from original */
-  preserveFormatting?: boolean;
-  /** Include evidence in exported document */
-  includeEvidence?: boolean;
+  /** Source format (auto-detected if not specified) */
+  from?: string;
+  /** Compact JSON output (no pretty-printing) */
+  compact?: boolean;
   /** Adapter-specific options */
   adapterOptions?: AdapterOptions;
 }

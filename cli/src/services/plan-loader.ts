@@ -216,13 +216,14 @@ export class PlanLoader implements PlanLoaderService {
  * Error implementation for plan loading failures
  */
 class PlanLoadErrorImpl extends Error implements PlanLoadError {
-  constructor(
-    message: string,
-    public readonly filePath?: string,
-    public readonly cause?: Error
-  ) {
+  public readonly filePath?: string;
+  public override readonly cause?: Error;
+
+  constructor(message: string, filePath?: string, cause?: Error) {
     super(message);
     this.name = 'PlanLoadError';
+    this.filePath = filePath;
+    this.cause = cause;
     Error.captureStackTrace?.(this, PlanLoadErrorImpl);
   }
 }

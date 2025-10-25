@@ -43,11 +43,18 @@ export class SpecKitExportAdapter extends BaseAdapter {
       });
     }
 
+    // Only errors make validation invalid, warnings are ok
+    const hasErrors = issues.some((issue) => issue.severity === 'error');
+
     return {
-      valid: issues.length === 0,
+      valid: !hasErrors,
       data: spec,
       issues: issues.length > 0 ? issues : undefined,
-      summary: issues.length === 0 ? 'Validation passed' : `Found ${issues.length} issue(s)`,
+      summary: hasErrors
+        ? `Found ${issues.filter((i) => i.severity === 'error').length} error(s)`
+        : issues.length > 0
+          ? `Validation passed with ${issues.length} warning(s)`
+          : 'Validation passed',
     };
   }
 
@@ -288,11 +295,16 @@ export class SpecKitExportAdapter extends BaseAdapter {
         if (execution.executed_by) {
           sections.push(`- Executed by: ${execution.executed_by}`);
         }
+        if (execution.changes_applied && execution.changes_applied.length > 0) {
+          sections.push(`- Applied changes: ${execution.changes_applied.join(', ')}`);
+        }
         if (execution.changes_failed && execution.changes_failed.length > 0) {
           sections.push(`- Failed changes: ${execution.changes_failed.join(', ')}`);
         }
         if (execution.logs && execution.logs.length > 0) {
-          sections.push(`- Logs: ${execution.logs.length} entries`);
+          for (const log of execution.logs) {
+            sections.push(`- ${log}`);
+          }
         }
         sections.push('');
       }

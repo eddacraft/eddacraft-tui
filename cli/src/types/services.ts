@@ -188,13 +188,14 @@ export interface EvidenceInjectionResult {
  * Error thrown when format detection fails
  */
 export class FormatDetectionError extends Error {
-  constructor(
-    message: string,
-    public readonly filePath?: string,
-    public readonly triedFormats?: string[]
-  ) {
+  public readonly filePath?: string;
+  public readonly triedFormats?: string[];
+
+  constructor(message: string, filePath?: string, triedFormats?: string[]) {
     super(message);
     this.name = 'FormatDetectionError';
+    this.filePath = filePath;
+    this.triedFormats = triedFormats;
   }
 }
 
@@ -202,12 +203,13 @@ export class FormatDetectionError extends Error {
  * Error thrown when plan loading fails
  */
 export class PlanLoadError extends Error {
-  constructor(
-    message: string,
-    public readonly filePath?: string,
-    public readonly cause?: Error
-  ) {
+  public readonly filePath?: string;
+  public override readonly cause?: Error;
+
+  constructor(message: string, filePath?: string, cause?: Error) {
     super(message);
     this.name = 'PlanLoadError';
+    this.filePath = filePath;
+    this.cause = cause;
   }
 }

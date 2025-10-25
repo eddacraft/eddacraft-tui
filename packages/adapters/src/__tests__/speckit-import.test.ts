@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SpecKitImportAdapter } from '../speckit/import.js';
 import type { ExternalSpec, SpecContext } from '../common/types.js';
 
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const fixturesDir = join(__dirname, 'fixtures');
 
 describe('SpecKitImportAdapter', () => {
@@ -167,12 +168,16 @@ describe('SpecKitImportAdapter', () => {
           source: 'cli' as const,
           version: '1.0.0',
         },
+        validations: {
+          required_checks: [],
+          skip_checks: [],
+        },
       };
 
       const result = await adapter.validateSpec(spec);
 
       expect(result.valid).toBe(true);
-      expect(result.errors).toBeUndefined();
+      expect(result.issues).toBeUndefined();
     });
 
     it('should warn about empty changes', async () => {
@@ -187,13 +192,18 @@ describe('SpecKitImportAdapter', () => {
           source: 'cli' as const,
           version: '1.0.0',
         },
+        validations: {
+          required_checks: [],
+          skip_checks: [],
+        },
       };
 
       const result = await adapter.validateSpec(spec);
 
       expect(result.valid).toBe(true);
-      expect(result.warnings).toBeDefined();
-      expect(result.warnings?.[0].message).toContain('No changes');
+      expect(result.issues).toBeDefined();
+      expect(result.issues?.[0].severity).toBe('warning');
+      expect(result.issues?.[0].message).toContain('No changes');
     });
   });
 });

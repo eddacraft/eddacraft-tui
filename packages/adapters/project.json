@@ -16,8 +16,10 @@
       "executor": "nx:run-commands",
       "outputs": ["{projectRoot}/dist"],
       "options": {
-        "command": "tsc -p tsconfig.lib.json",
-        "cwd": "packages/adapters"
+        "outputPath": "dist/packages/adapters",
+        "main": "packages/adapters/src/index.ts",
+        "tsConfig": "packages/adapters/tsconfig.lib.json",
+        "assets": ["packages/adapters/*.md"]
       }
     },
     "nx-release-publish": {
