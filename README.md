@@ -77,8 +77,8 @@ format; Anvil translates everything to APS internally.
 | Phase 5: OPA/Rego            | ⏳ Planned  | 0%       |
 | **Overall Progress**         | **~48%**    | **MVP**  |
 
-See [TODO.md](./TODO.md) for detailed task tracking and [PLAN.md](./PLAN.md) for
-the strategic roadmap.
+See [docs/planning/TODO.md](./docs/planning/TODO.md) for detailed task tracking
+and [docs/planning/PLAN.md](./docs/planning/PLAN.md) for the strategic roadmap.
 
 ### 🎉 Recent Milestones
 
@@ -158,6 +158,9 @@ anvil/
 ├── packs/                    # [Future] Feature bundles (flags, telemetry)
 ├── docs/                     # Project documentation
 │   ├── ARCHITECTURE.md       # System design (1,575 lines)
+│   ├── planning/             # Strategic planning and task tracking
+│   ├── guides/               # Development guides and workflows
+│   ├── status/               # Project status and known issues
 │   ├── prd/                  # Product requirements
 │   └── adr/                  # Architecture decision records
 ├── e2e/                      # End-to-end tests (Playwright)
@@ -436,11 +439,18 @@ All checks must pass before merging:
 
 ### Core Documentation
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** – System design, principles, data
-  flows (1,575 lines)
-- **[PLAN.md](./PLAN.md)** – Strategic plan and three-act vision
-- **[TODO.md](./TODO.md)** – Comprehensive task list with progress tracking
-- **[ROADMAP.md](./ROADMAP.md)** – High-level milestones and phases
+- **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** – System design,
+  principles, data flows (1,575 lines)
+- **[docs/planning/PLAN.md](./docs/planning/PLAN.md)** – Strategic plan and
+  three-act vision
+- **[docs/planning/TODO.md](./docs/planning/TODO.md)** – Comprehensive task list
+  with progress tracking
+- **[docs/planning/ROADMAP.md](./docs/planning/ROADMAP.md)** – High-level
+  milestones and phases
+- **[docs/guides/CLAUDE.md](./docs/guides/CLAUDE.md)** – Project overview and
+  commands
+- **[docs/DOCUMENTATION.md](./docs/DOCUMENTATION.md)** – Documentation
+  organization and standards
 
 ### Package Documentation
 

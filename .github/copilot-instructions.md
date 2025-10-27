@@ -254,8 +254,8 @@ cross-package testing.
 **Next Sprint Focus**: CLI integration with SpecKit adapter, format
 auto-detection, BMAD adapter.
 
-See [TODO.md](../TODO.md) for detailed task tracking and [PLAN.md](../PLAN.md)
-for strategic roadmap.
+See [docs/planning/TODO.md](../docs/planning/TODO.md) for detailed task tracking
+and [docs/planning/PLAN.md](../docs/planning/PLAN.md) for strategic roadmap.
 
 ### Strategic Vision (Three Acts)
 
@@ -266,11 +266,14 @@ for strategic roadmap.
 
 ## Key Documentation
 
-- `ARCHITECTURE.md` - System design, principles, data flows (1,575 lines)
-- `CLAUDE.md` - Project overview and commands
+- `docs/ARCHITECTURE.md` - System design, principles, data flows (1,575 lines)
+- `docs/guides/CLAUDE.md` - Project overview and commands
 - `core/API.md` - APS Core API reference
 - `packages/adapters/ADAPTER_WORKFLOW_GUIDE.md` - Creating new adapters
-- `docs/GIT_WORKTREE_WORKFLOW.md` - Parallel plan development workflow
+- `docs/guides/git-worktree-workflow.md` - Parallel plan development workflow
+- `docs/planning/TODO.md` - Detailed task tracking
+- `docs/planning/PLAN.md` - Strategic roadmap
+- `docs/planning/ROADMAP.md` - Release planning
 
 ## References
 
