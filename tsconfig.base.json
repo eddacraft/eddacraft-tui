@@ -18,8 +18,8 @@
     "target": "es2022",
     "customConditions": ["@anvil/source"],
     "paths": {
-      "@anvil/core": ["core/dist/index.d.ts"],
-      "@anvil/adapters": ["dist/packages/adapters/src/index.d.ts"]
+      "@anvil/adapters": ["dist/packages/adapters/src/index.d.ts"],
+      "@anvil/core": ["core/dist/index.d.ts"]
     }
   },
   "exclude": ["node_modules", "dist", ".nx", "tmp", "coverage", "playwright-report", "test-results"]

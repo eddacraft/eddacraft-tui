@@ -14,5 +14,10 @@
     "noPropertyAccessFromIndexSignature": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "dist", "node_modules"]
+  "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "dist", "node_modules"],
+  "references": [
+    {
+      "path": "../../core"
+    }
+  ]
 }

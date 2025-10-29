@@ -26,15 +26,11 @@ export type {
 // Auto-register adapters when module is imported
 import { registry as baseRegistry } from './base/index.js';
 import { BMADFormatAdapter } from './bmad/index.js';
-// TODO: SpecKit adapters need to be migrated to FormatAdapter interface
-// import { SpecKitFormatAdapter } from './speckit/index.js';
+import { SpecKitFormatAdapter } from './speckit/index.js';
 
-// Register BMAD adapter
+// Register adapters
 baseRegistry.register(new BMADFormatAdapter());
-
-// Register SpecKit adapters
-// TODO: Complete FormatAdapter implementation for SpecKit
-// baseRegistry.register(new SpecKitFormatAdapter());
+baseRegistry.register(new SpecKitFormatAdapter());
 
 // Export the registry instance as default export
 export { baseRegistry as registry };

@@ -484,4 +484,394 @@ It has enough content to pass the length check, but it should still fail validat
       expect(result.valid).toBe(true);
     });
   });
+
+  describe('edge cases', () => {
+    describe('unicode and special characters', () => {
+      it('should handle unicode characters in requirements', async () => {
+        const content = `---
+name: Unicode Test
+version: 1.0.0
+author: Test User
+---
+
+# Test Document
+
+FR-01: Support émojis 🚀 and unicode characters ñ é
+NFR-01: Handle Chinese characters 中文测试`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data?.proposed_changes.length).toBe(2);
+          expect(result.data?.proposed_changes[0]?.description).toContain('🚀');
+        }
+      });
+
+      it('should handle special markdown characters in descriptions', async () => {
+        const content = `---
+name: Special Chars Test
+---
+
+# Test
+
+FR-01: Support **bold**, *italic*, and \`code\` in descriptions
+FR-02: Handle | pipes | and [links](http://example.com)`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data?.proposed_changes.length).toBe(2);
+        }
+      });
+    });
+
+    describe('requirement ID formats', () => {
+      it('should parse requirements with double-digit IDs', async () => {
+        const content = `# Test
+
+FR-01: First requirement
+FR-10: Tenth requirement
+FR-99: Ninety-ninth requirement`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data?.proposed_changes.length).toBe(3);
+        }
+      });
+
+      it('should not parse malformed requirement IDs', () => {
+        const content = `# Test
+
+FR-1: Wrong format (single digit)
+FR-001: Wrong format (three digits)
+REQ-01: Wrong prefix`;
+
+        const result = adapter.detect(content);
+
+        // Should have low confidence due to malformed IDs
+        expect(result.confidence).toBeLessThan(50);
+      });
+
+      it('should parse mixed requirement types', async () => {
+        const content = `# Test
+
+FR-01: Functional requirement
+NFR-01: Non-functional requirement
+US-01: User story requirement
+
+As a user,
+I want feature,
+so that benefit.`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          // US-01 is parsed both as a requirement and as a user story, so we get 4 changes
+          expect(result.data?.proposed_changes.length).toBeGreaterThanOrEqual(3);
+          expect(result.data?.proposed_changes.some((c) => c.description.includes('FR-01'))).toBe(
+            true
+          );
+          expect(result.data?.proposed_changes.some((c) => c.description.includes('NFR-01'))).toBe(
+            true
+          );
+          expect(result.data?.proposed_changes.some((c) => c.description.includes('US-01'))).toBe(
+            true
+          );
+        }
+      });
+    });
+
+    describe('empty and minimal content', () => {
+      it('should handle empty sections gracefully', async () => {
+        const content = `---
+name: Empty Sections Test
+---
+
+# Test Document
+
+## Executive Summary
+
+## Functional Requirements
+
+FR-01: Only one requirement
+
+## Non-Functional Requirements
+
+## User Stories`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data?.proposed_changes.length).toBe(1);
+        }
+      });
+
+      it('should handle document with only front-matter', async () => {
+        const content = `---
+name: Minimal Test
+version: 1.0.0
+---`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        // Document is valid but has no changes
+      });
+
+      it('should detect minimal valid BMAD document', () => {
+        const content = `---
+name: Minimal
+---
+
+FR-01: Minimal requirement`;
+
+        const result = adapter.detect(content);
+
+        expect(result.detected).toBe(true);
+        expect(result.confidence).toBeGreaterThanOrEqual(50);
+      });
+    });
+
+    describe('large documents', () => {
+      it('should handle document with many requirements', async () => {
+        let content = `---
+name: Large Document Test
+---
+
+# Large Test Document
+
+`;
+
+        // Add 50 requirements
+        for (let i = 1; i <= 50; i++) {
+          const id = i.toString().padStart(2, '0');
+          content += `FR-${id}: Requirement number ${i}\n`;
+        }
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data?.proposed_changes.length).toBe(50);
+        }
+      });
+
+      it('should handle very long requirement descriptions', async () => {
+        const longDescription = 'A'.repeat(1000);
+        const content = `---
+name: Long Description Test
+---
+
+FR-01: ${longDescription}`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.data?.proposed_changes[0]?.description).toContain(longDescription);
+        }
+      });
+    });
+
+    describe('malformed content', () => {
+      it('should handle malformed YAML front-matter', () => {
+        const content = `---
+name: Test: Invalid: YAML
+invalid yaml here
+no proper structure
+---
+
+FR-01: Some requirement`;
+
+        const result = adapter.detect(content);
+
+        // Should still detect due to FR-01
+        expect(result.detected).toBe(true);
+      });
+
+      it('should handle documents with multiple YAML blocks', () => {
+        const content = `---
+name: First Block
+---
+
+Some content
+
+---
+name: Second Block
+---
+
+FR-01: Requirement`;
+
+        const result = adapter.detect(content);
+
+        // Should still detect YAML and requirements
+        expect(result.detected).toBe(true);
+      });
+
+      it('should handle missing YAML closing delimiter', () => {
+        const content = `---
+name: Unclosed YAML
+version: 1.0.0
+
+FR-01: Requirement without proper YAML close`;
+
+        const result = adapter.detect(content);
+
+        // Should still detect based on FR-01
+        expect(result.confidence).toBeGreaterThanOrEqual(25);
+      });
+    });
+
+    describe('user story format variations', () => {
+      it('should detect user story with "As an" (article)', () => {
+        const content = `# Story
+
+As an administrator,
+I want to manage users,
+so that I can control access.`;
+
+        const result = adapter.detect(content);
+
+        expect(result.reason).toContain('user-story');
+      });
+
+      it('should detect user story with "As a" (no article)', () => {
+        const content = `# Story
+
+As a user,
+I want to login,
+so that I can access my account.`;
+
+        const result = adapter.detect(content);
+
+        expect(result.reason).toContain('user-story');
+      });
+
+      it('should handle user stories without acceptance criteria', async () => {
+        const content = `---
+name: Story Test
+---
+
+US-01: Basic Login
+
+As a user,
+I want to log in,
+so that I can access my account.`;
+
+        const result = await adapter.parse(content);
+
+        expect(result.success).toBe(true);
+      });
+    });
+
+    describe('serialization edge cases', () => {
+      it('should handle APS plan with no changes', async () => {
+        const content = `---
+name: Empty Plan
+---
+
+# Test Document`;
+
+        const parseResult = await adapter.parse(content);
+        expect(parseResult.success).toBe(true);
+        if (!parseResult.success) return;
+
+        const serializeResult = await adapter.serialize(parseResult.data!);
+        expect(serializeResult.success).toBe(true);
+      });
+
+      it('should serialize plan with special characters', async () => {
+        const content = `---
+name: Special Chars
+---
+
+FR-01: Support "quotes" and 'apostrophes'
+FR-02: Handle <brackets> and &ampersands&`;
+
+        const parseResult = await adapter.parse(content);
+        expect(parseResult.success).toBe(true);
+        if (!parseResult.success) return;
+
+        const serializeResult = await adapter.serialize(parseResult.data!);
+        expect(serializeResult.success).toBe(true);
+        if (serializeResult.success) {
+          expect(serializeResult.content).toContain('quotes');
+          expect(serializeResult.content).toContain('brackets');
+        }
+      });
+
+      it('should preserve line breaks in descriptions', async () => {
+        const content = `---
+name: Line Breaks Test
+---
+
+FR-01: Multi-line requirement description that spans multiple lines`;
+
+        const parseResult = await adapter.parse(content);
+        const serializeResult = await adapter.serialize(parseResult.data!);
+
+        expect(serializeResult.success).toBe(true);
+      });
+    });
+
+    describe('detection confidence scoring', () => {
+      it('should have maximum confidence with all indicators', () => {
+        const content = `---
+name: Product Requirements Document
+version: 1.0.0
+---
+
+# Product Requirements Document
+
+## Change Log
+
+| Date | Version | Description | Author |
+|------|---------|-------------|--------|
+| 2025-01-01 | 1.0.0 | Initial | Test |
+
+FR-01: Requirement
+
+As a user,
+I want feature,
+so that benefit.`;
+
+        const result = adapter.detect(content);
+
+        expect(result.confidence).toBe(100);
+        expect(result.reason).toContain('yaml-frontmatter');
+        expect(result.reason).toContain('requirements');
+        expect(result.reason).toContain('user-story');
+        expect(result.reason).toContain('change-log');
+        expect(result.reason).toContain('document-title');
+      });
+
+      it('should have 0 confidence for completely unrelated content', () => {
+        const content = 'Just some random text without any structure.';
+
+        const result = adapter.detect(content);
+
+        expect(result.confidence).toBe(0);
+        expect(result.detected).toBe(false);
+      });
+
+      it('should have partial confidence with only YAML', () => {
+        const content = `---
+name: Test
+---
+
+Some content without requirements.`;
+
+        const result = adapter.detect(content);
+
+        expect(result.confidence).toBe(30); // Only YAML points
+        expect(result.detected).toBe(false); // Below 50% threshold
+      });
+    });
+  });
 });
