@@ -237,6 +237,54 @@ anvil history                      # Show execution history
 
 ---
 
+## 🔮 Future Features (Post-MVP)
+
+### Code Monitor (Phase 9+)
+
+**Status:** Planned (detailed plan filed) **Documentation:**
+[MONITOR_FEATURE.md](../planning/MONITOR_FEATURE.md) **Estimated Effort:** 7
+weeks **Priority:** High value-add for AI-assisted development
+
+Real-time AI-powered code quality guardian that monitors code changes, detects
+problematic patterns, and provides intelligent recommendations with optional
+auto-fixes.
+
+**Key Capabilities:**
+
+- Real-time file watching and detection
+- User-extensible rules system
+- Optional AI review (BYO API key)
+- Automated fixes with safety levels
+- Pre-commit hooks and gate integration
+- GitHub Action for PR monitoring
+
+**Value Proposition:**
+
+- Catch common AI code issues (commented TODOs, hardcoded secrets, missing env
+  vars)
+- Learn from AI-powered explanations
+- Prevent technical debt accumulation
+- Automated code review assistance
+
+**Example Use Case:**
+
+```typescript
+// Detected by monitor:
+// TODO: Implement properly in production
+// return jwt.sign({ user }, SECRET);
+return null;
+
+// AI suggests and auto-fixes:
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) throw new Error('JWT_SECRET required');
+return jwt.sign({ user }, JWT_SECRET);
+```
+
+See full implementation plan:
+[docs/planning/MONITOR_FEATURE.md](../planning/MONITOR_FEATURE.md)
+
+---
+
 ## 🚧 Known Blockers & Dependencies
 
 ### Technical Debt
