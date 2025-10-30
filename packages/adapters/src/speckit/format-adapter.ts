@@ -2,13 +2,19 @@
  * SpecKit Format Adapter
  *
  * FormatAdapter implementation for GitHub spec-kit format.
- * Handles spec.md, plan.md, and tasks.md documents.
+ * Handles simple SpecKit specification documents with Intent, Overview, Goals,
+ * Requirements, and Changes sections.
  *
- * This adapter wraps the existing SpecKitImportAdapterV2 and SpecKitExportAdapter
- * to provide the unified FormatAdapter interface with format detection.
+ * Uses SpecKitParser to parse markdown with ## sections and convert to/from APS format.
  */
 
-import { generateHash, type APSPlan, type ValidationResult } from '@anvil/core';
+import {
+  generateHash,
+  type APSPlan,
+  type ValidationResult,
+  type Change,
+  createPlan,
+} from '@anvil/core';
 import {
   BaseFormatAdapter,
   type AdapterMetadata,
@@ -17,11 +23,9 @@ import {
   type SerializeResult,
   type ParseContext,
   type AdapterOptions,
-  type ExternalSpec,
 } from '../base/types.js';
 import { createDetection } from '../base/utils.js';
-import { SpecKitImportAdapterV2 } from './import-v2.js';
-import { SpecKitExportAdapter } from './export.js';
+import { SpecKitParser } from './parser.js';
 
 /**
  * Detection indicators for SpecKit format
@@ -54,13 +58,11 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
     extensions: ['.md'],
   };
 
-  private importAdapter: SpecKitImportAdapterV2;
-  private exportAdapter: SpecKitExportAdapter;
+  private parser: SpecKitParser;
 
   constructor(options?: AdapterOptions) {
     super(options);
-    this.importAdapter = new SpecKitImportAdapterV2();
-    this.exportAdapter = new SpecKitExportAdapter();
+    this.parser = new SpecKitParser();
   }
 
   /**
@@ -103,49 +105,58 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
     _options?: AdapterOptions
   ): Promise<ParseResult> {
     try {
-      // Create ExternalSpec from content in the format expected by SpecKitImportAdapterV2
-      const externalSpec: ExternalSpec = {
-        format: 'speckit',
-        version: '1.0.0',
-        content: {
-          spec: {
-            content: content,
-          },
-        },
-        metadata: {
-          filePath: context?.filePath,
-        },
+      // Parse SpecKit markdown using SpecKitParser
+      const parsed = this.parser.parseSpecMarkdown(content);
+
+      // Build intent from parsed content
+      const intent = parsed.intent || 'Implement Feature';
+
+      // Build proposed changes from parsed changes
+      const changes: Change[] = [];
+      if (parsed.changes && parsed.changes.length > 0) {
+        for (const change of parsed.changes) {
+          const changeType = this.inferChangeType(change.type);
+          changes.push({
+            type: changeType,
+            path: change.path || this.inferPathFromDescription(change.description),
+            description: change.description,
+            content: change.content,
+          });
+        }
+      }
+
+      // Build provenance
+      const provenance = {
+        timestamp: context?.timestamp || new Date().toISOString(),
+        source: 'cli' as const,
+        version: this.metadata.version,
+        author: context?.author,
+        repository: context?.repositoryPath,
+        branch: context?.branch,
+        commit: context?.commit,
       };
 
-      // Convert to APS using import adapter
-      const conversionResult = await this.importAdapter.convertToAPS(externalSpec);
+      // Generate plan ID
+      const planId = `aps-${Date.now().toString(16).substring(0, 8)}`;
 
-      if (!conversionResult.success) {
-        return this.createParseError(
-          conversionResult.errors?.map((err) => ({
-            code: err.code,
-            message: err.message,
-            details: err.details,
-          })) || [{ code: 'PARSE_ERROR', message: 'Failed to parse SpecKit content' }]
-        );
-      }
-
-      // Apply context overrides
-      let plan = conversionResult.data!;
-
-      if (context) {
-        plan = {
-          ...plan,
-          provenance: {
-            ...plan.provenance,
-            author: context.author || plan.provenance.author,
-            repository: context.repositoryPath || plan.provenance.repository,
-            branch: context.branch || plan.provenance.branch,
-            commit: context.commit || plan.provenance.commit,
-            timestamp: context.timestamp || plan.provenance.timestamp,
-          },
-        };
-      }
+      // Create APS plan
+      const plan: APSPlan = {
+        ...createPlan({
+          id: planId,
+          intent,
+          provenance,
+          changes,
+        }),
+        schema_version: '0.1.0' as const,
+        hash: '0'.repeat(64), // Temporary, will be replaced
+        metadata: {
+          source_format: 'speckit',
+          overview: parsed.overview,
+          goals: parsed.goals,
+          requirements: parsed.requirements,
+          ...parsed.metadata,
+        },
+      };
 
       // Generate hash for the plan
       const planWithHash = {
@@ -166,6 +177,35 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
   }
 
   /**
+   * Infer APS change type from SpecKit change type
+   */
+  private inferChangeType(type: string): Change['type'] {
+    const typeLower = type.toLowerCase();
+    if (typeLower.includes('create')) return 'file_create';
+    if (typeLower.includes('update') || typeLower.includes('modify')) return 'file_update';
+    if (typeLower.includes('delete') || typeLower.includes('remove')) return 'file_delete';
+    return 'file_update'; // Default to update
+  }
+
+  /**
+   * Infer file path from change description
+   */
+  private inferPathFromDescription(description: string): string {
+    // Try to extract path from common patterns like "at path/to/file" or "`path/to/file`"
+    const pathMatch =
+      description.match(/at\s+`([^`]+)`/) ||
+      description.match(/at\s+(\S+\.\w+)/) ||
+      description.match(/`([^`]+\.\w+)`/);
+
+    if (pathMatch) {
+      return pathMatch[1];
+    }
+
+    // Fallback: generate a generic path
+    return 'src/generated-file.ts';
+  }
+
+  /**
    * Serialize APS plan to SpecKit format
    *
    * @param plan - APS plan to serialize
@@ -174,26 +214,123 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
    */
   async serialize(plan: APSPlan, _options?: AdapterOptions): Promise<SerializeResult> {
     try {
-      // Convert from APS using export adapter
-      const conversionResult = await this.exportAdapter.convertFromAPS(plan);
+      const sections: string[] = [];
 
-      if (!conversionResult.success) {
-        return this.createSerializeError(
-          conversionResult.errors?.map((err) => ({
-            code: err.code,
-            message: err.message,
-            details: err.details,
-          })) || [{ code: 'SERIALIZE_ERROR', message: 'Failed to serialize to SpecKit format' }]
-        );
+      // Header
+      sections.push('# Specification');
+      sections.push('');
+
+      // Intent section
+      sections.push('## Intent');
+      sections.push('');
+      sections.push(plan.intent);
+      sections.push('');
+
+      // Overview section (if available in metadata)
+      if (plan.metadata?.overview) {
+        sections.push('## Overview');
+        sections.push('');
+        sections.push(plan.metadata.overview as string);
+        sections.push('');
       }
 
-      // Extract spec.md content
-      const externalSpec = conversionResult.data!;
-      const content =
-        typeof externalSpec.content === 'string'
-          ? externalSpec.content
-          : (externalSpec.content as { specContent?: string }).specContent || '';
+      // Goals section (if available in metadata)
+      if (plan.metadata?.goals && Array.isArray(plan.metadata.goals)) {
+        sections.push('## Goals');
+        sections.push('');
+        for (const goal of plan.metadata.goals as string[]) {
+          sections.push(`- ${goal}`);
+        }
+        sections.push('');
+      }
 
+      // Requirements section (if available in metadata)
+      if (plan.metadata?.requirements && Array.isArray(plan.metadata.requirements)) {
+        sections.push('## Requirements');
+        sections.push('');
+        for (const req of plan.metadata.requirements as string[]) {
+          sections.push(`- ${req}`);
+        }
+        sections.push('');
+      }
+
+      // Changes section
+      if (plan.proposed_changes.length > 0) {
+        sections.push('## Changes');
+        sections.push('');
+
+        // Group changes by type
+        const fileCreates = plan.proposed_changes.filter((c) => c.type === 'file_create');
+        const fileUpdates = plan.proposed_changes.filter((c) => c.type === 'file_update');
+        const fileDeletes = plan.proposed_changes.filter((c) => c.type === 'file_delete');
+
+        // Files to Create
+        if (fileCreates.length > 0) {
+          sections.push('### Files to Create');
+          sections.push('');
+          for (const change of fileCreates) {
+            sections.push(`#### Create ${change.path}`);
+            sections.push('');
+            sections.push(change.description || 'No description provided');
+            sections.push('');
+            if (change.content) {
+              sections.push('```typescript');
+              sections.push(change.content);
+              sections.push('```');
+              sections.push('');
+            }
+          }
+        }
+
+        // Files to Update
+        if (fileUpdates.length > 0) {
+          sections.push('### Files to Update');
+          sections.push('');
+          for (const change of fileUpdates) {
+            sections.push(`#### Update ${change.path}`);
+            sections.push('');
+            sections.push(change.description || 'No description provided');
+            sections.push('');
+            if (change.content) {
+              sections.push('```typescript');
+              sections.push(change.content);
+              sections.push('```');
+              sections.push('');
+            }
+          }
+        }
+
+        // Files to Delete
+        if (fileDeletes.length > 0) {
+          sections.push('### Files to Delete');
+          sections.push('');
+          for (const change of fileDeletes) {
+            sections.push(`#### Delete ${change.path}`);
+            sections.push('');
+            sections.push(change.description || 'No description provided');
+            sections.push('');
+          }
+        }
+      }
+
+      // Metadata section (if additional metadata exists)
+      const metadataKeys = Object.keys(plan.metadata || {}).filter(
+        (k) => !['source_format', 'overview', 'goals', 'requirements'].includes(k)
+      );
+      if (metadataKeys.length > 0) {
+        sections.push('## Metadata');
+        sections.push('');
+        sections.push('```json');
+        const filteredMetadata: Record<string, unknown> = {};
+        for (const key of metadataKeys) {
+          filteredMetadata[key] = plan.metadata?.[key];
+        }
+        sections.push(JSON.stringify(filteredMetadata, null, 2));
+        sections.push('```');
+        sections.push('');
+      }
+
+      const content = sections.join('\n');
       return this.createSerializeSuccess(content);
     } catch (error) {
       return this.createSerializeError([
@@ -343,6 +480,12 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
     // Code blocks (5 points)
     if (indicators.hasCodeBlocks) {
       score += 5;
+    }
+
+    // Bonus: If has both Specification header AND Intent section, ensure at least 50% confidence
+    // This accommodates minimal but valid SpecKit documents
+    if (indicators.hasSpecificationHeader && indicators.hasIntentSection && score < 50) {
+      score = 50;
     }
 
     return Math.min(100, score);

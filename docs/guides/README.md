@@ -29,7 +29,7 @@ How-to guides for developers working on Anvil.
 
 1. Start with [Project README](../../README.md)
 2. Review [Architecture](../../ARCHITECTURE.md)
-3. Follow [Development Setup](#) (coming soon)
+3. Follow [Development Setup]
 4. Read [Adapter Guide](adapters/README.md)
 
 ### For Building Adapters

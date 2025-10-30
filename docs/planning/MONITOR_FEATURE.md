@@ -329,7 +329,7 @@ production code │ │ src/services/auth.ts:45 │ │ │ │ 🤖 AI Analysis
 implementation with │ │ hardcoded SECRET. Issues: │ │ 1. Using hardcoded SECRET
 (security risk) │ │ 2. No environment variable │ │ 3. Missing input validation │
 │ │ │ 💡 AI Suggested Fix: │ │ │ │
-`typescript                                      │ │ const JWT_SECRET = process.env.JWT_SECRET;        │ │ if (!JWT_SECRET) {                                │ │   throw new Error('JWT_SECRET required');         │ │ }                                                  │ │ return jwt.sign({ user }, JWT_SECRET);            │ │ `
+`typescript                                      │ │ const JWT_SECRET = process.env.JWT_SECRET;        │ │ if (!JWT_SECRET) {                                │ │   throw new Error('JWT_SECRET required');         │ │ }                                                  │ │ return jwt.sign({ user }, JWT_SECRET);            │ │`
 │ │ │ │ Also add to .env.example: │ │ JWT_SECRET=your-secret-key-here │ │ │ │ 🔧
 Auto-fix available (AI-assisted) │
 ╰────────────────────────────────────────────────────╯
