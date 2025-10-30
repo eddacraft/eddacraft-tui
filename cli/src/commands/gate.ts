@@ -3,9 +3,11 @@
  */
 
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { GateRunner, GateConfigManager } from '@anvil/core';
 import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
+import { EvidenceWriter } from '../services/evidence-writer.js';
 import type { GateOptions } from '../types/command-options.js';
 import { success, error, formatGateResults } from '../utils/output.js';
 import ora from 'ora';
@@ -20,7 +22,7 @@ export function createGateCommand(): Command {
     .option('-v, --verbose', 'Verbose output')
     .option('--format <format>', 'Explicitly specify input format (bypasses auto-detection)')
     .option('--native', 'Skip format detection and treat as native APS')
-    .option('--inject', 'Inject evidence back into source document (future feature)')
+    .option('--inject', 'Inject evidence back into source document (SpecKit, BMAD)')
     .option('--skip-checks <checks>', 'Comma-separated list of checks to skip')
     .option('--only-checks <checks>', 'Only run specified checks (comma-separated)')
     .option('--fail-fast', 'Stop on first check failure')
@@ -92,10 +94,35 @@ export function createGateCommand(): Command {
         // Display results
         formatGateResults(results);
 
-        // TODO: Evidence injection (Task 7 - not implemented yet)
+        // Evidence injection
         if (options.inject) {
-          console.log('\n⚠️  Evidence injection not yet implemented');
-          console.log('Evidence will be stored in .anvil/evidence/ directory');
+          if (!sourceFormat) {
+            console.log(
+              chalk.yellow(
+                '\n⚠️  Evidence injection only supported for external formats (SpecKit, BMAD)'
+              )
+            );
+            console.log(chalk.gray('Skipping injection for native APS format'));
+          } else {
+            spinner.start('Injecting evidence into source document...');
+
+            const evidenceWriter = new EvidenceWriter();
+            const writeResult = await evidenceWriter.writeEvidence({
+              format: sourceFormat.format,
+              filePath: planPath,
+              gateResults: results,
+              plan,
+              mode: 'replace', // Replace existing evidence section
+            });
+
+            if (writeResult.success) {
+              spinner.succeed(chalk.green('✓ Evidence injected successfully'));
+              console.log(chalk.gray('  Updated:'), chalk.cyan(writeResult.filePath));
+            } else {
+              spinner.fail(chalk.red('✗ Failed to inject evidence'));
+              console.log(chalk.red('  Error:'), writeResult.error);
+            }
+          }
         }
 
         // Exit with appropriate code
