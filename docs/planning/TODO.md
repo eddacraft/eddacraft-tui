@@ -35,7 +35,7 @@ verified
 - Unit tests for BMAD adapter (target: 50+ tests like SpecKit)
 - Test fixtures (valid/invalid BMAD documents)
 
-### ✅ Week 7 Complete: Polish & Stabilize
+### ✅ Week 7 Complete: Polish & Stabilise
 
 **Goal**: Ensure current implementation is production-ready ✅
 
@@ -277,7 +277,7 @@ validation and execution.
   - [x] Handle SpecKit metadata (authors, versions, status)
   - [x] Preserve round-trip fidelity
   - [x] Support both v1 (simple) and v2 (official spec-kit) formats
-  - [x] Specialized parsers for spec/plan/tasks documents
+  - [x] Specialised parsers for spec/plan/tasks documents
   - **Acceptance**: Valid SpecKit documents convert to valid APS ✅
   - **Date Completed**: 2025-10-14
 

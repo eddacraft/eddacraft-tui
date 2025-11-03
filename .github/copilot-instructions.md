@@ -60,7 +60,7 @@ format; Anvil translates everything to APS internally.
 
 ## Project Structure
 
-```
+```text
 anvil/
 ├── core/              # APS schema, validation, hashing, gate runner
 │   └── src/
@@ -97,7 +97,7 @@ TypeScript project references require explicit builds.
 ```bash
 npx nx build <package>        # Build specific package
 npx nx test <package>         # Test specific package
-npx nx graph                  # Visualize dependency graph
+npx nx graph                  # Visualise dependency graph
 npx nx affected -t test       # Test only affected projects
 ```
 
