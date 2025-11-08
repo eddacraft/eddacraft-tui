@@ -874,4 +874,368 @@ Some content without requirements.`;
       });
     });
   });
+
+  describe('additional parser tests', () => {
+    it('should parse valid task document', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-task.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.proposed_changes.length).toBeGreaterThan(0);
+        expect(result.data?.provenance.author).toBe('Developer');
+      }
+    });
+
+    it('should parse minimal PRD correctly', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-minimal-prd.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Should have FR and NFR changes
+        expect(result.data?.proposed_changes.length).toBeGreaterThanOrEqual(3);
+        expect(result.data?.provenance.author).toBe('John Doe');
+      }
+    });
+
+    it('should parse complex PRD with many requirements', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-complex-prd.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Complex PRD has 30 FR + 20 NFR + 5 US = 55+ changes
+        expect(result.data?.proposed_changes.length).toBeGreaterThanOrEqual(50);
+        expect(result.data?.provenance.author).toBe('Product Team');
+        expect(result.data?.provenance.version).toBe('2.1.0');
+      }
+    });
+
+    it('should handle malformed YAML gracefully', async () => {
+      const content = await readFile(join(fixturesDir, 'invalid-malformed-yaml.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      // Parser should be lenient and still extract requirements
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.proposed_changes.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should extract requirement IDs accurately', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-prd.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const descriptions = result.data?.proposed_changes.map((c) => c.description) || [];
+        // Check that FR/NFR IDs are preserved in descriptions
+        expect(descriptions.some((d) => d.includes('FR-'))).toBe(true);
+        expect(descriptions.some((d) => d.includes('NFR-'))).toBe(true);
+      }
+    });
+
+    it('should map different requirement types to appropriate change types', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-prd.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        const changes = result.data?.proposed_changes || [];
+        // Should have file_create for FR (functional) and config_update for NFR
+        expect(changes.some((c) => c.type === 'file_create')).toBe(true);
+        expect(changes.some((c) => c.type === 'config_update')).toBe(true);
+      }
+    });
+
+    it('should extract provenance metadata correctly from different sources', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-architecture.md'), 'utf-8');
+      const context: ParseContext = {
+        filePath: 'test.md',
+        repositoryPath: '/repo',
+        branch: 'main',
+        commit: 'abc123',
+      };
+
+      const result = await adapter.parse(content, context);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.provenance.repository).toBe('/repo');
+        expect(result.data?.provenance.branch).toBe('main');
+        expect(result.data?.provenance.commit).toBe('abc123');
+      }
+    });
+
+    it('should handle document with no changes gracefully', async () => {
+      const content = await readFile(join(fixturesDir, 'invalid-only-yaml.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Document with no requirements should result in empty changes array
+        expect(result.data?.proposed_changes).toBeDefined();
+        expect(Array.isArray(result.data?.proposed_changes)).toBe(true);
+      }
+    });
+
+    it('should handle very long requirement descriptions', async () => {
+      const longDesc = 'A'.repeat(500);
+      const content = `---
+name: Long Description Test
+---
+
+FR-01: ${longDesc}`;
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.proposed_changes[0]?.description).toContain(longDesc);
+      }
+    });
+  });
+
+  describe('additional serializer tests', () => {
+    it('should serialize plan with no execution history', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-minimal-prd.md'), 'utf-8');
+      const parseResult = await adapter.parse(content);
+
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) return;
+
+      const serializeResult = await adapter.serialize(parseResult.data!);
+
+      expect(serializeResult.success).toBe(true);
+      if (serializeResult.success) {
+        expect(serializeResult.content).toContain('---');
+        expect(serializeResult.content).toContain('name:');
+      }
+    });
+
+    it('should serialize plan with custom metadata', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-task.md'), 'utf-8');
+      const parseResult = await adapter.parse(content);
+
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) return;
+
+      const serializeResult = await adapter.serialize(parseResult.data!);
+
+      expect(serializeResult.success).toBe(true);
+      if (serializeResult.success) {
+        expect(serializeResult.content).toContain('Product Requirements Document');
+        expect(serializeResult.content).toContain('Change Log');
+      }
+    });
+
+    it('should serialize plan with very long descriptions', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-complex-prd.md'), 'utf-8');
+      const parseResult = await adapter.parse(content);
+
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) return;
+
+      const serializeResult = await adapter.serialize(parseResult.data!);
+
+      expect(serializeResult.success).toBe(true);
+      if (serializeResult.success) {
+        // Verify serialization doesn't truncate content
+        expect(serializeResult.content.length).toBeGreaterThan(1000);
+        expect(serializeResult.content).toContain('FR-');
+        expect(serializeResult.content).toContain('NFR-');
+      }
+    });
+
+    it('should properly categorize mixed requirement types', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-complex-prd.md'), 'utf-8');
+      const parseResult = await adapter.parse(content);
+
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) return;
+
+      const serializeResult = await adapter.serialize(parseResult.data!);
+
+      expect(serializeResult.success).toBe(true);
+      if (serializeResult.success) {
+        // Should have separate sections for FR, NFR, and US
+        expect(serializeResult.content).toContain('## Functional Requirements');
+        expect(serializeResult.content).toContain('## Non-Functional Requirements');
+        expect(serializeResult.content).toContain('## User Stories');
+      }
+    });
+
+    it('should include repository information when available', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-prd.md'), 'utf-8');
+      const context: ParseContext = {
+        repositoryPath: 'https://github.com/user/repo',
+        branch: 'feature/auth',
+        commit: 'abc123def',
+      };
+
+      const parseResult = await adapter.parse(content, context);
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) return;
+
+      const serializeResult = await adapter.serialize(parseResult.data!);
+
+      expect(serializeResult.success).toBe(true);
+      if (serializeResult.success) {
+        expect(serializeResult.content).toContain('Repository Information');
+        expect(serializeResult.content).toContain('https://github.com/user/repo');
+        expect(serializeResult.content).toContain('feature/auth');
+      }
+    });
+  });
+
+  describe('integration tests', () => {
+    it('should complete full workflow: detect → parse → validate → serialize', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-prd.md'), 'utf-8');
+
+      // 1. Detect
+      const detectResult = adapter.detect(content);
+      expect(detectResult.detected).toBe(true);
+
+      // 2. Parse
+      const parseResult = await adapter.parse(content);
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) return;
+
+      // 3. Validate
+      const validateResult = await adapter.validate(content);
+      expect(validateResult.valid).toBe(true);
+
+      // 4. Serialize
+      const serializeResult = await adapter.serialize(parseResult.data!);
+      expect(serializeResult.success).toBe(true);
+    });
+
+    it('should handle format auto-detection workflow', async () => {
+      const files = [
+        'valid-prd.md',
+        'valid-architecture.md',
+        'valid-epic.md',
+        'valid-story.md',
+        'valid-task.md',
+      ];
+
+      for (const file of files) {
+        const content = await readFile(join(fixturesDir, file), 'utf-8');
+
+        // Auto-detect should work for all valid BMAD documents
+        const detectResult = adapter.detect(content);
+        expect(detectResult.detected).toBe(true);
+        expect(detectResult.confidence).toBeGreaterThanOrEqual(50);
+
+        // Parse should succeed
+        const parseResult = await adapter.parse(content);
+        expect(parseResult.success).toBe(true);
+      }
+    });
+
+    it('should recover from parse errors gracefully', async () => {
+      const invalidContent = 'This will cause parsing issues but should not throw';
+
+      // Should return error result, not throw
+      const parseResult = await adapter.parse(invalidContent);
+      expect(parseResult).toBeDefined();
+      expect(parseResult.success).toBeDefined();
+    });
+
+    it('should handle batch processing of multiple documents', async () => {
+      const files = ['valid-prd.md', 'valid-architecture.md', 'valid-story.md'];
+      const results = [];
+
+      for (const file of files) {
+        const content = await readFile(join(fixturesDir, file), 'utf-8');
+        const parseResult = await adapter.parse(content);
+        results.push(parseResult);
+      }
+
+      // All should succeed
+      expect(results.every((r) => r.success)).toBe(true);
+      expect(results.length).toBe(3);
+    });
+
+    it('should preserve data integrity through full round-trip', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-prd.md'), 'utf-8');
+
+      // Parse → Serialize → Parse again
+      const parse1 = await adapter.parse(content);
+      expect(parse1.success).toBe(true);
+      if (!parse1.success) return;
+
+      const serialize = await adapter.serialize(parse1.data!);
+      expect(serialize.success).toBe(true);
+      if (!serialize.success) return;
+
+      const parse2 = await adapter.parse(serialize.content);
+      expect(parse2.success).toBe(true);
+      if (!parse2.success) return;
+
+      // Key data should be preserved
+      expect(parse2.data?.provenance.author).toBe(parse1.data?.provenance.author);
+      expect(parse2.data?.proposed_changes.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('additional round-trip tests', () => {
+    it('should maintain fidelity for complex PRD', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-complex-prd.md'), 'utf-8');
+
+      const parse1 = await adapter.parse(content);
+      expect(parse1.success).toBe(true);
+      if (!parse1.success) return;
+
+      const serialize = await adapter.serialize(parse1.data!);
+      expect(serialize.success).toBe(true);
+      if (!serialize.success) return;
+
+      const parse2 = await adapter.parse(serialize.content);
+      expect(parse2.success).toBe(true);
+      if (!parse2.success) return;
+
+      // Should have similar number of changes (may vary slightly due to categorization)
+      const change1Count = parse1.data?.proposed_changes.length || 0;
+      const change2Count = parse2.data?.proposed_changes.length || 0;
+      expect(Math.abs(change1Count - change2Count)).toBeLessThan(10);
+    });
+
+    it('should maintain fidelity for minimal PRD', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-minimal-prd.md'), 'utf-8');
+
+      const parse1 = await adapter.parse(content);
+      expect(parse1.success).toBe(true);
+      if (!parse1.success) return;
+
+      const serialize = await adapter.serialize(parse1.data!);
+      expect(serialize.success).toBe(true);
+      if (!serialize.success) return;
+
+      const parse2 = await adapter.parse(serialize.content);
+      expect(parse2.success).toBe(true);
+      if (!parse2.success) return;
+
+      // Change count may vary due to validation requirements being added during serialization
+      expect(parse2.data?.proposed_changes.length).toBeGreaterThanOrEqual(
+        parse1.data?.proposed_changes.length || 0
+      );
+      expect(parse2.data?.provenance.author).toBe(parse1.data?.provenance.author);
+    });
+
+    it('should handle round-trip with task document', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-task.md'), 'utf-8');
+
+      const parse1 = await adapter.parse(content);
+      const serialize = await adapter.serialize(parse1.data!);
+      const parse2 = await adapter.parse(serialize.content);
+
+      expect(parse2.success).toBe(true);
+      if (parse2.success && parse1.success) {
+        // Author and version should be preserved
+        expect(parse2.data?.provenance.author).toBe(parse1.data?.provenance.author);
+      }
+    });
+  });
 });
