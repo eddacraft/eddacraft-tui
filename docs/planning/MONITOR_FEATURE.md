@@ -840,7 +840,7 @@ class CodeMonitor {
 
       if (this.config.ai?.enabled) {
         for (const issue of issues) {
-          issue.aiAnalysis = await this.reviewer.analyze(issue);
+          issue.aiAnalysis = await this.reviewer.analyse(issue);
         }
       }
 
@@ -939,7 +939,7 @@ class AIReviewer {
   private provider: AIProvider;
   private cache: Map<string, AIAnalysis>;
 
-  async analyze(issue: MonitorIssue): Promise<AIAnalysis> {
+  async analyse(issue: MonitorIssue): Promise<AIAnalysis> {
     // Check cache
     const cacheKey = this.getCacheKey(issue);
     if (this.cache.has(cacheKey)) {

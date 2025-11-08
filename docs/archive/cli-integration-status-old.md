@@ -200,7 +200,7 @@ updating
 1. Implement `export` command for format conversion
 2. Add comprehensive integration tests
 3. Implement evidence injection into SpecKit documents
-4. Performance testing and optimization
+4. Performance testing and optimisation
 5. Documentation polish and examples
 
 ## 💡 Key Insights

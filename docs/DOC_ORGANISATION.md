@@ -1,6 +1,6 @@
-# Documentation Organization Plan
+# Documentation Organisation Plan
 
-**Date:** 2025-10-23 **Purpose:** Consolidate and organize documentation for
+**Date:** 2025-10-23 **Purpose:** Consolidate and organise documentation for
 better discoverability
 
 ## Current State Analysis
@@ -22,10 +22,10 @@ better discoverability
 1. **Status documents scattered**: CLI_INTEGRATION_STATUS.md,
    CLI_INTEGRATION_COMPLETE.md, wip-planning-todo.md at different levels
 2. **Duplicate planning docs**: TODO.md vs wip-planning-todo.md
-3. **Archive not well organized**: Mix of old plans and RFCs
+3. **Archive not well organised**: Mix of old plans and RFCs
 4. **No clear document index**
 
-## Proposed Organization Structure
+## Proposed Organisation Structure
 
 ```
 anvil-001/

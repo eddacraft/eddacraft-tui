@@ -5,9 +5,7 @@ following the three-act strategic vision whilst maintaining practical MVP focus.
 Tasks are organised by phase and epic with detailed acceptance criteria. For
 strategic context, see [PLAN.md](./PLAN.md).
 
-## 🚨 IMMEDIATE NEXT STEPS (Resume from October 23, 2025)
-
-## 🚨 IMMEDIATE NEXT STEPS (Resume from October 23, 2025)
+## 🚨 IMMEDIATE NEXT STEPS (Current as of November 9, 2025)
 
 ### ✅ Recent Completion: BMAD FormatAdapter Implementation
 
@@ -30,10 +28,11 @@ verified
   - `anvil export docs/prd.md --to aps` ✅
   - Roundtrip fidelity (parse → serialize → parse) ✅
 
-**Pending**:
+**Next Steps** (Post-BMAD):
 
-- Unit tests for BMAD adapter (target: 50+ tests like SpecKit)
-- Test fixtures (valid/invalid BMAD documents)
+- Comprehensive unit tests for BMAD adapter (target: 50+ tests like SpecKit)
+- Additional test fixtures (edge cases, invalid BMAD documents)
+- SpecKit adapter migration to FormatAdapter interface
 
 ### ✅ Week 7 Complete: Polish & Stabilise
 
@@ -52,20 +51,21 @@ verified
 - ⚠️ Hash validation bug in CLI (needs investigation)
 - **Decision**: Document limitations, move forward with BMAD adapter
 
-### Current Work: Week 8-9 - Testing & Migration
+### Current Work: Week 9-10 - Testing & Migration
 
-**Goal**: Complete BMAD testing and migrate SpecKit adapters
+**Goal**: Complete comprehensive testing and prepare for first pilots
 
 **Next Actions**:
 
 1. ✅ BMAD adapter implementation (COMPLETE)
-2. Add comprehensive unit tests for BMAD adapter (50+ tests)
-3. Create test fixtures for BMAD documents
-4. Migrate SpecKit adapters to FormatAdapter interface (using BMAD as reference)
-5. Prepare for first pilot customers
+2. ✅ CLI integration with BMAD (COMPLETE)
+3. Add comprehensive unit tests for BMAD adapter (50+ tests)
+4. Create additional test fixtures for BMAD documents
+5. Migrate SpecKit adapters to FormatAdapter interface (using BMAD as reference)
+6. Prepare demo materials for first pilot customers
 
-**After This**: First pilot customers (Week 10), then Apply/Rollback (Weeks
-11-14)
+**After This**: First pilot customers (Week 11), then Apply/Rollback (Weeks
+12-15)
 
 ---
 
@@ -75,10 +75,10 @@ verified
 complete (SpecKit ✅, BMAD ✅), Phase 3 (CLI Integration) 100% complete, Phase 4
 (Gate) 100% complete
 
-**Next Critical Path**: BMAD Testing → SpecKit Migration → First Pilots →
+**Next Critical Path**: SpecKit Migration → Enhanced Testing → First Pilots →
 Apply/Rollback
 
-**Target MVP**: 6-8 weeks from current state
+**Target MVP**: 4-6 weeks from current state (November 2025)
 
 ### Strategic Priorities (in order)
 
@@ -318,7 +318,7 @@ validation and execution.
   - [x] Handle BMAD metadata and versioning ✅
   - [x] Support multiple BMAD document types ✅
   - **Acceptance**: Valid BMAD documents convert to valid APS ✅
-  - **Date Completed**: 2025-10-23
+  - **Date Completed**: 2025-11-05
 
 - [x] **Implement BMAD serialiser** ✅
   - [x] Convert APS back to BMAD format ✅
@@ -326,10 +326,11 @@ validation and execution.
   - [x] Generate YAML front-matter and change log tables ✅
   - [x] Roundtrip fidelity verified ✅
   - **Acceptance**: Round-trip conversion works correctly ✅
-  - **Date Completed**: 2025-10-23
+  - **Date Completed**: 2025-11-05
 
-- [ ] **BMAD adapter tests** (PENDING)
-  - [ ] Fixture: Valid BMAD documents (5+ examples)
+- [~] **BMAD adapter tests** (IN PROGRESS)
+  - [x] Basic fixture: Valid BMAD documents (docs/prd.md) ✅
+  - [ ] Additional fixtures: Valid BMAD documents (5+ examples)
   - [ ] Fixture: Invalid BMAD documents
   - [ ] Detection tests (15 tests)
   - [ ] Parser tests (20 tests)
@@ -337,18 +338,18 @@ validation and execution.
   - [ ] Integration tests (5 tests)
   - [ ] Round-trip tests
   - **Acceptance**: >95% test coverage, all fixtures pass
-  - **Target**: Week 8-9
-  - **Status**: Implementation complete, tests pending
+  - **Target**: Week 9-10
+  - **Status**: Implementation complete, comprehensive testing in progress
 
 - [x] **CLI integration for BMAD** ✅
   - [x] Auto-detect BMAD format in CLI (100% confidence) ✅
-  - [x] `anvil validate prd.md` works end-to-end ✅
-  - [x] `anvil gate prd.md` works end-to-end ✅
-  - [x] `anvil export prd.md --to aps` works ✅
+  - [x] `anvil validate docs/prd.md` works end-to-end ✅
+  - [x] `anvil gate docs/prd.md` works end-to-end ✅
+  - [x] `anvil export docs/prd.md --to aps` works ✅
   - [x] Roundtrip verification (parse → serialize → parse) ✅
   - **Acceptance**: BMAD users can validate plans ✅
   - **Demo**: Ready for Customer #2 ✅
-  - **Date Completed**: 2025-10-23
+  - **Date Completed**: 2025-11-05
 
 #### Format Detection ✅ COMPLETE
 

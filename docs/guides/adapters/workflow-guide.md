@@ -1522,7 +1522,7 @@ __tests__/fixtures/
 1. Documentation updates (1 day)
 2. Example projects (1 day)
 3. CLI integration (1 day)
-4. Performance optimization (1 day)
+4. Performance optimisation (1 day)
 5. Final testing (1 day)
 
 **Deliverables**:

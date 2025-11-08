@@ -138,7 +138,7 @@ ALTER TABLE users DROP CONSTRAINT IF EXISTS phone_format;
 ALTER TABLE users DROP COLUMN IF EXISTS phone;
 ```
 
-### 5. Performance Optimization
+### 5. Performance Optimisation
 
 **Index Strategy**
 
@@ -157,11 +157,11 @@ CREATE INDEX idx_products_search ON products
     USING GIN(to_tsvector('english', name || ' ' || description));
 ```
 
-**Query Optimization**
+**Query Optimisation**
 
 ```sql
 -- Explain plan analysis
-EXPLAIN (ANALYZE, BUFFERS)
+EXPLAIN (ANALYSE, BUFFERS)
 SELECT * FROM users WHERE email = 'test@example.com';
 
 -- Check index usage
@@ -227,7 +227,7 @@ find . -name "*.model.*" -o -name "*.entity.*"
 # Check for migrations
 find . -path "*/migrations/*" -name "*.sql"
 
-# Analyze relationships
+# Analyse relationships
 grep -r "REFERENCES\|FOREIGN KEY\|belongsTo\|hasMany"
 ```
 

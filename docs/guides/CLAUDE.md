@@ -174,7 +174,7 @@ pnpm lint                    # Lint & fix
 # Nx commands
 npx nx build core            # Build specific package
 npx nx test adapters         # Test specific package
-npx nx graph                 # Visualize dependencies
+npx nx graph                 # Visualise dependencies
 
 # Package-specific
 pnpm -F core run generate:schema          # Regenerate APS JSON schema

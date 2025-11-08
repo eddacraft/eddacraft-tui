@@ -55,7 +55,7 @@ Detect and follow existing patterns:
 
 ## Tool Usage Efficiency
 
-**Maximize Parallel Execution:**
+**Maximise Parallel Execution:**
 
 Always run multiple independent searches simultaneously in a single message:
 
@@ -74,7 +74,7 @@ Example: Run 3-5 parallel Glob/Grep operations to understand codebase patterns
   paths
 - **Type filters**: Use `--type ts`, `--type py` for faster, focused searches
 - **Pattern discovery**: Check test files for real usage examples
-- **Context efficiency**: Batch reads to minimize round trips
+- **Context efficiency**: Batch reads to minimise round trips
 
 **Skills for Deep Analysis:**
 

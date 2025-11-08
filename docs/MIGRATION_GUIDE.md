@@ -4,7 +4,7 @@
 
 ## What Changed
 
-Documentation has been reorganized into a more consistent structure. This guide
+Documentation has been reorganised into a more consistent structure. This guide
 helps you find documents in their new locations.
 
 ## File Moves
@@ -136,7 +136,7 @@ CLAUDE.md has been updated to reference new paths.
 
 ## Benefits of New Structure
 
-1. **Better Organization** - Documents grouped by purpose
+1. **Better Organisation** - Documents grouped by purpose
 2. **Easier Navigation** - Clear hierarchy and indexes
 3. **Less Clutter** - Root directory focused on strategic docs
 4. **Better Onboarding** - New developers can find what they need

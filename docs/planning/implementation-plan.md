@@ -1,11 +1,17 @@
 # Comprehensive Adapter Implementation Plan
 
+> **Note**: This is a **technical reference document** created during the
+> adapter design phase. For current implementation status, see
+> [TODO.md](./TODO.md). For strategic context, see [PLAN.md](./PLAN.md).
+
 ## Executive Summary
 
 This document provides a comprehensive plan for implementing SpecKit and BMAD
 adapters for Anvil, based on thorough analysis of both standards. The plan
 ensures proper implementation, extensibility, and addresses all facets of how
 these formats impact Anvil usage.
+
+**Status**: ✅ Implementation Complete (SpecKit ✅, BMAD ✅)
 
 **Key Findings:**
 
@@ -353,7 +359,7 @@ BMAD uses a **multi-document format**:
 
 ### 4.1 Design Principles
 
-1. **Format Agnostic Core**: APS must not favor any format
+1. **Format Agnostic Core**: APS must not favour any format
 2. **Lossless Conversion**: Round-trip conversion preserves all data
 3. **Metadata Rich**: All format-specific data stored in `metadata`
 4. **Extensible**: Easy to add new formats (ADR, RFC, etc.)
@@ -790,8 +796,8 @@ bmad/
    - Add validation reports
    - Effort: 1 day
 
-4. **Performance Optimization**
-   - Optimize large document parsing
+4. **Performance Optimisation**
+   - Optimise large document parsing
    - Add caching for repeated parses
    - Benchmark performance
    - Effort: 1 day

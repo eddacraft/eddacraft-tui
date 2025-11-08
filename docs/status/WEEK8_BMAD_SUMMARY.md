@@ -249,7 +249,7 @@ Unlike SpecKit adapters (which need migration), BMAD adapter:
   (template for future adapters)
 - **Serializer Structure**: Generate front-matter → categorize changes → format
   sections (reusable template)
-- **Utils Organization**: Separate extraction, analysis, and conversion
+- **Utils Organisation**: Separate extraction, analysis, and conversion
   functions (clean architecture)
 
 ---

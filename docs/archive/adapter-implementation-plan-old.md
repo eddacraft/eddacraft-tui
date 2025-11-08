@@ -353,7 +353,7 @@ BMAD uses a **multi-document format**:
 
 ### 4.1 Design Principles
 
-1. **Format Agnostic Core**: APS must not favor any format
+1. **Format Agnostic Core**: APS must not favour any format
 2. **Lossless Conversion**: Round-trip conversion preserves all data
 3. **Metadata Rich**: All format-specific data stored in `metadata`
 4. **Extensible**: Easy to add new formats (ADR, RFC, etc.)

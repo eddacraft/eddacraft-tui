@@ -182,7 +182,7 @@ Coverage:** Adequate | Needs improvement
 - [ ] Efficient algorithms
 - [ ] No obvious bottlenecks
 - [ ] Appropriate caching
-- [ ] Database queries optimized
+- [ ] Database queries optimised
 
 **Testing**
 

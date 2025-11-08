@@ -322,7 +322,7 @@ types:
    - Implementation details
 
 3. **tasks.md** - Executable breakdown
-   - Tasks organized by phases with IDs
+   - Tasks organised by phases with IDs
    - Parallel execution markers
    - Checkpoints after each phase
    - Dependencies and execution order

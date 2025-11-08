@@ -122,7 +122,7 @@ and [docs/planning/PLAN.md](./docs/planning/PLAN.md) for the strategic roadmap.
 
 ## 🚀 Features
 
-- **Monorepo Structure**: Organized workspace with `cli/`, `ui/`, `core/`, and
+- **Monorepo Structure**: Organised workspace with `cli/`, `ui/`, `core/`, and
   `packs/` packages
 - **TypeScript**: Full TypeScript support with project references
 - **Testing**: Vitest for unit tests, Playwright for E2E tests
@@ -289,7 +289,7 @@ npx nx test core                     # Test core package
 npx nx test adapters                 # Test adapters
 npx nx test core --testNamePattern="validator"  # Run specific tests
 
-# Visualize dependency graph
+# Visualise dependency graph
 npx nx graph
 
 # Run affected commands (only changed packages)
@@ -450,7 +450,7 @@ All checks must pass before merging:
 - **[docs/guides/CLAUDE.md](./docs/guides/CLAUDE.md)** – Project overview and
   commands
 - **[docs/DOCUMENTATION.md](./docs/DOCUMENTATION.md)** – Documentation
-  organization and standards
+  organisation and standards
 
 ### Package Documentation
 
@@ -535,7 +535,7 @@ user-facing text.
 Enhanced development experience with IDE extensions:
 
 - **[VS Code Extension](https://marketplace.visualstudio.com/items?itemName=nrwl.angular-console)**
-  – Run tasks, visualize graph, generate code
+  – Run tasks, visualise graph, generate code
 - **[IntelliJ Plugin](https://plugins.jetbrains.com/plugin/15000-nx-console)** –
   JetBrains IDE support
 

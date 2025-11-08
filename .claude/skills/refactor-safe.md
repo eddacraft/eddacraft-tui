@@ -17,7 +17,7 @@ Perform safe refactoring with continuous validation at each step.
    - Capture results as baseline (all should pass)
    - If baseline fails, fix issues first
 
-2. **Analyze Refactoring Impact**
+2. **Analyse Refactoring Impact**
    - Read the target code to understand:
      - Current implementation
      - Dependencies (what imports it)
@@ -64,7 +64,7 @@ Perform safe refactoring with continuous validation at each step.
    ```
 
 6. **Update Tests** After code changes:
-   - Update test descriptions if behavior changed
+   - Update test descriptions if behaviour changed
    - Update mock calls if signatures changed
    - Add new tests if new paths created
    - Remove obsolete tests if code removed
@@ -73,7 +73,7 @@ Perform safe refactoring with continuous validation at each step.
 7. **Verify No Behavioral Changes** (unless intended)
    - Run full test suite: `pnpm test`
    - Check that same tests pass/fail as baseline
-   - If behavior change intended, ensure tests reflect it
+   - If behaviour change intended, ensure tests reflect it
    - Look for unintended side effects
 
 8. **Run Full Validation** Before considering refactoring complete:

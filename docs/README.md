@@ -3,7 +3,7 @@
 **Last Updated:** 2025-10-23
 
 Welcome to the Anvil documentation! This directory contains all project
-documentation organized by category.
+documentation organised by category.
 
 ## 📖 Quick Navigation
 
@@ -11,7 +11,7 @@ documentation organized by category.
   documents
 - **[🗺️ Migration Guide](MIGRATION_GUIDE.md)** - Find documents in their new
   locations
-- **[📁 Documentation Organization Plan](DOC_ORGANIZATION.md)** - How docs are
+- **[📁 Documentation Organisation Plan](DOC_ORGANISATION.md)** - How docs are
   structured
 
 ## 📂 Documentation Categories
@@ -90,9 +90,9 @@ Superseded plans, old TODOs, historical analysis.
 
 ## 📊 Documentation Status
 
-- **Total documents:** 40+ organized files
+- **Total documents:** 40+ organised files
 - **Categories:** 7 main categories
-- **Last reorganization:** 2025-10-23
+- **Last reorganisation:** 2025-10-23
 - **Coverage:** Strategic, technical, and operational documentation
 
 ## 🔍 Finding What You Need
@@ -131,7 +131,7 @@ docs/
 ├── INDEX.md                 # Comprehensive index
 ├── README.md               # This file
 ├── MIGRATION_GUIDE.md      # File moves reference
-├── DOC_ORGANIZATION.md     # Organization plan
+├── DOC_ORGANISATION.md     # Organisation plan
 │
 ├── status/                 # Current status
 ├── planning/               # Plans & tasks

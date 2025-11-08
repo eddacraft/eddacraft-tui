@@ -226,7 +226,7 @@ backend/ ├── src/ └── tests/ frontend/ ├── src/ └── test
 ## Phase 5: Polish & Cross-Cutting Concerns
 
 - `TASK-050`: Complete documentation
-- `TASK-051`: Refactor and optimize
+- `TASK-051`: Refactor and optimise
 - `TASK-052`: Security hardening
 - `TASK-053`: Performance validation
 

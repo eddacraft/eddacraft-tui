@@ -31,7 +31,7 @@ duration or deadline]
 
 **Duration:** [X hours/days] **Owner:** Architect
 
-1. **Analyze existing codebase**
+1. **Analyse existing codebase**
    - [ ] Identify patterns and conventions
    - [ ] Review similar features
    - [ ] Document tech stack
@@ -238,7 +238,7 @@ gantt
 
 - [ ] Monitor metrics
 - [ ] Gather user feedback
-- [ ] Plan optimization phase
+- [ ] Plan optimisation phase
 - [ ] Schedule retrospective
 
 ## References

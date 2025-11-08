@@ -7,7 +7,7 @@
 
 ## Documentation Structure
 
-Anvil documentation is organized into clear categories:
+Anvil documentation is organised into clear categories:
 
 ### 📖 Strategic Documents (Root Level)
 
@@ -115,7 +115,7 @@ Each package has its own documentation:
 
 - **2025-10-23:** Documentation reorganization completed
   - Created comprehensive index
-  - Organized into clear categories
+  - Organised into clear categories
   - Added navigation guides
 
 - **2025-10-23:** CLI-SpecKit Integration Complete

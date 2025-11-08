@@ -1,5 +1,11 @@
 # Claude Projects Lite - Usage Instructions
 
+## Language Convention
+
+**Use UK English throughout all documentation, code comments, and agent
+responses** (organised, recognised, colour, behaviour, optimise, centre,
+analyse, realise, utilise, customise, visualise, maximise, minimise).
+
 ## Overview
 
 Claude Projects Lite is a lightweight starter kit for running projects natively

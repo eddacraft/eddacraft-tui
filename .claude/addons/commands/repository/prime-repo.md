@@ -4,12 +4,12 @@ description: Prime Claude with repo context before a feature run
 
 # Prime Repository Context
 
-Analyze and summarize repository context to prepare for feature development:
+Analyse and summarise repository context to prepare for feature development:
 
 1. **Repository Summary** - README analysis, architecture patterns, and
    conventions
 2. **Decision Context** - Review ADRs and technical choices
-3. **Structure Analysis** - Key folders, dependencies, and organization
+3. **Structure Analysis** - Key folders, dependencies, and organisation
 4. **Open Items** - Identify TODOs, gaps, and immediate opportunities
 5. **Next Actions** - Propose prioritized development steps
 

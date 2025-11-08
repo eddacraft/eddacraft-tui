@@ -22,7 +22,7 @@ consistency with the codebase.
 
 2. **Extract Common Structure**
    - Identify consistent patterns across examples:
-     - File structure and organization
+     - File structure and organisation
      - Function/class naming conventions
      - Parameter patterns
      - Return types
@@ -38,7 +38,7 @@ consistency with the codebase.
 4. **Show Template/Boilerplate**
    - Create a skeleton showing the pattern structure
    - Include:
-     - Imports (organized by internal/external)
+     - Imports (organised by internal/external)
      - Type definitions
      - Main implementation structure
      - Error handling
@@ -49,7 +49,7 @@ consistency with the codebase.
    - Write the actual implementation using the pattern
    - Match:
      - Naming conventions exactly
-     - Import style and organization
+     - Import style and organisation
      - Error handling patterns
      - Documentation style (JSDoc format)
    - Keep similar levels of abstraction

@@ -118,13 +118,13 @@ workflow with three document types.
 - Summary of technical approach
 - Technical context (language, dependencies, constraints)
 - Constitution check (compliance with project principles)
-- Project structure (directory layout, file organization)
+- Project structure (directory layout, file organisation)
 - Implementation details (API endpoints, database schema, etc.)
 - Complexity tracking (design decisions and justifications)
 
 **tasks.md** - Executable breakdown
 
-- Tasks organized by phases with IDs
+- Tasks organised by phases with IDs
 - Parallel execution markers
 - Checkpoints after each phase
 - Dependencies and execution order

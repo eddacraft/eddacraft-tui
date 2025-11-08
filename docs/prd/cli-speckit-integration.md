@@ -860,7 +860,7 @@ that** I can access complete audit trail
 **Implementation Notes**:
 
 - Use registry.detectAdapter(content, minConfidence=50)
-- Cache detection results per file (optional optimization)
+- Cache detection results per file (optional optimisation)
 - Support file extension hints for ambiguous content
 
 ### FR-2: Validate Command
@@ -1087,7 +1087,7 @@ Documentation: https://anvil.dev/docs/cli/gate
 1. **NFR-3.1**: Error messages MUST be clear and actionable
 2. **NFR-3.2**: Success messages MUST confirm what happened
 3. **NFR-3.3**: Progress indicators MUST show for operations >2 seconds
-4. **NFR-3.4**: Output MUST use color and formatting for readability
+4. **NFR-3.4**: Output MUST use colour and formatting for readability
 5. **NFR-3.5**: CLI MUST support NO_COLOR environment variable
 6. **NFR-3.6**: CLI MUST support --json flag for machine-readable output
 7. **NFR-3.7**: Commands MUST follow standard Unix conventions
@@ -2282,7 +2282,7 @@ Full details: {detailsPath}
 
 **Data Retention**: 90 days
 
-**Usage**: Product improvement, bug prioritization, performance optimization
+**Usage**: Product improvement, bug prioritisation, performance optimisation
 
 ---
 

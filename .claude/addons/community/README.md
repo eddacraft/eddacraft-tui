@@ -58,7 +58,7 @@ _Currently empty - be the first to contribute!_
 - **Platform-Specific**
   - AWS deployment helpers
   - Vercel/Netlify integration
-  - GitHub Actions optimization
+  - GitHub Actions optimisation
 
 ## Guidelines
 
@@ -85,7 +85,7 @@ Before submitting:
 
 1. Test on fresh project
 2. Test with missing dependencies
-3. Verify non-blocking behavior
+3. Verify non-blocking behaviour
 4. Check timeout values
 5. Ensure cross-platform compatibility
 

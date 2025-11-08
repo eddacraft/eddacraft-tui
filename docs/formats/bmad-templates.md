@@ -360,7 +360,7 @@ paths:
 
 ## Performance Considerations
 
-[Performance optimizations]
+[Performance optimisations]
 
 ## Next Steps
 
