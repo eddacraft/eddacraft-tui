@@ -14,6 +14,9 @@ export * from './speckit/index.js';
 // Export BMAD adapter
 export * from './bmad/index.js';
 
+// Export Generic adapter
+export * from './generic/index.js';
+
 // Export common types for backward compatibility
 export type {
   SpecContext,
@@ -27,10 +30,14 @@ export type {
 import { registry as baseRegistry } from './base/index.js';
 import { BMADFormatAdapter } from './bmad/index.js';
 import { SpecKitFormatAdapter } from './speckit/index.js';
+import { GenericMarkdownAdapter } from './generic/index.js';
 
-// Register adapters
+// Register adapters in priority order
+// Specific adapters (BMAD, SpecKit) should be registered first
+// Generic adapter is registered last as fallback
 baseRegistry.register(new BMADFormatAdapter());
 baseRegistry.register(new SpecKitFormatAdapter());
+baseRegistry.register(new GenericMarkdownAdapter());
 
 // Export the registry instance as default export
 export { baseRegistry as registry };
