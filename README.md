@@ -41,6 +41,21 @@ reversible.
 5. **Composability**: Parse → Validate → Execute are independent, composable
    stages. Each component has clear interfaces and can be used in library mode.
 
+## 📖 Documentation for Users
+
+**New to Anvil?** Start here:
+
+- **[Quick Start Guide](./docs/QUICK_START.md)** - Get up and running in 5 minutes
+- **[User Guide](./docs/USER_GUIDE.md)** - Comprehensive guide to using Anvil
+- **[Examples](./docs/EXAMPLES.md)** - Real-world workflows and use cases
+- **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Solutions to common issues
+
+**For developers**:
+
+- **[CLI Reference](./cli/README.md)** - Complete command reference
+- **[Architecture](./docs/ARCHITECTURE.md)** - System design and internals
+- **[Contributing](#-contributing)** - How to contribute to Anvil
+
 ## 🏗️ Architecture & Pipeline Flow
 
 Anvil operates as a validation and execution pipeline built around the **Anvil
@@ -436,6 +451,15 @@ All checks must pass before merging:
 - ✅ Build (all packages)
 
 ## 📚 Documentation
+
+### User Documentation
+
+- **[docs/QUICK_START.md](./docs/QUICK_START.md)** – Get started in 5 minutes
+- **[docs/USER_GUIDE.md](./docs/USER_GUIDE.md)** – Comprehensive user guide
+- **[docs/EXAMPLES.md](./docs/EXAMPLES.md)** – Real-world use cases and workflows
+- **[docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)** – Common issues and
+  solutions
+- **[cli/README.md](./cli/README.md)** – CLI command reference
 
 ### Core Documentation
 
