@@ -117,7 +117,9 @@ export function createValidateCommand(): Command {
         // Verify hash integrity if requested
         if (options.validateHash) {
           spinner.text = 'Verifying plan hash...';
-          const hashValid = verifyHash(plan, plan.hash);
+          // Exclude hash field before verification to avoid circular dependency
+          const { hash, ...planWithoutHash } = plan;
+          const hashValid = verifyHash(planWithoutHash, hash);
 
           if (!hashValid) {
             spinner.fail(chalk.red('✗ Hash verification failed'));
