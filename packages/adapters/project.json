@@ -13,14 +13,12 @@
   "tags": [],
   "targets": {
     "build": {
-      "executor": "nx:run-commands",
+      "executor": "nx:run-script",
       "outputs": ["{projectRoot}/dist"],
       "options": {
-        "outputPath": "packages/adapters/dist",
-        "main": "packages/adapters/src/index.ts",
-        "tsConfig": "packages/adapters/tsconfig.lib.json",
-        "assets": ["packages/adapters/*.md"]
-      }
+        "script": "build"
+      },
+      "dependsOn": ["^build"]
     },
     "nx-release-publish": {
       "options": {

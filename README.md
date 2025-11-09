@@ -541,7 +541,7 @@ Enhanced development experience with IDE extensions:
 
 ### Claude Code Integration
 
-This repository is optimized for [Claude Code](https://claude.ai/code):
+This repository is optimised for [Claude Code](https://claude.ai/code):
 
 - Pre-configured AI agents for common workflows
 - Slash commands for rapid development
