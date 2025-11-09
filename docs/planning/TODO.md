@@ -353,18 +353,19 @@ validation and execution.
   - **Acceptance**: Round-trip conversion works correctly ✅
   - **Date Completed**: 2025-11-05
 
-- [~] **BMAD adapter tests** (IN PROGRESS)
+- [x] **BMAD adapter comprehensive testing** ✅
   - [x] Basic fixture: Valid BMAD documents (docs/prd.md) ✅
-  - [ ] Additional fixtures: Valid BMAD documents (5+ examples)
-  - [ ] Fixture: Invalid BMAD documents
-  - [ ] Detection tests (15 tests)
-  - [ ] Parser tests (20 tests)
-  - [ ] Serializer tests (10 tests)
-  - [ ] Integration tests (5 tests)
-  - [ ] Round-trip tests
-  - **Acceptance**: >95% test coverage, all fixtures pass
-  - **Target**: Week 9-10
-  - **Status**: Implementation complete, comprehensive testing in progress
+  - [x] Additional fixtures: 6 new valid BMAD documents ✅
+  - [x] Fixture: Invalid BMAD documents (edge cases) ✅
+  - [x] Detection tests: 14 tests ✅
+  - [x] Parser tests: 20 tests (target 20) ✅
+  - [x] Serializer tests: 10 tests (target 10) ✅
+  - [x] Integration tests: 5 tests (target 5) ✅
+  - [x] Round-trip tests: 4 tests ✅
+  - [x] Edge case tests: 33 tests ✅
+  - **Test Results**: 86 total tests, all passing (exceeded 50+ target) ✅
+  - **Acceptance**: >95% test coverage achieved ✅
+  - **Date Completed**: 2025-11-09
 
 - [x] **CLI integration for BMAD** ✅
   - [x] Auto-detect BMAD format in CLI (100% confidence) ✅
@@ -375,6 +376,54 @@ validation and execution.
   - **Acceptance**: BMAD users can validate plans ✅
   - **Demo**: Ready for Customer #2 ✅
   - **Date Completed**: 2025-11-05
+
+#### SpecKit Adapter Migration ✅
+
+- [x] **Verify SpecKit FormatAdapter implementation** ✅
+  - [x] Confirmed SpecKit already uses FormatAdapter interface ✅
+  - [x] Proper detection, parse, serialize, validate methods ✅
+  - [x] Auto-registration with BMAD and Generic adapters ✅
+  - [x] 45 format adapter tests + 69 parser tests = 114 total ✅
+  - **Status**: Migration already complete, no work needed ✅
+  - **Date Verified**: 2025-11-09
+
+#### Generic Markdown Adapter ✅ NEW
+
+- [x] **Implement Generic Markdown adapter** ✅
+  - [x] Support PRD, TODO, plan, spec, RFC, ADR formats ✅
+  - [x] Fallback detection (30-45% confidence) ✅
+  - [x] Parser: extract requirements, tasks, features, goals ✅
+  - [x] Serializer: APS → generic markdown ✅
+  - [x] Handle documents without strict format requirements ✅
+  - **Acceptance**: Any markdown planning document works ✅
+  - **Date Completed**: 2025-11-09
+
+- [x] **File discovery utility** ✅
+  - [x] Search repositories for planning documents ✅
+  - [x] Pattern matching (prd, plan, todo, spec, rfc, adr) ✅
+  - [x] Confidence scoring for auto-detection ✅
+  - [x] Sort by confidence and recency ✅
+  - [x] Group files by pattern ✅
+  - **Acceptance**: Auto-find planning docs in any repo ✅
+  - **Date Completed**: 2025-11-09
+
+- [x] **Generic adapter tests** ✅
+  - [x] Fixture: PRD, TODO, plan, RFC documents ✅
+  - [x] Detection tests (all document types) ✅
+  - [x] Parser tests (requirements, tasks, features) ✅
+  - [x] Serializer tests ✅
+  - [x] Integration tests ✅
+  - [x] Validation tests ✅
+  - **Test Results**: 32 tests, all passing ✅
+  - **Acceptance**: Generic format fully tested ✅
+  - **Date Completed**: 2025-11-09
+
+**Adapter Summary (as of 2025-11-09)**:
+
+- ✅ SpecKit: 114 tests (45 format adapter + 69 parsers)
+- ✅ BMAD: 86 tests (comprehensive coverage)
+- ✅ Generic: 32 tests (fallback support)
+- ✅ **Total: 232 adapter tests passing**
 
 #### Format Detection ✅ COMPLETE
 
