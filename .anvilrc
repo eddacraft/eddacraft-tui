@@ -12,9 +12,9 @@
     {
       "name": "coverage",
       "description": "Test coverage validation",
-      "enabled": false,
+      "enabled": true,
       "config": {
-        "min_score": 80,
+        "min_score": 90,
         "thresholds": {
           "lines": 80,
           "functions": 80,
@@ -27,7 +27,9 @@
       "name": "secret",
       "description": "Secret scanning",
       "enabled": true,
-      "config": {}
+      "config": {
+        "min_score": 80
+      }
     }
   ],
   "thresholds": {

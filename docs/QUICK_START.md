@@ -1,10 +1,14 @@
 # Quick Start Guide
 
-Get started with Anvil in 5 minutes. This guide will walk you through installation and validating your first planning document.
+Get started with Anvil in 5 minutes. This guide will walk you through
+installation and validating your first planning document.
 
 ## What is Anvil?
 
-Anvil validates planning documents (SpecKit, BMAD, or any markdown plan) and runs quality gates (lint, test, coverage, secrets) to ensure changes are safe before execution. It works with your existing planning formats—no need to change how you write plans.
+Anvil validates planning documents (SpecKit, BMAD, or any markdown plan) and
+runs quality gates (lint, test, coverage, secrets) to ensure changes are safe
+before execution. It works with your existing planning formats—no need to change
+how you write plans.
 
 ## Installation
 
@@ -42,11 +46,13 @@ anvil --version
 
 ## Your First Validation
 
-Anvil automatically detects your planning document format. Let's validate a document:
+Anvil automatically detects your planning document format. Let's validate a
+document:
 
 ### Option 1: Use an Existing Plan
 
-If you have a SpecKit (`spec.md`), BMAD (`prd.md`), or any markdown planning document:
+If you have a SpecKit (`spec.md`), BMAD (`prd.md`), or any markdown planning
+document:
 
 ```bash
 # Validate your plan
@@ -115,7 +121,8 @@ anvil gate plan.md
 # └──────────┴────────┴─────────┴─────────────────────────────┘
 ```
 
-**Note:** Gate checks run against your repository code, not the plan itself. If you don't have tests or linting set up, some checks may be skipped.
+**Note:** Gate checks run against your repository code, not the plan itself. If
+you don't have tests or linting set up, some checks may be skipped.
 
 ## Export Between Formats
 
@@ -163,18 +170,18 @@ Add to your `.github/workflows/ci.yml`:
 
 Anvil automatically detects these formats:
 
-| Format          | Common Files                     | Detection  |
-| --------------- | -------------------------------- | ---------- |
-| **SpecKit**     | `spec.md`, `plan.md`, `tasks.md` | 90-100%    |
-| **BMAD**        | `prd.md`, `architecture.md`      | 95-100%    |
-| **Generic MD**  | `README.md`, `TODO.md`, etc.     | 30-45%     |
-| **APS**         | `*.aps.json`, `*.aps.yaml`       | 100%       |
+| Format         | Common Files                     | Detection |
+| -------------- | -------------------------------- | --------- |
+| **SpecKit**    | `spec.md`, `plan.md`, `tasks.md` | 90-100%   |
+| **BMAD**       | `prd.md`, `architecture.md`      | 95-100%   |
+| **Generic MD** | `README.md`, `TODO.md`, etc.     | 30-45%    |
+| **APS**        | `*.aps.json`, `*.aps.yaml`       | 100%      |
 
 ## Next Steps
 
 Now that you've validated your first plan, you can:
 
-1. **Configure Gate Checks** - Customize which quality checks run
+1. **Configure Gate Checks** - Customise which quality checks run
    - See [USER_GUIDE.md](./USER_GUIDE.md#configuration) for details
 
 2. **Explore Examples** - Learn common workflows
@@ -226,4 +233,5 @@ Coming soon:
 
 ---
 
-**Ready to dive deeper?** Check out the [User Guide](./USER_GUIDE.md) for comprehensive documentation.
+**Ready to dive deeper?** Check out the [User Guide](./USER_GUIDE.md) for
+comprehensive documentation.
