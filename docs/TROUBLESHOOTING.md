@@ -87,12 +87,15 @@ bash: anvil: command not found
 **Option 1** - Global link:
 
 ```bash
-cd cli
-pnpm link --global
+# From repository root
+pnpm link:cli
 
 # Verify
 which anvil
 anvil --version
+
+# To unlink later
+pnpm unlink:cli
 ```
 
 **Option 2** - Use directly:
@@ -1039,7 +1042,7 @@ Quick reference for error messages:
 | Error Message                               | Solution                                             |
 | ------------------------------------------- | ---------------------------------------------------- |
 | `pnpm: command not found`                   | Install pnpm: `corepack enable`                      |
-| `anvil: command not found`                  | Link CLI: `cd cli && pnpm link --global`             |
+| `anvil: command not found`                  | Link CLI: `pnpm link:cli` (from repository root)     |
 | `Cannot find module '@anvil/core'`          | Build packages: `pnpm build`                         |
 | `Format detection failed`                   | Use `--format` flag to specify format                |
 | `Hash verification failed`                  | Use `--no-validate-hash` flag                        |

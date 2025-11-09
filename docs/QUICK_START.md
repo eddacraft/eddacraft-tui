@@ -14,7 +14,7 @@ how you write plans.
 
 ### Prerequisites
 
-- **Node.js** 18.x, 20.x, or 22.x
+- **Node.js** 20.x or 22.x (minimum: 20.0.0)
 - **pnpm** 10.17.1 or higher
 
 ### Install Anvil (Pre-release)

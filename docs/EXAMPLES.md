@@ -655,13 +655,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Anvil
         run: |
           git clone https://github.com/EddaCraft/anvil-001.git /tmp/anvil
-          cd /tmp/anvil && pnpm install && pnpm build
-          cd /tmp/anvil/cli && pnpm link --global
+          cd /tmp/anvil
+          pnpm install
+          pnpm link:cli
 
       - name: Validate PRDs
         run: |
@@ -709,7 +710,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'pnpm'
 
       - name: Install pnpm
@@ -722,8 +723,7 @@ jobs:
           git clone https://github.com/EddaCraft/anvil-001.git /tmp/anvil
           cd /tmp/anvil
           pnpm install
-          pnpm build
-          cd cli && pnpm link --global
+          pnpm link:cli
 
       - name: Get changed files
         id: changed-files
@@ -758,7 +758,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: pnpm install
@@ -766,8 +766,9 @@ jobs:
       - name: Install Anvil
         run: |
           git clone https://github.com/EddaCraft/anvil-001.git /tmp/anvil
-          cd /tmp/anvil && pnpm install && pnpm build
-          cd cli && pnpm link --global
+          cd /tmp/anvil
+          pnpm install
+          pnpm link:cli
 
       - name: Run quality gates on specs
         run: |
@@ -794,7 +795,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: pnpm install
@@ -829,13 +830,14 @@ variables:
     - corepack enable
     - corepack prepare pnpm@latest --activate
     - git clone https://github.com/EddaCraft/anvil-001.git /tmp/anvil
-    - cd /tmp/anvil && pnpm install && pnpm build
-    - cd cli && pnpm link --global
+    - cd /tmp/anvil
+    - pnpm install
+    - pnpm link:cli
     - cd $CI_PROJECT_DIR
 
 validate-plans:
   stage: validate
-  image: node:20
+  image: node:22
   <<: *install-anvil
   script:
     - echo "Validating planning documents..."
@@ -851,7 +853,7 @@ validate-plans:
 
 quality-gates:
   stage: quality-gates
-  image: node:20
+  image: node:22
   <<: *install-anvil
   script:
     - echo "Running quality gates..."
@@ -873,7 +875,7 @@ quality-gates:
 
 build:
   stage: build
-  image: node:20
+  image: node:22
   script:
     - pnpm install
     - pnpm build
@@ -883,7 +885,7 @@ build:
 
 test:
   stage: test
-  image: node:20
+  image: node:22
   script:
     - pnpm install
     - pnpm test

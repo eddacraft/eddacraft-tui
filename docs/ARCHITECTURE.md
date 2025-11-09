@@ -962,7 +962,7 @@ Plan ID or Hash
 - Path aliases for imports
 - Comprehensive type coverage
 
-**Runtime**: Node.js >=18.0.0
+**Runtime**: Node.js >=20.0.0
 
 - Native ESM support
 - Modern JavaScript features

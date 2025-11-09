@@ -47,7 +47,7 @@ a complete audit trail.
 
 ### Prerequisites
 
-- **Node.js**: Version 18.x, 20.x, or 22.x
+- **Node.js**: Version 20.x or 22.x (minimum: 20.0.0)
 - **pnpm**: Version 10.17.1 or higher (enforced)
 - **Git**: For cloning the repository
 
@@ -73,17 +73,14 @@ pnpm test
 To use Anvil CLI globally:
 
 ```bash
-# Navigate to CLI package
-cd cli
-
-# Build the CLI
-pnpm build
-
-# Link globally
-pnpm link --global
+# From the repository root
+pnpm link:cli
 
 # Verify
 anvil --version
+
+# To unlink later
+pnpm unlink:cli
 ```
 
 ### Development Installation
@@ -702,7 +699,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -714,8 +711,7 @@ jobs:
           git clone https://github.com/EddaCraft/anvil-001.git
           cd anvil-001
           pnpm install
-          pnpm build
-          cd cli && pnpm link --global
+          pnpm link:cli
 
       - name: Validate Planning Documents
         run: |
@@ -737,15 +733,14 @@ jobs:
 ```yaml
 anvil-validation:
   stage: test
-  image: node:20
+  image: node:22
   script:
     - corepack enable
     - corepack prepare pnpm@latest --activate
     - git clone https://github.com/EddaCraft/anvil-001.git
     - cd anvil-001
     - pnpm install
-    - pnpm build
-    - cd cli && pnpm link --global
+    - pnpm link:cli
     - cd $CI_PROJECT_DIR
     - anvil validate docs/spec.md
     - anvil gate docs/spec.md

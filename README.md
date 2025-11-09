@@ -3,7 +3,7 @@
 [![CI](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml/badge.svg)](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js->=18.0.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js->=20.0.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Nx](https://img.shields.io/badge/Nx-21.5.2-143055.svg?style=flat-square)](https://nx.dev)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 
@@ -201,7 +201,7 @@ anvil init
 
 #### Prerequisites
 
-- **Node.js**: 18.x, 20.x, or 22.x
+- **Node.js**: 20.x or 22.x (minimum: 20.0.0)
 - **pnpm**: 10.17.1 or higher (enforced by `packageManager` in package.json)
 - **Git**: For version control and Claude agent workflows
 
@@ -469,7 +469,7 @@ import { foo } from './utils.js';
 
 GitHub Actions workflow (`.github/workflows/ci.yml`) includes:
 
-- **Matrix Testing**: Node.js 18.x, 20.x, and 22.x
+- **Matrix Testing**: Node.js 20.x and 22.x
 - **Caching**: pnpm store cached for faster builds (~1-2 minute builds)
 - **Parallel Jobs**: Lint, test, typecheck, and build run in parallel
 - **Coverage Reports**: Uploaded as artifacts for analysis
