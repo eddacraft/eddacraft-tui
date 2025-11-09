@@ -185,13 +185,27 @@ anvil/
 
 ## 🛠️ Getting Started
 
-### Prerequisites
+### For Users (Pre-release)
+
+> **Note**: Anvil is currently in pre-release. For early access, use the
+> contributor installation method below.
+
+**Future installation** (when published to npm):
+
+```bash
+npm install -g @anvil/cli
+anvil init
+```
+
+### For Contributors & Early Adopters
+
+#### Prerequisites
 
 - **Node.js**: 18.x, 20.x, or 22.x
 - **pnpm**: 10.17.1 or higher (enforced by `packageManager` in package.json)
 - **Git**: For version control and Claude agent workflows
 
-### Installation
+#### Installation via npm link
 
 ```bash
 # Clone the repository
@@ -204,7 +218,29 @@ pnpm install
 # Build all packages
 pnpm build
 
+# Link CLI globally (makes 'anvil' command available)
+pnpm link:cli
+
 # Verify installation
+anvil --version
+
+# Initialise Anvil in your project
+cd /path/to/your/project
+anvil init
+```
+
+**To unlink later**:
+
+```bash
+cd /path/to/anvil-001
+pnpm unlink:cli
+```
+
+#### Verify Installation
+
+```bash
+# Run tests
+cd /path/to/anvil-001
 pnpm test
 ```
 

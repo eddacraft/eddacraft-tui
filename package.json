@@ -20,7 +20,9 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "lint:md": "markdownlint --ignore-path .markdownlintignore .",
-    "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix"
+    "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",
+    "link:cli": "cd cli && pnpm build && npm link",
+    "unlink:cli": "cd cli && npm unlink -g @anvil/cli"
   },
   "private": true,
   "devDependencies": {

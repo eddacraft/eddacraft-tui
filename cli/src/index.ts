@@ -6,10 +6,14 @@ import { createGateConfigCommand } from './commands/gate-config.js';
 import { createPlanCommand } from './commands/plan.js';
 import { createValidateCommand } from './commands/validate.js';
 import { createExportCommand } from './commands/export.js';
+import { createInitCommand } from './commands/init.js';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const packageJson = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8'));
+// Get package.json from the CLI package directory, not the user's cwd
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const packageJson = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
 
 const program = new Command();
 
@@ -19,6 +23,7 @@ program
   .version(packageJson.version);
 
 // Register commands
+program.addCommand(createInitCommand());
 program.addCommand(createGateCommand());
 program.addCommand(createGateConfigCommand());
 program.addCommand(createPlanCommand());

@@ -1,21 +1,46 @@
 {
   "name": "@anvil/cli",
   "version": "0.0.0",
-  "private": true,
+  "description": "CLI for Anvil - deterministic development automation platform",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
     "anvil": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "vitest"
+    "test": "vitest",
+    "prepublishOnly": "pnpm build"
   },
+  "keywords": [
+    "anvil",
+    "automation",
+    "validation",
+    "quality-gates",
+    "ai-safety",
+    "speckit",
+    "planning"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EddaCraft/anvil-001.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/EddaCraft/anvil-001/issues"
+  },
+  "homepage": "https://github.com/EddaCraft/anvil-001#readme",
+  "author": "EddaCraft",
+  "license": "MIT",
   "dependencies": {
     "@anvil/core": "workspace:*",
     "@anvil/adapters": "workspace:*",

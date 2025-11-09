@@ -1,7 +1,7 @@
 # Quick Start Guide
 
 Get started with Anvil in 5 minutes. This guide will walk you through
-installation and validating your first planning document.
+installation and initialising your first project.
 
 ## What is Anvil?
 
@@ -17,7 +17,12 @@ how you write plans.
 - **Node.js** 18.x, 20.x, or 22.x
 - **pnpm** 10.17.1 or higher
 
-### Install Anvil
+### Install Anvil (Pre-release)
+
+> **Note**: Anvil is currently in pre-release. Once published to npm, you'll be
+> able to install with: `npm install -g @anvil/cli`
+
+**Current installation method**:
 
 ```bash
 # Clone the repository
@@ -27,12 +32,8 @@ cd anvil-001
 # Install dependencies
 pnpm install
 
-# Build all packages
-pnpm build
-
-# Link CLI globally for easy access
-cd cli
-pnpm link --global
+# Build all packages and link CLI globally
+pnpm link:cli
 ```
 
 ### Verify Installation
@@ -44,19 +45,73 @@ anvil --version
 # You should see version information
 ```
 
-## Your First Validation
+## Initialise Your Project
 
-Anvil automatically detects your planning document format. Let's validate a
-document:
-
-### Option 1: Use an Existing Plan
-
-If you have a SpecKit (`spec.md`), BMAD (`prd.md`), or any markdown planning
-document:
+Run `anvil init` in your project directory to set up Anvil:
 
 ```bash
-# Validate your plan
-anvil validate path/to/your/spec.md
+cd /path/to/your/project
+anvil init
+```
+
+This will:
+
+- Detect your development environment (ESLint, Vitest/Jest, TypeScript, etc.)
+- Create `.anvilrc` configuration with recommended settings
+- Set up directory structure (`.anvil/`, `docs/plans/`)
+- Optionally create example planning documents
+- Update `.gitignore` with Anvil patterns
+
+**Interactive setup**:
+
+```
+🔨 Initialising Anvil in current project...
+
+Detected environment:
+  Project: my-app
+  Package Manager: pnpm
+  Git: ✓
+  TypeScript: ✓
+  ESLint: ✓
+  Testing: Vitest
+
+? Where should planning documents be stored? (docs/plans)
+? Which planning format do you use? (Use arrow keys)
+❯ SpecKit (GitHub spec-kit format)
+  BMAD (PRD/Architecture format)
+  Generic Markdown
+  Skip example generation
+? Create example planning document? (Y/n)
+? Configuration template: (Use arrow keys)
+❯ Basic (80% thresholds, recommended)
+  Strict (90% thresholds, production-ready)
+  CI-optimised (minimal checks, fast)
+? Enable ESLint gate? (Y/n) (detected)
+? Enable test gate? (Y/n) (detected)
+? Enable coverage gate? (Y/n)
+? Coverage threshold (0-100): (80)
+? Enable secret scanning? (Y/n)
+```
+
+**Non-interactive mode**:
+
+```bash
+# Use defaults
+anvil init --non-interactive
+```
+
+## Your First Validation
+
+After running `anvil init`, you'll have example planning documents ready to
+validate.
+
+### Option 1: Validate Generated Example
+
+If you created an example during init:
+
+```bash
+# Validate the example plan
+anvil validate docs/plans/example-spec.md
 
 # You'll see output like:
 # ✓ Detected format: speckit (95% confidence)
@@ -64,7 +119,16 @@ anvil validate path/to/your/spec.md
 # ✓ All validation checks passed
 ```
 
-### Option 2: Create a Sample Plan
+### Option 2: Use an Existing Plan
+
+If you have a SpecKit, BMAD, or any markdown planning document:
+
+```bash
+# Validate your plan
+anvil validate path/to/your/spec.md
+```
+
+### Option 3: Create a Sample Plan
 
 Create a simple `plan.md` file:
 

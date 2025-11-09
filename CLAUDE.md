@@ -9,6 +9,10 @@ code in this repository.
 # Build all packages (CRITICAL: always build before testing cross-package changes)
 pnpm build
 
+# Link CLI for local development (makes 'anvil' command available globally)
+pnpm link:cli                # Build and link CLI
+pnpm unlink:cli              # Unlink CLI when done
+
 # Run tests
 pnpm test                    # All unit tests
 pnpm test:coverage           # With coverage reports
@@ -23,6 +27,12 @@ npx nx build core            # Build specific package
 npx nx test adapters         # Test specific package
 pnpm -F core run generate:schema          # Regenerate JSON schema from Zod
 pnpm -F core run update-golden-hashes     # Update golden test hashes after schema changes
+
+# CLI commands (after linking)
+anvil init                   # Initialise Anvil in a project
+anvil validate <plan>        # Validate a planning document
+anvil gate <plan>            # Run quality gates
+anvil export <plan> --to <format>  # Convert between formats
 ```
 
 ## Critical Architecture Concepts

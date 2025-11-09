@@ -11,18 +11,100 @@ format detection and works seamlessly with your existing planning documents.
 
 ## Installation
 
+### For Users (Future)
+
 ```bash
-# Install dependencies
-pnpm install
+npm install -g @anvil/cli
+```
 
-# Build the CLI
-pnpm build
+### For Contributors (Current)
 
-# Link for local development
-pnpm link --global
+```bash
+# From anvil root directory
+pnpm link:cli
 ```
 
 ## Available Commands
+
+### `anvil init`
+
+Initialise Anvil in the current project.
+
+**Usage:**
+
+```bash
+anvil init [options]
+```
+
+**Options:**
+
+- `--force` - Overwrite existing .anvilrc if present
+- `--non-interactive` - Skip interactive prompts and use defaults
+
+**What it does:**
+
+1. Detects your development environment (ESLint, Vitest/Jest, TypeScript, etc.)
+2. Creates `.anvilrc` configuration with recommended settings
+3. Sets up directory structure (`.anvil/`, configurable planning directory)
+4. Optionally creates example planning documents
+5. Updates `.gitignore` with Anvil patterns
+
+**Examples:**
+
+```bash
+# Interactive setup (recommended)
+anvil init
+
+# Non-interactive with defaults
+anvil init --non-interactive
+
+# Force overwrite existing config
+anvil init --force
+```
+
+**Output:**
+
+```
+🔨 Initialising Anvil in current project...
+
+Detected environment:
+  Project: my-app
+  Package Manager: pnpm
+  Git: ✓
+  TypeScript: ✓
+  ESLint: ✓
+  Testing: Vitest
+
+? Where should planning documents be stored? docs/plans
+? Which planning format do you use? SpecKit (GitHub spec-kit format)
+? Create example planning document? Yes
+...
+
+✓ Anvil initialised successfully!
+
+Created files:
+  ✓ .anvilrc
+  ✓ .anvil/
+  ✓ docs/plans/
+  ✓ .gitignore (updated)
+
+Example files:
+  ✓ docs/plans/example-spec.md
+  ✓ docs/plans/example-plan.md
+  ✓ docs/plans/example-tasks.md
+
+Next steps:
+  1. Review configuration:
+     anvil gate:config --list
+  2. Validate example plan:
+     anvil validate docs/plans/example-spec.md
+  3. Run quality gates:
+     anvil gate docs/plans/example-spec.md
+```
+
+---
+
+## Available Commands (continued)
 
 ### `anvil validate <plan>`
 
