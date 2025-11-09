@@ -1,6 +1,7 @@
 # Anvil User Guide
 
-Complete guide to using Anvil for validating and executing quality gates on planning documents.
+Complete guide to using Anvil for validating and executing quality gates on
+planning documents.
 
 ## Table of Contents
 
@@ -17,9 +18,11 @@ Complete guide to using Anvil for validating and executing quality gates on plan
 
 ### What is Anvil?
 
-Anvil is a validation and execution pipeline that makes AI-generated and human-created code changes safe for production. It provides:
+Anvil is a validation and execution pipeline that makes AI-generated and
+human-created code changes safe for production. It provides:
 
-- **Format Agnostic Validation** - Works with SpecKit, BMAD, generic markdown, or native APS
+- **Format Agnostic Validation** - Works with SpecKit, BMAD, generic markdown,
+  or native APS
 - **Quality Gates** - Automated checks for lint, tests, coverage, secrets
 - **Format Conversion** - Export between different planning formats
 - **Audit Trail** - Track validation history and evidence
@@ -27,13 +30,18 @@ Anvil is a validation and execution pipeline that makes AI-generated and human-c
 
 ### Key Concepts
 
-**APS (Anvil Plan Specification)**: Anvil's internal hash-stable format. You don't need to use APS directly—Anvil converts your existing formats automatically.
+**APS (Anvil Plan Specification)**: Anvil's internal hash-stable format. You
+don't need to use APS directly—Anvil converts your existing formats
+automatically.
 
-**Adapters**: Plugins that convert between external formats (SpecKit, BMAD) and APS. Format detection happens automatically.
+**Adapters**: Plugins that convert between external formats (SpecKit, BMAD) and
+APS. Format detection happens automatically.
 
-**Quality Gates**: Automated checks that validate code quality before changes are applied. Currently includes lint, test, coverage, and secret scanning.
+**Quality Gates**: Automated checks that validate code quality before changes
+are applied. Currently includes lint, test, coverage, and secret scanning.
 
-**Evidence**: Immutable records of validation results and gate checks, providing a complete audit trail.
+**Evidence**: Immutable records of validation results and gate checks, providing
+a complete audit trail.
 
 ## Installation
 
@@ -119,28 +127,35 @@ Anvil supports multiple planning document formats through its adapter system.
 # Spec: Add User Authentication
 
 ## Authors
+
 - John Doe <john@example.com>
 
 ## Overview
+
 Implement secure user authentication with JWT tokens.
 
 ## Plan
 
 ### Phase 1: User Model
+
 Create User model with email and password fields.
 
 **Files to modify**:
+
 - `src/models/user.ts`
 - `src/database/schema.sql`
 
 ### Phase 2: Authentication Endpoints
+
 Implement login and logout endpoints.
 
 **Files to create**:
+
 - `src/routes/auth.ts`
 - `src/middleware/authenticate.ts`
 
 ## Tasks
+
 - [ ] Create User model
 - [ ] Add password hashing
 - [ ] Implement login endpoint
@@ -178,20 +193,24 @@ author: John Doe
 # User Authentication Feature
 
 ## Problem Statement
+
 Users need a secure way to authenticate and access protected resources.
 
 ## Solution Overview
+
 Implement JWT-based authentication with email/password login.
 
 ## Requirements
 
 ### Functional Requirements
+
 - FR-1: Users can register with email and password
 - FR-2: Users can log in with valid credentials
 - FR-3: Users can log out and invalidate their session
 - FR-4: Passwords must be hashed using bcrypt
 
 ### Non-Functional Requirements
+
 - NFR-1: Authentication must complete within 200ms
 - NFR-2: Password hashing must use bcrypt with cost factor 12
 - NFR-3: Sessions expire after 24 hours
@@ -199,6 +218,7 @@ Implement JWT-based authentication with email/password login.
 ## Architecture
 
 ### Components
+
 - **User Model**: Stores user credentials
 - **Auth Service**: Handles authentication logic
 - **JWT Service**: Generates and validates tokens
@@ -207,20 +227,25 @@ Implement JWT-based authentication with email/password login.
 ## Implementation Plan
 
 ### Phase 1: Database Schema
+
 Create users table with email, password_hash, created_at fields.
 
 **Files to modify**:
+
 - `prisma/schema.prisma`
 - `src/database/migrations/`
 
 ### Phase 2: Authentication Service
+
 Implement authentication logic.
 
 **Files to create**:
+
 - `src/services/auth.service.ts`
 - `src/services/jwt.service.ts`
 
 ## Acceptance Criteria
+
 - [ ] Users can register successfully
 - [ ] Login returns valid JWT token
 - [ ] Protected routes require valid token
@@ -250,23 +275,28 @@ anvil export prd.md --to yaml
 # Project Roadmap Q4 2025
 
 ## Goals
+
 - Launch user authentication
 - Improve test coverage to 90%
 - Migrate to PostgreSQL
 
 ## Q4 Sprint 1: Authentication
+
 **Start**: Nov 1, **End**: Nov 15
 
 Tasks:
+
 - Create user model
 - Implement JWT auth
 - Add login/logout endpoints
 - Write integration tests
 
 ## Q4 Sprint 2: Database Migration
+
 **Start**: Nov 16, **End**: Nov 30
 
 Tasks:
+
 - Set up PostgreSQL instance
 - Create migration scripts
 - Test data migration
@@ -337,13 +367,13 @@ anvil validate <plan-file> [options]
 
 **Options**:
 
-| Option                  | Description                              |
-| ----------------------- | ---------------------------------------- |
-| `-v, --verbose`         | Show detailed validation output          |
-| `--format <format>`     | Override format detection                |
-| `--native`              | Treat as native APS (skip detection)     |
-| `--validate-hash`       | Validate hash integrity (default: true)  |
-| `--no-validate-hash`    | Skip hash validation                     |
+| Option               | Description                             |
+| -------------------- | --------------------------------------- |
+| `-v, --verbose`      | Show detailed validation output         |
+| `--format <format>`  | Override format detection               |
+| `--native`           | Treat as native APS (skip detection)    |
+| `--validate-hash`    | Validate hash integrity (default: true) |
+| `--no-validate-hash` | Skip hash validation                    |
 
 **Examples**:
 
@@ -397,15 +427,15 @@ anvil gate <plan-file> [options]
 
 **Options**:
 
-| Option                      | Description                              |
-| --------------------------- | ---------------------------------------- |
-| `-c, --config <path>`       | Custom gate configuration file           |
-| `-v, --verbose`             | Verbose output                           |
-| `--format <format>`         | Override format detection                |
-| `--native`                  | Treat as native APS                      |
-| `--only-checks <checks>`    | Run only specified checks (comma-separated) |
-| `--skip-checks <checks>`    | Skip specified checks (comma-separated)  |
-| `--fail-fast`               | Stop on first failure                    |
+| Option                   | Description                                 |
+| ------------------------ | ------------------------------------------- |
+| `-c, --config <path>`    | Custom gate configuration file              |
+| `-v, --verbose`          | Verbose output                              |
+| `--format <format>`      | Override format detection                   |
+| `--native`               | Treat as native APS                         |
+| `--only-checks <checks>` | Run only specified checks (comma-separated) |
+| `--skip-checks <checks>` | Skip specified checks (comma-separated)     |
+| `--fail-fast`            | Stop on first failure                       |
 
 **Examples**:
 
@@ -466,17 +496,17 @@ anvil export <source-file> --to <format> [options]
 
 **Required Options**:
 
-| Option           | Description                              | Values                        |
-| ---------------- | ---------------------------------------- | ----------------------------- |
-| `--to <format>`  | Target format                            | `aps`, `json`, `yaml`, `speckit`, `bmad` |
+| Option          | Description   | Values                                   |
+| --------------- | ------------- | ---------------------------------------- |
+| `--to <format>` | Target format | `aps`, `json`, `yaml`, `speckit`, `bmad` |
 
 **Options**:
 
-| Option                | Description                              |
-| --------------------- | ---------------------------------------- |
-| `--output <path>`     | Output file or directory path            |
-| `--from <format>`     | Source format (auto-detected if omitted) |
-| `--compact`           | Compact JSON (no pretty-printing)        |
+| Option            | Description                              |
+| ----------------- | ---------------------------------------- |
+| `--output <path>` | Output file or directory path            |
+| `--from <format>` | Source format (auto-detected if omitted) |
+| `--compact`       | Compact JSON (no pretty-printing)        |
 
 **Examples**:
 
@@ -546,13 +576,7 @@ Create `.anvilrc` or specify a custom config file to customize gate behaviour.
     },
     "secrets": {
       "enabled": true,
-      "patterns": [
-        "password",
-        "api_key",
-        "secret",
-        "token",
-        "private_key"
-      ]
+      "patterns": ["password", "api_key", "secret", "token", "private_key"]
     }
   }
 }
@@ -560,18 +584,18 @@ Create `.anvilrc` or specify a custom config file to customize gate behaviour.
 
 **Configuration Options**:
 
-| Option                      | Description                              | Default       |
-| --------------------------- | ---------------------------------------- | ------------- |
-| `checks.lint.enabled`       | Enable/disable lint check                | `true`        |
-| `checks.lint.command`       | Command to run for linting               | `pnpm lint`   |
-| `checks.lint.timeout`       | Timeout in milliseconds                  | `30000`       |
-| `checks.test.enabled`       | Enable/disable test check                | `true`        |
-| `checks.test.command`       | Command to run tests                     | `pnpm test`   |
-| `checks.test.timeout`       | Timeout in milliseconds                  | `60000`       |
-| `checks.coverage.enabled`   | Enable/disable coverage check            | `true`        |
-| `checks.coverage.threshold` | Minimum coverage percentage              | `80`          |
-| `checks.secrets.enabled`    | Enable/disable secret scanning           | `true`        |
-| `checks.secrets.patterns`   | Patterns to detect as secrets            | See example   |
+| Option                      | Description                    | Default     |
+| --------------------------- | ------------------------------ | ----------- |
+| `checks.lint.enabled`       | Enable/disable lint check      | `true`      |
+| `checks.lint.command`       | Command to run for linting     | `pnpm lint` |
+| `checks.lint.timeout`       | Timeout in milliseconds        | `30000`     |
+| `checks.test.enabled`       | Enable/disable test check      | `true`      |
+| `checks.test.command`       | Command to run tests           | `pnpm test` |
+| `checks.test.timeout`       | Timeout in milliseconds        | `60000`     |
+| `checks.coverage.enabled`   | Enable/disable coverage check  | `true`      |
+| `checks.coverage.threshold` | Minimum coverage percentage    | `80`        |
+| `checks.secrets.enabled`    | Enable/disable secret scanning | `true`      |
+| `checks.secrets.patterns`   | Patterns to detect as secrets  | See example |
 
 **Usage**:
 
@@ -728,7 +752,7 @@ anvil-validation:
   only:
     changes:
       - docs/*.md
-      - "*.aps.json"
+      - '*.aps.json'
 ```
 
 ### Workflow 5: Pre-commit Hook
@@ -759,6 +783,7 @@ fi
 ### Planning Document Structure
 
 **✅ Do:**
+
 - Use clear, descriptive titles
 - Include rationale for changes
 - List all files to be modified
@@ -766,6 +791,7 @@ fi
 - Version your plans
 
 **❌ Don't:**
+
 - Mix multiple unrelated features in one plan
 - Include sensitive data or secrets
 - Make plans too vague or ambiguous
@@ -774,21 +800,25 @@ fi
 ### Format Selection
 
 **Use SpecKit when:**
+
 - You're working with GitHub repositories
 - You want detailed task tracking
 - You need spec/plan/tasks separation
 
 **Use BMAD when:**
+
 - You're writing PRDs or architecture docs
 - You need comprehensive requirements
 - You want front-matter metadata
 
 **Use Generic Markdown when:**
+
 - You have simple planning documents
 - You want maximum flexibility
 - You're working with existing markdown files
 
 **Use Native APS when:**
+
 - You need programmatic access
 - You're building tools on top of Anvil
 - You want guaranteed format stability
@@ -796,6 +826,7 @@ fi
 ### Quality Gate Configuration
 
 **Start Conservative**:
+
 ```json
 {
   "checks": {
@@ -808,6 +839,7 @@ fi
 ```
 
 **Gradually Increase Standards**:
+
 ```json
 {
   "checks": {
@@ -817,6 +849,7 @@ fi
 ```
 
 **Project-Specific Overrides**:
+
 - Lower thresholds for legacy projects
 - Higher thresholds for critical systems
 - Disable checks that don't apply (e.g., coverage for documentation repos)
@@ -824,6 +857,7 @@ fi
 ### Version Control
 
 **Commit Plans with Code**:
+
 ```bash
 # Good practice
 git add spec.md src/
@@ -831,6 +865,7 @@ git commit -m "Add authentication: spec + implementation"
 ```
 
 **Use Branches for Large Changes**:
+
 ```bash
 git checkout -b feature/authentication
 # Work on spec and code
@@ -840,6 +875,7 @@ git commit -am "Add authentication feature"
 ```
 
 **Tag Released Plans**:
+
 ```bash
 git tag -a v1.0-auth -m "Authentication feature release"
 git push --tags
@@ -892,17 +928,20 @@ Real-time validation in your editor:
 ## Next Steps
 
 - **Examples**: See [EXAMPLES.md](./EXAMPLES.md) for detailed use cases
-- **Troubleshooting**: See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues
-- **CLI Reference**: See [cli/README.md](../cli/README.md) for complete command reference
+- **Troubleshooting**: See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common
+  issues
+- **CLI Reference**: See [cli/README.md](../cli/README.md) for complete command
+  reference
 - **Architecture**: See [ARCHITECTURE.md](./ARCHITECTURE.md) for system design
 
 ## Support
 
-- **Documentation**: [docs/](https://github.com/EddaCraft/anvil-001/tree/main/docs)
+- **Documentation**:
+  [docs/](https://github.com/EddaCraft/anvil-001/tree/main/docs)
 - **Issues**: [GitHub Issues](https://github.com/EddaCraft/anvil-001/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/EddaCraft/anvil-001/discussions)
+- **Discussions**:
+  [GitHub Discussions](https://github.com/EddaCraft/anvil-001/discussions)
 
 ---
 
-**Version**: 0.0.0 (Pre-release)
-**Last Updated**: 2025-11-09
+**Version**: 0.0.0 (Pre-release) **Last Updated**: 2025-11-09

@@ -45,7 +45,8 @@ reversible.
 
 **New to Anvil?** Start here:
 
-- **[Quick Start Guide](./docs/QUICK_START.md)** - Get up and running in 5 minutes
+- **[Quick Start Guide](./docs/QUICK_START.md)** - Get up and running in 5
+  minutes
 - **[User Guide](./docs/USER_GUIDE.md)** - Comprehensive guide to using Anvil
 - **[Examples](./docs/EXAMPLES.md)** - Real-world workflows and use cases
 - **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Solutions to common issues
@@ -456,7 +457,8 @@ All checks must pass before merging:
 
 - **[docs/QUICK_START.md](./docs/QUICK_START.md)** – Get started in 5 minutes
 - **[docs/USER_GUIDE.md](./docs/USER_GUIDE.md)** – Comprehensive user guide
-- **[docs/EXAMPLES.md](./docs/EXAMPLES.md)** – Real-world use cases and workflows
+- **[docs/EXAMPLES.md](./docs/EXAMPLES.md)** – Real-world use cases and
+  workflows
 - **[docs/TROUBLESHOOTING.md](./docs/TROUBLESHOOTING.md)** – Common issues and
   solutions
 - **[cli/README.md](./cli/README.md)** – CLI command reference

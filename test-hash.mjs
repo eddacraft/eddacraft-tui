@@ -1,25 +1,25 @@
 import { generateHash } from './core/dist/crypto/hash.js';
 
 const plan = {
-  'schema_version': '0.1.0',
-  'id': 'aps-1ef574b9',
-  'intent': 'fix-the-init-process',
-  'proposed_changes': [],
-  'provenance': {
-    'timestamp': '2025-11-09T15:24:28.140Z',
-    'author': 'aneki',
-    'source': 'cli',
-    'version': '0.0.0',
-    'repository': '/home/aneki/anvil-001',
-    'branch': 'main',
-    'commit': ''
+  schema_version: '0.1.0',
+  id: 'aps-1ef574b9',
+  intent: 'fix-the-init-process',
+  proposed_changes: [],
+  provenance: {
+    timestamp: '2025-11-09T15:24:28.140Z',
+    author: 'aneki',
+    source: 'cli',
+    version: '0.0.0',
+    repository: '/home/aneki/anvil-001',
+    branch: 'main',
+    commit: '',
   },
-  'validations': {
-    'required_checks': ['lint', 'test', 'coverage', 'secrets'],
-    'skip_checks': []
+  validations: {
+    required_checks: ['lint', 'test', 'coverage', 'secrets'],
+    skip_checks: [],
   },
-  'evidence': [],
-  'executions': []
+  evidence: [],
+  executions: [],
 };
 
 const computedHash = generateHash(plan);

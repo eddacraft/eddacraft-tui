@@ -17,13 +17,16 @@ Real-world examples and workflows for using Anvil in your development process.
 You've written a simple plan and want to validate it:
 
 **Input** (`plan.md`):
+
 ```markdown
 # Feature: Add Dark Mode
 
 ## Overview
+
 Add dark mode toggle to application settings.
 
 ## Tasks
+
 - [ ] Create theme context provider
 - [ ] Add dark mode styles
 - [ ] Create settings toggle component
@@ -31,6 +34,7 @@ Add dark mode toggle to application settings.
 - [ ] Add tests
 
 ## Files to Modify
+
 - `src/contexts/ThemeContext.tsx` - Create new
 - `src/styles/themes.css` - Create new
 - `src/components/Settings.tsx` - Modify
@@ -38,6 +42,7 @@ Add dark mode toggle to application settings.
 ```
 
 **Commands**:
+
 ```bash
 # Validate the plan
 anvil validate plan.md
@@ -91,19 +96,24 @@ anvil export spec.md --to yaml --output spec.yaml
 **Scenario**: You're planning a new API endpoint using SpecKit format.
 
 **Input** (`spec.md`):
+
 ```markdown
 # Spec: Add User Profile API
 
 ## Authors
+
 - Jane Developer <jane@example.com>
 
 ## Status
+
 Draft
 
 ## Overview
+
 Create REST API endpoint for retrieving and updating user profiles.
 
 ## Requirements
+
 - GET /api/users/:id - Retrieve user profile
 - PATCH /api/users/:id - Update user profile
 - Authentication required
@@ -113,36 +123,44 @@ Create REST API endpoint for retrieving and updating user profiles.
 ## Plan
 
 ### Phase 1: Database Schema
+
 Update user model to include profile fields.
 
 **Files to modify**:
+
 - `prisma/schema.prisma` - Add profile fields
 - `src/database/migrations/` - Create migration
 
 **Rationale**: Need to store additional profile data (bio, avatar, social links)
 
 ### Phase 2: API Routes
+
 Implement GET and PATCH endpoints.
 
 **Files to create**:
+
 - `src/routes/api/users.ts` - User profile routes
 - `src/controllers/user-profile.controller.ts` - Business logic
 - `src/validators/user-profile.validator.ts` - Input validation
 
 **Files to modify**:
+
 - `src/routes/index.ts` - Register new routes
 - `src/middleware/auth.ts` - Add profile permissions
 
 **Rationale**: Separate concerns (routing, logic, validation)
 
 ### Phase 3: Tests
+
 Add comprehensive test coverage.
 
 **Files to create**:
+
 - `src/routes/api/__tests__/users.test.ts`
 - `src/controllers/__tests__/user-profile.test.ts`
 
 **Test cases**:
+
 - Authenticated user can retrieve own profile
 - Authenticated user can update own profile
 - Unauthenticated requests are rejected
@@ -150,6 +168,7 @@ Add comprehensive test coverage.
 - Rate limiting works correctly
 
 ## Tasks
+
 - [ ] Update Prisma schema
 - [ ] Create database migration
 - [ ] Implement GET endpoint
@@ -161,6 +180,7 @@ Add comprehensive test coverage.
 - [ ] Update API documentation
 
 ## Acceptance Criteria
+
 - All endpoints return proper HTTP status codes
 - Input validation prevents invalid data
 - Rate limiting enforces 100 req/min limit
@@ -169,6 +189,7 @@ Add comprehensive test coverage.
 ```
 
 **Usage**:
+
 ```bash
 # Validate SpecKit format
 anvil validate spec.md
@@ -185,7 +206,8 @@ anvil export spec.md --to aps --output specs/user-profile-api.aps.json
 **Scenario**: You're writing a PRD for a new feature.
 
 **Input** (`prd-notifications.md`):
-```markdown
+
+````markdown
 ---
 title: Real-time Notifications System
 version: 1.0.0
@@ -198,22 +220,30 @@ reviewer: Engineering Lead
 # Real-time Notifications System
 
 ## Executive Summary
-Implement real-time notifications using WebSockets to improve user engagement and reduce email volume.
+
+Implement real-time notifications using WebSockets to improve user engagement
+and reduce email volume.
 
 ## Problem Statement
-Users miss important updates because they're only visible when checking the app. Email notifications are delayed and create inbox clutter. We need real-time, in-app notifications for time-sensitive events.
+
+Users miss important updates because they're only visible when checking the app.
+Email notifications are delayed and create inbox clutter. We need real-time,
+in-app notifications for time-sensitive events.
 
 ## Goals
+
 - Reduce email notification volume by 60%
 - Improve user engagement (daily active users +15%)
 - Decrease time-to-action on critical events by 80%
 
 ## Non-Goals
+
 - Push notifications (mobile) - planned for Q2 2026
 - SMS notifications - out of scope
 - Email replacement - emails still needed for critical alerts
 
 ## Success Metrics
+
 - 70% of users enable in-app notifications within first week
 - Average time-to-action on critical events: <5 minutes (currently 30 min)
 - Email notification opt-out rate: 40% (currently 10%)
@@ -223,27 +253,34 @@ Users miss important updates because they're only visible when checking the app.
 ### Functional Requirements
 
 #### FR-1: Real-time Notification Delivery
-**Description**: Deliver notifications to users within 1 second of event occurrence
+
+**Description**: Deliver notifications to users within 1 second of event
+occurrence
 
 **Acceptance Criteria**:
+
 - WebSocket connection established on user login
 - Notifications appear without page refresh
 - Connection automatically recovers from failures
 - Offline notifications queued and delivered on reconnect
 
 #### FR-2: Notification Management
+
 **Description**: Users can view, manage, and configure notifications
 
 **Acceptance Criteria**:
+
 - Notification center shows all notifications (read/unread)
 - Mark as read/unread functionality
 - Bulk actions (mark all read, clear all)
 - Notification preferences per category
 
 #### FR-3: Notification Categories
+
 **Description**: Different notification types for different events
 
 **Categories**:
+
 - Mentions (@username in comments)
 - Assignments (tasks assigned to user)
 - Approvals (pending approvals requiring action)
@@ -252,16 +289,19 @@ Users miss important updates because they're only visible when checking the app.
 ### Non-Functional Requirements
 
 #### NFR-1: Performance
+
 - Notification delivery: <1 second (p95)
 - Notification center load time: <200ms
 - Support 10,000 concurrent connections per server
 
 #### NFR-2: Reliability
+
 - 99.9% uptime for WebSocket service
 - Zero message loss (persisted before sending)
 - Graceful degradation (polling fallback if WebSocket unavailable)
 
 #### NFR-3: Security
+
 - Authentication required for WebSocket connection
 - Users only receive their own notifications
 - Rate limiting: 100 notifications per user per hour
@@ -271,24 +311,28 @@ Users miss important updates because they're only visible when checking the app.
 ### Components
 
 #### 1. WebSocket Server
+
 - Technology: Socket.io
 - Handles real-time connections
 - Scales horizontally with Redis adapter
 - Deployment: Separate service, auto-scaling enabled
 
 #### 2. Notification Service
+
 - Creates and persists notifications
 - Publishes to WebSocket server via Redis pub/sub
 - Handles batching and rate limiting
 - API: REST endpoints for notification management
 
 #### 3. Notification Center UI
+
 - React component with real-time updates
 - Notification list with pagination
 - Preference management
 - Toast notifications for real-time alerts
 
 #### 4. Database
+
 - PostgreSQL table: notifications
 - Indexes: user_id, created_at, read_status
 - Retention: 90 days (configurable)
@@ -308,39 +352,48 @@ interface Notification {
   metadata?: Record<string, any>;
 }
 ```
+````
 
 ## Implementation Plan
 
 ### Phase 1: Infrastructure (Week 1-2)
+
 Set up WebSocket server and database schema.
 
 **Files to create**:
+
 - `services/websocket/server.ts` - WebSocket server
 - `services/websocket/connection-manager.ts` - Connection lifecycle
 - `prisma/schema.prisma` - Notification model
 - `services/notification/service.ts` - Notification business logic
 
 **Files to modify**:
+
 - `docker-compose.yml` - Add Redis service
 - `infrastructure/k8s/` - WebSocket deployment config
 
 ### Phase 2: Backend API (Week 3-4)
+
 Implement notification creation and management APIs.
 
 **Files to create**:
+
 - `src/routes/api/notifications.ts` - REST endpoints
 - `src/controllers/notification.controller.ts` - CRUD operations
 - `src/services/notification/publisher.ts` - Publish to WebSocket
 - `src/workers/notification-cleanup.ts` - Cleanup old notifications
 
 **Files to modify**:
+
 - `src/routes/index.ts` - Register notification routes
 - `src/services/events/` - Emit notification events
 
 ### Phase 3: Frontend (Week 5-6)
+
 Build notification center UI and real-time updates.
 
 **Files to create**:
+
 - `src/components/NotificationCenter.tsx`
 - `src/components/NotificationList.tsx`
 - `src/components/NotificationItem.tsx`
@@ -349,13 +402,16 @@ Build notification center UI and real-time updates.
 - `src/hooks/useNotificationPreferences.ts`
 
 **Files to modify**:
+
 - `src/App.tsx` - Add notification center
 - `src/layouts/Header.tsx` - Add notification bell icon
 
 ### Phase 4: Testing & Rollout (Week 7-8)
+
 Comprehensive testing and gradual rollout.
 
 **Tasks**:
+
 - Unit tests for all components
 - Integration tests for WebSocket flow
 - Load testing (10k concurrent connections)
@@ -365,6 +421,7 @@ Comprehensive testing and gradual rollout.
 ## Acceptance Criteria
 
 ### Must Have (P0)
+
 - [ ] WebSocket connections work for authenticated users
 - [ ] Notifications delivered in real-time (<1 second)
 - [ ] Notification center displays all notifications
@@ -375,24 +432,26 @@ Comprehensive testing and gradual rollout.
 - [ ] Load tested at 10k concurrent connections
 
 ### Should Have (P1)
+
 - [ ] Bulk actions (mark all read)
 - [ ] Notification search
 - [ ] Desktop notifications (browser)
 - [ ] Sound effects (configurable)
 
 ### Nice to Have (P2)
+
 - [ ] Notification analytics dashboard
 - [ ] Custom notification templates
 - [ ] Notification scheduling
 
 ## Risks & Mitigation
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| WebSocket scaling issues | High | Medium | Horizontal scaling with Redis adapter, load testing |
-| Message loss during failures | High | Low | Persist before sending, acknowledge receipt |
-| Browser compatibility | Medium | Medium | Polling fallback for older browsers |
-| Notification fatigue | Medium | High | Rate limiting, smart batching, user preferences |
+| Risk                         | Impact | Probability | Mitigation                                          |
+| ---------------------------- | ------ | ----------- | --------------------------------------------------- |
+| WebSocket scaling issues     | High   | Medium      | Horizontal scaling with Redis adapter, load testing |
+| Message loss during failures | High   | Low         | Persist before sending, acknowledge receipt         |
+| Browser compatibility        | Medium | Medium      | Polling fallback for older browsers                 |
+| Notification fatigue         | Medium | High        | Rate limiting, smart batching, user preferences     |
 
 ## Timeline
 
@@ -421,10 +480,12 @@ Comprehensive testing and gradual rollout.
 ## Appendix
 
 ### Related Documents
+
 - Technical Design Doc: `docs/tdd/notifications-system.md`
 - API Specification: `docs/api/notifications-api.md`
 - Security Review: `docs/security/notifications-review.md`
-```
+
+````
 
 **Usage**:
 ```bash
@@ -439,7 +500,7 @@ anvil export prd-notifications.md --to aps --output prds/notifications.aps.json
 
 # Export to YAML for easier reading
 anvil export prd-notifications.md --to yaml
-```
+````
 
 ## Team Workflows
 
@@ -450,6 +511,7 @@ anvil export prd-notifications.md --to yaml
 **Steps**:
 
 1. **Planning Phase**
+
 ```bash
 # Product Manager creates PRD
 vim prd-feature.md
@@ -464,6 +526,7 @@ git push
 ```
 
 2. **Design Phase**
+
 ```bash
 # Technical Lead creates spec
 vim spec-feature.md
@@ -480,6 +543,7 @@ git commit -m "docs: Add technical spec for feature"
 ```
 
 3. **Implementation Phase**
+
 ```bash
 # Developer starts implementation
 git checkout -b feature/new-feature
@@ -495,6 +559,7 @@ git commit -am "feat: Implement feature (part 1)"
 ```
 
 4. **Review Phase**
+
 ```bash
 # In PR, CI runs Anvil validation
 # .github/workflows/anvil.yml triggers
@@ -507,6 +572,7 @@ anvil gate spec-feature.md --verbose
 ```
 
 5. **Deployment Phase**
+
 ```bash
 # After merge, update plan status
 # (In future: anvil update-status spec-feature.md --status deployed)
@@ -521,6 +587,7 @@ git push --tags
 **Scenario**: Team uses both SpecKit (engineers) and BMAD (product).
 
 **Setup**:
+
 ```bash
 # Project structure
 project/
@@ -535,6 +602,7 @@ project/
 ```
 
 **Product Manager Workflow**:
+
 ```bash
 # Create PRD in BMAD format
 vim docs/prds/feature-x.md
@@ -552,6 +620,7 @@ git commit -m "docs: Add feature X PRD"
 ```
 
 **Engineer Workflow**:
+
 ```bash
 # Read APS or create SpecKit spec
 vim docs/specs/feature-x-spec.md
@@ -568,6 +637,7 @@ git commit -m "docs: Add feature X spec (refs: feature-x.aps.json)"
 ```
 
 **CI Validation** (`.github/workflows/anvil.yml`):
+
 ```yaml
 name: Validate Plans
 
@@ -614,6 +684,7 @@ jobs:
 **Scenario**: Comprehensive CI pipeline with Anvil validation.
 
 **File**: `.github/workflows/ci.yml`
+
 ```yaml
 name: CI Pipeline
 
@@ -741,6 +812,7 @@ jobs:
 ### Example: GitLab CI Pipeline
 
 **File**: `.gitlab-ci.yml`
+
 ```yaml
 stages:
   - validate
@@ -749,7 +821,7 @@ stages:
   - test
 
 variables:
-  ANVIL_VERSION: "latest"
+  ANVIL_VERSION: 'latest'
 
 # Install Anvil (reusable)
 .install-anvil: &install-anvil
@@ -775,7 +847,7 @@ validate-plans:
   only:
     changes:
       - docs/**/*.md
-      - "**/*.aps.json"
+      - '**/*.aps.json'
 
 quality-gates:
   stage: quality-gates
@@ -828,7 +900,8 @@ test:
 
 ### Use Case: Format Conversion Pipeline
 
-**Scenario**: Convert legacy planning docs to APS, validate, then export to team's preferred format.
+**Scenario**: Convert legacy planning docs to APS, validate, then export to
+team's preferred format.
 
 ```bash
 #!/bin/bash
@@ -887,6 +960,7 @@ echo "SpecKit files: $OUTPUT_DIR/"
 **Scenario**: Different quality standards for different project types.
 
 **Structure**:
+
 ```
 company-monorepo/
 ├── services/
@@ -903,6 +977,7 @@ company-monorepo/
 ```
 
 **API Service** (`services/api/.anvilrc`):
+
 ```json
 {
   "checks": {
@@ -930,6 +1005,7 @@ company-monorepo/
 ```
 
 **Frontend** (`services/frontend/.anvilrc`):
+
 ```json
 {
   "checks": {
@@ -953,6 +1029,7 @@ company-monorepo/
 ```
 
 **Documentation** (`docs/.anvilrc`):
+
 ```json
 {
   "checks": {
@@ -973,6 +1050,7 @@ company-monorepo/
 ```
 
 **Usage**:
+
 ```bash
 # Each service uses its own configuration
 cd services/api
@@ -1045,6 +1123,7 @@ fi
 ```
 
 **Usage**:
+
 ```bash
 # Make executable
 chmod +x validate-all.sh
@@ -1059,10 +1138,10 @@ npm run validate-all || exit 1
 ## Next Steps
 
 - **User Guide**: See [USER_GUIDE.md](./USER_GUIDE.md) for complete reference
-- **Troubleshooting**: See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues
+- **Troubleshooting**: See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common
+  issues
 - **CLI Reference**: See [cli/README.md](../cli/README.md) for all commands
 
 ---
 
-**Version**: 0.0.0 (Pre-release)
-**Last Updated**: 2025-11-09
+**Version**: 0.0.0 (Pre-release) **Last Updated**: 2025-11-09

@@ -17,12 +17,14 @@ Common issues and solutions for using Anvil.
 ### Issue: `pnpm: command not found`
 
 **Symptoms**:
+
 ```bash
 $ pnpm install
 bash: pnpm: command not found
 ```
 
 **Solution**:
+
 ```bash
 # Enable corepack (Node.js 16.13+)
 corepack enable
@@ -34,19 +36,22 @@ npm install -g pnpm
 pnpm --version
 ```
 
-**Why this happens**: Anvil requires pnpm 10.17.1+ which is not installed by default.
+**Why this happens**: Anvil requires pnpm 10.17.1+ which is not installed by
+default.
 
 ---
 
 ### Issue: Build fails with TypeScript errors
 
 **Symptoms**:
+
 ```bash
 $ pnpm build
 Error: Cannot find module '@anvil/core'
 ```
 
 **Solution**:
+
 ```bash
 # Clean build artifacts
 rm -rf dist/ node_modules/.cache
@@ -63,13 +68,15 @@ npx nx build adapters
 npx nx build cli
 ```
 
-**Why this happens**: TypeScript project references require packages to be built in dependency order.
+**Why this happens**: TypeScript project references require packages to be built
+in dependency order.
 
 ---
 
 ### Issue: `anvil: command not found` after installation
 
 **Symptoms**:
+
 ```bash
 $ anvil validate spec.md
 bash: anvil: command not found
@@ -78,6 +85,7 @@ bash: anvil: command not found
 **Solution**:
 
 **Option 1** - Global link:
+
 ```bash
 cd cli
 pnpm link --global
@@ -88,12 +96,14 @@ anvil --version
 ```
 
 **Option 2** - Use directly:
+
 ```bash
 cd cli
 node dist/index.js validate spec.md
 ```
 
 **Option 3** - Use npx:
+
 ```bash
 cd cli
 npx tsx src/index.ts validate spec.md
@@ -108,6 +118,7 @@ npx tsx src/index.ts validate spec.md
 ### Issue: Format not detected or low confidence
 
 **Symptoms**:
+
 ```bash
 $ anvil validate plan.md
 ✗ Error: Could not detect format (confidence too low: 25%)
@@ -116,6 +127,7 @@ $ anvil validate plan.md
 **Solutions**:
 
 **Solution 1** - Explicitly specify format:
+
 ```bash
 anvil validate plan.md --format speckit
 # or
@@ -127,18 +139,23 @@ anvil validate plan.md --format generic
 **Solution 2** - Improve document structure:
 
 For SpecKit format, add:
+
 ```markdown
 # Spec: <title>
 
 ## Authors
+
 - Name <email>
 
 ## Plan
+
 ### Phase 1
+
 ...
 ```
 
 For BMAD format, add:
+
 ```markdown
 ---
 title: Feature Name
@@ -147,13 +164,16 @@ status: draft
 ---
 
 ## Problem Statement
+
 ...
 
 ## Requirements
+
 ...
 ```
 
 **Solution 3** - Use native APS:
+
 ```bash
 # Convert to APS first
 anvil export plan.md --format generic --to aps --output plan.aps.json
@@ -162,13 +182,15 @@ anvil export plan.md --format generic --to aps --output plan.aps.json
 anvil validate plan.aps.json --native
 ```
 
-**Why this happens**: Generic markdown documents may not have enough structure for confident detection.
+**Why this happens**: Generic markdown documents may not have enough structure
+for confident detection.
 
 ---
 
 ### Issue: Wrong format detected
 
 **Symptoms**:
+
 ```bash
 $ anvil validate prd.md
 ✓ Detected format: speckit (55% confidence)
@@ -176,33 +198,39 @@ $ anvil validate prd.md
 ```
 
 **Solution**:
+
 ```bash
 # Override detection
 anvil validate prd.md --format bmad
 ```
 
 **Permanent fix** - Improve document structure:
+
 ```markdown
 ---
 title: Product Requirements
 version: 1.0.0
 ---
+
 # This YAML front-matter increases BMAD confidence to 95%+
 ```
 
-**Why this happens**: Adapters compete; highest confidence wins. Add format-specific markers to increase confidence.
+**Why this happens**: Adapters compete; highest confidence wins. Add
+format-specific markers to increase confidence.
 
 ---
 
 ### Issue: File extension not recognized
 
 **Symptoms**:
+
 ```bash
 $ anvil validate plan.txt
 ✗ Error: Unsupported file extension: .txt
 ```
 
 **Solution**:
+
 ```bash
 # Rename to .md
 mv plan.txt plan.md
@@ -212,7 +240,8 @@ anvil validate plan.md
 anvil validate plan.txt --format generic
 ```
 
-**Why this happens**: Anvil looks for `.md`, `.json`, `.yaml` extensions by default.
+**Why this happens**: Anvil looks for `.md`, `.json`, `.yaml` extensions by
+default.
 
 ---
 
@@ -221,6 +250,7 @@ anvil validate plan.txt --format generic
 ### Issue: Hash verification failed
 
 **Symptoms**:
+
 ```bash
 $ anvil validate spec.md
 ✗ Hash verification failed
@@ -231,11 +261,13 @@ Actual:   def456...
 **Solutions**:
 
 **Solution 1** - Skip hash validation:
+
 ```bash
 anvil validate spec.md --no-validate-hash
 ```
 
 **Solution 2** - Regenerate hash:
+
 ```bash
 # Export to APS (regenerates hash)
 anvil export spec.md --to aps --output spec.aps.json
@@ -244,13 +276,15 @@ anvil export spec.md --to aps --output spec.aps.json
 anvil validate spec.aps.json
 ```
 
-**Why this happens**: Document was manually edited after hash was generated. Hashes ensure plan integrity.
+**Why this happens**: Document was manually edited after hash was generated.
+Hashes ensure plan integrity.
 
 ---
 
 ### Issue: Schema validation errors
 
 **Symptoms**:
+
 ```bash
 $ anvil validate plan.md
 ✗ Validation failed: 3 errors
@@ -265,24 +299,31 @@ $ anvil validate plan.md
 Check your document structure matches the format:
 
 **For SpecKit**:
-```markdown
-# Spec: <title>              # → intent
 
-## Plan                      # → proposed_changes
+```markdown
+# Spec: <title> # → intent
+
+## Plan # → proposed_changes
+
 ### Phase 1: Component
+
 Description here...
 ```
 
 **For BMAD**:
-```markdown
-## Problem Statement         # → intent
 
-## Implementation Plan       # → proposed_changes
+```markdown
+## Problem Statement # → intent
+
+## Implementation Plan # → proposed_changes
+
 ### Phase 1: Setup
+
 ...
 ```
 
 **For native APS**:
+
 ```json
 {
   "schema_version": "0.1.0",
@@ -305,6 +346,7 @@ Description here...
 ### Issue: Empty or minimal plan
 
 **Symptoms**:
+
 ```bash
 $ anvil validate plan.md
 ✗ Validation failed: Plan has no proposed changes
@@ -318,19 +360,23 @@ Add content to your plan:
 # Feature: Add Authentication
 
 ## Overview
+
 Add user authentication to the app.
 
 ## Tasks
+
 - [ ] Create User model
 - [ ] Implement login endpoint
 - [ ] Add authentication middleware
 
 ## Files to Modify
+
 - `src/models/user.ts` - Create new
 - `src/routes/auth.ts` - Create new
 ```
 
 Minimal valid structure needs:
+
 - Title/intent
 - At least one change/task
 - Some description
@@ -344,6 +390,7 @@ Minimal valid structure needs:
 ### Issue: All gates fail with "command not found"
 
 **Symptoms**:
+
 ```bash
 $ anvil gate spec.md
 ✗ lint failed: pnpm: command not found
@@ -353,6 +400,7 @@ $ anvil gate spec.md
 **Solutions**:
 
 **Solution 1** - Install project dependencies:
+
 ```bash
 # In your project root
 pnpm install
@@ -362,33 +410,37 @@ anvil gate spec.md
 ```
 
 **Solution 2** - Customize gate commands in `.anvilrc`:
+
 ```json
 {
   "checks": {
     "lint": {
       "enabled": true,
-      "command": "npm run lint"    // Use npm instead
+      "command": "npm run lint" // Use npm instead
     },
     "test": {
       "enabled": true,
-      "command": "npm test"         // Use npm instead
+      "command": "npm test" // Use npm instead
     }
   }
 }
 ```
 
 **Solution 3** - Skip checks that don't apply:
+
 ```bash
 anvil gate spec.md --skip-checks lint,test
 ```
 
-**Why this happens**: Gate checks run commands that expect project dependencies installed.
+**Why this happens**: Gate checks run commands that expect project dependencies
+installed.
 
 ---
 
 ### Issue: Coverage check fails (below threshold)
 
 **Symptoms**:
+
 ```bash
 $ anvil gate spec.md
 ✗ coverage FAIL (65/100) - Coverage: 65% (threshold: 80%)
@@ -397,24 +449,27 @@ $ anvil gate spec.md
 **Solutions**:
 
 **Solution 1** - Lower threshold temporarily:
+
 ```json
 // .anvilrc
 {
   "checks": {
     "coverage": {
       "enabled": true,
-      "threshold": 65  // Match current coverage
+      "threshold": 65 // Match current coverage
     }
   }
 }
 ```
 
 **Solution 2** - Skip coverage check:
+
 ```bash
 anvil gate spec.md --skip-checks coverage
 ```
 
 **Solution 3** - Increase test coverage:
+
 ```bash
 # Add tests to improve coverage
 pnpm test:coverage
@@ -423,13 +478,15 @@ pnpm test:coverage
 open coverage/index.html
 ```
 
-**Why this happens**: Code coverage is below configured threshold. Gate enforces quality standards.
+**Why this happens**: Code coverage is below configured threshold. Gate enforces
+quality standards.
 
 ---
 
 ### Issue: Lint check fails
 
 **Symptoms**:
+
 ```bash
 $ anvil gate spec.md
 ✗ lint FAIL - 15 linting errors found
@@ -438,6 +495,7 @@ $ anvil gate spec.md
 **Solutions**:
 
 **Solution 1** - Fix linting errors:
+
 ```bash
 # Auto-fix
 pnpm lint
@@ -446,20 +504,22 @@ pnpm lint
 ```
 
 **Solution 2** - Skip lint check temporarily:
+
 ```bash
 anvil gate spec.md --skip-checks lint
 ```
 
 **Solution 3** - Adjust lint configuration:
+
 ```javascript
 // eslint.config.mjs
 export default [
   {
     rules: {
       // Relax specific rules
-      'no-console': 'warn',  // Change from 'error'
-    }
-  }
+      'no-console': 'warn', // Change from 'error'
+    },
+  },
 ];
 ```
 
@@ -470,6 +530,7 @@ export default [
 ### Issue: Test check fails
 
 **Symptoms**:
+
 ```bash
 $ anvil gate spec.md
 ✗ test FAIL - 3 tests failed
@@ -478,6 +539,7 @@ $ anvil gate spec.md
 **Solutions**:
 
 **Solution 1** - Fix failing tests:
+
 ```bash
 # Run tests to see failures
 pnpm test
@@ -488,6 +550,7 @@ pnpm test
 ```
 
 **Solution 2** - Skip test check:
+
 ```bash
 anvil gate spec.md --skip-checks test
 ```
@@ -499,6 +562,7 @@ anvil gate spec.md --skip-checks test
 ### Issue: Secrets detected
 
 **Symptoms**:
+
 ```bash
 $ anvil gate spec.md
 ✗ secrets FAIL - Found potential secrets: API_KEY in src/config.ts
@@ -507,15 +571,17 @@ $ anvil gate spec.md
 **Solutions**:
 
 **Solution 1** - Remove secrets from code:
+
 ```javascript
 // ❌ Bad - hardcoded secret
-const API_KEY = "sk-1234567890abcdef";
+const API_KEY = 'sk-1234567890abcdef';
 
 // ✅ Good - use environment variables
 const API_KEY = process.env.API_KEY;
 ```
 
 **Solution 2** - Use `.env` files:
+
 ```bash
 # .env
 API_KEY=sk-1234567890abcdef
@@ -525,13 +591,14 @@ API_KEY=sk-1234567890abcdef
 ```
 
 **Solution 3** - Adjust secret patterns:
+
 ```json
 // .anvilrc
 {
   "checks": {
     "secrets": {
       "enabled": true,
-      "patterns": ["password", "secret"]  // Remove "api_key" if needed
+      "patterns": ["password", "secret"] // Remove "api_key" if needed
     }
   }
 }
@@ -544,6 +611,7 @@ API_KEY=sk-1234567890abcdef
 ### Issue: Gate timeout
 
 **Symptoms**:
+
 ```bash
 $ anvil gate spec.md
 ✗ test TIMEOUT - Check exceeded 60000ms timeout
@@ -552,19 +620,21 @@ $ anvil gate spec.md
 **Solutions**:
 
 **Solution 1** - Increase timeout:
+
 ```json
 // .anvilrc
 {
   "checks": {
     "test": {
       "enabled": true,
-      "timeout": 120000  // 2 minutes
+      "timeout": 120000 // 2 minutes
     }
   }
 }
 ```
 
 **Solution 2** - Optimize slow tests:
+
 ```bash
 # Profile tests
 pnpm test --reporter=verbose
@@ -581,6 +651,7 @@ pnpm test --reporter=verbose
 ### Issue: Export fails with format error
 
 **Symptoms**:
+
 ```bash
 $ anvil export spec.md --to yaml
 ✗ Error: Cannot export to unsupported format: yaml
@@ -589,6 +660,7 @@ $ anvil export spec.md --to yaml
 **Solutions**:
 
 **Available formats**:
+
 - `aps` - Native APS JSON
 - `json` - Same as `aps`
 - `yaml` - APS in YAML format
@@ -602,13 +674,15 @@ anvil export spec.md --to yaml
 anvil export spec.md --to speckit
 ```
 
-**Why this happens**: Format name might be misspelled or format doesn't support export.
+**Why this happens**: Format name might be misspelled or format doesn't support
+export.
 
 ---
 
 ### Issue: Export creates empty or minimal output
 
 **Symptoms**:
+
 ```bash
 $ anvil export spec.md --to speckit --output ./output/
 ✓ Exported to SpecKit
@@ -618,6 +692,7 @@ $ anvil export spec.md --to speckit --output ./output/
 **Solutions**:
 
 **Solution 1** - Verify source is valid:
+
 ```bash
 # Validate source first
 anvil validate spec.md --verbose
@@ -627,6 +702,7 @@ cat spec.md
 ```
 
 **Solution 2** - Check adapter support:
+
 ```bash
 # Some adapters may not support full round-trip
 # Convert to APS first to see what's preserved
@@ -634,13 +710,15 @@ anvil export spec.md --to aps --output debug.aps.json
 cat debug.aps.json  # Check content
 ```
 
-**Why this happens**: Source plan may be minimal, or adapter doesn't support all fields.
+**Why this happens**: Source plan may be minimal, or adapter doesn't support all
+fields.
 
 ---
 
 ### Issue: Round-trip conversion loses data
 
 **Symptoms**:
+
 ```bash
 $ anvil export spec.md --to aps --output temp.json
 $ anvil export temp.json --to speckit --output ./output/
@@ -650,6 +728,7 @@ $ anvil export temp.json --to speckit --output ./output/
 **Solutions**:
 
 **Solution 1** - Use native APS for archival:
+
 ```bash
 # Keep APS as source of truth
 anvil export spec.md --to aps --output archive/spec.aps.json
@@ -661,33 +740,41 @@ anvil export archive/spec.aps.json --to speckit --output ./specs/
 **Solution 2** - Improve source format:
 
 Add structure that maps to APS:
+
 ```markdown
 # Spec: Feature Name
 
 ## Authors
+
 - John <john@example.com>
 
 ## Plan
+
 ### Phase 1: Database
+
 **Files to create**:
+
 - `src/models/user.ts`
 
 **Rationale**: Need user storage
 ```
 
-**Why this happens**: Not all format features map 1:1 to APS. Some information may be format-specific.
+**Why this happens**: Not all format features map 1:1 to APS. Some information
+may be format-specific.
 
 ---
 
 ### Issue: Output directory not created
 
 **Symptoms**:
+
 ```bash
 $ anvil export spec.md --to speckit --output /nonexistent/dir/
 ✗ Error: Output directory does not exist
 ```
 
 **Solution**:
+
 ```bash
 # Create directory first
 mkdir -p /nonexistent/dir/
@@ -705,6 +792,7 @@ anvil export spec.md --to speckit --output /nonexistent/dir/
 ### Issue: Validation is slow
 
 **Symptoms**:
+
 ```bash
 $ anvil validate large-spec.md
 # Takes 10+ seconds
@@ -713,6 +801,7 @@ $ anvil validate large-spec.md
 **Solutions**:
 
 **Solution 1** - Use native APS for large files:
+
 ```bash
 # Convert once
 anvil export large-spec.md --to aps --output spec.aps.json
@@ -722,14 +811,16 @@ anvil validate spec.aps.json --native
 ```
 
 **Solution 2** - Split large documents:
+
 ```markdown
 <!-- Instead of one 5000-line file, split into: -->
-spec.md           # Overview
-spec-phase1.md    # Phase 1 details
-spec-phase2.md    # Phase 2 details
+
+spec.md # Overview spec-phase1.md # Phase 1 details spec-phase2.md # Phase 2
+details
 ```
 
 **Solution 3** - Disable hash validation:
+
 ```bash
 anvil validate large-spec.md --no-validate-hash
 ```
@@ -741,6 +832,7 @@ anvil validate large-spec.md --no-validate-hash
 ### Issue: Gate checks take too long
 
 **Symptoms**:
+
 ```bash
 $ anvil gate spec.md
 # Waits 5+ minutes
@@ -749,12 +841,14 @@ $ anvil gate spec.md
 **Solutions**:
 
 **Solution 1** - Run only necessary checks:
+
 ```bash
 # Skip slow checks
 anvil gate spec.md --only-checks lint,secrets
 ```
 
 **Solution 2** - Optimize test suite:
+
 ```bash
 # Profile tests
 pnpm test --reporter=verbose
@@ -764,18 +858,20 @@ pnpm test --changed  # Only changed tests
 ```
 
 **Solution 3** - Increase timeouts:
+
 ```json
 // .anvilrc
 {
   "checks": {
     "test": {
-      "timeout": 180000  // 3 minutes
+      "timeout": 180000 // 3 minutes
     }
   }
 }
 ```
 
-**Why this happens**: Running full test suite can be slow. Consider parallel execution or test optimization.
+**Why this happens**: Running full test suite can be slow. Consider parallel
+execution or test optimization.
 
 ---
 
@@ -784,6 +880,7 @@ pnpm test --changed  # Only changed tests
 ### Issue: TypeScript "Cannot find module" errors
 
 **Symptoms**:
+
 ```bash
 $ pnpm test
 Error: Cannot find module '@anvil/core'
@@ -792,6 +889,7 @@ Error: Cannot find module '@anvil/core'
 **Solutions**:
 
 **Solution 1** - Build packages first:
+
 ```bash
 # Build all packages
 pnpm build
@@ -801,19 +899,22 @@ pnpm test
 ```
 
 **Solution 2** - Build specific package:
+
 ```bash
 npx nx build core
 npx nx build adapters
 pnpm test
 ```
 
-**Why this happens**: TypeScript project references require packages to be built before imports work.
+**Why this happens**: TypeScript project references require packages to be built
+before imports work.
 
 ---
 
 ### Issue: Tests pass locally but fail in CI
 
 **Symptoms**:
+
 ```bash
 # Local
 $ pnpm test
@@ -826,6 +927,7 @@ $ pnpm test
 **Solutions**:
 
 **Solution 1** - Match CI Node.js version:
+
 ```bash
 # Check CI version (.github/workflows/ci.yml)
 # Install same version locally
@@ -835,6 +937,7 @@ pnpm test
 ```
 
 **Solution 2** - Clean install:
+
 ```bash
 # Remove all dependencies
 rm -rf node_modules/
@@ -847,19 +950,22 @@ pnpm test
 ```
 
 **Solution 3** - Check for environment differences:
+
 ```javascript
 // Tests might depend on environment variables
 // Add .env.test file
-NODE_ENV=test
+NODE_ENV = test;
 ```
 
-**Why this happens**: Differences in Node.js version, dependencies, or environment variables.
+**Why this happens**: Differences in Node.js version, dependencies, or
+environment variables.
 
 ---
 
 ### Issue: ESM import errors (missing .js extension)
 
 **Symptoms**:
+
 ```typescript
 // src/utils/helper.ts
 import { foo } from './bar';
@@ -867,18 +973,21 @@ import { foo } from './bar';
 ```
 
 **Solution**:
+
 ```typescript
 // Add .js extension (even for .ts files)
 import { foo } from './bar.js';
 ```
 
-**Why this happens**: Anvil uses ESM with `"module": "nodenext"` which requires explicit `.js` extensions.
+**Why this happens**: Anvil uses ESM with `"module": "nodenext"` which requires
+explicit `.js` extensions.
 
 ---
 
 ### Issue: Vitest config errors
 
 **Symptoms**:
+
 ```bash
 $ pnpm test
 Error: Config file is outside rootDir
@@ -887,10 +996,11 @@ Error: Config file is outside rootDir
 **Solution**:
 
 Update `tsconfig.spec.json`:
+
 ```json
 {
   "compilerOptions": {
-    "rootDir": "."  // Not "src"
+    "rootDir": "." // Not "src"
   },
   "include": ["src/**/*.test.ts", "vitest.config.ts"]
 }
@@ -909,11 +1019,14 @@ If you're still experiencing issues:
    - [User Guide](./USER_GUIDE.md) - Comprehensive reference
    - [Examples](./EXAMPLES.md) - Real-world use cases
 
-2. **Search Issues**: [GitHub Issues](https://github.com/EddaCraft/anvil-001/issues)
+2. **Search Issues**:
+   [GitHub Issues](https://github.com/EddaCraft/anvil-001/issues)
 
-3. **Ask Questions**: [GitHub Discussions](https://github.com/EddaCraft/anvil-001/discussions)
+3. **Ask Questions**:
+   [GitHub Discussions](https://github.com/EddaCraft/anvil-001/discussions)
 
-4. **File a Bug**: [New Issue](https://github.com/EddaCraft/anvil-001/issues/new)
+4. **File a Bug**:
+   [New Issue](https://github.com/EddaCraft/anvil-001/issues/new)
    - Include Anvil version (`anvil --version`)
    - Include Node.js version (`node --version`)
    - Include error messages and logs
@@ -923,20 +1036,19 @@ If you're still experiencing issues:
 
 Quick reference for error messages:
 
-| Error Message | Solution |
-|---------------|----------|
-| `pnpm: command not found` | Install pnpm: `corepack enable` |
-| `anvil: command not found` | Link CLI: `cd cli && pnpm link --global` |
-| `Cannot find module '@anvil/core'` | Build packages: `pnpm build` |
-| `Format detection failed` | Use `--format` flag to specify format |
-| `Hash verification failed` | Use `--no-validate-hash` flag |
-| `Validation failed: Missing required field` | Check document structure matches format |
-| `Gate check failed: command not found` | Install project dependencies or skip check |
-| `Coverage below threshold` | Increase coverage or lower threshold |
-| `Timeout exceeded` | Increase timeout in `.anvilrc` |
-| `Unsupported format` | Check format name (`aps`, `speckit`, `bmad`, `yaml`) |
+| Error Message                               | Solution                                             |
+| ------------------------------------------- | ---------------------------------------------------- |
+| `pnpm: command not found`                   | Install pnpm: `corepack enable`                      |
+| `anvil: command not found`                  | Link CLI: `cd cli && pnpm link --global`             |
+| `Cannot find module '@anvil/core'`          | Build packages: `pnpm build`                         |
+| `Format detection failed`                   | Use `--format` flag to specify format                |
+| `Hash verification failed`                  | Use `--no-validate-hash` flag                        |
+| `Validation failed: Missing required field` | Check document structure matches format              |
+| `Gate check failed: command not found`      | Install project dependencies or skip check           |
+| `Coverage below threshold`                  | Increase coverage or lower threshold                 |
+| `Timeout exceeded`                          | Increase timeout in `.anvilrc`                       |
+| `Unsupported format`                        | Check format name (`aps`, `speckit`, `bmad`, `yaml`) |
 
 ---
 
-**Version**: 0.0.0 (Pre-release)
-**Last Updated**: 2025-11-09
+**Version**: 0.0.0 (Pre-release) **Last Updated**: 2025-11-09
