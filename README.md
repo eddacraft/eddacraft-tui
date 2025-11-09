@@ -590,18 +590,3 @@ import { foo } from './utils.js';
 **Vitest config not in rootDir**:
 
 - Adjust `rootDir` in `tsconfig.spec.json` to `"."` instead of `"src"`
-
-### Getting Help
-
-1. Check [`.claude/skills/`](.claude/skills/) for common patterns
-2. Review [documentation](#-documentation) for your topic
-3. Search [GitHub Issues](https://github.com/EddaCraft/anvil-001/issues)
-4. Ask in discussions or open a new issue
-
-## 📄 License
-
-MIT License - see [LICENSE](./LICENSE) for details
-
----
-
-**Made with ❤️ by the Anvil team**
