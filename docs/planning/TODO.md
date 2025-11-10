@@ -93,25 +93,26 @@ strategic context, see [PLAN.md](./PLAN.md).
 ## Executive Summary
 
 **Current Status**: Phase 2 (APS Core) 100% complete, Phase 2.5 (Adapters) 100%
-complete (SpecKit ✅, BMAD ✅), Phase 3 (CLI Integration) 100% complete, Phase 4
-(Gate) 100% complete
+complete (SpecKit ✅, BMAD ✅, Generic ✅), Phase 3 (CLI Integration) 100% complete,
+Phase 4 (Gate v1) 100% complete, Phase 4.5 (Comprehensive Testing) 100% complete
 
-**Next Critical Path**: SpecKit Migration → Enhanced Testing → First Pilots →
-Apply/Rollback
+**Next Critical Path**: Security Gates v1 → Architecture Gates → SAST → Apply/Rollback
 
-**Target MVP**: 4-6 weeks from current state (November 2025)
+**New Strategic Focus**: "Secure + Production-Ready AI Development" with early flashiness
+
+**Target MVP**: 8 weeks from current state (January 2026) - Extended for security/architecture features
 
 ### Strategic Priorities (in order)
 
-1. **Testing & Quality** - BMAD unit tests, SpecKit adapter migration
-2. **Pilot Readiness** - Documentation, demo materials, customer onboarding
-3. **Developer Experience** - CLI commands that work with existing formats ✅
-4. **Validation & Safety** - Gate integration with formats ✅
-5. **Production Readiness** - Apply/rollback with audit trail (Weeks 11-14)
+1. **Security First** 🔒 - Dependency scanning, secret detection, SAST (Weeks 9-14)
+2. **Architecture Quality** 🎨 - Layer validation, anti-patterns, visual preview (Weeks 11-12)
+3. **Early Flashiness** ✨ - Visual diff, GitHub PR comments, quick wins (Weeks 10-12)
+4. **Comprehensive Security** 🛡️ - SAST, IaC security, license compliance (Weeks 13-14)
+5. **Safe Execution** ⚙️ - Policy engine, apply/rollback with audit trail (Weeks 15-16)
 
 ## Progress Summary
 
-### ✅ Completed Phases (52% overall)
+### ✅ Completed Phases (45% overall - recalculated with new security/architecture phases)
 
 - **Phase 1: Foundations** - Repository structure, CI/CD, quality gates (100%)
 - **Phase 2: APS Spine** - Core schema, validation, hash generation, CLI
@@ -165,22 +166,37 @@ Apply/Rollback
 - [ ] Update documentation with adapter examples (in progress)
 - [ ] Prepare Customer #1 and #2 demo materials
 
-### 🎯 Next 3 Sprints (Weeks 9-11)
+### 🎯 Next 4 Sprints (Weeks 9-16) - SECURITY + ARCHITECTURE FOCUS
 
-**Goal**: First pilots and execution pipeline
+**Goal**: Establish "Secure + Production-Ready AI Development" positioning
 
-- Week 9-10: Complete testing, first pilot customers with validation-only
-  workflow
-- Weeks 11-12: Dry-run system (preview changes before applying)
-- Weeks 13-14: Apply/rollback with snapshots (complete execution pipeline)
+- **Week 9-10: Security Gates v1** 🔒 (EARLY FLASHINESS)
+  - Dependency vulnerability scanning (quick win)
+  - Enhanced secret scanning (entropy + git history)
+  - Plan history & comparison (governance story)
+  - **Demo**: "Anvil catches CVEs and secrets in AI code"
 
-### 📋 Remaining Work (Phases 5-12)
+- **Week 11-12: Architecture Gates + Visual Preview** 🎨 (WOW FACTOR)
+  - Architecture validation (dependency analysis, layer boundaries, anti-patterns)
+  - Visual diff preview (interactive HTML with blast radius)
+  - Inline GitHub PR comments
+  - **Demo**: "Beautiful visual diff + unique architecture validation"
 
-- Phase 5: Policy engine (OPA/Rego)
-- Phase 6: Sidecar & dry-run
-- Phase 7: Apply & rollback
-- Phase 8: GitHub integration
-- Phases 9-12: Productioniser, hardening, release
+- **Week 13-14: SAST Integration** 🛡️ (COMPREHENSIVE SECURITY)
+  - Semgrep integration (OWASP Top 10 coverage)
+  - Infrastructure-as-Code security (Dockerfile, K8s, Terraform)
+  - License compliance scanning (SBOM generation)
+  - **Demo**: "Enterprise-grade security validation"
+
+- **Week 15-16: Policy Engine + Apply**
+  - OPA/Rego integration
+  - Transactional apply with snapshots
+  - **Demo**: "Safe execution of validated plans"
+
+### 📋 Remaining Work (Phases 6-12)
+
+- Phase 6: Rollback & GitHub Action (Week 17-18)
+- Phases 7-12: Productioniser, hardening, release (Post-Week 18)
 
 ---
 
@@ -552,9 +568,210 @@ validation and execution.
 
 ---
 
-## Phase 5: OPA/Rego Integration
+## Phase 4.5: Security Gates v1 🔒 (Week 9-10) - EARLY FLASHINESS
 
-### Epic: Policy Engine
+### Epic: Security Validation for AI-Generated Code
+
+**Strategic Goal**: Establish Anvil as "secure AI development" platform. Quick wins with high visibility.
+
+#### Dependency Vulnerability Scanning
+
+- [ ] **Implement dependency scanning** (`core/src/gate/checks/dependency-check.ts`)
+  - [ ] Integrate npm audit / pnpm audit
+  - [ ] Integrate Snyk API (optional)
+  - [ ] Parse vulnerability reports (CVE, severity, fix version)
+  - [ ] Filter by severity threshold (configurable)
+  - [ ] Generate actionable fix suggestions
+  - **Acceptance**: Detects known vulnerabilities in dependencies
+  - **Target**: Week 9 (2-3 days)
+  - **Demo Impact**: HIGH - "Anvil caught a critical CVE in lodash!"
+
+- [ ] **Dependency check CLI integration**
+  - [ ] Add to gate runner
+  - [ ] Configuration options (severity threshold, auto-fix suggestions)
+  - [ ] Pretty output with CVE links
+  - [ ] Support for `--fix` flag to upgrade deps
+  - **Acceptance**: `anvil gate` includes dependency scanning
+  - **Target**: Week 9
+
+#### Enhanced Secret Scanning
+
+- [ ] **Implement entropy-based detection** (`core/src/gate/checks/secrets-check.ts`)
+  - [ ] Shannon entropy calculation for strings
+  - [ ] Detect high-entropy strings (potential secrets)
+  - [ ] Combine with existing regex patterns
+  - [ ] Reduce false positives with allowlist
+  - **Acceptance**: Catches secrets that regex misses
+  - **Target**: Week 9 (2 days)
+
+- [ ] **Git history scanning**
+  - [ ] Scan all commits in proposed changes
+  - [ ] Detect secrets in git history (not just current state)
+  - [ ] Warn about historical secret exposure
+  - [ ] Suggest `git filter-repo` for remediation
+  - **Acceptance**: Detects secrets in commit history
+  - **Target**: Week 9 (1 day)
+
+#### Plan History & Comparison
+
+- [ ] **Implement plan history** (`core/src/history/`)
+  - [ ] Store plan metadata in `.anvil/history/index.json`
+  - [ ] Track plan evolution (created, validated, applied, rolled back)
+  - [ ] CLI command: `anvil history` - list all plans
+  - [ ] CLI command: `anvil history <plan-id>` - show plan timeline
+  - **Acceptance**: Full audit trail of plans
+  - **Target**: Week 10 (1-2 days)
+
+- [ ] **Implement plan comparison**
+  - [ ] Diff two APS plans (structural diff)
+  - [ ] CLI command: `anvil diff <plan-1> <plan-2>`
+  - [ ] Show what changed between versions
+  - [ ] Highlight security/architecture changes
+  - **Acceptance**: Compare any two plans
+  - **Target**: Week 10 (1 day)
+  - **Demo Impact**: MEDIUM - governance story
+
+---
+
+## Phase 4.6: Architecture Gates + Visual Preview 🎨 (Week 11-12) - WOW FACTOR
+
+### Epic: Production-Ready AI Code
+
+**Strategic Goal**: Differentiate with unique architecture validation + stunning visuals.
+
+#### Architecture & Best Practices Gate
+
+- [ ] **Implement dependency analysis** (`core/src/gate/checks/architecture-check.ts`)
+  - [ ] Integrate `dependency-cruiser` for dependency graphs
+  - [ ] Detect circular dependencies
+  - [ ] Validate dependency direction (controllers → services → data)
+  - [ ] Check for orphaned modules
+  - **Acceptance**: Validates clean dependency structure
+  - **Target**: Week 11 (2 days)
+
+- [ ] **Implement layer boundary validation**
+  - [ ] Define architecture layers (presentation, application, domain, infrastructure)
+  - [ ] Validate layer boundaries (no reverse dependencies)
+  - [ ] Configurable via `.anvilrc`
+  - [ ] Support multiple architecture patterns (clean, hexagonal, onion)
+  - **Acceptance**: Enforces architectural layering
+  - **Target**: Week 11 (2 days)
+
+- [ ] **Implement anti-pattern detection**
+  - [ ] Detect god classes (>500 LOC, high complexity)
+  - [ ] Detect tight coupling (high fan-out)
+  - [ ] Use `ts-morph` for AST analysis
+  - [ ] Configurable thresholds
+  - [ ] Suggest refactoring patterns
+  - **Acceptance**: Flags common anti-patterns
+  - **Target**: Week 11 (2 days)
+  - **Demo Impact**: VERY HIGH - unique differentiator!
+
+- [ ] **Architecture check configuration**
+  - [ ] Define `.anvilrc` schema for architecture rules
+  - [ ] Example configs for common patterns
+  - [ ] Documentation with best practices
+  - **Acceptance**: Users can customize architecture validation
+  - **Target**: Week 11 (1 day)
+
+#### Visual Diff Preview (Interactive HTML)
+
+- [ ] **Implement HTML diff generator** (`core/src/preview/html-generator.ts`)
+  - [ ] Generate beautiful HTML diff report
+  - [ ] Side-by-side file comparisons with syntax highlighting
+  - [ ] File tree visualization showing all changes
+  - [ ] Summary dashboard (files changed, LOC, risk score)
+  - **Acceptance**: Professional HTML output
+  - **Target**: Week 12 (3 days)
+  - **Demo Impact**: VERY HIGH - instant wow!
+
+- [ ] **Implement blast radius analysis**
+  - [ ] Use dependency graph to find affected files
+  - [ ] Calculate impact score (how many files depend on changes)
+  - [ ] Visualize with interactive graph (D3.js or similar)
+  - [ ] Highlight high-risk changes
+  - **Acceptance**: Shows full impact of changes
+  - **Target**: Week 12 (2 days)
+
+- [ ] **Visual preview CLI integration**
+  - [ ] `anvil dry-run --output html` generates report
+  - [ ] Auto-open in browser
+  - [ ] Support for export to static HTML (shareable)
+  - **Acceptance**: Beautiful visual preview
+  - **Target**: Week 12 (1 day)
+
+#### Inline GitHub PR Comments
+
+- [ ] **Implement GitHub PR comment integration** (`core/src/integrations/github.ts`)
+  - [ ] Use GitHub API to post inline comments
+  - [ ] Comment on specific lines with validation issues
+  - [ ] Update comments as code changes
+  - [ ] Summary comment with overall status
+  - **Acceptance**: Rich PR feedback like code review
+  - **Target**: Week 12 (2-3 days)
+  - **Demo Impact**: HIGH - better developer experience
+
+---
+
+## Phase 4.7: SAST Integration 🛡️ (Week 13-14) - COMPREHENSIVE SECURITY
+
+### Epic: Enterprise-Grade Security Scanning
+
+**Strategic Goal**: Complete security story for enterprise sales.
+
+#### SAST Scanning (Semgrep)
+
+- [ ] **Implement Semgrep integration** (`core/src/gate/checks/sast-check.ts`)
+  - [ ] Install and vendor Semgrep binary
+  - [ ] Run Semgrep with `--config=auto` (default rulesets)
+  - [ ] Parse JSON output
+  - [ ] Map to CWE/OWASP Top 10
+  - [ ] Severity scoring (Critical, High, Medium, Low)
+  - **Acceptance**: Detects common vulnerabilities
+  - **Target**: Week 13 (3 days)
+
+- [ ] **SAST check features**
+  - [ ] Filter by severity threshold
+  - [ ] Skip false positives (configurable allowlist)
+  - [ ] Provide fix suggestions from Semgrep
+  - [ ] Link to CWE/OWASP documentation
+  - [ ] Generate detailed evidence with code snippets
+  - **Acceptance**: Actionable security findings
+  - **Target**: Week 13 (2 days)
+
+- [ ] **Custom SAST rules**
+  - [ ] Support for custom Semgrep rules
+  - [ ] Template rules for common frameworks (React, Express, etc.)
+  - [ ] Rule testing framework
+  - [ ] Documentation for writing rules
+  - **Acceptance**: Users can add custom security rules
+  - **Target**: Week 14 (2 days)
+
+#### Infrastructure-as-Code Security
+
+- [ ] **Implement IaC scanning** (`core/src/gate/checks/iac-check.ts`)
+  - [ ] Integrate Hadolint for Dockerfiles
+  - [ ] Integrate Checkov for Terraform/K8s/CloudFormation
+  - [ ] Detect misconfigurations (exposed ports, root users, etc.)
+  - [ ] Security best practices enforcement
+  - **Acceptance**: Validates infrastructure code
+  - **Target**: Week 14 (2-3 days)
+
+#### License Compliance Scanning
+
+- [ ] **Implement license scanning** (`core/src/gate/checks/license-check.ts`)
+  - [ ] Use `license-checker` npm package
+  - [ ] Detect license conflicts (GPL in proprietary code)
+  - [ ] Generate SBOM (Software Bill of Materials)
+  - [ ] Configurable license allowlist/blocklist
+  - **Acceptance**: Prevents license violations
+  - **Target**: Week 14 (1-2 days)
+
+---
+
+## Phase 5: Policy Engine & Apply (Week 15-16)
+
+### Epic: Policy Enforcement + Execution
 
 #### OPA Foundation
 
@@ -597,84 +814,13 @@ validation and execution.
 
 ---
 
-## Phase 6: Sidecar Development
+## Phase 6: Rollback & GitHub Integration (Week 17-18)
 
-### Epic: Execution Runtime
+### Epic: Complete Execution Pipeline
 
-**Strategic Note**: The sidecar is where plans become changes. This is the trust
-boundary.
+**Strategic Note**: Complete the safe execution story with rollback capability and GitHub integration.
 
-#### Dry-run System
-
-- [ ] **Implement dry-run** (`sidecar/src/dry-run/`)
-  - [ ] Parse proposed_changes from APS
-  - [ ] Generate file diffs without applying
-  - [ ] Collect logs and evidence
-  - [ ] Create preview bundle
-  - [ ] Support rollback preview
-  - **Acceptance**: `anvil dry-run plan.json` shows what would happen
-  - **Target**:
-  - **Demo**: This is the "wow moment"
-
-- [ ] **Dry-run CLI command**
-  - [ ] `anvil dry-run <plan>` command
-  - [ ] Display diffs with syntax highlighting
-  - [ ] Show impact summary (files changed, LOC, etc.)
-  - [ ] Support `--output` for saving preview
-  - **Acceptance**: Users can preview changes safely
-  - **Dependencies**: Dry-run system
-  - **Target**:
-
-#### Sidecar Daemon
-
-- [ ] **Daemon process** (`sidecar/src/daemon/`)
-  - [ ] Background process management
-  - [ ] Job queue for apply operations
-  - [ ] Status monitoring
-  - [ ] Graceful shutdown
-  - **Acceptance**: Sidecar runs as background service
-  - **Target**
-
-- [ ] **Evidence collection**
-  - [ ] Immutable evidence appending
-  - [ ] Structured evidence format
-  - [ ] Evidence verification
-  - [ ] Audit trail generation
-  - **Acceptance**: All operations produce evidence
-  - **Target**:
-
----
-
-## Phase 7: Apply & Rollback
-
-### Epic: Transactional Execution
-
-**Critical**: This is where Anvil's core value proposition is delivered - safe,
-auditable, reversible changes.
-
-#### Apply System
-
-- [ ] **Implement idempotent apply** (`sidecar/src/apply/`)
-  - [ ] Parse proposed_changes from APS
-  - [ ] Apply changes transactionally
-  - [ ] Create snapshots before applying
-  - [ ] Record all applied changes
-  - [ ] Generate apply evidence
-  - [ ] Support partial application with clear errors
-  - **Acceptance**: Changes apply successfully with audit trail
-  - **Target**:
-
-- [ ] **Apply CLI command**
-  - [ ] `anvil apply <plan>` command
-  - [ ] Require gate pass before applying
-  - [ ] Require approval flag: `--approved`
-  - [ ] Display apply progress
-  - [ ] Show summary of applied changes
-  - **Acceptance**: Users can apply validated plans safely
-  - **Dependencies**: Apply system, Gate integration
-  - **Target**:
-
-#### Rollback System
+#### Rollback Implementation
 
 - [ ] **Implement rollback** (`sidecar/src/rollback/`)
   - [ ] Load snapshot from apply
@@ -695,26 +841,11 @@ auditable, reversible changes.
   - **Dependencies**: Rollback system
   - **Target**:
 
-#### Safety Guards
+#### GitHub Integration
 
-- [ ] **Apply guards**
-  - [ ] Verify gate passed before apply
-  - [ ] Check approval status
-  - [ ] Validate plan hasn't been modified
-  - [ ] Prevent concurrent applies
-  - [ ] Timeout protection
-  - **Acceptance**: Apply operations are safe by default
-  - **Target**:
+**Note**: Inline PR comments already implemented in Phase 4.6. This phase adds full GitHub Action.
 
----
-
-## Phase 8: GitHub Integration
-
-### Epic: CI/CD Integration
-
-**Goal**: Make Anvil a natural part of the development workflow
-
-#### GitHub Action
+#### GitHub Action (Enhanced)
 
 - [ ] **Create GitHub Action** (`.github/actions/anvil-gate/`)
   - [ ] Action definition (action.yml)
@@ -755,7 +886,7 @@ auditable, reversible changes.
 
 ---
 
-## Phase 9: Feature Flags Pack (DEFERRED)
+## Phase 7: Feature Flags Pack (DEFERRED)
 
 **Note**: This is deferred post-MVP. Including spec for completeness.
 
@@ -772,7 +903,7 @@ auditable, reversible changes.
 
 ---
 
-## Phase 10: Productioniser (MINIMAL MVP VERSION)
+## Phase 8: Productioniser (MINIMAL MVP VERSION)
 
 ### Epic: Repository Governance
 
@@ -811,7 +942,7 @@ engine deferred.
 
 ---
 
-## Phase 11: Hardening & Documentation
+## Phase 9: Hardening & Documentation
 
 ### Epic: Production Readiness
 
@@ -878,7 +1009,7 @@ engine deferred.
 
 ---
 
-## Phase 12: Release Candidate
+## Phase 10: Release Candidate
 
 ### Epic: Release Preparation
 

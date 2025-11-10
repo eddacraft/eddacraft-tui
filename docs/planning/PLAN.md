@@ -361,31 +361,45 @@ The fastest route to a fundable, demonstrable product:
 - Configuration file support
 - **Milestone**: Both customers can validate plans in their formats
 
-**Weeks 9-10: Policy Engine**
+**Weeks 9-10: Security Gates v1** 🔒 NEW - EARLY FLASHINESS
+
+- Dependency vulnerability scanning (npm audit, Snyk)
+- Enhanced secret scanning (entropy-based + git history)
+- Plan history & comparison ("git for plans")
+- **Milestone**: "Secure AI development" story validated
+- **Demo-ready**: Show security catches AI vulnerabilities
+
+**Weeks 11-12: Architecture Gates + Visual Preview** 🎨 NEW - WOW FACTOR
+
+- Architecture & best practices gate (dependency analysis, layer boundaries, anti-patterns)
+- Visual diff preview (interactive HTML report with blast radius)
+- Inline GitHub PR comments (richer than status checks)
+- **Milestone**: "Production-ready AI code" complete
+- **Demo-ready**: Visual diff + architecture validation
+
+**Weeks 13-14: SAST Integration** 🛡️ NEW - COMPREHENSIVE SECURITY
+
+- SAST scanning (Semgrep, CodeQL)
+- OWASP Top 10 coverage
+- CWE mapping and severity scoring
+- Infrastructure-as-Code security (Dockerfile, K8s, Terraform)
+- **Milestone**: Enterprise-grade security validation
+
+**Weeks 15-16: Policy Engine + Apply**
 
 - OPA binary integration
-- Sample policies (coverage, flag risk, change scope)
+- Sample policies (coverage, security, architecture, change scope)
 - Policy CLI commands
-
-**Weeks 11-12: Dry-run**
-
-- Preview system for changes
-- Diff generation
-- CLI command with syntax highlighting
-- **Milestone**: "Wow moment" feature complete
-
-**Weeks 13-14: Apply**
-
 - Transactional application of changes
 - Snapshot creation
 - Audit trail generation
-- CLI command with safety guards
-- **Milestone**: Changes can be applied safely
+- **Milestone**: Validated plans can be applied safely
 
-**Weeks 15-16: Rollback & GitHub Action**
+**Weeks 17-18: Rollback & GitHub Action**
 
 - Rollback implementation
-- GitHub Action for PR validation
+- GitHub Action for PR validation (with inline comments)
+- License compliance scanning
 - **Milestone**: Complete end-to-end workflow
 
 ### MVP Success Criteria
@@ -402,11 +416,12 @@ We're "done" with MVP when:
    anvil rollback <plan-id>  # Reverts changes
    ```
 
-2. ✅ Plans validate through quality gates:
+2. ✅ Plans validate through comprehensive gates:
    - Lint checks pass
    - Tests pass
    - Coverage meets threshold
-   - No secrets detected
+   - **Security validated** (SAST, dependencies, secrets)
+   - **Architecture validated** (patterns, layer boundaries, anti-patterns)
    - Policies enforced
 
 3. ✅ GitHub Action blocks PRs that fail validation
@@ -435,8 +450,10 @@ We're "done" with MVP when:
 
 **Messaging**:
 
+- **Primary**: "The only AI coding platform that validates security AND architecture"
+- "AI writes code fast. Anvil makes it production-ready."
+- "Catch vulnerabilities, enforce patterns, ship safely"
 - "Stop manually reviewing AI-generated code"
-- "Validated AI development that just works"
 - "Ship at AI speed, sleep at human peace"
 
 **Pricing** (Post-MVP):
