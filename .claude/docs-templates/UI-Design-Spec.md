@@ -181,7 +181,7 @@ interface DataGridProps<T> {
 </Grid>
 ```
 
-### Responsive Behavior
+### Responsive Behaviour
 
 | Component  | Mobile         | Tablet             | Desktop        |
 | ---------- | -------------- | ------------------ | -------------- |
@@ -192,21 +192,21 @@ interface DataGridProps<T> {
 
 ## Visual Design
 
-### Color Palette
+### Colour Palette
 
 ```css
 :root {
-  /* Primary Colors */
+  /* Primary Colours */
   --primary-50: #e3f2fd;
   --primary-500: #2196f3;
   --primary-900: #0d47a1;
 
-  /* Neutral Colors */
+  /* Neutral Colours */
   --gray-50: #fafafa;
   --gray-500: #9e9e9e;
   --gray-900: #212121;
 
-  /* Semantic Colors */
+  /* Semantic Colours */
   --success: #4caf50;
   --warning: #ff9800;
   --error: #f44336;
@@ -276,17 +276,17 @@ interface DataGridProps<T> {
 ### Micro-interactions
 
 - **Button Click**: Scale down briefly (95%) then back
-- **Form Field Focus**: Border color change, slight shadow
+- **Form Field Focus**: Border colour change, slight shadow
 - **Card Hover**: Lift effect with shadow
-- **Toggle Switch**: Smooth slide with color transition
+- **Toggle Switch**: Smooth slide with colour transition
 - **Tooltip**: Fade in with slight upward movement
 
 ## Accessibility (A11y)
 
 ### WCAG 2.1 Level AA Compliance
 
-- [ ] Color contrast ratio ≥ 4.5:1 for normal text
-- [ ] Color contrast ratio ≥ 3:1 for large text
+- [ ] Colour contrast ratio ≥ 4.5:1 for normal text
+- [ ] Colour contrast ratio ≥ 3:1 for large text
 - [ ] All interactive elements have focus indicators
 - [ ] All images have alt text
 - [ ] Forms have proper labels
@@ -374,13 +374,13 @@ interface DataGridProps<T> {
 
 ## Performance Considerations
 
-### Optimization Techniques
+### Optimisation Techniques
 
 ```typescript
 // Lazy loading
 const HeavyComponent = lazy(() => import('./HeavyComponent'));
 
-// Virtualization for long lists
+// Virtualisation for long lists
 <VirtualList
   items={thousandsOfItems}
   renderItem={renderItem}
@@ -388,7 +388,7 @@ const HeavyComponent = lazy(() => import('./HeavyComponent'));
   itemHeight={50}
 />
 
-// Image optimization
+// Image optimisation
 <img
   src="image.jpg"
   srcSet="image@2x.jpg 2x, image@3x.jpg 3x"
@@ -479,7 +479,7 @@ src/
 
 - Test all user flows documented
 - Verify accessibility requirements
-- Check responsive behavior at all breakpoints
+- Check responsive behaviour at all breakpoints
 - Test error states and edge cases
 
 ### → Product

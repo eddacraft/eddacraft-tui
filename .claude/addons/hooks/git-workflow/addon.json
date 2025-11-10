@@ -1,9 +1,0 @@
-{
-  "name": "hooks-git-workflow",
-  "version": "1.0.0",
-  "description": "Enhanced Git operations with commit standards and PR helpers",
-  "requires": [".git"],
-  "tooling": ["git"],
-  "author": "Claude Projects Lite",
-  "tags": ["git", "vcs", "workflow", "commits", "pr"]
-}

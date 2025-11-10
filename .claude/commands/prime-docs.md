@@ -6,7 +6,7 @@ description: Scan and improve documentation quality across the repository
 
 Comprehensive documentation review and improvement workflow:
 
-1. **Documentation Scan** - Analyse README, templates, ADRs, and runbooks
+1. **Documentation Scan** - Analyze README, templates, ADRs, and runbooks
 2. **Gap Analysis** - Identify missing sections, outdated content, and
    inconsistencies
 3. **Quality Review** - Check clarity, completeness, and maintainability

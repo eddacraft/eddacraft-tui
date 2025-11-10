@@ -1,9 +1,0 @@
-{
-  "name": "hooks-python-modern",
-  "version": "1.0.0",
-  "description": "Modern Python development with Ruff, Black, and type checking",
-  "requires": ["requirements.txt|pyproject.toml|setup.py"],
-  "tooling": ["python", "pip|poetry|pipenv"],
-  "author": "Claude Projects Lite",
-  "tags": ["python", "ruff", "black", "mypy", "pytest"]
-}

@@ -24,12 +24,6 @@ Use tools in parallel to understand the codebase:
 - `Read` key files: README.md, main configs, similar features
 - Document what you find: tech stack, patterns, conventions
 
-**💡 Consider Using Skills:**
-
-- **trace-data-flow** - Understand how data flows through the system
-- **quick-context** - Quickly grasp a file's role and dependencies
-- **implement-pattern** - Identify existing patterns to follow
-
 ### 2. Design Phase
 
 Based on discovery, design architecture following
@@ -55,7 +49,7 @@ Detect and follow existing patterns:
 
 ## Tool Usage Efficiency
 
-**Maximise Parallel Execution:**
+**Maximize Parallel Execution:**
 
 Always run multiple independent searches simultaneously in a single message:
 
@@ -74,15 +68,7 @@ Example: Run 3-5 parallel Glob/Grep operations to understand codebase patterns
   paths
 - **Type filters**: Use `--type ts`, `--type py` for faster, focused searches
 - **Pattern discovery**: Check test files for real usage examples
-- **Context efficiency**: Batch reads to minimise round trips
-
-**Skills for Deep Analysis:**
-
-- `Skill("trace-data-flow")` with `entry_point` and `data_type` - Map data
-  transformations
-- `Skill("quick-context")` with `file_path` - Understand file purpose and
-  context
-- `Skill("implement-pattern")` with `pattern_type` - Discover existing patterns
+- **Context efficiency**: Batch reads to minimize round trips
 
 ## When Information is Missing
 
@@ -121,54 +107,3 @@ Create an ADR (using `.claude/docs-templates/ADR.md`) when:
 - Choosing between significantly different approaches
 
 Reference as: "See ADR-0001-[decision-name].md for rationale"
-
----
-
-## Anvil Project Context
-
-**Project**: Anvil - Artifact Planning Specification (APS) system for software
-quality gates
-
-**Stack**:
-
-- Nx monorepo with TypeScript
-- Zod for schema validation
-- Vitest for unit testing, Playwright for E2E
-- pnpm workspaces
-
-**Architecture Pattern**:
-
-```
-packages/
-├── core/          # @anvil/core - APS schema, validation, hashing
-├── adapters/      # @anvil/adapters - Format adapters (SpecKit ✅, BMAD planned)
-├── gate/          # @anvil/gate - Quality gate checks (lint, test, coverage, secrets)
-└── cli/           # CLI application - commands, UI, orchestration
-```
-
-**Key Patterns**:
-
-- **Adapter pattern**: All format conversions go through `FormatAdapter`
-  interface
-- **APS-first**: Convert external formats (SpecKit, BMAD) → APS → quality gates
-- **Deterministic hashing**: SHA-256 for artifact integrity
-- **Evidence-based**: Gate checks produce evidence bundles
-- **Namespace**: All packages use `@anvil/*`
-
-**Current Focus** (Week 6):
-
-- CLI integration with SpecKit adapter
-- Format auto-detection service
-- Enhanced validate/gate/export commands
-
-**Build Commands**:
-
-```bash
-npx nx build <package-name>    # Build specific package
-pnpm test                      # Vitest unit tests
-pnpm typecheck                 # TypeScript checks
-npx nx sync                    # Sync TS project references
-```
-
-**Documentation**: See `ARCHITECTURE.md`, `PLAN.md`, `TODO.md`,
-`packages/adapters/README.md`

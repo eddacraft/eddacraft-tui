@@ -1,9 +1,0 @@
-{
-  "name": "commands-repository",
-  "version": "1.0.0",
-  "description": "Repository analysis and documentation commands",
-  "requires": [],
-  "tooling": [],
-  "author": "Claude Projects Lite",
-  "tags": ["commands", "repository", "documentation", "analysis", "prime"]
-}

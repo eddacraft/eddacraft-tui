@@ -1,9 +1,0 @@
-{
-  "name": "commands-git-workflow",
-  "version": "1.0.0",
-  "description": "Git workflow commands for commits, pull requests, and changelogs",
-  "requires": [".git"],
-  "tooling": ["git"],
-  "author": "Claude Projects Lite",
-  "tags": ["commands", "git", "workflow", "commit", "pr", "changelog"]
-}

@@ -17,11 +17,12 @@
       "WebFetch(domain:context7.com)",
       "Bash(pnpm lint:check:*)",
       "SlashCommand(/feature \"CLI integration with SpecKit adapter - implement format auto-detection, enhanced validate/gate/export commands, and evidence bundle integration to enable users to run anvil commands on SpecKit documents without format conversion\")",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []
   },
-  "enabledMcpjsonServers": ["nx-mcp"],
-  "enableAllProjectMcpServers": true
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": ["nx-mcp"]
 }

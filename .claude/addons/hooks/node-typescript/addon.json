@@ -1,9 +1,0 @@
-{
-  "name": "hooks-node-typescript",
-  "version": "1.0.0",
-  "description": "Node.js and TypeScript development with modern tooling",
-  "requires": ["package.json"],
-  "tooling": ["node", "npm|pnpm|yarn"],
-  "author": "Claude Projects Lite",
-  "tags": ["node", "typescript", "javascript", "frontend", "backend"]
-}

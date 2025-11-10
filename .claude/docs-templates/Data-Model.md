@@ -236,22 +236,22 @@ ALTER TABLE users DROP COLUMN phone;
 ```sql
 -- Common query 1: Find user by email
 SELECT * FROM users WHERE email = ?;
--- Optimized by: idx_users_email
+-- Optimised by: idx_users_email
 
 -- Common query 2: Recent active users
 SELECT * FROM users
 WHERE status = 'active'
   AND created_at > NOW() - INTERVAL '30 days'
 ORDER BY created_at DESC;
--- Optimized by: idx_users_status, idx_users_created_at
+-- Optimised by: idx_users_status, idx_users_created_at
 
 -- Common query 3: Full-text search
 SELECT * FROM users
 WHERE to_tsvector('english', name) @@ plainto_tsquery(?);
--- Optimized by: idx_users_name_search
+-- Optimised by: idx_users_name_search
 ```
 
-### Denormalization Decisions
+### Denormalisation Decisions
 
 ```sql
 -- Denormalized for read performance

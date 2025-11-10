@@ -21,17 +21,6 @@ Before writing any code:
 - `Grep` for imports, utilities, helpers you should reuse
 - Note: naming conventions, file structure, error handling patterns
 
-**💡 Consider Using Skills for Common Workflows:**
-
-- **quick-context** - Quickly understand a file's purpose, dependencies, and
-  role
-- **implement-pattern** - Find and follow existing patterns for new code
-- **debug-adapter** - Debug adapter parsing/export issues (Anvil-specific)
-- **feature-adapter** - Add features to adapters following patterns
-  (Anvil-specific)
-- **fix-build** - Systematically fix TypeScript build errors
-- **refactor-safe** - Refactor with continuous validation
-
 ### 2. Implementation Strategy
 
 **Code Principles**
@@ -48,7 +37,7 @@ Before writing any code:
 - [ ] Error handling (try/catch vs .catch)
 - [ ] Async patterns (async/await vs promises)
 - [ ] Naming (camelCase vs snake_case)
-- [ ] File organization (by feature vs by type)
+- [ ] File organisation (by feature vs by type)
 
 ### 3. Tech Stack Patterns
 
@@ -103,7 +92,7 @@ Before writing any code:
 
 ## Tool Usage
 
-**Maximize Efficiency Through Parallelization:**
+\*Maximise Efficiency Through Parallelisation:\*\*
 
 - **Parallel discovery**: Run multiple `Glob`/`Grep`/`Read` operations
   simultaneously in one message
@@ -135,19 +124,6 @@ Before writing code, run 3-5 parallel searches to understand existing patterns:
 - `Glob` for similar files
 - `Grep` for imports and utilities
 - `Read` 2-3 similar implementations
-
-**Skills for Complex Workflows:**
-
-- `Skill("quick-context")` with `file_path` - Deep dive into unfamiliar file
-- `Skill("implement-pattern")` with `pattern_type` and `target` - Ensure
-  consistency
-- `Skill("fix-build")` with optional `package_name` - Resolve TypeScript errors
-- `Skill("refactor-safe")` with `scope` and `target` - Safe refactoring with
-  checks
-- `Skill("debug-adapter")` with `adapter_name` and `issue_description` - Debug
-  adapters
-- `Skill("feature-adapter")` with `adapter_name` and `feature_description` - Add
-  features
 
 ## Output Format
 
@@ -205,63 +181,3 @@ Before handoff:
 - Don't skip tests to save time
 - Don't hardcode values that should be configurable
 - Don't commit commented-out code
-
----
-
-## Anvil Project Context
-
-**Project**: Anvil - Quality gate system using Artifact Planning Specification
-(APS)
-
-**Tech Stack**:
-
-- TypeScript with strict mode
-- Nx monorepo + pnpm workspaces
-- Vitest (unit tests) + Playwright (E2E)
-- Zod for schema validation
-
-**Code Patterns**:
-
-```typescript
-// 1. Adapter pattern (packages/adapters/)
-export class SpecKitImportAdapter implements FormatAdapter {
-  canHandle(source: FormatSource): boolean { /* */ }
-  async convert(source: FormatSource): Promise<APS> { /* */ }
-}
-
-// 2. APS schema usage (packages/core/)
-import { apsSchema, type APS } from '@anvil/core/schema';
-const validated = apsSchema.parse(data);
-
-// 3. Deterministic hashing (packages/core/)
-import { hashArtifact } from '@anvil/core/hash';
-const hash = hashArtifact(artifact);
-
-// 4. Evidence collection (packages/gate/)
-const evidence: GateEvidence = {
-  check: 'lint',
-  status: 'pass',
-  artifacts: [...],
-};
-```
-
-**Testing Patterns**:
-
-- Unit tests in `*.test.ts` files alongside source
-- Use `describe()` and `it()` with Vitest
-- Test adapters with `createMockFormatSource()` helper
-- 100% coverage expected for core packages
-
-**Common Commands**:
-
-```bash
-npx nx build adapters      # Build adapters package
-pnpm test                  # Run all unit tests
-npx nx typecheck cli       # Type check CLI
-npx nx sync                # Sync TS project refs
-```
-
-**Import Paths**: Use `@anvil/<package>` for cross-package imports
-
-**Documentation**: See `packages/adapters/README.md` for adapter implementation
-guide

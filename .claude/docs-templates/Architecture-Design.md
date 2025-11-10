@@ -102,7 +102,7 @@ Deleted:
 
 ### Functional Requirements
 
-- ✓ [Specific behavior requirement]
+- ✓ [Specific behaviour requirement]
 - ✓ [Input validation rule]
 - ✓ [Business logic constraint]
 
@@ -115,7 +115,7 @@ Deleted:
 
 ### Security Requirements
 
-- ✓ Input sanitization (XSS, SQLi)
+- ✓ Input sanitisation (XSS, SQLi)
 - ✓ Authentication required
 - ✓ Authorization: [role-based/attribute-based]
 - ✓ Audit logging for [sensitive operations]
@@ -135,7 +135,7 @@ Deleted:
 
 - **API Pattern**: [Controller → Service → Repository]
 - **Validation**: [DTOs with class-validator]
-- **Error Handling**: [Centralized error middleware]
+- **Error Handling**: [Centralised error middleware]
 - **Logging**: [Structured logging with correlation IDs]
 
 ### Design Decisions
@@ -167,7 +167,7 @@ Deleted:
 - Edge cases: [specific scenarios]
 - Security: [specific attack vectors to test]
 - Performance: [specific bottlenecks to verify]
-- Integration: [external service behavior]
+- Integration: [external service behaviour]
 
 **Test Data Requirements:**
 

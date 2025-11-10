@@ -11,11 +11,11 @@ Analyse and summarise repository context to prepare for feature development:
 2. **Decision Context** - Review ADRs and technical choices
 3. **Structure Analysis** - Key folders, dependencies, and organisation
 4. **Open Items** - Identify TODOs, gaps, and immediate opportunities
-5. **Next Actions** - Propose prioritized development steps
+5. **Next Actions** - Propose prioritised development steps
 
 ## Agent Sequence
 
-- **docs-writer**: Summarizes repo context including README, ADRs,
+- **docs-writer**: Summarises repo context including README, ADRs,
   documentation, and key folder structures
 - **planner**: Proposes immediate next steps based on the repository summary and
   identified gaps

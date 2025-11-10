@@ -6,7 +6,7 @@ description: Draft a pull request title and body with complete context
 
 Generate comprehensive pull request documentation:
 
-1. **Change Summary** - Analyse branch changes and create concise title
+1. **Change Summary** - Analyze branch changes and create concise title
 2. **Context Building** - Document what, why, and how of the changes
 3. **Risk Assessment** - Identify potential impacts and breaking changes
 4. **Test Coverage** - Document testing approach and validation steps

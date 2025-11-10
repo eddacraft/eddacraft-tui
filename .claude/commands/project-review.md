@@ -22,7 +22,7 @@ Holistic assessment of project health across all quality dimensions:
   scalability
 - **reviewer**: Performs code quality review for correctness and maintainability
 - **security-auditor**: Comprehensive security audit
-- **tester**: Analyzes test coverage and strategy
+- **tester**: Analyses test coverage and strategy
 - **docs-writer**: Assesses documentation quality and completeness
 
 ## Usage
@@ -49,7 +49,7 @@ Run this command for a comprehensive health check of your project.
 ### Code Quality
 
 - **Correctness**: Logic errors, edge cases, error handling
-- **Maintainability**: Code organization, naming, complexity
+- **Maintainability**: Code organisation, naming, complexity
 - **Performance**: Algorithm efficiency, N+1 queries, bottlenecks
 - **Type Safety**: TypeScript usage, type coverage
 - **Code Duplication**: DRY violations and refactoring opportunities
@@ -93,7 +93,7 @@ Run this command for a comprehensive health check of your project.
 - **Overall Health Score**: Aggregate assessment
 - **Critical Issues**: Blockers requiring immediate attention
 - **Risk Assessment**: Technical debt and risk areas
-- **Recommendations**: Top 5 prioritized improvements
+- **Recommendations**: Top 5 prioritised improvements
 
 ### Detailed Reports
 
@@ -145,11 +145,11 @@ The review automatically detects and adapts to your project's:
 
 - **Tech Stack**: Identifies frameworks, languages, and build tools from
   package.json, requirements.txt, go.mod, etc.
-- **Architecture**: Discovers patterns by analyzing directory structure and code
-  organization
+- **Architecture**: Discovers patterns by analysing directory structure and code
+  organisation
 - **Testing**: Detects test frameworks and existing test patterns
 - **Tooling**: Identifies linters, formatters, CI/CD configuration
-- **Conventions**: Learns naming patterns, file organization, and coding
+- **Conventions**: Learns naming patterns, file organisation, and coding
   standards
 
 The review assesses your project against its own technology choices and

@@ -1,45 +1,48 @@
 # Claude Projects Lite - Usage Instructions
 
-## Language Convention
-
-**Use UK English throughout all documentation, code comments, and agent
-responses** (organised, recognised, colour, behaviour, optimise, centre,
-analyse, realise, utilise, customise, visualise, maximise, minimise).
-
 ## Overview
 
 Claude Projects Lite is a lightweight starter kit for running projects natively
 inside Claude Code. No servers, no orchestration frameworks, just markdown agent
-files, commands, addons, and documentation templates.
+files, commands, skills, and documentation templates.
 
 ## Quick Start
 
 ### First-Time Setup (New Repository)
 
-When copying Claude Projects Lite into a new repository, run this prompt to
-contextualize agents for your project:
+When copying Claude Projects Lite into a new repository:
 
-```
-Update the agents based on my project context
-```
+1. **Install Git Hooks (Recommended)**
 
-This will:
+   ```bash
+   cp hooks/* .git/hooks/
+   chmod +x .git/hooks/*
+   ```
 
-- Analyse your codebase structure, tech stack, and patterns
-- Update agent instructions with project-specific conventions
-- Customize examples to match your frameworks and libraries
-- Add relevant file paths and pattern references
-- Ensure agents follow your coding standards
+   This enables automatic formatting, linting, type checking, and testing. See
+   `hooks/README.md` for details.
+
+2. **Contextualise Agents** Run this prompt to update agents for your specific
+   project:
+   ```
+   Update the agents based on my project context
+   ```
+   This will:
+   - Analyse your codebase structure, tech stack, and patterns
+   - Update agent instructions with project-specific conventions
+   - Customise examples to match your frameworks and libraries
+   - Add relevant file paths and pattern references
+   - Ensure agents follow your coding standards
 
 ### Regular Usage
 
 1. Open Claude Code in your repo
-2. Activate addons for your project type (see `.claude/addons/ACTIVATION.md`)
-3. Run a slash command, for example:
+2. Run a slash command, for example:
    ```bash
    /feature "artist merch carousel"
    ```
    Claude will sequence: planner → architect → coder → reviewer → tester
+3. Git hooks automatically handle code quality checks (format, lint, test)
 4. Outputs appear step by step — you can stop, edit, or continue at any handoff
 
 ## Available Agents
@@ -56,28 +59,37 @@ This will:
 - **docs-writer** — Updates READMEs, ADRs, and usage notes
 - **security-auditor** — Checks for auth, PII, dependency risk, and must-fix
   issues
-- **data-modeler** (optional) — Schema/migration design
-- **ui-ux-designer** (optional) — Flows, props, accessibility, and component
-  breakdowns
+- **test-reality-checker** — Detects tests that mock everything but test nothing
+- **data-modeller** — Schema/migration design
+- **ui-ux-designer** — Flows, props, accessibility, and component breakdowns
 
 ## Slash Commands
 
-Available in `.claude/commands/`:
+All commands are available in `.claude/commands/`:
 
+### Core Workflows
+
+- **/feature** → Break down and implement a new feature end-to-end
 - **/new-project** → Scaffold a repo with PRD, architecture, code stubs, docs,
   and tests
-- **/feature** → Break down and implement a new feature end-to-end
-- **/full-spec** → Generate a detailed PRD and contract-first API spec
 - **/ship** → Review, audit, and document a change for release
 - **/demo** → Build a minimal demo with UI flow
+- **/full-spec** → Generate a detailed PRD and contract-first API spec
+- **/project-review** → Comprehensive project analysis and recommendations
+- **/security-review** → Security-focused codebase review
 
-Additional commands available via addons:
+### Git & Documentation
 
-- **/commit** → Create standardized Git commits (via git-workflow addon)
-- **/create-pr** → Create pull requests (via git-workflow addon)
-- **/changelog** → Generate changelogs (via git-workflow addon)
-- **/prime-repo** → Prime Claude with repo context (via repository addon)
-- **/prime-docs** → Scan and improve documentation (via repository addon)
+- **/commit** → Create standardised conventional commits
+- **/create-pr** → Create pull requests with title and body
+- **/changelog** → Generate release changelogs
+- **/prime-repo** → Analyse and load repository context
+- **/prime-docs** → Scan and improve documentation
+
+### Testing & Quality
+
+- **/test-audit** → Audit test suite for circular mocking and false-passing
+  tests
 
 ## Doc Templates
 
@@ -101,31 +113,65 @@ The docs-writer agent can fill these in automatically or you can draft manually.
 
 ## Philosophy
 
-Claude Projects Lite is about lean sequencing, not heavy orchestration:
+Claude Projects Lite combines persona-based agents with domain-specific skills
+for maximum flexibility:
 
-- Agents are plain markdown files with focused responsibilities
-- Commands are reusable workflows that sequence agents
-- Addons provide automatic quality gates without interrupting flow
-- Templates ensure consistent documentation
+- **Agents** are plain markdown files defining "who" does the work
+  (persona-based)
+- **Skills** provide detailed "how-to" knowledge for specialised domains
+  (capability-based)
+- **Commands** sequence agents for multi-step workflows
+- **Git Hooks** provide automatic quality gates
+- **Templates** ensure consistent documentation
 
-You stay in control and Claude handles the busywork with appropriate quality
+This hybrid approach gives you:
+
+- **Scalability** - Skills use progressive disclosure to avoid context bloat
+- **Composability** - Mix and match agents and skills for any task
+- **Maintainability** - Clear separation between personas and procedures
+- **Flexibility** - Agents maintain workflow context, skills provide deep
+  expertise
+
+You stay in control while Claude handles the busywork with appropriate quality
 checks.
+
+## Git Hooks
+
+Git hooks in the `hooks/` directory provide automatic quality checks:
+
+- **pre-commit** — Auto-formats code, runs linting, type checking, and tests
+- **post-commit** — Shows commit summary and warns about committing to main
+- **pre-push** — Runs security audits before pushing to remote
+- **prepare-commit-msg** — Suggests conventional commit format
+- **post-merge** — Checks for conflicts and reminds to update dependencies
+
+### Installation
+
+```bash
+cp hooks/* .git/hooks/
+chmod +x .git/hooks/*
+```
+
+The hooks auto-detect your project type (Node.js, Python, Rust, Go) and run
+appropriate tools (Prettier, ESLint, Black, Ruff, etc.). See `hooks/README.md`
+for customisation options.
 
 ## Directory Structure
 
 ```
 .claude/
   agents/                    # Development personas
-    architect.md
-    planner.md
-    product-manager.md
-    coder.md
-    tester.md
-    reviewer.md
-    docs-writer.md
-    security-auditor.md
-    data-modeler.md         # optional
-    ui-ux-designer.md       # optional
+    planner.md              # Break down goals into steps
+    architect.md            # Design system structure
+    product-manager.md      # Create PRDs and requirements
+    coder.md               # Implement features
+    tester.md              # Write tests and test plans
+    reviewer.md            # Code review and feedback
+    docs-writer.md         # Documentation updates
+    security-auditor.md    # Security checks
+    test-reality-checker.md # Test quality audits
+    data-modeller.md       # Database design
+    ui-ux-designer.md      # UI/UX specifications
 
   commands/                 # Multi-agent workflows
     feature.md
@@ -133,43 +179,125 @@ checks.
     ship.md
     demo.md
     full-spec.md
+    project-review.md
+    security-review.md
+    commit.md
+    create-pr.md
+    changelog.md
+    prime-repo.md
+    prime-docs.md
+    test-audit.md
 
-  addons/                   # Modular extensions
-    hooks/                  # Quality gates & automation
-      safety/
-      node-typescript/
-      python-modern/
-      agent-quality/
-      git-workflow/
-    commands/               # Additional commands via addons
-      git-workflow/         # Git workflow commands
-      repository/           # Repo management commands
+  skills/                   # Domain-specific capabilities
+    git-workflow/           # Git operations
+      SKILL.md
+      commit-patterns.md
+      pr-templates.md
+      scripts/
+    code-review/            # Code review procedures
+      SKILL.md
+      checklists.md
+      security-patterns.md
+      performance-patterns.md
+    repo-intelligence/      # Repository analysis
+      SKILL.md
+      pattern-library.md
+      scripts/
 
   docs-templates/           # Documentation templates
-    PRD.md
-    ADR.md
-    Architecture-Design.md
-    Code-Review.md
-    Data-Model.md
-    Implementation-Plan.md
-    Runbook.md
-    Security-Audit.md
-    Test-Plan.md
-    UI-Design-Spec.md
-    README-section.md
+    PRD.md                 # Product requirements
+    ADR.md                 # Architecture decision records
+    Architecture-Design.md # Technical implementation specs
+    Code-Review.md        # Code review checklist
+    Data-Model.md         # Database schema design
+    Implementation-Plan.md # Step-by-step implementation
+    Runbook.md            # Operational guides
+    Security-Audit.md     # Security review checklist
+    Test-Plan.md          # Test planning
+    UI-Design-Spec.md     # UI/UX specifications
+    README-section.md     # README sections
+
+hooks/                     # Git hooks for quality checks
+  pre-commit              # Format, lint, type check, test
+  post-commit             # Commit summary
+  pre-push                # Security audits
+  prepare-commit-msg      # Conventional commit hints
+  post-merge              # Merge reminders
+  README.md               # Installation and customization guide
 ```
 
 - `/agents/` → Agent definitions with focused responsibilities
 - `/commands/` → Slash commands that sequence agents together
-- `/addons/` → Modular extensions for hooks and additional commands
+- `/skills/` → Domain-specific procedural knowledge and reference libraries
 - `/docs-templates/` → Structured templates for consistent documentation
+
+## Skills
+
+Skills provide domain-specific procedural knowledge that agents can reference.
+Unlike agents (which define "who"), skills define "how" - detailed procedures,
+patterns, and reference materials.
+
+### Available Skills
+
+#### git-workflow
+
+Comprehensive git operations following Conventional Commits:
+
+- **SKILL.md** - Core git workflow procedures (commits, PRs, changelogs)
+- **commit-patterns.md** - Conventional Commits reference with examples
+- **pr-templates.md** - PR structure templates and best practices
+- **scripts/analyze-diff.sh** - Git diff analysis helper
+
+Use for: Creating commits, pull requests, and changelogs with proper formatting
+
+#### code-review
+
+Systematic code review with language-specific guidance:
+
+- **SKILL.md** - Review methodology and comment frameworks
+- **checklists.md** - Language-specific checklists (JS/TS, Python, Rust, Go,
+  React, SQL)
+- **security-patterns.md** - OWASP Top 10, injection, auth vulnerabilities
+- **performance-patterns.md** - N+1 queries, algorithm complexity, memory leaks
+
+Use for: Conducting thorough code reviews with security and performance focus
+
+#### repo-intelligence
+
+Repository analysis and pattern detection:
+
+- **SKILL.md** - Repository analysis process and templates
+- **pattern-library.md** - Framework patterns (React, Django, FastAPI, Rust, Go)
+- **scripts/analyze-structure.sh** - Automated repository structure analysis
+
+Use for: Understanding codebases, onboarding, documentation audits, strategic
+planning
+
+### How Agents Use Skills
+
+Agents reference skills for detailed procedural knowledge:
+
+**Example - Reviewer Agent:**
+
+- Agent provides the persona: "I am a pragmatic reviewer"
+- Skill provides the procedures: "Here's how to detect SQL injection"
+- Result: Thorough review combining judgment with systematic checks
+
+**Progressive Disclosure:**
+
+- **SKILL.md** - Core guidance always available
+- **Supplementary files** - Detailed reference loaded when needed
+- **Scripts** - Executable helpers for automation
+
+This keeps agent instructions lean while making deep expertise available on
+demand.
 
 ## Agent Contextualization
 
-### Why Contextualize Agents?
+### Why Contextualise Agents?
 
 The default agents contain generic examples and patterns. After copying Claude
-Projects Lite to your repository, contextualize them to:
+Projects Lite to your repository, contextualise them to:
 
 1. **Match your tech stack** - Replace generic examples with your actual
    frameworks (Express vs Fastify, React vs Vue, etc.)
@@ -184,14 +312,14 @@ Projects Lite to your repository, contextualize them to:
 
 When you run "Update the agents based on my project context", Claude will:
 
-- **Detect your stack**: Analyze package.json, requirements.txt, go.mod, or
+- **Detect your stack**: Analyse package.json, requirements.txt, go.mod, or
   similar
 - **Find patterns**: Search for common patterns like controllers, services,
   components
 - **Update examples**: Replace generic code snippets with project-specific ones
 - **Add file paths**: Include actual directories like `src/api/`, `components/`,
   `tests/`
-- **Customize commands**: Update build/test/lint commands to match your scripts
+- **Customise commands**: Update build/test/lint commands to match your scripts
 - **Set conventions**: Document naming patterns (camelCase vs snake_case, etc.)
 
 ### Example: Before vs After
@@ -203,7 +331,7 @@ When you run "Update the agents based on my project context", Claude will:
 // DI pattern: manual vs @Injectable
 ```
 
-**After (Contextualized for Next.js + TypeScript):**
+**After (Contextualised for Next.js + TypeScript):**
 
 ```typescript
 // Your project uses Next.js 14 with App Router
@@ -212,16 +340,17 @@ When you run "Update the agents based on my project context", Claude will:
 // Check existing patterns: components/shared/Button.tsx
 ```
 
-### When to Re-contextualize
+### When to Re-contextualise
 
-Run "Update the agents" again when you:
+Run "Update the agents based on my project context" again when you:
 
 - Migrate to a new framework or major version
 - Change your file structure significantly
 - Add new tooling (linters, test frameworks, etc.)
+- Switch languages or add new language support
 - Onboard new team members (ensures fresh, accurate guidance)
 
-### Manual Customization
+### Manual Customisation
 
 You can also manually edit any agent in `.claude/agents/` to add:
 
@@ -229,3 +358,4 @@ You can also manually edit any agent in `.claude/agents/` to add:
 - Internal library documentation
 - Common gotchas or anti-patterns to avoid
 - Links to internal wikis or ADRs
+- Project-specific quality requirements

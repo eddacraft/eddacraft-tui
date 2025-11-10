@@ -23,7 +23,7 @@ Creates focused demos and prototypes with user experience design:
 ## Usage
 
 ```
-/demo "interactive data visualization dashboard"
+/demo "interactive data visualisation dashboard"
 ```
 
 Perfect for stakeholder presentations, user testing, or proof-of-concept

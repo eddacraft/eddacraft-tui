@@ -64,7 +64,7 @@ Significant
 ### Performance
 
 - [ ] **Efficiency:** No obvious performance issues
-- [ ] **Database:** Queries are optimized (indexes used)
+- [ ] **Database:** Queries are optimised (indexes used)
 - [ ] **Caching:** Appropriate caching strategy
 - [ ] **Memory:** No memory leaks or excessive allocations
 

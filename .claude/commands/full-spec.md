@@ -8,8 +8,8 @@ Creates comprehensive specifications for complex features:
 
 1. **Product Requirements** - Detailed PRD with user research, use cases, and
    acceptance criteria
-2. **System Architecture** - Technical design with interfaces and data modeling
-3. **Data Modeling** - Schema design, migrations, and PII considerations
+2. **System Architecture** - Technical design with interfaces and data modelling
+3. **Data Modelling** - Schema design, migrations, and PII considerations
 
 ## Agent Sequence
 
@@ -17,7 +17,7 @@ Creates comprehensive specifications for complex features:
   `.claude/docs-templates/PRD.md` template
 - **architect**: Creates system design with interface contracts, preferring
   TypeScript examples
-- **data-modeler**: Designs schemas, indexes, migration steps, and flags PII
+- **data-modeller**: Designs schemas, indexes, migration steps, and flags PII
   concerns
 
 ## Usage
