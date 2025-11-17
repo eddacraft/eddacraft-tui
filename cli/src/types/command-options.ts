@@ -35,10 +35,10 @@ export interface GateOptions {
   format?: string;
   /** Skip format detection and treat as native APS */
   native?: boolean;
-  /** Skip specific checks */
-  skipChecks?: string[];
-  /** Run only specific checks */
-  onlyChecks?: string[];
+  /** Skip specific checks (comma-separated string) */
+  skipChecks?: string;
+  /** Run only specific checks (comma-separated string) */
+  onlyChecks?: string;
   /** Fail fast on first error */
   failFast?: boolean;
   /** Adapter-specific options */

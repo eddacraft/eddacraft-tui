@@ -28,8 +28,9 @@ packages/adapters/
 │   │   ├── registry.ts       # Adapter registry
 │   │   ├── utils.ts          # Helper utilities
 │   │   └── testing.ts        # Testing utilities
-│   ├── speckit/              # SpecKit adapter
-│   └── bmad/                 # BMAD adapter (future)
+│   ├── speckit/              # SpecKit adapter ✅
+│   ├── bmad/                 # BMAD adapter ✅
+│   └── generic/              # Generic markdown adapter ✅
 └── README.md
 ```
 
@@ -97,10 +98,10 @@ GitHub's official spec-driven development format. Supports the complete spec-kit
 workflow with three document types.
 
 - **Extensions**: `spec.md`, `plan.md`, `tasks.md`
-- **Status**: ✅ Fully implemented (October 2025)
+- **Status**: ✅ Fully implemented (November 2025)
 - **Version**: 2.0.0
 - **Code**: ~2,469 lines
-- **Tests**: 51 tests (49 passing, 2 minor fixes pending)
+- **Tests**: 114 tests (45 format adapter + 69 parsers, all passing ✅)
 - **Coverage**: >95%
 
 #### Document Types
@@ -186,10 +187,11 @@ Business Model and Architecture Document format - enterprise requirements and
 PRD format.
 
 - **Extensions**: `.md` (PRD, Architecture, Epic, Story formats)
-- **Status**: ✅ Fully implemented (October 2025)
+- **Status**: ✅ Fully implemented (November 2025)
 - **Version**: 1.0.0
 - **Code**: ~800 lines
-- **Tests**: Pending (CLI integration verified)
+- **Tests**: 86 tests (all passing ✅) - exceeds 50+ target
+- **Coverage**: >95%
 - **CLI Integration**: 100% (validate, gate, export commands)
 
 #### Document Types Supported
@@ -307,26 +309,129 @@ anvil export docs/prd.md --to aps
 
 **Next Steps**:
 
-- Add comprehensive unit tests (target: 50+ tests like SpecKit)
-- Create test fixtures (valid/invalid BMAD documents)
-- Serves as reference implementation for SpecKit FormatAdapter migration
+- ✅ Comprehensive testing complete (86 tests, exceeding 50+ target)
+- ✅ Test fixtures created (6 valid + invalid BMAD documents)
+- ✅ Serves as reference implementation for FormatAdapter interface
+
+### Generic Markdown ✅ COMPLETE
+
+Fallback adapter for generic planning documents that don't match SpecKit or BMAD
+formats. Provides broad compatibility for PRDs, TODOs, RFCs, and ADRs.
+
+- **Extensions**: `.md` (PRD, TODO, plan, spec, RFC, ADR formats)
+- **Status**: ✅ Fully implemented (November 2025)
+- **Version**: 1.0.0
+- **Code**: ~198 lines
+- **Tests**: 32 tests (all passing ✅)
+- **Coverage**: >95%
+- **Detection**: Fallback adapter (30-45% confidence)
+
+#### Supported Document Types
+
+- **PRD (Product Requirements Document)** - Generic product requirements
+- **TODO** - Task lists and action items
+- **Plan** - Implementation plans
+- **Spec** - Technical specifications
+- **RFC (Request for Comments)** - Design proposals
+- **ADR (Architecture Decision Records)** - Architecture decisions
+
+#### Format Detection
+
+Generic adapter uses fallback detection with lower confidence (30-45%):
+
+- Generic markdown structure: 15 points
+- Common planning keywords: 10 points
+- Section headers (Requirements, Tasks, etc.): 10 points
+- **Detection threshold**: 30%
+- **Typical confidence**: 30-45% (intentionally lower than specific formats)
+
+#### Usage Example
+
+```typescript
+import { GenericMarkdownAdapter } from '@anvil/adapters/generic';
+
+const adapter = new GenericMarkdownAdapter();
+
+// Detect generic markdown
+const detection = adapter.detect(content);
+console.log(`Confidence: ${detection.confidence}%`);
+
+// Parse generic markdown to APS
+const parseResult = await adapter.parse(content);
+if (parseResult.success) {
+  // Extracted requirements, tasks, features, goals
+  console.log('Parsed plan:', parseResult.data);
+}
+```
+
+#### CLI Integration
+
+```bash
+# Validate generic TODO document
+anvil validate TODO.md
+# ✓ Detected format: generic (45% confidence)
+
+# Run gates on generic RFC
+anvil gate docs/RFC-001.md
+# ✓ Format: generic markdown
+
+# Works as fallback for unknown formats
+anvil validate docs/custom-plan.md
+# ✓ Falling back to generic markdown adapter
+```
+
+#### APS Mapping
+
+- **Requirements sections** → `proposed_changes[]` with type `requirement`
+- **Task lists** → `proposed_changes[]` with type `task`
+- **Features** → `proposed_changes[]` with type `feature`
+- **Goals/Objectives** → `intent.goals[]`
+- **Document title** → `intent.description`
+
+#### File Discovery Utility
+
+Automatically finds planning documents in repositories:
+
+```typescript
+import { findPlanningDocuments } from '@anvil/adapters/utils';
+
+// Search for planning docs in current directory
+const docs = await findPlanningDocuments();
+
+// Returns sorted by confidence and recency
+docs.forEach((doc) => {
+  console.log(`${doc.path} - ${doc.pattern} (confidence: ${doc.confidence}%)`);
+});
+
+// Example output:
+// docs/prd.md - prd (high confidence)
+// TODO.md - todo (medium confidence)
+// docs/RFC-001.md - rfc (medium confidence)
+```
+
+**Next Steps**:
+
+- ✅ Generic adapter complete with full test coverage
+- ✅ File discovery utility implemented
+- ✅ Provides broad compatibility for any markdown planning document
 
 ## Development
 
 ### Running Tests
 
 ```bash
-pnpm test                # Run all tests (51 tests)
+pnpm test                # Run all tests (232 tests)
 pnpm test:watch          # Watch mode
 pnpm test:coverage       # Run with coverage report
 ```
 
-**Current Test Status** (as of October 2025):
+**Current Test Status** (as of November 2025):
 
-- Total: 51 tests
-- Passing: 49 tests
-- Failing: 2 tests (minor spec-parser fixes needed)
-- Coverage: >95%
+- **Total: 232 tests** ✅ All passing
+  - SpecKit: 114 tests (45 format adapter + 69 parsers)
+  - BMAD: 86 tests (exceeds 50+ target)
+  - Generic: 32 tests
+- **Coverage**: >95% across all adapters
 
 ### Type Checking
 

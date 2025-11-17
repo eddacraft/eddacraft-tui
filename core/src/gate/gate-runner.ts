@@ -29,12 +29,42 @@ export class GateRunner {
     return Array.from(this.checks.keys());
   }
 
-  async runGate(plan: PlanData, config: GateConfig, workspaceRoot: string): Promise<GateRunResult> {
+  async runGate(
+    plan: PlanData,
+    config: GateConfig,
+    workspaceRoot: string,
+    options?: {
+      skipChecks?: string[];
+      onlyChecks?: string[];
+      failFast?: boolean;
+    }
+  ): Promise<GateRunResult> {
     const results: GateResult[] = [];
     let totalScore = 0;
     let validChecks = 0;
 
     for (const checkConfig of config.checks) {
+      // Apply skip/only filters
+      if (options?.skipChecks?.includes(checkConfig.name)) {
+        results.push({
+          check: checkConfig.name,
+          passed: true,
+          message: 'Check skipped via --skip-checks',
+          skipped: true,
+        });
+        continue;
+      }
+
+      if (options?.onlyChecks && !options.onlyChecks.includes(checkConfig.name)) {
+        results.push({
+          check: checkConfig.name,
+          passed: true,
+          message: 'Check not in --only-checks filter',
+          skipped: true,
+        });
+        continue;
+      }
+
       if (!checkConfig.enabled) {
         results.push({
           check: checkConfig.name,
@@ -71,13 +101,24 @@ export class GateRunner {
           totalScore += result.score;
           validChecks++;
         }
+
+        // Fail-fast: stop on first failure
+        if (options?.failFast && !result.passed && !result.skipped) {
+          break;
+        }
       } catch (error) {
-        results.push({
+        const errorResult: GateResult = {
           check: checkConfig.name,
           passed: false,
           message: `Check '${checkConfig.name}' failed with error`,
           error: error instanceof Error ? error.message : 'Unknown error',
-        });
+        };
+        results.push(errorResult);
+
+        // Fail-fast: stop on error
+        if (options?.failFast) {
+          break;
+        }
       }
     }
 
