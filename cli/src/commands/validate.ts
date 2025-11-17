@@ -115,7 +115,9 @@ export function createValidateCommand(): Command {
         }
 
         // Verify hash integrity if requested
-        if (options.validateHash) {
+        // Note: Only validate hash for native APS plans. External formats (SpecKit, BMAD)
+        // generate hashes during parsing, so hash validation doesn't apply.
+        if (options.validateHash && !sourceFormat) {
           spinner.text = 'Verifying plan hash...';
           // Exclude hash field before verification to avoid circular dependency
           const { hash, ...planWithoutHash } = plan;
@@ -127,6 +129,9 @@ export function createValidateCommand(): Command {
             console.error(chalk.yellow('This may indicate the plan has been tampered with.'));
             process.exit(1);
           }
+        } else if (options.validateHash && sourceFormat) {
+          // External formats: hash is generated during parsing, so we skip validation
+          spinner.text = 'Skipping hash validation (external format)';
         }
 
         spinner.succeed(chalk.green('✓ Plan is valid'));
