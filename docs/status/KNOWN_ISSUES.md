@@ -45,27 +45,30 @@ from the start, serving as reference for SpecKit migration.
 
 ---
 
-## Hash Validation Failure in CLI (Week 7)
+## Hash Validation Failure in CLI (Week 7) - ✅ RESOLVED
 
 **GitHub Issue**: [#29](https://github.com/EddaCraft/anvil-001/issues/29)
 
 **Issue**: Plans with valid hashes (generated via `generateHash()`) fail hash
 verification in CLI
 
-**Root Cause**: Unknown - needs investigation
+**Root Cause**: Hash validation was being applied to external formats (SpecKit,
+BMAD) where hashes are generated during parsing, not stored in source documents.
 
-**Impact**:
+**Resolution**: Modified `validate.ts` to only validate hashes for native APS
+plans. External formats skip hash validation since their hashes are generated
+fresh during parsing.
 
-- `anvil validate` requires `--no-validate-hash` flag (but this flag doesn't
-  exist)
-- Hash integrity checking not working
+**Fix Details**:
 
-**Workaround**: Use `--native` flag to skip format detection (but still
-validates hash)
+- Hash validation now checks if `sourceFormat` is present
+- If format is external (SpecKit, BMAD, Generic), hash validation is skipped
+- Only native APS JSON/YAML plans with stored hashes are validated
+- Added clear comments explaining the logic
 
-**Status**: Investigation needed
+**Status**: ✅ Resolved (November 17, 2025)
 
-**Priority**: Medium (doesn't block BMAD adapter work)
+**Commit**: TBD
 
 ---
 

@@ -66,6 +66,17 @@ export class GateConfigManager {
           enabled: true,
           config: {},
         },
+        {
+          name: 'dependency',
+          description: 'Dependency vulnerability scanning',
+          enabled: true,
+          config: {
+            min_severity: 'moderate',
+            fail_on_critical: true,
+            fail_on_high: true,
+            fail_on_moderate: false,
+          },
+        },
       ],
       thresholds: {
         overall_score: 80,

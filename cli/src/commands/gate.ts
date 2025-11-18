@@ -86,9 +86,28 @@ export function createGateCommand(): Command {
         const config = configManager.loadConfig();
         spinner.succeed('Configuration loaded');
 
+        // Prepare gate options
+        const gateOptions: {
+          skipChecks?: string[];
+          onlyChecks?: string[];
+          failFast?: boolean;
+        } = {};
+
+        if (options.skipChecks) {
+          gateOptions.skipChecks = options.skipChecks.split(',').map((s) => s.trim());
+        }
+
+        if (options.onlyChecks) {
+          gateOptions.onlyChecks = options.onlyChecks.split(',').map((s) => s.trim());
+        }
+
+        if (options.failFast) {
+          gateOptions.failFast = true;
+        }
+
         // Run gate
         spinner.start('Running quality gates...');
-        const results = await gateRunner.runGate(plan, config, workspaceRoot);
+        const results = await gateRunner.runGate(plan, config, workspaceRoot, gateOptions);
         spinner.succeed('Quality gates completed');
 
         // Display results
