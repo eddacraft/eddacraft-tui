@@ -47,9 +47,11 @@ const SEVERITY_SCORES = {
 
 const SEVERITY_ORDER = ['critical', 'high', 'moderate', 'low', 'info'] as const;
 
+type PackageManager = 'npm' | 'yarn' | 'pnpm';
+
 export class DependencyCheck extends BaseCheck {
   name = 'dependency';
-  description = 'Scan for dependency vulnerabilities using pnpm audit';
+  description = 'Scan for dependency vulnerabilities using npm/yarn/pnpm audit';
 
   async run(context: CheckContext): Promise<GateResult> {
     try {
@@ -59,12 +61,18 @@ export class DependencyCheck extends BaseCheck {
         return this.createSuccess('No package.json found, skipping dependency check', 100);
       }
 
+      // Detect package manager
+      const packageManager = this.detectPackageManager(context.workspace_root);
+      if (!packageManager) {
+        return this.createSuccess('No lock file found, skipping dependency check', 100);
+      }
+
       // Determine severity threshold from config (default: moderate)
       const minSeverity = (context.check_config.min_severity as string) || 'moderate';
       const severityIndex = SEVERITY_ORDER.indexOf(minSeverity as (typeof SEVERITY_ORDER)[number]);
 
-      // Run pnpm audit
-      const auditResult = await this.runPnpmAudit(context.workspace_root);
+      // Run audit with detected package manager
+      const auditResult = await this.runAudit(context.workspace_root, packageManager);
 
       if (!auditResult) {
         return this.createSuccess('No vulnerabilities found', 100);
@@ -114,7 +122,7 @@ export class DependencyCheck extends BaseCheck {
         : `Dependency check failed: ${totalRelevant} vulnerabilities exceed threshold (${criticalCount} critical, ${highCount} high, ${moderateCount} moderate)`;
 
       // Generate fix suggestions
-      const fixSuggestions = this.generateFixSuggestions(relevantVulns);
+      const fixSuggestions = this.generateFixSuggestions(relevantVulns, packageManager);
 
       return this.createResult(passed, message, score, {
         total: metadata.total,
@@ -123,6 +131,7 @@ export class DependencyCheck extends BaseCheck {
         moderate: moderateCount,
         low: lowCount,
         info: metadata.info,
+        packageManager,
         vulnerabilities: relevantVulns.map((adv) => ({
           id: adv.id,
           title: adv.title,
@@ -150,9 +159,34 @@ export class DependencyCheck extends BaseCheck {
     }
   }
 
-  private async runPnpmAudit(workspaceRoot: string): Promise<PnpmAuditResult | null> {
+  /**
+   * Detect package manager from lock files
+   */
+  private detectPackageManager(workspaceRoot: string): PackageManager | null {
+    // Check for lock files in order of preference
+    if (existsSync(join(workspaceRoot, 'pnpm-lock.yaml'))) {
+      return 'pnpm';
+    }
+    if (existsSync(join(workspaceRoot, 'yarn.lock'))) {
+      return 'yarn';
+    }
+    if (existsSync(join(workspaceRoot, 'package-lock.json'))) {
+      return 'npm';
+    }
+    return null;
+  }
+
+  /**
+   * Run audit command for the detected package manager
+   */
+  private async runAudit(
+    workspaceRoot: string,
+    packageManager: PackageManager
+  ): Promise<PnpmAuditResult | null> {
+    const auditCommand = `${packageManager} audit --json`;
+
     try {
-      const { stdout } = await execAsync('pnpm audit --json', {
+      const { stdout } = await execAsync(auditCommand, {
         cwd: workspaceRoot,
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large audit results
       });
@@ -160,7 +194,7 @@ export class DependencyCheck extends BaseCheck {
       const result = JSON.parse(stdout) as PnpmAuditResult;
       return result;
     } catch (error) {
-      // pnpm audit exits with code 1 when vulnerabilities are found
+      // All package managers exit with code 1 when vulnerabilities are found
       // We need to parse stdout even on error
       if (error && typeof error === 'object' && 'stdout' in error) {
         const stdout = (error as { stdout: string }).stdout;
@@ -185,7 +219,8 @@ export class DependencyCheck extends BaseCheck {
         const stderr = (error as { stderr: string }).stderr;
         if (
           stderr.includes('No known vulnerabilities found') ||
-          stderr.includes('0 vulnerabilities')
+          stderr.includes('0 vulnerabilities') ||
+          stderr.includes('found 0 vulnerabilities')
         ) {
           return null; // No vulnerabilities is success
         }
@@ -208,7 +243,10 @@ export class DependencyCheck extends BaseCheck {
     return Math.max(0, score);
   }
 
-  private generateFixSuggestions(vulnerabilities: AuditAdvisory[]): string[] {
+  private generateFixSuggestions(
+    vulnerabilities: AuditAdvisory[],
+    packageManager: PackageManager
+  ): string[] {
     const suggestions: string[] = [];
 
     // Group by module
@@ -220,7 +258,7 @@ export class DependencyCheck extends BaseCheck {
     }
 
     // Generate suggestions for each module
-    for (const [module, vulns] of moduleMap) {
+    for (const [module, vulns] of Array.from(moduleMap.entries())) {
       const highestSeverity = vulns[0].severity; // Already sorted by severity
       const patchedVersions = vulns[0].patched_versions;
 
@@ -235,9 +273,13 @@ export class DependencyCheck extends BaseCheck {
       }
     }
 
-    // Add general suggestion
+    // Add package manager-specific fix command
     if (suggestions.length > 0) {
-      suggestions.push('Run `pnpm audit --fix` to automatically apply available patches');
+      const fixCommand =
+        packageManager === 'yarn'
+          ? `${packageManager} audit fix` // yarn uses 'audit fix'
+          : `${packageManager} audit fix`; // npm and pnpm both use 'audit fix'
+      suggestions.push(`Run \`${fixCommand}\` to automatically apply available patches`);
     }
 
     return suggestions;
