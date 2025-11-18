@@ -53,7 +53,7 @@ to export to JSON Schema when needed.
    - Reduces potential for bugs from mismatched definitions
 
 5. **Flexibility**
-   - Can export to JSON Schema using `zod-to-json-schema` when needed
+   - Can export to JSON Schema using Zod v4's native `z.toJSONSchema()` function
    - Supports advanced features like branding, transforms, and custom error
      messages
    - Can still use Ajv for JSON Schema validation if required for compatibility
@@ -106,9 +106,11 @@ export const APSPlanSchema = z
 // Infer TypeScript type
 export type APSPlan = z.infer<typeof APSPlanSchema>;
 
-// Export JSON Schema when needed
-import { zodToJsonSchema } from 'zod-to-json-schema';
-export const APSPlanJSONSchema = zodToJsonSchema(APSPlanSchema, 'APSPlan');
+// Export JSON Schema when needed (using Zod v4 native converter)
+import * as z from 'zod';
+export const APSPlanJSONSchema = z.toJSONSchema(APSPlanSchema, {
+  target: 'draft-7',
+});
 ```
 
 ### Validation Usage
@@ -149,7 +151,7 @@ if (!result.success) {
 ## References
 
 - [Zod Documentation](https://zod.dev)
-- [zod-to-json-schema](https://github.com/StefanTerdell/zod-to-json-schema)
+- [Zod v4 JSON Schema Documentation](https://zod.dev/json-schema)
 - [TypeScript Handbook - Type Inference](https://www.typescriptlang.org/docs/handbook/type-inference.html)
 - [JSON Schema Specification](https://json-schema.org/)
 

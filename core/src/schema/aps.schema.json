@@ -1,325 +1,337 @@
 {
-  "$ref": "#/definitions/APSPlan",
-  "definitions": {
-    "APSPlan": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "id": {
+      "description": "Unique plan identifier",
+      "type": "string",
+      "pattern": "^aps-[a-f0-9]{8}$"
+    },
+    "hash": {
+      "description": "SHA-256 hash of the plan content",
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intent": {
+      "description": "Human-readable description of what this plan intends to achieve",
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "schema_version": {
+      "description": "Version of the APS schema",
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "proposed_changes": {
+      "description": "List of changes this plan will make",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "file_create",
+              "file_update",
+              "file_delete",
+              "config_update",
+              "dependency_add",
+              "dependency_remove",
+              "dependency_update",
+              "script_execute"
+            ]
+          },
+          "path": {
+            "description": "File or resource path affected by the change",
+            "type": "string"
+          },
+          "description": {
+            "description": "Human-readable description of the change",
+            "type": "string"
+          },
+          "content": {
+            "description": "New content for file changes",
+            "type": "string"
+          },
+          "diff": {
+            "description": "Unified diff for updates",
+            "type": "string"
+          },
+          "metadata": {
+            "description": "Additional change-specific metadata",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": ["type", "path", "description"],
+        "additionalProperties": false
+      }
+    },
+    "provenance": {
+      "description": "Information about plan creation",
       "type": "object",
       "properties": {
-        "id": {
+        "timestamp": {
+          "description": "ISO 8601 timestamp of plan creation",
           "type": "string",
-          "pattern": "^aps-[a-f0-9]{8}$",
-          "description": "Unique plan identifier"
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
         },
-        "hash": {
+        "author": {
+          "description": "User or system that created the plan",
+          "type": "string"
+        },
+        "source": {
+          "description": "Origin of the plan",
           "type": "string",
-          "pattern": "^[a-f0-9]{64}$",
-          "description": "SHA-256 hash of the plan content"
+          "enum": ["cli", "api", "automation", "manual"]
         },
-        "intent": {
-          "type": "string",
-          "minLength": 10,
-          "errorMessage": {
-            "minLength": "Intent must be at least 10 characters",
-            "maxLength": "Intent must not exceed 500 characters"
-          },
-          "maxLength": 500,
-          "description": "Human-readable description of what this plan intends to achieve"
+        "version": {
+          "description": "Version of the tool that created the plan",
+          "type": "string"
         },
-        "schema_version": {
-          "type": "string",
-          "const": "0.1.0",
-          "description": "Version of the APS schema"
+        "repository": {
+          "description": "Repository URL or identifier",
+          "type": "string"
         },
-        "proposed_changes": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": [
-                  "file_create",
-                  "file_update",
-                  "file_delete",
-                  "config_update",
-                  "dependency_add",
-                  "dependency_remove",
-                  "dependency_update",
-                  "script_execute"
-                ]
-              },
-              "path": {
-                "type": "string",
-                "description": "File or resource path affected by the change"
-              },
-              "description": {
-                "type": "string",
-                "description": "Human-readable description of the change"
-              },
-              "content": {
-                "type": "string",
-                "description": "New content for file changes"
-              },
-              "diff": {
-                "type": "string",
-                "description": "Unified diff for updates"
-              },
-              "metadata": {
-                "type": "object",
-                "additionalProperties": {},
-                "description": "Additional change-specific metadata"
-              }
-            },
-            "required": ["type", "path", "description"],
-            "additionalProperties": false
-          },
-          "description": "List of changes this plan will make"
+        "branch": {
+          "description": "Git branch name",
+          "type": "string"
         },
-        "provenance": {
-          "type": "object",
-          "properties": {
-            "timestamp": {
-              "type": "string",
-              "format": "date-time",
-              "description": "ISO 8601 timestamp of plan creation"
-            },
-            "author": {
-              "type": "string",
-              "description": "User or system that created the plan"
-            },
-            "source": {
-              "type": "string",
-              "enum": ["cli", "api", "automation", "manual"],
-              "description": "Origin of the plan"
-            },
-            "version": {
-              "type": "string",
-              "description": "Version of the tool that created the plan"
-            },
-            "repository": {
-              "type": "string",
-              "description": "Repository URL or identifier"
-            },
-            "branch": {
-              "type": "string",
-              "description": "Git branch name"
-            },
-            "commit": {
-              "type": "string",
-              "description": "Git commit hash"
-            }
-          },
-          "required": ["timestamp", "source", "version"],
-          "additionalProperties": false,
-          "description": "Information about plan creation"
-        },
-        "validations": {
-          "type": "object",
-          "properties": {
-            "required_checks": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": [],
-              "description": "List of required validation checks"
-            },
-            "policy_version": {
-              "type": "string",
-              "description": "Version of the policy bundle to use"
-            },
-            "skip_checks": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "default": [],
-              "description": "Checks to skip for this plan"
-            },
-            "custom_rules": {
-              "type": "object",
-              "additionalProperties": {},
-              "description": "Custom validation rules"
-            }
-          },
-          "additionalProperties": false,
-          "description": "Validation requirements for this plan"
-        },
-        "evidence": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "gate_version": {
-                "type": "string",
-                "description": "Version of the gate that ran"
-              },
-              "timestamp": {
-                "type": "string",
-                "format": "date-time",
-                "description": "When the gate was executed"
-              },
-              "overall_status": {
-                "type": "string",
-                "enum": ["passed", "failed", "partial"],
-                "description": "Overall gate result"
-              },
-              "checks": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "check": {
-                      "type": "string",
-                      "description": "Name of the check performed"
-                    },
-                    "status": {
-                      "type": "string",
-                      "enum": ["passed", "failed", "skipped", "warning"],
-                      "description": "Result status"
-                    },
-                    "timestamp": {
-                      "type": "string",
-                      "format": "date-time",
-                      "description": "When the check was performed"
-                    },
-                    "details": {
-                      "type": "object",
-                      "additionalProperties": {},
-                      "description": "Detailed check results"
-                    },
-                    "message": {
-                      "type": "string",
-                      "description": "Human-readable result message"
-                    }
-                  },
-                  "required": ["check", "status", "timestamp"],
-                  "additionalProperties": false
-                },
-                "description": "Individual check results"
-              },
-              "summary": {
-                "type": "string",
-                "description": "Summary of gate execution"
-              },
-              "artifacts": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "description": "Links or references to artifacts"
-              }
-            },
-            "required": ["gate_version", "timestamp", "overall_status", "checks"],
-            "additionalProperties": false
-          },
-          "description": "Evidence from gate executions (immutable, append-only)"
-        },
-        "approval": {
-          "type": "object",
-          "properties": {
-            "approved": {
-              "type": "boolean",
-              "description": "Whether the plan is approved"
-            },
-            "approved_by": {
-              "type": "string",
-              "description": "User who approved the plan"
-            },
-            "approved_at": {
-              "type": "string",
-              "format": "date-time",
-              "description": "When the plan was approved"
-            },
-            "approval_notes": {
-              "type": "string",
-              "description": "Notes or comments on approval"
-            }
-          },
-          "required": ["approved"],
-          "additionalProperties": false,
-          "description": "Approval information"
-        },
-        "executions": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "operation": {
-                "type": "string",
-                "enum": ["apply", "rollback", "dry-run"],
-                "description": "Type of operation"
-              },
-              "status": {
-                "type": "string",
-                "enum": ["success", "failed", "partial"],
-                "description": "Execution status"
-              },
-              "timestamp": {
-                "type": "string",
-                "format": "date-time",
-                "description": "When the operation was performed"
-              },
-              "executed_by": {
-                "type": "string",
-                "description": "User who executed the operation"
-              },
-              "changes_applied": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "List of successfully applied changes"
-              },
-              "changes_failed": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "List of failed changes"
-              },
-              "rollback_point": {
-                "type": "string",
-                "description": "Snapshot ID for rollback"
-              },
-              "logs": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "Execution logs"
-              }
-            },
-            "required": ["operation", "status", "timestamp"],
-            "additionalProperties": false
-          },
-          "description": "History of plan executions"
-        },
-        "tags": {
+        "commit": {
+          "description": "Git commit hash",
+          "type": "string"
+        }
+      },
+      "required": ["timestamp", "source", "version"],
+      "additionalProperties": false
+    },
+    "validations": {
+      "description": "Validation requirements for this plan",
+      "type": "object",
+      "properties": {
+        "required_checks": {
+          "description": "List of required validation checks",
+          "default": [],
           "type": "array",
           "items": {
             "type": "string"
-          },
-          "description": "Tags for categorization and filtering"
+          }
         },
-        "metadata": {
+        "policy_version": {
+          "description": "Version of the policy bundle to use",
+          "type": "string"
+        },
+        "skip_checks": {
+          "description": "Checks to skip for this plan",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "custom_rules": {
+          "description": "Custom validation rules",
           "type": "object",
-          "additionalProperties": {},
-          "description": "Additional plan-specific metadata"
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
         }
       },
-      "required": [
-        "id",
-        "hash",
-        "intent",
-        "schema_version",
-        "proposed_changes",
-        "provenance",
-        "validations"
-      ],
+      "required": ["required_checks", "skip_checks"],
       "additionalProperties": false
+    },
+    "evidence": {
+      "description": "Evidence from gate executions (immutable, append-only)",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "gate_version": {
+            "description": "Version of the gate that ran",
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "When the gate was executed",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "overall_status": {
+            "description": "Overall gate result",
+            "type": "string",
+            "enum": ["passed", "failed", "partial"]
+          },
+          "checks": {
+            "description": "Individual check results",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "check": {
+                  "description": "Name of the check performed",
+                  "type": "string"
+                },
+                "status": {
+                  "description": "Result status",
+                  "type": "string",
+                  "enum": ["passed", "failed", "skipped", "warning"]
+                },
+                "timestamp": {
+                  "description": "When the check was performed",
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+                },
+                "details": {
+                  "description": "Detailed check results",
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                },
+                "message": {
+                  "description": "Human-readable result message",
+                  "type": "string"
+                }
+              },
+              "required": ["check", "status", "timestamp"],
+              "additionalProperties": false
+            }
+          },
+          "summary": {
+            "description": "Summary of gate execution",
+            "type": "string"
+          },
+          "artifacts": {
+            "description": "Links or references to artifacts",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["gate_version", "timestamp", "overall_status", "checks"],
+        "additionalProperties": false
+      }
+    },
+    "approval": {
+      "description": "Approval information",
+      "type": "object",
+      "properties": {
+        "approved": {
+          "description": "Whether the plan is approved",
+          "type": "boolean"
+        },
+        "approved_by": {
+          "description": "User who approved the plan",
+          "type": "string"
+        },
+        "approved_at": {
+          "description": "When the plan was approved",
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+        },
+        "approval_notes": {
+          "description": "Notes or comments on approval",
+          "type": "string"
+        }
+      },
+      "required": ["approved"],
+      "additionalProperties": false
+    },
+    "executions": {
+      "description": "History of plan executions",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operation": {
+            "description": "Type of operation",
+            "type": "string",
+            "enum": ["apply", "rollback", "dry-run"]
+          },
+          "status": {
+            "description": "Execution status",
+            "type": "string",
+            "enum": ["success", "failed", "partial"]
+          },
+          "timestamp": {
+            "description": "When the operation was performed",
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "executed_by": {
+            "description": "User who executed the operation",
+            "type": "string"
+          },
+          "changes_applied": {
+            "description": "List of successfully applied changes",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "changes_failed": {
+            "description": "List of failed changes",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rollback_point": {
+            "description": "Snapshot ID for rollback",
+            "type": "string"
+          },
+          "logs": {
+            "description": "Execution logs",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["operation", "status", "timestamp"],
+        "additionalProperties": false
+      }
+    },
+    "tags": {
+      "description": "Tags for categorization and filtering",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "metadata": {
+      "description": "Additional plan-specific metadata",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
     }
   },
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "required": [
+    "id",
+    "hash",
+    "intent",
+    "schema_version",
+    "proposed_changes",
+    "provenance",
+    "validations"
+  ],
+  "additionalProperties": false,
   "$id": "https://anvil.dev/schemas/aps/0.1.0/plan.json",
   "title": "Anvil Plan Specification (APS)",
   "description": "Schema for Anvil Plan Specification - a deterministic plan format for development automation",

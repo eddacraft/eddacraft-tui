@@ -40,7 +40,6 @@
   },
   "homepage": "https://github.com/EddaCraft/anvil-001#readme",
   "author": "EddaCraft",
-  "license": "MIT",
   "dependencies": {
     "@anvil/core": "workspace:*",
     "@anvil/adapters": "workspace:*",

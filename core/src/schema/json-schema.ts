@@ -1,4 +1,4 @@
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import * as z from 'zod';
 import { APSPlanSchema, APS_SCHEMA_VERSION } from './aps.schema.js';
 import type { JSONSchema7 } from 'json-schema';
 
@@ -6,15 +6,13 @@ import type { JSONSchema7 } from 'json-schema';
  * Generate JSON Schema from the Zod schema
  * This can be used for external tooling, documentation, or validation
  * with tools that require JSON Schema format
+ *
+ * Uses Zod v4's native z.toJSONSchema() function for conversion
  */
 export function generateJSONSchema(): JSONSchema7 {
-  const jsonSchema = zodToJsonSchema(APSPlanSchema, {
-    name: 'APSPlan',
-    $refStrategy: 'none', // Inline all definitions for simplicity
-    definitions: {
-      APSPlan: APSPlanSchema,
-    },
-    errorMessages: true,
+  // Use Zod v4's native JSON Schema converter
+  const jsonSchema = z.toJSONSchema(APSPlanSchema, {
+    target: 'draft-7', // Target JSON Schema Draft 7
   }) as JSONSchema7;
 
   // Add metadata to the JSON Schema
