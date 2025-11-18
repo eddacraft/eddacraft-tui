@@ -1,0 +1,3 @@
+$ node --version
+v24.11.0
+$ node --version > .node-version
