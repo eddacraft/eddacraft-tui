@@ -24,11 +24,12 @@ describe('GateConfigManager', () => {
     const config = configManager.loadConfig();
 
     expect(config.version).toBe(1);
-    expect(config.checks).toHaveLength(3);
+    expect(config.checks).toHaveLength(4);
     expect(config.thresholds.overall_score).toBe(80);
     expect(config.checks.map((c) => c.name)).toContain('eslint');
     expect(config.checks.map((c) => c.name)).toContain('coverage');
     expect(config.checks.map((c) => c.name)).toContain('secret');
+    expect(config.checks.map((c) => c.name)).toContain('dependency');
   });
 
   it('should load existing config file', () => {
@@ -129,7 +130,7 @@ describe('GateConfigManager', () => {
 
       // Should fall back to default config
       expect(config.version).toBe(1);
-      expect(config.checks).toHaveLength(3);
+      expect(config.checks).toHaveLength(4);
 
       // Verify that a warning was logged
       expect(mockWarn).toHaveBeenCalled();
