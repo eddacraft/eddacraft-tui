@@ -1,135 +1,362 @@
-# Anvil Roadmap
+# Anvil Product Roadmap
 
 ## Vision
 
 Anvil is the forge where human and AI intent becomes deterministic, auditable
-plans and production‑ready features — all inside GitHub, VS Code, and the CLI.
+plans and production-ready features — all inside GitHub, VS Code, and the CLI.
 
-- APS (Anvil Plan Spec) is the universal, hash‑stable planning layer for
-  human‑only, AI‑assisted, or hybrid development.
-- Packs provide immediate wins (feature flags, telemetry, tests, docs).
-- Productioniser hardens prototypes into deployable features.
-- Agentic co‑development is optional: start simple, scale to agent workflows
-  later.
-- Interop first: import/export with GitHub SpecKit and BMAD.
+**Core Principles**:
 
-## Themes
+- **Developer-first**: Meet developers where they are (IDE, terminal, CI)
+- **Trust by design**: Provenance, validation, rollback-ready
+- **Interop**: Work with existing formats (SpecKit, BMAD, markdown)
+- **Speed**: Sub-second validation or developers disable it
 
-- Developer‑first: “with the tools you already use”.
-- Trust by design: provenance, one Plan Gate, rollback‑ready.
-- Interop: SpecKit & BMAD adapters; engine‑agnostic (Anthropic/OpenAI/Local).
-- Progressive agentic capability (Agentic‑Lite now, heavier runtime later).
+---
 
-## Phases & Milestones (MVP Cut)
+## Roadmap by Horizon
 
-**✅ Foundations**
+Features rated by **Difficulty** (Low/Medium/High) and **Value**
+(Low/Medium/High/Critical).
 
-- Nx monorepo, pnpm, CI lint+test, strict TypeScript, Husky.
+---
 
-**🚧 Phase 2 — APS Spine**
+## Horizon 1: Developer Experience Foundation
 
-- Zod schema + JSON Schema export.
-- Canonical hashing + golden tests.
-- Types exported.
-- SpecKit/BMAD adapters (import/export) with fixtures. **Milestone:** APS v0.1
-  locked; round‑trip interop demonstrated.
+**Theme**: Remove friction, meet developers where they are.
 
-**🚧 Phase 3 — CLI Foundation**
+### Git Integration
 
-- `plan`, `validate`, `export` commands.
-- Plans under `.anvil/plans/` with pretty printing. **Milestone:**
-  Create/validate/export locally with friendly UX.
+| Feature                             | Difficulty | Value  | Status      |
+| ----------------------------------- | ---------- | ------ | ----------- |
+| Pre-commit hook (`anvil validate`)  | Low        | High   | Not started |
+| Pre-push hook (`anvil gate`)        | Low        | High   | Not started |
+| `anvil hooks install` command       | Low        | High   | Not started |
+| Husky/lint-staged integration guide | Low        | Medium | Not started |
 
-**🚧 Phase 4 — Agentic‑Lite Workflows**
+**Notes**: Husky already configured. Need Anvil-specific hooks.
 
-- Linear workflow YAMLs (plan → code → test → review).
-- Engine adapters (Anthropic/OpenAI/Mock).
-- Assisted Apply (diff review, accept/skip) + immediate tests/lint.
-  **Milestone:** Human‑in‑the‑loop flow usable without a daemon.
+### Developer Mode & Configuration
 
-**🚧 Phase 5 — Plan Gate v1**
+| Feature                               | Difficulty | Value  | Status      |
+| ------------------------------------- | ---------- | ------ | ----------- |
+| `--skip-gates` flag for development   | Low        | High   | Not started |
+| `--only=lint,test` for specific gates | Low        | Medium | Not started |
+| Gate profiles (dev/ci/production)     | Medium     | High   | Not started |
+| Full `.anvilrc` configuration         | Medium     | High   | Partial     |
 
-- ESLint, Vitest coverage (changed files), secrets scan, SAST placeholder.
-- Evidence bundle appended to plan. **Milestone:** Reliable pass/fail on sample
-  repos with actionable output.
+### Watch Mode
 
-**🚧 Phase 6 — Provenance Surface**
+| Feature                                     | Difficulty | Value  | Status      |
+| ------------------------------------------- | ---------- | ------ | ----------- |
+| `anvil watch` daemon mode                   | Medium     | High   | Not started |
+| Incremental validation (changed files only) | Medium     | High   | Not started |
+| File system watcher                         | Low        | Medium | Not started |
 
-- Commit trailers (`Anvil-APS`, `Anvil-Engine`, `Prompt-Hash`).
-- `anvil prov` report for PR body. **Milestone:** Every PR shows lineage and
-  audit trail.
+---
 
-**🚧 Phase 7 — VS Code Extension (Slim)**
+## Horizon 2: Speed & Caching
 
-- Generate Plan, Review Diffs, Productionise.
-- Provenance decorations; engine picker. **Milestone:** Natural editor
-  experience; zero new platform.
+**Theme**: Sub-second validation or developers disable it.
 
-**🚧 Phase 8 — GitHub PR Experience**
+### Performance
 
-- PR template injection (APS + provenance + evidence).
-- AI PR review (tagged) alongside Dependabot + humans; Gate re‑runs on updates.
-  **Milestone:** Layered reviews visible directly in PRs.
+| Feature                           | Difficulty | Value    | Status      |
+| --------------------------------- | ---------- | -------- | ----------- |
+| Validation result caching         | Medium     | Critical | Not started |
+| Hash-based cache invalidation     | Low        | High     | Not started |
+| Parallel gate execution           | Medium     | High     | Not started |
+| Persistent daemon for warm starts | High       | Medium   | Not started |
 
-**🚧 Phase 9 — Packs: Feature Flags**
+### Incremental Processing
 
-- `@anvil/flags` OpenFeature provider + file store.
-- CLI flags add/set/list/remove → APS deltas.
-- Generated tests + docs; client‑side high‑risk flag policy.
-- FeatureBoard adapter stub. **Milestone:** First “killer pack” works
-  end‑to‑end.
+| Feature                 | Difficulty | Value  | Status      |
+| ----------------------- | ---------- | ------ | ----------- |
+| Diff-based validation   | High       | High   | Not started |
+| Cached dependency graph | Medium     | Medium | Not started |
 
-**🚧 Phase 10 — Productioniser (Minimal)**
+---
 
-- Repo scan (tests/docs/telemetry/secrets).
-- Generate remediation APS; `anvil productionise .`. **Milestone:** Prototype →
-  hardened, mergeable artefacts.
+## Horizon 3: CI/CD Integration
 
-**🚧 Phase 11 — OPA/Rego Policy Engine**
+**Theme**: Gate in the pipeline, block bad merges.
 
-- Vendor OPA; policy bundle + example rules + tests; Gate invokes OPA.
-  **Milestone:** Custom policies enforced reliably.
+### GitHub Integration
 
-**🚧 Phase 12 — GitHub Integration**
+| Feature                           | Difficulty | Value    | Status      |
+| --------------------------------- | ---------- | -------- | ----------- |
+| GitHub Action for gate            | Medium     | Critical | Not started |
+| PR status checks (pass/fail)      | Medium     | High     | Not started |
+| Inline PR comments on failures    | Medium     | High     | Not started |
+| PR summary comment                | Low        | High     | Not started |
+| Block merge on gate failure       | Low        | Critical | Not started |
+| `/anvil override` comment command | Medium     | Medium   | Not started |
 
-- GitHub Action to run Gate on PR; block on fail.
-- Sample app; pass/fail demos; rollback; flags pack demo. **Milestone:**
-  End‑to‑end demo on GitHub.
+### GitLab Integration
 
-**🚧 Phase 13 — Hardening & Docs**
+| Feature            | Difficulty | Value  | Status      |
+| ------------------ | ---------- | ------ | ----------- |
+| GitLab CI template | Medium     | Medium | Not started |
+| MR integration     | Medium     | Medium | Not started |
 
-- SARIF outputs, coverage targets (core/gate ≥85%).
-- Dev docs, policy cookbook, contribution guide. **Milestone:** Contributors can
-  self‑serve; security validated.
+---
 
-**🚧 Phase 14 — Release Candidate**
+## Horizon 4: IDE Integration
 
-- Versioning + changelog; signed artefacts.
-- Day‑0 runbook, incident playbook; E2E validation + walkthrough video.
-  **Milestone:** RC tagged and published.
+**Theme**: Never leave your editor.
 
-## Post‑MVP / Stretch
+### VS Code Extension
 
-- Sidecar runtime (daemon, sandboxed dry‑run/apply/rollback).
-- Memory layer (vector store + provenance index + citations).
-- MCP façade (Cursor/Claude Projects integration).
-- Packs marketplace; additional packs (observability/auth/infra).
-- Enterprise features (SSO, RBAC, audit exports).
-- Multi‑language packs (Python/Go/Java/Kotlin).
-- Performance (Rust/Go workers).
+| Feature                   | Difficulty | Value    | Status      |
+| ------------------------- | ---------- | -------- | ----------- |
+| Extension scaffold        | Medium     | Critical | Not started |
+| Inline validation status  | Medium     | High     | Not started |
+| Gate results panel        | Medium     | High     | Not started |
+| One-click gate run        | Low        | High     | Not started |
+| Problem panel integration | Medium     | High     | Not started |
+| CodeLens for plan files   | Medium     | Medium   | Not started |
+| Status bar indicator      | Low        | Medium   | Not started |
 
-## KPIs
+### JetBrains Plugin
 
-- Time‑to‑first‑plan (TTFP).
-- Plan→PR conversion rate.
-- PR pass rate at first Gate run.
-- Gate false‑positive rate (target <5%).
-- Productioniser usage rate.
-- AI vs human contribution mix (from provenance trailers).
+| Feature                  | Difficulty | Value  | Status      |
+| ------------------------ | ---------- | ------ | ----------- |
+| IntelliJ/WebStorm plugin | High       | Medium | Not started |
+
+---
+
+## Horizon 5: AI Tool Integration
+
+**Theme**: Intercept before accept, not validate after.
+
+### MCP Server
+
+| Feature                                | Difficulty | Value    | Status      |
+| -------------------------------------- | ---------- | -------- | ----------- |
+| MCP server implementation              | Medium     | Critical | Not started |
+| Validation as MCP tool                 | Medium     | High     | Not started |
+| Gate results as MCP resource           | Medium     | High     | Not started |
+| Real-time validation during generation | High       | Critical | Not started |
+
+### AI Tool Hooks
+
+| Feature               | Difficulty | Value    | Status      |
+| --------------------- | ---------- | -------- | ----------- |
+| Claude Code hooks     | Medium     | High     | Not started |
+| Cursor integration    | High       | Critical | Not started |
+| Pre-accept validation | High       | High     | Not started |
+
+---
+
+## Horizon 6: Actionable Feedback
+
+**Theme**: Don't just fail — fix.
+
+### Auto-fix Suggestions
+
+| Feature                            | Difficulty | Value  | Status      |
+| ---------------------------------- | ---------- | ------ | ----------- |
+| Coverage gap analysis + test stubs | High       | High   | Not started |
+| Lint auto-fix integration          | Low        | Medium | Not started |
+| Dependency upgrade suggestions     | Medium     | High   | Partial     |
+| Security fix recommendations       | Medium     | High   | Not started |
+
+### Rich Errors
+
+| Feature                    | Difficulty | Value  | Status      |
+| -------------------------- | ---------- | ------ | ----------- |
+| Contextual fix suggestions | Medium     | High   | Not started |
+| Documentation links        | Low        | Medium | Not started |
+| One-command fix option     | Medium     | High   | Not started |
+
+---
+
+## Horizon 7: Security & Architecture Gates
+
+**Theme**: Catch what linters miss.
+
+### Security Gates
+
+| Feature                            | Difficulty | Value    | Status      |
+| ---------------------------------- | ---------- | -------- | ----------- |
+| Dependency vulnerability scanning  | Medium     | Critical | In progress |
+| Enhanced secret scanning (entropy) | Medium     | High     | Not started |
+| Git history secret scanning        | Medium     | High     | Not started |
+| SAST integration (Semgrep)         | High       | High     | Not started |
+| IaC scanning (Dockerfile, K8s)     | High       | Medium   | Not started |
+| License compliance                 | Medium     | Medium   | Not started |
+
+### Architecture Gates
+
+| Feature                       | Difficulty | Value  | Status      |
+| ----------------------------- | ---------- | ------ | ----------- |
+| Circular dependency detection | Medium     | High   | Not started |
+| Layer boundary validation     | High       | High   | Not started |
+| Anti-pattern detection        | High       | High   | Not started |
+| Custom architecture rules     | High       | Medium | Not started |
+
+---
+
+## Horizon 8: Visual & Reporting
+
+**Theme**: Make validation beautiful.
+
+### Visual Preview
+
+| Feature                        | Difficulty | Value  | Status      |
+| ------------------------------ | ---------- | ------ | ----------- |
+| Interactive HTML diff report   | High       | High   | Not started |
+| Blast radius visualisation     | High       | High   | Not started |
+| Dependency graph view          | Medium     | Medium | Not started |
+| `anvil preview --html` command | Medium     | High   | Not started |
+
+### Metrics Dashboard
+
+| Feature                     | Difficulty | Value  | Status      |
+| --------------------------- | ---------- | ------ | ----------- |
+| Validation success tracking | Medium     | Medium | Not started |
+| Common failure patterns     | Medium     | Medium | Not started |
+| Team metrics                | High       | Medium | Not started |
+
+---
+
+## Horizon 9: Execution & Safety
+
+**Theme**: Apply with confidence, rollback without fear.
+
+### Safe Execution
+
+| Feature                      | Difficulty | Value    | Status      |
+| ---------------------------- | ---------- | -------- | ----------- |
+| `anvil apply` with snapshots | High       | Critical | Not started |
+| Transactional file changes   | High       | High     | Not started |
+| Dry-run mode                 | Medium     | High     | Not started |
+| Pre-flight checks            | Medium     | High     | Not started |
+
+### Rollback
+
+| Feature                    | Difficulty | Value    | Status      |
+| -------------------------- | ---------- | -------- | ----------- |
+| `anvil rollback <plan-id>` | High       | Critical | Not started |
+| Partial rollback           | High       | Medium   | Not started |
+| Rollback verification      | Medium     | High     | Not started |
+| Rollback audit trail       | Medium     | High     | Not started |
+
+---
+
+## Horizon 10: Policy & Governance
+
+**Theme**: Codify your standards.
+
+### Policy Engine
+
+| Feature                  | Difficulty | Value  | Status      |
+| ------------------------ | ---------- | ------ | ----------- |
+| OPA/Rego integration     | High       | High   | Not started |
+| Policy bundle structure  | Medium     | Medium | Not started |
+| Built-in policy library  | Medium     | High   | Not started |
+| Custom policy authoring  | Medium     | Medium | Not started |
+| Policy testing framework | Medium     | Medium | Not started |
+
+---
+
+## Priority Matrix
+
+### Do First (High Value + Low/Medium Difficulty)
+
+1. **Pre-commit/pre-push hooks** — Low difficulty, High value
+2. **`--skip-gates` flag** — Low difficulty, High value
+3. **`.anvilrc` configuration** — Medium difficulty, High value
+4. **Validation caching** — Medium difficulty, Critical value
+5. **GitHub Action** — Medium difficulty, Critical value
+
+### Do Next (High Value + Higher Difficulty)
+
+1. **VS Code extension** — Medium difficulty, Critical value
+2. **MCP server** — Medium difficulty, Critical value
+3. **Watch mode** — Medium difficulty, High value
+4. **Apply/Rollback** — High difficulty, Critical value
+
+### Strategic Differentiators
+
+1. **AI tool intercept** — No competitor does this
+2. **Architecture gates** — Unique positioning
+3. **Visual blast radius** — Wow factor for demos
+4. **Auto-fix suggestions** — Zero-friction adoption
+
+---
+
+## Version Milestones
+
+### v0.2.0 — Developer Ergonomics
+
+- Git hooks integration
+- Skip/only gate flags
+- `.anvilrc` configuration
+- Basic watch mode
+
+### v0.3.0 — Speed
+
+- Validation caching
+- Parallel gate execution
+- Incremental validation
+
+### v0.4.0 — CI/CD
+
+- GitHub Action
+- PR status checks
+- Inline PR comments
+
+### v0.5.0 — IDE
+
+- VS Code extension (basic)
+- Real-time validation
+- Problem panel
+
+### v0.6.0 — Security & Architecture
+
+- Full security gate suite
+- Architecture validation
+- SAST integration
+
+### v0.7.0 — Execution
+
+- Apply with snapshots
+- Rollback capability
+- Full audit trail
+
+### v1.0.0 — Production Ready
+
+- Complete feature set
+- Performance optimised
+- Enterprise features
+- Comprehensive docs
+
+---
+
+## Success Metrics
+
+| Metric                      | Target          |
+| --------------------------- | --------------- |
+| Validation latency (cached) | < 2 seconds     |
+| Validation latency (cold)   | < 10 seconds    |
+| Daily active usage          | 80% of team     |
+| Gate bypass rate            | < 5% of commits |
+| CI integration              | 100% of repos   |
+| Rollback success            | 100%            |
+
+---
 
 ## Risks & Mitigations
 
-- Over‑engineering early → Agentic‑Lite; defer sidecar.
-- Interop drift → versioned adapters; round‑trip tests.
-- Gate performance → changed‑files scope, parallelism, caching.
-- Adoption friction → VS Code + GitHub first; “killer pack” quick win.
+| Risk                   | Mitigation                                |
+| ---------------------- | ----------------------------------------- |
+| Over-engineering early | Agentic-Lite; defer sidecar               |
+| Interop drift          | Versioned adapters; round-trip tests      |
+| Gate too slow          | Changed-files scope, parallelism, caching |
+| Adoption friction      | VS Code + GitHub first; quick wins        |
+| Developer bypass       | Dev mode (`--skip`), but enforce in CI    |
+
+---
+
+_Last updated: December 2025_
