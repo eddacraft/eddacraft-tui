@@ -55,10 +55,18 @@ just makes them safer.
 ```
 1. Parse: External format → APS (via adapter)
 2. Validate: Schema validation + hash generation
-3. Gate: Quality checks (lint, test, coverage, secrets)
+3. Gate: Quality checks (lint, test, coverage, secrets, dependencies)
 4. Execute: Apply changes with snapshots (rollback capability)
-5. Evidence: Immutable audit trail
+5. Evidence: Immutable audit trail with provenance
 ```
+
+### Gate Checks
+
+- **ESLint** - Code quality and style enforcement
+- **Vitest** - Unit test execution and pass/fail
+- **Coverage** - Code coverage thresholds
+- **Secrets** - Pattern + entropy detection, git history scanning
+- **Dependencies** - Vulnerability scanning (npm/pnpm audit)
 
 ### Core Components
 
@@ -66,15 +74,20 @@ just makes them safer.
 
 - `schema/aps.schema.ts` - Zod schema (v0.1.0), source of truth
 - `crypto/hash.ts` - SHA-256 deterministic hashing
-- `gate/` - Quality gate checks (ESLint, Vitest, coverage, secrets)
+- `gate/` - Quality gate checks (ESLint, Vitest, coverage, secrets,
+  dependencies)
 - `validation/` - APS validator
+- `provenance/` - Audit trail and trust verification (environment, git context,
+  AI detection)
 
 **Adapters** (`packages/adapters/`):
 
 - `base/types.ts` - FormatAdapter interface
 - `base/registry.ts` - Singleton registry for auto-detection
-- `speckit/` - GitHub spec-kit adapter (2.5k LOC, 51 tests)
-- `bmad/` - BMAD PRD/architecture adapter (~800 LOC)
+- `base/file-discovery.ts` - Auto-find planning documents
+- `speckit/` - GitHub spec-kit adapter (114 tests)
+- `bmad/` - BMAD PRD/architecture adapter (86 tests)
+- `generic/` - Fallback markdown adapter (32 tests)
 
 **CLI** (`cli/`):
 
@@ -174,17 +187,21 @@ anvil/
 ├── core/                 # APS schema, validation, hashing, gates
 │   ├── src/schema/       # Zod schemas (source of truth)
 │   ├── src/crypto/       # Deterministic hashing
-│   ├── src/gate/         # Quality checks
-│   └── src/validation/   # APS validation
-├── packages/adapters/    # Format conversion (SpecKit, BMAD)
-│   ├── src/base/         # FormatAdapter interface
+│   ├── src/gate/         # Quality checks (lint, test, coverage, secrets, deps)
+│   ├── src/validation/   # APS validation
+│   └── src/provenance/   # Audit trails and trust verification
+├── packages/adapters/    # Format conversion (SpecKit, BMAD, Generic)
+│   ├── src/base/         # FormatAdapter interface, registry, file discovery
 │   ├── src/speckit/      # GitHub spec-kit adapter
-│   └── src/bmad/         # BMAD adapter
+│   ├── src/bmad/         # BMAD PRD/architecture adapter
+│   └── src/generic/      # Generic markdown fallback adapter
 ├── cli/                  # Commander.js CLI
-│   ├── src/commands/     # CLI commands
-│   └── src/services/     # Format detection, plan loading
+│   ├── src/commands/     # CLI commands (validate, gate, export, init)
+│   └── src/services/     # Format detection, plan loading, environment
+├── packs/                # Extension packs (placeholder)
+├── ui/                   # UI components (placeholder)
 └── docs/                 # Documentation
-    ├── ARCHITECTURE.md   # System design (1,575 lines)
+    ├── ARCHITECTURE.md   # System design
     ├── planning/PLAN.md  # Strategic roadmap
     └── planning/TODO.md  # Task tracking
 ```
@@ -197,24 +214,25 @@ anvil/
 - Variable names (`colour` not `color`, `initialise` not `initialize`)
 - User-facing text
 
-## Current Implementation Status (October 2025)
+## Current Implementation Status (December 2025)
 
 ✅ **Complete**:
 
 - APS Core (schema, validation, hashing) - 100%
-- Adapter Framework (base types, registry) - 100%
-- SpecKit Adapter (v1 + v2, 51 tests) - 100%
-- BMAD Adapter (PRD/architecture format) - 100%
-- CLI Integration (validate, gate, export) - 100%
-- Gate v1 (lint, test, coverage, secrets) - 100%
-
-🚧 **In Progress**:
-
-- BMAD adapter unit tests (target: 50+ tests)
-- SpecKit adapter migration to FormatAdapter interface
+- Adapter Framework (base types, registry, file discovery) - 100%
+- SpecKit Adapter (v1 + v2, 114 tests) - 100%
+- BMAD Adapter (PRD/architecture format, 86 tests) - 100%
+- Generic Markdown Adapter (fallback, 32 tests) - 100%
+- CLI Integration (validate, gate, export, init) - 100%
+- Gate v1 (lint, test, coverage, secrets, dependencies) - 100%
+- Enhanced Secret Scanning (entropy detection, git history) - 100%
+- Dependency Vulnerability Scanning (npm/pnpm audit) - 100%
+- Provenance System (environment, git context, AI detection) - 100%
 
 📋 **Planned**:
 
+- Architecture Gates (dependency analysis, layer validation)
+- Visual Diff Preview (HTML report, blast radius)
 - Policy Engine (OPA/Rego)
 - Apply/Rollback with snapshots
 - GitHub Action integration
@@ -233,27 +251,37 @@ anvil/
 - **Fixtures**: Use `__fixtures__/` directories
 - **Golden files**: `core/src/__fixtures__/golden-plans/` for hash verification
 - **Integration tests**: `cli/src/__tests__/cli-aps-integration.test.ts`
+- **Total tests**: ~486 tests across all packages
 
 Run specific tests:
 
 ```bash
 npx nx test core --testNamePattern="validator"
 npx nx test adapters --testNamePattern="BMAD"
+npx nx test core --testNamePattern="provenance"
+npx nx test core --testNamePattern="secret"
 ```
 
 ## Documentation
 
 **Architecture & Design**:
 
-- `docs/ARCHITECTURE.md` - System design (1,575 lines)
+- `docs/ARCHITECTURE.md` - System design
 - `docs/planning/PLAN.md` - Strategic vision (three acts)
 - `docs/planning/TODO.md` - Task tracking with progress
+- `docs/planning/ROADMAP.md` - Detailed implementation roadmap
 
 **Package Documentation**:
 
 - `core/API.md` - APS Core API reference
 - `packages/adapters/README.md` - Adapter framework
-- `packages/adapters/ADAPTER_WORKFLOW_GUIDE.md` - Creating adapters
+- `docs/guides/adapters/workflow-guide.md` - Creating adapters
+
+**User Documentation**:
+
+- `docs/QUICK_START.md` - Getting started guide
+- `docs/USER_GUIDE.md` - Complete user documentation
+- `docs/TROUBLESHOOTING.md` - Common issues and solutions
 
 **Development**:
 
