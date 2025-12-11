@@ -154,15 +154,20 @@ export class GateConfigManager {
             fail_on_moderate: false,
           },
         },
+        {
+          name: 'policy',
+          description: 'OPA/Rego policy evaluation',
+          enabled: false, // Disabled by default until policies are configured
+          config: {
+            policy_dir: '.anvil/policies',
+            severity_threshold: 'error',
+          },
+        },
       ],
       thresholds: {
         overall_score: 80,
       },
     };
-  }
-
-  private validateAndNormalizeConfig(config: unknown): GateConfig {
-    return this.validateAndNormalizeConfigWithErrors(config).config;
   }
 
   /**

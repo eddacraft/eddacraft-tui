@@ -10,6 +10,7 @@ import { ESLintCheck } from './checks/eslint.check.js';
 import { CoverageCheck } from './checks/coverage.check.js';
 import { SecretCheck } from './checks/secret.check.js';
 import { DependencyCheck } from './checks/dependency.check.js';
+import { PolicyCheck } from './checks/policy.check.js';
 
 export class GateRunner {
   private checks: Map<string, Check> = new Map();
@@ -148,5 +149,6 @@ export class GateRunner {
     this.registerCheck(new CoverageCheck());
     this.registerCheck(new SecretCheck());
     this.registerCheck(new DependencyCheck());
+    this.registerCheck(new PolicyCheck());
   }
 }

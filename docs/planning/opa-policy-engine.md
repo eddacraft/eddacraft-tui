@@ -72,13 +72,13 @@ await manager.forceDownload();
 
 ---
 
-### Phase 2: Policy Check Implementation 🚧 IN PROGRESS
+### Phase 2: Policy Check Implementation ✅ COMPLETE
 
 **Files:**
 
 - `core/src/gate/policy/policy-loader.ts` ✅ COMPLETE
-- `core/src/gate/policy/opa-executor.ts` ⏳ PENDING
-- `core/src/gate/checks/policy.check.ts` ⏳ PENDING
+- `core/src/gate/policy/opa-executor.ts` ✅ COMPLETE
+- `core/src/gate/checks/policy.check.ts` ✅ COMPLETE
 
 #### Policy Loader
 
@@ -109,11 +109,11 @@ const result = await loader.loadPolicies('/path/to/workspace', {
 // result.directory: string
 ```
 
-#### OPA Executor (Planned)
+#### OPA Executor ✅ COMPLETE
 
 Executes OPA binary and parses results.
 
-**Planned API:**
+**API:**
 
 ```typescript
 import { OPAExecutor } from '@anvil/core';
@@ -133,11 +133,11 @@ const result = await executor.evaluate({
 // result.metadata: { policy_count, execution_time_ms }
 ```
 
-#### Policy Check (Planned)
+#### Policy Check ✅ COMPLETE
 
 Main check class integrated with the gate runner.
 
-**Planned Flow:**
+**Flow:**
 
 1. Ensure OPA binary is available
 2. Load policies from `.anvil/policies/`
@@ -597,17 +597,17 @@ violation[violation] {
 
 ## Implementation Status
 
-| Phase | Description                    | Status         |
-| ----- | ------------------------------ | -------------- |
-| 1     | OPA Binary Management          | ✅ Complete    |
-| 2     | Policy Check Implementation    | 🚧 In Progress |
-| 3     | Policy CLI Commands            | ⏳ Pending     |
-| 4     | Example Policies               | ⏳ Pending     |
-| 5     | Architecture Definition System | ⏳ Pending     |
-| 6     | Architecture Templates         | ⏳ Pending     |
-| 7     | Dependency-Cruiser Integration | ⏳ Pending     |
-| 8     | Architecture CLI Commands      | ⏳ Pending     |
-| 9     | Architecture Policies          | ⏳ Pending     |
+| Phase | Description                    | Status      |
+| ----- | ------------------------------ | ----------- |
+| 1     | OPA Binary Management          | ✅ Complete |
+| 2     | Policy Check Implementation    | ✅ Complete |
+| 3     | Policy CLI Commands            | ✅ Complete |
+| 4     | Example Policies               | ✅ Complete |
+| 5     | Architecture Definition System | ⏳ Pending  |
+| 6     | Architecture Templates         | ⏳ Pending  |
+| 7     | Dependency-Cruiser Integration | ⏳ Pending  |
+| 8     | Architecture CLI Commands      | ⏳ Pending  |
+| 9     | Architecture Policies          | ⏳ Pending  |
 
 ---
 

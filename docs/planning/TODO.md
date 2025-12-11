@@ -14,9 +14,10 @@ see [ROADMAP.md](./ROADMAP.md) and [PLAN.md](./PLAN.md).
 | SpecKit Adapter                         | ✅ Complete | 114 tests       |
 | BMAD Adapter                            | ✅ Complete | 86 tests        |
 | Generic Markdown Adapter                | ✅ Complete | 32 tests        |
-| CLI (validate, gate, export)            | ✅ Complete | 36 tests        |
+| CLI (validate, gate, export, hooks)     | ✅ Complete | 50 tests        |
 | Gate v1 (lint, test, coverage, secrets) | ✅ Complete | ✅              |
-| **Total Adapter Tests**                 |             | **232 passing** |
+| OPA Policy Engine                       | ✅ Complete | ✅              |
+| **Total Tests**                         |             | **507 passing** |
 
 ---
 
@@ -225,23 +226,25 @@ Unique differentiator — no competitor has this.
 
 ---
 
-## 🚀 Priority 8: Policy Engine
+## 🚀 Priority 8: Policy Engine ✅ COMPLETE
 
 ### OPA Integration
 
-- [ ] Vendor OPA binary (Linux, macOS, Windows)
-- [ ] Policy bundle structure: `.anvil/policies/`
-- [ ] Example policies:
-  - [ ] `coverage_min.rego`
-  - [ ] `change_scope.rego`
-  - [ ] `security_baseline.rego`
-- [ ] Policy testing framework
+- [x] Auto-download OPA binary (Linux, macOS, Windows)
+- [x] Policy bundle structure: `.anvil/policies/`
+- [x] Example policies:
+  - [x] `coverage_min.rego`
+  - [x] `change_scope.rego`
+  - [x] `security_baseline.rego`
+- [x] Policy testing framework
+- [x] PolicyCheck integrated with gate runner
 
 ### Policy CLI
 
-- [ ] `anvil policy validate` — check syntax
-- [ ] `anvil policy test` — run policy tests
-- [ ] `anvil policy list` — show active policies
+- [x] `anvil policy validate` — check Rego syntax
+- [x] `anvil policy test` — run policy tests
+- [x] `anvil policy list` — show active policies
+- [x] `anvil policy init` — initialise policy directory
 
 ---
 
