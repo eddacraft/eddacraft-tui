@@ -30,6 +30,19 @@ Detailed technical implementation plan for the adapter framework.
 - BMAD adapter planning
 - CLI integration details
 
+### [OPA Policy Engine & Architecture Validation](opa-policy-engine.md)
+
+Detailed implementation plan for OPA integration and architecture validation.
+
+**Status:** In Progress **Priority:** High (Most Requested Feature)
+**Contents:**
+
+- OPA binary management
+- Policy check implementation
+- Architecture definition system
+- Architecture templates (Layered, Hexagonal, Clean, DDD)
+- Dependency-cruiser integration
+
 ### [Active Tasks](tasks.md)
 
 Current TODO list and task tracking.
