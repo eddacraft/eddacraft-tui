@@ -26,28 +26,33 @@ High value, low difficulty. Do these first.
 
 ### Git Hooks Integration
 
-- [ ] `anvil hooks install` command
-  - [ ] Add pre-commit hook: `anvil validate`
-  - [ ] Add pre-push hook: `anvil gate`
-  - [ ] Integration guide for existing Husky setup
-  - [ ] `anvil hooks uninstall` for cleanup
+- [x] `anvil hooks install` command
+  - [x] Add pre-commit hook: `anvil validate`
+  - [x] Add pre-push hook: `anvil gate`
+  - [x] Integration guide for existing Husky setup (auto-detection + --husky
+        flag)
+  - [x] `anvil hooks uninstall` for cleanup
+  - [x] `anvil hooks status` to show current hook state
+  - [x] ANVIL_SKIP_HOOKS environment variable support in hooks
 
 ### Gate Flags (Dev Mode)
 
-- [ ] `--skip=<gates>` flag to bypass specific gates
-- [ ] `--only=<gates>` flag to run specific gates
-- [ ] Gate profiles: `--profile=dev|ci|production`
-- [ ] Environment variable support: `ANVIL_SKIP_GATES`
+- [x] `--skip-checks=<gates>` flag to bypass specific gates (already
+      implemented)
+- [x] `--only-checks=<gates>` flag to run specific gates (already implemented)
+- [x] Gate profiles: `--profile=dev|ci|production`
+- [x] `--list-profiles` to show available profiles
+- [x] Environment variable support: `ANVIL_SKIP_GATES`
 
 ### Configuration File
 
-- [ ] `.anvilrc` or `.anvil/config.json` support
-  - [ ] Gate configuration (thresholds, enabled checks)
-  - [ ] Default format preference
-  - [ ] Coverage threshold override
-  - [ ] Secret scanning patterns
-- [ ] `anvil init` to generate default config
-- [ ] Config validation on load
+- [x] `.anvilrc` or `.anvil/config.json` support (priority order)
+  - [x] Gate configuration (thresholds, enabled checks)
+  - [x] Default format preference
+  - [x] Coverage threshold override
+  - [x] Secret scanning patterns
+- [x] `anvil init` to generate default config (already implemented)
+- [x] Config validation on load with detailed error reporting
 
 ---
 

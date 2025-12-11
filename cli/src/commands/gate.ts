@@ -8,9 +8,39 @@ import { GateRunner, GateConfigManager } from '@anvil/core';
 import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
-import type { GateOptions } from '../types/command-options.js';
-import { success, error, formatGateResults } from '../utils/output.js';
+import type { GateOptions, GateProfile } from '../types/command-options.js';
+import { success, error, formatGateResults, info } from '../utils/output.js';
 import ora from 'ora';
+
+/**
+ * Predefined gate profiles for different environments
+ */
+const GATE_PROFILES: Record<GateProfile, { skipChecks?: string[]; description: string }> = {
+  dev: {
+    skipChecks: ['coverage', 'dependency'],
+    description: 'Development mode - skips coverage and dependency checks for faster iteration',
+  },
+  ci: {
+    skipChecks: [],
+    description: 'CI mode - runs all checks',
+  },
+  production: {
+    skipChecks: [],
+    description: 'Production mode - runs all checks with strict thresholds',
+  },
+};
+
+/**
+ * Parse ANVIL_SKIP_GATES environment variable
+ */
+function parseSkipGatesEnv(): string[] {
+  const envValue = process.env.ANVIL_SKIP_GATES;
+  if (!envValue) return [];
+  return envValue
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 export function createGateCommand(): Command {
   const command = new Command('gate');
@@ -26,7 +56,23 @@ export function createGateCommand(): Command {
     .option('--skip-checks <checks>', 'Comma-separated list of checks to skip')
     .option('--only-checks <checks>', 'Only run specified checks (comma-separated)')
     .option('--fail-fast', 'Stop on first check failure')
+    .option('-p, --profile <profile>', 'Use predefined profile (dev, ci, production)')
+    .option('--list-profiles', 'List available gate profiles')
     .action(async (planArg: string, options: GateOptions) => {
+      // Handle --list-profiles
+      if (options.listProfiles) {
+        console.log(chalk.bold('\nAvailable Gate Profiles:\n'));
+        for (const [name, profile] of Object.entries(GATE_PROFILES)) {
+          console.log(chalk.cyan(`  ${name}`));
+          console.log(chalk.gray(`    ${profile.description}`));
+          if (profile.skipChecks && profile.skipChecks.length > 0) {
+            console.log(chalk.gray(`    Skips: ${profile.skipChecks.join(', ')}`));
+          }
+          console.log('');
+        }
+        console.log(chalk.gray('Usage: anvil gate <plan> --profile=dev'));
+        process.exit(0);
+      }
       try {
         const workspaceRoot = getWorkspaceRoot();
         const configManager = new GateConfigManager(workspaceRoot);
@@ -93,8 +139,50 @@ export function createGateCommand(): Command {
           failFast?: boolean;
         } = {};
 
+        // Collect skip checks from multiple sources (profile, CLI, environment)
+        const skipChecksSet = new Set<string>();
+
+        // 1. Apply profile settings first
+        if (options.profile) {
+          const profileName = options.profile as GateProfile;
+          const profile = GATE_PROFILES[profileName];
+
+          if (!profile) {
+            error(
+              `Unknown profile: ${profileName}. Use --list-profiles to see available profiles.`
+            );
+            process.exit(1);
+          }
+
+          if (profile.skipChecks) {
+            profile.skipChecks.forEach((check) => skipChecksSet.add(check));
+          }
+
+          if (options.verbose) {
+            info(`Using profile: ${profileName}`);
+          }
+        }
+
+        // 2. Apply ANVIL_SKIP_GATES environment variable
+        const envSkipGates = parseSkipGatesEnv();
+        if (envSkipGates.length > 0) {
+          envSkipGates.forEach((check) => skipChecksSet.add(check));
+          if (options.verbose) {
+            info(`ANVIL_SKIP_GATES: ${envSkipGates.join(', ')}`);
+          }
+        }
+
+        // 3. Apply CLI --skip-checks (highest priority, adds to set)
         if (options.skipChecks) {
-          gateOptions.skipChecks = options.skipChecks.split(',').map((s) => s.trim());
+          options.skipChecks
+            .split(',')
+            .map((s) => s.trim())
+            .forEach((check) => skipChecksSet.add(check));
+        }
+
+        // Convert set to array
+        if (skipChecksSet.size > 0) {
+          gateOptions.skipChecks = Array.from(skipChecksSet);
         }
 
         if (options.onlyChecks) {

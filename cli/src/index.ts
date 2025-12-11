@@ -7,6 +7,7 @@ import { createPlanCommand } from './commands/plan.js';
 import { createValidateCommand } from './commands/validate.js';
 import { createExportCommand } from './commands/export.js';
 import { createInitCommand } from './commands/init.js';
+import { createHooksCommand } from './commands/hooks.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -29,6 +30,7 @@ program.addCommand(createGateConfigCommand());
 program.addCommand(createPlanCommand());
 program.addCommand(createValidateCommand());
 program.addCommand(createExportCommand());
+program.addCommand(createHooksCommand());
 
 // Parse command line arguments
 program.parse();

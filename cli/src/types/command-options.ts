@@ -6,6 +6,11 @@
 import type { AdapterOptions } from '@anvil/adapters';
 
 /**
+ * Available gate profiles
+ */
+export type GateProfile = 'dev' | 'ci' | 'production';
+
+/**
  * Options for the validate command
  */
 export interface ValidateOptions {
@@ -43,6 +48,10 @@ export interface GateOptions {
   failFast?: boolean;
   /** Adapter-specific options */
   adapterOptions?: AdapterOptions;
+  /** Use predefined gate profile */
+  profile?: GateProfile;
+  /** List available gate profiles */
+  listProfiles?: boolean;
 }
 
 /**

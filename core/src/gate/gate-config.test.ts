@@ -50,7 +50,9 @@ describe('GateConfigManager', () => {
 
     writeFileSync(join(tempDir, '.anvilrc'), JSON.stringify(customConfig, null, 2));
 
-    const config = configManager.loadConfig();
+    // Create new manager after writing file so it finds the config
+    const newManager = new GateConfigManager(tempDir);
+    const config = newManager.loadConfig();
 
     expect(config.thresholds.overall_score).toBe(90);
     expect(config.checks).toHaveLength(1);
@@ -120,13 +122,16 @@ describe('GateConfigManager', () => {
   it('should handle invalid JSON gracefully', () => {
     writeFileSync(join(tempDir, '.anvilrc'), 'invalid json');
 
+    // Need to create a new manager to pick up the file
+    const newManager = new GateConfigManager(tempDir);
+
     // Mock console.warn to prevent stderr output during test
     const originalWarn = console.warn;
     const mockWarn = vi.fn();
     console.warn = mockWarn;
 
     try {
-      const config = configManager.loadConfig();
+      const config = newManager.loadConfig();
 
       // Should fall back to default config
       expect(config.version).toBe(1);
@@ -149,10 +154,93 @@ describe('GateConfigManager', () => {
 
     writeFileSync(join(tempDir, '.anvilrc'), JSON.stringify(invalidConfig));
 
-    const config = configManager.loadConfig();
+    // Need to create a new manager to pick up the file
+    const newManager = new GateConfigManager(tempDir);
+    const config = newManager.loadConfig();
 
     expect(config.version).toBe(1);
     expect(config.checks).toEqual([]);
     expect(config.thresholds.overall_score).toBe(80);
+  });
+
+  describe('multiple config locations', () => {
+    it('should load config from .anvilrc first', () => {
+      const anvilrcConfig = { version: 1, checks: [], thresholds: { overall_score: 90 } };
+      const anvilDirConfig = { version: 1, checks: [], thresholds: { overall_score: 70 } };
+
+      // Create both config files
+      writeFileSync(join(tempDir, '.anvilrc'), JSON.stringify(anvilrcConfig));
+      mkdirSync(join(tempDir, '.anvil'), { recursive: true });
+      writeFileSync(join(tempDir, '.anvil', 'config.json'), JSON.stringify(anvilDirConfig));
+
+      const newManager = new GateConfigManager(tempDir);
+      const config = newManager.loadConfig();
+
+      // Should prefer .anvilrc
+      expect(config.thresholds.overall_score).toBe(90);
+    });
+
+    it('should load config from .anvil/config.json if .anvilrc does not exist', () => {
+      const anvilDirConfig = { version: 1, checks: [], thresholds: { overall_score: 70 } };
+
+      // Create only .anvil/config.json
+      mkdirSync(join(tempDir, '.anvil'), { recursive: true });
+      writeFileSync(join(tempDir, '.anvil', 'config.json'), JSON.stringify(anvilDirConfig));
+
+      const newManager = new GateConfigManager(tempDir);
+      const config = newManager.loadConfig();
+
+      expect(config.thresholds.overall_score).toBe(70);
+    });
+
+    it('should return correct config path', () => {
+      expect(configManager.getConfigPath()).toBe(join(tempDir, '.anvilrc'));
+
+      // With existing config
+      writeFileSync(
+        join(tempDir, '.anvilrc'),
+        JSON.stringify({ version: 1, checks: [], thresholds: { overall_score: 80 } })
+      );
+      const newManager = new GateConfigManager(tempDir);
+      expect(newManager.getConfigPath()).toBe(join(tempDir, '.anvilrc'));
+    });
+
+    it('should list all config locations', () => {
+      const locations = configManager.getConfigLocations();
+      expect(locations).toContain(join(tempDir, '.anvilrc'));
+      expect(locations).toContain(join(tempDir, '.anvil', 'config.json'));
+    });
+  });
+
+  describe('loadConfigWithDetails', () => {
+    it('should return isDefault true when no config exists', () => {
+      const result = configManager.loadConfigWithDetails();
+      expect(result.isDefault).toBe(true);
+      expect(result.path).toBeNull();
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should return path and isDefault false when config exists', () => {
+      writeFileSync(
+        join(tempDir, '.anvilrc'),
+        JSON.stringify({ version: 1, checks: [], thresholds: { overall_score: 80 } })
+      );
+      const newManager = new GateConfigManager(tempDir);
+
+      const result = newManager.loadConfigWithDetails();
+      expect(result.isDefault).toBe(false);
+      expect(result.path).toBe(join(tempDir, '.anvilrc'));
+      expect(result.errors).toHaveLength(0);
+    });
+
+    it('should return validation errors for invalid config', () => {
+      const invalidConfig = { someField: 'value' };
+      writeFileSync(join(tempDir, '.anvilrc'), JSON.stringify(invalidConfig));
+      const newManager = new GateConfigManager(tempDir);
+
+      const result = newManager.loadConfigWithDetails();
+      expect(result.errors.length).toBeGreaterThan(0);
+      expect(result.errors.some((e) => e.includes('version'))).toBe(true);
+    });
   });
 });
