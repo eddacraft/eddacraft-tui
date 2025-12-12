@@ -371,7 +371,8 @@ The fastest route to a fundable, demonstrable product:
 
 **Weeks 11-12: Architecture Gates + Visual Preview** 🎨 NEW - WOW FACTOR
 
-- Architecture & best practices gate (dependency analysis, layer boundaries, anti-patterns)
+- Architecture & best practices gate (dependency analysis, layer boundaries,
+  anti-patterns)
 - Visual diff preview (interactive HTML report with blast radius)
 - Inline GitHub PR comments (richer than status checks)
 - **Milestone**: "Production-ready AI code" complete
@@ -450,7 +451,8 @@ We're "done" with MVP when:
 
 **Messaging**:
 
-- **Primary**: "The only AI coding platform that validates security AND architecture"
+- **Primary**: "The only AI coding platform that validates security AND
+  architecture"
 - "AI writes code fast. Anvil makes it production-ready."
 - "Catch vulnerabilities, enforce patterns, ship safely"
 - "Stop manually reviewing AI-generated code"

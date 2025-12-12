@@ -1,16 +1,18 @@
 # Anvil Roadmap Summary - Security + Architecture Focus
 
-**Last Updated**: November 10, 2025
-**Status**: Updated with security gates, architecture validation, and visual preview features
+**Last Updated**: November 10, 2025 **Status**: Updated with security gates,
+architecture validation, and visual preview features
 
 ---
 
 ## 🎯 New Strategic Positioning
 
 ### Primary Message
+
 **"The only AI coding platform that validates security AND architecture"**
 
 ### Supporting Messages
+
 - "AI writes code fast. Anvil makes it production-ready."
 - "Catch vulnerabilities, enforce patterns, ship safely"
 - "Stop manually reviewing AI-generated code"
@@ -21,6 +23,7 @@
 ## 📅 Updated MVP Roadmap (Weeks 9-18)
 
 ### ✅ Completed (Weeks 1-8)
+
 - **Phase 1**: Foundations (repository, CI/CD, quality gates) ✅
 - **Phase 2**: APS Core (schema, validation, hashing) ✅
 - **Phase 2.5**: Adapters (SpecKit, BMAD, Generic) ✅
@@ -35,6 +38,7 @@
 **Goal**: Establish "secure AI development" credibility with quick wins
 
 #### Features
+
 1. **Dependency Vulnerability Scanning** (2-3 days)
    - npm audit / pnpm audit integration
    - Snyk API integration (optional)
@@ -56,6 +60,7 @@
    - **Demo Impact**: MEDIUM - governance story
 
 #### Why This Week Matters
+
 - **Quick wins**: Dependency scanning is 2-3 days for huge value
 - **Visible impact**: Easy to demo "Anvil caught X vulnerabilities"
 - **Differentiator**: Security-first AI development positioning
@@ -67,6 +72,7 @@
 **Goal**: Unique differentiation + stunning visuals for demos
 
 #### Features
+
 1. **Architecture & Best Practices Gate** (5 days)
    - Dependency analysis (circular deps, direction validation)
    - Layer boundary validation (clean architecture enforcement)
@@ -89,6 +95,7 @@
    - **Demo Impact**: HIGH - better developer experience
 
 #### Why This Week Matters
+
 - **Unique**: Architecture validation doesn't exist elsewhere
 - **Visual**: Beautiful HTML diff creates immediate impact
 - **Memorable**: People remember what they see
@@ -100,6 +107,7 @@
 **Goal**: Complete enterprise-grade security story
 
 #### Features
+
 1. **SAST Scanning (Semgrep)** (5 days)
    - Semgrep integration with default rulesets
    - OWASP Top 10 coverage
@@ -121,6 +129,7 @@
    - **Demo Impact**: MEDIUM - compliance story
 
 #### Why This Week Matters
+
 - **Enterprise sales**: SAST is table stakes for security
 - **Compliance**: SOC2, ISO 27001 requirements
 - **Complete story**: Dependency + Secrets + SAST = comprehensive
@@ -132,6 +141,7 @@
 **Goal**: Safe execution of validated plans
 
 #### Features
+
 1. **OPA/Rego Integration** (3-4 days)
    - OPA binary integration
    - Sample policies (coverage, security, architecture, change scope)
@@ -146,6 +156,7 @@
    - **Demo Impact**: HIGH - core value prop
 
 #### Why This Week Matters
+
 - **Safety**: Rollback capability is non-negotiable
 - **Trust**: Audit trail enables compliance
 - **Complete**: Validate → Apply workflow
@@ -157,6 +168,7 @@
 **Goal**: Complete end-to-end workflow
 
 #### Features
+
 1. **Rollback Implementation** (3-4 days)
    - Snapshot restoration
    - Change reversal with integrity verification
@@ -168,6 +180,7 @@
    - Status checks and merge blocking
 
 #### Why This Week Matters
+
 - **Production ready**: Rollback completes safety story
 - **Distribution**: GitHub Action enables adoption
 
@@ -176,7 +189,9 @@
 ## 🎪 Demo Progression Strategy
 
 ### Week 9-10 Demo: "Security Catches"
+
 **Script**:
+
 1. Show AI-generated code with dependency vulnerability
 2. Run `anvil gate plan.md`
 3. **Wow moment**: "Critical CVE in lodash detected!"
@@ -188,7 +203,9 @@
 ---
 
 ### Week 11-12 Demo: "Visual + Architecture"
+
 **Script**:
+
 1. Show AI-generated code with architectural issues
 2. Run `anvil dry-run --output html plan.md`
 3. **Wow moment**: Beautiful HTML diff opens in browser
@@ -201,7 +218,9 @@
 ---
 
 ### Week 13-14 Demo: "Comprehensive Security"
+
 **Script**:
+
 1. Show AI-generated code with SQL injection
 2. Run `anvil gate plan.md`
 3. **Wow moment**: SAST catches OWASP Top 10 issues
@@ -216,24 +235,28 @@
 ## 💼 Value Propositions by Audience
 
 ### For Developers
+
 - "Stop wasting time manually reviewing AI code"
 - "Catch vulnerabilities before they reach production"
 - "Beautiful visual previews show exactly what will change"
 - "Architecture gates keep your codebase clean"
 
 ### For Engineering Managers
+
 - "Standardize AI development across teams"
 - "Enforce architectural patterns automatically"
 - "Complete audit trail for compliance"
 - "Reduce code review time by 50%+"
 
 ### For Security Teams
+
 - "SAST scanning catches OWASP Top 10"
 - "Dependency scanning prevents supply chain attacks"
 - "Secret scanning with git history coverage"
 - "IaC security for infrastructure code"
 
 ### For Compliance/Legal
+
 - "Immutable audit trail for all changes"
 - "License compliance scanning (SBOM)"
 - "Policy enforcement with OPA/Rego"
@@ -244,12 +267,14 @@
 ## 📊 Success Metrics
 
 ### Technical Metrics
+
 - **Security**: % of vulnerabilities caught before commit
 - **Architecture**: % of anti-patterns prevented
 - **Coverage**: Test coverage maintained above threshold
 - **Speed**: Gate execution time < 2 minutes
 
 ### Business Metrics
+
 - **Adoption**: 15-20 pilot teams by Week 18
 - **Engagement**: Plans validated per team per week
 - **Quality**: Gate pass rate > 80%
@@ -260,36 +285,40 @@
 ## 🎯 Competitive Differentiation
 
 ### What Competitors Do
+
 - **GitHub Copilot**: AI coding, no validation
 - **Cursor**: AI IDE, no governance
 - **Snyk/SonarQube**: Static analysis, not AI-specific
 - **Qodo**: AI testing, not governance
 
 ### What Anvil Does (Unique)
-✅ **Security + Architecture validation** - No one else does both
-✅ **Visual diff preview** - Beautiful, shareable HTML reports
-✅ **Architecture gates** - Enforce patterns and layer boundaries
-✅ **Format agnostic** - Works with SpecKit, BMAD, any markdown
-✅ **Complete audit trail** - Immutable evidence bundles
-✅ **Safe execution** - Apply with snapshots, rollback capability
+
+✅ **Security + Architecture validation** - No one else does both ✅ **Visual
+diff preview** - Beautiful, shareable HTML reports ✅ **Architecture gates** -
+Enforce patterns and layer boundaries ✅ **Format agnostic** - Works with
+SpecKit, BMAD, any markdown ✅ **Complete audit trail** - Immutable evidence
+bundles ✅ **Safe execution** - Apply with snapshots, rollback capability
 
 ---
 
 ## 📈 Growth Strategy
 
 ### Week 9-14: Build + Demo
+
 - Implement security + architecture features
 - Create compelling demos for each phase
 - Record demo videos
 - Publish blog posts on security/architecture validation
 
 ### Week 15-18: Pilot Expansion
+
 - Onboard 10-15 pilot teams
 - Gather feedback and testimonials
 - Iterate based on real usage
 - Prepare case studies
 
 ### Week 19+: Launch + Scale
+
 - Public launch with security + architecture story
 - GitHub Action published
 - Developer relations campaign
@@ -299,8 +328,10 @@
 
 ## 🏆 Why This Roadmap Wins
 
-1. **Early Flashiness**: Security catches in Week 9-10 create immediate credibility
-2. **Unique Differentiation**: Architecture gates (Week 11-12) have no competition
+1. **Early Flashiness**: Security catches in Week 9-10 create immediate
+   credibility
+2. **Unique Differentiation**: Architecture gates (Week 11-12) have no
+   competition
 3. **Visual Impact**: HTML diff preview creates memorable demos
 4. **Complete Story**: Security + Architecture + Execution = production-ready
 5. **Enterprise Ready**: SAST, compliance, audit trail = enterprise sales
@@ -309,6 +340,7 @@
 ---
 
 **Next Steps**:
+
 1. Review and approve roadmap
 2. Begin Week 9 implementation (dependency scanning)
 3. Prepare demo scripts for each phase
@@ -316,6 +348,5 @@
 
 ---
 
-**Document Version**: 1.0
-**Authors**: Anvil Planning Team
-**Next Review**: Weekly during implementation
+**Document Version**: 1.0 **Authors**: Anvil Planning Team **Next Review**:
+Weekly during implementation
