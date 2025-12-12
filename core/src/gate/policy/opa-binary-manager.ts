@@ -243,9 +243,9 @@ export class OPABinaryManager {
       mkdirSync(this.cacheDir, { recursive: true });
     }
 
-    console.log(`Downloading OPA v${this.version}...`);
-    console.log(`  URL: ${url}`);
-    console.log(`  Destination: ${binaryPath}`);
+    console.warn(`Downloading OPA v${this.version}...`);
+    console.warn(`  URL: ${url}`);
+    console.warn(`  Destination: ${binaryPath}`);
 
     await this.downloadFile(url, binaryPath);
 
@@ -261,7 +261,7 @@ export class OPABinaryManager {
       throw new Error('Downloaded OPA binary failed verification');
     }
 
-    console.log(`OPA v${this.version} downloaded successfully`);
+    console.warn(`OPA v${this.version} downloaded successfully`);
   }
 
   /**

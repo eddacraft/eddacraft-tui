@@ -58,6 +58,8 @@ export interface GateOptions {
   parallel?: string;
   /** Output format (human, json) */
   output?: 'human' | 'json';
+  /** Show real-time progress for checks */
+  progress?: boolean;
 }
 
 /**

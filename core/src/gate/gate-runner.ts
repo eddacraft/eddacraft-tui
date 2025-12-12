@@ -25,6 +25,34 @@ interface CheckToRun {
 }
 
 /**
+ * Progress event types
+ */
+export type ProgressEventType = 'check:start' | 'check:complete' | 'check:error';
+
+/**
+ * Progress event data
+ */
+export interface ProgressEvent {
+  type: ProgressEventType;
+  checkName: string;
+  /** Current check index (1-based) */
+  current: number;
+  /** Total number of checks to run */
+  total: number;
+  /** Result (only for check:complete and check:error) */
+  result?: GateResult;
+  /** Whether result was from cache */
+  cached?: boolean;
+  /** Execution time in ms */
+  executionTimeMs?: number;
+}
+
+/**
+ * Progress callback function
+ */
+export type ProgressCallback = (event: ProgressEvent) => void;
+
+/**
  * Options for running gates
  */
 export interface GateRunOptions {
@@ -40,6 +68,8 @@ export interface GateRunOptions {
   parallelLimit?: number;
   /** Force bypass cache for this run */
   noCache?: boolean;
+  /** Progress callback for real-time updates */
+  onProgress?: ProgressCallback;
 }
 
 /**
@@ -162,7 +192,8 @@ export class GateRunner {
       workspaceRoot,
       cache,
       parallelLimit,
-      options?.failFast
+      options?.failFast,
+      options?.onProgress
     );
 
     // Combine skipped and executed results
@@ -211,7 +242,8 @@ export class GateRunner {
     workspaceRoot: string,
     cache: CacheProvider,
     parallelLimit?: number,
-    failFast?: boolean
+    failFast?: boolean,
+    onProgress?: ProgressCallback
   ): Promise<{
     results: GateResult[];
     cacheStats: { hits: number; misses: number; timeSavedMs: number };
@@ -220,10 +252,22 @@ export class GateRunner {
     const results: GateResult[] = [];
     const cacheStats = { hits: 0, misses: 0, timeSavedMs: 0 };
     const timing: Record<string, number> = {};
+    const totalChecks = checksToRun.length;
+    let completedCount = 0;
 
     // Sequential execution (failFast or parallelLimit === 0)
     if (failFast || parallelLimit === 0) {
-      for (const { checkConfig, check } of checksToRun) {
+      for (let i = 0; i < checksToRun.length; i++) {
+        const { checkConfig, check } = checksToRun[i];
+
+        // Report check start
+        onProgress?.({
+          type: 'check:start',
+          checkName: checkConfig.name,
+          current: i + 1,
+          total: totalChecks,
+        });
+
         const { result, cached, executionTimeMs } = await this.runCheckWithCache(
           check,
           checkConfig,
@@ -235,6 +279,7 @@ export class GateRunner {
 
         results.push(result);
         timing[checkConfig.name] = executionTimeMs;
+        completedCount++;
 
         if (cached) {
           cacheStats.hits++;
@@ -242,6 +287,17 @@ export class GateRunner {
         } else {
           cacheStats.misses++;
         }
+
+        // Report check completion
+        onProgress?.({
+          type: result.error ? 'check:error' : 'check:complete',
+          checkName: checkConfig.name,
+          current: completedCount,
+          total: totalChecks,
+          result,
+          cached,
+          executionTimeMs,
+        });
 
         // Fail-fast: stop on first failure
         if (failFast && !result.passed && !result.skipped) {
@@ -251,8 +307,16 @@ export class GateRunner {
       return { results, cacheStats, timing };
     }
 
-    // Parallel execution
-    const runCheck = async (item: CheckToRun) => {
+    // Parallel execution with progress tracking
+    const runCheckWithProgress = async (item: CheckToRun, index: number) => {
+      // Report check start
+      onProgress?.({
+        type: 'check:start',
+        checkName: item.checkConfig.name,
+        current: index + 1,
+        total: totalChecks,
+      });
+
       const { result, cached, executionTimeMs } = await this.runCheckWithCache(
         item.check,
         item.checkConfig,
@@ -261,12 +325,29 @@ export class GateRunner {
         workspaceRoot,
         cache
       );
+
+      // Track completion (atomic increment simulation)
+      completedCount++;
+
+      // Report check completion
+      onProgress?.({
+        type: result.error ? 'check:error' : 'check:complete',
+        checkName: item.checkConfig.name,
+        current: completedCount,
+        total: totalChecks,
+        result,
+        cached,
+        executionTimeMs,
+      });
+
       return { checkConfig: item.checkConfig, result, cached, executionTimeMs };
     };
 
     if (parallelLimit === undefined || parallelLimit >= checksToRun.length) {
       // Fully parallel
-      const checkResults = await Promise.all(checksToRun.map(runCheck));
+      const checkResults = await Promise.all(
+        checksToRun.map((item, index) => runCheckWithProgress(item, index))
+      );
 
       for (const { checkConfig, result, cached, executionTimeMs } of checkResults) {
         results.push(result);
@@ -281,9 +362,12 @@ export class GateRunner {
       }
     } else {
       // Limited parallelism using batches
+      let batchStartIndex = 0;
       for (let i = 0; i < checksToRun.length; i += parallelLimit) {
         const batch = checksToRun.slice(i, i + parallelLimit);
-        const batchResults = await Promise.all(batch.map(runCheck));
+        const batchResults = await Promise.all(
+          batch.map((item, batchIndex) => runCheckWithProgress(item, batchStartIndex + batchIndex))
+        );
 
         for (const { checkConfig, result, cached, executionTimeMs } of batchResults) {
           results.push(result);
@@ -296,6 +380,7 @@ export class GateRunner {
             cacheStats.misses++;
           }
         }
+        batchStartIndex += batch.length;
       }
     }
 

@@ -9,6 +9,7 @@ import {
   GateConfigManager,
   createCacheProvider,
   type GateRunOptions,
+  type ProgressEvent,
 } from '@anvil/core';
 import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
@@ -66,6 +67,7 @@ export function createGateCommand(): Command {
     .option('--no-cache', 'Disable caching (always run checks fresh)')
     .option('--parallel <limit>', 'Limit parallel check execution (0 = sequential)')
     .option('-o, --output <format>', 'Output format: human (default) or json', 'human')
+    .option('--progress', 'Show real-time progress for each check')
     .action(async (planArg: string, options: GateOptions) => {
       // Handle --list-profiles
       if (options.listProfiles) {
@@ -213,10 +215,65 @@ export function createGateCommand(): Command {
           gateOptions.failFast = true;
         }
 
-        // Run gate
-        spinner.start('Running quality gates...');
+        // Run gate with progress reporting
+        const showProgress = options.progress && options.output !== 'json';
+
+        if (showProgress) {
+          // Progress mode: show real-time updates
+          console.log(chalk.bold('\nRunning quality gates:\n'));
+
+          // Track active checks for parallel display
+          const activeChecks = new Set<string>();
+          const completedChecks: Array<{
+            name: string;
+            passed: boolean;
+            cached: boolean;
+            timeMs: number;
+          }> = [];
+
+          gateOptions.onProgress = (event: ProgressEvent) => {
+            if (event.type === 'check:start') {
+              activeChecks.add(event.checkName);
+              // Show running indicator
+              process.stdout.write(
+                chalk.cyan(`  ▶ ${event.checkName}`) + chalk.gray(' running...\n')
+              );
+            } else {
+              activeChecks.delete(event.checkName);
+              const passed = event.result?.passed ?? false;
+              const cached = event.cached ?? false;
+              const timeMs = event.executionTimeMs ?? 0;
+
+              completedChecks.push({
+                name: event.checkName,
+                passed,
+                cached,
+                timeMs,
+              });
+
+              // Show completion status
+              const statusIcon = passed ? chalk.green('✓') : chalk.red('✗');
+              const cacheLabel = cached ? chalk.gray(' (cached)') : '';
+              const timeLabel = chalk.gray(` ${timeMs}ms`);
+              const progressLabel = chalk.gray(` [${event.current}/${event.total}]`);
+
+              process.stdout.write(
+                `  ${statusIcon} ${event.checkName}${cacheLabel}${timeLabel}${progressLabel}\n`
+              );
+            }
+          };
+        } else {
+          // Standard mode: use spinner
+          spinner.start('Running quality gates...');
+        }
+
         const results = await gateRunner.runGate(plan, config, workspaceRoot, gateOptions);
-        spinner.succeed('Quality gates completed');
+
+        if (showProgress) {
+          console.log(''); // Add newline after progress
+        } else {
+          spinner.succeed('Quality gates completed');
+        }
 
         // Display results based on output format
         if (options.output === 'json') {

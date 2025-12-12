@@ -74,7 +74,7 @@ Critical for adoption. Developers disable slow tools.
 
 - [x] Run gate checks in parallel
 - [x] Configurable parallelism: `--parallel=<n>` (0 = sequential)
-- [ ] Progress reporting for parallel checks
+- [x] Progress reporting for parallel checks (`--progress` flag)
 
 ### JSON Output ✅
 
