@@ -12,5 +12,8 @@ export * from './validation/index.js';
 // Gate functionality
 export * from './gate/index.js';
 
+// Cache functionality
+export * from './cache/index.js';
+
 // Provenance functionality
 export * from './provenance/index.js';

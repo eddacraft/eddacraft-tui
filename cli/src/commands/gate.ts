@@ -4,12 +4,17 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { GateRunner, GateConfigManager } from '@anvil/core';
+import {
+  GateRunner,
+  GateConfigManager,
+  createCacheProvider,
+  type GateRunOptions,
+} from '@anvil/core';
 import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
 import type { GateOptions, GateProfile } from '../types/command-options.js';
-import { success, error, formatGateResults, info } from '../utils/output.js';
+import { success, error, formatGateResults, info, formatGateResultsJSON } from '../utils/output.js';
 import ora from 'ora';
 
 /**
@@ -58,6 +63,9 @@ export function createGateCommand(): Command {
     .option('--fail-fast', 'Stop on first check failure')
     .option('-p, --profile <profile>', 'Use predefined profile (dev, ci, production)')
     .option('--list-profiles', 'List available gate profiles')
+    .option('--no-cache', 'Disable caching (always run checks fresh)')
+    .option('--parallel <limit>', 'Limit parallel check execution (0 = sequential)')
+    .option('-o, --output <format>', 'Output format: human (default) or json', 'human')
     .action(async (planArg: string, options: GateOptions) => {
       // Handle --list-profiles
       if (options.listProfiles) {
@@ -132,12 +140,24 @@ export function createGateCommand(): Command {
         const config = configManager.loadConfig();
         spinner.succeed('Configuration loaded');
 
+        // Create cache provider
+        const cacheDisabled = options.noCache === true;
+        const cache = createCacheProvider({
+          type: cacheDisabled ? 'null' : 'file',
+          workspaceRoot,
+          disabled: cacheDisabled,
+        });
+
+        // Parse parallel limit
+        const parallelLimit =
+          options.parallel !== undefined ? parseInt(options.parallel, 10) : undefined;
+
         // Prepare gate options
-        const gateOptions: {
-          skipChecks?: string[];
-          onlyChecks?: string[];
-          failFast?: boolean;
-        } = {};
+        const gateOptions: GateRunOptions = {
+          cache,
+          parallelLimit,
+          noCache: cacheDisabled,
+        };
 
         // Collect skip checks from multiple sources (profile, CLI, environment)
         const skipChecksSet = new Set<string>();
@@ -198,8 +218,30 @@ export function createGateCommand(): Command {
         const results = await gateRunner.runGate(plan, config, workspaceRoot, gateOptions);
         spinner.succeed('Quality gates completed');
 
-        // Display results
-        formatGateResults(results);
+        // Display results based on output format
+        if (options.output === 'json') {
+          formatGateResultsJSON(results);
+        } else {
+          formatGateResults(results);
+
+          // Show cache and timing stats in verbose mode
+          if (options.verbose && results.cacheStats) {
+            console.log(chalk.gray('\nCache Statistics:'));
+            console.log(chalk.gray(`  Hits: ${results.cacheStats.hits}`));
+            console.log(chalk.gray(`  Misses: ${results.cacheStats.misses}`));
+            if (results.cacheStats.timeSavedMs > 0) {
+              console.log(chalk.gray(`  Time saved: ${results.cacheStats.timeSavedMs}ms`));
+            }
+          }
+
+          if (options.verbose && results.timing) {
+            console.log(chalk.gray('\nExecution Timing:'));
+            console.log(chalk.gray(`  Total: ${results.timing.totalMs}ms`));
+            for (const [checkName, timeMs] of Object.entries(results.timing.checks)) {
+              console.log(chalk.gray(`  ${checkName}: ${timeMs}ms`));
+            }
+          }
+        }
 
         // Evidence injection
         if (options.inject) {

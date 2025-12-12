@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import { GateRunResult } from '@anvil/core';
+import type { GateRunResult, GateRunResultWithCache } from '@anvil/core';
 
 export function success(message: string): void {
   console.log(chalk.green('✓'), message);
@@ -52,4 +52,64 @@ export function formatGateResults(results: GateRunResult): void {
   console.log(`  Passed: ${chalk.green(results.summary.passed)}`);
   console.log(`  Failed: ${chalk.red(results.summary.failed)}`);
   console.log(`  Skipped: ${chalk.yellow(results.summary.skipped)}`);
+}
+
+/**
+ * JSON output structure for gate results
+ */
+export interface JSONGateOutput {
+  version: '1.0.0';
+  timestamp: string;
+  overall: boolean;
+  score: number;
+  checks: Array<{
+    name: string;
+    passed: boolean;
+    score?: number;
+    message: string;
+    error?: string;
+    skipped?: boolean;
+    cached?: boolean;
+  }>;
+  summary: {
+    total: number;
+    passed: number;
+    failed: number;
+    skipped: number;
+  };
+  cache?: {
+    hits: number;
+    misses: number;
+    timeSavedMs: number;
+  };
+  timing?: {
+    totalMs: number;
+    checks: Record<string, number>;
+  };
+}
+
+/**
+ * Format gate results as JSON (for CI/CD integration)
+ */
+export function formatGateResultsJSON(results: GateRunResultWithCache): void {
+  const output: JSONGateOutput = {
+    version: '1.0.0',
+    timestamp: new Date().toISOString(),
+    overall: results.overall,
+    score: results.score,
+    checks: results.checks.map((check) => ({
+      name: check.check,
+      passed: check.passed,
+      score: check.score,
+      message: check.message,
+      error: check.error,
+      skipped: check.skipped,
+      cached: check.details?.cached as boolean | undefined,
+    })),
+    summary: results.summary,
+    cache: results.cacheStats,
+    timing: results.timing,
+  };
+
+  console.log(JSON.stringify(output, null, 2));
 }

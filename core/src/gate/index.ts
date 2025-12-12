@@ -1,4 +1,5 @@
 export { GateRunner } from './gate-runner.js';
+export type { GateRunOptions, GateRunResultWithCache } from './gate-runner.js';
 export { GateConfigManager } from './gate-config.js';
 export type { ConfigLoadResult } from './gate-config.js';
 export type { Check } from './check.interface.js';

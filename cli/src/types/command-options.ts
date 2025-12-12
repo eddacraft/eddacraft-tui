@@ -52,6 +52,12 @@ export interface GateOptions {
   profile?: GateProfile;
   /** List available gate profiles */
   listProfiles?: boolean;
+  /** Disable caching */
+  noCache?: boolean;
+  /** Limit parallel execution (0 = sequential) */
+  parallel?: string;
+  /** Output format (human, json) */
+  output?: 'human' | 'json';
 }
 
 /**

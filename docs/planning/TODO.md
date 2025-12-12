@@ -16,6 +16,7 @@ see [ROADMAP.md](./ROADMAP.md) and [PLAN.md](./PLAN.md).
 | Generic Markdown Adapter                | ✅ Complete | 32 tests        |
 | CLI (validate, gate, export, hooks)     | ✅ Complete | 50 tests        |
 | Gate v1 (lint, test, coverage, secrets) | ✅ Complete | ✅              |
+| Gate Caching & Parallel Execution       | 🚧 WIP      | —               |
 | OPA Policy Engine                       | ✅ Complete | ✅              |
 | **Total Tests**                         |             | **507 passing** |
 
@@ -61,19 +62,24 @@ High value, low difficulty. Do these first.
 
 Critical for adoption. Developers disable slow tools.
 
-### Validation Caching
+### Validation Caching ✅
 
-- [ ] Cache validation results by content hash
-- [ ] Cache location: `.anvil/cache/`
-- [ ] Cache invalidation on file change
-- [ ] `--no-cache` flag to bypass
-- [ ] Cache stats in verbose output
+- [x] Cache validation results by content hash
+- [x] Cache location: `.anvil/cache/`
+- [x] Cache invalidation on file change (input hash comparison)
+- [x] `--no-cache` flag to bypass
+- [x] Cache stats in verbose output
 
-### Parallel Execution
+### Parallel Execution ✅
 
-- [ ] Run gate checks in parallel
-- [ ] Configurable parallelism: `--parallel=<n>`
+- [x] Run gate checks in parallel
+- [x] Configurable parallelism: `--parallel=<n>` (0 = sequential)
 - [ ] Progress reporting for parallel checks
+
+### JSON Output ✅
+
+- [x] `--output json` flag for CI/CD integration
+- [x] Structured JSON schema with version, timing, cache stats
 
 ### Watch Mode
 
