@@ -190,10 +190,10 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 | Feature                       | Difficulty | Value  | Status      |
 | ----------------------------- | ---------- | ------ | ----------- |
-| Circular dependency detection | Medium     | High   | ✅ Complete |
-| Layer boundary validation     | High       | High   | ✅ Complete |
-| Anti-pattern detection        | High       | High   | ✅ Complete |
-| Custom architecture rules     | High       | Medium | ✅ Complete |
+| Circular dependency detection | Medium     | High   | Not started |
+| Layer boundary validation     | High       | High   | Not started |
+| Anti-pattern detection        | High       | High   | Not started |
+| Custom architecture rules     | High       | Medium | Not started |
 
 ---
 
@@ -342,24 +342,24 @@ anvil alerts history                  # View alert trends
 
 | Feature                  | Difficulty | Value  | Status      |
 | ------------------------ | ---------- | ------ | ----------- |
-| Architecture YAML schema | Medium     | High   | ✅ Complete |
-| Layer definition system  | Medium     | High   | ✅ Complete |
-| Dependency rules         | Medium     | High   | ✅ Complete |
-| Architecture templates   | Medium     | Medium | ✅ Complete |
-| Layered architecture     | Low        | High   | ✅ Complete |
-| Hexagonal architecture   | Medium     | Medium | ✅ Complete |
-| Clean architecture       | Medium     | Medium | ✅ Complete |
-| DDD bounded contexts     | High       | Medium | ✅ Complete |
+| Architecture YAML schema | Medium     | High   | Not started |
+| Layer definition system  | Medium     | High   | Not started |
+| Dependency rules         | Medium     | High   | Not started |
+| Architecture templates   | Medium     | Medium | Not started |
+| Layered architecture     | Low        | High   | Not started |
+| Hexagonal architecture   | Medium     | Medium | Not started |
+| Clean architecture       | Medium     | Medium | Not started |
+| DDD bounded contexts     | High       | Medium | Not started |
 
 ### Architecture Validation
 
 | Feature                        | Difficulty | Value  | Status      |
 | ------------------------------ | ---------- | ------ | ----------- |
-| Dependency-cruiser integration | High       | High   | ✅ Complete |
-| Layer boundary validation      | High       | High   | ✅ Complete |
-| Circular dependency detection  | Medium     | High   | ✅ Complete |
+| Dependency-cruiser integration | High       | High   | Not started |
+| Layer boundary validation      | High       | High   | Not started |
+| Circular dependency detection  | Medium     | High   | Not started |
 | Auto-generated Rego policies   | High       | High   | Not started |
-| Architecture CLI commands      | Medium     | Medium | ✅ Complete |
+| Architecture CLI commands      | Medium     | Medium | Not started |
 | Architecture visualisation     | High       | Medium | Not started |
 
 ---
@@ -409,21 +409,16 @@ anvil alerts history                  # View alert trends
 
 ### v0.3.0 — Developer Ergonomics
 
-**Status:** Core engine complete, onboarding TUI in progress.
+- Git hooks integration
+- Skip/only gate flags
+- `.anvilrc` configuration
+- Basic watch mode
 
 ### v0.4.0 — Speed
 
-- ✅ Core analysis engine (`anvil check`)
-- ✅ Architecture boundary detection with baseline
-- ✅ Anti-pattern detection (7 patterns)
-- ✅ Suppression system with time-boxing
-- ✅ Git integration (`--changed`, `--staged`, `--since`)
-- ✅ Watch mode (`anvil watch --source`)
-- ✅ CI/CD integration (GitHub Action)
-- ✅ Git hooks integration
-- ✅ Gate profiles and skip flags
-- ✅ `.anvilrc` configuration
-- ✅ Validation caching + parallel execution
+- Validation caching
+- Parallel gate execution
+- Incremental validation
 
 ### v0.5.0 — CI/CD
 
@@ -442,8 +437,9 @@ anvil alerts history                  # View alert trends
 
 ### v0.7.0 — IDE
 
-- VS Code extension (MVP)
-- Inline diagnostics and quick fixes
+- VS Code extension (basic)
+- Real-time validation
+- Problem panel
 
 ### v0.8.0 — Architecture Validation
 
@@ -454,31 +450,16 @@ anvil alerts history                  # View alert trends
 
 ### v0.9.0 — Execution
 
-- Command safety validation (CMDSAF)
-- MCP server for real-time validation
-- Constraint export for AI tools
+- Apply with snapshots
+- Rollback capability
+- Full audit trail
 
-### v1.0.0 — Save-time Trust (Current Target)
+### v1.0.0 — Production Ready
 
-**Status:** Core engine complete, onboarding TUI in progress.
-
-In Progress:
-
-- 🔄 Onboarding TUI (Ink-based: init wizard, status, doctor)
-- 🔄 Documentation polish
-
-### v1.1.0 — Drift Visibility
-
-- Drift snapshots and comparison
-- Trend visualisation
-
-### v1.2.0 — Advanced Experience
-
-- Expanded IDE support
-- Operational TUI (watch dashboard, gate explorer)
-- Template library
-
-### v2.0.0 — AI Tool Integration
+- Complete feature set
+- Performance optimised
+- Enterprise features
+- Comprehensive docs
 
 ---
 
