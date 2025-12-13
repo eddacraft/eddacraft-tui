@@ -25,6 +25,8 @@ export interface LoadedPolicy {
   package: string;
   /** Whether a corresponding _test.rego file exists */
   hasTests: boolean;
+  /** Path to the test file (if hasTests is true) */
+  testPath?: string;
 }
 
 /**
@@ -106,7 +108,8 @@ export class PolicyLoader {
     const content = await readFile(filePath, 'utf-8');
     const name = this.extractPolicyName(filePath);
     const packageName = this.extractPackageName(content);
-    const hasTests = this.hasTestFile(filePath);
+    const testPath = this.getTestFilePath(filePath);
+    const hasTests = testPath !== undefined;
 
     return {
       name,
@@ -114,6 +117,7 @@ export class PolicyLoader {
       content,
       package: packageName,
       hasTests,
+      testPath,
     };
   }
 
@@ -171,11 +175,11 @@ export class PolicyLoader {
   }
 
   /**
-   * Check if a corresponding test file exists
+   * Get the test file path if it exists
    */
-  private hasTestFile(policyPath: string): boolean {
+  private getTestFilePath(policyPath: string): string | undefined {
     const testPath = policyPath.replace(/\.rego$/, '_test.rego');
-    return existsSync(testPath);
+    return existsSync(testPath) ? testPath : undefined;
   }
 
   /**

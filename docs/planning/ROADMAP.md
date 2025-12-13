@@ -248,15 +248,119 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 **Theme**: Codify your standards.
 
-### Policy Engine
+### Policy Engine (Core OPA Integration) ✅
 
 | Feature                  | Difficulty | Value  | Status      |
 | ------------------------ | ---------- | ------ | ----------- |
-| OPA/Rego integration     | High       | High   | Not started |
-| Policy bundle structure  | Medium     | Medium | Not started |
-| Built-in policy library  | Medium     | High   | Not started |
-| Custom policy authoring  | Medium     | Medium | Not started |
-| Policy testing framework | Medium     | Medium | Not started |
+| OPA/Rego integration     | High       | High   | ✅ Complete |
+| OPA binary management    | Medium     | High   | ✅ Complete |
+| Policy loader            | Medium     | High   | ✅ Complete |
+| Policy CLI commands      | Medium     | High   | ✅ Complete |
+| Example policies         | Low        | High   | ✅ Complete |
+| Policy testing framework | Medium     | Medium | ✅ Complete |
+
+### Policy Engine Enhancements (Recent)
+
+| Feature                   | Difficulty | Value  | Status      |
+| ------------------------- | ---------- | ------ | ----------- |
+| Violation categories      | Low        | High   | ✅ Complete |
+| Violation fingerprints    | Low        | High   | ✅ Complete |
+| Documentation URL support | Low        | Medium | ✅ Complete |
+| Git context in OPA input  | Medium     | High   | ✅ Complete |
+| CI context detection      | Medium     | High   | ✅ Complete |
+| Policy test enforcement   | Low        | High   | ✅ Complete |
+| PolicyCheck unit tests    | Medium     | High   | ✅ Complete |
+
+### OPA Review & Alert System (Planned)
+
+| Feature                           | Difficulty | Value    | Status      |
+| --------------------------------- | ---------- | -------- | ----------- |
+| Enhanced alert types              | Medium     | High     | Not started |
+| Alert location with line numbers  | Medium     | High     | Not started |
+| Blast radius analysis             | High       | High     | Not started |
+| Suggested fixes in violations     | Medium     | Critical | Not started |
+| Review workflow state machine     | High       | High     | Not started |
+| Alert acknowledgement CLI         | Medium     | Medium   | Not started |
+| Alert persistence/history         | High       | High     | Not started |
+| Alert trend analysis              | Medium     | Medium   | Not started |
+| Alert grouping by category/policy | Low        | High     | Not started |
+| CI annotation formatters (GitHub) | Medium     | Critical | Not started |
+| SARIF output format               | Medium     | High     | Not started |
+| Coverage data in OPA input        | Low        | Medium   | Not started |
+| Dependency data in OPA input      | Medium     | Medium   | Not started |
+| Architecture context in OPA input | High       | High     | Not started |
+| Remote policy bundles             | High       | Medium   | Not started |
+
+**Enhanced Alert Type System** (Planned):
+
+```typescript
+interface EnhancedAlert {
+  id: string; // Deterministic hash
+  fingerprint: string; // Stable across runs
+  rule: string;
+  policy: string;
+  severity: 'critical' | 'error' | 'warning' | 'info';
+  category: ViolationCategory;
+  message: string;
+  description?: string;
+  documentation_url?: string;
+  locations: AlertLocation[];
+  blast_radius?: BlastRadius;
+  fixable: boolean;
+  suggested_fix?: SuggestedFix;
+  required_actions?: RequiredAction[];
+  review_state?: ReviewState;
+}
+```
+
+**Review Workflow States** (Planned):
+
+```
+open → acknowledged → in_progress → resolved
+  ↓         ↓              ↓
+wont_fix  wont_fix    auto_resolved
+```
+
+**CLI Commands** (Planned):
+
+```bash
+anvil alerts list                     # View all alerts
+anvil alerts list --state open        # Filter by state
+anvil alerts acknowledge <id>         # Mark as acknowledged
+anvil alerts resolve <id>             # Mark as resolved
+anvil alerts wont-fix <id> --reason   # Accept risk
+anvil alerts history                  # View alert trends
+```
+
+---
+
+## Horizon 11: Architecture Validation
+
+**Theme**: Enforce boundaries, prevent drift.
+
+### Architecture Definition
+
+| Feature                  | Difficulty | Value  | Status      |
+| ------------------------ | ---------- | ------ | ----------- |
+| Architecture YAML schema | Medium     | High   | Not started |
+| Layer definition system  | Medium     | High   | Not started |
+| Dependency rules         | Medium     | High   | Not started |
+| Architecture templates   | Medium     | Medium | Not started |
+| Layered architecture     | Low        | High   | Not started |
+| Hexagonal architecture   | Medium     | Medium | Not started |
+| Clean architecture       | Medium     | Medium | Not started |
+| DDD bounded contexts     | High       | Medium | Not started |
+
+### Architecture Validation
+
+| Feature                        | Difficulty | Value  | Status      |
+| ------------------------------ | ---------- | ------ | ----------- |
+| Dependency-cruiser integration | High       | High   | Not started |
+| Layer boundary validation      | High       | High   | Not started |
+| Circular dependency detection  | Medium     | High   | Not started |
+| Auto-generated Rego policies   | High       | High   | Not started |
+| Architecture CLI commands      | Medium     | Medium | Not started |
+| Architecture visualisation     | High       | Medium | Not started |
 
 ---
 
@@ -288,11 +392,26 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 ## Version Milestones
 
-### v1.0.0 — Save-time Trust (Current Target)
+### v0.1.0 — Core Foundation ✅
+
+- APS schema and validation
+- Format adapters (SpecKit, BMAD, Generic)
+- Basic gate checks (ESLint, coverage, secrets, dependencies)
+- CLI commands (validate, gate, export, init)
+
+### v0.2.0 — Policy Engine ✅
+
+- OPA/Rego integration
+- Policy CLI commands
+- Example policies with tests
+- Git/CI context in OPA input
+- Violation categories and fingerprints
+
+### v0.3.0 — Developer Ergonomics
 
 **Status:** Core engine complete, onboarding TUI in progress.
 
-Completed:
+### v0.4.0 — Speed
 
 - ✅ Core analysis engine (`anvil check`)
 - ✅ Architecture boundary detection with baseline
@@ -306,6 +425,43 @@ Completed:
 - ✅ `.anvilrc` configuration
 - ✅ Validation caching + parallel execution
 
+### v0.5.0 — CI/CD
+
+- GitHub Action
+- PR status checks
+- CI annotation formatters
+- SARIF output support
+
+### v0.6.0 — Alert & Review System
+
+- Enhanced alert types
+- Review workflow state machine
+- Alert persistence and history
+- Alert CLI commands
+- Trend analysis
+
+### v0.7.0 — IDE
+
+- VS Code extension (MVP)
+- Inline diagnostics and quick fixes
+
+### v0.8.0 — Architecture Validation
+
+- Architecture YAML definition
+- Layer boundary validation
+- Dependency-cruiser integration
+- Auto-generated Rego policies
+
+### v0.9.0 — Execution
+
+- Command safety validation (CMDSAF)
+- MCP server for real-time validation
+- Constraint export for AI tools
+
+### v1.0.0 — Save-time Trust (Current Target)
+
+**Status:** Core engine complete, onboarding TUI in progress.
+
 In Progress:
 
 - 🔄 Onboarding TUI (Ink-based: init wizard, status, doctor)
@@ -318,15 +474,11 @@ In Progress:
 
 ### v1.2.0 — Advanced Experience
 
-- VS Code extension
+- Expanded IDE support
 - Operational TUI (watch dashboard, gate explorer)
 - Template library
 
 ### v2.0.0 — AI Tool Integration
-
-- Command safety validation (CMDSAF)
-- MCP server for real-time validation
-- Constraint export for AI tools
 
 ---
 

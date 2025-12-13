@@ -8,7 +8,7 @@ import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import type { LoadedPolicy } from './policy-loader.js';
 
 const execAsync = promisify(exec);
@@ -56,6 +56,27 @@ export interface OPAInput {
       branches?: number;
       statements?: number;
     };
+    /** Git context for repository-aware policies */
+    git?: {
+      branch?: string;
+      base_branch?: string;
+      commit_sha?: string;
+      author?: string;
+      author_email?: string;
+      commit_count?: number;
+      files_changed?: string[];
+      lines_added?: number;
+      lines_removed?: number;
+    };
+    /** CI/CD context for pipeline-aware policies */
+    ci?: {
+      provider?: 'github' | 'gitlab' | 'jenkins' | 'azure' | 'local';
+      build_id?: string;
+      pr_number?: string;
+      pr_author?: string;
+      pr_reviewers?: string[];
+      labels?: string[];
+    };
   };
   /** Architecture context (for architecture policies) */
   architecture?: {
@@ -66,6 +87,18 @@ export interface OPAInput {
   /** Policy-specific configuration */
   config?: Record<string, unknown>;
 }
+
+/**
+ * Category of policy violation for grouping and filtering
+ */
+export type ViolationCategory =
+  | 'security'
+  | 'architecture'
+  | 'coverage'
+  | 'scope'
+  | 'quality'
+  | 'compliance'
+  | 'custom';
 
 /**
  * A single policy violation
@@ -81,6 +114,12 @@ export interface PolicyViolation {
   path?: string;
   /** Policy that generated this violation */
   policy?: string;
+  /** Category for grouping violations */
+  category?: ViolationCategory;
+  /** Stable fingerprint for deduplication across runs (hash of policy+rule+path+message) */
+  fingerprint?: string;
+  /** URL to documentation about this violation and how to fix it */
+  documentation_url?: string;
 }
 
 /**
@@ -428,27 +467,96 @@ export class OPAExecutor {
   ): PolicyViolation | null {
     // String violation (simple message)
     if (typeof violation === 'string') {
-      return {
+      const result: PolicyViolation = {
         rule: policyName,
         severity: defaultSeverity,
         message: violation,
         policy: policyName,
+        category: this.inferCategory(policyName),
       };
+      result.fingerprint = this.generateFingerprint(result);
+      return result;
     }
 
     // Object violation (structured)
     if (typeof violation === 'object' && violation !== null) {
       const v = violation as Record<string, unknown>;
-      return {
+      const result: PolicyViolation = {
         rule: (v.rule as string) || policyName,
         severity: this.parseSeverity(v.severity, defaultSeverity),
         message: (v.message as string) || (v.msg as string) || JSON.stringify(v),
         path: v.path as string | undefined,
         policy: policyName,
+        category: this.parseCategory(v.category) || this.inferCategory(policyName),
+        documentation_url: v.documentation_url as string | undefined,
       };
+      result.fingerprint = this.generateFingerprint(result);
+      return result;
     }
 
     return null;
+  }
+
+  /**
+   * Generate a stable fingerprint for deduplication
+   */
+  private generateFingerprint(violation: PolicyViolation): string {
+    const content = [
+      violation.policy || '',
+      violation.rule || '',
+      violation.path || '',
+      violation.message || '',
+    ].join('|');
+
+    return createHash('sha256').update(content).digest('hex').substring(0, 16);
+  }
+
+  /**
+   * Infer category from policy name
+   */
+  private inferCategory(policyName: string): ViolationCategory {
+    const name = policyName.toLowerCase();
+
+    if (name.includes('security') || name.includes('secret') || name.includes('auth')) {
+      return 'security';
+    }
+    if (name.includes('architecture') || name.includes('layer') || name.includes('boundary')) {
+      return 'architecture';
+    }
+    if (name.includes('coverage') || name.includes('test')) {
+      return 'coverage';
+    }
+    if (name.includes('scope') || name.includes('change') || name.includes('size')) {
+      return 'scope';
+    }
+    if (name.includes('lint') || name.includes('quality') || name.includes('style')) {
+      return 'quality';
+    }
+    if (name.includes('compliance') || name.includes('license') || name.includes('audit')) {
+      return 'compliance';
+    }
+
+    return 'custom';
+  }
+
+  /**
+   * Parse category from violation object
+   */
+  private parseCategory(value: unknown): ViolationCategory | undefined {
+    if (typeof value !== 'string') return undefined;
+
+    const validCategories: ViolationCategory[] = [
+      'security',
+      'architecture',
+      'coverage',
+      'scope',
+      'quality',
+      'compliance',
+      'custom',
+    ];
+
+    const lower = value.toLowerCase() as ViolationCategory;
+    return validCategories.includes(lower) ? lower : undefined;
   }
 
   /**

@@ -16,4 +16,5 @@ export type {
   PolicyViolation,
   OPAEvaluationResult,
   OPAExecutorConfig,
+  ViolationCategory,
 } from './opa-executor.js';

@@ -2,6 +2,7 @@
  * Policy Check - Evaluate OPA/Rego policies against plans
  */
 
+import { execSync } from 'child_process';
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
 import { getOPABinaryManager } from '../policy/opa-binary-manager.js';
@@ -24,6 +25,10 @@ export interface PolicyCheckConfig {
   query?: string;
   /** Timeout in milliseconds */
   timeout?: number;
+  /** Require policy tests to pass before evaluating policies */
+  require_policy_tests?: boolean;
+  /** Include git context in OPA input for repository-aware policies */
+  include_git_context?: boolean;
 }
 
 /**
@@ -103,8 +108,29 @@ export class PolicyCheck extends BaseCheck {
         });
       }
 
-      // Step 3: Prepare OPA input
-      const input = this.buildOPAInput(context);
+      // Step 3: Run policy tests if required
+      if (config.require_policy_tests) {
+        const testResult = await this.runPolicyTests(
+          binaryPath,
+          discoveryResult.policies,
+          policyDir,
+          config.timeout
+        );
+
+        if (!testResult.passed) {
+          return this.createFailure(
+            `${testResult.failed} of ${testResult.total} policy tests failed`,
+            testResult.details.join('; '),
+            {
+              policyCount: discoveryResult.policies.length,
+              testResults: testResult,
+            }
+          );
+        }
+      }
+
+      // Step 4: Prepare OPA input
+      const input = this.buildOPAInput(context, config.include_git_context !== false);
 
       // Step 4: Execute OPA
       const executor = new OPAExecutor(binaryPath, {
@@ -165,6 +191,14 @@ export class PolicyCheck extends BaseCheck {
         : undefined,
       query: typeof checkConfig.query === 'string' ? checkConfig.query : undefined,
       timeout: typeof checkConfig.timeout === 'number' ? checkConfig.timeout : undefined,
+      require_policy_tests:
+        typeof checkConfig.require_policy_tests === 'boolean'
+          ? checkConfig.require_policy_tests
+          : undefined,
+      include_git_context:
+        typeof checkConfig.include_git_context === 'boolean'
+          ? checkConfig.include_git_context
+          : true, // Default to true
     };
   }
 
@@ -183,7 +217,7 @@ export class PolicyCheck extends BaseCheck {
   /**
    * Build OPA input from check context
    */
-  private buildOPAInput(context: CheckContext): OPAInput {
+  private buildOPAInput(context: CheckContext, includeGitContext: boolean): OPAInput {
     const plan = context.plan!; // Safe: checked in run()
 
     // Calculate affected directories
@@ -194,6 +228,26 @@ export class PolicyCheck extends BaseCheck {
         if (parts.length > 1) {
           affectedDirectories.add(parts.slice(0, -1).join('/'));
         }
+      }
+    }
+
+    // Build context with optional git info
+    const opaContext: OPAInput['context'] = {
+      workspace_root: context.workspace_root,
+      timestamp: Date.now(),
+    };
+
+    // Add git context if enabled
+    if (includeGitContext) {
+      const gitContext = this.getGitContext(context.workspace_root);
+      if (gitContext) {
+        opaContext.git = gitContext;
+      }
+
+      // Add CI context from environment
+      const ciContext = this.getCIContext();
+      if (ciContext) {
+        opaContext.ci = ciContext;
       }
     }
 
@@ -217,11 +271,145 @@ export class PolicyCheck extends BaseCheck {
         change_count: plan.proposed_changes.length,
         affected_directories: Array.from(affectedDirectories),
       },
-      context: {
-        workspace_root: context.workspace_root,
-        timestamp: Date.now(),
-      },
+      context: opaContext,
       config: context.check_config,
+    };
+  }
+
+  /**
+   * Get git context for repository-aware policies
+   */
+  private getGitContext(workspaceRoot: string): OPAInput['context']['git'] | undefined {
+    try {
+      const execGit = (cmd: string): string | undefined => {
+        try {
+          return execSync(cmd, {
+            cwd: workspaceRoot,
+            encoding: 'utf-8',
+            stdio: ['pipe', 'pipe', 'pipe'],
+          }).trim();
+        } catch {
+          return undefined;
+        }
+      };
+
+      const branch = execGit('git rev-parse --abbrev-ref HEAD');
+      if (!branch) return undefined; // Not a git repository
+
+      const commitSha = execGit('git rev-parse HEAD');
+      const author = execGit('git log -1 --format=%an');
+      const authorEmail = execGit('git log -1 --format=%ae');
+
+      // Try to get base branch (for PRs)
+      let baseBranch: string | undefined;
+      const defaultBranches = ['main', 'master', 'develop'];
+      for (const defaultBranch of defaultBranches) {
+        const exists = execGit(`git rev-parse --verify ${defaultBranch} 2>/dev/null`);
+        if (exists) {
+          baseBranch = defaultBranch;
+          break;
+        }
+      }
+
+      return {
+        branch,
+        base_branch: baseBranch,
+        commit_sha: commitSha,
+        author,
+        author_email: authorEmail,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Get CI context from environment variables
+   */
+  private getCIContext(): OPAInput['context']['ci'] | undefined {
+    // GitHub Actions
+    if (process.env.GITHUB_ACTIONS === 'true') {
+      return {
+        provider: 'github',
+        build_id: process.env.GITHUB_RUN_ID,
+        pr_number: process.env.GITHUB_PR_NUMBER || this.extractPRNumber(process.env.GITHUB_REF),
+        pr_author: process.env.GITHUB_ACTOR,
+      };
+    }
+
+    // GitLab CI
+    if (process.env.GITLAB_CI === 'true') {
+      return {
+        provider: 'gitlab',
+        build_id: process.env.CI_JOB_ID,
+        pr_number: process.env.CI_MERGE_REQUEST_IID,
+        pr_author: process.env.GITLAB_USER_LOGIN,
+      };
+    }
+
+    // Jenkins
+    if (process.env.JENKINS_URL) {
+      return {
+        provider: 'jenkins',
+        build_id: process.env.BUILD_ID,
+        pr_number: process.env.CHANGE_ID,
+        pr_author: process.env.CHANGE_AUTHOR,
+      };
+    }
+
+    // Azure DevOps
+    if (process.env.TF_BUILD === 'True') {
+      return {
+        provider: 'azure',
+        build_id: process.env.BUILD_BUILDID,
+        pr_number: process.env.SYSTEM_PULLREQUEST_PULLREQUESTID,
+        pr_author: process.env.BUILD_REQUESTEDFOR,
+      };
+    }
+
+    // Local development
+    return {
+      provider: 'local',
+    };
+  }
+
+  /**
+   * Extract PR number from GitHub ref (e.g., refs/pull/123/merge)
+   */
+  private extractPRNumber(ref: string | undefined): string | undefined {
+    if (!ref) return undefined;
+    const match = ref.match(/refs\/pull\/(\d+)/);
+    return match?.[1];
+  }
+
+  /**
+   * Run policy tests and return results
+   */
+  private async runPolicyTests(
+    binaryPath: string,
+    policies: LoadedPolicy[],
+    policyDir: string,
+    timeout?: number
+  ): Promise<{ passed: boolean; failed: number; total: number; details: string[] }> {
+    const testFiles = policies
+      .filter((p) => p.hasTests)
+      .map((p) => p.testPath)
+      .filter(Boolean);
+
+    if (testFiles.length === 0) {
+      return { passed: true, failed: 0, total: 0, details: [] };
+    }
+
+    const executor = new OPAExecutor(binaryPath, { timeout });
+    const result = await executor.runTests(policies, testFiles as string[]);
+
+    return {
+      passed: result.failed === 0,
+      failed: result.failed,
+      total: result.passed + result.failed,
+      details: result.details
+        .filter((d) => !d.passed)
+        .map((d) => `${d.name}: ${d.message || 'failed'}`),
     };
   }
 
