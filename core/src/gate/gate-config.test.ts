@@ -24,7 +24,7 @@ describe('GateConfigManager', () => {
     const config = configManager.loadConfig();
 
     expect(config.version).toBe(1);
-    expect(config.checks).toHaveLength(5);
+    expect(config.checks).toHaveLength(6);
     expect(config.thresholds.overall_score).toBe(80);
     expect(config.checks.map((c) => c.name)).toContain('eslint');
     expect(config.checks.map((c) => c.name)).toContain('coverage');
@@ -136,7 +136,7 @@ describe('GateConfigManager', () => {
 
       // Should fall back to default config
       expect(config.version).toBe(1);
-      expect(config.checks).toHaveLength(5);
+      expect(config.checks).toHaveLength(6);
 
       // Verify that a warning was logged
       expect(mockWarn).toHaveBeenCalled();

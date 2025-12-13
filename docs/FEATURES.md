@@ -53,17 +53,17 @@ purposes.
 
 ## Quality Gates
 
-| Feature                    | Status | Completed                                       | Planned                        | Details                                              |
-| -------------------------- | ------ | ----------------------------------------------- | ------------------------------ | ---------------------------------------------------- |
-| **ESLint Check**           | ✅     | Code quality scoring                            | —                              | Configurable min score threshold                     |
-| **Coverage Check**         | ✅     | Line/branch/function coverage                   | —                              | Reads coverage-summary.json, configurable thresholds |
-| **Secret Scanning**        | ✅     | Regex pattern detection                         | Entropy-based, git history     | Detects API keys, tokens, passwords                  |
-| **Dependency Check**       | ✅     | npm/pnpm/yarn audit, CVE links, fix suggestions | —                              | Severity thresholds, auto-detect package manager     |
-| **Test Runner**            | —      | —                                               | Vitest/Jest integration        | Run tests as gate check                              |
-| **Policy Check (OPA)**     | ✅     | Rego policy evaluation                          | —                              | Custom business rules                                |
-| **SAST (Semgrep)**         | —      | —                                               | Semgrep integration            | Static security analysis                             |
-| **Architecture Check**     | —      | —                                               | Dependency-cruiser integration | Circular deps, layer violations                      |
-| **Anti-pattern Detection** | —      | —                                               | AST analysis (ts-morph)        | God classes, tight coupling                          |
+| Feature                    | Status | Completed                                       | Planned                    | Details                                              |
+| -------------------------- | ------ | ----------------------------------------------- | -------------------------- | ---------------------------------------------------- |
+| **ESLint Check**           | ✅     | Code quality scoring                            | —                          | Configurable min score threshold                     |
+| **Coverage Check**         | ✅     | Line/branch/function coverage                   | —                          | Reads coverage-summary.json, configurable thresholds |
+| **Secret Scanning**        | ✅     | Regex pattern detection                         | Entropy-based, git history | Detects API keys, tokens, passwords                  |
+| **Dependency Check**       | ✅     | npm/pnpm/yarn audit, CVE links, fix suggestions | —                          | Severity thresholds, auto-detect package manager     |
+| **Test Runner**            | —      | —                                               | Vitest/Jest integration    | Run tests as gate check                              |
+| **Policy Check (OPA)**     | ✅     | Rego policy evaluation                          | —                          | Custom business rules                                |
+| **SAST (Semgrep)**         | —      | —                                               | Semgrep integration        | Static security analysis                             |
+| **Architecture Check**     | ✅     | Circular deps, layer violations, orphans        | Pattern templates          | dependency-cruiser integration, configurable rules   |
+| **Anti-pattern Detection** | —      | —                                               | AST analysis (ts-morph)    | God classes, tight coupling                          |
 
 ---
 

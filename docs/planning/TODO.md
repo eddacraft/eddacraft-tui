@@ -150,19 +150,21 @@ Critical for adoption. Developers disable slow tools.
 
 Unique differentiator — no competitor has this.
 
-### Dependency Analysis
+### Dependency Analysis ✅ COMPLETE
 
-- [ ] Integrate `dependency-cruiser`
-- [ ] Detect circular dependencies
-- [ ] Validate dependency direction
-- [ ] Orphaned module detection
+- [x] Integrate `dependency-cruiser`
+- [x] Detect circular dependencies
+- [x] Validate dependency direction (via `.dependency-cruiser.js` rules)
+- [x] Orphaned module detection
+- [x] Configurable severity thresholds
+- [x] Graceful skip when dependency-cruiser not installed
 
 ### Layer Boundary Validation
 
-- [ ] Define architecture layers in config
-- [ ] Validate no reverse dependencies
-- [ ] Support clean/hexagonal/onion patterns
-- [ ] Custom layer rules
+- [x] Define architecture layers in `.dependency-cruiser.js` config
+- [x] Validate no reverse dependencies (via rules)
+- [ ] Support clean/hexagonal/onion pattern templates
+- [ ] Custom layer rules UI
 
 ### Anti-pattern Detection
 

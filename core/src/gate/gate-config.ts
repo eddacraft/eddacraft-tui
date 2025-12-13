@@ -164,6 +164,18 @@ export class GateConfigManager {
             severity_threshold: 'error',
           },
         },
+        {
+          name: 'architecture',
+          description: 'Architecture validation using dependency-cruiser',
+          enabled: false, // Disabled by default until dependency-cruiser is installed
+          config: {
+            config_file: '.dependency-cruiser.js',
+            scope: 'affected',
+            severity_threshold: 'error',
+            fail_on_circular: true,
+            fail_on_orphan: false,
+          },
+        },
       ],
       thresholds: {
         overall_score: 80,
