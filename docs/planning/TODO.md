@@ -16,7 +16,8 @@ see [ROADMAP.md](./ROADMAP.md) and [PLAN.md](./PLAN.md).
 | Generic Markdown Adapter                | ✅ Complete | 32 tests        |
 | CLI (validate, gate, export, hooks)     | ✅ Complete | 50 tests        |
 | Gate v1 (lint, test, coverage, secrets) | ✅ Complete | ✅              |
-| Gate Caching & Parallel Execution       | 🚧 WIP      | —               |
+| Gate Caching & Parallel Execution       | ✅ Complete | —               |
+| Watch Mode                              | ✅ Complete | —               |
 | OPA Policy Engine                       | ✅ Complete | ✅              |
 | **Total Tests**                         |             | **507 passing** |
 
@@ -81,13 +82,15 @@ Critical for adoption. Developers disable slow tools.
 - [x] `--output json` flag for CI/CD integration
 - [x] Structured JSON schema with version, timing, cache stats
 
-### Watch Mode
+### Watch Mode ✅
 
-- [ ] `anvil watch` command
-- [ ] File system watcher (chokidar)
-- [ ] Incremental validation (changed files only)
-- [ ] Debounce rapid changes
-- [ ] Clear terminal on re-run
+- [x] `anvil watch` command
+- [x] File system watcher (chokidar)
+- [x] Git-aware filtering (unstaged changes only)
+- [x] Debounce rapid changes (configurable)
+- [x] Configurable via `.anvilrc` watch section
+- [x] Real-time output with pass/fail tracking
+- [ ] Clear terminal on re-run (optional enhancement)
 
 ---
 

@@ -17,3 +17,6 @@ export * from './cache/index.js';
 
 // Provenance functionality
 export * from './provenance/index.js';
+
+// Watch functionality
+export * from './watch/index.js';

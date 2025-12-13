@@ -1,6 +1,7 @@
 import { GateConfig, GateCheck } from '../types/gate.types.js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
+import { WatchConfigSchema, type WatchConfig } from '../watch/types.js';
 
 /**
  * Configuration file locations in priority order
@@ -253,14 +254,35 @@ export class GateConfigManager {
       };
     });
 
+    // Parse watch config if present
+    let watchConfig: WatchConfig | undefined;
+    if (configObj.watch !== undefined) {
+      try {
+        watchConfig = WatchConfigSchema.parse(configObj.watch);
+      } catch (watchError) {
+        errors.push(
+          `watch: invalid configuration - ${watchError instanceof Error ? watchError.message : 'unknown error'}`
+        );
+      }
+    }
+
     const validatedConfig: GateConfig = {
       version: configObj.version as number,
       checks: validatedChecks,
       thresholds: configObj.thresholds as { overall_score: number; [key: string]: number },
       global_config: configObj.global_config as Record<string, unknown> | undefined,
+      watch: watchConfig,
     };
 
     return { config: validatedConfig, errors };
+  }
+
+  /**
+   * Get watch configuration (parsed and validated)
+   */
+  getWatchConfig(): WatchConfig | undefined {
+    const config = this.loadConfig();
+    return config.watch;
   }
 
   updateCheck(name: string, updates: Partial<GateCheck>): void {

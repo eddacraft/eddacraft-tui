@@ -1,5 +1,6 @@
 // Import APSPlan type from schema
 import type { APSPlan } from '../schema/index.js';
+import type { WatchConfig } from '../watch/types.js';
 
 export interface GateCheck {
   name: string;
@@ -38,6 +39,8 @@ export interface GateConfig {
     [key: string]: number;
   };
   global_config?: Record<string, unknown>;
+  /** Watch mode configuration */
+  watch?: WatchConfig;
 }
 
 // Use APSPlan directly instead of a separate interface

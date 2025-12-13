@@ -9,6 +9,7 @@ import { createExportCommand } from './commands/export.js';
 import { createInitCommand } from './commands/init.js';
 import { createHooksCommand } from './commands/hooks.js';
 import { createPolicyCommand } from './commands/policy.js';
+import { createWatchCommand } from './commands/watch.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -33,6 +34,7 @@ program.addCommand(createValidateCommand());
 program.addCommand(createExportCommand());
 program.addCommand(createHooksCommand());
 program.addCommand(createPolicyCommand());
+program.addCommand(createWatchCommand());
 
 // Parse command line arguments
 program.parse();
