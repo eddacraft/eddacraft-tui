@@ -19,7 +19,7 @@ see [ROADMAP.md](./ROADMAP.md) and [PLAN.md](./PLAN.md).
 | Gate Caching & Parallel Execution       | ✅ Complete | —               |
 | Watch Mode                              | ✅ Complete | —               |
 | OPA Policy Engine                       | ✅ Complete | ✅              |
-| **Total Tests**                         |             | **507 passing** |
+| **Total Tests**                         |             | **598 passing** |
 
 ---
 
@@ -118,15 +118,15 @@ Critical for adoption. Developers disable slow tools.
 
 ## 🚀 Priority 3: Security Gates
 
-### Dependency Vulnerability Scanning
+### Dependency Vulnerability Scanning ✅ COMPLETE
 
-- [ ] Implement `dependency-check.ts`
-  - [ ] Integrate `pnpm audit` / `npm audit`
-  - [ ] Parse vulnerability reports (CVE, severity)
-  - [ ] Configurable severity threshold
-  - [ ] Fix suggestions with upgrade commands
-- [ ] Add to gate runner
-- [ ] Pretty output with CVE links
+- [x] Implement `dependency-check.ts`
+  - [x] Integrate `pnpm audit` / `npm audit` / `yarn audit`
+  - [x] Parse vulnerability reports (CVE, severity)
+  - [x] Configurable severity threshold
+  - [x] Fix suggestions with upgrade commands
+- [x] Add to gate runner
+- [x] CVE links in output
 
 ### Enhanced Secret Scanning
 
