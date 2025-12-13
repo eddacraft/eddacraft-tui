@@ -1,0 +1,391 @@
+import * as vscode from 'vscode';
+import * as cp from 'child_process';
+import * as path from 'path';
+
+export interface ValidationResult {
+  success: boolean;
+  planId?: string;
+  format?: string;
+  errors: ValidationError[];
+  warnings: ValidationWarning[];
+}
+
+export interface ValidationError {
+  message: string;
+  path?: string;
+  line?: number;
+  column?: number;
+}
+
+export interface ValidationWarning {
+  message: string;
+  path?: string;
+  line?: number;
+  column?: number;
+}
+
+export interface GateResult {
+  name: string;
+  status: 'passed' | 'failed' | 'skipped' | 'error';
+  message?: string;
+  duration?: number;
+  details?: GateDetail[];
+}
+
+export interface GateDetail {
+  type: 'error' | 'warning' | 'info';
+  message: string;
+  file?: string;
+  line?: number;
+  column?: number;
+}
+
+export interface GateResults {
+  success: boolean;
+  gates: GateResult[];
+  timestamp: string;
+  duration: number;
+}
+
+export class AnvilService {
+  private outputChannel: vscode.OutputChannel;
+  private lastValidationResults: Map<string, ValidationResult> = new Map();
+  private lastGateResults: Map<string, GateResults> = new Map();
+
+  constructor(context: vscode.ExtensionContext) {
+    this.outputChannel = vscode.window.createOutputChannel('Anvil');
+    context.subscriptions.push(this.outputChannel);
+  }
+
+  getOutputChannel(): vscode.OutputChannel {
+    return this.outputChannel;
+  }
+
+  getLastValidationResult(uri: string): ValidationResult | undefined {
+    return this.lastValidationResults.get(uri);
+  }
+
+  getLastGateResults(uri: string): GateResults | undefined {
+    return this.lastGateResults.get(uri);
+  }
+
+  async validate(filePath: string): Promise<ValidationResult> {
+    this.outputChannel.appendLine(`\n[${new Date().toISOString()}] Validating: ${filePath}`);
+
+    try {
+      const cliPath = this.getCliPath();
+      const workspaceFolder = this.getWorkspaceFolder(filePath);
+
+      const result = await this.executeCommand(
+        cliPath,
+        ['validate', filePath, '--json'],
+        workspaceFolder
+      );
+
+      const validationResult = this.parseValidationResult(result);
+      this.lastValidationResults.set(filePath, validationResult);
+
+      if (validationResult.success) {
+        this.outputChannel.appendLine(
+          `  Validation passed (Plan ID: ${validationResult.planId || 'N/A'})`
+        );
+      } else {
+        this.outputChannel.appendLine(
+          `  Validation failed: ${validationResult.errors.length} error(s)`
+        );
+        validationResult.errors.forEach((err) => {
+          this.outputChannel.appendLine(`    - ${err.message}`);
+        });
+      }
+
+      return validationResult;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.outputChannel.appendLine(`  Error: ${errorMessage}`);
+
+      const result: ValidationResult = {
+        success: false,
+        errors: [{ message: errorMessage }],
+        warnings: [],
+      };
+      this.lastValidationResults.set(filePath, result);
+      return result;
+    }
+  }
+
+  async runGates(filePath: string): Promise<GateResults> {
+    this.outputChannel.appendLine(`\n[${new Date().toISOString()}] Running gates: ${filePath}`);
+
+    const startTime = Date.now();
+
+    try {
+      const cliPath = this.getCliPath();
+      const workspaceFolder = this.getWorkspaceFolder(filePath);
+      const config = vscode.workspace.getConfiguration('anvil');
+
+      const args = ['gate', filePath, '--json'];
+
+      // Add gate selection if skipping gates in development
+      const skipGates = config.get<string[]>('gates.skipInDevelopment', []);
+      if (skipGates.length > 0) {
+        args.push('--skip', skipGates.join(','));
+      }
+
+      const result = await this.executeCommand(cliPath, args, workspaceFolder);
+
+      const gateResults = this.parseGateResults(result, startTime);
+      this.lastGateResults.set(filePath, gateResults);
+
+      this.outputChannel.appendLine(`  Gates completed in ${gateResults.duration}ms`);
+      gateResults.gates.forEach((gate) => {
+        const icon = gate.status === 'passed' ? '  ' : gate.status === 'failed' ? '  ' : '  ';
+        this.outputChannel.appendLine(`    ${icon} ${gate.name}: ${gate.status}`);
+      });
+
+      return gateResults;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.outputChannel.appendLine(`  Error: ${errorMessage}`);
+
+      const result: GateResults = {
+        success: false,
+        gates: [
+          {
+            name: 'execution',
+            status: 'error',
+            message: errorMessage,
+          },
+        ],
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime,
+      };
+      this.lastGateResults.set(filePath, result);
+      return result;
+    }
+  }
+
+  async exportPlan(
+    filePath: string,
+    format: string,
+    outputPath?: string
+  ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
+    this.outputChannel.appendLine(
+      `\n[${new Date().toISOString()}] Exporting: ${filePath} to ${format}`
+    );
+
+    try {
+      const cliPath = this.getCliPath();
+      const workspaceFolder = this.getWorkspaceFolder(filePath);
+
+      const args = ['export', filePath, '--to', format];
+      if (outputPath) {
+        args.push('--output', outputPath);
+      }
+
+      await this.executeCommand(cliPath, args, workspaceFolder);
+
+      this.outputChannel.appendLine(`  Export successful`);
+
+      return {
+        success: true,
+        outputPath: outputPath || this.inferOutputPath(filePath, format),
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.outputChannel.appendLine(`  Error: ${errorMessage}`);
+
+      return {
+        success: false,
+        error: errorMessage,
+      };
+    }
+  }
+
+  async detectFormat(filePath: string): Promise<string | undefined> {
+    try {
+      const cliPath = this.getCliPath();
+      const workspaceFolder = this.getWorkspaceFolder(filePath);
+
+      // Use validate with --json to get format info
+      const result = await this.executeCommand(
+        cliPath,
+        ['validate', filePath, '--json'],
+        workspaceFolder
+      );
+
+      const parsed = JSON.parse(result);
+      return parsed.format;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private getCliPath(): string {
+    const config = vscode.workspace.getConfiguration('anvil');
+    const customPath = config.get<string>('cli.path', '');
+
+    if (customPath) {
+      return customPath;
+    }
+
+    // Try to find anvil in node_modules or globally
+    return 'npx anvil';
+  }
+
+  private getWorkspaceFolder(filePath: string): string {
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(filePath));
+    return workspaceFolder?.uri.fsPath || path.dirname(filePath);
+  }
+
+  private executeCommand(command: string, args: string[], cwd: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const fullCommand = `${command} ${args.join(' ')}`;
+      this.outputChannel.appendLine(`  > ${fullCommand}`);
+
+      cp.exec(
+        fullCommand,
+        {
+          cwd,
+          encoding: 'utf8',
+          maxBuffer: 10 * 1024 * 1024, // 10MB buffer
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            // Try to parse JSON error from stderr
+            if (stderr) {
+              try {
+                const errorJson = JSON.parse(stderr);
+                if (errorJson.error) {
+                  reject(new Error(errorJson.error));
+                  return;
+                }
+              } catch {
+                // Not JSON, use raw error
+              }
+            }
+            reject(new Error(stderr || error.message));
+            return;
+          }
+
+          resolve(stdout);
+        }
+      );
+    });
+  }
+
+  private parseValidationResult(output: string): ValidationResult {
+    try {
+      const parsed = JSON.parse(output);
+
+      return {
+        success: parsed.success ?? parsed.valid ?? false,
+        planId: parsed.planId ?? parsed.plan_id,
+        format: parsed.format,
+        errors: (parsed.errors || []).map(
+          (err: { message?: string; path?: string; line?: number; column?: number }) => ({
+            message: err.message || String(err),
+            path: err.path,
+            line: err.line,
+            column: err.column,
+          })
+        ),
+        warnings: (parsed.warnings || []).map(
+          (warn: { message?: string; path?: string; line?: number; column?: number }) => ({
+            message: warn.message || String(warn),
+            path: warn.path,
+            line: warn.line,
+            column: warn.column,
+          })
+        ),
+      };
+    } catch {
+      // If not JSON, treat as plain text result
+      const success =
+        output.toLowerCase().includes('valid') && !output.toLowerCase().includes('invalid');
+
+      return {
+        success,
+        errors: success ? [] : [{ message: output.trim() }],
+        warnings: [],
+      };
+    }
+  }
+
+  private parseGateResults(output: string, startTime: number): GateResults {
+    try {
+      const parsed = JSON.parse(output);
+
+      return {
+        success: parsed.success ?? false,
+        gates: (parsed.gates || parsed.results || []).map(
+          (gate: {
+            name?: string;
+            status?: string;
+            message?: string;
+            duration?: number;
+            details?: GateDetail[];
+          }) => ({
+            name: gate.name || 'unknown',
+            status: this.normalizeGateStatus(gate.status),
+            message: gate.message,
+            duration: gate.duration,
+            details: gate.details,
+          })
+        ),
+        timestamp: parsed.timestamp || new Date().toISOString(),
+        duration: parsed.duration || Date.now() - startTime,
+      };
+    } catch {
+      // If not JSON, treat as plain text result
+      const success =
+        output.toLowerCase().includes('passed') || output.toLowerCase().includes('success');
+
+      return {
+        success,
+        gates: [
+          {
+            name: 'gate',
+            status: success ? 'passed' : 'failed',
+            message: output.trim(),
+          },
+        ],
+        timestamp: new Date().toISOString(),
+        duration: Date.now() - startTime,
+      };
+    }
+  }
+
+  private normalizeGateStatus(
+    status: string | undefined
+  ): 'passed' | 'failed' | 'skipped' | 'error' {
+    if (!status) return 'error';
+
+    const normalised = status.toLowerCase();
+    if (normalised === 'pass' || normalised === 'passed' || normalised === 'success') {
+      return 'passed';
+    }
+    if (normalised === 'fail' || normalised === 'failed' || normalised === 'failure') {
+      return 'failed';
+    }
+    if (normalised === 'skip' || normalised === 'skipped') {
+      return 'skipped';
+    }
+    return 'error';
+  }
+
+  private inferOutputPath(inputPath: string, format: string): string {
+    const dir = path.dirname(inputPath);
+    const baseName = path.basename(inputPath, path.extname(inputPath));
+
+    const extensions: Record<string, string> = {
+      aps: '.aps.json',
+      speckit: '.plan.md',
+      bmad: '.prd.md',
+      generic: '.md',
+      json: '.json',
+    };
+
+    const ext = extensions[format] || `.${format}`;
+    return path.join(dir, `${baseName}${ext}`);
+  }
+}
