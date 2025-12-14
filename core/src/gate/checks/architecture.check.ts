@@ -148,7 +148,9 @@ export class ArchitectureCheck extends BaseCheck {
       }
 
       // Step 3: Determine files to analyse
-      const filesToCruise = this.getFilesToCruise(context, config);
+      // If fullScan is set, override scope to 'full'
+      const effectiveConfig = context.fullScan ? { ...config, scope: 'full' as const } : config;
+      const filesToCruise = this.getFilesToCruise(context, effectiveConfig);
 
       if (filesToCruise.length === 0) {
         return this.createSuccess('No files to analyse for architecture violations', 100);

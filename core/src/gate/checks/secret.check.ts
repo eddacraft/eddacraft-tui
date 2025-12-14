@@ -120,7 +120,9 @@ export class SecretCheck extends BaseCheck {
   async run(context: CheckContext): Promise<GateResult> {
     try {
       const config = this.getConfig(context);
-      const files = this.getFilesFromPlan(context);
+      const files = context.fullScan
+        ? await this.getFilesForFullScan(context.workspace_root, config)
+        : this.getFilesFromPlan(context);
       const findings: SecretFinding[] = [];
 
       // Scan files for pattern-based secrets
@@ -486,5 +488,53 @@ export class SecretCheck extends BaseCheck {
     }
 
     return files;
+  }
+
+  /**
+   * Get all files for full codebase scan
+   */
+  private async getFilesForFullScan(
+    workspaceRoot: string,
+    config: SecretCheckConfig
+  ): Promise<string[]> {
+    const { glob } = await import('glob');
+    const files: string[] = [];
+
+    // Scan common file types that might contain secrets
+    const patterns = [
+      '**/*.ts',
+      '**/*.tsx',
+      '**/*.js',
+      '**/*.jsx',
+      '**/*.json',
+      '**/*.yaml',
+      '**/*.yml',
+      '**/*.env*',
+      '**/*.config.*',
+    ];
+
+    for (const pattern of patterns) {
+      try {
+        const matches = await glob(pattern, {
+          cwd: workspaceRoot,
+          absolute: true,
+          ignore: [
+            '**/node_modules/**',
+            '**/dist/**',
+            '**/build/**',
+            '**/.git/**',
+            '**/coverage/**',
+            '**/*.lock',
+            '**/package-lock.json',
+          ],
+        });
+        files.push(...matches);
+      } catch {
+        // Ignore glob errors
+      }
+    }
+
+    // Filter out skipped extensions
+    return files.filter((file) => !this.shouldSkipFile(file, config));
   }
 }

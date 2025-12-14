@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "entries": {
+    "gate:check:secret:edbb49ced21f4c27": {
+      "file": "0e7a3baff1a06b40240ad42ebc429a3c.json",
+      "created_at": 1765632089102,
+      "expires_at": 1765718489102,
+      "size_bytes": 498719
+    }
+  },
+  "stats": {
+    "hits": 0,
+    "misses": 2
+  }
+}

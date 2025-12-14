@@ -52,8 +52,8 @@ export function createGateCommand(): Command {
   const command = new Command('gate');
 
   command
-    .description('Run quality gates on a plan (supports APS and external formats like SpecKit)')
-    .argument('<plan>', 'Plan ID or file path')
+    .description('Run quality gates on the codebase, optionally scoped to a plan')
+    .argument('[plan]', 'Optional plan ID or file path (if omitted, scans entire codebase)')
     .option('-c, --config <path>', 'Custom config file path')
     .option('-v, --verbose', 'Verbose output')
     .option('--format <format>', 'Explicitly specify input format (bypasses auto-detection)')
@@ -68,7 +68,7 @@ export function createGateCommand(): Command {
     .option('--parallel <limit>', 'Limit parallel check execution (0 = sequential)')
     .option('-o, --output <format>', 'Output format: human (default) or json', 'human')
     .option('--progress', 'Show real-time progress for each check')
-    .action(async (planArg: string, options: GateOptions) => {
+    .action(async (planArg: string | undefined, options: GateOptions) => {
       // Handle --list-profiles
       if (options.listProfiles) {
         console.log(chalk.bold('\nAvailable Gate Profiles:\n'));
@@ -80,7 +80,7 @@ export function createGateCommand(): Command {
           }
           console.log('');
         }
-        console.log(chalk.gray('Usage: anvil gate <plan> --profile=dev'));
+        console.log(chalk.gray('Usage: anvil gate [plan] --profile=dev'));
         process.exit(0);
       }
       try {
@@ -88,52 +88,81 @@ export function createGateCommand(): Command {
         const configManager = new GateConfigManager(workspaceRoot);
         const gateRunner = new GateRunner();
 
-        // Resolve plan path
-        let planPath: string;
-        if (planArg.startsWith('aps-') && planArg.length === 12) {
-          // Plan ID
-          const foundPath = findPlanById(planArg, workspaceRoot);
-          if (!foundPath) {
-            error(`Plan not found: ${planArg}`);
-            process.exit(1);
-          }
-          planPath = foundPath;
-        } else {
-          // File path
-          planPath = planArg;
-        }
-
-        // Load plan with format detection
-        const spinner = ora('Loading plan...').start();
-
+        const spinner = ora().start();
         let plan;
         let sourceFormat;
+        let planPath: string | undefined;
+        let isFullScan = false;
 
-        if (options.native) {
-          // Use legacy loadPlan for native APS
-          plan = await loadPlan(planPath);
-          spinner.succeed('Plan loaded (native APS)');
+        // Handle case when no plan is provided (full codebase scan)
+        if (!planArg) {
+          spinner.text = 'Running full codebase scan...';
+          isFullScan = true;
+
+          // Create a minimal plan for full codebase scanning
+          const now = new Date().toISOString();
+          plan = {
+            schema_version: '0.1.0' as const,
+            id: 'aps-00000000',
+            hash: '0'.repeat(64),
+            intent: 'Full codebase quality gate run without a specific plan',
+            proposed_changes: [],
+            provenance: {
+              timestamp: now,
+              source: 'cli' as const,
+              version: '0.0.1',
+            },
+            validations: {
+              required_checks: [],
+              skip_checks: [],
+            },
+          };
+
+          spinner.succeed('Full codebase scan mode');
         } else {
-          // Use PlanLoader for auto-detection and external formats
-          const planLoader = new PlanLoader();
-          spinner.text = 'Detecting format...';
-
-          const loadResult = await planLoader.loadPlan(planPath, {
-            format: options.format as string | undefined,
-            validateHash: false, // Gate doesn't require hash validation
-            strict: false,
-          });
-
-          plan = loadResult.plan;
-          sourceFormat = loadResult.sourceFormat;
-
-          // Show detected format if applicable
-          if (sourceFormat) {
-            spinner.succeed(
-              `Plan loaded (format: ${sourceFormat.format}, ${sourceFormat.confidence}% confidence)`
-            );
+          // Resolve plan path
+          if (planArg.startsWith('aps-') && planArg.length === 12) {
+            // Plan ID
+            const foundPath = findPlanById(planArg, workspaceRoot);
+            if (!foundPath) {
+              error(`Plan not found: ${planArg}`);
+              process.exit(1);
+            }
+            planPath = foundPath;
           } else {
-            spinner.succeed('Plan loaded');
+            // File path
+            planPath = planArg;
+          }
+
+          // Load plan with format detection
+          spinner.text = 'Loading plan...';
+
+          if (options.native) {
+            // Use legacy loadPlan for native APS
+            plan = await loadPlan(planPath);
+            spinner.succeed('Plan loaded (native APS)');
+          } else {
+            // Use PlanLoader for auto-detection and external formats
+            const planLoader = new PlanLoader();
+            spinner.text = 'Detecting format...';
+
+            const loadResult = await planLoader.loadPlan(planPath, {
+              format: options.format as string | undefined,
+              validateHash: false, // Gate doesn't require hash validation
+              strict: false,
+            });
+
+            plan = loadResult.plan;
+            sourceFormat = loadResult.sourceFormat;
+
+            // Show detected format if applicable
+            if (sourceFormat) {
+              spinner.succeed(
+                `Plan loaded (format: ${sourceFormat.format}, ${sourceFormat.confidence}% confidence)`
+              );
+            } else {
+              spinner.succeed('Plan loaded');
+            }
           }
         }
 
@@ -159,6 +188,7 @@ export function createGateCommand(): Command {
           cache,
           parallelLimit,
           noCache: cacheDisabled,
+          fullScan: isFullScan,
         };
 
         // Collect skip checks from multiple sources (profile, CLI, environment)
@@ -302,14 +332,19 @@ export function createGateCommand(): Command {
 
         // Evidence injection
         if (options.inject) {
-          if (!sourceFormat) {
+          if (isFullScan) {
+            console.log(
+              chalk.yellow('\n⚠️  Evidence injection not available in full codebase scan mode')
+            );
+            console.log(chalk.gray('Provide a plan file to enable evidence injection'));
+          } else if (!sourceFormat) {
             console.log(
               chalk.yellow(
                 '\n⚠️  Evidence injection only supported for external formats (SpecKit, BMAD)'
               )
             );
             console.log(chalk.gray('Skipping injection for native APS format'));
-          } else {
+          } else if (planPath) {
             spinner.start('Injecting evidence into source document...');
 
             const evidenceWriter = new EvidenceWriter();

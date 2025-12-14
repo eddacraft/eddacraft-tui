@@ -14,8 +14,10 @@ export class ESLintCheck extends BaseCheck {
         cwd: context.workspace_root,
       });
 
-      // Get all relevant files from the plan
-      const files = this.getFilesFromPlan(context);
+      // Get files to lint - either from plan or full codebase scan
+      const files = context.fullScan
+        ? await this.getFilesForFullScan(context.workspace_root)
+        : this.getFilesFromPlan(context);
 
       if (files.length === 0) {
         return this.createSuccess('No files to lint', 100);
@@ -85,5 +87,14 @@ export class ESLintCheck extends BaseCheck {
   private isLintableFile(filePath: string): boolean {
     const lintableExtensions = ['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'];
     return lintableExtensions.some((ext) => filePath.endsWith(ext));
+  }
+
+  /**
+   * Get all lintable files for full codebase scan
+   */
+  private async getFilesForFullScan(workspaceRoot: string): Promise<string[]> {
+    // Use ESLint's file resolution - pass the workspace root
+    // ESLint will use its own config to determine which files to lint
+    return [workspaceRoot];
   }
 }

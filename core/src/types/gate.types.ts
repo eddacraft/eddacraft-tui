@@ -51,4 +51,6 @@ export interface CheckContext {
   workspace_root: string;
   config: GateConfig;
   check_config: Record<string, unknown>;
+  /** Full codebase scan mode (no plan-based scoping) */
+  fullScan?: boolean;
 }

@@ -71,6 +71,8 @@ export interface GateRunOptions {
   noCache?: boolean;
   /** Progress callback for real-time updates */
   onProgress?: ProgressCallback;
+  /** Full codebase scan mode (no plan-based scoping) */
+  fullScan?: boolean;
 }
 
 /**
@@ -194,7 +196,8 @@ export class GateRunner {
       cache,
       parallelLimit,
       options?.failFast,
-      options?.onProgress
+      options?.onProgress,
+      options?.fullScan
     );
 
     // Combine skipped and executed results
@@ -244,7 +247,8 @@ export class GateRunner {
     cache: CacheProvider,
     parallelLimit?: number,
     failFast?: boolean,
-    onProgress?: ProgressCallback
+    onProgress?: ProgressCallback,
+    fullScan?: boolean
   ): Promise<{
     results: GateResult[];
     cacheStats: { hits: number; misses: number; timeSavedMs: number };
@@ -275,7 +279,8 @@ export class GateRunner {
           plan,
           config,
           workspaceRoot,
-          cache
+          cache,
+          fullScan
         );
 
         results.push(result);
@@ -324,7 +329,8 @@ export class GateRunner {
         plan,
         config,
         workspaceRoot,
-        cache
+        cache,
+        fullScan
       );
 
       // Track completion (atomic increment simulation)
@@ -394,7 +400,8 @@ export class GateRunner {
     plan: PlanData,
     gateConfig: GateConfig,
     workspaceRoot: string,
-    cache: CacheProvider
+    cache: CacheProvider,
+    fullScan?: boolean
   ): Promise<{ result: GateResult; cached: boolean; executionTimeMs: number }> {
     const startTime = Date.now();
 
@@ -436,6 +443,7 @@ export class GateRunner {
         workspace_root: workspaceRoot,
         config: gateConfig,
         check_config: checkConfig.config || {},
+        fullScan,
       };
 
       const result = await check.run(context);
