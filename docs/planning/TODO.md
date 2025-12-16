@@ -352,6 +352,14 @@ Every feature must meet:
 4. **Evidence is immutable** — append-only audit trail
 5. **Safety first** — rollback is non-negotiable
 6. **Speed matters** — slow tools get disabled
+7. **Planning docs are mutable, execution is per-task immutable** — The APS
+   planning doc (Markdown) is a living document that can be edited at any time.
+   Immutability and hashing apply at the **task level** when a task is locked
+   for execution. This allows:
+   - Ongoing planning while work is in flight
+   - Multiple tasks executing in parallel with independent provenance
+   - Clear separation between "open for editing" and "locked for execution"
+   - One source of truth (the planning doc) that drives execution
 
 ---
 
