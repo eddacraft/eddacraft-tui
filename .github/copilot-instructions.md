@@ -255,7 +255,8 @@ cross-package testing.
 auto-detection, BMAD adapter.
 
 See [docs/planning/TODO.md](../docs/planning/TODO.md) for detailed task tracking
-and [docs/planning/PLAN.md](../docs/planning/PLAN.md) for strategic roadmap.
+and [docs/planning/ROADMAP.md](../docs/planning/ROADMAP.md) for roadmap and
+release planning.
 
 ### Strategic Vision (Three Acts)
 
@@ -272,7 +273,6 @@ and [docs/planning/PLAN.md](../docs/planning/PLAN.md) for strategic roadmap.
 - `packages/adapters/ADAPTER_WORKFLOW_GUIDE.md` - Creating new adapters
 - `docs/guides/git-worktree-workflow.md` - Parallel plan development workflow
 - `docs/planning/TODO.md` - Detailed task tracking
-- `docs/planning/PLAN.md` - Strategic roadmap
 - `docs/planning/ROADMAP.md` - Release planning
 
 ## References
