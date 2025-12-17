@@ -261,6 +261,16 @@ Unique differentiator — no competitor has this.
 
 ## Deferred (Post-MVP)
 
+### APS Planning Docs Integration (In Progress - See docs/planning/aps-spinout-v0.3.aps.md)
+
+- [ ] Integrate `@anvil/aps` for Markdown planning doc support
+- [ ] Add `anvil plan validate` command (wraps `@anvil/aps`)
+- [ ] Add `anvil plan load` command (scope-based loading)
+- [ ] Add `anvil plan lock/unlock/status` commands (task state management)
+- [ ] Rename `.anvil/plans/` to `.anvil/executions/`
+- [ ] Update `cli/src/utils/file-io.ts` paths
+- [ ] Update `cli/src/commands/plan.ts` output path
+
 ### CLI Enhancements
 
 - [ ] `anvil plan <intent>` — generate plan from intent
@@ -360,6 +370,7 @@ Every feature must meet:
    - Multiple tasks executing in parallel with independent provenance
    - Clear separation between "open for editing" and "locked for execution"
    - One source of truth (the planning doc) that drives execution
+   - See `docs/planning/aps-spinout-v0.3.aps.md` for full spec
 
 ---
 
