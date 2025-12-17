@@ -9,13 +9,15 @@
     "./parser": "./dist/parser/index.js",
     "./loader": "./dist/loader/index.js",
     "./validator": "./dist/validator/index.js",
-    "./state": "./dist/state/index.js"
+    "./state": "./dist/state/index.js",
+    "./templates": "./dist/templates/index.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.lib.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate-templates": "node scripts/generate-templates.js"
   },
   "dependencies": {
     "@anvil/core": "workspace:*",

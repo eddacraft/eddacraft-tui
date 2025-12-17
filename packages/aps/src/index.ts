@@ -12,3 +12,4 @@ export * from './loader/index.js';
 export * from './validator/index.js';
 export * from './state/index.js';
 export * from './types/index.js';
+export * from './templates/index.js';

@@ -24,6 +24,13 @@
       "options": {
         "packageRoot": "{projectRoot}/dist"
       }
+    },
+    "generate-templates": {
+      "executor": "nx:run-script",
+      "outputs": ["{projectRoot}/templates"],
+      "options": {
+        "script": "generate-templates"
+      }
     }
   }
 }

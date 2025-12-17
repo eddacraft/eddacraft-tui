@@ -9,20 +9,21 @@
 
 ## 🎯 Next Up
 
-### Phase 2: Spec Definition (4 tasks)
+### Phase 3: Template Generation (5 tasks)
 
-- [ ] Write `APS-Planning-Spec-v0.1.md`
-- [ ] Write `APS-Conventions.md`
-- [ ] Write `APS-NonGoals.md`
-- [ ] Write `APS-Anvil-Integration.md`
+- [ ] Create template generator script
+- [ ] Generate index template from spec
+- [ ] Generate leaf spec template from spec
+- [ ] Add Nx target for template regeneration
+- [ ] Add tests for template generation
 
 ---
 
 ## 🚧 In Progress
 
-### Phase 2: Spec Definition (4 tasks)
+### Phase 3: Template Generation (5 tasks)
 
-Starting documentation of the APS specification.
+Creating template generation functionality.
 
 ---
 
@@ -33,6 +34,15 @@ Starting documentation of the APS specification.
 ---
 
 ## ✅ Completed
+
+### Phase 2: Spec Definition (4 tasks)
+
+- [x] Wrote `APS-Planning-Spec-v0.1.md` - Complete specification with examples
+- [x] Wrote `APS-Conventions.md` - Detailed conventions for file naming, links,
+      IDs, fields
+- [x] Wrote `APS-NonGoals.md` - Explicit non-goals to prevent scope creep
+- [x] Wrote `APS-Anvil-Integration.md` - How planning docs become execution
+      plans
 
 ### Phase 1: Package Setup (19 tasks)
 
@@ -64,8 +74,8 @@ Starting documentation of the APS specification.
 | Phase                    | Tasks | Status               |
 | ------------------------ | ----- | -------------------- |
 | 1. Package Setup         | 19    | ✅ Completed         |
-| 2. Spec Definition       | 4     | 🟡 In progress       |
-| 3. Template Generation   | 5     | ⬜ Not started       |
+| 2. Spec Definition       | 4     | ✅ Completed         |
+| 3. Template Generation   | 5     | 🟡 In progress       |
 | 4. Examples              | 3     | ⬜ Not started       |
 | 5a. Single-File Parser   | 5     | ⬜ Not started       |
 | 5b. Index + Links        | 5     | ⬜ Not started       |
