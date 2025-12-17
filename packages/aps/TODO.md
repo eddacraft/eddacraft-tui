@@ -9,13 +9,6 @@
 
 ## 🎯 Next Up
 
-### Phase 1: Package Setup (19 tasks)
-
-- [ ] Document ESM-only stance and Definition of Done
-- [ ] Run Nx generator for `packages/aps`
-- [ ] Post-generator adjustments (dependencies, tsconfig, eslint)
-- [ ] Verification (build, test, lint, graph)
-
 ### Phase 2: Spec Definition (4 tasks)
 
 - [ ] Write `APS-Planning-Spec-v0.1.md`
@@ -27,7 +20,9 @@
 
 ## 🚧 In Progress
 
-(none)
+### Phase 2: Spec Definition (4 tasks)
+
+Starting documentation of the APS specification.
 
 ---
 
@@ -39,6 +34,25 @@
 
 ## ✅ Completed
 
+### Phase 1: Package Setup (19 tasks)
+
+- [x] Manually created package structure (Nx generator timed out)
+- [x] Created `package.json` with ESM config and explicit exports
+- [x] Created `project.json` with Nx configuration
+- [x] Created TypeScript configs (tsconfig.json, tsconfig.lib.json,
+      tsconfig.spec.json)
+- [x] Created vitest.config.ts with coverage exclusions for docs/examples
+- [x] Created eslint.config.mjs with docs/examples ignores
+- [x] Added dependencies: @anvil/core, remark-parse, unified, unist-util-visit
+- [x] Created placeholder modules: parser, loader, validator, state, types
+- [x] Updated tsconfig.base.json with @anvil/aps path mapping
+- [x] Installed dependencies with pnpm
+- [x] Verified build succeeds (dist/ created with correct structure)
+- [x] Verified typecheck passes
+- [x] Created docs/, examples/, and src/ directories
+- [x] Created symlink from docs/guides/aps → packages/aps/docs
+- [x] Created README.md
+
 ### Migration
 
 - [x] Move spinout plan to `docs/planning/aps-spinout-v0.3.aps.md`
@@ -49,8 +63,8 @@
 
 | Phase                    | Tasks | Status               |
 | ------------------------ | ----- | -------------------- |
-| 1. Package Setup         | 19    | ⬜ Not started       |
-| 2. Spec Definition       | 4     | ⬜ Not started       |
+| 1. Package Setup         | 19    | ✅ Completed         |
+| 2. Spec Definition       | 4     | 🟡 In progress       |
 | 3. Template Generation   | 5     | ⬜ Not started       |
 | 4. Examples              | 3     | ⬜ Not started       |
 | 5a. Single-File Parser   | 5     | ⬜ Not started       |
