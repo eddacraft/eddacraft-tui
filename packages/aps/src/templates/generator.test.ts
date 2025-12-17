@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { TemplateBundle } from './generator.js';
 import {
   generateAllTemplates,
   generateIndexTemplate,
@@ -112,6 +113,19 @@ describe('Template Generator', () => {
       expect(templates).toHaveProperty('index');
       expect(templates).toHaveProperty('leaf');
       expect(templates).toHaveProperty('simple');
+    });
+
+    it('should return a properly typed TemplateBundle', () => {
+      const templates: TemplateBundle = generateAllTemplates();
+
+      // Type-safe access to known keys
+      expect(typeof templates.index).toBe('string');
+      expect(typeof templates.leaf).toBe('string');
+      expect(typeof templates.simple).toBe('string');
+
+      // TypeScript will error if trying to access unknown keys
+      // @ts-expect-error - 'unknown' does not exist on type 'TemplateBundle'
+      const _ = templates.unknown;
     });
 
     it('should return non-empty templates', () => {

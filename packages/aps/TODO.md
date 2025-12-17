@@ -9,21 +9,19 @@
 
 ## 🎯 Next Up
 
-### Phase 3: Template Generation (5 tasks)
+### Phase 5a: Single-File Parser (5 tasks)
 
-- [ ] Create template generator script
-- [ ] Generate index template from spec
-- [ ] Generate leaf spec template from spec
-- [ ] Add Nx target for template regeneration
-- [ ] Add tests for template generation
+- [ ] Set up remark parser with unified
+- [ ] Extract H3 task headings
+- [ ] Parse task fields (Intent, Scopes, Tags, etc.)
+- [ ] Return flat list of tasks
+- [ ] Add comprehensive tests
 
 ---
 
 ## 🚧 In Progress
 
-### Phase 3: Template Generation (5 tasks)
-
-Creating template generation functionality.
+(none)
 
 ---
 
@@ -34,6 +32,32 @@ Creating template generation functionality.
 ---
 
 ## ✅ Completed
+
+### Phase 4: Examples (3 plans)
+
+- [x] Created `feature-auth.aps.md` - Single-file feature plan with 8 tasks
+- [x] Created `system-ecommerce/` - Multi-module system with index + 4 leaf
+      specs (auth, products, cart, payments modules with 19 total tasks)
+- [x] Created `refactor-error-handling.aps.md` - Refactor plan demonstrating
+      uncertainty (11 tasks with low/medium/high confidence mix)
+- [x] Created `examples/README.md` - Documentation explaining each example
+
+### Phase 3: Template Generation (5 tasks)
+
+- [x] Created template generator with 3 template functions
+- [x] Generated index, leaf, and simple plan templates
+- [x] Added 11 comprehensive tests (all passing)
+- [x] Created `scripts/generate-templates.js` CLI script
+- [x] Added `pnpm generate-templates` script and Nx target
+- [x] Verified template generation works
+
+### Phase 1 Fixes (batched post-Phase 4)
+
+- [x] Fixed symlink path: `docs/guides/aps` now correctly points to
+      `../../packages/aps/docs`
+- [x] Fixed coverage exclusion: removed `src/**/index.ts` blanket exclusion,
+      kept only `src/index.ts`
+- [x] Added `./types` export to package.json exports field
 
 ### Phase 2: Spec Definition (4 tasks)
 
@@ -75,8 +99,8 @@ Creating template generation functionality.
 | ------------------------ | ----- | -------------------- |
 | 1. Package Setup         | 19    | ✅ Completed         |
 | 2. Spec Definition       | 4     | ✅ Completed         |
-| 3. Template Generation   | 5     | 🟡 In progress       |
-| 4. Examples              | 3     | ⬜ Not started       |
+| 3. Template Generation   | 5     | ✅ Completed         |
+| 4. Examples              | 3     | ✅ Completed         |
 | 5a. Single-File Parser   | 5     | ⬜ Not started       |
 | 5b. Index + Links        | 5     | ⬜ Not started       |
 | 5c. Graph Features       | 3     | ⬜ Not started       |
@@ -93,10 +117,11 @@ Creating template generation functionality.
 
 ## Notes
 
-- **Package doesn't exist yet** — Phase 1 creates it
 - **ESM-only stance** — No CJS support
 - **remark for parsing** — Not regex-based
 - **Scopes vs Tags** — Scopes constrain LLM, Tags for filtering
+- **Phase 1-4 complete** — Package, docs, templates, and examples ready
+- **Next: Phase 5a** — Begin parser implementation
 
 ---
 

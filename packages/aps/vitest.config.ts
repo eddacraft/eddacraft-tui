@@ -8,15 +8,8 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules',
-        'dist',
-        'docs',
-        'examples',
-        'src/**/*.d.ts',
-        'src/index.ts',
-        'src/**/index.ts',
-      ],
+      reportsDirectory: './coverage',
+      exclude: ['node_modules', 'dist', 'docs', 'examples', 'src/**/*.d.ts', 'src/index.ts'],
     },
   },
 });

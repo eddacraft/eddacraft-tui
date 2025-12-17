@@ -6,6 +6,18 @@
  */
 
 /**
+ * Bundle of all APS planning document templates
+ */
+export interface TemplateBundle {
+  /** Index file template for multi-module plans */
+  index: string;
+  /** Leaf spec template for individual modules */
+  leaf: string;
+  /** Simple single-file plan template */
+  simple: string;
+}
+
+/**
  * Generate an index file template
  */
 export function generateIndexTemplate(): string {
@@ -120,9 +132,9 @@ export function generateSimplePlanTemplate(): string {
 }
 
 /**
- * Generate all templates and return as a map
+ * Generate all templates and return as a typed bundle
  */
-export function generateAllTemplates(): Record<string, string> {
+export function generateAllTemplates(): TemplateBundle {
   return {
     index: generateIndexTemplate(),
     leaf: generateLeafTemplate(),

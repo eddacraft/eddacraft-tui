@@ -30,7 +30,8 @@
       "outputs": ["{projectRoot}/templates"],
       "options": {
         "script": "generate-templates"
-      }
+      },
+      "dependsOn": ["build"]
     }
   }
 }
