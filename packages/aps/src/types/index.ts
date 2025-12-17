@@ -133,14 +133,4 @@ export class ParseError extends Error {
   }
 }
 
-/**
- * Validation result
- */
-export interface ValidationResult {
-  valid: boolean;
-  errors: Array<{
-    message: string;
-    path?: string;
-    lineNumber?: number;
-  }>;
-}
+// ValidationResult is exported from validator/index.ts

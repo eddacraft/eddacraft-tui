@@ -9,6 +9,7 @@
 
 export * from './parser/index.js';
 export * from './loader/index.js';
+export * from './filter/index.js';
 export * from './validator/index.js';
 export * from './state/index.js';
 export * from './types/index.js';

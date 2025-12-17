@@ -8,6 +8,7 @@
     ".": "./dist/index.js",
     "./parser": "./dist/parser/index.js",
     "./loader": "./dist/loader/index.js",
+    "./filter": "./dist/filter/index.js",
     "./validator": "./dist/validator/index.js",
     "./state": "./dist/state/index.js",
     "./templates": "./dist/templates/index.js",
