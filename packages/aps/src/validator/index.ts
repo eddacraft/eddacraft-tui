@@ -12,7 +12,7 @@
  * - Circular module dependencies
  */
 
-import { promises as fs } from 'node:fs';
+import { promises as fs, accessSync } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
@@ -416,8 +416,6 @@ function validateFileExists(
 ): void {
   // Use sync check for simplicity (file system is fast for existence checks)
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { accessSync } = require('node:fs');
     accessSync(targetPath);
   } catch {
     issues.push({

@@ -42,6 +42,7 @@
   "author": "EddaCraft",
   "dependencies": {
     "@anvil/adapters": "workspace:*",
+    "@anvil/aps": "workspace:*",
     "@anvil/core": "workspace:*",
     "chalk": "^5.3.0",
     "chokidar": "^5.0.0",

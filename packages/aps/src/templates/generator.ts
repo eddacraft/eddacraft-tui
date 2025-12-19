@@ -3,7 +3,17 @@
  *
  * Generates Markdown templates for index files and leaf specs
  * based on the APS Planning Spec v0.1.
+ *
+ * Templates come in three variants:
+ * - **minimal**: Quick start, bare essentials
+ * - **standard**: Recommended for most projects (default)
+ * - **full**: Comprehensive, for complex enterprise plans
  */
+
+/**
+ * Template variant options
+ */
+export type TemplateVariant = 'minimal' | 'standard' | 'full';
 
 /**
  * Bundle of all APS planning document templates
@@ -18,14 +28,22 @@ export interface TemplateBundle {
 }
 
 /**
- * Generate an index file template
+ * Options for template generation
  */
-export function generateIndexTemplate(): string {
+export interface TemplateOptions {
+  /** Template variant: minimal, standard, or full */
+  variant?: TemplateVariant;
+}
+
+// ============================================================================
+// Index Templates
+// ============================================================================
+
+/**
+ * Minimal index template - navigation only
+ */
+function generateMinimalIndexTemplate(): string {
   return `# [Plan Title]
-
-## Overview
-
-[Brief description of this plan and its goals]
 
 ## Modules
 
@@ -34,6 +52,56 @@ export function generateIndexTemplate(): string {
 - **Path:** [./modules/[module-name].aps.md](./modules/[module-name].aps.md)
 - **Scope:** [SCOPE]
 - **Owner:** @[username]
+
+### [another-module-id]
+
+- **Path:** [./modules/[another-module].aps.md](./modules/[another-module].aps.md)
+- **Scope:** [SCOPE2]
+- **Owner:** @[username]
+`;
+}
+
+/**
+ * Standard index template - recommended for most projects
+ * The index is a map, not the territory.
+ */
+function generateStandardIndexTemplate(): string {
+  return `# [Plan Title]
+
+## Problem & Success Criteria
+
+**Problem:** [What problem are we solving? Why does this work matter?]
+
+**Success Criteria:**
+- [ ] [Measurable outcome 1]
+- [ ] [Measurable outcome 2]
+- [ ] [How we know we're done]
+
+## System Map
+
+[High-level view of modules and their relationships]
+
+- **[module-a]** → depends on → **[module-b]**
+- **[module-c]** — standalone
+
+## Milestones
+
+### M1: [Milestone Name]
+- [What's included]
+- Target: [date or modules/features]
+
+### M2: [Milestone Name]
+- [What's included]
+- Target: [date or modules/features]
+
+## Modules
+
+### [module-id]
+
+- **Path:** [./modules/[module-name].aps.md](./modules/[module-name].aps.md)
+- **Scope:** [SCOPE]
+- **Owner:** @[username]
+- **Status:** Draft
 - **Priority:** [low|medium|high]
 - **Tags:** [tag1, tag2]
 - **Dependencies:** [other-module-id]
@@ -43,30 +111,174 @@ export function generateIndexTemplate(): string {
 - **Path:** [./modules/[another-module].aps.md](./modules/[another-module].aps.md)
 - **Scope:** [SCOPE2]
 - **Owner:** @[username]
+- **Status:** Draft
 - **Priority:** [low|medium|high]
 - **Tags:** [tag1, tag2]
 - **Dependencies:** (none)
+
+## Decisions
+
+- **D-001:** [Short decision] — [rationale] ([ADR-001](./decisions/ADR-001.md))
+- **D-002:** [Another decision] — [rationale]
 
 ## Open Questions
 
 - [Unresolved question 1]
 - [Unresolved question 2]
-
-## Decisions
-
-- [Decision] (decided [date])
 `;
 }
 
 /**
- * Generate a leaf spec template
+ * Full index template - comprehensive for enterprise plans
  */
-export function generateLeafTemplate(): string {
+function generateFullIndexTemplate(): string {
+  return `# APS Index — [Project Name]
+
+## Problem & Success Criteria
+
+**Problem:** [What problem are we solving? Why does this work matter?]
+
+**Success Criteria:**
+- [ ] [Measurable outcome 1]
+- [ ] [Measurable outcome 2]
+- [ ] [How we know we're done]
+
+## Scope
+
+**In Scope:**
+- [What this plan covers]
+- [Boundaries of work]
+
+**Out of Scope:**
+- [What this plan explicitly excludes]
+- [Things deferred to future work]
+
+## System Map
+
+[High-level view of modules and their relationships]
+
+\`\`\`
+[Module A] ──→ [Module B] ──→ [Module C]
+     ↑              ↓
+[External Service]  [Database]
+\`\`\`
+
+## Milestones
+
+### M1: [Milestone Name]
+- [What's included]
+- Modules: [module-a, module-b]
+- Target: [date]
+
+### M2: [Milestone Name]
+- [What's included]
+- Modules: [module-c]
+- Target: [date]
+
+## Modules
+
+### [module-id]
+
+- **Path:** [./modules/[module-name].aps.md](./modules/[module-name].aps.md)
+- **Scope:** [SCOPE]
+- **Owner:** @[username]
+- **Status:** Draft
+- **Priority:** [low|medium|high]
+- **Tags:** [tag1, tag2]
+- **Dependencies:** [other-module-id]
+
+### [another-module-id]
+
+- **Path:** [./modules/[another-module].aps.md](./modules/[another-module].aps.md)
+- **Scope:** [SCOPE2]
+- **Owner:** @[username]
+- **Status:** Draft
+- **Priority:** [low|medium|high]
+- **Tags:** [tag1, tag2]
+- **Dependencies:** (none)
+
+## Epics
+
+### [epic-id]
+
+- **Path:** [./epics/[epic-name].aps.md](./epics/[epic-name].aps.md)
+- **Owner:** @[username]
+- **Modules:** [module-id-1, module-id-2]
+- **Milestone:** M1
+
+## Decisions
+
+- **D-001:** [Short decision] — [rationale] ([ADR-001](./decisions/ADR-001.md))
+- **D-002:** [Another decision] — [rationale]
+
+## Risks
+
+- **R-001:** [Risk description] — Mitigation: [approach]
+- **R-002:** [Risk description] — Mitigation: [approach]
+
+## Open Questions
+
+- [Unresolved question 1]
+- [Unresolved question 2]
+`;
+}
+
+// ============================================================================
+// Leaf Templates
+// ============================================================================
+
+/**
+ * Minimal leaf template - tasks only
+ */
+function generateMinimalLeafTemplate(): string {
+  return `# [Module Title]
+
+**Scope:** [SCOPE] **Owner:** @[username]
+
+## Tasks
+
+### [SCOPE]-001: [Task title]
+
+**Intent:** [What this task aims to achieve]
+**Confidence:** [low|medium|high]
+
+### [SCOPE]-002: [Another task]
+
+**Intent:** [What this task does]
+**Confidence:** [low|medium|high]
+**Dependencies:** [SCOPE]-001
+`;
+}
+
+/**
+ * Standard leaf template - recommended for most modules
+ */
+function generateStandardLeafTemplate(): string {
   return `# [Module Title]
 
 **Scope:** [SCOPE] **Owner:** @[username] **Priority:** [low|medium|high]
 
-> [Optional: Brief module description]
+## Purpose
+
+[Why this module exists and what problem it solves]
+
+## In Scope / Out of Scope
+
+**In Scope:**
+- [What this module WILL do]
+- [Boundaries of responsibility]
+
+**Out of Scope:**
+- [What this module will NOT do]
+- [Things that belong elsewhere]
+
+## Interfaces
+
+**Depends on:**
+- [Service/Module name] — [what we need from it]
+
+**Exposes:**
+- [Endpoint/API] — [what others can use]
 
 ## Tasks
 
@@ -75,6 +287,7 @@ export function generateLeafTemplate(): string {
 **Intent:** [Clear statement of what this task aims to achieve]
 **Expected Outcome:** [What success looks like]
 **Confidence:** [low|medium|high]
+**Link:** [PROJ-123](https://jira.example.com/browse/PROJ-123)
 **Scopes:** [SCOPE1, SCOPE2]
 **Tags:** [tag1, tag2, tag3]
 **Dependencies:** [SCOPE-XXX, OTHER-YYY]
@@ -87,10 +300,11 @@ export function generateLeafTemplate(): string {
 **Intent:** [What this task does]
 **Confidence:** [low|medium|high]
 **Scopes:** [SCOPE]
+**Dependencies:** [SCOPE]-001
 
-## Dependencies
+## Decisions
 
-- Depends on [module-name] for [reason]
+- **D-001:** [Short decision] — [rationale]
 
 ## Notes
 
@@ -99,14 +313,131 @@ export function generateLeafTemplate(): string {
 }
 
 /**
- * Generate a simple single-file plan template
+ * Full leaf template - comprehensive for complex modules
  */
-export function generateSimplePlanTemplate(): string {
+function generateFullLeafTemplate(): string {
+  return `# Module APS — [Module Name]
+
+**Scope:** [SCOPE] **Owner:** @[username] **Priority:** [low|medium|high]
+
+## Purpose
+
+[Why this module exists and what problem it solves. The "why" behind this work.]
+
+## In Scope / Out of Scope
+
+**In Scope:**
+- [What this module WILL do]
+- [Boundaries of responsibility]
+- [Features included]
+
+**Out of Scope:**
+- [What this module will NOT do]
+- [Things that belong elsewhere]
+- [Explicit exclusions]
+
+## Assumptions
+
+- [Assumption 1] — Confidence: [low|medium|high]
+- [Assumption 2] — Confidence: [low|medium|high]
+
+## Interfaces
+
+**Depends on:**
+- [Service/Module name] — [what we need from it]
+- [External API] — [what we consume]
+
+**Exposes:**
+- [Endpoint/API] — [what others can use]
+- [Event/Hook] — [what we publish]
+
+## Tasks
+
+### [SCOPE]-001: [Task title]
+
+**Intent:** [Clear statement of what this task aims to achieve]
+**Expected Outcome:** [What success looks like]
+**Confidence:** [low|medium|high]
+**Link:** [PROJ-123](https://jira.example.com/browse/PROJ-123)
+**Scopes:** [SCOPE1, SCOPE2]
+**Tags:** [tag1, tag2, tag3]
+**Dependencies:** [SCOPE-XXX, OTHER-YYY]
+**Inputs:**
+- [Required input 1]
+- [Required input 2]
+
+### [SCOPE]-002: [Another task]
+
+**Intent:** [What this task does]
+**Expected Outcome:** [Success criteria]
+**Confidence:** [low|medium|high]
+**Link:** [PROJ-124](https://jira.example.com/browse/PROJ-124)
+**Scopes:** [SCOPE]
+**Dependencies:** [SCOPE]-001
+
+## Decisions
+
+- **D-001:** [Short decision] — [rationale] ([ADR-001](../decisions/ADR-001.md))
+- **D-002:** [Another decision] — [rationale]
+
+## Risks
+
+- **R-001:** [Risk description] — Mitigation: [approach]
+
+## Open Questions
+
+- [Unresolved question about this module]
+
+## Notes
+
+- [Additional context or considerations]
+- [Links to relevant resources]
+`;
+}
+
+// ============================================================================
+// Simple (Single-File) Templates
+// ============================================================================
+
+/**
+ * Minimal simple template - quick feature plan
+ */
+function generateMinimalSimpleTemplate(): string {
+  return `# [Feature Name]
+
+**Scope:** [SCOPE] **Owner:** @[username]
+
+## Tasks
+
+### [SCOPE]-001: [First task]
+
+**Intent:** [What this task achieves]
+**Confidence:** [low|medium|high]
+
+### [SCOPE]-002: [Second task]
+
+**Intent:** [What this task achieves]
+**Confidence:** [low|medium|high]
+**Dependencies:** [SCOPE]-001
+`;
+}
+
+/**
+ * Standard simple template - recommended for single-file plans
+ */
+function generateStandardSimpleTemplate(): string {
   return `# Feature: [Feature Name]
 
 **Scope:** [SCOPE] **Owner:** @[username] **Priority:** [low|medium|high]
 
-> [Brief feature description]
+## Purpose
+
+[Why we're building this feature and what problem it solves]
+
+## Success Criteria
+
+- [ ] [Measurable outcome 1]
+- [ ] [Measurable outcome 2]
 
 ## Tasks
 
@@ -115,6 +446,7 @@ export function generateSimplePlanTemplate(): string {
 **Intent:** [What this task achieves]
 **Expected Outcome:** [Success criteria]
 **Confidence:** [low|medium|high]
+**Link:** [PROJ-123](https://jira.example.com/browse/PROJ-123)
 **Scopes:** [SCOPE]
 **Tags:** [tag1, tag2]
 
@@ -132,12 +464,144 @@ export function generateSimplePlanTemplate(): string {
 }
 
 /**
- * Generate all templates and return as a typed bundle
+ * Full simple template - comprehensive single-file plan
  */
-export function generateAllTemplates(): TemplateBundle {
+function generateFullSimpleTemplate(): string {
+  return `# Feature: [Feature Name]
+
+**Scope:** [SCOPE] **Owner:** @[username] **Priority:** [low|medium|high]
+
+## Purpose
+
+[Why we're building this feature and what problem it solves]
+
+## Success Criteria
+
+- [ ] [Measurable outcome 1]
+- [ ] [Measurable outcome 2]
+- [ ] [How we know we're done]
+
+## In Scope / Out of Scope
+
+**In Scope:**
+- [What this feature WILL do]
+
+**Out of Scope:**
+- [What this feature will NOT do]
+
+## Assumptions
+
+- [Assumption 1] — Confidence: [low|medium|high]
+
+## Tasks
+
+### [SCOPE]-001: [First task]
+
+**Intent:** [What this task achieves]
+**Expected Outcome:** [Success criteria]
+**Confidence:** [low|medium|high]
+**Link:** [PROJ-123](https://jira.example.com/browse/PROJ-123)
+**Scopes:** [SCOPE]
+**Tags:** [tag1, tag2]
+**Inputs:**
+- [Required input 1]
+
+### [SCOPE]-002: [Second task]
+
+**Intent:** [What this task achieves]
+**Expected Outcome:** [Success criteria]
+**Confidence:** [low|medium|high]
+**Scopes:** [SCOPE]
+**Dependencies:** [SCOPE]-001
+
+## Decisions
+
+- **D-001:** [Decision] — [rationale]
+
+## Open Questions
+
+- [Unresolved question]
+
+## Notes
+
+- [Additional notes or considerations]
+`;
+}
+
+// ============================================================================
+// Public API
+// ============================================================================
+
+/**
+ * Generate an index file template
+ *
+ * @param options - Template options
+ * @returns Index template markdown
+ */
+export function generateIndexTemplate(options: TemplateOptions = {}): string {
+  const variant = options.variant ?? 'standard';
+
+  switch (variant) {
+    case 'minimal':
+      return generateMinimalIndexTemplate();
+    case 'full':
+      return generateFullIndexTemplate();
+    case 'standard':
+    default:
+      return generateStandardIndexTemplate();
+  }
+}
+
+/**
+ * Generate a leaf spec template
+ *
+ * @param options - Template options
+ * @returns Leaf spec template markdown
+ */
+export function generateLeafTemplate(options: TemplateOptions = {}): string {
+  const variant = options.variant ?? 'standard';
+
+  switch (variant) {
+    case 'minimal':
+      return generateMinimalLeafTemplate();
+    case 'full':
+      return generateFullLeafTemplate();
+    case 'standard':
+    default:
+      return generateStandardLeafTemplate();
+  }
+}
+
+/**
+ * Generate a simple single-file plan template
+ *
+ * @param options - Template options
+ * @returns Simple plan template markdown
+ */
+export function generateSimplePlanTemplate(options: TemplateOptions = {}): string {
+  const variant = options.variant ?? 'standard';
+
+  switch (variant) {
+    case 'minimal':
+      return generateMinimalSimpleTemplate();
+    case 'full':
+      return generateFullSimpleTemplate();
+    case 'standard':
+    default:
+      return generateStandardSimpleTemplate();
+  }
+}
+
+/**
+ * Generate all templates and return as a typed bundle
+ *
+ * @param options - Template options
+ * @returns Bundle of all templates
+ */
+export function generateAllTemplates(options: TemplateOptions = {}): TemplateBundle {
   return {
-    index: generateIndexTemplate(),
-    leaf: generateLeafTemplate(),
-    simple: generateSimplePlanTemplate(),
+    index: generateIndexTemplate(options),
+    leaf: generateLeafTemplate(options),
+    simple: generateSimplePlanTemplate(options),
   };
 }

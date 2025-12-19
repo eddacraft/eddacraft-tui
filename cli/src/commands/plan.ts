@@ -1,5 +1,13 @@
 /**
- * Plan Command - Creates new APS plans
+ * Plan Command - APS planning document management
+ *
+ * Subcommands:
+ * - anvil plan validate [path]        Validate a planning document
+ * - anvil plan load [path]            Load and filter a planning document
+ * - anvil plan lock <task>            Lock a task for execution
+ * - anvil plan unlock <task>          Unlock (cancel) a locked task
+ * - anvil plan status [task]          Show task states
+ * - anvil plan create <intent>        Create a new execution plan (legacy)
  */
 
 import { Command } from 'commander';
@@ -8,10 +16,20 @@ import ora from 'ora';
 import { APSPlan, generatePlanId, generateHash, APS_SCHEMA_VERSION } from '@anvil/core';
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'path';
+import {
+  createValidateSubcommand,
+  createLoadSubcommand,
+  createLockSubcommand,
+  createUnlockSubcommand,
+  createStatusSubcommand,
+} from './plan/index.js';
 
-export function createPlanCommand(): Command {
-  return new Command('plan')
-    .description('Create a new Anvil plan')
+/**
+ * Legacy create command (for backward compatibility)
+ */
+function createCreateSubcommand(): Command {
+  return new Command('create')
+    .description('Create a new Anvil execution plan (legacy)')
     .argument('<intent>', 'What you want to achieve (10-500 characters)')
     .option('-f, --format <format>', 'Output format (json|yaml)', 'json')
     .option('-o, --output <path>', 'Output file path')
@@ -38,7 +56,7 @@ export function createPlanCommand(): Command {
           proposed_changes: [],
           provenance: {
             timestamp: new Date().toISOString(),
-            author: process.env.USER || 'unknown',
+            author: process.env['USER'] || 'unknown',
             source: 'cli',
             version: '0.0.0',
             repository: process.cwd(),
@@ -64,7 +82,12 @@ export function createPlanCommand(): Command {
 
         // Determine output path
         const workspaceRoot = getWorkspaceRoot();
-        const defaultPath = join(workspaceRoot, '.anvil', 'plans', `${planId}.${options.format}`);
+        const defaultPath = join(
+          workspaceRoot,
+          '.anvil',
+          'executions',
+          `${planId}.${options.format}`
+        );
         const outputPath = options.output || defaultPath;
 
         // Save the plan
@@ -81,4 +104,17 @@ export function createPlanCommand(): Command {
         process.exit(1);
       }
     });
+}
+
+export function createPlanCommand(): Command {
+  const planCommand = new Command('plan')
+    .description('APS planning document management')
+    .addCommand(createValidateSubcommand())
+    .addCommand(createLoadSubcommand())
+    .addCommand(createLockSubcommand())
+    .addCommand(createUnlockSubcommand())
+    .addCommand(createStatusSubcommand())
+    .addCommand(createCreateSubcommand());
+
+  return planCommand;
 }
