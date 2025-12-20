@@ -3,6 +3,9 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with
 code in this repository.
 
+> **Anvil**: Deterministic development automation platform that makes
+> AI-generated code changes safe for production.
+
 ## Essential Build & Test Commands
 
 ```bash
@@ -14,12 +17,13 @@ pnpm link:cli                # Build and link CLI
 pnpm unlink:cli              # Unlink CLI when done
 
 # Run tests
-pnpm test                    # All unit tests
+pnpm test                    # All unit tests (Vitest)
 pnpm test:coverage           # With coverage reports
+pnpm test:e2e                # Playwright E2E tests
 pnpm typecheck               # TypeScript validation
 
 # Code quality
-pnpm lint                    # Lint and auto-fix
+pnpm lint                    # Lint and auto-fix (ESLint + markdownlint)
 pnpm format                  # Format with Prettier
 
 # Package-specific operations
@@ -33,6 +37,9 @@ anvil init                   # Initialise Anvil in a project
 anvil validate <plan>        # Validate a planning document
 anvil gate <plan>            # Run quality gates
 anvil export <plan> --to <format>  # Convert between formats
+anvil watch                  # Watch for plan changes
+anvil plan                   # Plan management
+anvil policy                 # Policy management (OPA/Rego)
 ```
 
 ## Critical Architecture Concepts
@@ -62,11 +69,14 @@ just makes them safer.
 
 ### Gate Checks
 
-- **ESLint** - Code quality and style enforcement
-- **Vitest** - Unit test execution and pass/fail
-- **Coverage** - Code coverage thresholds
-- **Secrets** - Pattern + entropy detection, git history scanning
-- **Dependencies** - Vulnerability scanning (npm/pnpm audit)
+Located in `core/src/gate/checks/`:
+
+- **architecture.check.ts** - Architecture validation
+- **coverage.check.ts** - Code coverage thresholds
+- **dependency.check.ts** - Vulnerability scanning (npm/pnpm audit)
+- **eslint.check.ts** - Code quality and style enforcement
+- **policy.check.ts** - OPA/Rego policy evaluation
+- **secret.check.ts** - Pattern + entropy detection, git history scanning
 
 ### Core Components
 
@@ -94,6 +104,10 @@ just makes them safer.
 - `commands/validate.ts` - Validate plans
 - `commands/gate.ts` - Run quality gates
 - `commands/export.ts` - Format conversion
+- `commands/init.ts` - Project initialisation
+- `commands/watch.ts` - File watching
+- `commands/plan.ts` - Plan management
+- `commands/policy.ts` - OPA policy management
 - `services/format-detection.ts` - Auto-detect format
 - `services/plan-loader.ts` - Load plans in any format
 
@@ -109,7 +123,7 @@ import { foo } from './utils.js';
 import { foo } from './utils';
 ```
 
-**Zod-first schemas**:
+**Zod-first schemas** (see ADR-0001):
 
 ```typescript
 // Define schema with Zod
@@ -119,6 +133,12 @@ export const MySchema = z.object({
 
 // Export inferred TypeScript type
 export type MyType = z.infer<typeof MySchema>;
+```
+
+After modifying Zod schemas, regenerate JSON schema:
+
+```bash
+pnpm -F core run generate:schema
 ```
 
 **TypeScript project references**: Each package references dependencies in
@@ -196,23 +216,39 @@ anvil/
 │   ├── src/bmad/         # BMAD PRD/architecture adapter
 │   └── src/generic/      # Generic markdown fallback adapter
 ├── cli/                  # Commander.js CLI
-│   ├── src/commands/     # CLI commands (validate, gate, export, init)
+│   ├── src/commands/     # CLI commands (validate, gate, export, init, watch, plan, policy)
 │   └── src/services/     # Format detection, plan loading, environment
+├── packages/vscode-extension/  # VS Code extension (anvil-vscode)
 ├── packs/                # Extension packs (placeholder)
 ├── ui/                   # UI components (placeholder)
+├── e2e/                  # Playwright E2E tests
 └── docs/                 # Documentation
     ├── ARCHITECTURE.md   # System design
+    ├── adr/              # Architecture decision records
     ├── planning/PLAN.md  # Strategic roadmap
     └── planning/TODO.md  # Task tracking
 ```
 
-## Language Convention
+## Language & Environment
 
 **Always use UK English** for:
 
 - Documentation and comments
 - Variable names (`colour` not `color`, `initialise` not `initialize`)
 - User-facing text
+
+**Environment requirements**:
+
+- **Node.js**: >=20.0.0
+- **pnpm**: >=10.20.0
+
+**Formatting rules**:
+
+- **Prettier**: Single quotes, trailing commas es5, 100 char width (80 for
+  markdown)
+- **ESLint**: Warn on `any`, prefer unused `_` prefix
+- **Semicolons**: Required
+- **Line endings**: LF (Unix-style)
 
 ## Current Implementation Status (December 2025)
 
@@ -267,6 +303,7 @@ npx nx test core --testNamePattern="secret"
 **Architecture & Design**:
 
 - `docs/ARCHITECTURE.md` - System design
+- `docs/adr/` - Architecture decision records (ADR-0001: Zod for schemas)
 - `docs/planning/PLAN.md` - Strategic vision (three acts)
 - `docs/planning/TODO.md` - Task tracking with progress
 - `docs/planning/ROADMAP.md` - Detailed implementation roadmap
