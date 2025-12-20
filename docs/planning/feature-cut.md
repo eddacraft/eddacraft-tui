@@ -130,9 +130,7 @@ These are solid foundations.
 #### OPA / Policies
 - Keep internally
 - Expose via:
-
   - Named patterns
-
   - Rules tied to boundaries
 - Hide policy mechanics by default
 
