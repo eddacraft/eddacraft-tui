@@ -64,19 +64,27 @@ export class ESLintCheck extends BaseCheck {
   }
 
   private getFilesFromPlan(context: CheckContext): string[] {
+    // Use targetFiles if provided (planless mode)
+    if (context.targetFiles && context.targetFiles.length > 0) {
+      return context.targetFiles.filter((f) => this.isLintableFile(f));
+    }
+
+    // Otherwise use files from plan
     const files: string[] = [];
 
-    for (const change of context.plan.proposed_changes) {
-      // Check for file-related change types
-      const isFileChange =
-        change.type === 'file_create' ||
-        change.type === 'file_update' ||
-        change.type === 'file_delete';
+    if (context.plan) {
+      for (const change of context.plan.proposed_changes) {
+        // Check for file-related change types
+        const isFileChange =
+          change.type === 'file_create' ||
+          change.type === 'file_update' ||
+          change.type === 'file_delete';
 
-      if (isFileChange && this.isLintableFile(change.path)) {
-        const fullPath = join(context.workspace_root, change.path);
-        if (existsSync(fullPath)) {
-          files.push(fullPath);
+        if (isFileChange && this.isLintableFile(change.path)) {
+          const fullPath = join(context.workspace_root, change.path);
+          if (existsSync(fullPath)) {
+            files.push(fullPath);
+          }
         }
       }
     }

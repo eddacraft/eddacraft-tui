@@ -57,6 +57,14 @@ export class PolicyCheck extends BaseCheck {
   async run(context: CheckContext): Promise<GateResult> {
     const config = this.parseConfig(context.check_config);
 
+    // Policy check requires a plan
+    if (!context.plan) {
+      return this.createSuccess('Policy check skipped (no plan provided)', 100, {
+        skipped: true,
+        reason: 'Policy check requires a plan',
+      });
+    }
+
     try {
       // Step 1: Ensure OPA binary is available
       const binaryManager = getOPABinaryManager();
@@ -176,7 +184,7 @@ export class PolicyCheck extends BaseCheck {
    * Build OPA input from check context
    */
   private buildOPAInput(context: CheckContext): OPAInput {
-    const plan = context.plan;
+    const plan = context.plan!; // Safe: checked in run()
 
     // Calculate affected directories
     const affectedDirectories = new Set<string>();

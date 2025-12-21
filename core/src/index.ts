@@ -20,3 +20,6 @@ export * from './provenance/index.js';
 
 // Watch functionality
 export * from './watch/index.js';
+
+// Anti-pattern detection
+export * from './antipattern/index.js';

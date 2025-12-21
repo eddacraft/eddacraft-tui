@@ -252,19 +252,26 @@ export class ArchitectureCheck extends BaseCheck {
       return config.include_patterns;
     }
 
-    // For 'affected', use files from plan
+    // For 'affected', use targetFiles if provided (planless mode)
+    if (context.targetFiles && context.targetFiles.length > 0) {
+      return context.targetFiles.filter((f) => this.isAnalysableFile(f, config));
+    }
+
+    // Otherwise use files from plan
     const files: string[] = [];
 
-    for (const change of context.plan.proposed_changes) {
-      const isRelevantChange =
-        change.type === 'file_create' ||
-        change.type === 'file_update' ||
-        change.type === 'file_delete';
+    if (context.plan) {
+      for (const change of context.plan.proposed_changes) {
+        const isRelevantChange =
+          change.type === 'file_create' ||
+          change.type === 'file_update' ||
+          change.type === 'file_delete';
 
-      if (isRelevantChange && change.path && this.isAnalysableFile(change.path, config)) {
-        const fullPath = join(context.workspace_root, change.path);
-        if (existsSync(fullPath) || change.type === 'file_delete') {
-          files.push(fullPath);
+        if (isRelevantChange && change.path && this.isAnalysableFile(change.path, config)) {
+          const fullPath = join(context.workspace_root, change.path);
+          if (existsSync(fullPath) || change.type === 'file_delete') {
+            files.push(fullPath);
+          }
         }
       }
     }
