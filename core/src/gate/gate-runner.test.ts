@@ -279,6 +279,25 @@ describe('GateRunner.analyzeFiles', () => {
     expect(result.warnings.warnings).toHaveLength(0);
   });
 
+  it('should exclude failed checks from checksRun', async () => {
+    class FailingArchitectureCheck extends BaseCheck {
+      name = 'architecture';
+      description = 'Mock failing architecture check';
+
+      async run(): Promise<GateResult> {
+        return this.createFailure('Simulated failure');
+      }
+    }
+
+    gateRunner.unregisterCheck('architecture');
+    gateRunner.registerCheck(new FailingArchitectureCheck());
+
+    const result = await gateRunner.analyzeFiles(['src/test.ts'], '/workspace');
+
+    expect(result.checksRun).not.toContain('architecture');
+    expect(result.warnings.warnings).toHaveLength(0);
+  });
+
   it('should include execution timing', async () => {
     const files = ['src/test.ts'];
 

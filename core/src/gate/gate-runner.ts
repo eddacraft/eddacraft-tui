@@ -109,8 +109,14 @@ export interface AnalyzeOptions {
   noCache?: boolean;
   /** Which checks to run (defaults to ['architecture']) */
   checks?: ('architecture' | 'antipattern')[];
+  /** Max parallel checks (1 = sequential) */
+  parallelLimit?: number;
   /** Check-specific configuration */
   checkConfig?: Record<string, unknown>;
+  /** Optional hook for streaming warnings to IDEs or reporters */
+  onWarning?: (warning: Warning) => void;
+  /** Optional hook invoked when analysis completes */
+  onResult?: (result: AnalyzeResult) => void;
 }
 
 /**
@@ -182,13 +188,11 @@ export class GateRunner {
       targetFiles: files,
     };
 
-    for (const checkName of checksToRun) {
-      const check = this.checks.get(checkName);
-      if (!check) {
-        continue;
-      }
+    const availableChecks = checksToRun.filter((name) => this.checks.has(name));
 
-      checksRun.push(checkName);
+    const runCheck = async (checkName: string): Promise<void> => {
+      const check = this.checks.get(checkName);
+      if (!check) return;
 
       const cacheKeyInput = {
         check_name: checkName,
@@ -231,22 +235,47 @@ export class GateRunner {
         }
       }
 
+      if (result && !result.error) {
+        checksRun.push(checkName);
+      }
+
       const checkWarnings = result.details?.warnings;
       if (checkWarnings) {
         allWarnings.push(...checkWarnings.warnings);
         patternsChecked.push(...checkWarnings.patterns_checked);
+        if (options?.onWarning) {
+          for (const warning of checkWarnings.warnings) {
+            options.onWarning(warning);
+          }
+        }
       }
-    }
+    };
+
+    const parallelLimit = Math.max(1, options?.parallelLimit ?? availableChecks.length);
+    const queue = [...availableChecks];
+    const workers = Array.from({ length: Math.min(parallelLimit, queue.length) }, async () => {
+      while (queue.length > 0) {
+        const next = queue.shift();
+        if (!next) break;
+        await runCheck(next);
+      }
+    });
+
+    await Promise.all(workers);
 
     const warningResult = createWarningResult(allWarnings, [...new Set(patternsChecked)]);
     const hasBlocking = allWarnings.some((w) => w.severity === 'error' && !w.suppressed);
 
-    return {
+    const result: AnalyzeResult = {
       warnings: warningResult,
       executionTimeMs: Date.now() - startTime,
       checksRun,
       hasBlockingWarnings: hasBlocking,
     };
+
+    options?.onResult?.(result);
+
+    return result;
   }
 
   async runGate(
