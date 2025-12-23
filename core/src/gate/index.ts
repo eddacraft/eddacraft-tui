@@ -1,5 +1,7 @@
 export { GateRunner } from './gate-runner.js';
 export type {
+  AnalyzeOptions,
+  AnalyzeResult,
   GateRunOptions,
   GateRunResultWithCache,
   ProgressCallback,

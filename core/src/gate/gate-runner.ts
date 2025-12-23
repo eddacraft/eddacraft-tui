@@ -16,6 +16,8 @@ import { ArchitectureCheck } from './checks/architecture.check.js';
 import type { CacheProvider } from '../cache/types.js';
 import { NullCacheProvider } from '../cache/providers/null-cache.js';
 import { generateCacheKey, hashCheckConfig, generateInputHash } from '../cache/cache-key.js';
+import type { Warning, WarningResult } from '../antipattern/types.js';
+import { createWarningResult } from '../antipattern/types.js';
 
 /**
  * Internal type for checks to run
@@ -97,6 +99,34 @@ export interface GateRunResultWithCache extends GateRunResult {
   };
 }
 
+/**
+ * Options for analyzeFiles() - planless file analysis mode
+ */
+export interface AnalyzeOptions {
+  /** Cache provider (defaults to NullCacheProvider) */
+  cache?: CacheProvider;
+  /** Force bypass cache for this run */
+  noCache?: boolean;
+  /** Which checks to run (defaults to ['architecture']) */
+  checks?: ('architecture' | 'antipattern')[];
+  /** Check-specific configuration */
+  checkConfig?: Record<string, unknown>;
+}
+
+/**
+ * Result from analyzeFiles() - focused on warnings
+ */
+export interface AnalyzeResult {
+  /** Aggregated warnings from all checks */
+  warnings: WarningResult;
+  /** Execution timing in ms */
+  executionTimeMs: number;
+  /** Which checks were run */
+  checksRun: string[];
+  /** Whether any blocking warnings (severity: error, not suppressed) exist */
+  hasBlockingWarnings: boolean;
+}
+
 export class GateRunner {
   private checks: Map<string, Check> = new Map();
   private defaultCache: CacheProvider = new NullCacheProvider();
@@ -122,6 +152,101 @@ export class GateRunner {
 
   getAvailableChecks(): string[] {
     return Array.from(this.checks.keys());
+  }
+
+  async analyzeFiles(
+    files: string[],
+    workspaceRoot: string,
+    options?: AnalyzeOptions
+  ): Promise<AnalyzeResult> {
+    const startTime = Date.now();
+    const cache = options?.noCache
+      ? new NullCacheProvider()
+      : (options?.cache ?? this.defaultCache);
+
+    const checksToRun = options?.checks ?? ['architecture'];
+    const allWarnings: Warning[] = [];
+    const patternsChecked: string[] = [];
+    const checksRun: string[] = [];
+
+    const minimalConfig: GateConfig = {
+      version: 1,
+      checks: [],
+      thresholds: { overall_score: 0 },
+    };
+
+    const context: CheckContext = {
+      workspace_root: workspaceRoot,
+      config: minimalConfig,
+      check_config: options?.checkConfig ?? {},
+      targetFiles: files,
+    };
+
+    for (const checkName of checksToRun) {
+      const check = this.checks.get(checkName);
+      if (!check) {
+        continue;
+      }
+
+      checksRun.push(checkName);
+
+      const cacheKeyInput = {
+        check_name: checkName,
+        plan_hash: `files:${[...files].sort().join(',')}`,
+        config_hash: hashCheckConfig(options?.checkConfig ?? {}),
+        workspace_root: workspaceRoot,
+      };
+      const cacheKey = generateCacheKey(cacheKeyInput);
+      const inputHash = generateInputHash(cacheKeyInput);
+
+      let result: GateResult | undefined;
+
+      try {
+        const cached = await cache.get<GateResult>(cacheKey);
+        if (cached && cached.input_hash === inputHash) {
+          result = cached.value;
+        }
+      } catch {
+        // Cache read failed, continue without cache
+      }
+
+      if (!result) {
+        try {
+          result = await check.run(context);
+
+          if (!result.error) {
+            try {
+              await cache.set(cacheKey, result, { input_hash: inputHash });
+            } catch {
+              // Cache write failed, continue
+            }
+          }
+        } catch (error) {
+          result = {
+            check: checkName,
+            passed: false,
+            message: `Check '${checkName}' failed with error`,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          };
+        }
+      }
+
+      const checkWarnings = result.details?.warnings;
+      if (checkWarnings) {
+        allWarnings.push(...checkWarnings.warnings);
+        patternsChecked.push(...checkWarnings.patterns_checked);
+      }
+    }
+
+    const warningResult = createWarningResult(allWarnings, [...new Set(patternsChecked)]);
+    const hasBlocking = allWarnings.some((w) => w.severity === 'error' && !w.suppressed);
+
+    return {
+      warnings: warningResult,
+      executionTimeMs: Date.now() - startTime,
+      checksRun,
+      hasBlockingWarnings: hasBlocking,
+    };
   }
 
   async runGate(

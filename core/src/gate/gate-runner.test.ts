@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { GateRunner } from './gate-runner.js';
-import { GateConfig, PlanData } from '../types/gate.types.js';
+import { GateConfig, PlanData, CheckContext, GateResult } from '../types/gate.types.js';
 import { BaseCheck } from './check.interface.js';
+import type { Warning, WarningResult } from '../antipattern/types.js';
 
 class MockCheck extends BaseCheck {
   name = 'mock';
@@ -18,6 +19,67 @@ class FailingMockCheck extends BaseCheck {
 
   async run() {
     return this.createFailure('Mock check failed');
+  }
+}
+
+class MockArchitectureCheck extends BaseCheck {
+  name = 'architecture';
+  description = 'Mock architecture check for testing';
+
+  async run(context: CheckContext): Promise<GateResult> {
+    const warnings: Warning[] = [];
+    const files = context.targetFiles ?? [];
+
+    for (const file of files) {
+      if (file.includes('boundary-violation')) {
+        warnings.push({
+          id: 'ARCH-001',
+          category: 'boundary',
+          severity: 'warning',
+          confidence: 'high',
+          title: 'Cross-boundary import detected',
+          message: `File ${file} imports from forbidden module`,
+          explanation: 'This violates architecture boundaries',
+          suggestion: 'Use the public API instead',
+          location: { file, line: 1 },
+          pattern: 'boundary-violation',
+        });
+      }
+      if (file.includes('error-boundary')) {
+        warnings.push({
+          id: 'ARCH-002',
+          category: 'boundary',
+          severity: 'error',
+          confidence: 'high',
+          title: 'Critical boundary violation',
+          message: `File ${file} has critical violation`,
+          explanation: 'This is a blocking error',
+          suggestion: 'Fix immediately',
+          location: { file, line: 1 },
+          pattern: 'critical-boundary',
+        });
+      }
+    }
+
+    const warningResult: WarningResult = {
+      warnings,
+      summary: {
+        total: warnings.length,
+        errors: warnings.filter((w) => w.severity === 'error').length,
+        warnings: warnings.filter((w) => w.severity === 'warning').length,
+        info: 0,
+        suppressed: 0,
+      },
+      patterns_checked: ['boundary-violation', 'critical-boundary'],
+    };
+
+    return {
+      check: this.name,
+      passed: warnings.filter((w) => w.severity === 'error').length === 0,
+      message: warnings.length > 0 ? `Found ${warnings.length} warnings` : 'No warnings found',
+      score: 100 - warnings.length * 10,
+      details: { warnings: warningResult },
+    };
   }
 }
 
@@ -165,5 +227,84 @@ describe('GateRunner', () => {
     gateRunner.unregisterCheck('mock');
 
     expect(gateRunner.getAvailableChecks()).not.toContain('mock');
+  });
+});
+
+describe('GateRunner.analyzeFiles', () => {
+  let gateRunner: GateRunner;
+
+  beforeEach(() => {
+    gateRunner = new GateRunner();
+    gateRunner.unregisterCheck('architecture');
+    gateRunner.registerCheck(new MockArchitectureCheck());
+  });
+
+  it('should analyze files and return warnings', async () => {
+    const files = ['src/boundary-violation.ts', 'src/clean-file.ts'];
+
+    const result = await gateRunner.analyzeFiles(files, '/workspace');
+
+    expect(result.checksRun).toContain('architecture');
+    expect(result.warnings.warnings).toHaveLength(1);
+    expect(result.warnings.warnings[0].id).toBe('ARCH-001');
+    expect(result.hasBlockingWarnings).toBe(false);
+  });
+
+  it('should detect blocking warnings (severity: error)', async () => {
+    const files = ['src/error-boundary.ts'];
+
+    const result = await gateRunner.analyzeFiles(files, '/workspace');
+
+    expect(result.hasBlockingWarnings).toBe(true);
+    expect(result.warnings.summary.errors).toBe(1);
+  });
+
+  it('should return empty warnings for clean files', async () => {
+    const files = ['src/clean-file.ts', 'src/another-clean.ts'];
+
+    const result = await gateRunner.analyzeFiles(files, '/workspace');
+
+    expect(result.warnings.warnings).toHaveLength(0);
+    expect(result.hasBlockingWarnings).toBe(false);
+  });
+
+  it('should skip unknown checks gracefully', async () => {
+    const files = ['src/test.ts'];
+
+    const result = await gateRunner.analyzeFiles(files, '/workspace', {
+      checks: ['nonexistent' as 'architecture'],
+    });
+
+    expect(result.checksRun).toHaveLength(0);
+    expect(result.warnings.warnings).toHaveLength(0);
+  });
+
+  it('should include execution timing', async () => {
+    const files = ['src/test.ts'];
+
+    const result = await gateRunner.analyzeFiles(files, '/workspace');
+
+    expect(result.executionTimeMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should aggregate warnings from multiple files', async () => {
+    const files = ['src/boundary-violation.ts', 'src/error-boundary.ts'];
+
+    const result = await gateRunner.analyzeFiles(files, '/workspace');
+
+    expect(result.warnings.warnings).toHaveLength(2);
+    expect(result.warnings.summary.total).toBe(2);
+    expect(result.warnings.summary.warnings).toBe(1);
+    expect(result.warnings.summary.errors).toBe(1);
+    expect(result.hasBlockingWarnings).toBe(true);
+  });
+
+  it('should deduplicate patterns_checked', async () => {
+    const files = ['src/boundary-violation.ts', 'src/another-boundary-violation.ts'];
+
+    const result = await gateRunner.analyzeFiles(files, '/workspace');
+
+    const uniquePatterns = new Set(result.warnings.patterns_checked);
+    expect(uniquePatterns.size).toBe(result.warnings.patterns_checked.length);
   });
 });
