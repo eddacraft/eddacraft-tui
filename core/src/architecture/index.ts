@@ -73,7 +73,9 @@ export {
 export {
   type AnalysisResult,
   type AnalyzerOptions,
+  type InferBaselineOptions,
   ArchitectureAnalyzer,
   createArchitectureAnalyzer,
   analyseArchitecture,
+  inferBaseline,
 } from './analyzer.js';

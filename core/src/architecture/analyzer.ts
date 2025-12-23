@@ -5,6 +5,8 @@
  * entry point detection, and dependency analysis.
  */
 
+import { readdirSync, statSync } from 'fs';
+import { join } from 'path';
 import { minimatch } from 'minimatch';
 import { LayerDetector, createLayerDetector } from './layer-detector.js';
 import { EntryPointDetector, createEntryPointDetector } from './entry-detector.js';
@@ -306,4 +308,79 @@ export async function analyseArchitecture(
   }
 
   return result;
+}
+
+/**
+ * Options for baseline inference
+ */
+export interface InferBaselineOptions extends AnalyzerOptions {
+  /** Save baseline to .anvil/architecture.json (default: true) */
+  save?: boolean;
+}
+
+/**
+ * Infer architecture baseline from codebase
+ *
+ * Scans the workspace, detects layers and entry points, and creates a baseline.
+ * This is the primary entry point for `anvil init` architecture setup.
+ */
+export async function inferBaseline(
+  workspaceRoot: string,
+  options?: InferBaselineOptions
+): Promise<{ result: AnalysisResult; baseline: ArchitectureBaseline }> {
+  const analyzer = createArchitectureAnalyzer(workspaceRoot, options);
+  const filePaths = collectSourceFiles(workspaceRoot, options);
+  const result = await analyzer.analyse(filePaths);
+  const baseline = analyzer.createBaseline(result);
+
+  if (options?.save !== false) {
+    analyzer.getBaselineManager().save(baseline);
+  }
+
+  return { result, baseline };
+}
+
+/**
+ * Collect source files from workspace
+ */
+function collectSourceFiles(workspaceRoot: string, options?: AnalyzerOptions): string[] {
+  const includePatterns = options?.includePatterns ?? DEFAULT_INCLUDE_PATTERNS;
+  const excludePatterns = options?.excludePatterns ?? DEFAULT_EXCLUDE_PATTERNS;
+  const files: string[] = [];
+
+  function walk(dir: string, relativePath: string = ''): void {
+    let entries: string[];
+    try {
+      entries = readdirSync(dir);
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      const fullPath = join(dir, entry);
+      const relPath = relativePath ? `${relativePath}/${entry}` : entry;
+
+      if (excludePatterns.some((p) => minimatch(relPath, p, { matchBase: true }))) {
+        continue;
+      }
+
+      let stat;
+      try {
+        stat = statSync(fullPath);
+      } catch {
+        continue;
+      }
+
+      if (stat.isDirectory()) {
+        walk(fullPath, relPath);
+      } else if (stat.isFile()) {
+        if (includePatterns.some((p) => minimatch(relPath, p, { matchBase: true }))) {
+          files.push(relPath);
+        }
+      }
+    }
+  }
+
+  walk(workspaceRoot);
+  return files;
 }

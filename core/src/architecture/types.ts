@@ -94,6 +94,9 @@ export const BoundarySchema = z.object({
   to: z.string().describe('Target layer'),
   severity: z.enum(['error', 'warning', 'info']).describe('Violation severity'),
   message: z.string().describe('Human-readable message when violated'),
+  confidence: DetectionConfidenceSchema.optional().describe(
+    'Inference confidence (for auto-detected boundaries)'
+  ),
 });
 
 export type Boundary = z.infer<typeof BoundarySchema>;
@@ -287,6 +290,7 @@ export function createDefaultBoundaries(layers: Layers): Boundary[] {
           to: toLayer,
           severity: 'error',
           message: `${fromLayer} layer must not directly depend on ${toLayer}`,
+          confidence: 'high',
         });
       }
     }
