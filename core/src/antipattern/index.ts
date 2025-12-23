@@ -47,3 +47,15 @@ export {
   createWarningResult,
   validateWarningResultConsistency,
 } from './types.js';
+
+// Pattern catalogue
+export {
+  PATTERNS,
+  type PatternCategory,
+  getPattern,
+  getPatternsByCategory,
+  getEnabledPatterns,
+  getDefaultPatterns,
+  getPatternIds,
+  isValidPatternId,
+} from './patterns.js';

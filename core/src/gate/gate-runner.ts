@@ -235,7 +235,9 @@ export class GateRunner {
         }
       }
 
-      if (result && !result.error) {
+      // Only include checks that passed - failed checks don't contribute valid warnings
+      // Use `!result.error` instead if you need "completed" (regardless of pass/fail)
+      if (result && result.passed) {
         checksRun.push(checkName);
       }
 
