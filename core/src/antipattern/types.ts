@@ -128,15 +128,33 @@ export type Warning = z.infer<typeof WarningSchema>;
 // =============================================================================
 
 /**
- * Detection method configuration
+ * Regex-based detection configuration
  */
-export const DetectionConfigSchema = z.object({
-  type: z.enum(['regex', 'ast']).describe('Detection method'),
-  pattern: z.string().optional().describe('Regex pattern string (for regex detection)'),
-  astQuery: z.string().optional().describe('AST query description (for AST detection)'),
+export const RegexDetectionConfigSchema = z.object({
+  type: z.literal('regex').describe('Regex-based detection'),
+  pattern: z.string().min(1).describe('Regex pattern string'),
 });
 
+/**
+ * AST-based detection configuration
+ */
+export const AstDetectionConfigSchema = z.object({
+  type: z.literal('ast').describe('AST-based detection'),
+  astQuery: z.string().min(1).describe('AST query description'),
+});
+
+/**
+ * Detection method configuration - discriminated union ensures
+ * regex type requires pattern, ast type requires astQuery
+ */
+export const DetectionConfigSchema = z.discriminatedUnion('type', [
+  RegexDetectionConfigSchema,
+  AstDetectionConfigSchema,
+]);
+
 export type DetectionConfig = z.infer<typeof DetectionConfigSchema>;
+export type RegexDetectionConfig = z.infer<typeof RegexDetectionConfigSchema>;
+export type AstDetectionConfig = z.infer<typeof AstDetectionConfigSchema>;
 
 /**
  * Anti-pattern definition - defines a detectable pattern
@@ -251,15 +269,23 @@ export function isBlockingWarning(warning: Warning): boolean {
 }
 
 /**
- * Count warnings by severity
+ * Warning summary type matching WarningResultSchema.summary
  */
-export function countBySeverity(warnings: Warning[]): {
+export interface WarningSummary {
+  total: number;
   errors: number;
   warnings: number;
   info: number;
   suppressed: number;
-} {
-  return warnings.reduce(
+}
+
+/**
+ * Count warnings by severity, including total count.
+ * Note: A warning can be both suppressed AND have a severity,
+ * so suppressed warnings are counted separately and not in their severity bucket.
+ */
+export function countBySeverity(warnings: Warning[]): WarningSummary {
+  const counts = warnings.reduce(
     (acc, w) => {
       if (w.suppressed) {
         acc.suppressed++;
@@ -273,5 +299,44 @@ export function countBySeverity(warnings: Warning[]): {
       return acc;
     },
     { errors: 0, warnings: 0, info: 0, suppressed: 0 }
+  );
+
+  return {
+    total: warnings.length,
+    ...counts,
+  };
+}
+
+/**
+ * Create a complete WarningResult summary from a list of warnings.
+ * Ensures consistency between warnings array and summary counts.
+ *
+ * @param warnings - Array of warnings
+ * @param patternsChecked - Array of pattern IDs that were checked
+ * @returns Complete WarningResult object
+ */
+export function createWarningResult(warnings: Warning[], patternsChecked: string[]): WarningResult {
+  return {
+    warnings,
+    summary: countBySeverity(warnings),
+    patterns_checked: patternsChecked,
+  };
+}
+
+/**
+ * Validate that a WarningResult's summary matches its warnings array.
+ * Useful for catching inconsistencies in manually constructed results.
+ *
+ * @param result - WarningResult to validate
+ * @returns true if summary matches warnings, false otherwise
+ */
+export function validateWarningResultConsistency(result: WarningResult): boolean {
+  const computed = countBySeverity(result.warnings);
+  return (
+    result.summary.total === computed.total &&
+    result.summary.errors === computed.errors &&
+    result.summary.warnings === computed.warnings &&
+    result.summary.info === computed.info &&
+    result.summary.suppressed === computed.suppressed
   );
 }

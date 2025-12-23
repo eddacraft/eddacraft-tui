@@ -1,13 +1,11 @@
 #!/bin/sh
-# Check if lint-staged is available
-if command -v npx >/dev/null 2>&1; then
-  if npx lint-staged --version >/dev/null 2>&1; then
-    npx lint-staged
-  else
-    echo "lint-staged not found. Please run 'pnpm install' to install dependencies."
-    exit 1
-  fi
+# Run lint-staged via pnpm to avoid npm reading pnpm-specific .npmrc settings
+if command -v pnpm >/dev/null 2>&1; then
+  pnpm exec lint-staged
+elif command -v npx >/dev/null 2>&1; then
+  # Fallback to npx if pnpm not available
+  npx lint-staged
 else
-  echo "npx not found. Please install Node.js and npm/pnpm."
+  echo "Neither pnpm nor npx found. Please install pnpm or Node.js."
   exit 1
 fi

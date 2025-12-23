@@ -201,10 +201,13 @@ export class MemoryCacheProvider implements CacheProvider {
   }
 
   private patternToRegex(pattern: string): RegExp {
+    // Use placeholder for ** to avoid it being affected by * replacement
+    const DOUBLE_STAR_PLACEHOLDER = '\x00DOUBLESTAR\x00';
     const escaped = pattern
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*\*/g, '.*')
-      .replace(/\*/g, '[^:]*');
+      .replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER) // Protect ** first
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+      .replace(/\*/g, '[^:]*') // Single * matches within segment (no colons)
+      .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '.*'); // ** matches anything
     return new RegExp(`^${escaped}$`);
   }
 

@@ -23,3 +23,6 @@ export * from './watch/index.js';
 
 // Anti-pattern detection
 export * from './antipattern/index.js';
+
+// Architecture analysis
+export * from './architecture/index.js';

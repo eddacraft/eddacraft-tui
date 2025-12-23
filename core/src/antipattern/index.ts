@@ -25,6 +25,10 @@ export {
   WarningSchema,
   type Warning,
   // Anti-pattern definition
+  RegexDetectionConfigSchema,
+  type RegexDetectionConfig,
+  AstDetectionConfigSchema,
+  type AstDetectionConfig,
   DetectionConfigSchema,
   type DetectionConfig,
   AntiPatternSchema,
@@ -32,6 +36,7 @@ export {
   // Results
   WarningResultSchema,
   type WarningResult,
+  type WarningSummary,
   // Suppression records
   SuppressionRecordSchema,
   type SuppressionRecord,
@@ -39,4 +44,6 @@ export {
   createWarningFingerprint,
   isBlockingWarning,
   countBySeverity,
+  createWarningResult,
+  validateWarningResultConsistency,
 } from './types.js';

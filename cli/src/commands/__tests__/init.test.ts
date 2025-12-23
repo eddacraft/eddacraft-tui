@@ -310,6 +310,11 @@ describe('init command', () => {
   describe('interactive mode', () => {
     it('should use inquirer for interactive setup', async () => {
       const inquirer = await import('inquirer');
+      // Architecture confirmation prompt
+      vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
+        archAction: 'save',
+      });
+
       vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
         planningDir: 'custom/plans',
         format: 'speckit',
@@ -334,6 +339,11 @@ describe('init command', () => {
 
     it('should use custom planning directory from interactive input', async () => {
       const inquirer = await import('inquirer');
+      // Architecture confirmation prompt
+      vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
+        archAction: 'skip',
+      });
+
       vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
         planningDir: 'my-plans',
         format: 'generic',
@@ -356,6 +366,11 @@ describe('init command', () => {
 
     it('should apply strict configuration template', async () => {
       const inquirer = await import('inquirer');
+      // Architecture confirmation prompt
+      vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
+        archAction: 'skip',
+      });
+
       vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
         planningDir: 'docs/plans',
         format: 'skip',
@@ -377,6 +392,11 @@ describe('init command', () => {
 
     it('should skip example generation when format is "skip"', async () => {
       const inquirer = await import('inquirer');
+      // Architecture confirmation prompt
+      vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
+        archAction: 'skip',
+      });
+
       vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
         planningDir: 'docs/plans',
         format: 'skip',

@@ -292,6 +292,23 @@ core/src/antipattern/
 | AP-004 | New `any` type                 | AST: `any` keyword in type position                   | warning  |
 | AP-005 | Type assertion to any          | AST: `as any`, `<any>`                                | warning  |
 | AP-006 | Non-null assertion overuse     | AST: `!` postfix operator (threshold: >3 per file)    | info     |
+| AP-007 | Suppressed any usage           | Regex: `as any.*eslint-disable` on same/adjacent line | error    |
+
+**AP-007 Suppressed Any Usage** is a "double escape hatch" - using `as any` AND
+suppressing the lint rule that would catch it. This is particularly dangerous
+because:
+
+1. The code bypasses type safety (`as any`)
+2. The lint rule that would flag this is disabled
+3. Explanatory comments make it "sound legit" but don't fix the underlying issue
+
+Detection: Look for patterns like:
+
+- `as any); // eslint-disable-line @typescript-eslint/no-explicit-any`
+- `as any; // eslint-disable-next-line` on the preceding line
+
+This pattern is elevated to `error` severity because it represents intentional
+circumvention of multiple safety layers.
 
 ##### Error Handling
 

@@ -69,6 +69,17 @@ export function createGateConfigCommand(): Command {
   return command;
 }
 
+/** Answer type for overall threshold prompt */
+interface ThresholdAnswers {
+  overallThreshold: number;
+}
+
+/** Answer type for individual check configuration */
+interface CheckConfigAnswers {
+  enabled: boolean;
+  minScore?: number;
+}
+
 async function runInteractiveConfig(configManager: GateConfigManager): Promise<void> {
   const config = configManager.loadConfig();
 
@@ -76,36 +87,36 @@ async function runInteractiveConfig(configManager: GateConfigManager): Promise<v
   console.log('=============================\n');
 
   // Configure overall threshold
-  const { overallThreshold } = await inquirer.prompt([
+  const thresholdResult = (await inquirer.prompt([
     {
-      type: 'number',
-      name: 'overallThreshold',
+      type: 'number' as const,
+      name: 'overallThreshold' as const,
       message: 'Overall score threshold (0-100):',
       default: config.thresholds.overall_score,
       validate: (input: number) => (input >= 0 && input <= 100) || 'Must be between 0 and 100',
     },
-  ] as any); // eslint-disable-line @typescript-eslint/no-explicit-any -- inquirer types require any
+  ])) as ThresholdAnswers;
 
-  config.thresholds.overall_score = overallThreshold;
+  config.thresholds.overall_score = thresholdResult.overallThreshold;
 
   // Configure individual checks
   for (const check of config.checks) {
-    const answers = await inquirer.prompt([
+    const answers = (await inquirer.prompt([
       {
-        type: 'confirm',
-        name: 'enabled',
+        type: 'confirm' as const,
+        name: 'enabled' as const,
         message: `Enable ${check.name} check?`,
         default: check.enabled,
       },
       {
-        type: 'number',
-        name: 'minScore',
+        type: 'number' as const,
+        name: 'minScore' as const,
         message: `Minimum score for ${check.name} (0-100):`,
         default: check.config?.min_score || 80,
         validate: (input: number) => (input >= 0 && input <= 100) || 'Must be between 0 and 100',
-        when: (answers: { enabled: boolean }) => answers.enabled,
+        when: (currentAnswers: Record<string, unknown>) => Boolean(currentAnswers['enabled']),
       },
-    ] as any); // eslint-disable-line @typescript-eslint/no-explicit-any -- inquirer types require any
+    ])) as CheckConfigAnswers;
 
     check.enabled = answers.enabled;
     if (answers.enabled && answers.minScore !== undefined) {

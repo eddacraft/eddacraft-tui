@@ -11,6 +11,14 @@ import {
   type ConfigTemplate,
   type InitOptions,
 } from '../services/template-generator.js';
+import {
+  analyseProjectArchitecture,
+  formatEntryPoints,
+  formatLayerDiagram,
+  saveArchitectureBaseline,
+  hasExistingBaseline,
+  type ArchitectureSummary,
+} from '../services/architecture-service.js';
 import { success, error } from '../utils/output.js';
 
 export function createInitCommand(): Command {
@@ -50,6 +58,73 @@ export function createInitCommand(): Command {
           chalk.dim(`  Testing: ${env.hasVitest ? 'Vitest' : env.hasJest ? 'Jest' : '✗'}`)
         );
         console.log('');
+
+        // Analyse project architecture
+        const archSpinner = ora('Analysing project structure...').start();
+        let archSummary: ArchitectureSummary | null = null;
+        let shouldCreateBaseline = false;
+
+        try {
+          archSummary = await analyseProjectArchitecture(projectRoot);
+          archSpinner.succeed(
+            chalk.green(
+              `Found ${archSummary.moduleCount} modules, ${archSummary.entryPoints.length} entry points`
+            )
+          );
+
+          // Display architecture summary
+          if (archSummary.entryPoints.length > 0) {
+            console.log(chalk.cyan('\nDetected entry points:'));
+            formatEntryPoints(archSummary.entryPoints).forEach((line) =>
+              console.log(chalk.dim(line))
+            );
+          }
+
+          // Display layer diagram
+          console.log(chalk.cyan('\nDetected layer structure:'));
+          formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
+            console.log(chalk.dim(line))
+          );
+          console.log('');
+
+          // Ask for confirmation (unless non-interactive)
+          if (!options.nonInteractive) {
+            const existingBaseline = hasExistingBaseline(projectRoot);
+            const confirmAnswer = await inquirer.prompt([
+              {
+                type: 'list' as const,
+                name: 'archAction' as const,
+                message: existingBaseline
+                  ? 'Architecture baseline exists. What would you like to do?'
+                  : 'Does this architecture look correct?',
+                choices: existingBaseline
+                  ? [
+                      { name: 'Keep existing baseline', value: 'keep' },
+                      { name: 'Update with new analysis', value: 'update' },
+                      { name: 'Skip architecture setup', value: 'skip' },
+                    ]
+                  : [
+                      { name: 'Yes, save as baseline', value: 'save' },
+                      { name: 'Skip architecture setup for now', value: 'skip' },
+                    ],
+                default: existingBaseline ? 'keep' : 'save',
+              },
+            ]);
+
+            shouldCreateBaseline =
+              confirmAnswer.archAction === 'save' || confirmAnswer.archAction === 'update';
+          } else {
+            // Non-interactive: create baseline if none exists
+            shouldCreateBaseline = !hasExistingBaseline(projectRoot);
+          }
+        } catch (archError) {
+          archSpinner.warn(
+            chalk.yellow('Could not analyse architecture (will skip baseline creation)')
+          );
+          if (archError instanceof Error) {
+            console.log(chalk.dim(`  Reason: ${archError.message}`));
+          }
+        }
 
         let initOptions: InitOptions;
 
@@ -96,12 +171,21 @@ export function createInitCommand(): Command {
           // Generate example plans
           const exampleFiles = generator.generateExamplePlan(env);
 
+          // Create architecture baseline if requested
+          if (shouldCreateBaseline && archSummary) {
+            spinner.text = 'Creating architecture baseline...';
+            saveArchitectureBaseline(projectRoot, archSummary);
+          }
+
           spinner.succeed(chalk.green('Anvil initialised successfully!'));
 
           // Show summary
           console.log('\n' + chalk.bold('Created files:'));
           console.log(chalk.dim('  ✓ .anvilrc'));
           console.log(chalk.dim('  ✓ .anvil/'));
+          if (shouldCreateBaseline && archSummary) {
+            console.log(chalk.dim('  ✓ .anvil/architecture.json'));
+          }
           console.log(chalk.dim(`  ✓ ${initOptions.planningDir}/`));
           if (env.hasGit) {
             console.log(chalk.dim('  ✓ .gitignore (updated)'));
@@ -147,14 +231,31 @@ export function createInitCommand(): Command {
   return command;
 }
 
+/** Answer type for initial setup prompts */
+interface SetupAnswers {
+  planningDir: string;
+  format: PlanningFormat | 'skip';
+  createExample?: boolean;
+  configTemplate: ConfigTemplate;
+}
+
+/** Answer type for gate check configuration */
+interface GateCheckAnswers {
+  eslint?: boolean;
+  test?: boolean;
+  coverage?: boolean;
+  coverageThreshold?: number;
+  secret?: boolean;
+}
+
 async function runInteractiveSetup(
   env: ReturnType<EnvironmentDetector['detect']>,
   detector: EnvironmentDetector
 ): Promise<InitOptions> {
-  const answers = await inquirer.prompt([
+  const answers = (await inquirer.prompt([
     {
-      type: 'input',
-      name: 'planningDir',
+      type: 'input' as const,
+      name: 'planningDir' as const,
       message: 'Where should planning documents be stored?',
       default: 'docs/plans',
       validate: (input: string) => {
@@ -165,8 +266,8 @@ async function runInteractiveSetup(
       },
     },
     {
-      type: 'list',
-      name: 'format',
+      type: 'list' as const,
+      name: 'format' as const,
       message: 'Which planning format do you use?',
       choices: [
         { name: 'SpecKit (GitHub spec-kit format)', value: 'speckit' },
@@ -177,15 +278,15 @@ async function runInteractiveSetup(
       default: 'generic',
     },
     {
-      type: 'confirm',
-      name: 'createExample',
+      type: 'confirm' as const,
+      name: 'createExample' as const,
       message: 'Create example planning document?',
       default: true,
-      when: (answers: { format: string }) => answers.format !== 'skip',
+      when: (currentAnswers: Record<string, unknown>) => currentAnswers['format'] !== 'skip',
     },
     {
-      type: 'list',
-      name: 'configTemplate',
+      type: 'list' as const,
+      name: 'configTemplate' as const,
       message: 'Configuration template:',
       choices: [
         { name: 'Basic (80% thresholds, recommended)', value: 'basic' },
@@ -194,47 +295,47 @@ async function runInteractiveSetup(
       ],
       default: 'basic',
     },
-  ] as any); // eslint-disable-line @typescript-eslint/no-explicit-any -- inquirer types require any
+  ])) as SetupAnswers;
 
   // Gate checks configuration
   const recommendedChecks = detector.getRecommendedChecks(env);
-  const checkAnswers = await inquirer.prompt([
+  const checkAnswers = (await inquirer.prompt([
     {
-      type: 'confirm',
-      name: 'eslint',
+      type: 'confirm' as const,
+      name: 'eslint' as const,
       message: `Enable ESLint gate?${env.hasEslint ? ' (detected)' : ''}`,
       default: env.hasEslint,
       when: recommendedChecks.includes('eslint') || env.hasEslint,
     },
     {
-      type: 'confirm',
-      name: 'test',
+      type: 'confirm' as const,
+      name: 'test' as const,
       message: `Enable test gate?${env.hasVitest || env.hasJest ? ' (detected)' : ''}`,
       default: env.hasVitest || env.hasJest,
       when: recommendedChecks.includes('test') || env.hasVitest || env.hasJest,
     },
     {
-      type: 'confirm',
-      name: 'coverage',
+      type: 'confirm' as const,
+      name: 'coverage' as const,
       message: 'Enable coverage gate?',
       default: true,
-      when: (answers: { test: boolean }) => answers.test !== false,
+      when: (currentAnswers: Record<string, unknown>) => currentAnswers['test'] !== false,
     },
     {
-      type: 'number',
-      name: 'coverageThreshold',
+      type: 'number' as const,
+      name: 'coverageThreshold' as const,
       message: 'Coverage threshold (0-100):',
       default: answers.configTemplate === 'strict' ? 90 : 80,
       validate: (input: number) => (input >= 0 && input <= 100) || 'Must be between 0 and 100',
-      when: (answers: { coverage: boolean }) => answers.coverage === true,
+      when: (currentAnswers: Record<string, unknown>) => currentAnswers['coverage'] === true,
     },
     {
-      type: 'confirm',
-      name: 'secret',
+      type: 'confirm' as const,
+      name: 'secret' as const,
       message: 'Enable secret scanning?',
       default: true,
     },
-  ] as any); // eslint-disable-line @typescript-eslint/no-explicit-any -- inquirer types require any
+  ])) as GateCheckAnswers;
 
   // Build enabled checks array
   const enabledChecks: string[] = [];
@@ -248,7 +349,7 @@ async function runInteractiveSetup(
     planningDir: answers.planningDir,
     format: answers.format as PlanningFormat,
     createExample: answers.createExample !== false,
-    configTemplate: answers.configTemplate as ConfigTemplate,
+    configTemplate: answers.configTemplate,
     enabledChecks,
     coverageThreshold: checkAnswers.coverageThreshold || 80,
   };

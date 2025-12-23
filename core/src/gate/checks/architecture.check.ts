@@ -8,7 +8,7 @@
  */
 
 import { BaseCheck } from '../check.interface.js';
-import { CheckContext, GateResult } from '../../types/gate.types.js';
+import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
@@ -107,17 +107,19 @@ export class ArchitectureCheck extends BaseCheck {
     try {
       // Step 1: Check if dependency-cruiser is available
       // We use dynamic import to avoid compile-time dependency
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let cruise: any;
+      type CruiseFn = (
+        fileAndDirectoryArray: string[],
+        options?: Record<string, unknown>
+      ) => Promise<{ output: ICruiseResult }>;
+
+      let cruise: CruiseFn;
 
       try {
         // Dynamic import - dependency-cruiser is an optional peer dependency
-        const depCruiser = await (Function('return import("dependency-cruiser")')() as Promise<{
-          cruise: (
-            fileAndDirectoryArray: string[],
-            options?: Record<string, unknown>
-          ) => Promise<{ output: ICruiseResult }>;
-        }>);
+        // Using Function constructor to avoid bundler static analysis
+        const depCruiser = (await Function('return import("dependency-cruiser")')()) as {
+          cruise: CruiseFn;
+        };
         cruise = depCruiser.cruise;
       } catch {
         return this.createSuccess(
@@ -252,31 +254,13 @@ export class ArchitectureCheck extends BaseCheck {
       return config.include_patterns;
     }
 
-    // For 'affected', use targetFiles if provided (planless mode)
-    if (context.targetFiles && context.targetFiles.length > 0) {
-      return context.targetFiles.filter((f) => this.isAnalysableFile(f, config));
-    }
+    // Use unified helper for both planless and plan-based modes
+    // This ensures consistent path normalisation and existence checking
+    const files = getFilesFromContext(context, {
+      filter: (f) => this.isAnalysableFile(f, config),
+    });
 
-    // Otherwise use files from plan
-    const files: string[] = [];
-
-    if (context.plan) {
-      for (const change of context.plan.proposed_changes) {
-        const isRelevantChange =
-          change.type === 'file_create' ||
-          change.type === 'file_update' ||
-          change.type === 'file_delete';
-
-        if (isRelevantChange && change.path && this.isAnalysableFile(change.path, config)) {
-          const fullPath = join(context.workspace_root, change.path);
-          if (existsSync(fullPath) || change.type === 'file_delete') {
-            files.push(fullPath);
-          }
-        }
-      }
-    }
-
-    // If no files from plan match, fall back to include patterns
+    // If no files match, fall back to include patterns
     if (files.length === 0) {
       return config.include_patterns;
     }

@@ -4,9 +4,12 @@ import {
   AntiPatternSchema,
   SuppressionRecordSchema,
   WarningResultSchema,
+  DetectionConfigSchema,
   createWarningFingerprint,
   isBlockingWarning,
   countBySeverity,
+  createWarningResult,
+  validateWarningResultConsistency,
   type Warning,
 } from './types.js';
 
@@ -118,6 +121,68 @@ describe('Warning Schema', () => {
   });
 });
 
+describe('DetectionConfig Schema', () => {
+  it('should validate regex detection with pattern', () => {
+    const config = {
+      type: 'regex',
+      pattern: 'eslint-disable(?!-next-line)',
+    };
+
+    const result = DetectionConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+  });
+
+  it('should validate AST detection with astQuery', () => {
+    const config = {
+      type: 'ast',
+      astQuery: 'NonNullExpression',
+    };
+
+    const result = DetectionConfigSchema.safeParse(config);
+    expect(result.success).toBe(true);
+  });
+
+  it('should reject regex detection without pattern', () => {
+    const config = {
+      type: 'regex',
+      // pattern is missing
+    };
+
+    const result = DetectionConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject AST detection without astQuery', () => {
+    const config = {
+      type: 'ast',
+      // astQuery is missing
+    };
+
+    const result = DetectionConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject regex detection with empty pattern', () => {
+    const config = {
+      type: 'regex',
+      pattern: '',
+    };
+
+    const result = DetectionConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject AST detection with empty astQuery', () => {
+    const config = {
+      type: 'ast',
+      astQuery: '',
+    };
+
+    const result = DetectionConfigSchema.safeParse(config);
+    expect(result.success).toBe(false);
+  });
+});
+
 describe('AntiPattern Schema', () => {
   it('should validate a regex-based pattern', () => {
     const pattern = {
@@ -191,6 +256,26 @@ describe('AntiPattern Schema', () => {
       expect(result.data.enabled).toBe(true);
       expect(result.data.optIn).toBe(false);
     }
+  });
+
+  it('should reject pattern with invalid detection config', () => {
+    const pattern = {
+      id: 'AP-001',
+      name: 'Invalid pattern',
+      category: 'escape-hatch',
+      severity: 'warning',
+      confidence: 'high',
+      detection: {
+        type: 'regex',
+        // pattern is missing - should fail
+      },
+      title: 'Test',
+      explanation: 'Test',
+      suggestion: 'Test',
+    };
+
+    const result = AntiPatternSchema.safeParse(pattern);
+    expect(result.success).toBe(false);
   });
 });
 
@@ -322,7 +407,7 @@ describe('Utility Functions', () => {
   });
 
   describe('countBySeverity', () => {
-    it('should count warnings by severity', () => {
+    it('should count warnings by severity including total', () => {
       const warnings: Warning[] = [
         {
           id: 'AP-023',
@@ -384,11 +469,141 @@ describe('Utility Functions', () => {
 
       const counts = countBySeverity(warnings);
       expect(counts).toEqual({
+        total: 5,
         errors: 1,
         warnings: 2,
         info: 1,
         suppressed: 1,
       });
+    });
+
+    it('should return zero counts for empty array', () => {
+      const counts = countBySeverity([]);
+      expect(counts).toEqual({
+        total: 0,
+        errors: 0,
+        warnings: 0,
+        info: 0,
+        suppressed: 0,
+      });
+    });
+  });
+
+  describe('createWarningResult', () => {
+    it('should create a consistent WarningResult', () => {
+      const warnings: Warning[] = [
+        {
+          id: 'AP-001',
+          category: 'anti-pattern',
+          severity: 'warning',
+          confidence: 'high',
+          title: 'Test',
+          message: 'Test',
+          explanation: 'Test',
+          suggestion: 'Test',
+          location: { file: 'test.ts', line: 1 },
+        },
+        {
+          id: 'AP-023',
+          category: 'anti-pattern',
+          severity: 'error',
+          confidence: 'high',
+          title: 'Error',
+          message: 'Error',
+          explanation: 'Error',
+          suggestion: 'Error',
+          location: { file: 'test.ts', line: 2 },
+        },
+      ];
+
+      const result = createWarningResult(warnings, ['AP-001', 'AP-023']);
+
+      expect(result.warnings).toBe(warnings);
+      expect(result.patterns_checked).toEqual(['AP-001', 'AP-023']);
+      expect(result.summary).toEqual({
+        total: 2,
+        errors: 1,
+        warnings: 1,
+        info: 0,
+        suppressed: 0,
+      });
+    });
+  });
+
+  describe('validateWarningResultConsistency', () => {
+    it('should return true for consistent result', () => {
+      const warnings: Warning[] = [
+        {
+          id: 'AP-001',
+          category: 'anti-pattern',
+          severity: 'warning',
+          confidence: 'high',
+          title: 'Test',
+          message: 'Test',
+          explanation: 'Test',
+          suggestion: 'Test',
+          location: { file: 'test.ts', line: 1 },
+        },
+      ];
+
+      const result = createWarningResult(warnings, ['AP-001']);
+      expect(validateWarningResultConsistency(result)).toBe(true);
+    });
+
+    it('should return false for inconsistent total', () => {
+      const result = {
+        warnings: [
+          {
+            id: 'AP-001',
+            category: 'anti-pattern' as const,
+            severity: 'warning' as const,
+            confidence: 'high' as const,
+            title: 'Test',
+            message: 'Test',
+            explanation: 'Test',
+            suggestion: 'Test',
+            location: { file: 'test.ts', line: 1 },
+          },
+        ],
+        summary: {
+          total: 5, // Wrong!
+          errors: 0,
+          warnings: 1,
+          info: 0,
+          suppressed: 0,
+        },
+        patterns_checked: ['AP-001'],
+      };
+
+      expect(validateWarningResultConsistency(result)).toBe(false);
+    });
+
+    it('should return false for inconsistent severity counts', () => {
+      const result = {
+        warnings: [
+          {
+            id: 'AP-001',
+            category: 'anti-pattern' as const,
+            severity: 'warning' as const,
+            confidence: 'high' as const,
+            title: 'Test',
+            message: 'Test',
+            explanation: 'Test',
+            suggestion: 'Test',
+            location: { file: 'test.ts', line: 1 },
+          },
+        ],
+        summary: {
+          total: 1,
+          errors: 1, // Wrong! Should be 0
+          warnings: 0, // Wrong! Should be 1
+          info: 0,
+          suppressed: 0,
+        },
+        patterns_checked: ['AP-001'],
+      };
+
+      expect(validateWarningResultConsistency(result)).toBe(false);
     });
   });
 });

@@ -5,7 +5,7 @@
  * for APS validation failures.
  */
 
-import { ZodIssue } from 'zod';
+import { ZodIssue, ZodIssueCode } from 'zod';
 
 /**
  * Base validation error class
@@ -86,8 +86,10 @@ function formatZodMessage(issue: ZodIssue): string {
     case 'too_big':
       return `Value ${path} too large: ${issue.message}`;
 
-    case 'unrecognized_keys': {
-      const keys = (issue as any).keys?.join(', ') || 'unknown'; // eslint-disable-line @typescript-eslint/no-explicit-any -- Zod v4 type narrowing
+    case ZodIssueCode.unrecognized_keys: {
+      // TypeScript narrows the type when code === 'unrecognized_keys'
+      // so issue.keys is properly typed as string[]
+      const keys = issue.keys.join(', ');
       return `Unexpected properties ${path}: ${keys}`;
     }
 

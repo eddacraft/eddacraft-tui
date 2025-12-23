@@ -158,6 +158,27 @@ After schema changes that affect golden files:
 pnpm -F core run update-golden-hashes
 ```
 
+# Pre-existing Issues
+
+When you encounter pre-existing issues in the codebase (failing tests, linting
+errors, type errors, etc.) that are **not related to your current task**:
+
+1. **Flag the issue** - Report what you found with specific details
+2. **Ask for permission** - Do not silently fix or ignore pre-existing issues
+3. **Separate concerns** - If approved, fix in a separate commit from your main
+   work
+
+Example:
+
+> I noticed a pre-existing failing test in `memory-cache.test.ts` (unrelated to
+> my changes). Would you like me to investigate and fix it?
+
+This ensures:
+
+- Clear attribution of changes
+- No unexpected side effects
+- Explicit approval for scope expansion
+
 # Key Concepts
 
 ## Anvil Plan Specification (APS)

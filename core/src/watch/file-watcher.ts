@@ -45,7 +45,7 @@ export interface FileWatcherOptions {
 }
 
 /**
- * File watcher events
+ * File watcher events interface (for documentation)
  */
 export interface FileWatcherEvents {
   change: [event: WatchChangeEvent];
@@ -57,6 +57,7 @@ export interface FileWatcherEvents {
  * File watcher wrapping chokidar
  *
  * Emits normalised change events for file add/change/unlink.
+ * Uses method overloads for type-safe event handling.
  */
 export class FileWatcher extends EventEmitter {
   private watcher: ChokidarWatcher | null = null;
@@ -157,11 +158,14 @@ export class FileWatcher extends EventEmitter {
     this.emit('change', event);
   }
 
-  // TypeScript event emitter overrides for type safety
+  // Type-safe event method overloads
+  // The typed overloads provide compile-time safety for callers.
+  // Implementation uses any[] for Node.js EventEmitter compatibility across
+  // different @types/node versions (some don't support generic EventEmitter).
   override on(event: 'change', listener: (event: WatchChangeEvent) => void): this;
   override on(event: 'error', listener: (error: Error) => void): this;
   override on(event: 'ready', listener: () => void): this;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- EventEmitter base requires any[]
   override on(event: string, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
@@ -169,7 +173,7 @@ export class FileWatcher extends EventEmitter {
   override emit(event: 'change', watchEvent: WatchChangeEvent): boolean;
   override emit(event: 'error', error: Error): boolean;
   override emit(event: 'ready'): boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- EventEmitter base requires any[]
   override emit(event: string, ...args: any[]): boolean {
     return super.emit(event, ...args);
   }
