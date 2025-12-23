@@ -59,3 +59,6 @@ export {
   getPatternIds,
   isValidPatternId,
 } from './patterns.js';
+
+// Scanner
+export { type ScanOptions, type ScanResult, scanFile, scanFiles } from './scanner.js';
