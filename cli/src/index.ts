@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { createCheckCommand } from './commands/check.js';
 import { createGateCommand } from './commands/gate.js';
 import { createGateConfigCommand } from './commands/gate-config.js';
 import { createPlanCommand } from './commands/plan.js';
@@ -26,6 +27,7 @@ program
   .version(packageJson.version);
 
 // Register commands
+program.addCommand(createCheckCommand());
 program.addCommand(createInitCommand());
 program.addCommand(createGateCommand());
 program.addCommand(createGateConfigCommand());
