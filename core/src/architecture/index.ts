@@ -79,3 +79,19 @@ export {
   analyseArchitecture,
   inferBaseline,
 } from './analyzer.js';
+
+// Edge detection
+export {
+  type ImportEdge,
+  type BaselineComparison,
+  type ExtractOptions,
+  createEdgeFingerprint,
+  fingerprintEdge,
+  resolveImportPath,
+  extractImports,
+  extractImportsFromFiles,
+  compareToBaseline,
+  toDependencyEdge,
+  deduplicateEdges,
+  filterCrossLayerEdges,
+} from './edge-detector.js';
