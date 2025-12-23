@@ -83,7 +83,7 @@ that are almost always wrong, not style preferences.
 - **Non-scope:** Fixing violations
 - **Files:** `core/src/antipattern/eslint-disable-detector.ts`
 - **Dependencies:** ANTI-001
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** high
 
 ### ANTI-003: Type escape detection
@@ -95,7 +95,7 @@ that are almost always wrong, not style preferences.
 - **Non-scope:** Fixing violations
 - **Files:** `core/src/antipattern/type-escape-detector.ts`
 - **Dependencies:** ANTI-001
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** high
 
 ### ANTI-004: Anti-pattern check integration
@@ -106,7 +106,7 @@ that are almost always wrong, not style preferences.
 - **Non-scope:** CLI commands
 - **Files:** `core/src/gate/checks/antipattern.check.ts`
 - **Dependencies:** ANTI-002, ANTI-003, CORE-002
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** high
 
 ## Decisions

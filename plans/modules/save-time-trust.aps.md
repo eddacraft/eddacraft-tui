@@ -51,7 +51,7 @@ delivers warnings at file-save time.
 - [ ] `anvil check <file>` returns warnings in < 2s (cached)
 - [ ] Warnings include explanation and suggestion
 - [ ] JSON output mode for tooling integration
-- [ ] Exit code reflects warning severity
+- [ ] Exit code 0 for warnings (non-blocking), non-zero only for errors
 
 ## Risks & Mitigations
 
@@ -71,7 +71,7 @@ delivers warnings at file-save time.
 - **Non-scope:** Check implementations
 - **Files:** `core/src/schema/warning.schema.ts`
 - **Dependencies:** —
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** high
 
 ### CORE-002: Check runner refactor
@@ -82,7 +82,7 @@ delivers warnings at file-save time.
 - **Non-scope:** New check implementations
 - **Files:** `core/src/gate/runner.ts`, `core/src/gate/context.ts`
 - **Dependencies:** CORE-001
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** medium
 
 ### CORE-003: CLI check command

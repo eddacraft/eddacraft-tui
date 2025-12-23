@@ -69,7 +69,7 @@ where a function/class reaches across contexts.
 - **Files:** `core/src/architecture/analyzer.ts`,
   `core/src/architecture/baseline.ts`
 - **Dependencies:** —
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** medium
 - **Risks:** May need manual adjustment for non-standard structures
 
@@ -81,7 +81,7 @@ where a function/class reaches across contexts.
 - **Non-scope:** Fixing violations
 - **Files:** `core/src/architecture/edge-detector.ts`
 - **Dependencies:** ARCH-001
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** high
 
 ### ARCH-003: Architecture check integration
@@ -92,7 +92,7 @@ where a function/class reaches across contexts.
 - **Non-scope:** CLI commands
 - **Files:** `core/src/gate/checks/architecture.check.ts`
 - **Dependencies:** ARCH-002, CORE-002
-- **Validation:** `pnpm test core`
+- **Validation:** `nx test core`
 - **Confidence:** high
 
 ### ARCH-004: Init command enhancement
