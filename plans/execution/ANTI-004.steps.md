@@ -9,8 +9,8 @@
 
 ## Prerequisites
 
-- [ ] ANTI-002 complete (ESLint disable detection)
-- [ ] ANTI-003 complete (type escape detection)
+- [x] ANTI-002 complete (ESLint disable detection)
+- [x] ANTI-003 complete (type escape detection)
 - [x] CORE-002 complete (analyzeFiles method)
 
 ## Context

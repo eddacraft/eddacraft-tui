@@ -9,7 +9,7 @@
 
 ## Prerequisites
 
-- [ ] ARCH-002 complete (new edge detection)
+- [x] ARCH-002 complete (new edge detection)
 - [x] CORE-002 complete (analyzeFiles method)
 
 ## Context
