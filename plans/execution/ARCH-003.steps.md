@@ -5,7 +5,7 @@
 | Source     | [../modules/architecture-safety.aps.md](../modules/architecture-safety.aps.md) |
 | Task(s)    | ARCH-003 — Architecture check integration                                      |
 | Created by | AI                                                                             |
-| Status     | Draft                                                                          |
+| Status     | Completed                                                                      |
 
 ## Prerequisites
 
@@ -50,7 +50,7 @@ analyzer and return `WarningResult` for planless mode.
 
 ## Completion
 
-- [ ] All checkpoints validated
-- [ ] Task marked complete in source module
+- [x] All checkpoints validated
+- [x] Task marked complete in source module
 
-**Completed by:** —
+**Completed by:** AI (2025-12-25)

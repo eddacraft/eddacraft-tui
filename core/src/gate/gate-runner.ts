@@ -13,11 +13,13 @@ import { SecretCheck } from './checks/secret.check.js';
 import { DependencyCheck } from './checks/dependency.check.js';
 import { PolicyCheck } from './checks/policy.check.js';
 import { ArchitectureCheck } from './checks/architecture.check.js';
+import { AntipatternCheck } from './checks/antipattern.check.js';
 import type { CacheProvider } from '../cache/types.js';
 import { NullCacheProvider } from '../cache/providers/null-cache.js';
 import { generateCacheKey, hashCheckConfig, generateInputHash } from '../cache/cache-key.js';
 import type { Warning, WarningResult } from '../antipattern/types.js';
 import { createWarningResult } from '../antipattern/types.js';
+import { SuppressionService, type SuppressionStats } from '../suppression/service.js';
 
 /**
  * Internal type for checks to run
@@ -107,7 +109,7 @@ export interface AnalyzeOptions {
   cache?: CacheProvider;
   /** Force bypass cache for this run */
   noCache?: boolean;
-  /** Which checks to run (defaults to ['architecture']) */
+  /** Which checks to run (defaults to ['architecture', 'antipattern']) */
   checks?: ('architecture' | 'antipattern')[];
   /** Max parallel checks (1 = sequential) */
   parallelLimit?: number;
@@ -117,6 +119,8 @@ export interface AnalyzeOptions {
   onWarning?: (warning: Warning) => void;
   /** Optional hook invoked when analysis completes */
   onResult?: (result: AnalyzeResult) => void;
+  /** Enable suppression checking (default: true) */
+  suppressions?: boolean;
 }
 
 /**
@@ -131,6 +135,8 @@ export interface AnalyzeResult {
   checksRun: string[];
   /** Whether any blocking warnings (severity: error, not suppressed) exist */
   hasBlockingWarnings: boolean;
+  /** Suppression statistics (only present if suppressions enabled) */
+  suppressionStats?: SuppressionStats;
 }
 
 export class GateRunner {
@@ -170,7 +176,7 @@ export class GateRunner {
       ? new NullCacheProvider()
       : (options?.cache ?? this.defaultCache);
 
-    const checksToRun = options?.checks ?? ['architecture'];
+    const checksToRun = options?.checks ?? ['architecture', 'antipattern'];
     const allWarnings: Warning[] = [];
     const patternsChecked: string[] = [];
     const checksRun: string[] = [];
@@ -265,14 +271,27 @@ export class GateRunner {
 
     await Promise.all(workers);
 
-    const warningResult = createWarningResult(allWarnings, [...new Set(patternsChecked)]);
-    const hasBlocking = allWarnings.some((w) => w.severity === 'error' && !w.suppressed);
+    let processedWarnings = allWarnings;
+    let suppressionStats: SuppressionStats | undefined;
+
+    const suppressionsEnabled = options?.suppressions !== false;
+    if (suppressionsEnabled && files.length > 0) {
+      const suppressionService = new SuppressionService(workspaceRoot);
+      await suppressionService.initialize();
+      await suppressionService.processFiles(files);
+      processedWarnings = suppressionService.applyToAllWarnings(allWarnings);
+      suppressionStats = suppressionService.getStats(processedWarnings);
+    }
+
+    const warningResult = createWarningResult(processedWarnings, [...new Set(patternsChecked)]);
+    const hasBlocking = processedWarnings.some((w) => w.severity === 'error' && !w.suppressed);
 
     const result: AnalyzeResult = {
       warnings: warningResult,
       executionTimeMs: Date.now() - startTime,
       checksRun,
       hasBlockingWarnings: hasBlocking,
+      suppressionStats,
     };
 
     options?.onResult?.(result);
@@ -637,5 +656,6 @@ export class GateRunner {
     this.registerCheck(new DependencyCheck());
     this.registerCheck(new PolicyCheck());
     this.registerCheck(new ArchitectureCheck());
+    this.registerCheck(new AntipatternCheck());
   }
 }

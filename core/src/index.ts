@@ -26,3 +26,6 @@ export * from './antipattern/index.js';
 
 // Architecture analysis
 export * from './architecture/index.js';
+
+// Suppression functionality
+export * from './suppression/index.js';

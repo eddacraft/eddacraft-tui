@@ -5,7 +5,7 @@
 | Source     | [../modules/antipattern-library.aps.md](../modules/antipattern-library.aps.md) |
 | Task(s)    | ANTI-004 — Anti-pattern check integration                                      |
 | Created by | AI                                                                             |
-| Status     | Draft                                                                          |
+| Status     | Completed                                                                      |
 
 ## Prerequisites
 
@@ -66,7 +66,7 @@ Wire anti-pattern detectors into the GateRunner check system. Must return
 
 ## Completion
 
-- [ ] All checkpoints validated
-- [ ] Task marked complete in source module
+- [x] All checkpoints validated
+- [x] Task marked complete in source module
 
-**Completed by:** —
+**Completed by:** AI (2025-12-25)

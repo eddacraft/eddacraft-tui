@@ -3,10 +3,9 @@ import { ArchitectureCheck } from './architecture.check.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
 
-// Mock plan for testing
 const createMockPlan = (changes: Array<{ type: string; path: string }>): APSPlan => ({
   id: 'aps-12345678',
-  hash: 'abc123',
+  hash: 'a'.repeat(64),
   schema_version: '0.1.0',
   intent: 'Test plan',
   proposed_changes: changes.map((c) => ({
@@ -15,11 +14,14 @@ const createMockPlan = (changes: Array<{ type: string; path: string }>): APSPlan
     description: `Test change to ${c.path}`,
   })),
   provenance: {
-    source_format: 'test',
-    source_file: 'test.md',
-    conversion_timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString(),
+    source: 'cli',
+    version: '1.0.0',
   },
-  validations: [],
+  validations: {
+    required_checks: [],
+    skip_checks: [],
+  },
   tags: [],
 });
 
@@ -195,6 +197,264 @@ describe('ArchitectureCheck', () => {
       const result = await check.run(context);
 
       expect(result.details).toBeDefined();
+    });
+  });
+
+  describe('WarningResult output', () => {
+    it('should include warnings in details when skipped', async () => {
+      const context = createMockContext();
+      const result = await check.run(context);
+
+      expect(result.details?.warnings).toBeDefined();
+      expect(result.details?.warnings?.warnings).toBeInstanceOf(Array);
+    });
+
+    it('should include patterns_checked in warnings', async () => {
+      const context = createMockContext();
+      const result = await check.run(context);
+
+      if (result.details?.warnings) {
+        expect(result.details.warnings.patterns_checked).toBeInstanceOf(Array);
+      }
+    });
+
+    it('should include summary in warnings', async () => {
+      const context = createMockContext();
+      const result = await check.run(context);
+
+      if (result.details?.warnings) {
+        expect(result.details.warnings.summary).toBeDefined();
+        expect(typeof result.details.warnings.summary.total).toBe('number');
+        expect(typeof result.details.warnings.summary.errors).toBe('number');
+        expect(typeof result.details.warnings.summary.warnings).toBe('number');
+        expect(typeof result.details.warnings.summary.info).toBe('number');
+      }
+    });
+  });
+
+  describe('baseline-aware behaviour', () => {
+    it('should include baselineLoaded in details when no baseline exists', async () => {
+      const context = createMockContext();
+      const result = await check.run(context);
+
+      if (!result.details?.skipped) {
+        expect(result.details?.baselineLoaded).toBe(false);
+      }
+    });
+  });
+
+  describe('isNewViolation logic (via integration)', () => {
+    it('should match violations by from_file, to_file, AND rule when rule field exists in baseline', () => {
+      const checkInstance = new ArchitectureCheck();
+      const isNewViolation = (
+        checkInstance as unknown as {
+          isNewViolation: (
+            violation: { from: string; to: string; rule: { name: string; severity: string } },
+            baseline: {
+              baseline_snapshot: {
+                violations: Array<{
+                  id: string;
+                  from_layer: string;
+                  to_layer: string;
+                  from_file: string;
+                  to_file: string;
+                  import_line: number;
+                  rule?: string;
+                }>;
+              };
+            }
+          ) => boolean;
+        }
+      ).isNewViolation.bind(checkInstance);
+
+      const baselineWithRule = {
+        baseline_snapshot: {
+          violations: [
+            {
+              id: 'test-1',
+              from_layer: 'domain',
+              to_layer: 'infrastructure',
+              from_file: 'src/a.ts',
+              to_file: 'src/b.ts',
+              import_line: 10,
+              rule: 'no-circular',
+            },
+          ],
+        },
+      };
+
+      expect(
+        isNewViolation(
+          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-circular', severity: 'error' } },
+          baselineWithRule
+        )
+      ).toBe(false);
+
+      expect(
+        isNewViolation(
+          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-orphans', severity: 'warn' } },
+          baselineWithRule
+        )
+      ).toBe(true);
+    });
+
+    it('should match only by from_file and to_file when rule field is missing (backwards compat)', () => {
+      const checkInstance = new ArchitectureCheck();
+      const isNewViolation = (
+        checkInstance as unknown as {
+          isNewViolation: (
+            violation: { from: string; to: string; rule: { name: string; severity: string } },
+            baseline: {
+              baseline_snapshot: {
+                violations: Array<{
+                  id: string;
+                  from_layer: string;
+                  to_layer: string;
+                  from_file: string;
+                  to_file: string;
+                  import_line: number;
+                }>;
+              };
+            }
+          ) => boolean;
+        }
+      ).isNewViolation.bind(checkInstance);
+
+      const baselineWithoutRule = {
+        baseline_snapshot: {
+          violations: [
+            {
+              id: 'test-1',
+              from_layer: 'domain',
+              to_layer: 'infrastructure',
+              from_file: 'src/a.ts',
+              to_file: 'src/b.ts',
+              import_line: 10,
+            },
+          ],
+        },
+      };
+
+      expect(
+        isNewViolation(
+          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-circular', severity: 'error' } },
+          baselineWithoutRule
+        )
+      ).toBe(false);
+
+      expect(
+        isNewViolation(
+          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-orphans', severity: 'warn' } },
+          baselineWithoutRule
+        )
+      ).toBe(false);
+    });
+
+    it('should detect new violations not in baseline', () => {
+      const checkInstance = new ArchitectureCheck();
+      const isNewViolation = (
+        checkInstance as unknown as {
+          isNewViolation: (
+            violation: { from: string; to: string; rule: { name: string; severity: string } },
+            baseline: {
+              baseline_snapshot: {
+                violations: Array<{
+                  id: string;
+                  from_layer: string;
+                  to_layer: string;
+                  from_file: string;
+                  to_file: string;
+                  import_line: number;
+                  rule?: string;
+                }>;
+              };
+            }
+          ) => boolean;
+        }
+      ).isNewViolation.bind(checkInstance);
+
+      const baseline = {
+        baseline_snapshot: {
+          violations: [
+            {
+              id: 'test-1',
+              from_layer: 'domain',
+              to_layer: 'infrastructure',
+              from_file: 'src/existing.ts',
+              to_file: 'src/other.ts',
+              import_line: 10,
+              rule: 'no-circular',
+            },
+          ],
+        },
+      };
+
+      expect(
+        isNewViolation(
+          {
+            from: 'src/new.ts',
+            to: 'src/another.ts',
+            rule: { name: 'no-circular', severity: 'error' },
+          },
+          baseline
+        )
+      ).toBe(true);
+    });
+  });
+
+  describe('calculateScore with effective violations', () => {
+    it('should calculate score from provided violations', () => {
+      const checkInstance = new ArchitectureCheck();
+      const calculateScore = (
+        checkInstance as unknown as {
+          calculateScore: (
+            violations: Array<{
+              from: string;
+              to: string;
+              rule: { name: string; severity: 'error' | 'warn' | 'info' | 'ignore' };
+              cycle?: string[];
+            }>,
+            config: {
+              fail_on_circular: boolean;
+              fail_on_orphan: boolean;
+              severity_threshold: string;
+            }
+          ) => { score: number; passed: boolean; violationsByType: Record<string, number> };
+        }
+      ).calculateScore.bind(checkInstance);
+
+      const errorViolation = {
+        from: 'src/a.ts',
+        to: 'src/b.ts',
+        rule: { name: 'no-circular', severity: 'error' as const },
+        cycle: ['src/a.ts', 'src/b.ts'],
+      };
+
+      const warnViolation = {
+        from: 'src/c.ts',
+        to: 'src/d.ts',
+        rule: { name: 'no-orphans', severity: 'warn' as const },
+      };
+
+      const config = {
+        fail_on_circular: true,
+        fail_on_orphan: false,
+        severity_threshold: 'error',
+      };
+
+      const resultEmpty = calculateScore([], config);
+      expect(resultEmpty.score).toBe(100);
+      expect(resultEmpty.passed).toBe(true);
+
+      const resultOneError = calculateScore([errorViolation], config);
+      expect(resultOneError.score).toBe(85);
+      expect(resultOneError.passed).toBe(false);
+      expect(resultOneError.violationsByType.circular).toBe(1);
+
+      const resultOneWarn = calculateScore([warnViolation], config);
+      expect(resultOneWarn.score).toBe(95);
+      expect(resultOneWarn.passed).toBe(true);
+      expect(resultOneWarn.violationsByType.orphan).toBe(1);
     });
   });
 });

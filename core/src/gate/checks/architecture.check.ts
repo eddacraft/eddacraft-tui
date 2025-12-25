@@ -11,6 +11,46 @@ import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { loadBaseline } from '../../architecture/baseline.js';
+import type { ArchitectureBaseline } from '../../architecture/types.js';
+import {
+  createWarningResult,
+  createWarningFingerprint,
+  type Warning,
+  type WarningResult,
+  type WarningSeverity,
+} from '../../antipattern/types.js';
+
+const ARCH_VIOLATION_IDS = {
+  circular: 'ARCH-001',
+  orphan: 'ARCH-002',
+  layer: 'ARCH-003',
+  other: 'ARCH-004',
+} as const;
+
+const ARCH_VIOLATION_TITLES = {
+  'ARCH-001': 'Circular dependency detected',
+  'ARCH-002': 'Orphaned module',
+  'ARCH-003': 'Layer/boundary violation',
+  'ARCH-004': 'Architecture violation',
+} as const;
+
+const ARCH_VIOLATION_EXPLANATIONS = {
+  'ARCH-001':
+    'Circular dependencies make code harder to understand and can cause issues with module loading.',
+  'ARCH-002':
+    'This module has no dependents or dependencies, which may indicate dead code or missing integration.',
+  'ARCH-003': 'This import crosses an architectural boundary that should not be crossed.',
+  'ARCH-004': 'This import violates a configured architecture rule.',
+} as const;
+
+const ARCH_VIOLATION_SUGGESTIONS = {
+  'ARCH-001':
+    'Break the cycle by extracting shared code into a separate module or using dependency injection.',
+  'ARCH-002': 'Either connect this module to your application or remove it if unused.',
+  'ARCH-003': 'Move the import target to an appropriate layer or adjust the boundary definition.',
+  'ARCH-004': 'Review the dependency-cruiser rule and adjust your code or configuration.',
+} as const;
 
 /**
  * Configuration for architecture check
@@ -125,7 +165,11 @@ export class ArchitectureCheck extends BaseCheck {
         return this.createSuccess(
           'dependency-cruiser not installed. Run `npm install -D dependency-cruiser` to enable architecture checks.',
           100,
-          { skipped: true, reason: 'dependency-cruiser not available' }
+          {
+            skipped: true,
+            reason: 'dependency-cruiser not available',
+            warnings: createWarningResult([], []),
+          }
         );
       }
 
@@ -155,7 +199,9 @@ export class ArchitectureCheck extends BaseCheck {
       const filesToCruise = this.getFilesToCruise(context, effectiveConfig);
 
       if (filesToCruise.length === 0) {
-        return this.createSuccess('No files to analyse for architecture violations', 100);
+        return this.createSuccess('No files to analyse for architecture violations', 100, {
+          warnings: createWarningResult([], []),
+        });
       }
 
       // Step 4: Run dependency-cruiser
@@ -166,19 +212,35 @@ export class ArchitectureCheck extends BaseCheck {
 
       const output = cruiseResult.output as ICruiseResult;
 
-      // Step 5: Process violations
-      const violations = output.summary.violations;
-      const { score, passed, violationsByType } = this.calculateScore(violations, config);
+      // Step 5: Load baseline if exists (for new-only mode)
+      const baseline = loadBaseline(context.workspace_root);
 
-      const message = this.buildMessage(violations, output.summary.totalCruised, passed);
+      // Step 6: Convert ALL violations to Warning format with drift info
+      const allViolations = output.summary.violations;
+      const allWarnings = allViolations.map((v) => this.convertViolationToWarning(v, baseline));
+
+      // Step 7: In new-only mode (when baseline exists), filter to NEW violations only
+      // IMPORTANT: Score and pass/fail must be calculated from filtered set, not all violations
+      const warnings = baseline ? allWarnings.filter((w) => w.drift?.isNew !== false) : allWarnings;
+
+      // Step 8: Calculate score/passed from the effective warnings (new-only when baseline exists)
+      const effectiveViolations = baseline
+        ? allViolations.filter((v) => this.isNewViolation(v, baseline))
+        : allViolations;
+      const { score, passed, violationsByType } = this.calculateScore(effectiveViolations, config);
+
+      const warningResult = this.createArchWarningResult(warnings, violationsByType);
+      const message = this.buildMessage(effectiveViolations, output.summary.totalCruised, passed);
 
       return this.createResult(passed, message, score, {
+        warnings: warningResult,
         totalModulesCruised: output.summary.totalCruised,
-        violationCount: violations.length,
+        violationCount: allViolations.length,
+        newViolationCount: effectiveViolations.length,
         errorCount: output.summary.error,
         warnCount: output.summary.warn,
         infoCount: output.summary.info,
-        violations: violations.map((v) => ({
+        violations: allViolations.map((v) => ({
           from: v.from,
           to: v.to,
           rule: v.rule.name,
@@ -188,6 +250,7 @@ export class ArchitectureCheck extends BaseCheck {
         violationsByType,
         configFile: existsSync(configPath) ? config.config_file : 'built-in defaults',
         scope: config.scope,
+        baselineLoaded: baseline !== null,
       });
     } catch (error) {
       return this.createFailure(
@@ -195,6 +258,86 @@ export class ArchitectureCheck extends BaseCheck {
         error instanceof Error ? error.message : 'Unknown error'
       );
     }
+  }
+
+  private convertViolationToWarning(
+    violation: CruiserViolation,
+    baseline: ArchitectureBaseline | null
+  ): Warning {
+    const violationType = this.categoriseViolation(violation);
+    const id = ARCH_VIOLATION_IDS[violationType];
+    const severity = this.mapCruiserSeverity(violation.rule.severity);
+
+    const warning: Warning = {
+      id,
+      category: 'architecture',
+      severity,
+      confidence: 'high',
+      title: ARCH_VIOLATION_TITLES[id],
+      message: `${violation.from} → ${violation.to} (${violation.rule.name})`,
+      explanation: ARCH_VIOLATION_EXPLANATIONS[id],
+      suggestion: ARCH_VIOLATION_SUGGESTIONS[id],
+      location: {
+        file: violation.from,
+        line: 1,
+      },
+      pattern: violation.rule.name,
+    };
+
+    warning.fingerprint = createWarningFingerprint(warning);
+
+    if (baseline) {
+      const isNew = this.isNewViolation(violation, baseline);
+      warning.drift = {
+        isNew,
+        existingCount: baseline.baseline_snapshot.violations.length,
+      };
+    }
+
+    return warning;
+  }
+
+  private categoriseViolation(
+    violation: CruiserViolation
+  ): 'circular' | 'orphan' | 'layer' | 'other' {
+    if (violation.cycle && violation.cycle.length > 0) {
+      return 'circular';
+    }
+    if (violation.rule.name.includes('orphan')) {
+      return 'orphan';
+    }
+    if (violation.rule.name.includes('layer') || violation.rule.name.includes('boundary')) {
+      return 'layer';
+    }
+    return 'other';
+  }
+
+  private mapCruiserSeverity(severity: 'error' | 'warn' | 'info' | 'ignore'): WarningSeverity {
+    if (severity === 'error') return 'error';
+    if (severity === 'warn') return 'warning';
+    return 'info';
+  }
+
+  private isNewViolation(violation: CruiserViolation, baseline: ArchitectureBaseline): boolean {
+    const baselineViolations = baseline.baseline_snapshot.violations;
+    return !baselineViolations.some((bv) => {
+      const filesMatch = bv.from_file === violation.from && bv.to_file === violation.to;
+      if (!filesMatch) return false;
+      if (bv.rule) {
+        return bv.rule === violation.rule.name;
+      }
+      return true;
+    });
+  }
+
+  private createArchWarningResult(
+    warnings: Warning[],
+    violationsByType: Record<string, number>
+  ): WarningResult {
+    const patternsChecked = Object.keys(violationsByType).map(
+      (type) => ARCH_VIOLATION_IDS[type as keyof typeof ARCH_VIOLATION_IDS]
+    );
+    return createWarningResult(warnings, patternsChecked);
   }
 
   /**

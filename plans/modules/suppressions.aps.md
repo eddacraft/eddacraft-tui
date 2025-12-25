@@ -3,9 +3,9 @@
 
 # Suppressions
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| SUPP  | —     | medium   | Draft  |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| SUPP  | —     | medium   | Complete |
 
 ## Purpose
 

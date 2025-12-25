@@ -115,6 +115,7 @@ export const BaselineViolationSchema = z.object({
   from_file: z.string().describe('File containing the import'),
   to_file: z.string().describe('File being imported'),
   import_line: z.number().int().positive().describe('Line number of import'),
+  rule: z.string().optional().describe('Rule name that was violated (for matching new violations)'),
 });
 
 export type BaselineViolation = z.infer<typeof BaselineViolationSchema>;
