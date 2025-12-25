@@ -84,4 +84,54 @@ passing)
 
 ---
 
-**Last Updated**: 2025-10-23
+## Suppression Fallback Files Not Parsed (December 2025)
+
+**Severity**: Low
+
+**Issue**: `analyzeFiles()` only parses suppressions for the input files. If a
+check scans additional files (e.g., architecture check fallback to include
+patterns), those suppressions won't be parsed or applied.
+
+**Location**: `core/src/gate/gate-runner.ts:277`,
+`core/src/gate/checks/architecture.check.ts:391`
+
+**Impact**: Suppressions in files not explicitly passed to `analyzeFiles()` will
+not be applied. This only affects edge cases where:
+
+1. Architecture check falls back to include patterns (no explicit files)
+2. Those fallback files contain `@anvil-ignore` comments
+
+**Workaround**: Explicitly pass all relevant files to `analyzeFiles()`.
+
+**Recommended Fix**: Add a separate suppression parsing step in architecture
+check when using fallback patterns, or expose a method to parse additional files
+after initial analysis.
+
+**Status**: Deferred (low priority edge case)
+
+---
+
+## Architecture Baseline Ignores Import Line (December 2025)
+
+**Severity**: Low
+
+**Issue**: `isNewViolation()` compares `from_file`, `to_file`, and `rule` but
+ignores `import_line`. A new violating import between the same files with the
+same rule can be treated as "existing" if only the line number changed.
+
+**Location**: `core/src/gate/checks/architecture.check.ts:321`
+
+**Impact**: If a developer fixes a violation by moving an import to a different
+line (without actually fixing it), the baseline will still match and suppress
+the warning. However, this is arguably correct behaviour — same from/to/rule is
+the same logical violation regardless of line number.
+
+**Rationale for Deferral**: The current behaviour may actually be desirable.
+Adding line number comparison would cause violations to "reappear" when code is
+reformatted or imports are reordered, creating noise.
+
+**Status**: Deferred (behaviour may be intentional)
+
+---
+
+**Last Updated**: 2025-12-25

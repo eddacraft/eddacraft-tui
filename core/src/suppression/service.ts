@@ -28,12 +28,26 @@ export class SuppressionService {
     this.store = store ?? new SuppressionStore(anvilDir);
   }
 
+  private normalizeToRelative(filePath: string): string {
+    if (path.isAbsolute(filePath)) {
+      const withSep = this.workspaceRoot.endsWith(path.sep)
+        ? this.workspaceRoot
+        : this.workspaceRoot + path.sep;
+      if (filePath.startsWith(withSep)) {
+        return filePath.slice(withSep.length);
+      }
+      return path.relative(this.workspaceRoot, filePath);
+    }
+    return filePath;
+  }
+
   async initialize(): Promise<void> {
     await this.store.load();
   }
 
   async parseFileSuppressions(filePath: string): Promise<ParsedSuppression[]> {
-    const cached = this.fileCache.get(filePath);
+    const normalizedPath = this.normalizeToRelative(filePath);
+    const cached = this.fileCache.get(normalizedPath);
     if (cached) {
       return cached;
     }
@@ -44,9 +58,9 @@ export class SuppressionService {
         : path.join(this.workspaceRoot, filePath);
 
       const content = await fs.readFile(absolutePath, 'utf-8');
-      const result = parseSuppressions(content, filePath);
+      const result = parseSuppressions(content, normalizedPath);
 
-      this.fileCache.set(filePath, result.suppressions);
+      this.fileCache.set(normalizedPath, result.suppressions);
       return result.suppressions;
     } catch {
       return [];
@@ -54,14 +68,16 @@ export class SuppressionService {
   }
 
   applyToWarnings(warnings: Warning[], filePath: string, now: Date = new Date()): Warning[] {
-    const suppressions = this.fileCache.get(filePath) ?? [];
+    const normalizedPath = this.normalizeToRelative(filePath);
+    const suppressions = this.fileCache.get(normalizedPath) ?? [];
 
     return warnings.map((warning) => {
       if (warning.suppressed) {
         return warning;
       }
 
-      if (warning.location.file !== filePath) {
+      const normalizedWarningFile = this.normalizeToRelative(warning.location.file);
+      if (normalizedWarningFile !== normalizedPath) {
         return warning;
       }
 
@@ -87,9 +103,10 @@ export class SuppressionService {
     const results: FileSuppressions[] = [];
 
     for (const file of files) {
+      const normalizedFile = this.normalizeToRelative(file);
       const suppressions = await this.parseFileSuppressions(file);
       if (suppressions.length > 0) {
-        results.push({ file, suppressions });
+        results.push({ file: normalizedFile, suppressions });
       }
     }
 
@@ -100,10 +117,10 @@ export class SuppressionService {
     const fileGroups = new Map<string, Warning[]>();
 
     for (const warning of warnings) {
-      const file = warning.location.file;
-      const group = fileGroups.get(file) ?? [];
+      const normalizedFile = this.normalizeToRelative(warning.location.file);
+      const group = fileGroups.get(normalizedFile) ?? [];
       group.push(warning);
-      fileGroups.set(file, group);
+      fileGroups.set(normalizedFile, group);
     }
 
     const result: Warning[] = [];

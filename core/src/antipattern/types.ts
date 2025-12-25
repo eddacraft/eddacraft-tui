@@ -239,6 +239,7 @@ export const SuppressionRecordSchema = z.object({
   timestamp: z.string().datetime().describe('When recorded'),
   commit: z.string().optional().describe('Git commit SHA when added'),
   scope: z.enum(['statement', 'import', 'file', 'line']).describe('Suppression scope'),
+  expires_at: z.string().datetime().optional().describe('Expiry date for time-boxed suppressions'),
 });
 
 export type SuppressionRecord = z.infer<typeof SuppressionRecordSchema>;
