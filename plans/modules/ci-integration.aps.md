@@ -5,45 +5,85 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| CI    | —     | low      | Draft  |
+| CI    | —     | high     | Ready  |
 
 ## Purpose
 
-Mirror save-time warnings in CI/CD pipelines as a fail-safe. Catches issues that
-slip through local development (web commits, skipped hooks).
+Mirror save-time warnings in CI/CD pipelines as the enforcement point. This is
+where governance becomes mandatory — developers can bypass local hooks, but CI
+catches everything before merge.
 
 ## In Scope
 
-- GitHub Action for Anvil checks
+- GitHub Action for Anvil checks (composite action)
 - PR status checks (informational by default — neutral state, not failing)
-- PR comment summaries with warning counts
-- Changed-files-only analysis
+- PR comment summaries with warning counts and details
+- Changed-files-only analysis for performance
+- Inline annotations in PR files view
+- Configurable blocking mode
 
 ## Out of Scope
 
-- GitLab CI (separate module)
-- Merge blocking (configurable, not default)
-- Override commands (v2)
+- GitLab CI (separate module, post-MVP)
+- Override commands via PR comments (v2)
+- Caching between workflow runs (v2)
+- Branch protection rule automation (v2)
 
 ## Interfaces
 
 **Depends on:**
 
-- `save-time-trust` — analysis runner
+- `save-time-trust` — analysis runner (`anvil check`)
+- CLI JSON output mode (`--output json`)
 
 **Exposes:**
 
-- `.github/actions/anvil-check/action.yml`
-- PR comment bot
-
-## Acceptance Criteria
-
-- [ ] GitHub Action runs on PR
-- [ ] Status check posts neutral (informational) by default, not failing
-- [ ] Optional `fail-on-warnings: true` input to enable blocking mode
-- [ ] PR comment shows warning summary with counts
-- [ ] Only changed files analysed
+- `.github/actions/anvil-check/action.yml` — composite action
+- `.github/workflows/anvil.yml.example` — example workflow
+- Documentation in `docs/USER_GUIDE.md`
 
 ## Tasks
 
-_Tasks to be defined when module status is Ready._
+| ID     | Task                                    | Status  | Depends on |
+| ------ | --------------------------------------- | ------- | ---------- |
+| CI-001 | GitHub Action scaffold                  | Pending | —          |
+| CI-002 | Changed files detection                 | Pending | CI-001     |
+| CI-003 | PR comment and status check integration | Pending | CI-002     |
+| CI-004 | Configuration and documentation         | Pending | CI-003     |
+
+## Acceptance Criteria
+
+- [ ] GitHub Action runs on PR open/sync events
+- [ ] Status check posts neutral (informational) by default
+- [ ] Optional `fail-on-warnings: true` input enables blocking mode
+- [ ] PR comment shows warning summary with counts by category
+- [ ] Only changed files analysed (performance)
+- [ ] Inline annotations appear in PR files view
+- [ ] Works with matrix builds (monorepo support)
+- [ ] Clear documentation with copy-paste workflow example
+
+## Technical Notes
+
+### Composite Action vs JavaScript Action
+
+Using composite action (shell scripts) for:
+
+- Transparency — users can see exactly what runs
+- Simplicity — no build step, no node_modules in action
+- Flexibility — easy to modify without rebuilding
+
+### Permissions Required
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+  checks: write
+```
+
+### Exit Codes
+
+- `0` — No issues found
+- `1` — Warnings found (non-blocking by default)
+- `2` — Errors found (always fails)
