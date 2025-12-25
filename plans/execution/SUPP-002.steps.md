@@ -91,8 +91,8 @@ Match logic:
 
 ## Acceptance Criteria
 
-- [ ] Store loads/saves from `.anvil/suppressions.json`
-- [ ] `isSuppressed()` correctly matches by ID, file, line
-- [ ] Expired suppressions do not suppress warnings
-- [ ] `getExpired()` returns list of expired suppressions
-- [ ] All tests pass
+- [x] Store loads/saves from `.anvil/suppressions.json`
+- [x] `isSuppressed()` correctly matches by ID, file, line
+- [x] Expired suppressions do not suppress warnings
+- [x] `getExpired()` returns list of expired suppressions
+- [x] All tests pass

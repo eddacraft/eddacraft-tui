@@ -221,14 +221,38 @@ anvil validate spec.md && anvil gate spec.md
 
 ### Workflow 3: CI/CD Integration
 
-Add to your `.github/workflows/ci.yml`:
+Use the Anvil GitHub Action for automatic PR validation:
 
 ```yaml
-- name: Validate Planning Documents
-  run: |
-    anvil validate docs/spec.md
-    anvil gate docs/spec.md
+name: Anvil Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+  checks: write
+
+jobs:
+  anvil:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/anvil-check
 ```
+
+This provides:
+
+- Automatic changed-files detection
+- PR comment summaries
+- Commit status checks
+- Inline annotations in PR files view
+
+See [GitHub Action README](../.github/actions/anvil-check/README.md) for full
+documentation.
 
 ## Supported Formats
 
@@ -288,12 +312,12 @@ Anvil is under active development. Current capabilities:
 - ✅ **Validate** planning documents in multiple formats
 - ✅ **Quality Gates** (lint, test, coverage, secrets)
 - ✅ **Format Conversion** between SpecKit, BMAD, APS
+- ✅ **GitHub Action** for automatic PR validation
 
 Coming soon:
 
 - ⏳ **Apply** changes with snapshot-based rollback
 - ⏳ **Policy Engine** (OPA/Rego) for custom governance
-- ⏳ **GitHub Action** for automatic PR validation
 
 ---
 

@@ -9,6 +9,7 @@
  */
 
 import { readFileSync } from 'fs';
+import * as path from 'node:path';
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { scanFile, type ScanOptions, type ScanResult } from '../../antipattern/scanner.js';
@@ -70,7 +71,9 @@ export class AntipatternCheck extends BaseCheck {
           continue;
         }
 
-        const relativePath = filePath.replace(context.workspace_root + '/', '');
+        const relativePath = path.isAbsolute(filePath)
+          ? path.relative(context.workspace_root, filePath)
+          : filePath;
         const result: ScanResult = scanFile(relativePath, content, scanOptions);
 
         allWarnings.push(...result.warnings);

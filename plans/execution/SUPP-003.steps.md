@@ -103,8 +103,8 @@ interface AnalyzeResult {
 
 ## Acceptance Criteria
 
-- [ ] `analyzeFiles()` respects inline suppressions
-- [ ] Suppressed warnings have `suppressed` metadata populated
-- [ ] Expired suppressions do not suppress (warnings resurface)
-- [ ] Suppression stats included in AnalyzeResult
-- [ ] All tests pass
+- [x] `analyzeFiles()` respects inline suppressions
+- [x] Suppressed warnings have `suppressed` metadata populated
+- [x] Expired suppressions do not suppress (warnings resurface)
+- [x] Suppression stats included in AnalyzeResult
+- [x] All tests pass

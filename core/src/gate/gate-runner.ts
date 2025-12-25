@@ -20,6 +20,7 @@ import { generateCacheKey, hashCheckConfig, generateInputHash } from '../cache/c
 import type { Warning, WarningResult } from '../antipattern/types.js';
 import { createWarningResult } from '../antipattern/types.js';
 import { SuppressionService, type SuppressionStats } from '../suppression/service.js';
+import { SuppressionStore } from '../suppression/store.js';
 
 /**
  * Internal type for checks to run
@@ -121,6 +122,8 @@ export interface AnalyzeOptions {
   onResult?: (result: AnalyzeResult) => void;
   /** Enable suppression checking (default: true) */
   suppressions?: boolean;
+  /** Pre-configured suppression store (created internally if not provided) */
+  suppressionStore?: SuppressionStore;
 }
 
 /**
@@ -276,7 +279,7 @@ export class GateRunner {
 
     const suppressionsEnabled = options?.suppressions !== false;
     if (suppressionsEnabled && files.length > 0) {
-      const suppressionService = new SuppressionService(workspaceRoot);
+      const suppressionService = new SuppressionService(workspaceRoot, options?.suppressionStore);
       await suppressionService.initialize();
       await suppressionService.processFiles(files);
       processedWarnings = suppressionService.applyToAllWarnings(allWarnings);

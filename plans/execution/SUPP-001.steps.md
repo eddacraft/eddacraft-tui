@@ -84,8 +84,8 @@ function parseSuppressions(
 
 ## Acceptance Criteria
 
-- [ ] Parser extracts warning ID, reason, expiry from comments
-- [ ] Parser rejects empty reasons
-- [ ] Parser handles all comment styles (// /_ /\*\* _/)
-- [ ] Scope detection works correctly
-- [ ] All tests pass
+- [x] Parser extracts warning ID, reason, expiry from comments
+- [x] Parser rejects empty reasons
+- [x] Parser handles all comment styles (// /_ /\*\* _/)
+- [x] Scope detection works correctly
+- [x] All tests pass

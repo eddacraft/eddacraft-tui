@@ -90,7 +90,32 @@ export class SuppressionStore {
     return false;
   }
 
+  /**
+   * Check if a warning is suppressed at the given location.
+   * Returns null if no matching suppression OR if the matching suppression is expired.
+   * Use findSuppressionMatch() if you need to know about expired matches.
+   */
   isSuppressed(
+    warningId: string,
+    file: string,
+    line: number,
+    now: Date = new Date()
+  ): SuppressionMatch | null {
+    const match = this.findSuppressionMatch(warningId, file, line, now);
+
+    // Per acceptance criteria: expired suppressions should NOT suppress warnings
+    if (match && match.isExpired) {
+      return null;
+    }
+
+    return match;
+  }
+
+  /**
+   * Find a suppression match, including expired ones.
+   * Use this when you need to report on expired suppressions.
+   */
+  findSuppressionMatch(
     warningId: string,
     file: string,
     line: number,
@@ -127,12 +152,11 @@ export class SuppressionStore {
   }
 
   private isRecordExpired(record: SuppressionRecord, now: Date): boolean {
-    const expiresAtField = (record as Record<string, unknown>)['expires_at'];
-    if (!expiresAtField || typeof expiresAtField !== 'string') {
+    if (!record.expires_at) {
       return false;
     }
 
-    const expiresAt = new Date(expiresAtField);
+    const expiresAt = new Date(record.expires_at);
     return expiresAt < now;
   }
 
@@ -178,7 +202,7 @@ export class SuppressionStore {
     }
 
     if (parsed.expiresAt) {
-      (record as Record<string, unknown>)['expires_at'] = parsed.expiresAt.toISOString();
+      record.expires_at = parsed.expiresAt.toISOString();
     }
 
     return record;

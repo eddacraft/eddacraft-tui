@@ -676,57 +676,72 @@ anvil export plan.aps.json --to speckit --output ./specs/
 
 ### Workflow 4: CI/CD Integration
 
-Add Anvil to your continuous integration pipeline:
+Add Anvil to your continuous integration pipeline using the GitHub Action:
 
 **GitHub Actions** (`.github/workflows/anvil.yml`):
 
 ```yaml
-name: Anvil Quality Gates
+name: Anvil Check
 
 on:
   pull_request:
-    paths:
-      - 'docs/spec.md'
-      - 'docs/prd.md'
-      - '*.aps.json'
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write # For PR comments
+  statuses: write # For commit status
+  checks: write # For inline annotations
 
 jobs:
-  validate-plans:
+  anvil-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '22'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - name: Install Anvil
-        run: |
-          git clone https://github.com/EddaCraft/anvil-001.git
-          cd anvil-001
-          pnpm install
-          pnpm link:cli
-
-      - name: Validate Planning Documents
-        run: |
-          for file in docs/*.md; do
-            echo "Validating $file"
-            anvil validate "$file" || exit 1
-          done
-
-      - name: Run Quality Gates
-        run: |
-          for file in docs/*.md; do
-            echo "Running gates on $file"
-            anvil gate "$file" || exit 1
-          done
+      - name: Run Anvil Check
+        uses: ./.github/actions/anvil-check
+        # Node version auto-detected from .node-version, .nvmrc, or package.json
 ```
+
+**Features:**
+
+- **Auto-detect changed files** — Only analyses files modified in the PR
+- **PR comments** — Posts summary with warnings/errors count
+- **Commit status** — Sets pass/fail status on the commit
+- **Inline annotations** — Shows issues directly in the PR files view
+- **Non-blocking by default** — Warnings are informational; use
+  `fail-on-warnings: true` for blocking mode
+
+**Monorepo Support:**
+
+```yaml
+jobs:
+  anvil-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [core, cli, adapters]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/anvil-check
+        with:
+          working-directory: packages/${{ matrix.package }}
+```
+
+**Blocking Mode (fail on warnings):**
+
+```yaml
+- uses: ./.github/actions/anvil-check
+  with:
+    fail-on-warnings: 'true'
+```
+
+See [GitHub Action README](../.github/actions/anvil-check/README.md) for
+complete documentation.
 
 **GitLab CI** (`.gitlab-ci.yml`):
 

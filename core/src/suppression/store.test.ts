@@ -284,10 +284,19 @@ describe('SuppressionStore', () => {
 
       store.add(record);
 
-      const match = store.isSuppressed('AP-001', 'file.ts', 10, new Date('2025-01-01'));
+      // isSuppressed() returns null for expired suppressions (per acceptance criteria)
+      const suppressedMatch = store.isSuppressed('AP-001', 'file.ts', 10, new Date('2025-01-01'));
+      expect(suppressedMatch).toBeNull();
 
-      expect(match).not.toBeNull();
-      expect(match?.isExpired).toBe(true);
+      // findSuppressionMatch() returns the match with isExpired flag for reporting
+      const foundMatch = store.findSuppressionMatch(
+        'AP-001',
+        'file.ts',
+        10,
+        new Date('2025-01-01')
+      );
+      expect(foundMatch).not.toBeNull();
+      expect(foundMatch?.isExpired).toBe(true);
     });
   });
 

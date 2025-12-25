@@ -4,7 +4,7 @@ import {
   isExpired,
   suppressionMatches,
   findMatchingSuppression,
-  ParsedSuppression,
+  type ParsedSuppression,
 } from './parser.js';
 
 describe('parseSuppressions', () => {

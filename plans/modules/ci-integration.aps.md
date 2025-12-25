@@ -3,9 +3,9 @@
 
 # CI Integration
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| CI    | —     | high     | Ready  |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| CI    | —     | high     | Complete |
 
 ## Purpose
 
@@ -44,23 +44,23 @@ catches everything before merge.
 
 ## Tasks
 
-| ID     | Task                                    | Status  | Depends on |
-| ------ | --------------------------------------- | ------- | ---------- |
-| CI-001 | GitHub Action scaffold                  | Pending | —          |
-| CI-002 | Changed files detection                 | Pending | CI-001     |
-| CI-003 | PR comment and status check integration | Pending | CI-002     |
-| CI-004 | Configuration and documentation         | Pending | CI-003     |
+| ID     | Task                                    | Status   | Depends on |
+| ------ | --------------------------------------- | -------- | ---------- |
+| CI-001 | GitHub Action scaffold                  | Complete | —          |
+| CI-002 | Changed files detection                 | Complete | CI-001     |
+| CI-003 | PR comment and status check integration | Complete | CI-002     |
+| CI-004 | Configuration and documentation         | Complete | CI-003     |
 
 ## Acceptance Criteria
 
-- [ ] GitHub Action runs on PR open/sync events
-- [ ] Status check posts neutral (informational) by default
-- [ ] Optional `fail-on-warnings: true` input enables blocking mode
-- [ ] PR comment shows warning summary with counts by category
-- [ ] Only changed files analysed (performance)
-- [ ] Inline annotations appear in PR files view
-- [ ] Works with matrix builds (monorepo support)
-- [ ] Clear documentation with copy-paste workflow example
+- [x] GitHub Action runs on PR open/sync events
+- [x] Status check posts neutral (informational) by default
+- [x] Optional `fail-on-warnings: true` input enables blocking mode
+- [x] PR comment shows warning summary with counts by category
+- [x] Only changed files analysed (performance)
+- [x] Inline annotations appear in PR files view
+- [x] Works with matrix builds (monorepo support)
+- [x] Clear documentation with copy-paste workflow example
 
 ## Technical Notes
 
