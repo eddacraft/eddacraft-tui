@@ -41,6 +41,7 @@ export class WatchOrchestrator {
   // Action handlers
   private validateHandler?: ActionHandler;
   private gateHandler?: ActionHandler;
+  private checkHandler?: ActionHandler;
 
   // Statistics
   private stats = {
@@ -77,6 +78,13 @@ export class WatchOrchestrator {
    */
   setGateHandler(handler: ActionHandler): void {
     this.gateHandler = handler;
+  }
+
+  /**
+   * Set the check action handler (for source file analysis)
+   */
+  setCheckHandler(handler: ActionHandler): void {
+    this.checkHandler = handler;
   }
 
   /**
@@ -193,7 +201,19 @@ export class WatchOrchestrator {
    */
   private async runAction(files: string[]): Promise<void> {
     const action = this.config.action;
-    const handler = action === 'validate' ? this.validateHandler : this.gateHandler;
+    let handler: ActionHandler | undefined;
+
+    switch (action) {
+      case 'validate':
+        handler = this.validateHandler;
+        break;
+      case 'gate':
+        handler = this.gateHandler;
+        break;
+      case 'check':
+        handler = this.checkHandler;
+        break;
+    }
 
     if (!handler) {
       console.warn(`No handler registered for action: ${action}`);

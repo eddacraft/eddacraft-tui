@@ -27,7 +27,8 @@ export type {
 } from './types.js';
 
 // Git status checker
-export { GitStatusChecker, createGitStatusChecker } from './git-status.js';
+export { GitStatusChecker, createGitStatusChecker, getChangedFiles } from './git-status.js';
+export type { GetChangedFilesOptions } from './git-status.js';
 
 // Debouncer
 export { ChangeDebouncer, createDebouncer } from './debouncer.js';

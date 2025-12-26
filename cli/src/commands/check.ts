@@ -1,14 +1,25 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { GateRunner, createCacheProvider, type AnalyzeResult, type Warning } from '@anvil/core';
+import {
+  GateRunner,
+  createCacheProvider,
+  getChangedFiles,
+  type AnalyzeResult,
+  type Warning,
+} from '@anvil/core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
+
+const ANALYSABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 
 interface CheckOptions {
   verbose?: boolean;
   json?: boolean;
   cache?: boolean;
+  changed?: boolean;
+  staged?: boolean;
+  since?: string;
 }
 
 interface JSONCheckOutput {
@@ -124,15 +135,67 @@ export function createCheckCommand(): Command {
 
   command
     .description('Analyse files for architecture violations and anti-patterns (planless mode)')
-    .argument('<files...>', 'Files to analyse')
+    .argument('[files...]', 'Files to analyse (optional if using --changed)')
     .option('-v, --verbose', 'Show detailed output including explanations and suggestions')
     .option('--json', 'Output results as JSON')
     .option('--no-cache', 'Disable caching')
+    .option('--changed', 'Analyse git-changed files only')
+    .option('--staged', 'With --changed, analyse only staged files')
+    .option('--since <ref>', 'With --changed, compare against git ref (e.g., main, HEAD~3)')
     .action(async (files: string[], options: CheckOptions) => {
       const spinner = options.json ? null : ora('Analysing files...').start();
 
       try {
         const workspaceRoot = getWorkspaceRoot();
+        let filesToAnalyse = files;
+
+        if (options.changed) {
+          if (spinner) spinner.text = 'Detecting changed files...';
+
+          const changedFiles = await getChangedFiles(workspaceRoot, {
+            staged: options.staged ? true : !options.since,
+            unstaged: options.staged ? false : !options.since,
+            untracked: false,
+            since: options.since,
+            extensions: ANALYSABLE_EXTENSIONS,
+          });
+
+          if (changedFiles.length === 0) {
+            spinner?.stop();
+            if (options.json) {
+              console.log(
+                JSON.stringify(
+                  {
+                    version: '1.0.0',
+                    timestamp: new Date().toISOString(),
+                    files: [],
+                    hasBlockingWarnings: false,
+                    executionTimeMs: 0,
+                    checksRun: [],
+                    warnings: [],
+                    summary: { total: 0, errors: 0, warnings: 0, info: 0, suppressed: 0 },
+                    message: 'No changed files to analyse',
+                  },
+                  null,
+                  2
+                )
+              );
+            } else {
+              info('No changed files to analyse');
+            }
+            process.exit(0);
+          }
+
+          filesToAnalyse = changedFiles;
+          if (spinner) spinner.text = `Analysing ${changedFiles.length} changed file(s)...`;
+        }
+
+        if (filesToAnalyse.length === 0) {
+          spinner?.stop();
+          error('No files specified. Use --changed or provide file paths.');
+          process.exit(1);
+        }
+
         const gateRunner = new GateRunner();
 
         const cacheDisabled = options.cache === false;
@@ -142,7 +205,7 @@ export function createCheckCommand(): Command {
           disabled: cacheDisabled,
         });
 
-        const result = await gateRunner.analyzeFiles(files, workspaceRoot, {
+        const result = await gateRunner.analyzeFiles(filesToAnalyse, workspaceRoot, {
           cache,
           noCache: cacheDisabled,
           checks: ['architecture'],
@@ -151,8 +214,11 @@ export function createCheckCommand(): Command {
         spinner?.stop();
 
         if (options.json) {
-          formatResultsJSON(files, result);
+          formatResultsJSON(filesToAnalyse, result);
         } else {
+          if (options.changed) {
+            console.log(chalk.gray(`\nChecked ${filesToAnalyse.length} changed file(s)\n`));
+          }
           formatResultsHuman(result, options.verbose ?? false);
 
           if (options.verbose) {

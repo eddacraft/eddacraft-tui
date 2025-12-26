@@ -204,14 +204,25 @@ runs:
         echo "$RESULT" >> $GITHUB_OUTPUT
         echo "ANVIL_EOF" >> $GITHUB_OUTPUT
 
-        # Extract counts from JSON (handle missing/invalid JSON gracefully)
-        WARNINGS=$(echo "$RESULT" | jq -r '.summary.warnings // 0' 2>/dev/null || echo "0")
-        ERRORS=$(echo "$RESULT" | jq -r '.summary.errors // 0' 2>/dev/null || echo "0")
+        # Extract counts from JSON based on check-type
+        # - 'check' mode: .summary.warnings, .summary.errors, .warnings[]
+        # - 'gate' mode: .summary.failed, .summary.passed, .checks[]
+        if [[ "${{ inputs.check-type }}" == "gate" ]]; then
+          # Gate mode: use failed/passed counts from gate result structure
+          FAILED=$(echo "$RESULT" | jq -r '.summary.failed // 0' 2>/dev/null || echo "0")
+          PASSED=$(echo "$RESULT" | jq -r '.summary.passed // 0' 2>/dev/null || echo "0")
+          # Map gate failures to errors for consistent output interface
+          WARNINGS=0
+          ERRORS=$FAILED
+          echo "::notice::Anvil gate complete: $PASSED passed, $FAILED failed"
+        else
+          # Check mode: use warnings/errors counts from check result structure
+          WARNINGS=$(echo "$RESULT" | jq -r '.summary.warnings // 0' 2>/dev/null || echo "0")
+          ERRORS=$(echo "$RESULT" | jq -r '.summary.errors // 0' 2>/dev/null || echo "0")
+          echo "::notice::Anvil check complete: $WARNINGS warning(s), $ERRORS error(s)"
+        fi
         echo "warnings-count=$WARNINGS" >> $GITHUB_OUTPUT
         echo "errors-count=$ERRORS" >> $GITHUB_OUTPUT
-
-        # Log summary
-        echo "::notice::Anvil check complete: $WARNINGS warning(s), $ERRORS error(s)"
 
         # Handle exit based on mode
         if [[ "${{ inputs.fail-on-warnings }}" == "true" && $EXIT_CODE -ne 0 ]]; then
@@ -345,20 +356,36 @@ runs:
             return;
           }
 
-          // Skip if no violations to annotate
-          const violations = result.violations || result.warnings || [];
-          if (violations.length === 0) {
-            console.log('No violations to annotate');
+          // Get items to annotate based on check-type
+          const checkType = '${{ inputs.check-type }}';
+          let items = [];
+
+          if (checkType === 'gate') {
+            // Gate mode: annotate failed checks (no file-level annotations available)
+            items = (result.checks || [])
+              .filter(c => !c.passed && !c.skipped)
+              .map(c => ({
+                name: c.name,
+                message: c.message || `Check '${c.name}' failed`,
+                severity: 'error'
+              }));
+          } else {
+            // Check mode: annotate warnings with file locations
+            items = result.warnings || [];
+          }
+
+          if (items.length === 0) {
+            console.log('No items to annotate');
             return;
           }
 
           // Build annotations (GitHub limit: 50 per request)
-          const annotations = violations.slice(0, 50).map(v => ({
-            path: v.file || v.path || 'unknown',
+          const annotations = items.slice(0, 50).map(v => ({
+            path: v.file || v.path || '.github/workflows',
             start_line: v.line || v.start_line || 1,
             end_line: v.end_line || v.line || v.start_line || 1,
             annotation_level: v.severity === 'error' ? 'failure' : 'warning',
-            message: v.id ? `[${v.id}] ${v.message}` : v.message,
+            message: v.id ? `[${v.id}] ${v.message}` : (v.name ? `[${v.name}] ${v.message}` : v.message),
           }));
 
           // Determine conclusion

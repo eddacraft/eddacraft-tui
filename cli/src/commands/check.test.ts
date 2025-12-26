@@ -18,14 +18,25 @@ describe('check command', () => {
     expect(command.description()).toContain('anti-patterns');
   });
 
-  it('should accept files as variadic argument', () => {
+  it('should accept files as optional variadic argument', () => {
     const command = createCheckCommand();
     const args = command.registeredArguments;
 
     expect(args).toHaveLength(1);
     expect(args[0].name()).toBe('files');
     expect(args[0].variadic).toBe(true);
-    expect(args[0].required).toBe(true);
+    expect(args[0].required).toBe(false);
+  });
+
+  it('should have --changed option for git-aware detection', () => {
+    const command = createCheckCommand();
+    const changedOpt = command.options.find((o) => o.long === '--changed');
+    const sinceOpt = command.options.find((o) => o.long === '--since');
+    const stagedOpt = command.options.find((o) => o.long === '--staged');
+
+    expect(changedOpt).toBeDefined();
+    expect(sinceOpt).toBeDefined();
+    expect(stagedOpt).toBeDefined();
   });
 
   it('should have --verbose option', () => {

@@ -40,10 +40,10 @@ const x = 1;
       expect(result.suppressionStats!.total).toBeGreaterThan(0);
 
       const ap001Warnings = result.warnings.warnings.filter((w) => w.id === 'AP-001');
-      if (ap001Warnings.length > 0) {
-        const suppressedAp001 = ap001Warnings.filter((w) => w.suppressed);
-        expect(suppressedAp001.length).toBeGreaterThan(0);
-      }
+      expect(ap001Warnings.length).toBeGreaterThan(0);
+
+      const suppressedAp001 = ap001Warnings.filter((w) => w.suppressed);
+      expect(suppressedAp001.length).toBeGreaterThan(0);
     });
 
     it('does not apply suppressions when disabled', async () => {
@@ -69,14 +69,17 @@ const x = 1;
 
       expect(resultWithoutSuppressions.suppressionStats).toBeUndefined();
 
-      const suppressedWith = resultWithSuppressions.warnings.warnings.filter((w) => w.suppressed);
-      const suppressedWithout = resultWithoutSuppressions.warnings.warnings.filter(
-        (w) => w.suppressed
+      const ap001With = resultWithSuppressions.warnings.warnings.filter((w) => w.id === 'AP-001');
+      const ap001Without = resultWithoutSuppressions.warnings.warnings.filter(
+        (w) => w.id === 'AP-001'
       );
+      expect(ap001With.length).toBeGreaterThan(0);
+      expect(ap001Without.length).toBeGreaterThan(0);
+
+      const suppressedWith = ap001With.filter((w) => w.suppressed);
+      const suppressedWithout = ap001Without.filter((w) => w.suppressed);
+      expect(suppressedWith.length).toBeGreaterThan(0);
       expect(suppressedWithout.length).toBe(0);
-      if (suppressedWith.length > 0) {
-        expect(suppressedWith.length).toBeGreaterThan(suppressedWithout.length);
-      }
     });
 
     it('accepts pre-configured suppression store', async () => {
@@ -118,10 +121,10 @@ const x = 1;
       expect(result.suppressionStats!.expired).toBeGreaterThan(0);
 
       const ap001Warnings = result.warnings.warnings.filter((w) => w.id === 'AP-001');
-      if (ap001Warnings.length > 0) {
-        const unsuppressedAp001 = ap001Warnings.filter((w) => !w.suppressed);
-        expect(unsuppressedAp001.length).toBeGreaterThan(0);
-      }
+      expect(ap001Warnings.length).toBeGreaterThan(0);
+
+      const unsuppressedAp001 = ap001Warnings.filter((w) => !w.suppressed);
+      expect(unsuppressedAp001.length).toBeGreaterThan(0);
     });
   });
 });

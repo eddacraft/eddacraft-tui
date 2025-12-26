@@ -228,3 +228,85 @@ export class GitStatusChecker {
 export function createGitStatusChecker(workspaceRoot: string): GitStatusChecker {
   return new GitStatusChecker(workspaceRoot);
 }
+
+/**
+ * Options for getChangedFiles
+ */
+export interface GetChangedFilesOptions {
+  /** Include staged files (default: true) */
+  staged?: boolean;
+  /** Include unstaged files (default: true) */
+  unstaged?: boolean;
+  /** Include untracked files (default: false) */
+  untracked?: boolean;
+  /** Compare against git ref (e.g., 'main', 'HEAD~3') */
+  since?: string;
+  /** Filter to specific extensions (e.g., ['.ts', '.tsx']) */
+  extensions?: string[];
+}
+
+/**
+ * Get changed files from git with flexible filtering
+ *
+ * @param workspaceRoot - Root directory of the workspace
+ * @param options - Options for filtering changed files
+ * @returns Array of absolute file paths
+ */
+export async function getChangedFiles(
+  workspaceRoot: string,
+  options: GetChangedFilesOptions = {}
+): Promise<string[]> {
+  const { staged = true, unstaged = true, untracked = false, since, extensions } = options;
+
+  const files = new Set<string>();
+
+  try {
+    if (since) {
+      const { stdout } = await execAsync(`git diff --name-only ${since}`, {
+        cwd: workspaceRoot,
+      });
+      const diffFiles = stdout.trim().split('\n').filter(Boolean);
+      for (const file of diffFiles) {
+        files.add(resolve(workspaceRoot, file));
+      }
+    } else {
+      const { stdout } = await execAsync('git status --porcelain', {
+        cwd: workspaceRoot,
+      });
+
+      const lines = stdout.trim().split('\n').filter(Boolean);
+
+      for (const line of lines) {
+        if (line.length < 3) continue;
+
+        const statusCode = line.substring(0, 2);
+        const filePath = line.substring(3).trim();
+        const indexStatus = statusCode[0];
+        const workTreeStatus = statusCode[1];
+
+        const isFileStaged = indexStatus !== ' ' && indexStatus !== '?';
+        const isFileUnstaged = workTreeStatus !== ' ' && workTreeStatus !== '?';
+        const isFileUntracked = statusCode === '??';
+
+        const shouldInclude =
+          (staged && isFileStaged) ||
+          (unstaged && isFileUnstaged) ||
+          (untracked && isFileUntracked);
+
+        if (shouldInclude) {
+          files.add(resolve(workspaceRoot, filePath));
+        }
+      }
+    }
+  } catch {
+    return [];
+  }
+
+  let result = Array.from(files);
+
+  if (extensions && extensions.length > 0) {
+    result = result.filter((file) => extensions.some((ext) => file.endsWith(ext)));
+  }
+
+  return result.sort();
+}

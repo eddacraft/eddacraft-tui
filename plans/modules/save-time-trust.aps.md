@@ -3,9 +3,9 @@
 
 # Save-time Trust
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| CORE  | —     | high     | Draft  |
+| Scope | Owner | Priority | Status      |
+| ----- | ----- | -------- | ----------- |
+| CORE  | —     | high     | In Progress |
 
 ## Purpose
 
@@ -48,10 +48,12 @@ delivers warnings at file-save time.
 
 ## Acceptance Criteria
 
-- [ ] `anvil check <file>` returns warnings in < 2s (cached)
-- [ ] Warnings include explanation and suggestion
-- [ ] JSON output mode for tooling integration
-- [ ] Exit code 0 for warnings (non-blocking), non-zero only for errors
+- [x] `anvil check <file>` returns warnings in < 2s (cached)
+- [x] Warnings include explanation and suggestion
+- [x] JSON output mode for tooling integration
+- [x] Exit code 0 for warnings (non-blocking), non-zero only for errors
+- [ ] `anvil check --changed` analyses git-changed files only
+- [ ] `anvil watch --source` watches source files and runs checks on save
 
 ## Risks & Mitigations
 
@@ -95,6 +97,37 @@ delivers warnings at file-save time.
 - **Dependencies:** CORE-002
 - **Validation:** `anvil check --help`, manual test
 - **Confidence:** high
+- **Status:** Complete
+
+### CORE-004: Git-aware changed file detection
+
+- **Intent:** Add `--changed` flag to `anvil check` for git-aware analysis
+- **Expected Outcome:** `anvil check --changed` analyses only files changed in
+  git (staged, unstaged, or since a ref)
+- **Scope:** `cli/src/commands/check.ts`, `core/src/watch/git-status.ts`
+- **Non-scope:** Full codebase scanning
+- **Files:**
+  - `cli/src/commands/check.ts` — add `--changed`, `--since` flags
+  - `core/src/watch/git-status.ts` — expose git diff utilities
+- **Dependencies:** CORE-003
+- **Validation:** `anvil check --changed` on dirty worktree
+- **Confidence:** high
+- **Status:** Complete
+
+### CORE-005: Source file watch mode
+
+- **Intent:** Extend watch command to support source file analysis on save
+- **Expected Outcome:** `anvil watch --source` watches `.ts/.tsx/.js/.jsx` files
+  and runs `anvil check` on changes
+- **Scope:** `cli/src/commands/watch.ts`
+- **Non-scope:** IDE extension (separate module)
+- **Files:**
+  - `cli/src/commands/watch.ts` — add `--source` flag and check handler
+  - `core/src/watch/orchestrator.ts` — add check action type
+- **Dependencies:** CORE-003, CORE-004
+- **Validation:** `anvil watch --source` on active development
+- **Confidence:** high
+- **Status:** Complete
 
 ## Decisions
 

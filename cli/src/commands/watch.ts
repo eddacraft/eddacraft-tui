@@ -21,26 +21,29 @@ import { PlanLoader } from '../services/plan-loader.js';
 import { createWatchOutput } from '../services/watch-output.js';
 import { error } from '../utils/output.js';
 
-/**
- * Watch command options
- */
+const SOURCE_WATCH_PATTERNS = ['src/**/*.ts', 'src/**/*.tsx', 'lib/**/*.ts', '**/*.ts', '**/*.tsx'];
+const SOURCE_EXCLUDE_PATTERNS = [
+  'node_modules/**',
+  'dist/**',
+  'build/**',
+  '.git/**',
+  'coverage/**',
+  '**/*.test.ts',
+  '**/*.spec.ts',
+  '**/__tests__/**',
+  '**/*.d.ts',
+];
+
 interface WatchOptions {
-  /** Action to run: validate or gate */
-  action?: 'validate' | 'gate';
-  /** Glob patterns to watch (comma-separated) */
+  action?: 'validate' | 'gate' | 'check';
   patterns?: string;
-  /** Patterns to exclude (comma-separated) */
   exclude?: string;
-  /** Debounce interval in ms */
   debounce?: string;
-  /** Include untracked files */
   includeUntracked?: boolean;
-  /** Disable git filtering (watch all changes) */
   noGitFilter?: boolean;
-  /** Gate profile to use */
   profile?: 'dev' | 'ci' | 'production';
-  /** Verbose output */
   verbose?: boolean;
+  source?: boolean;
 }
 
 export function createWatchCommand(): Command {
@@ -49,7 +52,8 @@ export function createWatchCommand(): Command {
   command
     .description('Watch files for changes and run validation or gates in real-time')
     .argument('[file]', 'Specific file to watch (optional)')
-    .option('-a, --action <action>', 'Action to run: validate or gate', 'validate')
+    .option('-a, --action <action>', 'Action to run: validate, gate, or check', 'validate')
+    .option('--source', 'Watch source files and run checks (anti-patterns, architecture)')
     .option('--patterns <patterns>', 'Glob patterns to watch (comma-separated)')
     .option('--exclude <patterns>', 'Patterns to exclude (comma-separated)')
     .option('--debounce <ms>', 'Debounce interval in milliseconds', '300')
@@ -62,20 +66,28 @@ export function createWatchCommand(): Command {
         const workspaceRoot = getWorkspaceRoot();
         const configManager = new GateConfigManager(workspaceRoot);
 
-        // Load watch config from .anvilrc or use defaults
         const savedConfig = configManager.getWatchConfig();
         const defaultConfig = getDefaultWatchConfig();
+        const isSourceMode = options.source === true;
 
         // Build effective config (CLI options override file config)
         const watchConfig: WatchConfig = {
           enabled: true,
           patterns: options.patterns
             ? options.patterns.split(',').map((p) => p.trim())
-            : (savedConfig?.patterns ?? DEFAULT_WATCH_PATTERNS),
+            : isSourceMode
+              ? SOURCE_WATCH_PATTERNS
+              : (savedConfig?.patterns ?? DEFAULT_WATCH_PATTERNS),
           exclude: options.exclude
             ? options.exclude.split(',').map((p) => p.trim())
-            : (savedConfig?.exclude ?? DEFAULT_EXCLUDE_PATTERNS),
-          action: (options.action as 'validate' | 'gate') ?? savedConfig?.action ?? 'validate',
+            : isSourceMode
+              ? SOURCE_EXCLUDE_PATTERNS
+              : (savedConfig?.exclude ?? DEFAULT_EXCLUDE_PATTERNS),
+          action: isSourceMode
+            ? 'check'
+            : ((options.action as 'validate' | 'gate' | 'check') ??
+              savedConfig?.action ??
+              'validate'),
           debounceMs: options.debounce
             ? parseInt(options.debounce, 10)
             : (savedConfig?.debounceMs ?? defaultConfig.debounceMs),
@@ -144,7 +156,6 @@ export function createWatchCommand(): Command {
 
         // Gate handler
         orchestrator.setGateHandler(async (files: string[]): Promise<WatchActionResult> => {
-          // For gate, we typically run on the first plan file
           const filePath = files[0];
 
           try {
@@ -153,10 +164,8 @@ export function createWatchCommand(): Command {
               strict: false,
             });
 
-            // Build gate options
             const gateOptions: { skipChecks?: string[] } = {};
 
-            // Apply profile
             if (watchConfig.gateProfile === 'dev') {
               gateOptions.skipChecks = ['coverage', 'dependency'];
             }
@@ -183,6 +192,36 @@ export function createWatchCommand(): Command {
             return {
               success: false,
               action: 'gate',
+              files,
+              executionTimeMs: 0,
+              error: err instanceof Error ? err.message : String(err),
+            };
+          }
+        });
+
+        // Check handler (for source mode)
+        orchestrator.setCheckHandler(async (files: string[]): Promise<WatchActionResult> => {
+          try {
+            const result = await gateRunner.analyzeFiles(files, workspaceRoot, {
+              checks: ['architecture', 'antipattern'],
+              suppressions: true,
+            });
+
+            return {
+              success: !result.hasBlockingWarnings,
+              action: 'check',
+              files,
+              executionTimeMs: result.executionTimeMs,
+              details: {
+                warnings: result.warnings.warnings,
+                summary: result.warnings.summary,
+                checksRun: result.checksRun,
+              },
+            };
+          } catch (err) {
+            return {
+              success: false,
+              action: 'check',
               files,
               executionTimeMs: 0,
               error: err instanceof Error ? err.message : String(err),

@@ -30,8 +30,8 @@ export const WatchConfigSchema = z.object({
   exclude: z
     .array(z.string())
     .default(['node_modules/**', 'dist/**', 'build/**', '.git/**', 'coverage/**']),
-  /** Action to run on change: validate, gate, or custom */
-  action: z.enum(['validate', 'gate']).default('validate'),
+  /** Action to run on change: validate, gate, or check */
+  action: z.enum(['validate', 'gate', 'check']).default('validate'),
   /** Debounce interval in milliseconds (default: 300) */
   debounceMs: z.number().min(50).max(5000).default(300),
   /** Git filter configuration */
@@ -94,18 +94,18 @@ export type WatchStatusEventType =
   | 'stopped';
 
 /**
- * Action result from validate or gate
+ * Action result from validate, gate, or check
  */
 export interface WatchActionResult {
   /** Whether the action succeeded */
   success: boolean;
   /** Action type that was run */
-  action: 'validate' | 'gate';
+  action: 'validate' | 'gate' | 'check';
   /** Files that were processed */
   files: string[];
   /** Execution time in ms */
   executionTimeMs: number;
-  /** Detailed results (validation errors, gate results, etc.) */
+  /** Detailed results (validation errors, gate results, warnings, etc.) */
   details?: unknown;
   /** Error message if action failed */
   error?: string;
@@ -117,7 +117,7 @@ export interface WatchActionResult {
 export type WatchStatusEvent =
   | { type: 'ready'; patterns: string[]; gitFilter: boolean }
   | { type: 'change'; files: string[]; filtered: string[] }
-  | { type: 'action:start'; action: 'validate' | 'gate'; files: string[] }
+  | { type: 'action:start'; action: 'validate' | 'gate' | 'check'; files: string[] }
   | { type: 'action:complete'; result: WatchActionResult }
   | { type: 'action:error'; error: Error; files: string[] }
   | { type: 'stopped' };
