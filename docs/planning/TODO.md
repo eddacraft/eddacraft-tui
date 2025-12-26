@@ -259,6 +259,114 @@ Unique differentiator — no competitor has this.
 
 ---
 
+## 🚀 Priority 9: TUI Enhancement
+
+**Theme**: Remove friction with rich terminal UI (TUI-first approach)
+
+**Reference**: See [TUI Implementation Plan](../plans/TUI-IMPLEMENTATION-PLAN.md) for detailed steps
+
+### Foundation (Week 1)
+
+- [ ] Project setup with OpenTUI
+  - [ ] Install `@opentui/core` and `@opentui/react`
+  - [ ] Configure Bun runtime support
+  - [ ] Create TUI directory structure (`cli/src/tui/`)
+  - [ ] Set up graceful TTY detection (fallback to CLI)
+
+- [ ] Component library (reusable TUI components)
+  - [ ] Layout components: `Box`, `Container`, `Grid`
+  - [ ] Display components: `Header`, `InfoPanel`, `List`, `Table`
+  - [ ] Input components: `Select`, `Checkbox`, `TextInput`
+  - [ ] Feedback components: `Spinner`, `StatusMessage`, `ProgressBar`
+  - [ ] Renderer utilities (`renderTUI`, `isTUIAvailable`)
+
+- [ ] Testing infrastructure
+  - [ ] Vitest configuration for TUI components
+  - [ ] Component testing with `@testing-library/react`
+  - [ ] Mock TTY environment for tests
+
+### Core Commands (Week 2)
+
+- [ ] `anvil init` TUI wizard
+  - [ ] Step 1: Mode selection (local-only vs connected)
+  - [ ] Step 2: Format selection with context
+  - [ ] Step 3: Plans directory configuration
+  - [ ] Step 4: Git hooks preview and install
+  - [ ] Step 5: Configuration summary
+  - [ ] State management with React hooks
+  - [ ] Non-interactive fallback mode
+
+- [ ] `anvil status` TUI dashboard
+  - [ ] Hooks status panel (installed, last run, pass/fail)
+  - [ ] Repository profile (format, plans directory)
+  - [ ] Recent validation results
+  - [ ] Quality gate status
+  - [ ] Keyboard navigation (j/k, q to quit)
+  - [ ] Auto-refresh option
+
+- [ ] `anvil doctor` diagnostics
+  - [ ] System checks (Node, pnpm, Git)
+  - [ ] Configuration validation
+  - [ ] Hooks installation status
+  - [ ] Permissions checks
+  - [ ] Auto-fix suggestions
+  - [ ] One-click fix execution
+
+### Enhanced Features (Week 2-3)
+
+- [ ] First-run experience
+  - [ ] Welcome screen (detect first run)
+  - [ ] Quick start guide
+  - [ ] Interactive setup wizard
+  - [ ] Value proposition messaging
+
+- [ ] Static template library
+  - [ ] Create `cli/templates/` directory
+  - [ ] Curate 10-15 common templates (JWT auth, REST API, etc.)
+  - [ ] Template browser TUI (`anvil new`)
+  - [ ] Variable substitution (project name, author, date)
+  - [ ] Format-specific templates (SpecKit, BMAD, Generic)
+
+- [ ] Interactive tutorial
+  - [ ] Step-by-step walkthrough
+  - [ ] Sample plan creation
+  - [ ] Validation demo
+  - [ ] Gate demo
+  - [ ] Progress tracking
+
+### Integration & Polish (Week 3-4)
+
+- [ ] CLI integration
+  - [ ] Update existing commands to use TUI components
+  - [ ] Add `--no-tui` flag for all commands
+  - [ ] CI detection and auto-fallback
+  - [ ] Ensure backward compatibility
+
+- [ ] GitHub Action enhancement
+  - [ ] Rich PR comments (without AI)
+  - [ ] Validation summary table
+  - [ ] Quality gate results
+  - [ ] File change analysis
+  - [ ] Artifact links
+
+- [ ] Documentation
+  - [ ] TUI feature guide
+  - [ ] Component library docs
+  - [ ] Migration guide for existing users
+  - [ ] Video demos/GIFs
+
+- [ ] Testing & QA
+  - [ ] Component test coverage > 90%
+  - [ ] E2E tests for TUI commands
+  - [ ] Cross-platform testing (Linux, macOS, Windows)
+  - [ ] Performance testing (render latency)
+
+**Total Effort**: ~60 hours (1 month)
+**Dependencies**: None (no AI required)
+**Value**: High (removes friction, improves DX, differentiator)
+
+---
+
 ## Deferred (Post-MVP)
 
 ### APS Planning Docs Integration (In Progress - See docs/planning/aps-spinout-v0.3.aps.md)

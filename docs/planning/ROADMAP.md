@@ -27,31 +27,46 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 ### Git Integration
 
-| Feature                             | Difficulty | Value  | Status      |
-| ----------------------------------- | ---------- | ------ | ----------- |
-| Pre-commit hook (`anvil validate`)  | Low        | High   | Not started |
-| Pre-push hook (`anvil gate`)        | Low        | High   | Not started |
-| `anvil hooks install` command       | Low        | High   | Not started |
-| Husky/lint-staged integration guide | Low        | Medium | Not started |
+| Feature                             | Difficulty | Value  | Status   |
+| ----------------------------------- | ---------- | ------ | -------- |
+| Pre-commit hook (`anvil validate`)  | Low        | High   | Complete |
+| Pre-push hook (`anvil gate`)        | Low        | High   | Complete |
+| `anvil hooks install` command       | Low        | High   | Complete |
+| Husky/lint-staged integration guide | Low        | Medium | Complete |
 
-**Notes**: Husky already configured. Need Anvil-specific hooks.
+**Notes**: Fully integrated with auto-detection and `ANVIL_SKIP_HOOKS` support.
 
 ### Developer Mode & Configuration
 
-| Feature                               | Difficulty | Value  | Status      |
-| ------------------------------------- | ---------- | ------ | ----------- |
-| `--skip-gates` flag for development   | Low        | High   | Not started |
-| `--only=lint,test` for specific gates | Low        | Medium | Not started |
-| Gate profiles (dev/ci/production)     | Medium     | High   | Not started |
-| Full `.anvilrc` configuration         | Medium     | High   | Partial     |
+| Feature                               | Difficulty | Value  | Status   |
+| ------------------------------------- | ---------- | ------ | -------- |
+| `--skip-gates` flag for development   | Low        | High   | Complete |
+| `--only=lint,test` for specific gates | Low        | Medium | Complete |
+| Gate profiles (dev/ci/production)     | Medium     | High   | Complete |
+| Full `.anvilrc` configuration         | Medium     | High   | Complete |
 
 ### Watch Mode
 
 | Feature                                     | Difficulty | Value  | Status      |
 | ------------------------------------------- | ---------- | ------ | ----------- |
-| `anvil watch` daemon mode                   | Medium     | High   | Not started |
-| Incremental validation (changed files only) | Medium     | High   | Not started |
-| File system watcher                         | Low        | Medium | Not started |
+| `anvil watch` daemon mode                   | Medium     | High   | Complete    |
+| Incremental validation (changed files only) | Medium     | High   | Complete    |
+| File system watcher                         | Low        | Medium | Complete    |
+
+### TUI Enhancement
+
+| Feature                             | Difficulty | Value | Status      |
+| ----------------------------------- | ---------- | ----- | ----------- |
+| OpenTUI integration & component lib | Medium     | High  | Not started |
+| `anvil init` wizard (TUI)           | Medium     | High  | Not started |
+| `anvil status` dashboard (TUI)      | Medium     | High  | Not started |
+| `anvil doctor` diagnostics (TUI)    | Medium     | High  | Not started |
+| First-run experience                | Low        | High  | Not started |
+| Static template library             | Medium     | High  | Not started |
+| Interactive tutorial                | Medium     | High  | Not started |
+
+**Notes**: TUI-first approach with graceful CLI fallback. No AI required. See
+[TUI Implementation Plan](../plans/TUI-IMPLEMENTATION-PLAN.md).
 
 ---
 
@@ -63,9 +78,9 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 | Feature                           | Difficulty | Value    | Status      |
 | --------------------------------- | ---------- | -------- | ----------- |
-| Validation result caching         | Medium     | Critical | Not started |
-| Hash-based cache invalidation     | Low        | High     | Not started |
-| Parallel gate execution           | Medium     | High     | Not started |
+| Validation result caching         | Medium     | Critical | Complete    |
+| Hash-based cache invalidation     | Low        | High     | Complete    |
+| Parallel gate execution           | Medium     | High     | Complete    |
 | Persistent daemon for warm starts | High       | Medium   | Not started |
 
 ### Incremental Processing
@@ -179,7 +194,7 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 | Feature                            | Difficulty | Value    | Status      |
 | ---------------------------------- | ---------- | -------- | ----------- |
-| Dependency vulnerability scanning  | Medium     | Critical | In progress |
+| Dependency vulnerability scanning  | Medium     | Critical | Complete    |
 | Enhanced secret scanning (entropy) | Medium     | High     | Not started |
 | Git history secret scanning        | Medium     | High     | Not started |
 | SAST integration (Semgrep)         | High       | High     | Not started |
@@ -188,12 +203,12 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 ### Architecture Gates
 
-| Feature                       | Difficulty | Value  | Status      |
-| ----------------------------- | ---------- | ------ | ----------- |
-| Circular dependency detection | Medium     | High   | Not started |
-| Layer boundary validation     | High       | High   | Not started |
-| Anti-pattern detection        | High       | High   | Not started |
-| Custom architecture rules     | High       | Medium | Not started |
+| Feature                       | Difficulty | Value  | Status   |
+| ----------------------------- | ---------- | ------ | -------- |
+| Circular dependency detection | Medium     | High   | Complete |
+| Layer boundary validation     | High       | High   | Complete |
+| Anti-pattern detection        | High       | High   | Partial  |
+| Custom architecture rules     | High       | Medium | Complete |
 
 ---
 
@@ -248,119 +263,15 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 **Theme**: Codify your standards.
 
-### Policy Engine (Core OPA Integration) ✅
+### Policy Engine
 
-| Feature                  | Difficulty | Value  | Status      |
-| ------------------------ | ---------- | ------ | ----------- |
-| OPA/Rego integration     | High       | High   | ✅ Complete |
-| OPA binary management    | Medium     | High   | ✅ Complete |
-| Policy loader            | Medium     | High   | ✅ Complete |
-| Policy CLI commands      | Medium     | High   | ✅ Complete |
-| Example policies         | Low        | High   | ✅ Complete |
-| Policy testing framework | Medium     | Medium | ✅ Complete |
-
-### Policy Engine Enhancements (Recent)
-
-| Feature                   | Difficulty | Value  | Status      |
-| ------------------------- | ---------- | ------ | ----------- |
-| Violation categories      | Low        | High   | ✅ Complete |
-| Violation fingerprints    | Low        | High   | ✅ Complete |
-| Documentation URL support | Low        | Medium | ✅ Complete |
-| Git context in OPA input  | Medium     | High   | ✅ Complete |
-| CI context detection      | Medium     | High   | ✅ Complete |
-| Policy test enforcement   | Low        | High   | ✅ Complete |
-| PolicyCheck unit tests    | Medium     | High   | ✅ Complete |
-
-### OPA Review & Alert System (Planned)
-
-| Feature                           | Difficulty | Value    | Status      |
-| --------------------------------- | ---------- | -------- | ----------- |
-| Enhanced alert types              | Medium     | High     | Not started |
-| Alert location with line numbers  | Medium     | High     | Not started |
-| Blast radius analysis             | High       | High     | Not started |
-| Suggested fixes in violations     | Medium     | Critical | Not started |
-| Review workflow state machine     | High       | High     | Not started |
-| Alert acknowledgement CLI         | Medium     | Medium   | Not started |
-| Alert persistence/history         | High       | High     | Not started |
-| Alert trend analysis              | Medium     | Medium   | Not started |
-| Alert grouping by category/policy | Low        | High     | Not started |
-| CI annotation formatters (GitHub) | Medium     | Critical | Not started |
-| SARIF output format               | Medium     | High     | Not started |
-| Coverage data in OPA input        | Low        | Medium   | Not started |
-| Dependency data in OPA input      | Medium     | Medium   | Not started |
-| Architecture context in OPA input | High       | High     | Not started |
-| Remote policy bundles             | High       | Medium   | Not started |
-
-**Enhanced Alert Type System** (Planned):
-
-```typescript
-interface EnhancedAlert {
-  id: string; // Deterministic hash
-  fingerprint: string; // Stable across runs
-  rule: string;
-  policy: string;
-  severity: 'critical' | 'error' | 'warning' | 'info';
-  category: ViolationCategory;
-  message: string;
-  description?: string;
-  documentation_url?: string;
-  locations: AlertLocation[];
-  blast_radius?: BlastRadius;
-  fixable: boolean;
-  suggested_fix?: SuggestedFix;
-  required_actions?: RequiredAction[];
-  review_state?: ReviewState;
-}
-```
-
-**Review Workflow States** (Planned):
-
-```
-open → acknowledged → in_progress → resolved
-  ↓         ↓              ↓
-wont_fix  wont_fix    auto_resolved
-```
-
-**CLI Commands** (Planned):
-
-```bash
-anvil alerts list                     # View all alerts
-anvil alerts list --state open        # Filter by state
-anvil alerts acknowledge <id>         # Mark as acknowledged
-anvil alerts resolve <id>             # Mark as resolved
-anvil alerts wont-fix <id> --reason   # Accept risk
-anvil alerts history                  # View alert trends
-```
-
----
-
-## Horizon 11: Architecture Validation
-
-**Theme**: Enforce boundaries, prevent drift.
-
-### Architecture Definition
-
-| Feature                  | Difficulty | Value  | Status      |
-| ------------------------ | ---------- | ------ | ----------- |
-| Architecture YAML schema | Medium     | High   | Not started |
-| Layer definition system  | Medium     | High   | Not started |
-| Dependency rules         | Medium     | High   | Not started |
-| Architecture templates   | Medium     | Medium | Not started |
-| Layered architecture     | Low        | High   | Not started |
-| Hexagonal architecture   | Medium     | Medium | Not started |
-| Clean architecture       | Medium     | Medium | Not started |
-| DDD bounded contexts     | High       | Medium | Not started |
-
-### Architecture Validation
-
-| Feature                        | Difficulty | Value  | Status      |
-| ------------------------------ | ---------- | ------ | ----------- |
-| Dependency-cruiser integration | High       | High   | Not started |
-| Layer boundary validation      | High       | High   | Not started |
-| Circular dependency detection  | Medium     | High   | Not started |
-| Auto-generated Rego policies   | High       | High   | Not started |
-| Architecture CLI commands      | Medium     | Medium | Not started |
-| Architecture visualisation     | High       | Medium | Not started |
+| Feature                  | Difficulty | Value  | Status   |
+| ------------------------ | ---------- | ------ | -------- |
+| OPA/Rego integration     | High       | High   | Complete |
+| Policy bundle structure  | Medium     | Medium | Complete |
+| Built-in policy library  | Medium     | High   | Complete |
+| Custom policy authoring  | Medium     | Medium | Complete |
+| Policy testing framework | Medium     | Medium | Complete |
 
 ---
 
@@ -368,11 +279,12 @@ anvil alerts history                  # View alert trends
 
 ### Do First (High Value + Low/Medium Difficulty)
 
-1. **Pre-commit/pre-push hooks** — Low difficulty, High value
-2. **`--skip-gates` flag** — Low difficulty, High value
-3. **`.anvilrc` configuration** — Medium difficulty, High value
-4. **Validation caching** — Medium difficulty, Critical value
-5. **GitHub Action** — Medium difficulty, Critical value
+1. **Pre-commit/pre-push hooks** — Low difficulty, High value (✅ Complete)
+2. **`--skip-gates` flag** — Low difficulty, High value (✅ Complete)
+3. **`.anvilrc` configuration** — Medium difficulty, High value (✅ Complete)
+4. **Validation caching** — Medium difficulty, Critical value (✅ Complete)
+5. **TUI Enhancement** — Medium difficulty, High value (🎯 Next)
+6. **GitHub Action** — Medium difficulty, Critical value
 
 ### Do Next (High Value + Higher Difficulty)
 
@@ -392,63 +304,48 @@ anvil alerts history                  # View alert trends
 
 ## Version Milestones
 
-### v0.1.0 — Core Foundation ✅
+### v0.2.0 — Developer Ergonomics ✅
 
-- APS schema and validation
-- Format adapters (SpecKit, BMAD, Generic)
-- Basic gate checks (ESLint, coverage, secrets, dependencies)
-- CLI commands (validate, gate, export, init)
+- Git hooks integration ✅
+- Skip/only gate flags ✅
+- `.anvilrc` configuration ✅
+- Watch mode ✅
 
-### v0.2.0 — Policy Engine ✅
+### v0.3.0 — TUI Enhancement
 
-- OPA/Rego integration
-- Policy CLI commands
-- Example policies with tests
-- Git/CI context in OPA input
-- Violation categories and fingerprints
+- OpenTUI integration
+- `anvil init` wizard (TUI)
+- `anvil status` dashboard
+- `anvil doctor` diagnostics
+- First-run experience
+- Static template library
+- Interactive tutorial
 
-### v0.3.0 — Developer Ergonomics
+### v0.4.0 — Speed ✅
 
-- Git hooks integration
-- Skip/only gate flags
-- `.anvilrc` configuration
-- Basic watch mode
-
-### v0.4.0 — Speed
-
-- Validation caching
-- Parallel gate execution
-- Incremental validation
+- Validation caching ✅
+- Parallel gate execution ✅
+- Incremental validation ✅
 
 ### v0.5.0 — CI/CD
 
 - GitHub Action
 - PR status checks
-- CI annotation formatters
-- SARIF output support
+- Inline PR comments
 
-### v0.6.0 — Alert & Review System
-
-- Enhanced alert types
-- Review workflow state machine
-- Alert persistence and history
-- Alert CLI commands
-- Trend analysis
-
-### v0.7.0 — IDE
+### v0.6.0 — IDE
 
 - VS Code extension (basic)
 - Real-time validation
 - Problem panel
 
-### v0.8.0 — Architecture Validation
+### v0.7.0 — Security & Architecture
 
-- Architecture YAML definition
-- Layer boundary validation
-- Dependency-cruiser integration
-- Auto-generated Rego policies
+- Full security gate suite
+- Architecture validation
+- SAST integration
 
-### v0.9.0 — Execution
+### v0.8.0 — Execution
 
 - Apply with snapshots
 - Rollback capability
