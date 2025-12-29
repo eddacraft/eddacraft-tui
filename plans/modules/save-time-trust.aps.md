@@ -3,9 +3,9 @@
 
 # Save-time Trust
 
-| Scope | Owner | Priority | Status      |
-| ----- | ----- | -------- | ----------- |
-| CORE  | —     | high     | In Progress |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| CORE  | —     | high     | Complete |
 
 ## Purpose
 
