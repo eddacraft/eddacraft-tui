@@ -130,6 +130,7 @@ graph TD
 | [ide-integration](./modules/ide-integration.aps.md)                     | IDE    | —     | Draft       | medium   | save-time-trust                                        |
 | [ci-integration](./modules/ci-integration.aps.md)                       | CI     | —     | Complete    | low      | save-time-trust                                        |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF | —     | Ready       | high     | —                                                      |
+| [tui](./modules/tui.aps.md)                                             | TUI    | —     | Draft       | medium   |—                                                       |
 
 ### Task Status
 
@@ -164,6 +165,8 @@ graph TD
 | CMDSAF-007 | command-safety  | Configuration system              | Planned  |
 | CMDSAF-008 | command-safety  | Message formatting                | Planned  |
 | CMDSAF-009 | command-safety  | CLI integration and documentation | Planned  |
+| TUI-001    | tui             | Foundation and infrastructure     | Planned  |
+| TUI-002    | tui             | Watch dashboard implementation    | Planned  |
 
 ## Risks & Mitigations
 
