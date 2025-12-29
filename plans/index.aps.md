@@ -130,7 +130,7 @@ graph TD
 | [ide-integration](./modules/ide-integration.aps.md)                     | IDE    | —     | Draft       | medium   | save-time-trust                                        |
 | [ci-integration](./modules/ci-integration.aps.md)                       | CI     | —     | Complete    | low      | save-time-trust                                        |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF | —     | Ready       | high     | —                                                      |
-| [tui](./modules/tui.aps.md)                                             | TUI    | —     | Draft       | medium   |—                                                       |
+| [tui](./modules/tui.aps.md)                                             | TUI    | —     | Draft       | medium   | —                                                      |
 
 ### Task Status
 
@@ -165,8 +165,18 @@ graph TD
 | CMDSAF-007 | command-safety  | Configuration system              | Planned  |
 | CMDSAF-008 | command-safety  | Message formatting                | Planned  |
 | CMDSAF-009 | command-safety  | CLI integration and documentation | Planned  |
-| TUI-001    | tui             | Foundation and infrastructure     | Planned  |
-| TUI-002    | tui             | Watch dashboard implementation    | Planned  |
+| TUI-001    | tui             | OpenTUI foundation and components | Planned  |
+| TUI-002    | tui             | `anvil init` wizard               | Planned  |
+| TUI-003    | tui             | `anvil status` dashboard          | Planned  |
+| TUI-004    | tui             | `anvil doctor` diagnostics        | Planned  |
+| TUI-005    | tui             | First-run welcome experience      | Planned  |
+| TUI-006    | tui             | Static template library           | Planned  |
+| TUI-007    | tui             | Interactive tutorial              | Planned  |
+| TUI-008    | tui             | Testing infrastructure            | Planned  |
+| TUI-009    | tui             | `anvil watch` real-time dashboard | Planned  |
+| TUI-010    | tui             | `anvil gate` interactive explorer | Planned  |
+| TUI-011    | tui             | Parallel progress visualisation   | Planned  |
+| TUI-012    | tui             | Log panel with filtering          | Planned  |
 
 ## Risks & Mitigations
 
