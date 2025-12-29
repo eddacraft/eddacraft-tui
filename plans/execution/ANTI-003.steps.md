@@ -64,8 +64,8 @@ high-confidence anti-patterns in TypeScript codebases.
 
 ### 7. Tests complete
 
-- **Checkpoint:** Tests cover @ts-ignore, @ts-expect-error, :any, as any, <any>
-  ✅
+- **Checkpoint:** Tests cover @ts-ignore, @ts-expect-error, :any, as any,
+  `<any>` ✅
 - **Validate:** `pnpm test` — patterns.test.ts has dedicated regex tests for
   AP-003, AP-004, AP-005
 - **Files:** `core/src/antipattern/patterns.test.ts`,

@@ -340,7 +340,7 @@ names (`@anvil/core`).
 <!-- nx configuration start-->
 <!-- Leave the start & end comments to automatically receive updates. -->
 
-# General Guidelines for working with Nx
+## General Guidelines for working with Nx
 
 - When running tasks (for example build, lint, test, e2e, etc.), always prefer
   running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`)

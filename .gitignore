@@ -45,3 +45,4 @@ Thumbs.db
 # Cursor IDE
 .cursor/
 .opencode
+docs/analysis/claude-code-safety-net-review.md

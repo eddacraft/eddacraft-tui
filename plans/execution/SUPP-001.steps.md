@@ -86,6 +86,6 @@ function parseSuppressions(
 
 - [x] Parser extracts warning ID, reason, expiry from comments
 - [x] Parser rejects empty reasons
-- [x] Parser handles all comment styles (// /_ /\*\* _/)
+- [x] Parser handles all comment styles (`//`, `/*`, `/** */`)
 - [x] Scope detection works correctly
 - [x] All tests pass
