@@ -120,40 +120,50 @@ graph TD
 
 ## Modules
 
-| Module                                                      | Scope | Owner | Status      | Priority | Dependencies                                           |
-| ----------------------------------------------------------- | ----- | ----- | ----------- | -------- | ------------------------------------------------------ |
-| [save-time-trust](./modules/save-time-trust.aps.md)         | CORE  | —     | In Progress | high     | —                                                      |
-| [architecture-safety](./modules/architecture-safety.aps.md) | ARCH  | —     | Complete    | high     | save-time-trust                                        |
-| [antipattern-library](./modules/antipattern-library.aps.md) | ANTI  | —     | Complete    | high     | save-time-trust                                        |
-| [suppressions](./modules/suppressions.aps.md)               | SUPP  | —     | Complete    | medium   | architecture-safety, antipattern-library               |
-| [drift-reporting](./modules/drift-reporting.aps.md)         | DRIFT | —     | Draft       | medium   | architecture-safety, antipattern-library, suppressions |
-| [ide-integration](./modules/ide-integration.aps.md)         | IDE   | —     | Draft       | medium   | save-time-trust                                        |
-| [ci-integration](./modules/ci-integration.aps.md)           | CI    | —     | Complete    | low      | save-time-trust                                        |
+| Module                                                                  | Scope  | Owner | Status      | Priority | Dependencies                                           |
+| ----------------------------------------------------------------------- | ------ | ----- | ----------- | -------- | ------------------------------------------------------ |
+| [save-time-trust](./modules/save-time-trust.aps.md)                     | CORE   | —     | In Progress | high     | —                                                      |
+| [architecture-safety](./modules/architecture-safety.aps.md)             | ARCH   | —     | Complete    | high     | save-time-trust                                        |
+| [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI   | —     | Complete    | high     | save-time-trust                                        |
+| [suppressions](./modules/suppressions.aps.md)                           | SUPP   | —     | Complete    | medium   | architecture-safety, antipattern-library               |
+| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT  | —     | Draft       | medium   | architecture-safety, antipattern-library, suppressions |
+| [ide-integration](./modules/ide-integration.aps.md)                     | IDE    | —     | Draft       | medium   | save-time-trust                                        |
+| [ci-integration](./modules/ci-integration.aps.md)                       | CI     | —     | Complete    | low      | save-time-trust                                        |
+| [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF | —     | Ready       | high     | —                                                      |
 
 ### Task Status
 
-| Task     | Module          | Description                      | Status   |
-| -------- | --------------- | -------------------------------- | -------- |
-| CORE-001 | save-time-trust | Warning schema definition        | Complete |
-| CORE-002 | save-time-trust | Check runner refactor            | Complete |
-| CORE-003 | save-time-trust | CLI check command                | Complete |
-| CORE-004 | save-time-trust | Git-aware changed file detection | Planned  |
-| CORE-005 | save-time-trust | Source file watch mode           | Planned  |
-| ARCH-001 | architecture    | Baseline inference               | Complete |
-| ARCH-002 | architecture    | Edge detection                   | Complete |
-| ARCH-003 | architecture    | Architecture check integration   | Complete |
-| ARCH-004 | architecture    | CLI architecture service         | Complete |
-| ANTI-001 | antipattern     | Pattern catalogue definition     | Complete |
-| ANTI-002 | antipattern     | Scanner implementation           | Complete |
-| ANTI-003 | antipattern     | Antipattern check integration    | Complete |
-| ANTI-004 | antipattern     | Allowlist and opt-in support     | Complete |
-| SUPP-001 | suppressions    | Suppression parser               | Complete |
-| SUPP-002 | suppressions    | Suppression store                | Complete |
-| SUPP-003 | suppressions    | Gate runner integration          | Complete |
-| CI-001   | ci-integration  | GitHub Action composite          | Complete |
-| CI-002   | ci-integration  | Changed files detection          | Complete |
-| CI-003   | ci-integration  | PR comments and status checks    | Complete |
-| CI-004   | ci-integration  | Documentation and configuration  | Complete |
+| Task       | Module          | Description                       | Status   |
+| ---------- | --------------- | --------------------------------- | -------- |
+| CORE-001   | save-time-trust | Warning schema definition         | Complete |
+| CORE-002   | save-time-trust | Check runner refactor             | Complete |
+| CORE-003   | save-time-trust | CLI check command                 | Complete |
+| CORE-004   | save-time-trust | Git-aware changed file detection  | Planned  |
+| CORE-005   | save-time-trust | Source file watch mode            | Planned  |
+| ARCH-001   | architecture    | Baseline inference                | Complete |
+| ARCH-002   | architecture    | Edge detection                    | Complete |
+| ARCH-003   | architecture    | Architecture check integration    | Complete |
+| ARCH-004   | architecture    | CLI architecture service          | Complete |
+| ANTI-001   | antipattern     | Pattern catalogue definition      | Complete |
+| ANTI-002   | antipattern     | Scanner implementation            | Complete |
+| ANTI-003   | antipattern     | Antipattern check integration     | Complete |
+| ANTI-004   | antipattern     | Allowlist and opt-in support      | Complete |
+| SUPP-001   | suppressions    | Suppression parser                | Complete |
+| SUPP-002   | suppressions    | Suppression store                 | Complete |
+| SUPP-003   | suppressions    | Gate runner integration           | Complete |
+| CI-001     | ci-integration  | GitHub Action composite           | Complete |
+| CI-002     | ci-integration  | Changed files detection           | Complete |
+| CI-003     | ci-integration  | PR comments and status checks     | Complete |
+| CI-004     | ci-integration  | Documentation and configuration   | Complete |
+| CMDSAF-001 | command-safety  | Rule system and types             | Planned  |
+| CMDSAF-002 | command-safety  | Command parser with unwrapping    | Planned  |
+| CMDSAF-003 | command-safety  | Rule matcher with specificity     | Planned  |
+| CMDSAF-004 | command-safety  | Default git operation rules       | Planned  |
+| CMDSAF-005 | command-safety  | Default filesystem rules          | Planned  |
+| CMDSAF-006 | command-safety  | CommandSafetyCheck implementation | Planned  |
+| CMDSAF-007 | command-safety  | Configuration system              | Planned  |
+| CMDSAF-008 | command-safety  | Message formatting                | Planned  |
+| CMDSAF-009 | command-safety  | CLI integration and documentation | Planned  |
 
 ## Risks & Mitigations
 
