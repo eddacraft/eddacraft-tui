@@ -2,7 +2,8 @@
 
 ## Current Implicit Narrative (Problematic)
 
-"Anvil is a deterministic governance layer for AI-assisted development using plans, gates, and policies."
+"Anvil is a deterministic governance layer for AI-assisted development using
+plans, gates, and policies."
 
 This is true, but it's not why anyone installs it.
 
@@ -14,15 +15,18 @@ Ship AI-generated code with confidence.
 
 ### Subheading
 
-Anvil is a developer-first safety layer that helps you use AI at full speed without breaking your system's architecture or intent.
+Anvil is a developer-first safety layer that helps you use AI at full speed
+without breaking your system's architecture or intent.
 
 ### Core Paragraph
 
-AI tools generate code faster than humans can review it.
-The problem isn’t syntax or tests it’s subtle architectural drift, bad patterns, and “technically valid but wrong” decisions that slip through unnoticed.
+AI tools generate code faster than humans can review it. The problem isn’t
+syntax or tests it’s subtle architectural drift, bad patterns, and “technically
+valid but wrong” decisions that slip through unnoticed.
 
-Anvil sits between AI and production.
-It understands your system’s structure, watches for dangerous patterns, and warns you at the moment you’re about to make a mistake — before it becomes a rewrite, an incident, or a blame game.
+Anvil sits between AI and production. It understands your system’s structure,
+watches for dangerous patterns, and warns you at the moment you’re about to make
+a mistake — before it becomes a rewrite, an incident, or a blame game.
 
 ### What Anvil Is
 
@@ -39,7 +43,8 @@ It understands your system’s structure, watches for dangerous patterns, and wa
 
 ### Primary Promise
 
-If AI writes something that looks right but is wrong for your system, Anvil will catch it... early, clearly, and with context.
+If AI writes something that looks right but is wrong for your system, Anvil will
+catch it... early, clearly, and with context.
 
 This framing should sit above any mention of plans, policies, or gates.
 
@@ -47,7 +52,8 @@ This framing should sit above any mention of plans, policies, or gates.
 
 ### v1 Goal (Single Sentence)
 
-Give individual developers confidence to merge AI-generated code without introducing architectural drift or toxic patterns.
+Give individual developers confidence to merge AI-generated code without
+introducing architectural drift or toxic patterns.
 
 ### v1 MUST HAVE (Ship These)
 
@@ -122,12 +128,15 @@ This keeps v1 sharp and lovable.
 These are solid foundations.
 
 ### 🔄 RESHAPE (Conceptually Right, But Mispositioned)
+
 #### Plans / APS
+
 - Reshape as optional accelerator
 - Move out of the primary narrative
 - Introduce later as “lock intent once you trust Anvil”
 
 #### OPA / Policies
+
 - Keep internally
 - Expose via:
   - Named patterns
@@ -135,11 +144,13 @@ These are solid foundations.
 - Hide policy mechanics by default
 
 #### Gate Checks (Lint, Tests, Coverage)
+
 - De-emphasise
 - Treat as supporting signals
 - Not a headline feature
 
 ### ⏸️ DEFER (Important, But Later)
+
 - Full drift history & trends
 - Advanced architecture modelling
 - SARIF export
@@ -168,22 +179,21 @@ Payments is calling into Identity
 
 **Context**
 
-This system uses bounded contexts.
-Payments must not depend on Identity.
+This system uses bounded contexts. Payments must not depend on Identity.
 
 **Impact (product-oriented)**
 
-This change appears to affect the Checkout journey
-(confidence: medium)
+This change appears to affect the Checkout journey (confidence: medium)
 
 **State**
 
-This boundary is already violated elsewhere.
-This change introduces a new dependency.
+This boundary is already violated elsewhere. This change introduces a new
+dependency.
 
 **Suggestion**
 
-Consider moving this logic into a shared service or exposing it via an API boundary.
+Consider moving this logic into a shared service or exposing it via an API
+boundary.
 
 **Actions**
 
