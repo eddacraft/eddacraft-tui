@@ -88,7 +88,7 @@ core libraries.
 
 ## Implementation Strategy
 
-### Phase 1: Extract Shared Services (1 week)
+### Phase 1: Extract Shared Services
 
 **Problem**: CLI has `PlanLoader` service that LSP needs **Solution**: Extract
 to shared package
@@ -259,7 +259,7 @@ export interface QuickValidationResult {
 
 ---
 
-### Phase 2: Build LSP Server (2 weeks)
+### Phase 2: Build LSP Server
 
 Create: `packages/language-server/`
 
@@ -414,7 +414,7 @@ new AnvilLanguageServer().start();
 
 ---
 
-### Phase 3: Update CLI to Use ValidationService (1 week)
+### Phase 3: Update CLI to Use ValidationService
 
 Refactor `PlanLoader` to use shared `ValidationService`:
 
@@ -472,7 +472,7 @@ export class PlanLoader {
 
 ---
 
-### Phase 4: VS Code Integration (1 week)
+### Phase 4: VS Code Integration
 
 Update existing VS Code extension to use LSP client:
 
@@ -642,14 +642,14 @@ anvil/
 
 ## Migration Path
 
-### Week 1: Extract ValidationService
+### Extract ValidationService
 
 - [ ] Create `packages/validation-service/`
 - [ ] Implement `ValidationService` using existing `@anvil/core`
 - [ ] Write tests (use existing test fixtures)
 - [ ] Verify: ValidationService produces same results as current CLI
 
-### Week 2: Build LSP Server
+### Build LSP Server
 
 - [ ] Create `packages/language-server/`
 - [ ] Implement basic LSP server (sync, diagnostics only)
@@ -657,13 +657,13 @@ anvil/
 - [ ] Test with VS Code extension
 - [ ] Verify: LSP diagnostics match CLI output
 
-### Week 3: Refactor CLI
+### Refactor CLI
 
 - [ ] Update `PlanLoader` to use `ValidationService`
 - [ ] Test all CLI commands still work
 - [ ] Verify: CLI output unchanged
 
-### Week 4: VS Code Integration
+### VS Code Integration
 
 - [ ] Add LSP client to VS Code extension
 - [ ] Remove old `DiagnosticsManager` and `PlanWatcher`
@@ -671,7 +671,7 @@ anvil/
 - [ ] Test real-time validation
 - [ ] Document LSP features
 
-### Week 5-6: Polish & Advanced Features
+### Polish & Advanced Features
 
 - [ ] Add schema-aware completions
 - [ ] Add hover documentation
@@ -890,6 +890,3 @@ maintenance**: Fix bugs once in `@anvil/core`
 3. Begin Phase 1: Extract ValidationService
 
 ---
-
-**Author**: Claude Code **Review Status**: Pending approval **Estimated
-Timeline**: 6 weeks to full LSP with completions/hover
