@@ -288,49 +288,45 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 ## Version Milestones
 
-### v0.2.0 — Developer Ergonomics
+### v1.0.0 — Save-time Trust (Current Target)
 
-- Git hooks integration
-- Skip/only gate flags
-- `.anvilrc` configuration
-- Basic watch mode
+**Status:** Core engine complete, onboarding TUI in progress.
 
-### v0.3.0 — Speed
+Completed:
 
-- Validation caching
-- Parallel gate execution
-- Incremental validation
+- ✅ Core analysis engine (`anvil check`)
+- ✅ Architecture boundary detection with baseline
+- ✅ Anti-pattern detection (7 patterns)
+- ✅ Suppression system with time-boxing
+- ✅ Git integration (`--changed`, `--staged`, `--since`)
+- ✅ Watch mode (`anvil watch --source`)
+- ✅ CI/CD integration (GitHub Action)
+- ✅ Git hooks integration
+- ✅ Gate profiles and skip flags
+- ✅ `.anvilrc` configuration
+- ✅ Validation caching + parallel execution
 
-### v0.4.0 — CI/CD
+In Progress:
 
-- GitHub Action
-- PR status checks
-- Inline PR comments
+- 🔄 Onboarding TUI (Ink-based: init wizard, status, doctor)
+- 🔄 Documentation polish
 
-### v0.5.0 — IDE
+### v1.1.0 — Drift Visibility
 
-- VS Code extension (basic)
-- Real-time validation
-- Problem panel
+- Drift snapshots and comparison
+- Trend visualisation
 
-### v0.6.0 — Security & Architecture
+### v1.2.0 — Advanced Experience
 
-- Full security gate suite
-- Architecture validation
-- SAST integration
+- VS Code extension
+- Operational TUI (watch dashboard, gate explorer)
+- Template library
 
-### v0.7.0 — Execution
+### v2.0.0 — AI Tool Integration
 
-- Apply with snapshots
-- Rollback capability
-- Full audit trail
-
-### v1.0.0 — Production Ready
-
-- Complete feature set
-- Performance optimised
-- Enterprise features
-- Comprehensive docs
+- Command safety validation (CMDSAF)
+- MCP server for real-time validation
+- Constraint export for AI tools
 
 ---
 

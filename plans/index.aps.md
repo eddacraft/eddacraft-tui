@@ -323,6 +323,8 @@ graph TD
   violations ([ADR](./decisions/003-new-edges-only.md))
 - **D-004:** Suppression syntax — `@anvil-ignore <ID>: <reason>` with mandatory
   explanation ([ADR](./decisions/004-suppression-syntax.md))
+- **D-005:** Ink over OpenTUI — Node.js compatibility over native performance
+  ([ADR](./decisions/005-ink-over-opentui.md))
 
 ## Open Questions
 
@@ -338,7 +340,8 @@ graph TD
 - [ ] Which entry points define "public API" for boundary detection?
 - [ ] Should drift reports include team/author attribution? (Privacy concern)
 - [ ] How to handle monorepos with multiple architecture baselines?
-- [ ] OpenTUI vs Ink for TUI implementation? (Currently: OpenTUI in plan)
+- [x] OpenTUI vs Ink for TUI implementation? → **Ink** — OpenTUI requires Bun
+      runtime (bun-ffi-structs for Zig FFI); Anvil requires Node.js 20+
 - [ ] Should first-run auto-run `anvil check` on sample files for demo?
 
 ## Considerations for Future

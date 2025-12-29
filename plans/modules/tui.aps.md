@@ -80,6 +80,10 @@ graph TD
 **Technology:** [Ink](https://github.com/vadimdemedes/ink) — React for CLI,
 enables composable UI components with familiar React patterns.
 
+**Decision:** Ink chosen over OpenTUI because OpenTUI requires Bun runtime
+(`bun-ffi-structs` for Zig FFI), while Anvil's constraint is Node.js 20+. Ink is
+production-ready, Node.js native, and has everything needed for onboarding TUI.
+
 **Core Components:**
 
 1. **WatchDashboard** — Real-time overview for watch mode
