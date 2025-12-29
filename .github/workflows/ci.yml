@@ -15,9 +15,106 @@ permissions:
   contents: read
 
 jobs:
+  # Detect what changed to skip unnecessary jobs
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      docs-only: ${{ steps.filter.outputs.docs-only }}
+      code-changed: ${{ steps.filter.outputs.code-changed }}
+      e2e-changed: ${{ steps.filter.outputs.e2e-changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check changed files
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+            HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          else
+            BASE_SHA=${{ github.event.before }}
+            HEAD_SHA=${{ github.sha }}
+          fi
+
+          # Get list of changed files
+          git fetch origin $BASE_SHA $HEAD_SHA --depth=1 2>/dev/null || git fetch --depth=100
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA...$HEAD_SHA || echo "")
+
+          # Check if only docs changed
+          DOCS_ONLY=true
+          CODE_CHANGED=false
+          E2E_CHANGED=false
+
+          while IFS= read -r file; do
+            if [[ -n "$file" ]]; then
+              # Docs-only patterns
+              if [[ "$file" =~ \.(md|txt)$ ]] || \
+                 [[ "$file" =~ ^docs/ ]] || \
+                 [[ "$file" =~ ^plans/ ]] || \
+                 [[ "$file" == "README.md" ]] || \
+                 [[ "$file" == "AGENTS.md" ]] || \
+                 [[ "$file" == "CLAUDE.md" ]] || \
+                 [[ "$file" == "LICENSE" ]]; then
+                continue
+              else
+                DOCS_ONLY=false
+                CODE_CHANGED=true
+              fi
+              
+              # E2E-related patterns
+              if [[ "$file" =~ ^e2e/ ]] || \
+                 [[ "$file" == "playwright.config.ts" ]]; then
+                E2E_CHANGED=true
+              fi
+            fi
+          done <<< "$CHANGED_FILES"
+
+          echo "docs-only=$DOCS_ONLY" >> $GITHUB_OUTPUT
+          echo "code-changed=$CODE_CHANGED" >> $GITHUB_OUTPUT
+          echo "e2e-changed=$E2E_CHANGED" >> $GITHUB_OUTPUT
+
+          echo "📊 Change Detection Results:"
+          echo "  Docs only: $DOCS_ONLY"
+          echo "  Code changed: $CODE_CHANGED"
+          echo "  E2E changed: $E2E_CHANGED"
+
+  # Docs-only job: just linting
+  docs-lint:
+    name: Docs Lint
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.docs-only == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run markdown lint
+        run: pnpm run lint:md
+
+      - name: Run format check
+        run: pnpm run format:check
+
+  # Full test suite for code changes
   lint-and-test:
     name: Lint and Test
     runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.code-changed == 'true'
     strategy:
       matrix:
         node-version: [20.x, 22.x]
@@ -65,7 +162,10 @@ jobs:
   e2e-tests:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: lint-and-test
+    needs: [detect-changes, lint-and-test]
+    if: |
+      needs.detect-changes.outputs.code-changed == 'true' &&
+      needs.detect-changes.outputs.e2e-changed == 'true'
 
     steps:
       - name: Checkout repository
@@ -88,7 +188,7 @@ jobs:
 
       - name: Run Playwright tests
         run: pnpm run test:e2e
-        continue-on-error: true # Since we don't have a real app yet
+        continue-on-error: true
 
       - name: Upload Playwright report
         if: always()
