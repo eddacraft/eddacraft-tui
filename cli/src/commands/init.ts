@@ -20,6 +20,9 @@ import {
   type ArchitectureSummary,
 } from '../services/architecture-service.js';
 import { success, error } from '../utils/output.js';
+import { isTUIAvailable } from '../tui/utils/tty-detection.js';
+import { renderTUI } from '../tui/utils/renderer.js';
+import { InitWizard, type WizardState, type WizardContext } from '../tui/commands/init/index.js';
 
 export function createInitCommand(): Command {
   const command = new Command('init');
@@ -28,205 +31,214 @@ export function createInitCommand(): Command {
     .description('Initialise Anvil in the current project')
     .option('--force', 'Overwrite existing .anvilrc if present')
     .option('--non-interactive', 'Skip interactive prompts and use defaults')
-    .action(async (options: { force?: boolean; nonInteractive?: boolean }) => {
-      try {
-        console.log(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
-
-        const projectRoot = process.cwd();
-
-        // Check if .anvilrc already exists
-        const anvilrcPath = join(projectRoot, '.anvilrc');
-        if (existsSync(anvilrcPath) && !options.force) {
-          error('.anvilrc already exists. Use --force to overwrite.');
-          console.log(
-            chalk.dim('\nTip: Run `anvil gate:config --list` to view current configuration')
-          );
-          process.exit(1);
-        }
-
-        // Detect environment
-        const detector = new EnvironmentDetector(projectRoot);
-        const env = detector.detect();
-
-        console.log(chalk.cyan('Detected environment:'));
-        console.log(chalk.dim(`  Project: ${env.projectName || '(no package.json)'}`));
-        console.log(chalk.dim(`  Package Manager: ${env.packageManager}`));
-        console.log(chalk.dim(`  Git: ${env.hasGit ? '✓' : '✗'}`));
-        console.log(chalk.dim(`  TypeScript: ${env.hasTypeScript ? '✓' : '✗'}`));
-        console.log(chalk.dim(`  ESLint: ${env.hasEslint ? '✓' : '✗'}`));
-        console.log(
-          chalk.dim(`  Testing: ${env.hasVitest ? 'Vitest' : env.hasJest ? 'Jest' : '✗'}`)
-        );
-        console.log('');
-
-        // Analyse project architecture
-        const archSpinner = ora('Analysing project structure...').start();
-        let archSummary: ArchitectureSummary | null = null;
-        let shouldCreateBaseline = false;
-
+    .option('--no-tui', 'Use classic CLI prompts instead of TUI wizard')
+    .option('--tui', 'Force TUI wizard mode')
+    .action(
+      async (options: {
+        force?: boolean;
+        nonInteractive?: boolean;
+        tui?: boolean;
+        noTui?: boolean;
+      }) => {
         try {
-          archSummary = await analyseProjectArchitecture(projectRoot);
-          archSpinner.succeed(
-            chalk.green(
-              `Found ${archSummary.moduleCount} modules, ${archSummary.entryPoints.length} entry points`
-            )
-          );
+          console.log(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
 
-          // Display architecture summary
-          if (archSummary.entryPoints.length > 0) {
-            console.log(chalk.cyan('\nDetected entry points:'));
-            formatEntryPoints(archSummary.entryPoints).forEach((line) =>
+          const projectRoot = process.cwd();
+
+          // Check if .anvilrc already exists
+          const anvilrcPath = join(projectRoot, '.anvilrc');
+          if (existsSync(anvilrcPath) && !options.force) {
+            error('.anvilrc already exists. Use --force to overwrite.');
+            console.log(
+              chalk.dim('\nTip: Run `anvil gate:config --list` to view current configuration')
+            );
+            process.exit(1);
+          }
+
+          // Detect environment
+          const detector = new EnvironmentDetector(projectRoot);
+          const env = detector.detect();
+
+          console.log(chalk.cyan('Detected environment:'));
+          console.log(chalk.dim(`  Project: ${env.projectName || '(no package.json)'}`));
+          console.log(chalk.dim(`  Package Manager: ${env.packageManager}`));
+          console.log(chalk.dim(`  Git: ${env.hasGit ? '✓' : '✗'}`));
+          console.log(chalk.dim(`  TypeScript: ${env.hasTypeScript ? '✓' : '✗'}`));
+          console.log(chalk.dim(`  ESLint: ${env.hasEslint ? '✓' : '✗'}`));
+          console.log(
+            chalk.dim(`  Testing: ${env.hasVitest ? 'Vitest' : env.hasJest ? 'Jest' : '✗'}`)
+          );
+          console.log('');
+
+          // Analyse project architecture
+          const archSpinner = ora('Analysing project structure...').start();
+          let archSummary: ArchitectureSummary | null = null;
+          let shouldCreateBaseline = false;
+
+          try {
+            archSummary = await analyseProjectArchitecture(projectRoot);
+            archSpinner.succeed(
+              chalk.green(
+                `Found ${archSummary.moduleCount} modules, ${archSummary.entryPoints.length} entry points`
+              )
+            );
+
+            // Display architecture summary
+            if (archSummary.entryPoints.length > 0) {
+              console.log(chalk.cyan('\nDetected entry points:'));
+              formatEntryPoints(archSummary.entryPoints).forEach((line) =>
+                console.log(chalk.dim(line))
+              );
+            }
+
+            // Display layer diagram
+            console.log(chalk.cyan('\nDetected layer structure:'));
+            formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
               console.log(chalk.dim(line))
             );
+            console.log('');
+
+            // Ask for confirmation (unless non-interactive)
+            if (!options.nonInteractive) {
+              const existingBaseline = hasExistingBaseline(projectRoot);
+              const confirmAnswer = await inquirer.prompt([
+                {
+                  type: 'list' as const,
+                  name: 'archAction' as const,
+                  message: existingBaseline
+                    ? 'Architecture baseline exists. What would you like to do?'
+                    : 'Does this architecture look correct?',
+                  choices: existingBaseline
+                    ? [
+                        { name: 'Keep existing baseline', value: 'keep' },
+                        { name: 'Update with new analysis', value: 'update' },
+                        { name: 'Skip architecture setup', value: 'skip' },
+                      ]
+                    : [
+                        { name: 'Yes, save as baseline', value: 'save' },
+                        { name: 'Skip architecture setup for now', value: 'skip' },
+                      ],
+                  default: existingBaseline ? 'keep' : 'save',
+                },
+              ]);
+
+              shouldCreateBaseline =
+                confirmAnswer.archAction === 'save' || confirmAnswer.archAction === 'update';
+            } else {
+              // Non-interactive: create baseline if none exists
+              shouldCreateBaseline = !hasExistingBaseline(projectRoot);
+            }
+          } catch (archError) {
+            archSpinner.warn(
+              chalk.yellow('Could not analyse architecture (will skip baseline creation)')
+            );
+            if (archError instanceof Error) {
+              console.log(chalk.dim(`  Reason: ${archError.message}`));
+            }
           }
 
-          // Display layer diagram
-          console.log(chalk.cyan('\nDetected layer structure:'));
-          formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
-            console.log(chalk.dim(line))
-          );
-          console.log('');
+          let initOptions: InitOptions;
 
-          // Ask for confirmation (unless non-interactive)
-          if (!options.nonInteractive) {
-            const existingBaseline = hasExistingBaseline(projectRoot);
-            const confirmAnswer = await inquirer.prompt([
-              {
-                type: 'list' as const,
-                name: 'archAction' as const,
-                message: existingBaseline
-                  ? 'Architecture baseline exists. What would you like to do?'
-                  : 'Does this architecture look correct?',
-                choices: existingBaseline
-                  ? [
-                      { name: 'Keep existing baseline', value: 'keep' },
-                      { name: 'Update with new analysis', value: 'update' },
-                      { name: 'Skip architecture setup', value: 'skip' },
-                    ]
-                  : [
-                      { name: 'Yes, save as baseline', value: 'save' },
-                      { name: 'Skip architecture setup for now', value: 'skip' },
-                    ],
-                default: existingBaseline ? 'keep' : 'save',
-              },
-            ]);
-
-            shouldCreateBaseline =
-              confirmAnswer.archAction === 'save' || confirmAnswer.archAction === 'update';
+          if (options.nonInteractive) {
+            initOptions = {
+              projectRoot,
+              planningDir: 'docs/plans',
+              format: 'generic',
+              createExample: true,
+              configTemplate: 'basic',
+              enabledChecks: detector.getRecommendedChecks(env),
+              coverageThreshold: 80,
+            };
+          } else if (isTUIAvailable({ tui: options.tui, noTui: options.noTui })) {
+            initOptions = await runTUIWizard(projectRoot, env, detector);
           } else {
-            // Non-interactive: create baseline if none exists
-            shouldCreateBaseline = !hasExistingBaseline(projectRoot);
-          }
-        } catch (archError) {
-          archSpinner.warn(
-            chalk.yellow('Could not analyse architecture (will skip baseline creation)')
-          );
-          if (archError instanceof Error) {
-            console.log(chalk.dim(`  Reason: ${archError.message}`));
-          }
-        }
-
-        let initOptions: InitOptions;
-
-        if (options.nonInteractive) {
-          // Use defaults
-          initOptions = {
-            projectRoot,
-            planningDir: 'docs/plans',
-            format: 'generic',
-            createExample: true,
-            configTemplate: 'basic',
-            enabledChecks: detector.getRecommendedChecks(env),
-            coverageThreshold: 80,
-          };
-        } else {
-          // Interactive prompts
-          initOptions = await runInteractiveSetup(env, detector);
-        }
-
-        // Generate configuration and files
-        const spinner = ora('Setting up Anvil...').start();
-
-        try {
-          const generator = new TemplateGenerator(initOptions);
-
-          // Create .anvil directory
-          generator.createAnvilDirectory();
-          spinner.text = 'Created .anvil/ directory';
-
-          // Create planning directory
-          generator.createPlanningDirectory();
-          spinner.text = `Created ${initOptions.planningDir}/ directory`;
-
-          // Generate .anvilrc
-          generator.generateAnvilrc();
-          spinner.text = 'Generated .anvilrc configuration';
-
-          // Update .gitignore
-          if (env.hasGit) {
-            generator.updateGitignore();
-            spinner.text = 'Updated .gitignore';
+            initOptions = await runInteractiveSetup(env, detector);
           }
 
-          // Generate example plans
-          const exampleFiles = generator.generateExamplePlan(env);
+          // Generate configuration and files
+          const spinner = ora('Setting up Anvil...').start();
 
-          // Create architecture baseline if requested
-          if (shouldCreateBaseline && archSummary) {
-            spinner.text = 'Creating architecture baseline...';
-            saveArchitectureBaseline(projectRoot, archSummary);
+          try {
+            const generator = new TemplateGenerator(initOptions);
+
+            // Create .anvil directory
+            generator.createAnvilDirectory();
+            spinner.text = 'Created .anvil/ directory';
+
+            // Create planning directory
+            generator.createPlanningDirectory();
+            spinner.text = `Created ${initOptions.planningDir}/ directory`;
+
+            // Generate .anvilrc
+            generator.generateAnvilrc();
+            spinner.text = 'Generated .anvilrc configuration';
+
+            // Update .gitignore
+            if (env.hasGit) {
+              generator.updateGitignore();
+              spinner.text = 'Updated .gitignore';
+            }
+
+            // Generate example plans
+            const exampleFiles = generator.generateExamplePlan(env);
+
+            // Create architecture baseline if requested
+            if (shouldCreateBaseline && archSummary) {
+              spinner.text = 'Creating architecture baseline...';
+              saveArchitectureBaseline(projectRoot, archSummary);
+            }
+
+            spinner.succeed(chalk.green('Anvil initialised successfully!'));
+
+            // Show summary
+            console.log('\n' + chalk.bold('Created files:'));
+            console.log(chalk.dim('  ✓ .anvilrc'));
+            console.log(chalk.dim('  ✓ .anvil/'));
+            if (shouldCreateBaseline && archSummary) {
+              console.log(chalk.dim('  ✓ .anvil/architecture.json'));
+            }
+            console.log(chalk.dim(`  ✓ ${initOptions.planningDir}/`));
+            if (env.hasGit) {
+              console.log(chalk.dim('  ✓ .gitignore (updated)'));
+            }
+            if (exampleFiles.length > 0) {
+              console.log(chalk.dim('\n' + chalk.bold('Example files:')));
+              exampleFiles.forEach((file) => {
+                const relPath = file.replace(projectRoot + '/', '');
+                console.log(chalk.dim(`  ✓ ${relPath}`));
+              });
+            }
+
+            // Show next steps
+            console.log('\n' + chalk.bold('Next steps:'));
+            console.log(chalk.cyan('  1. Review configuration:'));
+            console.log(chalk.dim('     anvil gate:config --list'));
+
+            if (exampleFiles.length > 0) {
+              const firstExample = exampleFiles[0].replace(projectRoot + '/', '');
+              console.log(chalk.cyan('  2. Validate example plan:'));
+              console.log(chalk.dim(`     anvil validate ${firstExample}`));
+              console.log(chalk.cyan('  3. Run quality gates:'));
+              console.log(chalk.dim(`     anvil gate ${firstExample}`));
+            } else {
+              console.log(chalk.cyan('  2. Create a planning document in:'));
+              console.log(chalk.dim(`     ${initOptions.planningDir}/`));
+              console.log(chalk.cyan('  3. Validate your plan:'));
+              console.log(chalk.dim('     anvil validate <plan-file>'));
+            }
+
+            console.log('');
+            success('Anvil is ready to use!');
+          } catch (err) {
+            spinner.fail('Initialisation failed');
+            throw err;
           }
-
-          spinner.succeed(chalk.green('Anvil initialised successfully!'));
-
-          // Show summary
-          console.log('\n' + chalk.bold('Created files:'));
-          console.log(chalk.dim('  ✓ .anvilrc'));
-          console.log(chalk.dim('  ✓ .anvil/'));
-          if (shouldCreateBaseline && archSummary) {
-            console.log(chalk.dim('  ✓ .anvil/architecture.json'));
-          }
-          console.log(chalk.dim(`  ✓ ${initOptions.planningDir}/`));
-          if (env.hasGit) {
-            console.log(chalk.dim('  ✓ .gitignore (updated)'));
-          }
-          if (exampleFiles.length > 0) {
-            console.log(chalk.dim('\n' + chalk.bold('Example files:')));
-            exampleFiles.forEach((file) => {
-              const relPath = file.replace(projectRoot + '/', '');
-              console.log(chalk.dim(`  ✓ ${relPath}`));
-            });
-          }
-
-          // Show next steps
-          console.log('\n' + chalk.bold('Next steps:'));
-          console.log(chalk.cyan('  1. Review configuration:'));
-          console.log(chalk.dim('     anvil gate:config --list'));
-
-          if (exampleFiles.length > 0) {
-            const firstExample = exampleFiles[0].replace(projectRoot + '/', '');
-            console.log(chalk.cyan('  2. Validate example plan:'));
-            console.log(chalk.dim(`     anvil validate ${firstExample}`));
-            console.log(chalk.cyan('  3. Run quality gates:'));
-            console.log(chalk.dim(`     anvil gate ${firstExample}`));
-          } else {
-            console.log(chalk.cyan('  2. Create a planning document in:'));
-            console.log(chalk.dim(`     ${initOptions.planningDir}/`));
-            console.log(chalk.cyan('  3. Validate your plan:'));
-            console.log(chalk.dim('     anvil validate <plan-file>'));
-          }
-
-          console.log('');
-          success('Anvil is ready to use!');
         } catch (err) {
-          spinner.fail('Initialisation failed');
-          throw err;
+          error(`Initialisation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+          process.exit(1);
         }
-      } catch (err) {
-        error(`Initialisation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
       }
-    });
+    );
 
   return command;
 }
@@ -353,4 +365,36 @@ async function runInteractiveSetup(
     enabledChecks,
     coverageThreshold: checkAnswers.coverageThreshold || 80,
   };
+}
+
+async function runTUIWizard(
+  projectRoot: string,
+  env: ReturnType<EnvironmentDetector['detect']>,
+  detector: EnvironmentDetector
+): Promise<InitOptions> {
+  return new Promise((resolve, reject) => {
+    const context: WizardContext = {
+      projectRoot,
+      environment: env,
+      recommendedChecks: detector.getRecommendedChecks(env),
+    };
+
+    const handleComplete = (state: WizardState) => {
+      resolve({
+        projectRoot,
+        planningDir: state.planningDir,
+        format: state.format,
+        createExample: state.createExample,
+        configTemplate: state.configTemplate,
+        enabledChecks: state.enabledChecks,
+        coverageThreshold: state.coverageThreshold,
+      });
+    };
+
+    const handleCancel = () => {
+      reject(new Error('Setup cancelled by user'));
+    };
+
+    renderTUI(InitWizard, { context, onComplete: handleComplete, onCancel: handleCancel });
+  });
 }

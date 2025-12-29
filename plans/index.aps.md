@@ -59,7 +59,7 @@ Core Engine:
 
 Onboarding Experience:
 
-- [ ] TUI foundation (OpenTUI components)
+- [x] TUI foundation (Ink components)
 - [ ] Visual `anvil init` wizard
 - [ ] `anvil status` quick health check
 - [ ] `anvil doctor` setup diagnostics
@@ -92,13 +92,13 @@ deliver both the core value AND a friction-free first experience.
 
 #### Onboarding Experience (In Progress 🔄)
 
-| Feature           | Description                                     | Status  |
-| ----------------- | ----------------------------------------------- | ------- |
-| TUI Foundation    | OpenTUI setup + base components (TUI-001)       | Planned |
-| Init Wizard       | Visual `anvil init` with guided flow (TUI-002)  | Planned |
-| Status Dashboard  | Quick health check: `anvil status` (TUI-003)    | Planned |
-| Doctor Command    | Diagnose setup issues: `anvil doctor` (TUI-004) | Planned |
-| First-run Welcome | Show value immediately on first run (TUI-005)   | Planned |
+| Feature           | Description                                     | Status   |
+| ----------------- | ----------------------------------------------- | -------- |
+| TUI Foundation    | Ink setup + base components (TUI-001)           | Complete |
+| Init Wizard       | Visual `anvil init` with guided flow (TUI-002)  | Complete |
+| Status Dashboard  | Quick health check: `anvil status` (TUI-003)    | Planned  |
+| Doctor Command    | Diagnose setup issues: `anvil doctor` (TUI-004) | Planned  |
+| First-run Welcome | Show value immediately on first run (TUI-005)   | Planned  |
 
 **Why onboarding is v1:** Without smooth onboarding, users won't adopt the tool
 regardless of how good the engine is. First impressions matter.
@@ -255,14 +255,14 @@ graph TD
 
 ### Task Status — v1.0 (Onboarding TUI)
 
-| Task    | Module | Description                       | Status  | Priority |
-| ------- | ------ | --------------------------------- | ------- | -------- |
-| TUI-001 | tui    | OpenTUI foundation and components | Planned | high     |
-| TUI-002 | tui    | `anvil init` wizard               | Planned | high     |
-| TUI-003 | tui    | `anvil status` dashboard          | Planned | high     |
-| TUI-004 | tui    | `anvil doctor` diagnostics        | Planned | high     |
-| TUI-005 | tui    | First-run welcome experience      | Planned | high     |
-| TUI-008 | tui    | Testing infrastructure            | Planned | medium   |
+| Task    | Module | Description                   | Status   | Priority |
+| ------- | ------ | ----------------------------- | -------- | -------- |
+| TUI-001 | tui    | Ink foundation and components | Complete | high     |
+| TUI-002 | tui    | `anvil init` wizard           | Complete | high     |
+| TUI-003 | tui    | `anvil status` dashboard      | Planned  | high     |
+| TUI-004 | tui    | `anvil doctor` diagnostics    | Planned  | high     |
+| TUI-005 | tui    | First-run welcome experience  | Planned  | high     |
+| TUI-008 | tui    | Testing infrastructure        | Complete | medium   |
 
 ### Task Status — v1.1 (Drift Reporting)
 
