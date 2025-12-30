@@ -11,6 +11,7 @@ import { createInitCommand } from './commands/init.js';
 import { createHooksCommand } from './commands/hooks.js';
 import { createPolicyCommand } from './commands/policy.js';
 import { createWatchCommand } from './commands/watch.js';
+import { createStatusCommand } from './commands/status.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -37,6 +38,7 @@ program.addCommand(createExportCommand());
 program.addCommand(createHooksCommand());
 program.addCommand(createPolicyCommand());
 program.addCommand(createWatchCommand());
+program.addCommand(createStatusCommand());
 
 // Parse command line arguments
 program.parse();

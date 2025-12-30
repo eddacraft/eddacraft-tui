@@ -60,8 +60,8 @@ Core Engine:
 Onboarding Experience:
 
 - [x] TUI foundation (Ink components)
-- [ ] Visual `anvil init` wizard
-- [ ] `anvil status` quick health check
+- [x] Visual `anvil init` wizard
+- [x] `anvil status` quick health check
 - [ ] `anvil doctor` setup diagnostics
 - [ ] First-run welcome experience
 
@@ -96,7 +96,7 @@ deliver both the core value AND a friction-free first experience.
 | ----------------- | ----------------------------------------------- | -------- |
 | TUI Foundation    | Ink setup + base components (TUI-001)           | Complete |
 | Init Wizard       | Visual `anvil init` with guided flow (TUI-002)  | Complete |
-| Status Dashboard  | Quick health check: `anvil status` (TUI-003)    | Planned  |
+| Status Dashboard  | Quick health check: `anvil status` (TUI-003)    | Complete |
 | Doctor Command    | Diagnose setup issues: `anvil doctor` (TUI-004) | Planned  |
 | First-run Welcome | Show value immediately on first run (TUI-005)   | Planned  |
 

@@ -23,8 +23,7 @@
         "build": {
           "targetName": "build",
           "configName": "tsconfig.lib.json",
-          "buildDepsName": "build-deps",
-          "watchDepsName": "watch-deps"
+          "buildDepsName": "build-deps"
         }
       }
     },
@@ -45,13 +44,15 @@
     "build": {
       "dependsOn": ["^build"]
     },
+    "watch-deps": {
+      "cache": false
+    },
     "@nx/js:tsc": {
       "cache": true,
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     },
     "nx:run-commands": {
-      "cache": true,
       "dependsOn": ["^build"],
       "inputs": ["production", "^production"]
     }
