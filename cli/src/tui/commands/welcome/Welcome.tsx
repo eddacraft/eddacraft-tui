@@ -4,6 +4,7 @@ import {
   ANVIL_LOGO,
   ANVIL_TAGLINE,
   VALUE_PROPOSITION,
+  EDDACRAFT_TEXT,
   QUICK_START_OPTIONS,
   QuickStartOption,
 } from './content.js';
@@ -85,10 +86,16 @@ export function Welcome({ onSelect, onQuit }: WelcomeProps): React.ReactElement 
         })}
       </Box>
 
-      <Box marginTop={1}>
+      <Box marginTop={1} flexDirection="column">
         <Text color={theme.colours.smoke}>
           {theme.icons.info} This welcome screen appears once. Set ANVIL_SKIP_WELCOME=1 to disable.
         </Text>
+        <Box marginTop={1}>
+          <Text color={theme.colours.charcoal}>╔═╗</Text>
+          <Text color={theme.colours.smoke}> ■ </Text>
+          <Text color={theme.colours.charcoal}>╔═╗</Text>
+          <Text color={theme.colours.smoke}> {EDDACRAFT_TEXT}</Text>
+        </Box>
       </Box>
     </Box>
   );

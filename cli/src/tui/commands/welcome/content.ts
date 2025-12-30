@@ -10,6 +10,9 @@ export const VALUE_PROPOSITION = `Make AI-generated code changes safe for produc
 Validates plans through quality gates, maintains audit trails,
 and ensures every change is reversible.`;
 
+export const EDDACRAFT_BADGE = '╔═╗ ■ ╔═╗';
+export const EDDACRAFT_TEXT = 'Part of EddaCraft';
+
 export const QUICK_START_OPTIONS = [
   {
     key: 'init',
