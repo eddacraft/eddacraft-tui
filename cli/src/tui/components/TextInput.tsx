@@ -44,11 +44,11 @@ export function TextInput({
     <Box flexDirection="column">
       {label && (
         <Box marginBottom={1}>
-          <Text color={theme.colours.text}>{label}</Text>
+          <Text color={theme.colours.ash}>{label}</Text>
         </Box>
       )}
       <Box>
-        <Text color={theme.colours.primary}>{theme.icons.arrow} </Text>
+        <Text color={theme.colours.ember}>{theme.icons.arrow} </Text>
         <InkTextInput
           value={value}
           onChange={handleChange}
@@ -58,7 +58,7 @@ export function TextInput({
       </Box>
       {error && (
         <Box marginTop={1}>
-          <Text color={theme.colours.error}>
+          <Text color={theme.colours.slag}>
             {theme.icons.error} {error}
           </Text>
         </Box>

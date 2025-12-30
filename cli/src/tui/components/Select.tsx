@@ -34,7 +34,7 @@ export function Select<V>({
     <Box flexDirection="column">
       {label && (
         <Box marginBottom={1}>
-          <Text color={theme.colours.text}>{label}</Text>
+          <Text color={theme.colours.ash}>{label}</Text>
         </Box>
       )}
       <InkSelectInput
@@ -42,12 +42,12 @@ export function Select<V>({
         onSelect={handleSelect}
         initialIndex={initialIndex}
         indicatorComponent={({ isSelected }) => (
-          <Text color={isSelected ? theme.colours.primary : theme.colours.muted}>
+          <Text color={isSelected ? theme.colours.ember : theme.colours.smoke}>
             {isSelected ? theme.icons.arrow : ' '}{' '}
           </Text>
         )}
         itemComponent={({ isSelected, label: itemLabel }) => (
-          <Text color={isSelected ? theme.colours.primary : theme.colours.text}>{itemLabel}</Text>
+          <Text color={isSelected ? theme.colours.ember : theme.colours.ash}>{itemLabel}</Text>
         )}
       />
     </Box>

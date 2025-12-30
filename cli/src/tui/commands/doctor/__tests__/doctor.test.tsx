@@ -297,7 +297,7 @@ describe('Diagnostics TUI', () => {
       expect(onComplete).toHaveBeenCalled();
     });
 
-    expect(lastFrame()).toContain('Anvil Doctor');
+    expect(lastFrame()).toContain('ANVIL DOCTOR');
   });
 
   it('should show check results', async () => {

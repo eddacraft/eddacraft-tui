@@ -10,12 +10,12 @@ interface StatusBadgeProps {
 }
 
 const statusConfig: Record<StatusType, { icon: string; colour: string; defaultLabel: string }> = {
-  success: { icon: theme.icons.success, colour: theme.colours.success, defaultLabel: 'Passed' },
-  error: { icon: theme.icons.error, colour: theme.colours.error, defaultLabel: 'Failed' },
-  warning: { icon: theme.icons.warning, colour: theme.colours.warning, defaultLabel: 'Warning' },
-  info: { icon: theme.icons.info, colour: theme.colours.info, defaultLabel: 'Info' },
-  running: { icon: theme.icons.bullet, colour: theme.colours.info, defaultLabel: 'Running' },
-  skipped: { icon: theme.icons.bullet, colour: theme.colours.muted, defaultLabel: 'Skipped' },
+  success: { icon: theme.icons.success, colour: theme.colours.steel, defaultLabel: 'Passed' },
+  error: { icon: theme.icons.error, colour: theme.colours.slag, defaultLabel: 'Failed' },
+  warning: { icon: theme.icons.warning, colour: theme.colours.molten, defaultLabel: 'Warning' },
+  info: { icon: theme.icons.info, colour: theme.colours.ash, defaultLabel: 'Info' },
+  running: { icon: theme.icons.running, colour: theme.colours.ember, defaultLabel: 'Running' },
+  skipped: { icon: theme.icons.skipped, colour: theme.colours.smoke, defaultLabel: 'Skipped' },
 };
 
 export function StatusBadge({ status, label }: StatusBadgeProps): React.ReactElement {

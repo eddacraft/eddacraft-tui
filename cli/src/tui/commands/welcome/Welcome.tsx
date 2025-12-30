@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
-import { ANVIL_LOGO, VALUE_PROPOSITION, QUICK_START_OPTIONS, QuickStartOption } from './content.js';
+import {
+  ANVIL_LOGO,
+  ANVIL_TAGLINE,
+  VALUE_PROPOSITION,
+  QUICK_START_OPTIONS,
+  QuickStartOption,
+} from './content.js';
+import { theme } from '../../utils/theme.js';
 
 export interface WelcomeProps {
   onSelect: (option: QuickStartOption) => void;
@@ -32,23 +39,30 @@ export function Welcome({ onSelect, onQuit }: WelcomeProps): React.ReactElement 
     }
   });
 
+  const separator = theme.icons.section.repeat(40);
+
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1}>
       <Box flexDirection="column" marginBottom={1}>
-        <Text color="cyan" bold>
+        <Text color={theme.colours.ember} bold>
           {ANVIL_LOGO}
         </Text>
+        <Text color={theme.colours.smoke}>{ANVIL_TAGLINE}</Text>
       </Box>
 
-      <Box flexDirection="column" marginBottom={1}>
-        <Text>{VALUE_PROPOSITION}</Text>
+      <Text color={theme.colours.charcoal}>{separator}</Text>
+
+      <Box flexDirection="column" marginY={1}>
+        <Text color={theme.colours.ash}>{VALUE_PROPOSITION}</Text>
       </Box>
 
-      <Box flexDirection="column" marginBottom={1}>
-        <Text bold color="white">
-          Quick Start
+      <Text color={theme.colours.charcoal}>{separator}</Text>
+
+      <Box flexDirection="column" marginTop={1} marginBottom={1}>
+        <Text bold color={theme.colours.ash}>
+          QUICK START
         </Text>
-        <Text dimColor>Use arrows or j/k to navigate, Enter to select, q to quit</Text>
+        <Text color={theme.colours.smoke}>↑↓ or j/k navigate • Enter select • q quit</Text>
       </Box>
 
       <Box flexDirection="column">
@@ -56,18 +70,25 @@ export function Welcome({ onSelect, onQuit }: WelcomeProps): React.ReactElement 
           const isSelected = index === selectedIndex;
           return (
             <Box key={option.key} marginLeft={1}>
-              <Text color={isSelected ? 'cyan' : undefined}>
-                {isSelected ? '> ' : '  '}
+              <Text color={isSelected ? theme.colours.ember : theme.colours.smoke}>
+                {isSelected ? theme.icons.arrow : ' '}{' '}
+              </Text>
+              <Text color={isSelected ? theme.colours.ember : theme.colours.ash}>
                 {option.label}
               </Text>
-              <Text dimColor> - {option.description}</Text>
+              <Text color={theme.colours.smoke}>
+                {' '}
+                {theme.icons.bullet} {option.description}
+              </Text>
             </Box>
           );
         })}
       </Box>
 
       <Box marginTop={1}>
-        <Text dimColor>This welcome screen appears once. Set ANVIL_SKIP_WELCOME=1 to disable.</Text>
+        <Text color={theme.colours.smoke}>
+          {theme.icons.info} This welcome screen appears once. Set ANVIL_SKIP_WELCOME=1 to disable.
+        </Text>
       </Box>
     </Box>
   );

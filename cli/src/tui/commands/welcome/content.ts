@@ -1,13 +1,13 @@
 export const ANVIL_LOGO = `
-   ___              _ __
-  / _ | ___  _  __ (_) /
- / __ |/ _ \\| |/ // / /
-/_/ |_/_//_/|___//_/_/
+    ▄▀█ █▄░█ █░█ █ █░░
+    █▀█ █░▀█ ▀▄▀ █ █▄▄
 `;
+
+export const ANVIL_TAGLINE = 'Forge safe code changes';
 
 export const VALUE_PROPOSITION = `Make AI-generated code changes safe for production.
 
-Anvil validates plans through quality gates, maintains audit trails,
+Validates plans through quality gates, maintains audit trails,
 and ensures every change is reversible.`;
 
 export const QUICK_START_OPTIONS = [

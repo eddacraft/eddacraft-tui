@@ -33,23 +33,23 @@ describe('TUI Components', () => {
   });
 
   describe('Header', () => {
-    it('renders title', () => {
+    it('renders title in uppercase', () => {
       const { lastFrame } = render(<Header title="Anvil" />);
 
-      expect(lastFrame()).toContain('Anvil');
+      expect(lastFrame()).toContain('ANVIL');
     });
 
     it('renders title with subtitle', () => {
       const { lastFrame } = render(<Header title="Anvil" subtitle="Quality Gates" />);
 
-      expect(lastFrame()).toContain('Anvil');
+      expect(lastFrame()).toContain('ANVIL');
       expect(lastFrame()).toContain('Quality Gates');
     });
 
     it('renders title with version', () => {
       const { lastFrame } = render(<Header title="Anvil" version="1.0.0" />);
 
-      expect(lastFrame()).toContain('Anvil');
+      expect(lastFrame()).toContain('ANVIL');
       expect(lastFrame()).toContain('v1.0.0');
     });
 
@@ -58,7 +58,7 @@ describe('TUI Components', () => {
         <Header title="Anvil" subtitle="Quality Gates" version="1.0.0" />
       );
 
-      expect(lastFrame()).toContain('Anvil');
+      expect(lastFrame()).toContain('ANVIL');
       expect(lastFrame()).toContain('Quality Gates');
       expect(lastFrame()).toContain('v1.0.0');
     });
@@ -83,14 +83,14 @@ describe('TUI Components', () => {
       const { lastFrame } = render(<StatusBadge status="success" />);
 
       expect(lastFrame()).toContain('Passed');
-      expect(lastFrame()).toContain('[ok]');
+      expect(lastFrame()).toContain('◆');
     });
 
     it('renders error status', () => {
       const { lastFrame } = render(<StatusBadge status="error" />);
 
       expect(lastFrame()).toContain('Failed');
-      expect(lastFrame()).toContain('[x]');
+      expect(lastFrame()).toContain('✖');
     });
 
     it('renders warning status', () => {

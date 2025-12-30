@@ -38,13 +38,13 @@ function getStatusIcon(status: DiagnosticResult['status']): string {
 function getStatusColour(status: DiagnosticResult['status']): string {
   switch (status) {
     case 'pass':
-      return theme.colours.success;
+      return theme.colours.steel;
     case 'warn':
-      return theme.colours.warning;
+      return theme.colours.molten;
     case 'fail':
-      return theme.colours.error;
+      return theme.colours.slag;
     case 'skip':
-      return theme.colours.muted;
+      return theme.colours.smoke;
   }
 }
 
@@ -52,10 +52,10 @@ function ResultRow({ result }: { result: DiagnosticResult }): React.ReactElement
   return (
     <Box>
       <Text color={getStatusColour(result.status)}>{getStatusIcon(result.status)} </Text>
-      <Text>{result.name}: </Text>
+      <Text color={theme.colours.ash}>{result.name}: </Text>
       <Text color={getStatusColour(result.status)}>{result.message}</Text>
       {result.fixable && result.status !== 'pass' && (
-        <Text color={theme.colours.muted}> (fixable)</Text>
+        <Text color={theme.colours.smoke}> (fixable)</Text>
       )}
     </Box>
   );
@@ -63,13 +63,13 @@ function ResultRow({ result }: { result: DiagnosticResult }): React.ReactElement
 
 function SummaryBox({ summary }: { summary: DiagnosticsSummary }): React.ReactElement {
   const statusText = summary.healthy ? 'Healthy' : 'Issues Found';
-  const statusColour = summary.healthy ? theme.colours.success : theme.colours.error;
+  const statusColour = summary.healthy ? theme.colours.steel : theme.colours.slag;
 
   return (
     <Box
       flexDirection="column"
       marginTop={1}
-      borderStyle="single"
+      borderStyle={summary.healthy ? 'single' : 'double'}
       borderColor={statusColour}
       paddingX={1}
     >
@@ -77,17 +77,28 @@ function SummaryBox({ summary }: { summary: DiagnosticsSummary }): React.ReactEl
         {summary.healthy ? theme.icons.success : theme.icons.error} {statusText}
       </Text>
       <Box marginTop={1}>
-        <Text color={theme.colours.success}>{summary.passed} passed</Text>
+        <Text color={theme.colours.steel}>{summary.passed} passed</Text>
         {summary.warnings > 0 && (
-          <Text color={theme.colours.warning}> • {summary.warnings} warnings</Text>
+          <Text color={theme.colours.molten}>
+            {' '}
+            {theme.icons.bullet} {summary.warnings} warnings
+          </Text>
         )}
-        {summary.failed > 0 && <Text color={theme.colours.error}> • {summary.failed} failed</Text>}
+        {summary.failed > 0 && (
+          <Text color={theme.colours.slag}>
+            {' '}
+            {theme.icons.bullet} {summary.failed} failed
+          </Text>
+        )}
         {summary.skipped > 0 && (
-          <Text color={theme.colours.muted}> • {summary.skipped} skipped</Text>
+          <Text color={theme.colours.smoke}>
+            {' '}
+            {theme.icons.bullet} {summary.skipped} skipped
+          </Text>
         )}
       </Box>
       {summary.fixable > 0 && (
-        <Text color={theme.colours.info}>
+        <Text color={theme.colours.ash}>
           {theme.icons.info} {summary.fixable} issue(s) can be auto-fixed with --fix
         </Text>
       )}
@@ -197,7 +208,7 @@ export function Diagnostics({
 
         {phase === 'running' && currentCheck < checks.length && (
           <Box>
-            <Text color={theme.colours.info}>
+            <Text color={theme.colours.ember}>
               <Spinner type="dots" /> Running: {checks[currentCheck].name}...
             </Text>
           </Box>
@@ -205,7 +216,7 @@ export function Diagnostics({
 
         {phase === 'fixing' && fixingIndex >= 0 && fixingIndex < results.length && (
           <Box marginTop={1}>
-            <Text color={theme.colours.info}>
+            <Text color={theme.colours.ember}>
               <Spinner type="dots" /> Fixing: {results[fixingIndex].name}...
             </Text>
           </Box>
@@ -215,7 +226,7 @@ export function Diagnostics({
       {phase === 'complete' && <SummaryBox summary={summary} />}
 
       <Box marginTop={1}>
-        <Text color={theme.colours.muted}>{theme.icons.info} q to quit</Text>
+        <Text color={theme.colours.smoke}>{theme.icons.info} q to quit</Text>
       </Box>
     </Box>
   );

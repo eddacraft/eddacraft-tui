@@ -27,7 +27,7 @@ describe('Welcome component', () => {
     const onQuit = vi.fn();
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
-    expect(lastFrame()).toContain('Quick Start');
+    expect(lastFrame()).toContain('QUICK START');
   });
 
   it('renders all quick start options', () => {
@@ -54,7 +54,7 @@ describe('Welcome component', () => {
     const onQuit = vi.fn();
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
-    expect(lastFrame()).toContain('>');
+    expect(lastFrame()).toContain('▸');
     expect(lastFrame()).toContain('Initialise Anvil');
   });
 
@@ -65,7 +65,7 @@ describe('Welcome component', () => {
 
     const frame = lastFrame();
     expect(frame).toContain('Initialise Anvil');
-    expect(frame).toContain('Enter to select');
+    expect(frame).toContain('Enter select');
   });
 
   it('navigates down with arrow key', () => {
@@ -124,9 +124,9 @@ describe('Welcome component', () => {
 });
 
 describe('Welcome content', () => {
-  it('ANVIL_LOGO is ASCII art', () => {
-    expect(ANVIL_LOGO).toContain('___');
-    expect(ANVIL_LOGO.length).toBeGreaterThan(50);
+  it('ANVIL_LOGO is block art', () => {
+    expect(ANVIL_LOGO).toContain('█');
+    expect(ANVIL_LOGO.length).toBeGreaterThan(30);
   });
 
   it('VALUE_PROPOSITION uses UK English', () => {

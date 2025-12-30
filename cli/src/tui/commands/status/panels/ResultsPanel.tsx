@@ -34,10 +34,10 @@ function ResultRow({ result }: { result: ValidationResult }): React.ReactElement
   return (
     <Box gap={1}>
       <Box width={10}>
-        <Text color={theme.colours.muted}>{formatTimestamp(result.timestamp)}</Text>
+        <Text color={theme.colours.smoke}>{formatTimestamp(result.timestamp)}</Text>
       </Box>
       <Box width={30}>
-        <Text>{shortenPath(result.planPath)}</Text>
+        <Text color={theme.colours.ash}>{shortenPath(result.planPath)}</Text>
       </Box>
       <Box width={8}>
         <StatusBadge
@@ -45,7 +45,7 @@ function ResultRow({ result }: { result: ValidationResult }): React.ReactElement
           label={result.passed ? 'pass' : 'fail'}
         />
       </Box>
-      <Text color={theme.colours.muted}>
+      <Text color={theme.colours.smoke}>
         {result.passedChecks}/{result.totalChecks}
       </Text>
     </Box>
@@ -53,31 +53,31 @@ function ResultRow({ result }: { result: ValidationResult }): React.ReactElement
 }
 
 export function ResultsPanel({ data, focused }: ResultsPanelProps): React.ReactElement {
-  const borderColour = focused ? theme.colours.primary : theme.colours.border;
+  const borderColour = focused ? theme.colours.ember : theme.colours.charcoal;
 
   return (
     <Box
       flexDirection="column"
-      borderStyle="round"
+      borderStyle={focused ? 'double' : 'single'}
       borderColor={borderColour}
       paddingX={1}
       paddingY={0}
       marginTop={1}
     >
       <Box marginBottom={0}>
-        <Text bold color={focused ? theme.colours.primary : theme.colours.text}>
-          {theme.icons.bullet} Recent Results
+        <Text bold color={focused ? theme.colours.ember : theme.colours.ash}>
+          {theme.icons.bullet} RECENT RESULTS
         </Text>
-        {focused && <Text color={theme.colours.muted}> (focused)</Text>}
+        {focused && <Text color={theme.colours.smoke}> (focused)</Text>}
       </Box>
 
       {!data.hasCache ? (
         <Box marginTop={0}>
-          <Text color={theme.colours.muted}>{theme.icons.info} No validation history yet</Text>
+          <Text color={theme.colours.smoke}>{theme.icons.info} No validation history yet</Text>
         </Box>
       ) : data.results.length === 0 ? (
         <Box marginTop={0}>
-          <Text color={theme.colours.muted}>{theme.icons.info} No recent validations</Text>
+          <Text color={theme.colours.smoke}>{theme.icons.info} No recent validations</Text>
         </Box>
       ) : (
         <Box flexDirection="column" marginTop={0}>

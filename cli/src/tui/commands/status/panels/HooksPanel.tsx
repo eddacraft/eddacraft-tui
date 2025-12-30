@@ -35,45 +35,45 @@ function formatLastRun(date?: Date): string {
 }
 
 export function HooksPanel({ data, focused }: HooksPanelProps): React.ReactElement {
-  const borderColour = focused ? theme.colours.primary : theme.colours.border;
+  const borderColour = focused ? theme.colours.ember : theme.colours.charcoal;
 
   return (
     <Box
       flexDirection="column"
-      borderStyle="round"
+      borderStyle={focused ? 'double' : 'single'}
       borderColor={borderColour}
       paddingX={1}
       paddingY={0}
     >
       <Box marginBottom={0}>
-        <Text bold color={focused ? theme.colours.primary : theme.colours.text}>
-          {theme.icons.bullet} Hooks
+        <Text bold color={focused ? theme.colours.ember : theme.colours.ash}>
+          {theme.icons.bullet} HOOKS
         </Text>
-        {focused && <Text color={theme.colours.muted}> (focused)</Text>}
+        {focused && <Text color={theme.colours.smoke}> (focused)</Text>}
       </Box>
 
       {!data.huskyInstalled ? (
         <Box marginTop={0}>
-          <Text color={theme.colours.muted}>{theme.icons.warning} Husky not installed</Text>
+          <Text color={theme.colours.molten}>{theme.icons.warning} Husky not installed</Text>
         </Box>
       ) : data.hooks.length === 0 ? (
         <Box marginTop={0}>
-          <Text color={theme.colours.muted}>{theme.icons.info} No hooks configured</Text>
+          <Text color={theme.colours.smoke}>{theme.icons.info} No hooks configured</Text>
         </Box>
       ) : (
         <Box flexDirection="column" marginTop={0}>
           {data.hooks.map((hook) => (
             <Box key={hook.name} gap={1}>
               <Box width={14}>
-                <Text>{hook.name}</Text>
+                <Text color={theme.colours.ash}>{hook.name}</Text>
               </Box>
               <Box width={12}>
                 <StatusBadge status={hookStateToStatus(hook.state)} label={hook.state} />
               </Box>
               {hook.lastRun && (
-                <Text color={theme.colours.muted}>{formatLastRun(hook.lastRun)}</Text>
+                <Text color={theme.colours.smoke}>{formatLastRun(hook.lastRun)}</Text>
               )}
-              {hook.isAnvilManaged && <Text color={theme.colours.info}>[anvil]</Text>}
+              {hook.isAnvilManaged && <Text color={theme.colours.ember}>[anvil]</Text>}
             </Box>
           ))}
         </Box>

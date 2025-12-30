@@ -8,13 +8,13 @@ interface SpinnerProps {
   colour?: string;
 }
 
-export function Spinner({ label, colour = theme.colours.info }: SpinnerProps): React.ReactElement {
+export function Spinner({ label, colour = theme.colours.ember }: SpinnerProps): React.ReactElement {
   return (
     <Box>
       <Text color={colour}>
         <InkSpinner type="dots" />
       </Text>
-      {label && <Text color={theme.colours.text}> {label}</Text>}
+      {label && <Text color={theme.colours.ash}> {label}</Text>}
     </Box>
   );
 }

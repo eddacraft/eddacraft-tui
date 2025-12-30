@@ -48,8 +48,8 @@ export function StatusDashboard({ data, onQuit }: StatusDashboardProps): React.R
       </Box>
 
       <Box marginTop={1}>
-        <Text color={theme.colours.muted}>
-          {theme.icons.info} j/k or arrows to navigate • q to quit
+        <Text color={theme.colours.smoke}>
+          {theme.icons.info} j/k or arrows to navigate {theme.icons.bullet} q to quit
         </Text>
       </Box>
     </Box>

@@ -6,18 +6,24 @@ import { getTerminalSize } from '../utils/tty-detection.js';
 interface DividerProps {
   character?: string;
   colour?: string;
+  variant?: 'heavy' | 'light';
 }
 
 export function Divider({
-  character = '\u2500',
-  colour = theme.colours.border,
+  character,
+  colour,
+  variant = 'light',
 }: DividerProps): React.ReactElement {
   const { columns } = getTerminalSize();
   const width = Math.max(columns - 4, 20);
 
+  const effectiveChar = character ?? (variant === 'heavy' ? theme.icons.section : '─');
+  const effectiveColour =
+    colour ?? (variant === 'heavy' ? theme.colours.charcoal : theme.colours.smoke);
+
   return (
     <Box marginY={1}>
-      <Text color={colour}>{character.repeat(width)}</Text>
+      <Text color={effectiveColour}>{effectiveChar.repeat(width)}</Text>
     </Box>
   );
 }

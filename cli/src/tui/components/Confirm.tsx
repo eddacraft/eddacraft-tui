@@ -29,15 +29,15 @@ export function Confirm({
 
   return (
     <Box>
-      <Text color={theme.colours.text}>{message} </Text>
-      <Text color={selected ? theme.colours.success : theme.colours.muted} bold={selected}>
+      <Text color={theme.colours.ash}>{message} </Text>
+      <Text color={selected ? theme.colours.steel : theme.colours.smoke} bold={selected}>
         Yes
       </Text>
-      <Text color={theme.colours.muted}> / </Text>
-      <Text color={!selected ? theme.colours.error : theme.colours.muted} bold={!selected}>
+      <Text color={theme.colours.smoke}> / </Text>
+      <Text color={!selected ? theme.colours.slag : theme.colours.smoke} bold={!selected}>
         No
       </Text>
-      <Text color={theme.colours.muted}> (y/n)</Text>
+      <Text color={theme.colours.smoke}> (y/n)</Text>
     </Box>
   );
 }
