@@ -29,6 +29,78 @@ pnpm unlink:cli
 
 ## Available Commands
 
+### `anvil doctor`
+
+Run diagnostic checks and fix common issues.
+
+**Usage:**
+
+```bash
+anvil doctor [options]
+```
+
+**Options:**
+
+- `--fix` - Auto-fix all fixable issues
+- `--json` - Output results as JSON (for CI/CD)
+- `--verbose` - Show detailed diagnostic information
+- `--tui` - Force TUI mode (interactive display with spinners)
+- `--no-tui` - Force plain text mode (for non-TTY environments)
+
+**What it checks:**
+
+1. **System Requirements** - Node.js version (>= 20), git availability
+2. **Configuration** - `.anvilrc` exists and is valid JSON/YAML
+3. **Hooks** - Git hooks installed and executable
+4. **Permissions** - `.anvil/` writable, plans directory readable
+
+**Examples:**
+
+```bash
+# Run all diagnostic checks
+anvil doctor
+
+# Auto-fix common issues
+anvil doctor --fix
+
+# JSON output for CI/CD
+anvil doctor --json
+
+# Verbose output
+anvil doctor --verbose
+
+# Force plain text (non-TUI) mode
+anvil doctor --no-tui
+```
+
+**Output:**
+
+```
+[ok] Node.js Version: Node.js v22.0.0
+[ok] Git Available: git 2.43.0
+[ok] Git Repository: Git repository detected
+[ok] Configuration File: .anvilrc found
+[ok] Configuration Valid: Valid JSON configuration
+[ok] Anvil Directory: .anvil/ directory exists
+[ok] Husky Installed: Husky directory found
+[!] Pre-commit Hook: pre-commit hook not executable
+   -> Run: chmod +x .husky/pre-commit
+[ok] Anvil Directory Writable: .anvil/ is writable
+[ok] Plans Directory Readable: plans/ is readable
+
+All checks passed
+9 passed • 1 warnings
+
+1 issue(s) can be auto-fixed with: anvil doctor --fix
+```
+
+**Exit Codes:**
+
+- `0` - All checks passed (warnings allowed)
+- `1` - One or more checks failed
+
+---
+
 ### `anvil init`
 
 Initialise Anvil in the current project.
@@ -339,6 +411,51 @@ anvil plan "Add authentication module" --format speckit
 
 ---
 
+## First-Run Experience
+
+When you run `anvil` for the first time (without any command), a welcome screen
+displays explaining Anvil's value proposition and offering quick-start options.
+
+**Detection:**
+
+- Checks for `.anvil/` directory in current or parent directories
+- If not found, displays welcome screen
+- Creates `.anvil/` marker after display
+
+**Disable Welcome:**
+
+```bash
+# Environment variable
+ANVIL_SKIP_WELCOME=1 anvil
+
+# Or create .anvil/ directory manually
+mkdir .anvil
+```
+
+**Welcome Screen:**
+
+```
+   ___              _ __
+  / _ | ___  _  __ (_) /
+ / __ |/ _ \| |/ // / /
+/_/ |_/_//_/|___//_/_/
+
+Make AI-generated code changes safe for production.
+
+Anvil validates plans through quality gates, maintains audit trails,
+and ensures every change is reversible.
+
+Quick Start:
+
+  anvil init           Set up Anvil in this project
+  anvil doctor         Check your environment setup
+  anvil --help         See all available commands
+
+This welcome message appears once. Set ANVIL_SKIP_WELCOME=1 to disable.
+```
+
+---
+
 ## Format Detection
 
 The Anvil CLI automatically detects planning document formats using
@@ -349,7 +466,7 @@ content-based analysis (not just file extensions).
 | Format  | Extensions                       | Status      | Confidence |
 | ------- | -------------------------------- | ----------- | ---------- |
 | SpecKit | `spec.md`, `plan.md`, `tasks.md` | ✅ Complete | 90-100%    |
-| BMAD    | `*.md` (PRD/architecture)        | ⏳ Planned  | -          |
+| BMAD    | `*.md` (PRD/architecture)        | ✅ Complete | 100%       |
 | APS     | `*.json`, `*.yaml`               | ✅ Complete | 100%       |
 
 **How it Works:**
@@ -447,13 +564,25 @@ All commands support multi-format input automatically.
 cli/
 ├── src/
 │   ├── commands/          # CLI command implementations
-│   │   ├── validate.ts    # anvil validate
-│   │   ├── gate.ts        # anvil gate
+│   │   ├── doctor.ts      # anvil doctor
 │   │   ├── export.ts      # anvil export
-│   │   └── plan.ts        # anvil plan (future)
+│   │   ├── gate.ts        # anvil gate
+│   │   ├── init.ts        # anvil init
+│   │   ├── validate.ts    # anvil validate
+│   │   └── welcome.ts     # First-run welcome handler
 │   ├── services/          # Core services
-│   │   ├── format-detection.ts  # Format auto-detection
-│   │   └── plan-loader.ts       # Multi-format plan loading
+│   │   ├── environment-detector.ts  # Environment detection
+│   │   ├── first-run-detector.ts    # First-run detection
+│   │   ├── format-detection.ts      # Format auto-detection
+│   │   └── plan-loader.ts           # Multi-format plan loading
+│   ├── tui/               # Terminal UI components (Ink)
+│   │   ├── commands/      # TUI command views
+│   │   │   ├── doctor/    # Diagnostics TUI
+│   │   │   ├── init/      # Init wizard TUI
+│   │   │   ├── status/    # Status display TUI
+│   │   │   └── welcome/   # Welcome screen TUI
+│   │   ├── components/    # Reusable TUI components
+│   │   └── utils/         # TUI utilities (theme, TTY detection)
 │   ├── types/             # TypeScript type definitions
 │   │   ├── command-options.ts   # CLI option types
 │   │   ├── command-results.ts   # Result types
@@ -623,4 +752,4 @@ anvil gate spec.md --skip-checks coverage
 
 ---
 
-**Version:** 0.0.0 (Pre-release) **Last Updated:** 2025-10-23
+**Version:** 0.0.0 (Pre-release) **Last Updated:** 2025-12-30

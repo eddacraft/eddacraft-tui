@@ -1,6 +1,8 @@
 export { createCheckCommand } from './check.js';
+export { createDoctorCommand } from './doctor.js';
 export { createGateCommand } from './gate.js';
 export { createGateConfigCommand } from './gate-config.js';
 export { createExportCommand } from './export.js';
+export { createNewCommand } from './new.js';
 export { createWatchCommand } from './watch.js';
 export { createStatusCommand } from './status.js';

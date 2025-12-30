@@ -83,14 +83,14 @@ describe('TUI Components', () => {
       const { lastFrame } = render(<StatusBadge status="success" />);
 
       expect(lastFrame()).toContain('Passed');
-      expect(lastFrame()).toContain('✔');
+      expect(lastFrame()).toContain('[ok]');
     });
 
     it('renders error status', () => {
       const { lastFrame } = render(<StatusBadge status="error" />);
 
       expect(lastFrame()).toContain('Failed');
-      expect(lastFrame()).toContain('✘');
+      expect(lastFrame()).toContain('[x]');
     });
 
     it('renders warning status', () => {
