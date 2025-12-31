@@ -199,9 +199,6 @@ importers:
       minimatch:
         specifier: ^10.1.1
         version: 10.1.1
-      minimist:
-        specifier: ^1.2.8
-        version: 1.2.8
       shell-quote:
         specifier: ^1.8.2
         version: 1.8.3
@@ -215,9 +212,6 @@ importers:
       '@types/json-schema':
         specifier: ^7.0.15
         version: 7.0.15
-      '@types/minimist':
-        specifier: ^1.2.5
-        version: 1.2.5
       '@types/shell-quote':
         specifier: ^1.7.5
         version: 1.7.5
@@ -2933,12 +2927,6 @@ packages:
     resolution:
       {
         integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==,
-      }
-
-  '@types/minimist@1.2.5':
-    resolution:
-      {
-        integrity: sha512-hov8bUuiLiyFPGyFPE1lwWhmzYbirOXQNNo40+y3zow8aFVTeyn3VWL0VFFfdNddA8S4Vf0Tc062rzyNr7Paag==,
       }
 
   '@types/ms@2.1.0':
@@ -12041,8 +12029,6 @@ snapshots:
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
-
-  '@types/minimist@1.2.5': {}
 
   '@types/ms@2.1.0': {}
 
