@@ -25,7 +25,16 @@ export type {
   CommandSafetyConfig,
   CommandSafetyFinding,
   CommandAnalysisSummary,
+  ResolvedCommandSafetyConfig,
 } from './rules/types.js';
+
+export {
+  loadCommandSafetyRules,
+  resolveCommandSafetyConfig,
+  DEFAULT_COMMAND_SAFETY_CONFIG,
+} from './config/index.js';
+
+export { formatBlockedCommands, formatWarningCommands, formatSummary } from './formatters/index.js';
 
 // Policy module exports
 export * from './policy/index.js';

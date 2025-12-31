@@ -64,6 +64,8 @@ export interface GateOptions {
   tui?: boolean;
   /** Force plain text mode (no TUI) */
   noTui?: boolean;
+  /** Skip command safety check (convenience flag) */
+  skipCommandSafety?: boolean;
 }
 
 /**

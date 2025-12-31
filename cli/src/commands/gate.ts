@@ -130,6 +130,7 @@ export function createGateCommand(): Command {
     .option('--progress', 'Show real-time progress for each check')
     .option('--tui', 'Show interactive explorer after gate execution')
     .option('--no-tui', 'Force plain text mode')
+    .option('--skip-command-safety', 'Skip command safety validation check')
     .action(async (planArg: string | undefined, options: GateOptions) => {
       // Handle --list-profiles
       if (options.listProfiles) {
@@ -292,6 +293,11 @@ export function createGateCommand(): Command {
             .split(',')
             .map((s) => s.trim())
             .forEach((check) => skipChecksSet.add(check));
+        }
+
+        // 4. Apply --skip-command-safety convenience flag
+        if (options.skipCommandSafety) {
+          skipChecksSet.add('command-safety');
         }
 
         // Convert set to array
