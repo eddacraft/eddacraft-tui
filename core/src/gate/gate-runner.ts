@@ -15,6 +15,7 @@ import { DependencyCheck } from './checks/dependency.check.js';
 import { PolicyCheck } from './checks/policy.check.js';
 import { ArchitectureCheck } from './checks/architecture.check.js';
 import { AntipatternCheck } from './checks/antipattern.check.js';
+import { CommandSafetyCheck } from './checks/command-safety.check.js';
 import type { CacheProvider } from '../cache/types.js';
 import { NullCacheProvider } from '../cache/providers/null-cache.js';
 import { generateCacheKey, hashCheckConfig, generateInputHash } from '../cache/cache-key.js';
@@ -698,5 +699,6 @@ export class GateRunner {
     this.registerCheck(new PolicyCheck());
     this.registerCheck(new ArchitectureCheck());
     this.registerCheck(new AntipatternCheck());
+    this.registerCheck(new CommandSafetyCheck());
   }
 }

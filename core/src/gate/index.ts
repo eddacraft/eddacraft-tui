@@ -19,6 +19,13 @@ export { PolicyCheck } from './checks/policy.check.js';
 export type { PolicyCheckConfig } from './checks/policy.check.js';
 export { ArchitectureCheck } from './checks/architecture.check.js';
 export type { ArchitectureCheckConfig } from './checks/architecture.check.js';
+export { CommandSafetyCheck } from './checks/command-safety.check.js';
+export type {
+  CommandRule,
+  CommandSafetyConfig,
+  CommandSafetyFinding,
+  CommandAnalysisSummary,
+} from './rules/types.js';
 
 // Policy module exports
 export * from './policy/index.js';
