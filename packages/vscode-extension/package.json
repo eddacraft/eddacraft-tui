@@ -4,8 +4,7 @@
   "description": "Deterministic validation and quality gates for AI-generated code plans. Catch architecture violations and anti-patterns at save time.",
   "version": "0.1.0",
   "publisher": "eddacraft",
-  "license": "MIT",
-  "icon": "resources/anvil-icon.svg",
+  "icon": "resources/anvil-icon.png",
   "galleryBanner": {
     "color": "#1e1e2e",
     "theme": "dark"
