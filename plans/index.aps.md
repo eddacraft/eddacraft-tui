@@ -112,13 +112,16 @@ regardless of how good the engine is. First impressions matter.
 | Demo/Tutorial     | Show Anvil catching real issues | Needed       |
 | Error Messages    | Actionable, not cryptic         | Review       |
 
-### v1.1 — Drift Visibility
+### v1.1 — Drift Visibility + OPA Integration
 
-| Feature         | Description                                    | Status |
-| --------------- | ---------------------------------------------- | ------ |
-| Drift Snapshots | `anvil drift snapshot` — capture current state | Draft  |
-| Drift Compare   | `anvil drift compare` — show changes over time | Draft  |
-| Trend Reports   | Visualise suppression and violation trends     | Draft  |
+| Feature                | Description                                    | Status |
+| ---------------------- | ---------------------------------------------- | ------ |
+| Drift Snapshots        | `anvil drift snapshot` — capture current state | Draft  |
+| Drift Compare          | `anvil drift compare` — show changes over time | Draft  |
+| Trend Reports          | Visualise suppression and violation trends     | Draft  |
+| OPA Architecture       | DC → OPA bridge, YAML-first architecture       | Draft  |
+| Architecture Templates | Layered, Hexagonal, Clean, DDD presets         | Draft  |
+| Remote Policy Bundles  | Centralised policy distribution                | Draft  |
 
 ### v1.2 — Advanced Experience
 
@@ -216,17 +219,18 @@ graph TD
 
 ## Modules
 
-| Module                                                                  | Scope  | Status      | Release | Dependencies                                           |
-| ----------------------------------------------------------------------- | ------ | ----------- | ------- | ------------------------------------------------------ |
-| [save-time-trust](./modules/save-time-trust.aps.md)                     | CORE   | Complete    | v1.0    | —                                                      |
-| [architecture-safety](./modules/architecture-safety.aps.md)             | ARCH   | Complete    | v1.0    | save-time-trust                                        |
-| [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI   | Complete    | v1.0    | save-time-trust                                        |
-| [suppressions](./modules/suppressions.aps.md)                           | SUPP   | Complete    | v1.0    | architecture-safety, antipattern-library               |
-| [ci-integration](./modules/ci-integration.aps.md)                       | CI     | Complete    | v1.0    | save-time-trust                                        |
-| [tui](./modules/tui.aps.md)                                             | TUI    | In Progress | v1.0    | — (Phase 1: onboarding only)                           |
-| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT  | Draft       | v1.1    | architecture-safety, antipattern-library, suppressions |
-| [ide-integration](./modules/ide-integration.aps.md)                     | IDE    | Draft       | v1.2    | save-time-trust                                        |
-| [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF | Ready       | v2.0    | —                                                      |
+| Module                                                                        | Scope  | Status      | Release | Dependencies                                           |
+| ----------------------------------------------------------------------------- | ------ | ----------- | ------- | ------------------------------------------------------ |
+| [save-time-trust](./modules/save-time-trust.aps.md)                           | CORE   | Complete    | v1.0    | —                                                      |
+| [architecture-safety](./modules/architecture-safety.aps.md)                   | ARCH   | Complete    | v1.0    | save-time-trust                                        |
+| [antipattern-library](./modules/antipattern-library.aps.md)                   | ANTI   | Complete    | v1.0    | save-time-trust                                        |
+| [suppressions](./modules/suppressions.aps.md)                                 | SUPP   | Complete    | v1.0    | architecture-safety, antipattern-library               |
+| [ci-integration](./modules/ci-integration.aps.md)                             | CI     | Complete    | v1.0    | save-time-trust                                        |
+| [tui](./modules/tui.aps.md)                                                   | TUI    | In Progress | v1.0    | — (Phase 1: onboarding only)                           |
+| [drift-reporting](./modules/drift-reporting.aps.md)                           | DRIFT  | Draft       | v1.1    | architecture-safety, antipattern-library, suppressions |
+| [opa-architecture-integration](./modules/opa-architecture-integration.aps.md) | OPA    | Draft       | v1.1    | architecture-safety, save-time-trust                   |
+| [ide-integration](./modules/ide-integration.aps.md)                           | IDE    | Draft       | v1.2    | save-time-trust                                        |
+| [command-safety-validation](./modules/command-safety-validation.aps.md)       | CMDSAF | Ready       | v2.0    | —                                                      |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -271,6 +275,32 @@ graph TD
 | DRIFT-01 | drift  | Snapshot capture command  | Planned | medium   |
 | DRIFT-02 | drift  | Snapshot comparison       | Planned | medium   |
 | DRIFT-03 | drift  | Basic trend visualisation | Planned | low      |
+
+### Task Status — v1.1 (OPA & Architecture Integration)
+
+| Task    | Module | Description                         | Status  | Priority |
+| ------- | ------ | ----------------------------------- | ------- | -------- |
+| OPA-001 | opa    | Architecture YAML schema (Zod)      | Planned | high     |
+| OPA-002 | opa    | YAML parser with template expansion | Planned | high     |
+| OPA-003 | opa    | DC config generator from YAML       | Planned | high     |
+| OPA-004 | opa    | `anvil architecture init` command   | Planned | high     |
+| OPA-005 | opa    | Architecture context extraction     | Planned | high     |
+| OPA-006 | opa    | OPA input schema enhancement        | Planned | high     |
+| OPA-007 | opa    | Gate runner integration             | Planned | high     |
+| OPA-008 | opa    | Rego generator from architecture    | Planned | medium   |
+| OPA-009 | opa    | Generated policy marker             | Planned | medium   |
+| OPA-010 | opa    | Auto-regeneration on YAML change    | Planned | medium   |
+| OPA-011 | opa    | Layered architecture template       | Planned | medium   |
+| OPA-012 | opa    | Hexagonal architecture template     | Planned | medium   |
+| OPA-013 | opa    | Clean Architecture template         | Planned | medium   |
+| OPA-014 | opa    | DDD template with bounded contexts  | Planned | medium   |
+| OPA-015 | opa    | Template loader and validator       | Planned | medium   |
+| OPA-016 | opa    | TypeScript analyser foundation      | Planned | low      |
+| OPA-017 | opa    | Path alias resolver                 | Planned | low      |
+| OPA-018 | opa    | Analyser feature flag               | Planned | low      |
+| OPA-019 | opa    | Bundle download and caching         | Planned | medium   |
+| OPA-020 | opa    | Signature verification              | Planned | medium   |
+| OPA-021 | opa    | Basic auth and CLI commands         | Planned | medium   |
 
 ### Task Status — v1.2 (Advanced Experience)
 
@@ -325,6 +355,8 @@ graph TD
   explanation ([ADR](./decisions/004-suppression-syntax.md))
 - **D-005:** Ink over OpenTUI — Node.js compatibility over native performance
   ([ADR](./decisions/005-ink-over-opentui.md))
+- **D-006:** Hybrid DC + OPA — DC for analysis, OPA for policies, bridge between
+  ([ADR](./decisions/006-hybrid-dc-opa.md))
 
 ## Open Questions
 
@@ -360,19 +392,20 @@ graph TD
 
 ### Architecture Scanning Enhancements (Frequently Requested)
 
-**To brainstorm post-TUI implementation.** Current architecture detection is
-baseline + new-edge detection. Users frequently ask for more.
+**Many of these are now planned in the OPA & Architecture Integration module
+(v1.1).** See
+[opa-architecture-integration](./modules/opa-architecture-integration.aps.md).
 
-| Idea                           | Value | Notes                                          |
-| ------------------------------ | ----- | ---------------------------------------------- |
-| Architecture pattern templates | High  | Hexagonal, Clean, Layered, DDD presets         |
-| Visual dependency graph        | High  | Interactive graph showing module relationships |
-| Layer violation detection      | High  | Enforce layer boundaries (UI → Service → Data) |
-| Circular dependency detection  | High  | Already have via dependency-cruiser            |
-| Public API surface detection   | Med   | Which exports are "public" vs internal         |
-| Module coupling metrics        | Med   | Fan-in/fan-out, instability index              |
-| Architecture fitness functions | Med   | Custom rules for architecture constraints      |
-| Suggested refactorings         | Med   | "This module is doing too much"                |
+| Idea                           | Value | Status                                 |
+| ------------------------------ | ----- | -------------------------------------- |
+| Architecture pattern templates | High  | ✅ Planned (OPA-011–015)               |
+| Visual dependency graph        | High  | Deferred to v1.2+                      |
+| Layer violation detection      | High  | ✅ Planned (DC + OPA bridge)           |
+| Circular dependency detection  | High  | ✅ Already have via dependency-cruiser |
+| Public API surface detection   | Med   | Open                                   |
+| Module coupling metrics        | Med   | Open                                   |
+| Architecture fitness functions | Med   | ✅ Planned (Rego policies)             |
+| Suggested refactorings         | Med   | Open                                   |
 
 ### Documentation Gaps
 
