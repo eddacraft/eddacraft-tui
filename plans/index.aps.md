@@ -103,21 +103,23 @@ deliver both the core value AND a friction-free first experience.
 **Why onboarding is v1:** Without smooth onboarding, users won't adopt the tool
 regardless of how good the engine is. First impressions matter.
 
-#### Documentation & Polish (In Progress 🔄)
+#### Documentation & Polish (Ready 📋)
 
-| Feature           | Description                     | Status       |
-| ----------------- | ------------------------------- | ------------ |
-| Quick Start Guide | 5-minute path to first value    | Needs update |
-| User Guide        | Complete command reference      | Needs update |
-| Demo/Tutorial     | Show Anvil catching real issues | Needed       |
-| Error Messages    | Actionable, not cryptic         | Review       |
+| Feature           | Description                     | Status   |
+| ----------------- | ------------------------------- | -------- |
+| Quick Start Guide | 5-minute path to first value    | DOCS-001 |
+| User Guide        | Complete command reference      | DOCS-002 |
+| Demo/Tutorial     | Show Anvil catching real issues | DOCS-003 |
+| Error Messages    | Actionable, not cryptic         | DOCS-004 |
 
-### v1.1 — Drift Visibility + OPA Integration
+### v1.1 — Drift Visibility & Developer Trust
 
 | Feature                | Description                                    | Status |
 | ---------------------- | ---------------------------------------------- | ------ |
-| Drift Snapshots        | `anvil drift snapshot` — capture current state | Draft  |
-| Drift Compare          | `anvil drift compare` — show changes over time | Draft  |
+| Explain Command        | `anvil explain <id>` — deep-dive into warnings | Ready  |
+| Drift Snapshots        | `anvil drift snapshot` — capture current state | Ready  |
+| Drift Compare          | `anvil drift compare` — show changes over time | Ready  |
+| Drift Reports          | `anvil drift report` — visualise trends        | Ready  |
 | Trend Reports          | Visualise suppression and violation trends     | Draft  |
 | OPA Architecture       | DC → OPA bridge, YAML-first architecture       | Draft  |
 | Architecture Templates | Layered, Hexagonal, Clean, DDD presets         | Draft  |
@@ -134,11 +136,11 @@ regardless of how good the engine is. First impressions matter.
 
 ### v2.0 — AI Tool Integration
 
-| Feature           | Description                               | Status  |
-| ----------------- | ----------------------------------------- | ------- |
-| Command Safety    | Validate AI tool commands (CMDSAF)        | Ready   |
-| MCP Server        | Real-time validation during AI generation | Planned |
-| Constraint Export | Export rules for AI tools to consume      | Planned |
+| Feature         | Description                                | Status  |
+| --------------- | ------------------------------------------ | ------- |
+| llms.txt Export | Export constraints for AI tool consumption | Ready   |
+| Command Safety  | Validate AI tool commands (CMDSAF)         | Ready   |
+| MCP Server      | Real-time validation during AI generation  | Planned |
 
 ### What's NOT in v1
 
@@ -219,18 +221,20 @@ graph TD
 
 ## Modules
 
-| Module                                                                        | Scope  | Status      | Release | Dependencies                                           |
-| ----------------------------------------------------------------------------- | ------ | ----------- | ------- | ------------------------------------------------------ |
-| [save-time-trust](./modules/save-time-trust.aps.md)                           | CORE   | Complete    | v1.0    | —                                                      |
-| [architecture-safety](./modules/architecture-safety.aps.md)                   | ARCH   | Complete    | v1.0    | save-time-trust                                        |
-| [antipattern-library](./modules/antipattern-library.aps.md)                   | ANTI   | Complete    | v1.0    | save-time-trust                                        |
-| [suppressions](./modules/suppressions.aps.md)                                 | SUPP   | Complete    | v1.0    | architecture-safety, antipattern-library               |
-| [ci-integration](./modules/ci-integration.aps.md)                             | CI     | Complete    | v1.0    | save-time-trust                                        |
-| [tui](./modules/tui.aps.md)                                                   | TUI    | In Progress | v1.0    | — (Phase 1: onboarding only)                           |
-| [drift-reporting](./modules/drift-reporting.aps.md)                           | DRIFT  | Draft       | v1.1    | architecture-safety, antipattern-library, suppressions |
-| [opa-architecture-integration](./modules/opa-architecture-integration.aps.md) | OPA    | Draft       | v1.1    | architecture-safety, save-time-trust                   |
-| [ide-integration](./modules/ide-integration.aps.md)                           | IDE    | Draft       | v1.2    | save-time-trust                                        |
-| [command-safety-validation](./modules/command-safety-validation.aps.md)       | CMDSAF | Ready       | v2.0    | —                                                      |
+| Module                                                                  | Scope   | Status      | Release | Dependencies                                           |
+| ----------------------------------------------------------------------- | ------- | ----------- | ------- | ------------------------------------------------------ |
+| [save-time-trust](./modules/save-time-trust.aps.md)                     | CORE    | Complete    | v1.0    | —                                                      |
+| [architecture-safety](./modules/architecture-safety.aps.md)             | ARCH    | Complete    | v1.0    | save-time-trust                                        |
+| [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI    | Complete    | v1.0    | save-time-trust                                        |
+| [suppressions](./modules/suppressions.aps.md)                           | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library               |
+| [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                        |
+| [tui](./modules/tui.aps.md)                                             | TUI     | In Progress | v1.0    | — (Phase 1: onboarding only)                           |
+| [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                      |
+| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Ready       | v1.1    | architecture-safety, antipattern-library               |
+| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Ready       | v1.1    | architecture-safety, antipattern-library, suppressions |
+| [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Draft       | v1.2    | save-time-trust                                        |
+| [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library               |
+| [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                      |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -268,13 +272,37 @@ graph TD
 | TUI-005 | tui    | First-run welcome experience  | Planned  | high     |
 | TUI-008 | tui    | Testing infrastructure        | Complete | medium   |
 
+### Task Status — v1.0 (Documentation)
+
+| Task     | Module | Description            | Status  | Priority |
+| -------- | ------ | ---------------------- | ------- | -------- |
+| DOCS-001 | docs   | Quick Start Guide      | Planned | high     |
+| DOCS-002 | docs   | User Guide command ref | Planned | high     |
+| DOCS-003 | docs   | Demo material creation | Planned | high     |
+| DOCS-004 | docs   | Error message audit    | Planned | medium   |
+| DOCS-005 | docs   | Troubleshooting guide  | Planned | medium   |
+| DOCS-006 | docs   | README refresh         | Planned | high     |
+
+### Task Status — v1.1 (Explain Command)
+
+| Task       | Module  | Description               | Status  | Priority |
+| ---------- | ------- | ------------------------- | ------- | -------- |
+| EXPLAIN-01 | explain | Warning ID system         | Planned | high     |
+| EXPLAIN-02 | explain | Explanation templates     | Planned | high     |
+| EXPLAIN-03 | explain | Architecture explanations | Planned | high     |
+| EXPLAIN-04 | explain | Anti-pattern explanations | Planned | high     |
+| EXPLAIN-05 | explain | ExplainService            | Planned | high     |
+| EXPLAIN-06 | explain | CLI explain command       | Planned | high     |
+
 ### Task Status — v1.1 (Drift Reporting)
 
 | Task     | Module | Description               | Status  | Priority |
 | -------- | ------ | ------------------------- | ------- | -------- |
-| DRIFT-01 | drift  | Snapshot capture command  | Planned | medium   |
-| DRIFT-02 | drift  | Snapshot comparison       | Planned | medium   |
-| DRIFT-03 | drift  | Basic trend visualisation | Planned | low      |
+| DRIFT-01 | drift  | Snapshot schema & storage | Planned | high     |
+| DRIFT-02 | drift  | Snapshot capture          | Planned | high     |
+| DRIFT-03 | drift  | Snapshot comparison       | Planned | high     |
+| DRIFT-04 | drift  | Report generator          | Planned | medium   |
+| DRIFT-05 | drift  | CLI drift commands        | Planned | high     |
 
 ### Task Status — v1.1 (OPA & Architecture Integration)
 
@@ -320,6 +348,11 @@ graph TD
 
 | Task       | Module         | Description                       | Status  | Priority |
 | ---------- | -------------- | --------------------------------- | ------- | -------- |
+| LLMS-001   | llms-txt       | Constraint collector              | Planned | high     |
+| LLMS-002   | llms-txt       | llms.txt formatter                | Planned | high     |
+| LLMS-003   | llms-txt       | MCP resource formatter            | Planned | medium   |
+| LLMS-004   | llms-txt       | Prompt fragment formatter         | Planned | medium   |
+| LLMS-005   | llms-txt       | CLI export command                | Planned | high     |
 | CMDSAF-001 | command-safety | Rule system and types             | Planned | high     |
 | CMDSAF-002 | command-safety | Command parser with unwrapping    | Planned | high     |
 | CMDSAF-003 | command-safety | Rule matcher with specificity     | Planned | high     |
@@ -382,7 +415,7 @@ graph TD
 
 | Idea                         | Value  | Effort | Notes                                    |
 | ---------------------------- | ------ | ------ | ---------------------------------------- |
-| `anvil explain <warning-id>` | High   | Low    | Deep-dive into why a warning was raised  |
+| `anvil explain <warning-id>` | High   | Low    | ✅ Planned for v1.1 (EXPLAIN module)     |
 | `anvil fix <warning-id>`     | High   | Medium | Auto-fix where safe (e.g., add suppress) |
 | Config inheritance           | Medium | Medium | Org → repo → folder config cascade       |
 | Baseline diff on PR          | High   | Medium | Show architecture changes in PR          |
@@ -411,8 +444,8 @@ graph TD
 
 | Doc                   | Status  | Notes                               |
 | --------------------- | ------- | ----------------------------------- |
-| QUICK_START.md        | Stale   | Needs update for `anvil check`      |
-| USER_GUIDE.md         | Stale   | Needs full command reference        |
-| TROUBLESHOOTING.md    | Partial | Add common onboarding issues        |
+| QUICK_START.md        | Stale   | ✅ Planned: DOCS-001                |
+| USER_GUIDE.md         | Stale   | ✅ Planned: DOCS-002                |
+| TROUBLESHOOTING.md    | Partial | ✅ Planned: DOCS-005                |
+| Demo GIF              | Missing | ✅ Planned: DOCS-003                |
 | Architecture patterns | Missing | Show hexagonal/clean/layered setups |
-| Video/GIF demo        | Missing | Critical for landing page           |
