@@ -133,7 +133,7 @@ export function TemplateBrowser({
       return;
     }
 
-    if (key.upArrow) {
+    if (input === 'k' || key.upArrow) {
       if (view === 'categories') {
         setCategoryIndex((prev) => Math.max(0, prev - 1));
       } else if (view === 'templates') {
@@ -141,7 +141,7 @@ export function TemplateBrowser({
       }
     }
 
-    if (key.downArrow) {
+    if (input === 'j' || key.downArrow) {
       if (view === 'categories') {
         setCategoryIndex((prev) => Math.min(categories.length - 1, prev + 1));
       } else if (view === 'templates') {

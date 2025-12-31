@@ -10,6 +10,7 @@ import {
   createCacheProvider,
   type GateRunOptions,
   type ProgressEvent,
+  type GateRunResultWithCache,
 } from '@anvil/core';
 import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
@@ -17,6 +18,13 @@ import { EvidenceWriter } from '../services/evidence-writer.js';
 import type { GateOptions, GateProfile } from '../types/command-options.js';
 import { success, error, formatGateResults, info, formatGateResultsJSON } from '../utils/output.js';
 import ora from 'ora';
+import { isTUIAvailable } from '../tui/utils/tty-detection.js';
+import { renderTUIAndWait } from '../tui/utils/renderer.js';
+import { GateExplorer } from '../tui/commands/gate/index.js';
+import type {
+  GateResult as TUIGateResult,
+  CheckResult as TUICheckResult,
+} from '../tui/commands/gate/types.js';
 
 /**
  * Predefined gate profiles for different environments
@@ -36,9 +44,61 @@ const GATE_PROFILES: Record<GateProfile, { skipChecks?: string[]; description: s
   },
 };
 
-/**
- * Parse ANVIL_SKIP_GATES environment variable
- */
+function convertToTUIGateResult(
+  results: GateRunResultWithCache,
+  planId: string,
+  planPath?: string
+): TUIGateResult {
+  const checks: TUICheckResult[] = results.checks.map((check) => {
+    const details: string[] = [];
+
+    if (check.error) {
+      details.push(check.error);
+    }
+
+    const warnings = check.details?.warnings?.warnings ?? [];
+    for (const w of warnings) {
+      const loc = w.location ? ` (${w.location.file}:${w.location.line})` : '';
+      details.push(`[${w.id}] ${w.message}${loc}`);
+    }
+
+    const hasNonBlockingWarnings = warnings.some((w) => w.severity !== 'error' && !w.suppressed);
+    const hasBlockingIssues = !check.passed && !check.skipped;
+
+    let status: TUICheckResult['status'];
+    if (check.skipped) {
+      status = 'skipped';
+    } else if (hasBlockingIssues) {
+      status = 'failed';
+    } else if (hasNonBlockingWarnings) {
+      status = 'warning';
+    } else {
+      status = 'passed';
+    }
+
+    return {
+      id: check.check,
+      name: check.check,
+      status,
+      score: check.score ?? 0,
+      message: check.message ?? '',
+      details: details.length > 0 ? details : undefined,
+      duration: undefined,
+      category: undefined,
+    };
+  });
+
+  return {
+    planId,
+    planPath,
+    overall: results.overall,
+    score: results.score,
+    checks,
+    duration: results.timing?.totalMs ?? 0,
+    timestamp: new Date(),
+  };
+}
+
 function parseSkipGatesEnv(): string[] {
   const envValue = process.env.ANVIL_SKIP_GATES;
   if (!envValue) return [];
@@ -68,6 +128,8 @@ export function createGateCommand(): Command {
     .option('--parallel <limit>', 'Limit parallel check execution (0 = sequential)')
     .option('-o, --output <format>', 'Output format: human (default) or json', 'human')
     .option('--progress', 'Show real-time progress for each check')
+    .option('--tui', 'Show interactive explorer after gate execution')
+    .option('--no-tui', 'Force plain text mode')
     .action(async (planArg: string | undefined, options: GateOptions) => {
       // Handle --list-profiles
       if (options.listProfiles) {
@@ -366,7 +428,12 @@ export function createGateCommand(): Command {
           }
         }
 
-        // Exit with appropriate code
+        const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+        if (useTUI && options.tui && options.output !== 'json') {
+          const tuiResult = convertToTUIGateResult(results, plan.id, planPath);
+          await renderTUIAndWait(GateExplorer, { result: tuiResult });
+        }
+
         if (results.overall) {
           success('All quality gates passed!');
           process.exit(0);

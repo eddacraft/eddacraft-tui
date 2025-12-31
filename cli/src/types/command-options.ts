@@ -60,6 +60,10 @@ export interface GateOptions {
   output?: 'human' | 'json';
   /** Show real-time progress for checks */
   progress?: boolean;
+  /** Force TUI explorer mode after gate execution */
+  tui?: boolean;
+  /** Force plain text mode (no TUI) */
+  noTui?: boolean;
 }
 
 /**

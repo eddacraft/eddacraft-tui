@@ -20,6 +20,7 @@ import { getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { createWatchOutput } from '../services/watch-output.js';
 import { error } from '../utils/output.js';
+import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 
 const SOURCE_WATCH_PATTERNS = ['src/**/*.ts', 'src/**/*.tsx', 'lib/**/*.ts', '**/*.ts', '**/*.tsx'];
 const SOURCE_EXCLUDE_PATTERNS = [
@@ -44,6 +45,8 @@ interface WatchOptions {
   profile?: 'dev' | 'ci' | 'production';
   verbose?: boolean;
   source?: boolean;
+  tui?: boolean;
+  noTui?: boolean;
 }
 
 export function createWatchCommand(): Command {
@@ -61,6 +64,8 @@ export function createWatchCommand(): Command {
     .option('--no-git-filter', 'Disable git filtering (watch all file changes)')
     .option('-p, --profile <profile>', 'Gate profile to use (dev, ci, production)')
     .option('-v, --verbose', 'Verbose output')
+    .option('--tui', 'Force TUI dashboard mode')
+    .option('--no-tui', 'Force plain text mode')
     .action(async (file: string | undefined, options: WatchOptions) => {
       try {
         const workspaceRoot = getWorkspaceRoot();
@@ -102,6 +107,18 @@ export function createWatchCommand(): Command {
         // If a specific file is provided, watch only that file
         if (file) {
           watchConfig.patterns = [file];
+        }
+
+        const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+        if (useTUI && options.tui) {
+          console.log(
+            chalk.yellow(
+              '⚠  --tui flag: Watch dashboard TUI not yet integrated. Using standard output.'
+            )
+          );
+          console.log(
+            chalk.gray('   Dashboard components available at cli/src/tui/commands/watch/')
+          );
         }
 
         // Create output handler

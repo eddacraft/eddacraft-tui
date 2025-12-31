@@ -15,6 +15,7 @@ import { createHooksCommand } from './commands/hooks.js';
 import { createPolicyCommand } from './commands/policy.js';
 import { createWatchCommand } from './commands/watch.js';
 import { createStatusCommand } from './commands/status.js';
+import { createTutorialCommand } from './commands/tutorial.js';
 import { isFirstRun } from './services/first-run-detector.js';
 import { showWelcome } from './commands/welcome.js';
 import { readFileSync } from 'fs';
@@ -59,6 +60,7 @@ async function main(): Promise<void> {
   program.addCommand(createPolicyCommand());
   program.addCommand(createWatchCommand());
   program.addCommand(createStatusCommand());
+  program.addCommand(createTutorialCommand());
 
   program.parse();
 }
