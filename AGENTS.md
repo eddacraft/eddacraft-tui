@@ -172,9 +172,11 @@ pnpm test                               # Verify all tests pass
 
 When encountering issues **not related to your task**:
 
-1. **Flag the issue** with specific details
-2. **Ask for permission** before fixing
-3. **Separate concerns** in a different commit if approved
+1. **Fix issues as you discover them** – maintain codebase hygiene
+2. **Keep fixes minimal and focused** – don't refactor while fixing
+3. **Separate concerns** – use a different commit for unrelated fixes
+4. **Note what you fixed** – mention in your summary so nothing is silently
+   changed
 
 ### 4. Gate Check Pattern
 
