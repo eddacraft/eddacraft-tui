@@ -1,3 +1,4 @@
+export { createArchitectureCommand } from './architecture.js';
 export { createCheckCommand } from './check.js';
 export { createDoctorCommand } from './doctor.js';
 export { createGateCommand } from './gate.js';

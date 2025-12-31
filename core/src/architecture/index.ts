@@ -95,3 +95,66 @@ export {
   deduplicateEdges,
   filterCrossLayerEdges,
 } from './edge-detector.js';
+
+// Architecture definition schema
+export {
+  ArchitectureTemplateSchema,
+  type ArchitectureTemplate,
+  LayerDefinitionSchema,
+  type LayerDefinition,
+  BoundedContextSchema,
+  type BoundedContext,
+  RuleSeveritySchema,
+  type RuleSeverity,
+  ArchitectureRuleSchema,
+  type ArchitectureRule,
+  ArchitectureOptionsSchema,
+  type ArchitectureOptions,
+  ArchitectureDefinitionSchema,
+  type ArchitectureDefinition,
+  AVAILABLE_TEMPLATES,
+  getAvailableTemplates,
+  isValidTemplate,
+  ARCHITECTURE_DEFINITION_VERSION,
+  validateArchitectureDefinition,
+  getDefaultOptions,
+} from './definition-schema.js';
+
+// YAML parser
+export {
+  ARCHITECTURE_YAML_FILENAME,
+  getArchitectureYamlPath,
+  architectureYamlExists,
+  parseArchitectureDefinition,
+  writeArchitectureYaml,
+  getTemplateDefaults,
+  mergeWithTemplate,
+  createDefinitionFromTemplate,
+} from './yaml-parser.js';
+
+// DC config generator
+export {
+  DC_CONFIG_FILENAME,
+  getDCConfigPath,
+  dcConfigExists,
+  needsRegeneration,
+  writeDCConfig,
+  generateDCConfig,
+} from './dc-generator.js';
+
+// Architecture context (for OPA)
+export {
+  ArchViolationSeveritySchema,
+  type ArchViolationSeverity,
+  ArchViolationSchema,
+  type ArchViolation,
+  ModuleInfoSchema,
+  type ModuleInfo,
+  LayerStatsSchema,
+  type LayerStats,
+  ArchitectureContextSchema,
+  type ArchitectureContext,
+  createEmptyContext,
+  ArchitectureContextBuilder,
+  createContextBuilder,
+} from './context.js';

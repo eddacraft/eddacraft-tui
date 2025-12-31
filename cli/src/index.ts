@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { createArchitectureCommand } from './commands/architecture.js';
 import { createCheckCommand } from './commands/check.js';
 import { createDoctorCommand } from './commands/doctor.js';
 import { createGateCommand } from './commands/gate.js';
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
     .description('Anvil - Deterministic development automation platform')
     .version(packageJson.version);
 
+  program.addCommand(createArchitectureCommand());
   program.addCommand(createCheckCommand());
   program.addCommand(createDoctorCommand());
   program.addCommand(createInitCommand());
