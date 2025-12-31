@@ -4,6 +4,7 @@ import { gatherStatusData } from '../services/status-service.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { StatusDashboard } from '../tui/commands/status/index.js';
+import { theme } from '../tui/utils/theme.js';
 import type { StatusData } from '../tui/commands/status/types.js';
 
 interface StatusOptions {
@@ -55,54 +56,63 @@ function formatJsonOutput(data: StatusData): string {
 }
 
 function printPlainTextStatus(data: StatusData): void {
-  console.log(chalk.bold('\n🔨 Anvil Status\n'));
-  console.log(chalk.dim(`Project: ${data.projectName ?? data.projectRoot}`));
+  console.log(chalk.bold('\nANVIL STATUS\n'));
+  console.log(chalk.hex(theme.colours.smoke)(`Project: ${data.projectName ?? data.projectRoot}`));
   console.log('');
 
-  console.log(chalk.cyan.bold('Hooks'));
+  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} HOOKS`));
   if (!data.hooks.huskyInstalled) {
-    console.log(chalk.yellow('  ⚠ Husky not installed'));
+    console.log(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Husky not installed`));
   } else {
     for (const hook of data.hooks.hooks) {
-      const icon = hook.state === 'active' ? '✓' : hook.state === 'disabled' ? '○' : '✗';
+      const icon =
+        hook.state === 'active'
+          ? theme.icons.success
+          : hook.state === 'disabled'
+            ? theme.icons.skipped
+            : theme.icons.error;
       const colour =
         hook.state === 'active'
-          ? chalk.green
+          ? chalk.hex(theme.colours.steel)
           : hook.state === 'disabled'
-            ? chalk.yellow
-            : chalk.red;
+            ? chalk.hex(theme.colours.molten)
+            : chalk.hex(theme.colours.slag);
       console.log(colour(`  ${icon} ${hook.name}: ${hook.state}`));
     }
   }
   console.log('');
 
-  console.log(chalk.cyan.bold('Configuration'));
+  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} CONFIGURATION`));
   if (!data.profile.hasConfig) {
-    console.log(chalk.yellow('  ⚠ No .anvilrc found — run `anvil init`'));
+    console.log(
+      chalk.hex(theme.colours.molten)(
+        `  ${theme.icons.warning} No .anvilrc found — run \`anvil init\``
+      )
+    );
   } else {
     if (data.profile.planningDir) {
-      console.log(chalk.dim(`  Plans: ${data.profile.planningDir}`));
+      console.log(chalk.hex(theme.colours.smoke)(`  Plans: ${data.profile.planningDir}`));
     }
     if (data.profile.format) {
-      console.log(chalk.dim(`  Format: ${data.profile.format}`));
+      console.log(chalk.hex(theme.colours.smoke)(`  Format: ${data.profile.format}`));
     }
     if (data.profile.coverageThreshold) {
-      console.log(chalk.dim(`  Coverage: ${data.profile.coverageThreshold}%`));
+      console.log(chalk.hex(theme.colours.smoke)(`  Coverage: ${data.profile.coverageThreshold}%`));
     }
     if (data.profile.checks.length > 0) {
       const enabled = data.profile.checks.filter((c) => c.enabled).map((c) => c.name);
-      console.log(chalk.dim(`  Checks: ${enabled.join(', ') || 'none'}`));
+      console.log(chalk.hex(theme.colours.smoke)(`  Checks: ${enabled.join(', ') || 'none'}`));
     }
   }
   console.log('');
 
-  console.log(chalk.cyan.bold('Recent Results'));
+  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} RECENT RESULTS`));
   if (!data.recent.hasCache || data.recent.results.length === 0) {
-    console.log(chalk.dim('  No validation history yet'));
+    console.log(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No validation history yet`));
   } else {
     for (const result of data.recent.results) {
-      const icon = result.passed ? '✓' : '✗';
-      const colour = result.passed ? chalk.green : chalk.red;
+      const icon = result.passed ? theme.icons.success : theme.icons.error;
+      const colour = result.passed ? chalk.hex(theme.colours.steel) : chalk.hex(theme.colours.slag);
       console.log(
         colour(`  ${icon} ${result.planPath} — ${result.passedChecks}/${result.totalChecks} checks`)
       );
