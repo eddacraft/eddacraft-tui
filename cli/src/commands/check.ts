@@ -208,7 +208,6 @@ export function createCheckCommand(): Command {
         const result = await gateRunner.analyzeFiles(filesToAnalyse, workspaceRoot, {
           cache,
           noCache: cacheDisabled,
-          checks: ['architecture'],
         });
 
         spinner?.stop();
