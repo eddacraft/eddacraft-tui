@@ -317,21 +317,14 @@ export class AnvilService {
 
       return {
         success: parsed.success ?? false,
-        gates: (parsed.gates || parsed.results || []).map(
-          (gate: {
-            name?: string;
-            status?: string;
-            message?: string;
-            duration?: number;
-            details?: GateDetail[];
-          }) => ({
-            name: gate.name || 'unknown',
-            status: this.normalizeGateStatus(gate.status),
-            message: gate.message,
-            duration: gate.duration,
-            details: gate.details,
-          })
-        ),
+        gates: (parsed.gates || parsed.results || []).map((gate: Record<string, unknown>) => ({
+          ...gate,
+          name: (gate.name as string) || 'unknown',
+          status: this.normalizeGateStatus(gate.status as string | undefined),
+          message: gate.message as string | undefined,
+          duration: gate.duration as number | undefined,
+          details: gate.details as GateDetail[] | undefined,
+        })),
         timestamp: parsed.timestamp || new Date().toISOString(),
         duration: parsed.duration || Date.now() - startTime,
       };

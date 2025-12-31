@@ -1,11 +1,25 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import type { ValidationResult, GateResults, GateDetail } from './anvilService.js';
+import type { AnalysisResult, AnalysisWarning } from './embeddedAnalysis.js';
 
 export class DiagnosticsManager implements vscode.Disposable {
   public readonly diagnosticCollection: vscode.DiagnosticCollection;
+  private gateDetailFiles: Set<string> = new Set();
 
   constructor() {
     this.diagnosticCollection = vscode.languages.createDiagnosticCollection('anvil');
+  }
+
+  private getWorkspaceRoot(): string {
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+  }
+
+  private resolveFilePath(filePath: string): string {
+    if (path.isAbsolute(filePath)) {
+      return filePath;
+    }
+    return path.join(this.getWorkspaceRoot(), filePath);
   }
 
   updateFromValidation(uri: vscode.Uri, result: ValidationResult): void {
@@ -39,11 +53,13 @@ export class DiagnosticsManager implements vscode.Disposable {
   }
 
   updateFromGateResults(uri: vscode.Uri, results: GateResults): void {
+    this.clearPreviousGateDetailFiles();
+
     const diagnostics: vscode.Diagnostic[] = [];
+    const newGateDetailFiles: Map<string, vscode.Diagnostic[]> = new Map();
 
     for (const gate of results.gates) {
       if (gate.status === 'failed' || gate.status === 'error') {
-        // Add main gate failure
         const diagnostic = this.createDiagnostic(
           `Gate "${gate.name}" ${gate.status}: ${gate.message || 'Check failed'}`,
           undefined,
@@ -53,7 +69,6 @@ export class DiagnosticsManager implements vscode.Disposable {
         );
         diagnostics.push(diagnostic);
 
-        // Add detailed issues if available
         if (gate.details) {
           for (const detail of gate.details) {
             const severity = this.mapDetailSeverity(detail.type);
@@ -65,11 +80,15 @@ export class DiagnosticsManager implements vscode.Disposable {
               `gate:${gate.name}`
             );
 
-            // If detail has a different file, we need to handle it separately
-            if (detail.file && detail.file !== uri.fsPath) {
-              const detailUri = vscode.Uri.file(detail.file);
-              const existing = this.diagnosticCollection.get(detailUri) || [];
-              this.diagnosticCollection.set(detailUri, [...existing, detailDiagnostic]);
+            if (detail.file) {
+              const resolvedPath = this.resolveFilePath(detail.file);
+              if (resolvedPath !== uri.fsPath) {
+                const existing = newGateDetailFiles.get(resolvedPath) || [];
+                existing.push(detailDiagnostic);
+                newGateDetailFiles.set(resolvedPath, existing);
+              } else {
+                diagnostics.push(detailDiagnostic);
+              }
             } else {
               diagnostics.push(detailDiagnostic);
             }
@@ -78,11 +97,90 @@ export class DiagnosticsManager implements vscode.Disposable {
       }
     }
 
-    // Merge with existing diagnostics (preserve validation errors)
+    for (const [filePath, fileDiagnostics] of newGateDetailFiles) {
+      const detailUri = vscode.Uri.file(filePath);
+      const existing = this.diagnosticCollection.get(detailUri) || [];
+      const nonGateDiagnostics = existing.filter((d) => !d.source?.startsWith('anvil:gate'));
+      this.diagnosticCollection.set(detailUri, [...nonGateDiagnostics, ...fileDiagnostics]);
+      this.gateDetailFiles.add(filePath);
+    }
+
     const existing = this.diagnosticCollection.get(uri) || [];
     const validationDiagnostics = existing.filter((d) => d.source === 'anvil:validation');
 
     this.diagnosticCollection.set(uri, [...validationDiagnostics, ...diagnostics]);
+  }
+
+  private clearPreviousGateDetailFiles(): void {
+    for (const filePath of this.gateDetailFiles) {
+      const detailUri = vscode.Uri.file(filePath);
+      const existing = this.diagnosticCollection.get(detailUri) || [];
+      const nonGateDiagnostics = existing.filter((d) => !d.source?.startsWith('anvil:gate'));
+      if (nonGateDiagnostics.length > 0) {
+        this.diagnosticCollection.set(detailUri, nonGateDiagnostics);
+      } else {
+        this.diagnosticCollection.delete(detailUri);
+      }
+    }
+    this.gateDetailFiles.clear();
+  }
+
+  updateFromAnalysis(uri: vscode.Uri, result: AnalysisResult): void {
+    const diagnostics: vscode.Diagnostic[] = result.warnings.map((warning) =>
+      this.createDiagnosticFromWarning(warning)
+    );
+
+    const existing = this.diagnosticCollection.get(uri) || [];
+    const nonAnalysisDiagnostics = existing.filter(
+      (d) => !d.source?.startsWith('anvil:antipattern')
+    );
+
+    this.diagnosticCollection.set(uri, [...nonAnalysisDiagnostics, ...diagnostics]);
+  }
+
+  private createDiagnosticFromWarning(warning: AnalysisWarning): vscode.Diagnostic {
+    const startLine = Math.max(0, warning.location.line - 1);
+    const startCol = warning.location.column;
+    const endLine = warning.location.endLine ? warning.location.endLine - 1 : startLine;
+    const endCol = warning.location.endColumn ?? startCol + 20;
+
+    const range = new vscode.Range(
+      new vscode.Position(startLine, startCol),
+      new vscode.Position(endLine, endCol)
+    );
+
+    const severity = this.mapWarningSeverity(warning.severity);
+    const diagnostic = new vscode.Diagnostic(range, warning.message, severity);
+
+    diagnostic.source = `anvil:antipattern`;
+    diagnostic.code = {
+      value: warning.id,
+      target: warning.documentationUrl
+        ? vscode.Uri.parse(warning.documentationUrl)
+        : vscode.Uri.parse(`https://github.com/EddaCraft/anvil-001#${warning.id.toLowerCase()}`),
+    };
+
+    diagnostic.relatedInformation = [
+      new vscode.DiagnosticRelatedInformation(
+        new vscode.Location(vscode.Uri.file(warning.location.file), range),
+        `${warning.explanation}\n\nSuggestion: ${warning.suggestion}`
+      ),
+    ];
+
+    return diagnostic;
+  }
+
+  private mapWarningSeverity(severity: 'error' | 'warning' | 'info'): vscode.DiagnosticSeverity {
+    switch (severity) {
+      case 'error':
+        return vscode.DiagnosticSeverity.Error;
+      case 'warning':
+        return vscode.DiagnosticSeverity.Warning;
+      case 'info':
+        return vscode.DiagnosticSeverity.Information;
+      default:
+        return vscode.DiagnosticSeverity.Warning;
+    }
   }
 
   clearForUri(uri: vscode.Uri): void {

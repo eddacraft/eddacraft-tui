@@ -5,12 +5,14 @@ import { DiagnosticsManager } from './services/diagnostics.js';
 import { GateResultsProvider } from './providers/gateResultsProvider.js';
 import { PlanCodeLensProvider } from './providers/codeLensProvider.js';
 import { PlanWatcher } from './services/planWatcher.js';
+import { SourceWatcher } from './services/sourceWatcher.js';
 import { AnvilService } from './services/anvilService.js';
 
 let statusBarManager: StatusBarManager;
 let diagnosticsManager: DiagnosticsManager;
 let gateResultsProvider: GateResultsProvider;
 let planWatcher: PlanWatcher;
+let sourceWatcher: SourceWatcher;
 let anvilService: AnvilService;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
@@ -63,9 +65,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   // Register status bar
   context.subscriptions.push(statusBarManager.statusBarItem);
 
-  // Start watching for plan files
   await planWatcher.start();
   context.subscriptions.push(planWatcher);
+
+  sourceWatcher = new SourceWatcher(diagnosticsManager, anvilService.getOutputChannel());
+  await sourceWatcher.start();
+  context.subscriptions.push(sourceWatcher);
 
   // Set context for when we have plan files
   await updatePlanContext();
@@ -108,6 +113,9 @@ export function deactivate(): void {
   }
   if (planWatcher) {
     planWatcher.dispose();
+  }
+  if (sourceWatcher) {
+    sourceWatcher.dispose();
   }
 }
 

@@ -1,15 +1,30 @@
 {
   "name": "anvil-vscode",
   "displayName": "Anvil",
-  "description": "Deterministic validation and quality gates for AI-generated code plans",
+  "description": "Deterministic validation and quality gates for AI-generated code plans. Catch architecture violations and anti-patterns at save time.",
   "version": "0.1.0",
   "publisher": "eddacraft",
   "license": "MIT",
-  "icon": "resources/icon.png",
+  "icon": "resources/anvil-icon.svg",
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "badges": [
+    {
+      "url": "https://img.shields.io/github/actions/workflow/status/EddaCraft/anvil-001/ci.yml?branch=main&style=flat-square",
+      "href": "https://github.com/EddaCraft/anvil-001/actions",
+      "description": "Build Status"
+    }
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/EddaCraft/anvil-001.git",
     "directory": "packages/vscode-extension"
+  },
+  "homepage": "https://github.com/EddaCraft/anvil-001#readme",
+  "bugs": {
+    "url": "https://github.com/EddaCraft/anvil-001/issues"
   },
   "engines": {
     "vscode": "^1.85.0"
@@ -17,6 +32,7 @@
   "categories": [
     "Linters",
     "Testing",
+    "Programming Languages",
     "Other"
   ],
   "keywords": [
@@ -25,7 +41,11 @@
     "quality-gates",
     "ai-safety",
     "speckit",
-    "planning"
+    "planning",
+    "architecture",
+    "anti-patterns",
+    "rego",
+    "opa"
   ],
   "activationEvents": [
     "workspaceContains:**/plan.md",
@@ -236,6 +256,43 @@
           ".aps.json"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "aps-markdown",
+        "aliases": [
+          "APS Markdown",
+          "aps-md"
+        ],
+        "extensions": [
+          ".aps.md"
+        ],
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "rego",
+        "aliases": [
+          "Rego",
+          "OPA Rego"
+        ],
+        "extensions": [
+          ".rego"
+        ],
+        "configuration": "./syntaxes/rego-language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "aps-markdown",
+        "scopeName": "text.markdown.aps",
+        "path": "./syntaxes/aps.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.frontmatter.aps": "yaml"
+        }
+      },
+      {
+        "language": "rego",
+        "scopeName": "source.rego",
+        "path": "./syntaxes/rego.tmLanguage.json"
       }
     ],
     "problemMatchers": [
@@ -259,8 +316,8 @@
   },
   "scripts": {
     "vscode:prepublish": "pnpm build:prod",
-    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --sourcemap",
-    "build:prod": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node --minify",
+    "build": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:eslint --external:jiti --external:@eslint/* --external:dependency-cruiser --format=cjs --platform=node --sourcemap",
+    "build:prod": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --external:eslint --external:jiti --external:@eslint/* --external:dependency-cruiser --format=cjs --platform=node --minify",
     "watch": "pnpm build --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest",

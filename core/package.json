@@ -5,6 +5,20 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./antipattern": {
+      "types": "./dist/antipattern/index.d.ts",
+      "import": "./dist/antipattern/index.js"
+    },
+    "./suppression": {
+      "types": "./dist/suppression/index.d.ts",
+      "import": "./dist/suppression/index.js"
+    }
+  },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"

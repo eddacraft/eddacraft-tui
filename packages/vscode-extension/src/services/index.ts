@@ -14,3 +14,12 @@ export type { StatusBarState } from './statusBar.js';
 export { DiagnosticsManager } from './diagnostics.js';
 
 export { PlanWatcher } from './planWatcher.js';
+
+export { SourceWatcher } from './sourceWatcher.js';
+
+export { EmbeddedAnalysisService, getEmbeddedAnalysisService } from './embeddedAnalysis.js';
+export type {
+  AnalysisResult,
+  AnalysisWarning,
+  EmbeddedAnalysisOptions,
+} from './embeddedAnalysis.js';

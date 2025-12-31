@@ -127,12 +127,20 @@ regardless of how good the engine is. First impressions matter.
 
 ### v1.2 — Advanced Experience
 
-| Feature           | Description                                   | Status |
-| ----------------- | --------------------------------------------- | ------ |
-| VS Code Extension | Inline diagnostics, problem panel integration | Draft  |
-| TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)  | Draft  |
-| Template Library  | Pre-built architecture patterns (TUI-006)     | Draft  |
-| Tutorial Mode     | Interactive learning experience (TUI-007)     | Draft  |
+| Feature           | Description                                            | Status |
+| ----------------- | ------------------------------------------------------ | ------ |
+| VS Code Extension | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Ready  |
+| TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)           | Draft  |
+| Template Library  | Pre-built architecture patterns (TUI-006)              | Draft  |
+| Tutorial Mode     | Interactive learning experience (TUI-007)              | Draft  |
+
+#### VS Code Extension Details (v1.2.0 → v1.3.0)
+
+| Phase  | Features                                            | Tasks       |
+| ------ | --------------------------------------------------- | ----------- |
+| v1.2.0 | Embed core, anti-pattern on save, diagnostics, VSIX | IDE-001–003 |
+| v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 |
+| v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 |
 
 ### v2.0 — AI Tool Integration
 
@@ -221,21 +229,21 @@ graph TD
 
 ## Modules
 
-| Module                                                                  | Scope   | Status      | Release | Dependencies                                           |
-| ----------------------------------------------------------------------- | ------- | ----------- | ------- | ------------------------------------------------------ |
-| [save-time-trust](./modules/save-time-trust.aps.md)                     | CORE    | Complete    | v1.0    | —                                                      |
-| [architecture-safety](./modules/architecture-safety.aps.md)             | ARCH    | Complete    | v1.0    | save-time-trust                                        |
-| [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI    | Complete    | v1.0    | save-time-trust                                        |
-| [suppressions](./modules/suppressions.aps.md)                           | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library               |
-| [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                        |
-| [tui](./modules/tui.aps.md)                                             | TUI     | In Progress | v1.0    | — (Phase 1: onboarding only)                           |
-| [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                      |
-| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Ready       | v1.1    | architecture-safety, antipattern-library               |
-| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Ready       | v1.1    | architecture-safety, antipattern-library, suppressions |
-| [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Draft       | v1.2    | save-time-trust                                        |
-| [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library               |
-| [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                      |
-| [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                   |
+| Module                                                                  | Scope   | Status      | Release | Dependencies                                              |
+| ----------------------------------------------------------------------- | ------- | ----------- | ------- | --------------------------------------------------------- |
+| [save-time-trust](./modules/save-time-trust.aps.md)                     | CORE    | Complete    | v1.0    | —                                                         |
+| [architecture-safety](./modules/architecture-safety.aps.md)             | ARCH    | Complete    | v1.0    | save-time-trust                                           |
+| [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI    | Complete    | v1.0    | save-time-trust                                           |
+| [suppressions](./modules/suppressions.aps.md)                           | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library                  |
+| [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                           |
+| [tui](./modules/tui.aps.md)                                             | TUI     | In Progress | v1.0    | — (Phase 1: onboarding only)                              |
+| [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                         |
+| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Ready       | v1.1    | architecture-safety, antipattern-library                  |
+| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Ready       | v1.1    | architecture-safety, antipattern-library, suppressions    |
+| [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Ready       | v1.2    | save-time-trust, architecture-safety, antipattern-library |
+| [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
+| [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
+| [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -333,11 +341,23 @@ graph TD
 
 ### Task Status — v1.2 (Advanced Experience)
 
+#### IDE Integration (VS Code Extension)
+
+| Task    | Module | Description                                     | Status | Priority |
+| ------- | ------ | ----------------------------------------------- | ------ | -------- |
+| IDE-001 | ide    | Embed @anvil/core for fast-path operations      | Done   | high     |
+| IDE-002 | ide    | Anti-pattern detection on save with diagnostics | Done   | high     |
+| IDE-003 | ide    | Improve source location mapping from CLI output | Done   | medium   |
+| IDE-004 | ide    | Architecture gate display in tree view          | Done   | high     |
+| IDE-005 | ide    | OPA policy failure display with remediation     | Done   | high     |
+| IDE-006 | ide    | Click-to-navigate for all violation types       | Done   | medium   |
+| IDE-007 | ide    | APS and Rego syntax highlighting                | Done   | medium   |
+| IDE-008 | ide    | Analysis caching and Marketplace preparation    | Done   | medium   |
+
+#### TUI Operational (CLI)
+
 | Task    | Module | Description                       | Status  | Priority |
 | ------- | ------ | --------------------------------- | ------- | -------- |
-| IDE-001 | ide    | VS Code extension scaffold        | Planned | high     |
-| IDE-002 | ide    | Inline diagnostics                | Planned | high     |
-| IDE-003 | ide    | Problem panel integration         | Planned | medium   |
 | TUI-006 | tui    | Static template library           | Planned | medium   |
 | TUI-007 | tui    | Interactive tutorial              | Planned | low      |
 | TUI-009 | tui    | `anvil watch` real-time dashboard | Planned | medium   |
