@@ -8,7 +8,7 @@
  *
  * Heavy operations (gates, OPA, coverage) remain CLI-based via AnvilService.
  *
- * Includes content-hash caching to skip re-analysis of unchanged files.
+ * Includes content-hash LRU caching to skip re-analysis of unchanged files.
  */
 
 import * as crypto from 'crypto';
@@ -116,6 +116,7 @@ export class EmbeddedAnalysisService {
 
     const cached = this.analysisCache.get(cacheKey);
     if (cached && cached.hash === contentHash && !this.isCacheExpired(cached)) {
+      this.touchCacheEntry(cacheKey, cached);
       return { ...cached.result, duration: 0 };
     }
 
@@ -157,9 +158,9 @@ export class EmbeddedAnalysisService {
 
   private cacheResult(key: string, hash: string, result: AnalysisResult): void {
     if (this.analysisCache.size >= MAX_CACHE_SIZE) {
-      const oldestKey = this.analysisCache.keys().next().value;
-      if (oldestKey) {
-        this.analysisCache.delete(oldestKey);
+      const lruKey = this.analysisCache.keys().next().value;
+      if (lruKey) {
+        this.analysisCache.delete(lruKey);
       }
     }
 
@@ -168,6 +169,11 @@ export class EmbeddedAnalysisService {
       result,
       cachedAt: Date.now(),
     });
+  }
+
+  private touchCacheEntry(key: string, entry: CacheEntry): void {
+    this.analysisCache.delete(key);
+    this.analysisCache.set(key, entry);
   }
 
   invalidateCache(filePath?: string): void {

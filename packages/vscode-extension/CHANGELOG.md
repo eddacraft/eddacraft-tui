@@ -30,7 +30,7 @@ and this project adheres to
 
 - Fast-path operations (anti-pattern detection) complete in <100ms
 - Production bundle size: ~560KB (well under 2MB target)
-- Analysis caching with 5-minute TTL and 100-file FIFO capacity
+- Analysis caching with 5-minute TTL and 100-file LRU capacity
 
 ### Configuration
 
