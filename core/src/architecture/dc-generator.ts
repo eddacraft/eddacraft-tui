@@ -95,6 +95,14 @@ interface DCRule {
   to: { path?: string; pathNot?: string | string[]; circular?: boolean };
 }
 
+/**
+ * Deduplicates rules by name, allowing later rules to override earlier ones.
+ *
+ * When multiple rules share the same name, the LAST rule wins but appears at
+ * the position of the FIRST occurrence. This allows user-defined rules in the
+ * architecture definition to override auto-generated rules (e.g., no-circular)
+ * while maintaining a predictable output order.
+ */
 function deduplicateRules(rules: DCRule[]): DCRule[] {
   const byName = new Map<string, { index: number; rule: DCRule }>();
   for (let i = 0; i < rules.length; i++) {

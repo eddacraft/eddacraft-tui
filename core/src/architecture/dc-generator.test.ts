@@ -151,6 +151,73 @@ describe('dc-generator', () => {
     });
   });
 
+  describe('generated regex path matching', () => {
+    it('should match files at any depth with **/*.ts pattern', () => {
+      const definition = createDefinition({
+        layers: {
+          all: { patterns: ['**/*.ts'], depends_on: [] },
+          other: { patterns: ['other/**'], depends_on: ['all'] },
+        },
+      });
+
+      const config = generateDCConfig(definition);
+      const parsed = extractForbiddenRules(config);
+      const layerRule = parsed.find((r) => r.name.includes('no-all-to'));
+      expect(layerRule).toBeDefined();
+      expect(layerRule!.from?.path).toBeDefined();
+
+      const regex = new RegExp(layerRule!.from!.path!);
+
+      expect(regex.test('file.ts')).toBe(true);
+      expect(regex.test('src/file.ts')).toBe(true);
+      expect(regex.test('src/deep/nested/file.ts')).toBe(true);
+      expect(regex.test('file.js')).toBe(false);
+    });
+
+    it('should match layer paths without requiring leading anchor', () => {
+      const definition = createDefinition({
+        layers: {
+          domain: { patterns: ['src/domain/**'], depends_on: [] },
+          infra: { patterns: ['src/infra/**'], depends_on: ['domain'] },
+        },
+      });
+
+      const config = generateDCConfig(definition);
+      const parsed = extractForbiddenRules(config);
+      const layerRule = parsed.find((r) => r.name === 'no-domain-to-disallowed');
+      expect(layerRule).toBeDefined();
+      expect(layerRule!.from?.path).toBeDefined();
+
+      const regex = new RegExp(layerRule!.from!.path!);
+
+      expect(regex.test('src/domain/entity.ts')).toBe(true);
+      expect(regex.test('src/domain/nested/service.ts')).toBe(true);
+      expect(regex.test('./src/domain/file.ts')).toBe(true);
+      expect(regex.test('src/infra/repo.ts')).toBe(false);
+    });
+
+    it('should match specific file patterns', () => {
+      const definition = createDefinition({
+        layers: {
+          config: { patterns: ['src/config.service.ts'], depends_on: [] },
+          other: { patterns: ['other/**'], depends_on: ['config'] },
+        },
+      });
+
+      const config = generateDCConfig(definition);
+      const parsed = extractForbiddenRules(config);
+      const layerRule = parsed.find((r) => r.name.includes('no-config-to'));
+      expect(layerRule).toBeDefined();
+      expect(layerRule!.from?.path).toBeDefined();
+
+      const regex = new RegExp(layerRule!.from!.path!);
+
+      expect(regex.test('src/config.service.ts')).toBe(true);
+      expect(regex.test('src/config-service.ts')).toBe(false);
+      expect(regex.test('src/configXservice.ts')).toBe(false);
+    });
+  });
+
   describe('default_severity', () => {
     it('should use default_severity for orphan detection', () => {
       const definition = createDefinition({
@@ -216,6 +283,8 @@ interface ParsedRule {
   name: string;
   severity: string;
   comment?: string;
+  from?: { path?: string };
+  to?: { path?: string };
 }
 
 function extractForbiddenRules(configContent: string): ParsedRule[] {

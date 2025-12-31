@@ -190,10 +190,10 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 | Feature                       | Difficulty | Value  | Status      |
 | ----------------------------- | ---------- | ------ | ----------- |
-| Circular dependency detection | Medium     | High   | Not started |
-| Layer boundary validation     | High       | High   | Not started |
-| Anti-pattern detection        | High       | High   | Not started |
-| Custom architecture rules     | High       | Medium | Not started |
+| Circular dependency detection | Medium     | High   | ✅ Complete |
+| Layer boundary validation     | High       | High   | ✅ Complete |
+| Anti-pattern detection        | High       | High   | ✅ Complete |
+| Custom architecture rules     | High       | Medium | ✅ Complete |
 
 ---
 
@@ -342,24 +342,24 @@ anvil alerts history                  # View alert trends
 
 | Feature                  | Difficulty | Value  | Status      |
 | ------------------------ | ---------- | ------ | ----------- |
-| Architecture YAML schema | Medium     | High   | Not started |
-| Layer definition system  | Medium     | High   | Not started |
-| Dependency rules         | Medium     | High   | Not started |
-| Architecture templates   | Medium     | Medium | Not started |
-| Layered architecture     | Low        | High   | Not started |
-| Hexagonal architecture   | Medium     | Medium | Not started |
-| Clean architecture       | Medium     | Medium | Not started |
-| DDD bounded contexts     | High       | Medium | Not started |
+| Architecture YAML schema | Medium     | High   | ✅ Complete |
+| Layer definition system  | Medium     | High   | ✅ Complete |
+| Dependency rules         | Medium     | High   | ✅ Complete |
+| Architecture templates   | Medium     | Medium | ✅ Complete |
+| Layered architecture     | Low        | High   | ✅ Complete |
+| Hexagonal architecture   | Medium     | Medium | ✅ Complete |
+| Clean architecture       | Medium     | Medium | ✅ Complete |
+| DDD bounded contexts     | High       | Medium | ✅ Complete |
 
 ### Architecture Validation
 
 | Feature                        | Difficulty | Value  | Status      |
 | ------------------------------ | ---------- | ------ | ----------- |
-| Dependency-cruiser integration | High       | High   | Not started |
-| Layer boundary validation      | High       | High   | Not started |
-| Circular dependency detection  | Medium     | High   | Not started |
+| Dependency-cruiser integration | High       | High   | ✅ Complete |
+| Layer boundary validation      | High       | High   | ✅ Complete |
+| Circular dependency detection  | Medium     | High   | ✅ Complete |
 | Auto-generated Rego policies   | High       | High   | Not started |
-| Architecture CLI commands      | Medium     | Medium | Not started |
+| Architecture CLI commands      | Medium     | Medium | ✅ Complete |
 | Architecture visualisation     | High       | Medium | Not started |
 
 ---

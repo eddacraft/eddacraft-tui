@@ -439,7 +439,7 @@ export class GateRunner {
     const timing: Record<string, number> = {};
     const totalChecks = checksToRun.length;
     let completedCount = 0;
-    let sharedArchitectureContext: ArchitectureContext | undefined;
+    let architectureContext: ArchitectureContext | undefined;
 
     const archCheckIndex = checksToRun.findIndex((c) => c.checkConfig.name === 'architecture');
     if (archCheckIndex > 0) {
@@ -466,11 +466,11 @@ export class GateRunner {
           workspaceRoot,
           cache,
           fullScan,
-          sharedArchitectureContext
+          architectureContext
         );
 
         if (checkConfig.name === 'architecture' && result.details?.architectureContext) {
-          sharedArchitectureContext = result.details.architectureContext as ArchitectureContext;
+          architectureContext = result.details.architectureContext as ArchitectureContext;
         }
 
         results.push(result);
@@ -517,7 +517,7 @@ export class GateRunner {
         workspaceRoot,
         cache,
         fullScan,
-        sharedArchitectureContext
+        architectureContext
       );
 
       completedCount++;
@@ -554,8 +554,7 @@ export class GateRunner {
       }
 
       if (archResult.result.details?.architectureContext) {
-        sharedArchitectureContext = archResult.result.details
-          .architectureContext as ArchitectureContext;
+        architectureContext = archResult.result.details.architectureContext as ArchitectureContext;
       }
 
       remainingChecks = checksToRun.slice(1);
