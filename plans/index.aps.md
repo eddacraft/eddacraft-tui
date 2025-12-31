@@ -62,8 +62,8 @@ Onboarding Experience:
 - [x] TUI foundation (Ink components)
 - [x] Visual `anvil init` wizard
 - [x] `anvil status` quick health check
-- [ ] `anvil doctor` setup diagnostics
-- [ ] First-run welcome experience
+- [x] `anvil doctor` setup diagnostics
+- [x] First-run welcome experience
 
 Documentation:
 
@@ -90,15 +90,15 @@ deliver both the core value AND a friction-free first experience.
 | Watch Mode          | `anvil watch --source` for real-time feedback  | Complete |
 | CI/CD               | GitHub Action with PR comments + status checks | Complete |
 
-#### Onboarding Experience (In Progress 🔄)
+#### Onboarding Experience (Complete ✅)
 
 | Feature           | Description                                     | Status   |
 | ----------------- | ----------------------------------------------- | -------- |
 | TUI Foundation    | Ink setup + base components (TUI-001)           | Complete |
 | Init Wizard       | Visual `anvil init` with guided flow (TUI-002)  | Complete |
 | Status Dashboard  | Quick health check: `anvil status` (TUI-003)    | Complete |
-| Doctor Command    | Diagnose setup issues: `anvil doctor` (TUI-004) | Planned  |
-| First-run Welcome | Show value immediately on first run (TUI-005)   | Planned  |
+| Doctor Command    | Diagnose setup issues: `anvil doctor` (TUI-004) | Complete |
+| First-run Welcome | Show value immediately on first run (TUI-005)   | Complete |
 
 **Why onboarding is v1:** Without smooth onboarding, users won't adopt the tool
 regardless of how good the engine is. First impressions matter.
@@ -276,9 +276,9 @@ graph TD
 | ------- | ------ | ----------------------------- | -------- | -------- |
 | TUI-001 | tui    | Ink foundation and components | Complete | high     |
 | TUI-002 | tui    | `anvil init` wizard           | Complete | high     |
-| TUI-003 | tui    | `anvil status` dashboard      | Planned  | high     |
-| TUI-004 | tui    | `anvil doctor` diagnostics    | Planned  | high     |
-| TUI-005 | tui    | First-run welcome experience  | Planned  | high     |
+| TUI-003 | tui    | `anvil status` dashboard      | Complete | high     |
+| TUI-004 | tui    | `anvil doctor` diagnostics    | Complete | high     |
+| TUI-005 | tui    | First-run welcome experience  | Complete | high     |
 | TUI-008 | tui    | Testing infrastructure        | Complete | medium   |
 
 ### Task Status — v1.0 (Documentation)
