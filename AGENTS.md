@@ -3,152 +3,155 @@
 > **Deterministic development automation platform that makes AI-generated code
 > changes safe for production**
 
-Anvil validates and executes AI-generated code changes through the **Anvil Plan
-Specification (APS)** – a hash-stable, internal interchange format that enables
-deterministic validation and governance.
+**Generated:** 2025-12-31 | **Commit:** 633939d | **Branch:** main
 
-## Build & Test Commands
+## Overview
+
+Anvil validates AI-generated code changes through **APS (Anvil Plan
+Specification)** – a hash-stable internal format enabling deterministic
+validation. Users work in external formats (SpecKit, BMAD); Anvil translates
+internally.
+
+```
+External Format → Adapter → APS (internal) → Gate → Execute → Evidence
+```
+
+## Planning Work
+
+**When asked to plan ANY feature, task, or work item:**
+
+1. **READ `plans/aps-rules.md` FIRST** - Non-negotiable
+2. Follow the APS format for all planning documents
+3. Create `.aps.md` files in `plans/modules/` for new features
+4. Steps go in `plans/execution/[TASK-ID].steps.md`
+
+**Key rules from `plans/aps-rules.md`:**
+
+- **Specs describe intent, not implementation**
+- **Tasks authorise execution** - outcome + validation command
+- **Steps are checkpoints** - max 12 words, observable state only
+- **Never write HOW** - agent figures out implementation from patterns
+
+```
+❌ "Create middleware that extracts JWT, validates with jsonwebtoken..."
+✅ "Auth middleware validates requests, attaches user to context"
+```
+
+## Structure
+
+```
+anvil/
+├── core/                 # @anvil/core - Schema, validation, gates, crypto
+├── cli/                  # @anvil/cli - Commander.js CLI with TUI (Ink)
+├── packages/
+│   ├── adapters/         # Format converters (SpecKit, BMAD, Generic)
+│   ├── aps/              # APS document parser, validator, state management
+│   └── vscode-extension/ # VS Code integration
+├── plans/                # .aps.md specs, execution/*.steps.md, decisions/
+├── docs/                 # Architecture, ADRs, guides, status
+└── e2e/                  # Playwright E2E tests
+```
+
+## Commands
 
 ```bash
-# Essential commands
-pnpm build                  # Build all packages (REQUIRED before cross-package testing)
-pnpm test                   # All unit tests (Vitest)
-pnpm test:coverage          # Tests with coverage reports
-pnpm test:e2e               # Playwright E2E tests
-pnpm lint                   # ESLint + markdownlint with auto-fix
-pnpm typecheck              # TypeScript strict mode validation
-pnpm format                 # Format with Prettier
-
-# Single test patterns
-nx test core --testNamePattern="validator"      # Run tests matching pattern
-nx test adapters --testNamePattern="BMAD"       # Test specific adapter
-nx test core --testNamePattern="secret"         # Test specific feature
+# Essential
+pnpm build                    # Build all (REQUIRED before cross-package testing)
+pnpm test                     # Unit tests (Vitest)
+pnpm lint                     # ESLint + markdownlint with auto-fix
+pnpm typecheck                # TypeScript strict mode
 
 # Package-specific
-nx build core               # Build specific package
-nx test cli                 # Test specific package
+nx test core --testNamePattern="validator"    # Test pattern
 pnpm -F core run generate:schema              # Regenerate JSON schema from Zod
 pnpm -F core run update-golden-hashes         # Update golden test hashes
 
 # CLI development
-pnpm link:cli               # Build and link CLI globally ('anvil' command)
-pnpm unlink:cli             # Unlink CLI when done
+pnpm link:cli                 # Build and link globally ('anvil' command)
+pnpm unlink:cli               # Unlink when done
 ```
 
-## Code Style Guidelines
+## Where to Look
 
-### Language & Spelling
+| Task               | Location                        | Notes                                                  |
+| ------------------ | ------------------------------- | ------------------------------------------------------ |
+| APS schema changes | `core/src/schema/aps.schema.ts` | Run generate:schema + update-golden-hashes after       |
+| Add gate check     | `core/src/gate/checks/`         | Extend BaseCheck, register in gate-runner.ts           |
+| Add CLI command    | `cli/src/commands/`             | Use create{Name}Command() factory pattern              |
+| Add format adapter | `packages/adapters/src/`        | Implement FormatAdapter, register with AdapterRegistry |
+| TUI components     | `cli/src/tui/components/`       | Ink/React components with useInput hooks               |
+| Validation rules   | `packages/aps/src/validator/`   | AST-based with remark-parse                            |
+| **Planning/specs** | `plans/aps-rules.md`            | **READ FIRST** before creating/editing .aps.md files   |
 
-**Use UK English** throughout:
+## Conventions (Deviations from Standard)
 
-- organised, recognised, colour, behaviour, optimise, centre, analyse
-- initialise (not initialize), serialise (not serialize)
-- Applies to: documentation, comments, variable names, user-facing text
+### UK English Required
 
-### TypeScript Conventions
+```
+organised, recognised, colour, behaviour, optimise, centre, analyse
+initialise (not initialize), serialise (not serialize)
+```
 
-**ESM with .js extensions** (NodeNext module resolution):
+### ESM with .js Extensions
 
 ```typescript
-// ✅ Correct - always use .js extension
+// ✅ Correct - NodeNext module resolution requires .js
 import { CheckContext } from '../types/gate.types.js';
-import { ChangeSchema } from '@anvil/core/schema/aps.schema.js';
 
 // ❌ Wrong - will fail at runtime
 import { foo } from './utils';
 ```
 
-**Zod-first schemas** (see ADR-0001):
+### Zod-First Schemas (ADR-0001)
 
 ```typescript
-// Define schema with Zod
+// Define with Zod, export inferred type
 export const ChangeSchema = z.object({
   type: ChangeTypeSchema,
   path: z.string().describe('File or resource path'),
 });
-
-// Export inferred TypeScript type
 export type Change = z.infer<typeof ChangeSchema>;
 ```
 
-**Path aliases** for cross-package imports:
+### Naming
 
-- `@anvil/core` → `core/src/index.ts`
-- `@anvil/adapters` → `packages/adapters/src/index.ts`
+- **Files**: kebab-case (`gate-runner.ts`, `format-detection.ts`)
+- **Unused vars**: Prefix with `_` (`_unusedArg`, `_context`)
+- **Tests**: Co-located as `.test.ts` or `.spec.ts`
+- **Fixtures**: `__fixtures__/` directories
 
-### Formatting Rules
+## Anti-Patterns (This Project)
 
-- **Prettier**: Single quotes, trailing commas (es5), semicolons, 100 char width
-- **Markdown**: 80 char width, prose wrap always
-- **ESLint**: Warn on `any`, prefer unused `_` prefix, console only for errors
-- **Line endings**: LF (Unix-style)
+| Pattern                                        | Why Forbidden                        |
+| ---------------------------------------------- | ------------------------------------ |
+| `as any`, `@ts-ignore`, `@ts-expect-error`     | Type safety is non-negotiable        |
+| Empty catch blocks `catch(e) {}`               | Silently swallows errors             |
+| Missing `.js` import extensions                | ESM runtime failure                  |
+| Imports without path aliases crossing packages | Use `@anvil/core`, `@anvil/adapters` |
+| `cd dir && command` in bash                    | Use workdir parameter instead        |
 
-### Naming Conventions
+## Anti-Pattern Catalogue (Built-in)
 
-- **Unused variables**: Prefix with `_` (e.g., `_unusedArg`, `_context`)
-- **Files**: kebab-case (e.g., `gate-runner.ts`, `format-detection.ts`)
-- **Tests**: Co-located with source as `.test.ts` or `.spec.ts`
-- **Fixtures**: Store in `__fixtures__/` directories
+| ID     | Pattern                      | Severity      |
+| ------ | ---------------------------- | ------------- |
+| AP-001 | Broad `/* eslint-disable */` | warning       |
+| AP-003 | Explicit `any` type          | warning       |
+| AP-004 | `@ts-ignore` directive       | warning       |
+| AP-006 | Empty catch block            | warning       |
+| AP-007 | Console in production code   | info (opt-in) |
 
-### Error Handling
-
-- Use `BaseCheck` pattern for gate checks with `createSuccess()/createFailure()`
-- Return structured `GateResult` objects with clear messages
-- Prefer early returns and explicit error types
-- Never use empty catch blocks
-
-### Type Safety
-
-- TypeScript strict mode enabled - all type errors must be resolved
-- Never suppress errors with `as any`, `@ts-ignore`, or `@ts-expect-error`
-- Use `z.infer<typeof Schema>` for types derived from Zod schemas
-
-## Project Structure
-
-```
-anvil/
-├── core/                     # @anvil/core - APS schema, validation, gate runner
-│   └── src/
-│       ├── schema/           # aps.schema.ts - Zod schema (v0.1.0)
-│       ├── crypto/           # SHA-256 deterministic hashing
-│       ├── gate/             # Quality gate checks
-│       │   └── checks/       # ESLint, coverage, secrets, dependencies
-│       ├── provenance/       # Audit trail and evidence collection
-│       └── validation/       # APS validator with rich error messages
-├── cli/                      # @anvil/cli - Command-line interface
-│   └── src/
-│       ├── commands/         # validate, gate, plan, init, export, watch
-│       ├── services/         # format detection, plan loading
-│       └── types/            # TypeScript type definitions
-├── packages/
-│   ├── adapters/             # @anvil/adapters - Format conversion
-│   │   └── src/
-│   │       ├── base/         # FormatAdapter interface, AdapterRegistry
-│   │       ├── speckit/      # GitHub SpecKit adapter
-│   │       ├── bmad/         # BMAD PRD/architecture adapter
-│   │       └── generic/      # Generic markdown adapter
-│   └── vscode-extension/     # VS Code extension
-├── docs/                     # Documentation
-│   ├── planning/             # ROADMAP.md, TODO.md
-│   └── adr/                  # Architecture decision records
-└── e2e/                      # Playwright E2E tests
-```
-
-## Critical Gotchas
+## Gotchas
 
 ### 1. Build Before Test
 
-TypeScript project references require explicit builds before cross-package
-imports work:
+TypeScript project references require explicit builds:
 
 ```bash
 pnpm build        # Build all packages first
-pnpm test         # Now tests can import from other packages
+pnpm test         # Now cross-package imports work
 ```
 
 ### 2. After Schema Changes
-
-When modifying Zod schemas in `core/src/schema/`:
 
 ```bash
 pnpm -F core run generate:schema        # Regenerate JSON schema
@@ -156,111 +159,74 @@ pnpm -F core run update-golden-hashes   # Update golden test hashes
 pnpm test                               # Verify all tests pass
 ```
 
-### 3. ESM Import Extensions
+### 3. Pre-existing Issues
 
-All imports MUST use `.js` extensions, even for TypeScript files:
+When encountering issues **not related to your task**:
+
+1. **Flag the issue** with specific details
+2. **Ask for permission** before fixing
+3. **Separate concerns** in a different commit if approved
+
+### 4. Gate Check Pattern
+
+All checks extend `BaseCheck` with consistent interface:
 
 ```typescript
-// This is required by NodeNext module resolution
-import { foo } from './utils.js'; // ✅ Correct
-import { foo } from './utils'; // ❌ Will fail at runtime
+class MyCheck extends BaseCheck {
+  async run(context: CheckContext): Promise<GateResult> {
+    // Use createSuccess() / createFailure() helpers
+    return this.createSuccess({ message: 'Passed', score: 100 });
+  }
+}
 ```
 
-### 4. Pre-existing Issues
-
-When you encounter pre-existing issues (failing tests, lint errors, type errors)
-**not related to your current task**:
-
-1. **Flag the issue** - Report what you found with specific details
-2. **Ask for permission** - Do not silently fix or ignore
-3. **Separate concerns** - If approved, fix in a separate commit
-
-Example: "I noticed a pre-existing failing test in `memory-cache.test.ts`
-(unrelated to my changes). Would you like me to investigate?"
-
-## Testing Patterns
-
-- **Location**: Co-locate tests with source files
-- **Naming**: `.test.ts` or `.spec.ts` extension
-- **Fixtures**: Store in `__fixtures__/` directories
-- **Golden files**: `core/src/__fixtures__/golden-plans/` for hash verification
-- **Coverage**: Exclude `index.ts` and test files
-
-```bash
-# Run specific test file
-nx test core --testFile="validator.test.ts"
-
-# Run tests matching pattern
-nx test core --testNamePattern="should validate"
-
-# Run with coverage
-pnpm test:coverage
-```
-
-## Key Architecture Concepts
-
-### APS (Anvil Plan Specification)
-
-The internal hash-stable format enabling deterministic validation. Users work in
-external formats; Anvil translates to APS internally.
-
-```
-External Format (SpecKit/BMAD) → Adapter → APS (internal) → Gate → Execute
-```
+## Key Architecture
 
 ### Pipeline Flow
 
 1. **Parse**: External format → APS (via adapter)
-2. **Validate**: Schema validation + hash generation
-3. **Gate**: Quality checks (lint, test, coverage, secrets)
+2. **Validate**: Schema validation + SHA-256 hash generation
+3. **Gate**: Quality checks (lint, test, coverage, secrets, dependencies)
 4. **Execute**: Apply changes with snapshots (rollback capability)
-5. **Evidence**: Immutable audit trail
+5. **Evidence**: Immutable audit trail with provenance
 
-### Gate Checks
+### Gate Checks (`core/src/gate/checks/`)
 
-Located in `core/src/gate/checks/`:
-
-- `architecture.check.ts` - Architecture validation
+- `architecture.check.ts` - Dependency analysis, layer violations
 - `coverage.check.ts` - Code coverage thresholds
-- `dependency.check.ts` - Vulnerability scanning
-- `eslint.check.ts` - Code quality
+- `dependency.check.ts` - Vulnerability scanning (npm/pnpm audit)
+- `eslint.check.ts` - Code quality enforcement
 - `policy.check.ts` - OPA/Rego policy evaluation
-- `secret.check.ts` - Pattern + entropy detection
+- `secret.check.ts` - Pattern + entropy detection, git history
 
-## Nx Monorepo
+### Adapter Framework (`packages/adapters/`)
 
-Always prefer running tasks through Nx:
+- `FormatAdapter` interface: detect(), parse(), serialize(), validate()
+- `AdapterRegistry` singleton with auto-detection
+- Confidence-based format detection (50% threshold, 30% for generic)
 
-```bash
-nx build <package>          # Build specific package
-nx test <package>           # Test specific package
-nx affected -t test         # Test only changed packages
-nx graph                    # Visualise dependency graph
-```
-
-**Package names**: Use folder names (`core`, `cli`, `adapters`), not npm names
-(`@anvil/core`).
-
-## Environment Requirements
+## Environment
 
 - **Node.js**: >=20.0.0
 - **pnpm**: >=10.20.0
+- **Prettier**: Single quotes, trailing commas (es5), 100 char (80 for md)
+- **Line endings**: LF (Unix-style)
 
-## CLI Commands (after `pnpm link:cli`)
+## Documentation
 
-```bash
-anvil init                   # Initialise Anvil in a project
-anvil validate <plan>        # Validate plan against APS schema
-anvil gate <plan>            # Run quality gates
-anvil export <plan> --to <format>  # Convert between formats
-anvil watch                  # Watch for plan changes
-anvil plan                   # Plan management
-```
+| Document                      | Purpose                       |
+| ----------------------------- | ----------------------------- |
+| `docs/ARCHITECTURE.md`        | System design (1,575 lines)   |
+| `docs/adr/`                   | Architecture decision records |
+| `docs/planning/TODO.md`       | Task tracking                 |
+| `core/API.md`                 | APS Core API reference        |
+| `packages/adapters/README.md` | Adapter framework guide       |
 
-## Documentation References
+## Package-Specific Instructions
 
-- `docs/ARCHITECTURE.md` - System design and principles
-- `docs/adr/` - Architecture decision records
-- `docs/planning/TODO.md` - Task tracking
-- `core/API.md` - APS Core API reference
-- `packages/adapters/README.md` - Adapter framework guide
+See AGENTS.md in each package:
+
+- `core/AGENTS.md` - Schema, validation, gates, crypto
+- `cli/AGENTS.md` - Commands, services, TUI
+- `packages/adapters/AGENTS.md` - Format adapter framework
+- `packages/aps/AGENTS.md` - APS document management

@@ -70,7 +70,7 @@ describe('hooks command', () => {
 
       const content = readFileSync(hookPath, 'utf-8');
       expect(content).toContain('# Anvil-managed hook');
-      expect(content).toContain('anvil check');
+      expect(content).toContain('anvil validate');
 
       mockExit.mockRestore();
     });
@@ -180,7 +180,7 @@ describe('hooks command', () => {
       // Hook should be updated
       const content = readFileSync(join(hooksDir, 'pre-commit'), 'utf-8');
       expect(content).toContain('# Anvil-managed hook');
-      expect(content).toContain('anvil check');
+      expect(content).toContain('anvil validate');
       expect(content).not.toContain('old anvil hook');
 
       // No backup should be created for Anvil hooks
@@ -367,8 +367,8 @@ describe('hook script content', () => {
 
       // Verify hook content
       expect(content).toContain('git diff --cached');
-      expect(content).toContain('anvil check');
-      expect(content).toContain('ts|tsx|js|jsx'); // Check for source file extension pattern
+      expect(content).toContain('anvil validate');
+      expect(content).toContain('md|yaml|yml|json'); // Check for file extension pattern
 
       mockExit.mockRestore();
     } finally {

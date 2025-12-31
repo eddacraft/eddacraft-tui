@@ -110,8 +110,8 @@ export interface AnalyzeOptions {
   cache?: CacheProvider;
   /** Force bypass cache for this run */
   noCache?: boolean;
-  /** Which checks to run (defaults to ['architecture', 'antipattern', 'secret']) */
-  checks?: ('architecture' | 'antipattern' | 'secret')[];
+  /** Which checks to run (defaults to ['architecture', 'antipattern']) */
+  checks?: ('architecture' | 'antipattern')[];
   /** Max parallel checks (1 = sequential) */
   parallelLimit?: number;
   /** Check-specific configuration */
@@ -179,7 +179,7 @@ export class GateRunner {
       ? new NullCacheProvider()
       : (options?.cache ?? this.defaultCache);
 
-    const checksToRun = options?.checks ?? ['architecture', 'antipattern', 'secret'];
+    const checksToRun = options?.checks ?? ['architecture', 'antipattern'];
     const allWarnings: Warning[] = [];
     const patternsChecked: string[] = [];
     const checksRun: string[] = [];

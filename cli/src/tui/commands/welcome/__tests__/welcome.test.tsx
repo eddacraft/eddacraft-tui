@@ -18,8 +18,8 @@ describe('Welcome component', () => {
     const onQuit = vi.fn();
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
-    expect(lastFrame()).toContain('Protect your codebase');
-    expect(lastFrame()).toContain('secret commits');
+    expect(lastFrame()).toContain('AI-generated code changes');
+    expect(lastFrame()).toContain('safe for production');
   });
 
   it('renders Quick Start header', () => {
@@ -35,8 +35,8 @@ describe('Welcome component', () => {
     const onQuit = vi.fn();
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
-    expect(lastFrame()).toContain('Install protection');
-    expect(lastFrame()).toContain('Scan existing code');
+    expect(lastFrame()).toContain('Initialise Anvil');
+    expect(lastFrame()).toContain('Run diagnostics');
     expect(lastFrame()).toContain('View commands');
     expect(lastFrame()).toContain('Skip');
   });
@@ -55,7 +55,7 @@ describe('Welcome component', () => {
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
     expect(lastFrame()).toContain('▸');
-    expect(lastFrame()).toContain('Install protection');
+    expect(lastFrame()).toContain('Initialise Anvil');
   });
 
   it('handles Enter key press', () => {
@@ -64,7 +64,7 @@ describe('Welcome component', () => {
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
     const frame = lastFrame();
-    expect(frame).toContain('Install protection');
+    expect(frame).toContain('Initialise Anvil');
     expect(frame).toContain('Enter select');
   });
 
@@ -75,7 +75,7 @@ describe('Welcome component', () => {
 
     stdin.write('\x1B[B');
 
-    expect(lastFrame()).toContain('Scan existing code');
+    expect(lastFrame()).toContain('Run diagnostics');
   });
 
   it('navigates down with j key', () => {
@@ -86,7 +86,7 @@ describe('Welcome component', () => {
     stdin.write('j');
 
     const frame = lastFrame();
-    expect(frame).toContain('Scan existing code');
+    expect(frame).toContain('Run diagnostics');
   });
 
   it('navigates up with k key', () => {
@@ -109,7 +109,7 @@ describe('Welcome component', () => {
       stdin.write('j');
     }
 
-    expect(lastFrame()).toContain('Install protection');
+    expect(lastFrame()).toContain('Initialise Anvil');
   });
 
   it('wraps around when navigating before first option', () => {
@@ -144,10 +144,10 @@ describe('Welcome content', () => {
     expect(initOption?.command).toBe('anvil init');
   });
 
-  it('QUICK_START_OPTIONS includes check command', () => {
-    const checkOption = QUICK_START_OPTIONS.find((o) => o.key === 'check');
-    expect(checkOption).toBeDefined();
-    expect(checkOption?.command).toBe('anvil check --changed');
+  it('QUICK_START_OPTIONS includes doctor command', () => {
+    const doctorOption = QUICK_START_OPTIONS.find((o) => o.key === 'doctor');
+    expect(doctorOption).toBeDefined();
+    expect(doctorOption?.command).toBe('anvil doctor');
   });
 
   it('QUICK_START_OPTIONS includes help command', () => {

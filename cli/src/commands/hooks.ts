@@ -13,38 +13,21 @@ import { success, error, info } from '../utils/output.js';
 /** Hook script content for pre-commit */
 const PRE_COMMIT_HOOK = `#!/bin/sh
 # Anvil pre-commit hook
-# Scans staged files for secrets and anti-patterns
+# Validates planning documents before commit
 
-# Check for ANVIL_SKIP environment variable
-if [ -n "$ANVIL_SKIP" ]; then
-  echo "Anvil: Skipping checks (ANVIL_SKIP is set)"
-  exit 0
+# Find modified plan files
+PLAN_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\\.(md|yaml|yml|json)$' || true)
+
+if [ -n "$PLAN_FILES" ]; then
+  echo "Anvil: Validating planning documents..."
+
+  for file in $PLAN_FILES; do
+    if anvil validate "$file" --quiet 2>/dev/null; then
+      echo "  ✓ $file"
+    fi
+  done
 fi
 
-# Check if there are staged source files
-STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\\.(ts|tsx|js|jsx|mjs|cjs)$' || true)
-
-if [ -z "$STAGED_FILES" ]; then
-  exit 0
-fi
-
-echo "Anvil: Scanning staged files..."
-
-# Run anvil check on staged files
-if ! anvil check --changed --staged; then
-  echo ""
-  echo "\\033[31m✖ ANVIL BLOCKED COMMIT\\033[0m"
-  echo ""
-  echo "  Potential secrets or issues found in staged files."
-  echo "  Review the warnings above and fix before committing."
-  echo ""
-  echo "  To bypass (use with caution):"
-  echo "    ANVIL_SKIP=1 git commit"
-  echo ""
-  exit 1
-fi
-
-echo "\\033[32m✓ All checks passed\\033[0m"
 exit 0
 `;
 
