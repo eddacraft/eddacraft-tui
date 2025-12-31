@@ -235,6 +235,7 @@ graph TD
 | [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Draft       | v1.2    | save-time-trust                                        |
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library               |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                      |
+| [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                   |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -362,9 +363,11 @@ graph TD
 | CMDSAF-007 | command-safety | Configuration system              | Planned | medium   |
 | CMDSAF-008 | command-safety | Message formatting                | Planned | low      |
 | CMDSAF-009 | command-safety | CLI integration and documentation | Planned | high     |
-| MCP-001    | mcp-server     | MCP server implementation         | Planned | high     |
-| MCP-002    | mcp-server     | Validation as MCP tool            | Planned | high     |
-| MCP-003    | mcp-server     | Constraint export for AI tools    | Planned | medium   |
+| MCP-001    | mcp-server     | Package scaffold and basic server | Planned | high     |
+| MCP-002    | mcp-server     | anvil_check tool implementation   | Planned | high     |
+| MCP-003    | mcp-server     | anvil_gate and anvil_status tools | Planned | high     |
+| MCP-004    | mcp-server     | Resources and prompts             | Planned | medium   |
+| MCP-005    | mcp-server     | HTTP transport and config gen     | Planned | medium   |
 
 ## Risks & Mitigations
 
