@@ -181,6 +181,7 @@ export class CommandSafetyCheck extends BaseCheck {
         const matchedRule = findMatchingRule(parsed, rules, {
           strict: config.strict,
           workingDirectory: config.workingDirectory,
+          cwd: context.workspace_root,
         });
 
         if (!matchedRule) {
