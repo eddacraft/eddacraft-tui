@@ -18,12 +18,21 @@ External Format → Adapter → APS (internal) → Gate → Execute → Evidence
 
 ## Planning Work
 
-**When asked to plan ANY feature, task, or work item:**
+**When asked to plan, implement, build, complete, or execute ANY feature, task,
+or work item:**
 
 1. **READ `plans/aps-rules.md` FIRST** - Non-negotiable
-2. Follow the APS format for all planning documents
-3. Create `.aps.md` files in `plans/modules/` for new features
-4. Steps go in `plans/execution/[TASK-ID].steps.md`
+2. **Check `plans/index.aps.md`** for existing task definitions (TUI-xxx,
+   ARCH-xxx, etc.)
+3. Follow the APS format for all planning documents
+4. Create `.aps.md` files in `plans/modules/` for new features
+5. Steps go in `plans/execution/[TASK-ID].steps.md`
+
+**If a task ID exists (e.g., TUI-003, ARCH-001):**
+
+- Find it in `plans/` before implementing
+- Check task status and dependencies
+- Create `plans/execution/[TASK-ID].steps.md` if complex
 
 **Key rules from `plans/aps-rules.md`:**
 
