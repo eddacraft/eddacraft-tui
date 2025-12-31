@@ -169,7 +169,7 @@ export class GateConfigManager {
           description: 'Architecture validation using dependency-cruiser',
           enabled: false, // Disabled by default until dependency-cruiser is installed
           config: {
-            config_file: '.dependency-cruiser.js',
+            config_file: '.anvil/dependency-cruiser.js',
             scope: 'affected',
             severity_threshold: 'error',
             fail_on_circular: true,

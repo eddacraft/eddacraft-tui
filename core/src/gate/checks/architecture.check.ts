@@ -61,7 +61,7 @@ const ARCH_VIOLATION_SUGGESTIONS = {
  * Configuration for architecture check
  */
 export interface ArchitectureCheckConfig {
-  /** Path to dependency-cruiser config (default: .dependency-cruiser.js) */
+  /** Path to dependency-cruiser config (default: .anvil/dependency-cruiser.js) */
   config_file?: string;
   /** Scope of analysis: 'affected' | 'full' */
   scope?: 'affected' | 'full';
@@ -114,7 +114,7 @@ interface ICruiseResult {
  * Default configuration
  */
 const DEFAULT_CONFIG: Required<ArchitectureCheckConfig> = {
-  config_file: '.dependency-cruiser.js',
+  config_file: '.anvil/dependency-cruiser.js',
   scope: 'affected',
   severity_threshold: 'error',
   fail_on_circular: true,
