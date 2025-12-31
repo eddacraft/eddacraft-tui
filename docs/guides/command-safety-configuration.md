@@ -4,25 +4,36 @@ Configure Command Safety validation via `.anvilrc` in your project root.
 
 ## Configuration Schema
 
+Command Safety is configured as a check within the `checks` array:
+
 ```json
 {
-  "commandSafety": {
-    "enabled": true,
-    "strict": false,
-    "rules": {
-      "disabled": [],
-      "overrides": [],
-      "custom": []
-    },
-    "workingDirectory": {
-      "allowDeleteInCwd": false,
-      "tempDirPatterns": ["/tmp", "/var/tmp"]
-    },
-    "output": {
-      "verbose": true,
-      "showSuggestions": true,
-      "showReferences": true
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "strict": false,
+        "rules": {
+          "disabled": [],
+          "overrides": [],
+          "custom": []
+        },
+        "workingDirectory": {
+          "allowDeleteInCwd": false,
+          "tempDirPatterns": ["/tmp", "/var/tmp"]
+        },
+        "output": {
+          "verbose": true,
+          "showSuggestions": true,
+          "showReferences": true
+        }
+      }
     }
+  ],
+  "thresholds": {
+    "overall_score": 80
   }
 }
 ```
@@ -34,17 +45,21 @@ Configure Command Safety validation via `.anvilrc` in your project root.
 **Type:** `boolean`  
 **Default:** `true`
 
-Enable or disable the command safety check entirely.
+Enable or disable the command safety check entirely. Set at the check level.
 
 ```json
 {
-  "commandSafety": {
-    "enabled": false
-  }
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": false
+    }
+  ]
 }
 ```
 
-### `strict`
+### `config.strict`
 
 **Type:** `boolean`  
 **Default:** `false`
@@ -54,15 +69,22 @@ that are normally allowed.
 
 ```json
 {
-  "commandSafety": {
-    "strict": true
-  }
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "strict": true
+      }
+    }
+  ]
 }
 ```
 
 ## Rules Configuration
 
-### `rules.disabled`
+### `config.rules.disabled`
 
 **Type:** `string[]`  
 **Default:** `[]`
@@ -71,15 +93,22 @@ Disable specific rules by ID. Disabled rules are completely ignored.
 
 ```json
 {
-  "commandSafety": {
-    "rules": {
-      "disabled": ["git-clean-force", "git-stash-drop"]
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "rules": {
+          "disabled": ["git-clean-force", "git-stash-drop"]
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
-### `rules.overrides`
+### `config.rules.overrides`
 
 **Type:** `array`  
 **Default:** `[]`
@@ -88,24 +117,31 @@ Override the action or severity of existing rules.
 
 ```json
 {
-  "commandSafety": {
-    "rules": {
-      "overrides": [
-        {
-          "id": "git-push-force",
-          "action": "warn"
-        },
-        {
-          "id": "git-reset-hard",
-          "action": "disable"
-        },
-        {
-          "id": "rm-rf-with-recursive",
-          "severity": "error"
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "rules": {
+          "overrides": [
+            {
+              "id": "git-push-force",
+              "action": "warn"
+            },
+            {
+              "id": "git-reset-hard",
+              "action": "disable"
+            },
+            {
+              "id": "rm-rf-with-recursive",
+              "severity": "error"
+            }
+          ]
         }
-      ]
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -117,7 +153,7 @@ Override the action or severity of existing rules.
 | `action`   | `"block"` \| `"warn"` \| `"allow"` \| `"disable"` | New action                     |
 | `severity` | `"error"` \| `"warning"` \| `"info"`              | New severity level             |
 
-### `rules.custom`
+### `config.rules.custom`
 
 **Type:** `array`  
 **Default:** `[]`
@@ -126,25 +162,32 @@ Add project-specific custom rules.
 
 ```json
 {
-  "commandSafety": {
-    "rules": {
-      "custom": [
-        {
-          "id": "no-npm-install-global",
-          "category": "shell",
-          "command": "npm",
-          "subcommand": "install",
-          "flags": {
-            "dangerous": ["-g", "--global"]
-          },
-          "action": "warn",
-          "severity": "warning",
-          "reason": "Global npm installs can affect system state",
-          "suggestion": "Use npx or local dependencies instead"
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "rules": {
+          "custom": [
+            {
+              "id": "no-npm-install-global",
+              "category": "shell",
+              "command": "npm",
+              "subcommand": "install",
+              "flags": {
+                "dangerous": ["-g", "--global"]
+              },
+              "action": "warn",
+              "severity": "warning",
+              "reason": "Global npm installs can affect system state",
+              "suggestion": "Use npx or local dependencies instead"
+            }
+          ]
         }
-      ]
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -243,7 +286,7 @@ Check only a specific argument position (0-indexed).
 
 ## Working Directory Configuration
 
-### `workingDirectory.allowDeleteInCwd`
+### `config.workingDirectory.allowDeleteInCwd`
 
 **Type:** `boolean`  
 **Default:** `false`
@@ -252,15 +295,22 @@ Allow `rm -rf` in the current working directory.
 
 ```json
 {
-  "commandSafety": {
-    "workingDirectory": {
-      "allowDeleteInCwd": true
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "workingDirectory": {
+          "allowDeleteInCwd": true
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
-### `workingDirectory.tempDirPatterns`
+### `config.workingDirectory.tempDirPatterns`
 
 **Type:** `string[]`  
 **Default:** `["/tmp", "/var/tmp"]`
@@ -269,31 +319,38 @@ Additional patterns to treat as temporary directories (allowed for deletion).
 
 ```json
 {
-  "commandSafety": {
-    "workingDirectory": {
-      "tempDirPatterns": ["/tmp", "/var/tmp", "/scratch"]
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "workingDirectory": {
+          "tempDirPatterns": ["/tmp", "/var/tmp", "/scratch"]
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
 ## Output Configuration
 
-### `output.verbose`
+### `config.output.verbose`
 
 **Type:** `boolean`  
 **Default:** `true`
 
 Include detailed reasons in output messages.
 
-### `output.showSuggestions`
+### `config.output.showSuggestions`
 
 **Type:** `boolean`  
 **Default:** `true`
 
 Show safe alternative suggestions.
 
-### `output.showReferences`
+### `config.output.showReferences`
 
 **Type:** `boolean`  
 **Default:** `true`
@@ -302,13 +359,20 @@ Include reference documentation links.
 
 ```json
 {
-  "commandSafety": {
-    "output": {
-      "verbose": true,
-      "showSuggestions": true,
-      "showReferences": false
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "output": {
+          "verbose": true,
+          "showSuggestions": true,
+          "showReferences": false
+        }
+      }
     }
-  }
+  ]
 }
 ```
 
@@ -362,19 +426,44 @@ Include reference documentation links.
 
 ## Example Configurations
 
+### Minimal Configuration
+
+Just enable the check with defaults:
+
+```json
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true
+    }
+  ]
+}
+```
+
 ### Relaxed Development Mode
 
 ```json
 {
-  "commandSafety": {
-    "enabled": true,
-    "strict": false,
-    "rules": {
-      "overrides": [
-        { "id": "git-push-force", "action": "warn" },
-        { "id": "git-reset-hard", "action": "warn" }
-      ]
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "strict": false,
+        "rules": {
+          "overrides": [
+            { "id": "git-push-force", "action": "warn" },
+            { "id": "git-reset-hard", "action": "warn" }
+          ]
+        }
+      }
     }
+  ],
+  "thresholds": {
+    "overall_score": 80
   }
 }
 ```
@@ -383,15 +472,24 @@ Include reference documentation links.
 
 ```json
 {
-  "commandSafety": {
-    "enabled": true,
-    "strict": true,
-    "rules": {
-      "overrides": [
-        { "id": "git-clean-force", "action": "block" },
-        { "id": "git-stash-drop", "action": "block" }
-      ]
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "strict": true,
+        "rules": {
+          "overrides": [
+            { "id": "git-clean-force", "action": "block" },
+            { "id": "git-stash-drop", "action": "block" }
+          ]
+        }
+      }
     }
+  ],
+  "thresholds": {
+    "overall_score": 90
   }
 }
 ```
@@ -400,22 +498,67 @@ Include reference documentation links.
 
 ```json
 {
-  "commandSafety": {
-    "rules": {
-      "custom": [
-        {
-          "id": "no-docker-system-prune",
-          "category": "shell",
-          "command": "docker",
-          "subcommand": "system",
-          "args": { "pattern": "^prune$", "position": 0 },
-          "action": "warn",
-          "severity": "warning",
-          "reason": "docker system prune removes all unused data",
-          "suggestion": "Use docker image prune or docker container prune for targeted cleanup"
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "rules": {
+          "custom": [
+            {
+              "id": "no-docker-system-prune",
+              "category": "shell",
+              "command": "docker",
+              "subcommand": "system",
+              "args": { "pattern": "^prune$", "position": 0 },
+              "action": "warn",
+              "severity": "warning",
+              "reason": "docker system prune removes all unused data",
+              "suggestion": "Use docker image prune or docker container prune for targeted cleanup"
+            }
+          ]
         }
-      ]
+      }
     }
+  ]
+}
+```
+
+### Full Configuration with Other Checks
+
+```json
+{
+  "version": 1,
+  "checks": [
+    {
+      "name": "eslint",
+      "enabled": true,
+      "config": {
+        "min_score": 80
+      }
+    },
+    {
+      "name": "command-safety",
+      "enabled": true,
+      "config": {
+        "strict": false,
+        "rules": {
+          "disabled": ["git-stash-drop"]
+        },
+        "output": {
+          "verbose": true,
+          "showSuggestions": true
+        }
+      }
+    },
+    {
+      "name": "secret",
+      "enabled": true
+    }
+  ],
+  "thresholds": {
+    "overall_score": 80
   }
 }
 ```

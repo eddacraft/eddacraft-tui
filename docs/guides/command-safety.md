@@ -192,9 +192,13 @@ anvil gate plan.md
 
 ```json
 {
-  "commandSafety": {
-    "enabled": false
-  }
+  "version": 1,
+  "checks": [
+    {
+      "name": "command-safety",
+      "enabled": false
+    }
+  ]
 }
 ```
 
