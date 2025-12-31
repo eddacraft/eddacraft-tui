@@ -501,12 +501,12 @@ export class OPAExecutor {
    * Generate a stable fingerprint for deduplication
    */
   private generateFingerprint(violation: PolicyViolation): string {
-    const content = [
-      violation.policy || '',
-      violation.rule || '',
-      violation.path || '',
-      violation.message || '',
-    ].join('|');
+    const content = JSON.stringify({
+      policy: violation.policy || '',
+      rule: violation.rule || '',
+      path: violation.path || '',
+      message: violation.message || '',
+    });
 
     return createHash('sha256').update(content).digest('hex').substring(0, 16);
   }
@@ -516,23 +516,24 @@ export class OPAExecutor {
    */
   private inferCategory(policyName: string): ViolationCategory {
     const name = policyName.toLowerCase();
+    const hasWord = (word: string) => new RegExp(`(^|_|-)${word}($|_|-)`).test(name);
 
-    if (name.includes('security') || name.includes('secret') || name.includes('auth')) {
+    if (hasWord('security') || hasWord('secret') || hasWord('auth')) {
       return 'security';
     }
-    if (name.includes('architecture') || name.includes('layer') || name.includes('boundary')) {
+    if (hasWord('architecture') || hasWord('layer') || hasWord('boundary')) {
       return 'architecture';
     }
-    if (name.includes('coverage') || name.includes('test')) {
+    if (hasWord('coverage') || hasWord('test')) {
       return 'coverage';
     }
-    if (name.includes('scope') || name.includes('change') || name.includes('size')) {
+    if (hasWord('scope') || hasWord('change') || hasWord('size')) {
       return 'scope';
     }
-    if (name.includes('lint') || name.includes('quality') || name.includes('style')) {
+    if (hasWord('lint') || hasWord('quality') || hasWord('style')) {
       return 'quality';
     }
-    if (name.includes('compliance') || name.includes('license') || name.includes('audit')) {
+    if (hasWord('compliance') || hasWord('license') || hasWord('audit')) {
       return 'compliance';
     }
 

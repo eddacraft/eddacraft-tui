@@ -30,7 +30,8 @@ describe('dc-generator', () => {
 
       const config = generateDCConfig(definition);
 
-      expect(config).toContain('^src\\\\/domain\\\\/(.*\\\\/)?[^\\\\/]*\\\\.ts$');
+      expect(config).toContain('src\\\\/domain\\\\/(.*\\\\/)?[^\\\\/]*\\\\.ts$');
+      expect(config).not.toContain('^src');
       expect(config).not.toContain('\\\\.*\\\\/');
     });
 
@@ -86,7 +87,7 @@ describe('dc-generator', () => {
       expect(config).toContain('(.*\\\\/)?[^\\\\/]*\\\\.ts$');
     });
 
-    it('should anchor patterns at start', () => {
+    it('should anchor patterns at end only (not start) for DC path flexibility', () => {
       const definition = createDefinition({
         layers: {
           domain: { patterns: ['src/domain/**'], depends_on: [] },
@@ -96,7 +97,8 @@ describe('dc-generator', () => {
 
       const config = generateDCConfig(definition);
 
-      expect(config).toContain('^src\\\\/domain\\\\/.*$');
+      expect(config).toContain('src\\\\/domain\\\\/.*$');
+      expect(config).not.toContain('^src\\\\/domain');
     });
   });
 

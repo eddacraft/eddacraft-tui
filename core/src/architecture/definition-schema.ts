@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export const ARCHITECTURE_DEFINITION_VERSION = '0.1.0' as const;
+
 export const ArchitectureTemplateSchema = z.enum([
   'layered',
   'hexagonal',
@@ -53,7 +55,9 @@ export const ArchitectureOptionsSchema = z.object({
 export type ArchitectureOptions = z.infer<typeof ArchitectureOptionsSchema>;
 
 export const ArchitectureDefinitionSchema = z.object({
-  schema_version: z.literal('0.1.0').default('0.1.0'),
+  schema_version: z
+    .literal(ARCHITECTURE_DEFINITION_VERSION)
+    .default(ARCHITECTURE_DEFINITION_VERSION),
   template: ArchitectureTemplateSchema.default('custom'),
   layers: z.record(z.string(), LayerDefinitionSchema).default({}),
   bounded_contexts: z.record(z.string(), BoundedContextSchema).optional(),
@@ -77,8 +81,6 @@ export function getAvailableTemplates(): ArchitectureTemplate[] {
 export function isValidTemplate(template: string): template is ArchitectureTemplate {
   return AVAILABLE_TEMPLATES.includes(template as ArchitectureTemplate);
 }
-
-export const ARCHITECTURE_DEFINITION_VERSION = '0.1.0';
 
 export function validateArchitectureDefinition(
   data: unknown

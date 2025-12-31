@@ -302,12 +302,25 @@ export class PolicyCheck extends BaseCheck {
 
       // Try to get base branch (for PRs)
       let baseBranch: string | undefined;
-      const defaultBranches = ['main', 'master', 'develop'];
-      for (const defaultBranch of defaultBranches) {
-        const exists = execGit(`git rev-parse --verify ${defaultBranch} 2>/dev/null`);
-        if (exists) {
-          baseBranch = defaultBranch;
-          break;
+
+      // First try origin/HEAD which points to the default branch
+      const originHeadRef = execGit('git symbolic-ref refs/remotes/origin/HEAD');
+      if (originHeadRef) {
+        const match = originHeadRef.match(/^refs\/remotes\/origin\/(.+)$/);
+        if (match?.[1]) {
+          baseBranch = match[1];
+        }
+      }
+
+      // Fallback: probe common default branch names
+      if (!baseBranch) {
+        const defaultBranches = ['main', 'master', 'develop'];
+        for (const defaultBranch of defaultBranches) {
+          const exists = execGit(`git rev-parse --verify ${defaultBranch}`);
+          if (exists) {
+            baseBranch = defaultBranch;
+            break;
+          }
         }
       }
 

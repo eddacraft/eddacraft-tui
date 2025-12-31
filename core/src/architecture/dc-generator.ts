@@ -191,8 +191,12 @@ function mapSeverity(severity: string): 'error' | 'warn' | 'info' | 'ignore' {
       return 'warn';
     case 'info':
       return 'info';
+    case 'ignore':
+      return 'ignore';
     default:
-      return 'error';
+      throw new Error(
+        `Unknown architecture rule severity "${severity}". Expected: error, warn, warning, info, ignore.`
+      );
   }
 }
 
@@ -235,5 +239,5 @@ function globToRegex(glob: string): string {
 }
 
 function layerPathsToRegex(patterns: string[]): string {
-  return patterns.map((p) => '^' + globToRegex(p) + '$').join('|');
+  return patterns.map((p) => globToRegex(p) + '$').join('|');
 }

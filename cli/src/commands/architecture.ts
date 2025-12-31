@@ -21,6 +21,7 @@ import {
   dcConfigExists,
   getDCConfigPath,
   ARCHITECTURE_YAML_FILENAME,
+  ARCHITECTURE_DEFINITION_VERSION,
   getDefaultOptions,
 } from '@anvil/core';
 
@@ -131,7 +132,7 @@ function createInitSubcommand(): Command {
         }
 
         const definition: ArchitectureDefinition = {
-          schema_version: '0.1.0',
+          schema_version: ARCHITECTURE_DEFINITION_VERSION,
           template,
           layers,
           rules: [],
