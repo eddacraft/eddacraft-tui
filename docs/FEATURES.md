@@ -38,7 +38,7 @@ purposes.
 | **anvil init**     | ✅     | Generate `.anvilrc` config  | —                         | Initialise Anvil in a project          |
 | **anvil validate** | ✅     | Validate plans (any format) | —                         | Schema + hash validation               |
 | **anvil gate**     | ✅     | Run quality gates           | —                         | Lint, test, coverage, secrets          |
-| **anvil export**   | ✅     | Convert between formats     | —                         | APS ↔ SpecKit ↔ BMAD                 |
+| **anvil export**   | ✅     | Convert between formats     | —                         | APS ↔ SpecKit ↔ BMAD                   |
 | **anvil watch**    | ✅     | Real-time file monitoring   | —                         | Git-aware, debounced, configurable     |
 | **anvil hooks**    | ✅     | Git hooks management        | —                         | Install/uninstall pre-commit, pre-push |
 | **anvil policy**   | ✅     | OPA policy management       | —                         | validate, test, list, init             |
