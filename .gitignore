@@ -46,3 +46,4 @@ Thumbs.db
 .cursor/
 .opencode
 docs/analysis/claude-code-safety-net-review.md
+.anvil/tutorial-progress.json

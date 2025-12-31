@@ -49,7 +49,6 @@ export function ParallelProgress({
   const overallProgress = calculateOverallProgress(checks);
   const eta = calculateETA(checks);
 
-  const _runningCount = checks.filter((c) => c.status === 'running').length;
   const completedCount = checks.filter(
     (c) => c.status === 'passed' || c.status === 'failed' || c.status === 'cached'
   ).length;
