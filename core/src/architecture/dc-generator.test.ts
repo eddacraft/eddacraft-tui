@@ -30,8 +30,8 @@ describe('dc-generator', () => {
 
       const config = generateDCConfig(definition);
 
-      expect(config).toContain('src\\\\/domain\\\\/.*\\\\/[^\\\\/]*\\\\.ts$');
-      expect(config).not.toContain('\\\\.*');
+      expect(config).toContain('^src\\\\/domain\\\\/(.*\\\\/)?[^\\\\/]*\\\\.ts$');
+      expect(config).not.toContain('\\\\.*\\\\/');
     });
 
     it('should handle single * correctly', () => {
@@ -58,6 +58,45 @@ describe('dc-generator', () => {
       const config = generateDCConfig(definition);
 
       expect(config).toContain('src\\\\/config\\\\.service\\\\.ts$');
+    });
+
+    it('should escape regex metacharacters in patterns', () => {
+      const definition = createDefinition({
+        layers: {
+          utils: { patterns: ['src/utils+helpers/**'], depends_on: [] },
+          other: { patterns: ['other/**'], depends_on: ['utils'] },
+        },
+      });
+
+      const config = generateDCConfig(definition);
+
+      expect(config).toContain('utils\\\\+helpers');
+    });
+
+    it('should match root-level files with **/ pattern', () => {
+      const definition = createDefinition({
+        layers: {
+          all: { patterns: ['**/*.ts'], depends_on: [] },
+          other: { patterns: ['other/**'], depends_on: ['all'] },
+        },
+      });
+
+      const config = generateDCConfig(definition);
+
+      expect(config).toContain('(.*\\\\/)?[^\\\\/]*\\\\.ts$');
+    });
+
+    it('should anchor patterns at start', () => {
+      const definition = createDefinition({
+        layers: {
+          domain: { patterns: ['src/domain/**'], depends_on: [] },
+          other: { patterns: ['other/**'], depends_on: ['domain'] },
+        },
+      });
+
+      const config = generateDCConfig(definition);
+
+      expect(config).toContain('^src\\\\/domain\\\\/.*$');
     });
   });
 

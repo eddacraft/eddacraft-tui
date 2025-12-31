@@ -14,6 +14,11 @@ import { join } from 'path';
 import { loadBaseline } from '../../architecture/baseline.js';
 import type { ArchitectureBaseline } from '../../architecture/types.js';
 import {
+  createContextBuilder,
+  type ArchitectureContext,
+  type ArchViolation,
+} from '../../architecture/context.js';
+import {
   createWarningResult,
   createWarningFingerprint,
   type Warning,
@@ -232,6 +237,15 @@ export class ArchitectureCheck extends BaseCheck {
       const warningResult = this.createArchWarningResult(warnings, violationsByType);
       const message = this.buildMessage(effectiveViolations, output.summary.totalCruised, passed);
 
+      const architectureContext = this.buildArchitectureContext(
+        allViolations,
+        effectiveViolations,
+        output.summary,
+        violationsByType,
+        baseline,
+        config
+      );
+
       return this.createResult(passed, message, score, {
         warnings: warningResult,
         totalModulesCruised: output.summary.totalCruised,
@@ -251,6 +265,7 @@ export class ArchitectureCheck extends BaseCheck {
         configFile: existsSync(configPath) ? config.config_file : 'built-in defaults',
         scope: config.scope,
         baselineLoaded: baseline !== null,
+        architectureContext,
       });
     } catch (error) {
       return this.createFailure(
@@ -577,5 +592,51 @@ export class ArchitectureCheck extends BaseCheck {
 
     const status = passed ? 'passed with issues' : 'failed';
     return `Architecture check ${status}: ${parts.join(', ')} (${totalCruised} modules analysed)`;
+  }
+
+  private buildArchitectureContext(
+    allViolations: CruiserViolation[],
+    effectiveViolations: CruiserViolation[],
+    summary: CruiserSummary,
+    violationsByType: Record<string, number>,
+    baseline: ArchitectureBaseline | null,
+    config: Required<ArchitectureCheckConfig>
+  ): ArchitectureContext {
+    const builder = createContextBuilder();
+
+    const archViolations: ArchViolation[] = allViolations.map((v) => ({
+      from: v.from,
+      to: v.to,
+      rule: v.rule.name,
+      severity: v.rule.severity,
+      is_circular: v.cycle !== undefined && v.cycle.length > 0,
+      cycle: v.cycle,
+      is_new: baseline ? this.isNewViolation(v, baseline) : true,
+      from_layer: null,
+      to_layer: null,
+    }));
+
+    builder.setViolations(archViolations);
+
+    builder.setSummary({
+      total_modules: summary.totalCruised,
+      total_violations: allViolations.length,
+      new_violations: effectiveViolations.length,
+      error_count: summary.error,
+      warn_count: summary.warn,
+      info_count: summary.info,
+      circular_count: violationsByType.circular ?? 0,
+      orphan_count: violationsByType.orphan ?? 0,
+      layer_violation_count: violationsByType.layer ?? 0,
+      baseline_loaded: baseline !== null,
+    });
+
+    builder.setConfig({
+      config_file: config.config_file,
+      scope: config.scope,
+      severity_threshold: config.severity_threshold,
+    });
+
+    return builder.build();
   }
 }

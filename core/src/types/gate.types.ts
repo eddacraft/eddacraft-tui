@@ -84,6 +84,8 @@ export interface CheckContext {
   fullScan?: boolean;
   /** Explicit file list for planless mode (workspace-relative or absolute paths) */
   targetFiles?: string[];
+  /** Architecture context from ArchitectureCheck - passed to downstream checks (e.g., PolicyCheck) */
+  architectureContext?: import('../architecture/context.js').ArchitectureContext;
 }
 
 // =============================================================================

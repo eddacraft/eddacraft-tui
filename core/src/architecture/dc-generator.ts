@@ -96,11 +96,17 @@ interface DCRule {
 }
 
 function deduplicateRules(rules: DCRule[]): DCRule[] {
-  const seen = new Map<string, DCRule>();
-  for (const rule of rules) {
-    seen.set(rule.name, rule);
+  const byName = new Map<string, { index: number; rule: DCRule }>();
+  for (let i = 0; i < rules.length; i++) {
+    const existing = byName.get(rules[i].name);
+    byName.set(rules[i].name, {
+      index: existing?.index ?? i,
+      rule: rules[i],
+    });
   }
-  return Array.from(seen.values());
+  return Array.from(byName.values())
+    .sort((a, b) => a.index - b.index)
+    .map((entry) => entry.rule);
 }
 
 function generateRules(definition: ArchitectureDefinition): DCRule[] {
@@ -190,16 +196,44 @@ function mapSeverity(severity: string): 'error' | 'warn' | 'info' | 'ignore' {
   }
 }
 
+const REGEX_METACHARACTERS = /[+?()[\]{}|^$\\]/g;
+
 function globToRegex(glob: string): string {
-  const GLOBSTAR = '<<<GLOBSTAR>>>';
-  return glob
-    .replace(/\./g, '\\.') // Escape literal dots first
-    .replace(/\*\*/g, GLOBSTAR) // Placeholder to protect from single * replacement
-    .replace(/\*/g, '[^/]*') // * → [^/]* (single segment)
-    .replace(new RegExp(GLOBSTAR, 'g'), '.*') // ** → .* (any depth)
-    .replace(/\//g, '\\/'); // Escape path separators
+  let result = '';
+  let i = 0;
+  while (i < glob.length) {
+    const char = glob[i];
+    const nextChar = glob[i + 1];
+    const charAfterNext = glob[i + 2];
+
+    if (char === '*' && nextChar === '*') {
+      if (charAfterNext === '/') {
+        result += '(.*\\/)?';
+        i += 3;
+      } else {
+        result += '.*';
+        i += 2;
+      }
+    } else if (char === '*') {
+      result += '[^\\/]*';
+      i += 1;
+    } else if (char === '.') {
+      result += '\\.';
+      i += 1;
+    } else if (char === '/') {
+      result += '\\/';
+      i += 1;
+    } else if (REGEX_METACHARACTERS.test(char)) {
+      result += '\\' + char;
+      i += 1;
+    } else {
+      result += char;
+      i += 1;
+    }
+  }
+  return result;
 }
 
 function layerPathsToRegex(patterns: string[]): string {
-  return patterns.map((p) => globToRegex(p) + '$').join('|');
+  return patterns.map((p) => '^' + globToRegex(p) + '$').join('|');
 }

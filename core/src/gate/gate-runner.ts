@@ -7,6 +7,7 @@ import {
   GateRunResult,
   PlanData,
 } from '../types/gate.types.js';
+import type { ArchitectureContext } from '../architecture/context.js';
 import { ESLintCheck } from './checks/eslint.check.js';
 import { CoverageCheck } from './checks/coverage.check.js';
 import { SecretCheck } from './checks/secret.check.js';
@@ -437,13 +438,18 @@ export class GateRunner {
     const timing: Record<string, number> = {};
     const totalChecks = checksToRun.length;
     let completedCount = 0;
+    let sharedArchitectureContext: ArchitectureContext | undefined;
 
-    // Sequential execution (failFast or parallelLimit === 0)
+    const archCheckIndex = checksToRun.findIndex((c) => c.checkConfig.name === 'architecture');
+    if (archCheckIndex > 0) {
+      const [archCheck] = checksToRun.splice(archCheckIndex, 1);
+      checksToRun.unshift(archCheck);
+    }
+
     if (failFast || parallelLimit === 0) {
       for (let i = 0; i < checksToRun.length; i++) {
         const { checkConfig, check } = checksToRun[i];
 
-        // Report check start
         onProgress?.({
           type: 'check:start',
           checkName: checkConfig.name,
@@ -458,8 +464,13 @@ export class GateRunner {
           config,
           workspaceRoot,
           cache,
-          fullScan
+          fullScan,
+          sharedArchitectureContext
         );
+
+        if (checkConfig.name === 'architecture' && result.details?.architectureContext) {
+          sharedArchitectureContext = result.details.architectureContext as ArchitectureContext;
+        }
 
         results.push(result);
         timing[checkConfig.name] = executionTimeMs;
@@ -472,7 +483,6 @@ export class GateRunner {
           cacheStats.misses++;
         }
 
-        // Report check completion
         onProgress?.({
           type: result.error ? 'check:error' : 'check:complete',
           checkName: checkConfig.name,
@@ -483,7 +493,6 @@ export class GateRunner {
           executionTimeMs,
         });
 
-        // Fail-fast: stop on first failure
         if (failFast && !result.passed && !result.skipped) {
           break;
         }
@@ -491,9 +500,7 @@ export class GateRunner {
       return { results, cacheStats, timing };
     }
 
-    // Parallel execution with progress tracking
     const runCheckWithProgress = async (item: CheckToRun, index: number) => {
-      // Report check start
       onProgress?.({
         type: 'check:start',
         checkName: item.checkConfig.name,
@@ -508,13 +515,12 @@ export class GateRunner {
         config,
         workspaceRoot,
         cache,
-        fullScan
+        fullScan,
+        sharedArchitectureContext
       );
 
-      // Track completion (atomic increment simulation)
       completedCount++;
 
-      // Report check completion
       onProgress?.({
         type: result.error ? 'check:error' : 'check:complete',
         checkName: item.checkConfig.name,
@@ -528,10 +534,41 @@ export class GateRunner {
       return { checkConfig: item.checkConfig, result, cached, executionTimeMs };
     };
 
-    if (parallelLimit === undefined || parallelLimit >= checksToRun.length) {
-      // Fully parallel
+    const hasArchCheck =
+      checksToRun.length > 0 && checksToRun[0].checkConfig.name === 'architecture';
+    let remainingChecks = checksToRun;
+
+    if (hasArchCheck) {
+      const archItem = checksToRun[0];
+      const archResult = await runCheckWithProgress(archItem, 0);
+
+      results.push(archResult.result);
+      timing[archResult.checkConfig.name] = archResult.executionTimeMs;
+
+      if (archResult.cached) {
+        cacheStats.hits++;
+        cacheStats.timeSavedMs += archResult.executionTimeMs;
+      } else {
+        cacheStats.misses++;
+      }
+
+      if (archResult.result.details?.architectureContext) {
+        sharedArchitectureContext = archResult.result.details
+          .architectureContext as ArchitectureContext;
+      }
+
+      remainingChecks = checksToRun.slice(1);
+    }
+
+    if (remainingChecks.length === 0) {
+      return { results, cacheStats, timing };
+    }
+
+    const startIndex = hasArchCheck ? 1 : 0;
+
+    if (parallelLimit === undefined || parallelLimit >= remainingChecks.length) {
       const checkResults = await Promise.all(
-        checksToRun.map((item, index) => runCheckWithProgress(item, index))
+        remainingChecks.map((item, index) => runCheckWithProgress(item, startIndex + index))
       );
 
       for (const { checkConfig, result, cached, executionTimeMs } of checkResults) {
@@ -546,10 +583,9 @@ export class GateRunner {
         }
       }
     } else {
-      // Limited parallelism using batches
-      let batchStartIndex = 0;
-      for (let i = 0; i < checksToRun.length; i += parallelLimit) {
-        const batch = checksToRun.slice(i, i + parallelLimit);
+      let batchStartIndex = startIndex;
+      for (let i = 0; i < remainingChecks.length; i += parallelLimit) {
+        const batch = remainingChecks.slice(i, i + parallelLimit);
         const batchResults = await Promise.all(
           batch.map((item, batchIndex) => runCheckWithProgress(item, batchStartIndex + batchIndex))
         );
@@ -579,7 +615,8 @@ export class GateRunner {
     gateConfig: GateConfig,
     workspaceRoot: string,
     cache: CacheProvider,
-    fullScan?: boolean
+    fullScan?: boolean,
+    architectureContext?: ArchitectureContext
   ): Promise<{ result: GateResult; cached: boolean; executionTimeMs: number }> {
     const startTime = Date.now();
 
@@ -622,6 +659,7 @@ export class GateRunner {
         config: gateConfig,
         check_config: checkConfig.config || {},
         fullScan,
+        architectureContext,
       };
 
       const result = await check.run(context);
