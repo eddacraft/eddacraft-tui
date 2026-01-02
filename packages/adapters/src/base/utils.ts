@@ -1,8 +1,4 @@
-/**
- * Adapter Utilities
- *
- * Helper functions for adapter development and testing.
- */
+import { createHash } from 'node:crypto';
 
 import type {
   AdapterError,
@@ -11,6 +7,11 @@ import type {
   SerializeResult,
   DetectionResult,
 } from './types.js';
+
+export function generateDeterministicPlanId(content: string): string {
+  const hash = createHash('sha256').update(content, 'utf8').digest('hex');
+  return `aps-${hash.substring(0, 8)}`;
+}
 
 /**
  * Create a detection result

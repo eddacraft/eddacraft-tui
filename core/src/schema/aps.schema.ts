@@ -29,7 +29,7 @@ export const ChangeSchema = z.object({
   content: z.string().optional().describe('New content for file changes'),
   diff: z.string().optional().describe('Unified diff for updates'),
   metadata: z
-    .record(z.string(), z.any())
+    .record(z.string(), z.unknown())
     .optional()
     .describe('Additional change-specific metadata'),
 });
@@ -54,7 +54,7 @@ export const ValidationSchema = z.object({
   required_checks: z.array(z.string()).default([]).describe('List of required validation checks'),
   policy_version: z.string().optional().describe('Version of the policy bundle to use'),
   skip_checks: z.array(z.string()).default([]).describe('Checks to skip for this plan'),
-  custom_rules: z.record(z.string(), z.any()).optional().describe('Custom validation rules'),
+  custom_rules: z.record(z.string(), z.unknown()).optional().describe('Custom validation rules'),
 });
 
 /**
@@ -64,7 +64,7 @@ export const EvidenceEntrySchema = z.object({
   check: z.string().describe('Name of the check performed'),
   status: z.enum(['passed', 'failed', 'skipped', 'warning']).describe('Result status'),
   timestamp: z.string().datetime().describe('When the check was performed'),
-  details: z.record(z.string(), z.any()).optional().describe('Detailed check results'),
+  details: z.record(z.string(), z.unknown()).optional().describe('Detailed check results'),
   message: z.string().optional().describe('Human-readable result message'),
 });
 
@@ -150,7 +150,7 @@ export const APSPlanSchema = z
     // Additional metadata
     tags: z.array(z.string()).optional().describe('Tags for categorization and filtering'),
     metadata: z
-      .record(z.string(), z.any())
+      .record(z.string(), z.unknown())
       .optional()
       .describe('Additional plan-specific metadata'),
   })

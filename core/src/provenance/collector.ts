@@ -2,18 +2,14 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import type { AITool, Environment, GitContext, CheckSummary, ProvenanceRecord } from './types.js';
 import type { GateRunResult } from '../types/gate.types.js';
 
 const execAsync = promisify(exec);
 
-/**
- * Generates a unique provenance record ID
- */
 function generateProvenanceId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
-  return `prov-${timestamp}-${random}`;
+  return `prov-${randomUUID()}`;
 }
 
 /**

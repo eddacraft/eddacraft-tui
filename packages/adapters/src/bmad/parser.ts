@@ -16,7 +16,7 @@ import {
   extractTitle,
   extractIntent,
 } from './utils.js';
-import { createError, createWarning } from '../base/utils.js';
+import { createError, createWarning, generateDeterministicPlanId } from '../base/utils.js';
 
 /**
  * Parse BMAD document into internal structure
@@ -112,16 +112,16 @@ function userStoryToChange(story: BMADUserStory): Change {
   };
 }
 
-/**
- * Convert BMAD document to APS plan
- *
- * @param document - Parsed BMAD document
- * @param context - Parse context
- * @returns APS plan
- */
-export function bmadToAPS(document: BMADDocument, context?: ParseContext): APSPlan {
-  // Generate plan ID
-  const planId = `aps-${Math.random().toString(16).substring(2, 10)}`;
+export function bmadToAPS(
+  document: BMADDocument,
+  context?: ParseContext,
+  originalContent?: string
+): APSPlan {
+  const planId =
+    context?.planId ??
+    (originalContent
+      ? generateDeterministicPlanId(originalContent)
+      : `aps-${Date.now().toString(16).substring(0, 8)}`);
 
   // Convert requirements and stories to changes
   const changes: Change[] = [];
@@ -200,14 +200,7 @@ export function bmadToAPS(document: BMADDocument, context?: ParseContext): APSPl
   return plan;
 }
 
-/**
- * Parse BMAD content to APS plan (main entry point)
- *
- * @param content - BMAD markdown content
- * @param context - Parse context
- * @returns APS plan
- */
 export function parseBMAD(content: string, context?: ParseContext): APSPlan {
   const document = parseBMADDocument(content);
-  return bmadToAPS(document, context);
+  return bmadToAPS(document, context, content);
 }
