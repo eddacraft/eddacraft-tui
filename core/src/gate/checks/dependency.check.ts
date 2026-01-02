@@ -97,9 +97,16 @@ const SEVERITY_SCORES = {
   moderate: 50,
   low: 25,
   info: 10,
-};
+} as const;
 
 const SEVERITY_ORDER = ['critical', 'high', 'moderate', 'low', 'info'] as const;
+
+const VULNERABILITY_SCORE_PENALTIES = {
+  critical: 20,
+  high: 10,
+  moderate: 5,
+  low: 2,
+} as const;
 
 type PackageManager = 'npm' | 'yarn' | 'pnpm';
 
@@ -389,14 +396,12 @@ export class DependencyCheck extends BaseCheck {
   }
 
   private calculateScore(critical: number, high: number, moderate: number, low: number): number {
-    // Start with perfect score
     let score = 100;
 
-    // Deduct points based on severity
-    score -= critical * 20; // Critical: -20 points each
-    score -= high * 10; // High: -10 points each
-    score -= moderate * 5; // Moderate: -5 points each
-    score -= low * 2; // Low: -2 points each
+    score -= critical * VULNERABILITY_SCORE_PENALTIES.critical;
+    score -= high * VULNERABILITY_SCORE_PENALTIES.high;
+    score -= moderate * VULNERABILITY_SCORE_PENALTIES.moderate;
+    score -= low * VULNERABILITY_SCORE_PENALTIES.low;
 
     return Math.max(0, score);
   }

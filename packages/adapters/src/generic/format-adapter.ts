@@ -20,6 +20,10 @@ import { analyzeContent, calculateConfidenceScore, buildDetectionReason } from '
 import { parseGeneric } from './parser.js';
 import { serializeToGeneric } from './serializer.js';
 
+const MIN_CONTENT_LENGTH = 50;
+const FALLBACK_DETECTION_THRESHOLD = 30;
+const MAX_FALLBACK_CONFIDENCE = 45;
+
 /**
  * Generic Markdown FormatAdapter implementation
  *
@@ -52,11 +56,13 @@ export class GenericMarkdownAdapter extends BaseFormatAdapter {
     const confidence = calculateConfidenceScore(indicators);
     const reason = buildDetectionReason(indicators);
 
-    // Lower detection threshold (30%) to serve as fallback
-    // But cap maximum confidence at 45% so specific adapters win
-    const cappedConfidence = Math.min(45, confidence);
+    const cappedConfidence = Math.min(MAX_FALLBACK_CONFIDENCE, confidence);
 
-    return createDetection(cappedConfidence >= 30, cappedConfidence, reason);
+    return createDetection(
+      cappedConfidence >= FALLBACK_DETECTION_THRESHOLD,
+      cappedConfidence,
+      reason
+    );
   }
 
   /**
@@ -137,8 +143,7 @@ export class GenericMarkdownAdapter extends BaseFormatAdapter {
       severity: 'error' | 'warning';
     }> = [];
 
-    // Check for minimum content length
-    if (content.trim().length < 50) {
+    if (content.trim().length < MIN_CONTENT_LENGTH) {
       issues.push({
         code: 'CONTENT_TOO_SHORT',
         path: 'content',
@@ -147,12 +152,10 @@ export class GenericMarkdownAdapter extends BaseFormatAdapter {
       });
     }
 
-    // Analyze content
     const indicators = analyzeContent(content);
     const confidence = calculateConfidenceScore(indicators);
 
-    // Low confidence suggests not a planning document
-    if (confidence < 30) {
+    if (confidence < FALLBACK_DETECTION_THRESHOLD) {
       issues.push({
         code: 'LOW_CONFIDENCE',
         path: 'content',
