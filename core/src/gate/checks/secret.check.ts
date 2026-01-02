@@ -2,10 +2,7 @@ import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-
-const execAsync = promisify(exec);
+import { spawn } from 'child_process';
 
 export interface SecretFinding {
   file: string;
@@ -334,6 +331,7 @@ export class SecretCheck extends BaseCheck {
 
   /**
    * Scan git history for secrets in recent commits
+   * Uses spawn with argument arrays to prevent shell injection
    */
   private async scanGitHistory(
     workspaceRoot: string,
@@ -343,37 +341,42 @@ export class SecretCheck extends BaseCheck {
     const depth = config.git_history_depth ?? 10;
 
     try {
-      // Check if we're in a git repository
       const isGitRepo = existsSync(join(workspaceRoot, '.git'));
       if (!isGitRepo) {
         return findings;
       }
 
-      // Get recent commit diffs
-      const { stdout } = await execAsync(
-        `git log -p -${depth} --all --diff-filter=A -- '*.ts' '*.js' '*.json' '*.env*' '*.yaml' '*.yml'`,
-        {
-          cwd: workspaceRoot,
-          maxBuffer: 10 * 1024 * 1024,
-        }
+      const stdout = await this.executeGitCommand(
+        [
+          'log',
+          '-p',
+          `-${depth}`,
+          '--all',
+          '--diff-filter=A',
+          '--',
+          '*.ts',
+          '*.js',
+          '*.json',
+          '*.env*',
+          '*.yaml',
+          '*.yml',
+        ],
+        workspaceRoot
       );
 
-      // Parse git diff output
       const commitBlocks = stdout.split(/^commit /m).slice(1);
 
       for (const block of commitBlocks) {
         const commitMatch = block.match(/^([a-f0-9]+)/);
         const commitHash = commitMatch ? commitMatch[1].substring(0, 8) : 'unknown';
 
-        // Find added lines (starting with +)
         const addedLines = block
           .split('\n')
           .filter((line) => line.startsWith('+') && !line.startsWith('+++'));
 
         for (const addedLine of addedLines) {
-          const lineContent = addedLine.substring(1); // Remove the + prefix
+          const lineContent = addedLine.substring(1);
 
-          // Check for pattern matches
           for (const pattern of this.secretPatterns) {
             const matches = lineContent.match(pattern.pattern);
             if (matches && !this.isAllowlisted(matches[0], config)) {
@@ -390,27 +393,85 @@ export class SecretCheck extends BaseCheck {
         }
       }
     } catch {
-      // Git command failed, likely not a git repo or git not available
-      // Silently skip git history scanning
+      // Git command failed - not a git repo or git unavailable
     }
 
     return findings;
   }
 
+  /**
+   * Execute git command safely using spawn (prevents shell injection)
+   */
+  private executeGitCommand(args: string[], cwd: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const child = spawn('git', args, {
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout.on('data', (data: Buffer) => {
+        stdout += data.toString('utf8');
+      });
+
+      child.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString('utf8');
+      });
+
+      child.on('error', (error: Error) => {
+        reject(new Error(`Git command failed: ${error.message}`));
+      });
+
+      child.on('close', (code: number | null) => {
+        if (code !== 0) {
+          reject(new Error(stderr || `Git exited with code ${code}`));
+          return;
+        }
+        resolve(stdout);
+      });
+    });
+  }
+
   private isAllowlisted(str: string, config: SecretCheckConfig): boolean {
+    const MAX_INPUT_LENGTH = 1000;
+    const truncatedStr = str.length > MAX_INPUT_LENGTH ? str.substring(0, MAX_INPUT_LENGTH) : str;
+
     for (const pattern of this.defaultAllowlist) {
-      if (pattern.test(str)) return true;
+      if (pattern.test(truncatedStr)) return true;
     }
 
-    for (const pattern of config.allowlist || []) {
-      try {
-        if (new RegExp(pattern, 'i').test(str)) return true;
-      } catch {
-        continue;
+    for (const patternStr of config.allowlist || []) {
+      if (this.isSafeRegexPattern(patternStr)) {
+        try {
+          if (new RegExp(patternStr, 'i').test(truncatedStr)) return true;
+        } catch {
+          continue;
+        }
       }
     }
 
     return false;
+  }
+
+  private isSafeRegexPattern(pattern: string): boolean {
+    const MAX_PATTERN_LENGTH = 200;
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      return false;
+    }
+
+    const dangerousPatterns = [
+      /\(\?[^)]*\+[^)]*\)\+/,
+      /\([^)]+\+\)\+/,
+      /\([^)]+\*\)\+/,
+      /\([^)]+\+\)\*/,
+      /\([^)]+\*\)\*/,
+      /\(\.\*\)\{/,
+      /\(\.\+\)\{/,
+    ];
+
+    return !dangerousPatterns.some((dp) => dp.test(pattern));
   }
 
   /**

@@ -5,7 +5,7 @@
  * ensuring data integrity and immutability.
  */
 
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 /**
  * Generates a SHA-256 hash of the provided data
@@ -78,13 +78,21 @@ export function canonicalizeJSON(obj: unknown): string {
 
 /**
  * Verifies that the provided hash matches the hash of the data
+ * Uses constant-time comparison to prevent timing attacks
  * @param data - The data to verify
  * @param expectedHash - The expected hash value
  * @returns True if hashes match, false otherwise
  */
 export function verifyHash(data: unknown, expectedHash: string): boolean {
   const actualHash = generateHash(data);
-  return actualHash === expectedHash;
+
+  // Use constant-time comparison to prevent timing attacks
+  // Both hashes must be the same length for timingSafeEqual
+  if (actualHash.length !== expectedHash.length) {
+    return false;
+  }
+
+  return timingSafeEqual(Buffer.from(actualHash, 'utf8'), Buffer.from(expectedHash, 'utf8'));
 }
 
 /**

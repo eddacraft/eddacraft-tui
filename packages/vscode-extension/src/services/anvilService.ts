@@ -219,21 +219,43 @@ export class AnvilService {
     }
   }
 
-  /**
-   * Get the CLI command and base arguments.
-   * Returns { command, baseArgs } to support both direct paths and npx invocation.
-   */
   private getCliCommand(): { command: string; baseArgs: string[] } {
     const config = vscode.workspace.getConfiguration('anvil');
     const customPath = config.get<string>('cli.path', '');
 
     if (customPath) {
-      // Custom path - use directly
+      if (!this.isValidCliPath(customPath)) {
+        this.outputChannel.appendLine(
+          `  Warning: Invalid CLI path "${customPath}", falling back to npx`
+        );
+        return { command: 'npx', baseArgs: ['anvil'] };
+      }
       return { command: customPath, baseArgs: [] };
     }
 
-    // Use npx to invoke anvil - npx is the command, 'anvil' is the first arg
     return { command: 'npx', baseArgs: ['anvil'] };
+  }
+
+  private isValidCliPath(cliPath: string): boolean {
+    const fs = require('fs');
+    const nodePath = require('path');
+
+    if (!fs.existsSync(cliPath)) {
+      return false;
+    }
+
+    const stats = fs.statSync(cliPath);
+    if (!stats.isFile()) {
+      return false;
+    }
+
+    const basename = nodePath.basename(cliPath).toLowerCase();
+    const validNames = ['anvil', 'anvil.js', 'anvil.cmd', 'anvil.exe'];
+    if (!validNames.some((name) => basename === name || basename.startsWith('anvil'))) {
+      return false;
+    }
+
+    return true;
   }
 
   private getWorkspaceFolder(filePath: string): string {

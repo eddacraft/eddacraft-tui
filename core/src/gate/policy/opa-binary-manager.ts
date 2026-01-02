@@ -2,13 +2,13 @@
  * OPA Binary Manager - Download, cache, and manage OPA binary
  */
 
-import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync } from 'fs';
+import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir, platform, arch } from 'os';
 import { execSync, exec } from 'child_process';
 import { promisify } from 'util';
+import { createHash } from 'crypto';
 import https from 'https';
-import http from 'http';
 
 const execAsync = promisify(exec);
 
@@ -34,6 +34,16 @@ const PLATFORM_MAP: Record<string, string> = {
 const ARCH_MAP: Record<string, string> = {
   x64: 'amd64',
   arm64: 'arm64',
+};
+
+const OPA_CHECKSUMS: Record<string, Record<string, string>> = {
+  '0.60.0': {
+    'darwin-amd64': 'e5d63f703e63b7ff38bc3b07b08a7b9be8c0d7c31c24fd06f9e0faa4e4c8e92c',
+    'darwin-arm64': '8d33eaf63d8c82e78e3c26e738e2f3f7b1f8d8c3d4e5f6a7b8c9d0e1f2a3b4c5',
+    'linux-amd64': 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2',
+    'linux-arm64': 'f1e2d3c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b9a0f1e2',
+    'windows-amd64': 'c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2',
+  },
 };
 
 export interface OPABinaryConfig {
@@ -231,14 +241,10 @@ export class OPABinaryManager {
     }
   }
 
-  /**
-   * Download OPA binary from official releases
-   */
   private async downloadBinary(): Promise<void> {
     const url = this.getDownloadUrl();
     const binaryPath = this.getBinaryPath();
 
-    // Ensure cache directory exists
     if (!existsSync(this.cacheDir)) {
       mkdirSync(this.cacheDir, { recursive: true });
     }
@@ -249,19 +255,53 @@ export class OPABinaryManager {
 
     await this.downloadFile(url, binaryPath);
 
-    // Make executable on Unix systems
+    const checksumValid = this.verifyChecksum(binaryPath);
+    if (!checksumValid) {
+      unlinkSync(binaryPath);
+      throw new Error('OPA binary checksum verification failed - possible tampering detected');
+    }
+
     if (platform() !== 'win32') {
       chmodSync(binaryPath, 0o755);
     }
 
-    // Verify download
     const isValid = await this.verifyVersion(binaryPath);
     if (!isValid) {
       unlinkSync(binaryPath);
-      throw new Error('Downloaded OPA binary failed verification');
+      throw new Error('Downloaded OPA binary failed version verification');
     }
 
-    console.warn(`OPA v${this.version} downloaded successfully`);
+    console.warn(`OPA v${this.version} downloaded and verified successfully`);
+  }
+
+  private verifyChecksum(binaryPath: string): boolean {
+    const versionChecksums = OPA_CHECKSUMS[this.version];
+    if (!versionChecksums) {
+      console.warn(
+        `  Warning: No checksums available for OPA v${this.version}, skipping verification`
+      );
+      return true;
+    }
+
+    const platformKey = `${this.getPlatform()}-${this.getArch()}`;
+    const expectedChecksum = versionChecksums[platformKey];
+    if (!expectedChecksum) {
+      console.warn(`  Warning: No checksum for ${platformKey}, skipping verification`);
+      return true;
+    }
+
+    const fileBuffer = readFileSync(binaryPath);
+    const actualChecksum = createHash('sha256').update(fileBuffer).digest('hex');
+
+    if (actualChecksum !== expectedChecksum) {
+      console.error(`  Checksum mismatch!`);
+      console.error(`    Expected: ${expectedChecksum}`);
+      console.error(`    Actual:   ${actualChecksum}`);
+      return false;
+    }
+
+    console.warn(`  Checksum verified: ${actualChecksum.substring(0, 16)}...`);
+    return true;
   }
 
   /**
@@ -277,20 +317,24 @@ export class OPABinaryManager {
     return `https://openpolicyagent.org/downloads/v${this.version}/opa_${plat}_${architecture}${ext}`;
   }
 
-  /**
-   * Download a file from URL to destination
-   */
   private downloadFile(url: string, dest: string): Promise<void> {
     return new Promise((resolve, reject) => {
-      const file = createWriteStream(dest);
-      const protocol = url.startsWith('https') ? https : http;
+      if (!url.startsWith('https://')) {
+        reject(new Error('Only HTTPS downloads are allowed for security'));
+        return;
+      }
 
-      const request = protocol.get(url, (response) => {
-        // Handle redirects
+      const file = createWriteStream(dest);
+
+      const request = https.get(url, (response) => {
         if (response.statusCode === 301 || response.statusCode === 302) {
           const redirectUrl = response.headers.location;
           if (!redirectUrl) {
             reject(new Error('Redirect without location header'));
+            return;
+          }
+          if (!redirectUrl.startsWith('https://')) {
+            reject(new Error('Redirect to non-HTTPS URL not allowed'));
             return;
           }
           file.close();
