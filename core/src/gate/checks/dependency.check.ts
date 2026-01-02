@@ -23,17 +23,71 @@ interface AuditAdvisory {
   }>;
 }
 
-interface PnpmAuditResult {
+interface VulnerabilityCount {
+  info: number;
+  low: number;
+  moderate: number;
+  high: number;
+  critical: number;
+  total: number;
+}
+
+interface NormalisedAuditResult {
   advisories: Record<string, AuditAdvisory>;
   metadata: {
-    vulnerabilities: {
-      info: number;
-      low: number;
-      moderate: number;
-      high: number;
-      critical: number;
+    vulnerabilities: VulnerabilityCount;
+  };
+}
+
+interface NpmV7Vulnerability {
+  name: string;
+  severity: 'info' | 'low' | 'moderate' | 'high' | 'critical';
+  isDirect: boolean;
+  via: Array<string | { title?: string; url?: string; severity?: string; cwe?: string[] }>;
+  effects: string[];
+  range: string;
+  nodes: string[];
+  fixAvailable: boolean | { name: string; version: string; isSemVerMajor: boolean };
+}
+
+interface NpmV7AuditResult {
+  auditReportVersion: number;
+  vulnerabilities: Record<string, NpmV7Vulnerability>;
+  metadata: {
+    vulnerabilities: VulnerabilityCount;
+    dependencies: {
+      prod: number;
+      dev: number;
+      optional: number;
+      peer: number;
+      peerOptional: number;
       total: number;
     };
+  };
+}
+
+interface YarnClassicAdvisory {
+  type: 'auditAdvisory';
+  data: {
+    advisory: {
+      id: number;
+      title: string;
+      module_name: string;
+      severity: 'info' | 'low' | 'moderate' | 'high' | 'critical';
+      url: string;
+      cves: string[];
+      vulnerable_versions: string;
+      patched_versions: string;
+      recommendation: string;
+      findings: Array<{ version: string; paths: string[] }>;
+    };
+  };
+}
+
+interface YarnClassicSummary {
+  type: 'auditSummary';
+  data: {
+    vulnerabilities: VulnerabilityCount;
   };
 }
 
@@ -159,11 +213,7 @@ export class DependencyCheck extends BaseCheck {
     }
   }
 
-  /**
-   * Detect package manager from lock files
-   */
   private detectPackageManager(workspaceRoot: string): PackageManager | null {
-    // Check for lock files in order of preference
     if (existsSync(join(workspaceRoot, 'pnpm-lock.yaml'))) {
       return 'pnpm';
     }
@@ -176,40 +226,31 @@ export class DependencyCheck extends BaseCheck {
     return null;
   }
 
-  /**
-   * Run audit command for the detected package manager
-   */
   private async runAudit(
     workspaceRoot: string,
     packageManager: PackageManager
-  ): Promise<PnpmAuditResult | null> {
+  ): Promise<NormalisedAuditResult | null> {
     const auditCommand = `${packageManager} audit --json`;
 
     try {
       const { stdout } = await execAsync(auditCommand, {
         cwd: workspaceRoot,
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large audit results
+        maxBuffer: 10 * 1024 * 1024,
       });
 
-      const result = JSON.parse(stdout) as PnpmAuditResult;
-      return result;
+      return this.normaliseAuditOutput(stdout, packageManager);
     } catch (error) {
-      // All package managers exit with code 1 when vulnerabilities are found
-      // We need to parse stdout even on error
       if (error && typeof error === 'object' && 'stdout' in error) {
         const stdout = (error as { stdout: string }).stdout;
         if (stdout) {
           try {
-            const result = JSON.parse(stdout) as PnpmAuditResult;
-            return result;
+            return this.normaliseAuditOutput(stdout, packageManager);
           } catch {
-            // If we can't parse JSON, it's a real error
             return null;
           }
         }
       }
 
-      // Check if it's a "no vulnerabilities" case
       if (
         error &&
         typeof error === 'object' &&
@@ -222,12 +263,129 @@ export class DependencyCheck extends BaseCheck {
           stderr.includes('0 vulnerabilities') ||
           stderr.includes('found 0 vulnerabilities')
         ) {
-          return null; // No vulnerabilities is success
+          return null;
         }
       }
 
       throw error;
     }
+  }
+
+  private normaliseAuditOutput(
+    stdout: string,
+    packageManager: PackageManager
+  ): NormalisedAuditResult | null {
+    if (packageManager === 'yarn') {
+      return this.normaliseYarnAudit(stdout);
+    }
+
+    const parsed = JSON.parse(stdout);
+
+    if (packageManager === 'npm' && this.isNpmV7Format(parsed)) {
+      return this.normaliseNpmV7Audit(parsed as NpmV7AuditResult);
+    }
+
+    return this.normalisePnpmAudit(parsed);
+  }
+
+  private isNpmV7Format(parsed: unknown): boolean {
+    return (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      'auditReportVersion' in parsed &&
+      (parsed as { auditReportVersion: number }).auditReportVersion >= 2
+    );
+  }
+
+  private normalisePnpmAudit(parsed: {
+    advisories?: Record<string, AuditAdvisory>;
+    metadata?: { vulnerabilities?: VulnerabilityCount };
+  }): NormalisedAuditResult | null {
+    if (!parsed.advisories || !parsed.metadata?.vulnerabilities) {
+      return null;
+    }
+
+    return {
+      advisories: parsed.advisories,
+      metadata: { vulnerabilities: parsed.metadata.vulnerabilities },
+    };
+  }
+
+  private normaliseNpmV7Audit(parsed: NpmV7AuditResult): NormalisedAuditResult | null {
+    if (!parsed.vulnerabilities || !parsed.metadata?.vulnerabilities) {
+      return null;
+    }
+
+    const advisories: Record<string, AuditAdvisory> = {};
+    let idCounter = 1;
+
+    for (const [moduleName, vuln] of Object.entries(parsed.vulnerabilities)) {
+      const viaDetails = vuln.via.find(
+        (v): v is { title?: string; url?: string; severity?: string; cwe?: string[] } =>
+          typeof v === 'object' && v !== null
+      );
+
+      advisories[String(idCounter)] = {
+        id: idCounter,
+        title: viaDetails?.title || `Vulnerability in ${moduleName}`,
+        severity: vuln.severity,
+        url: viaDetails?.url || '',
+        cves: viaDetails?.cwe || [],
+        module_name: moduleName,
+        vulnerable_versions: vuln.range,
+        patched_versions:
+          typeof vuln.fixAvailable === 'object' ? `>=${vuln.fixAvailable.version}` : '',
+        recommendation:
+          typeof vuln.fixAvailable === 'object'
+            ? `Update to ${vuln.fixAvailable.name}@${vuln.fixAvailable.version}`
+            : vuln.fixAvailable
+              ? 'Run npm audit fix'
+              : 'No fix available',
+        findings: vuln.nodes.map((node) => ({ version: vuln.range, paths: [node] })),
+      };
+      idCounter++;
+    }
+
+    return {
+      advisories,
+      metadata: { vulnerabilities: parsed.metadata.vulnerabilities },
+    };
+  }
+
+  private normaliseYarnAudit(stdout: string): NormalisedAuditResult | null {
+    const lines = stdout.trim().split('\n');
+    const advisories: Record<string, AuditAdvisory> = {};
+    let metadata: VulnerabilityCount = {
+      info: 0,
+      low: 0,
+      moderate: 0,
+      high: 0,
+      critical: 0,
+      total: 0,
+    };
+
+    for (const line of lines) {
+      if (!line.trim()) continue;
+
+      try {
+        const parsed = JSON.parse(line) as YarnClassicAdvisory | YarnClassicSummary;
+
+        if (parsed.type === 'auditAdvisory') {
+          const advisory = parsed.data.advisory;
+          advisories[String(advisory.id)] = advisory;
+        } else if (parsed.type === 'auditSummary') {
+          metadata = parsed.data.vulnerabilities;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (Object.keys(advisories).length === 0 && metadata.total === 0) {
+      return null;
+    }
+
+    return { advisories, metadata: { vulnerabilities: metadata } };
   }
 
   private calculateScore(critical: number, high: number, moderate: number, low: number): number {

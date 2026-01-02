@@ -73,12 +73,12 @@ export class AnvilService {
     this.outputChannel.appendLine(`\n[${new Date().toISOString()}] Validating: ${filePath}`);
 
     try {
-      const cliPath = this.getCliPath();
+      const { command, baseArgs } = this.getCliCommand();
       const workspaceFolder = this.getWorkspaceFolder(filePath);
 
       const result = await this.executeCommand(
-        cliPath,
-        ['validate', filePath, '--json'],
+        command,
+        [...baseArgs, 'validate', filePath, '--json'],
         workspaceFolder
       );
 
@@ -119,11 +119,11 @@ export class AnvilService {
     const startTime = Date.now();
 
     try {
-      const cliPath = this.getCliPath();
+      const { command, baseArgs } = this.getCliCommand();
       const workspaceFolder = this.getWorkspaceFolder(filePath);
       const config = vscode.workspace.getConfiguration('anvil');
 
-      const args = ['gate', filePath, '--json'];
+      const args = [...baseArgs, 'gate', filePath, '--json'];
 
       // Add gate selection if skipping gates in development
       const skipGates = config.get<string[]>('gates.skipInDevelopment', []);
@@ -131,7 +131,7 @@ export class AnvilService {
         args.push('--skip', skipGates.join(','));
       }
 
-      const result = await this.executeCommand(cliPath, args, workspaceFolder);
+      const result = await this.executeCommand(command, args, workspaceFolder);
 
       const gateResults = this.parseGateResults(result, startTime);
       this.lastGateResults.set(filePath, gateResults);
@@ -174,15 +174,15 @@ export class AnvilService {
     );
 
     try {
-      const cliPath = this.getCliPath();
+      const { command, baseArgs } = this.getCliCommand();
       const workspaceFolder = this.getWorkspaceFolder(filePath);
 
-      const args = ['export', filePath, '--to', format];
+      const args = [...baseArgs, 'export', filePath, '--to', format];
       if (outputPath) {
         args.push('--output', outputPath);
       }
 
-      await this.executeCommand(cliPath, args, workspaceFolder);
+      await this.executeCommand(command, args, workspaceFolder);
 
       this.outputChannel.appendLine(`  Export successful`);
 
@@ -203,13 +203,12 @@ export class AnvilService {
 
   async detectFormat(filePath: string): Promise<string | undefined> {
     try {
-      const cliPath = this.getCliPath();
+      const { command, baseArgs } = this.getCliCommand();
       const workspaceFolder = this.getWorkspaceFolder(filePath);
 
-      // Use validate with --json to get format info
       const result = await this.executeCommand(
-        cliPath,
-        ['validate', filePath, '--json'],
+        command,
+        [...baseArgs, 'validate', filePath, '--json'],
         workspaceFolder
       );
 
@@ -220,16 +219,21 @@ export class AnvilService {
     }
   }
 
-  private getCliPath(): string {
+  /**
+   * Get the CLI command and base arguments.
+   * Returns { command, baseArgs } to support both direct paths and npx invocation.
+   */
+  private getCliCommand(): { command: string; baseArgs: string[] } {
     const config = vscode.workspace.getConfiguration('anvil');
     const customPath = config.get<string>('cli.path', '');
 
     if (customPath) {
-      return customPath;
+      // Custom path - use directly
+      return { command: customPath, baseArgs: [] };
     }
 
-    // Try to find anvil in node_modules or globally
-    return 'npx anvil';
+    // Use npx to invoke anvil - npx is the command, 'anvil' is the first arg
+    return { command: 'npx', baseArgs: ['anvil'] };
   }
 
   private getWorkspaceFolder(filePath: string): string {
@@ -239,37 +243,48 @@ export class AnvilService {
 
   private executeCommand(command: string, args: string[], cwd: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const fullCommand = `${command} ${args.join(' ')}`;
-      this.outputChannel.appendLine(`  > ${fullCommand}`);
+      this.outputChannel.appendLine(`  > ${command} ${args.join(' ')}`);
 
-      cp.exec(
-        fullCommand,
-        {
-          cwd,
-          encoding: 'utf8',
-          maxBuffer: 10 * 1024 * 1024, // 10MB buffer
-        },
-        (error, stdout, stderr) => {
-          if (error) {
-            // Try to parse JSON error from stderr
-            if (stderr) {
-              try {
-                const errorJson = JSON.parse(stderr);
-                if (errorJson.error) {
-                  reject(new Error(errorJson.error));
-                  return;
-                }
-              } catch {
-                // Not JSON, use raw error
+      const child = cp.spawn(command, args, {
+        cwd,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      child.stdout.on('data', (data: Buffer) => {
+        stdout += data.toString('utf8');
+      });
+
+      child.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString('utf8');
+      });
+
+      child.on('error', (error: Error) => {
+        reject(new Error(`Failed to spawn command: ${error.message}`));
+      });
+
+      child.on('close', (code: number | null) => {
+        if (code !== 0) {
+          if (stderr) {
+            try {
+              const errorJson = JSON.parse(stderr);
+              if (errorJson.error) {
+                reject(new Error(errorJson.error));
+                return;
               }
+            } catch {
+              // Not JSON, use raw error
             }
-            reject(new Error(stderr || error.message));
-            return;
           }
-
-          resolve(stdout);
+          reject(new Error(stderr || `Command exited with code ${code}`));
+          return;
         }
-      );
+
+        resolve(stdout);
+      });
     });
   }
 

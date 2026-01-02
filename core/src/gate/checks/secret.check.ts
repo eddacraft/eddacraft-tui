@@ -397,18 +397,17 @@ export class SecretCheck extends BaseCheck {
     return findings;
   }
 
-  /**
-   * Check if a string matches the allowlist
-   */
   private isAllowlisted(str: string, config: SecretCheckConfig): boolean {
-    // Check default allowlist
     for (const pattern of this.defaultAllowlist) {
       if (pattern.test(str)) return true;
     }
 
-    // Check custom allowlist
     for (const pattern of config.allowlist || []) {
-      if (new RegExp(pattern, 'i').test(str)) return true;
+      try {
+        if (new RegExp(pattern, 'i').test(str)) return true;
+      } catch {
+        continue;
+      }
     }
 
     return false;

@@ -2,16 +2,13 @@
  * OPA Executor - Execute OPA binary and parse results
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { spawn } from 'child_process';
 import { writeFile, mkdir } from 'fs/promises';
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { randomUUID, createHash } from 'crypto';
 import type { LoadedPolicy } from './policy-loader.js';
-
-const execAsync = promisify(exec);
 
 /**
  * OPA evaluation input structure
@@ -154,15 +151,67 @@ export interface OPAExecutorConfig {
   query?: string;
 }
 
-/**
- * Default query to evaluate all Anvil policies
- */
 const DEFAULT_QUERY = 'data.anvil.policies';
-
-/**
- * Default timeout (30 seconds)
- */
 const DEFAULT_TIMEOUT = 30000;
+
+interface SpawnResult {
+  stdout: string;
+  stderr: string;
+  code: number | null;
+}
+
+function spawnAsync(
+  command: string,
+  args: string[],
+  options: { timeout?: number; maxBuffer?: number; cwd?: string }
+): Promise<SpawnResult> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options.cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      shell: false,
+    });
+
+    let stdout = '';
+    let stderr = '';
+    let killed = false;
+
+    const timer = options.timeout
+      ? setTimeout(() => {
+          killed = true;
+          child.kill('SIGTERM');
+          reject(new Error(`Command timed out after ${options.timeout}ms`));
+        }, options.timeout)
+      : null;
+
+    child.stdout.on('data', (data: Buffer) => {
+      stdout += data.toString('utf8');
+      if (options.maxBuffer && stdout.length > options.maxBuffer) {
+        child.kill('SIGTERM');
+        reject(new Error('stdout maxBuffer exceeded'));
+      }
+    });
+
+    child.stderr.on('data', (data: Buffer) => {
+      stderr += data.toString('utf8');
+      if (options.maxBuffer && stderr.length > options.maxBuffer) {
+        child.kill('SIGTERM');
+        reject(new Error('stderr maxBuffer exceeded'));
+      }
+    });
+
+    child.on('error', (error: Error) => {
+      if (timer) clearTimeout(timer);
+      reject(error);
+    });
+
+    child.on('close', (code: number | null) => {
+      if (timer) clearTimeout(timer);
+      if (killed) return;
+      resolve({ stdout, stderr, code });
+    });
+  });
+}
 
 /**
  * Executes OPA binary and parses results
@@ -247,19 +296,24 @@ export class OPAExecutor {
       const policyPath = join(tempDir, 'policy.rego');
       await writeFile(policyPath, policyContent, 'utf-8');
 
-      const { stderr } = await execAsync(`"${this.binaryPath}" check "${policyPath}"`, {
+      const result = await spawnAsync(this.binaryPath, ['check', policyPath], {
         timeout: this.timeout,
       });
 
-      // OPA check returns 0 for valid, non-zero for invalid
-      return { valid: true, errors: stderr ? [stderr] : [] };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      // Extract meaningful error from OPA output
-      const match = errorMessage.match(/error:.*$/m);
+      if (result.code === 0) {
+        return { valid: true, errors: result.stderr ? [result.stderr] : [] };
+      }
+
+      const match = result.stderr.match(/error:.*$/m);
       return {
         valid: false,
-        errors: match ? [match[0]] : [errorMessage],
+        errors: match ? [match[0]] : [result.stderr || `OPA check failed with code ${result.code}`],
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        valid: false,
+        errors: [errorMessage],
       };
     } finally {
       await this.cleanupTempDirectory(tempDir);
@@ -287,12 +341,11 @@ export class OPAExecutor {
     try {
       await this.setupTempDirectory(tempDir, policies, undefined, testFiles);
 
-      const { stdout, stderr } = await execAsync(
-        `"${this.binaryPath}" test "${tempDir}" --format json`,
-        { timeout: this.timeout }
-      );
+      const spawnResult = await spawnAsync(this.binaryPath, ['test', tempDir, '--format', 'json'], {
+        timeout: this.timeout,
+      });
 
-      const results = JSON.parse(stdout);
+      const results = JSON.parse(spawnResult.stdout);
       const details: Array<{ name: string; passed: boolean; message?: string }> = [];
       let passed = 0;
       let failed = 0;
@@ -314,7 +367,7 @@ export class OPAExecutor {
       return {
         passed,
         failed,
-        errors: stderr ? [stderr] : [],
+        errors: spawnResult.stderr ? [spawnResult.stderr] : [],
         details,
       };
     } catch (error) {
@@ -365,19 +418,23 @@ export class OPAExecutor {
     }
   }
 
-  /**
-   * Run OPA evaluation
-   */
   private async runOPA(tempDir: string): Promise<unknown> {
     const inputPath = join(tempDir, 'input.json');
-    const cmd = `"${this.binaryPath}" eval --data "${tempDir}" --input "${inputPath}" --format json "${this.query}"`;
 
-    const { stdout } = await execAsync(cmd, {
-      timeout: this.timeout,
-      maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
-    });
+    const result = await spawnAsync(
+      this.binaryPath,
+      ['eval', '--data', tempDir, '--input', inputPath, '--format', 'json', this.query],
+      {
+        timeout: this.timeout,
+        maxBuffer: 10 * 1024 * 1024,
+      }
+    );
 
-    return JSON.parse(stdout);
+    if (result.code !== 0) {
+      throw new Error(result.stderr || `OPA eval failed with code ${result.code}`);
+    }
+
+    return JSON.parse(result.stdout);
   }
 
   /**
