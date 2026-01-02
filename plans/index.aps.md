@@ -67,9 +67,9 @@ Onboarding Experience:
 
 Documentation:
 
-- [ ] Quick Start Guide update
-- [ ] Demo showing Anvil catching real issues
-- [ ] Error message review
+- [x] Quick Start Guide update
+- [x] Demo showing Anvil catching real issues
+- [x] Error message review
 
 ## Release Plan
 
@@ -283,14 +283,14 @@ graph TD
 
 ### Task Status — v1.0 (Documentation)
 
-| Task     | Module | Description            | Status  | Priority |
-| -------- | ------ | ---------------------- | ------- | -------- |
-| DOCS-001 | docs   | Quick Start Guide      | Planned | high     |
-| DOCS-002 | docs   | User Guide command ref | Planned | high     |
-| DOCS-003 | docs   | Demo material creation | Planned | high     |
-| DOCS-004 | docs   | Error message audit    | Planned | medium   |
-| DOCS-005 | docs   | Troubleshooting guide  | Planned | medium   |
-| DOCS-006 | docs   | README refresh         | Planned | high     |
+| Task     | Module | Description            | Status   | Priority |
+| -------- | ------ | ---------------------- | -------- | -------- |
+| DOCS-001 | docs   | Quick Start Guide      | Complete | high     |
+| DOCS-002 | docs   | User Guide command ref | Complete | high     |
+| DOCS-003 | docs   | Demo material creation | Complete | high     |
+| DOCS-004 | docs   | Error message audit    | Complete | medium   |
+| DOCS-005 | docs   | Troubleshooting guide  | Complete | medium   |
+| DOCS-006 | docs   | README refresh         | Complete | high     |
 
 ### Task Status — v1.1 (Explain Command)
 
