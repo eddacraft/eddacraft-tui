@@ -1,26 +1,24 @@
 # APS Rules for AI Agents
 
-> This file guides AI agents working with APS specs in this repository. Keep it
-> in `plans/` so agents discover it when exploring the planning directory.
+> This file guides AI agents working with APS specs in this repository.
+> Keep it in `plans/` so agents discover it when exploring the planning directory.
 
 ## Core Principle
 
-**Specs describe intent. Tasks authorise execution. Steps are checkpoints, not
-tutorials.**
+**Specs describe intent. Tasks authorise execution. Steps are checkpoints, not tutorials.**
 
 ## Hierarchy
 
-| Layer  | Purpose             | You Write                     | You DON'T Write        |
-| ------ | ------------------- | ----------------------------- | ---------------------- |
-| Index  | Plan overview       | Modules, milestones, risks    | Implementation details |
-| Module | Bounded work area   | Interfaces, tasks, boundaries | Code snippets          |
-| Task   | Execution authority | Outcome, validation command   | How to implement       |
-| Step   | Checkpoint          | Observable state              | Implementation steps   |
+| Layer | Purpose | You Write | You DON'T Write |
+|-------|---------|-----------|-----------------|
+| Index | Plan overview | Modules, milestones, risks | Implementation details |
+| Module | Bounded work area | Interfaces, tasks, boundaries | Code snippets |
+| Task | Execution authority | Outcome, validation command | How to implement |
+| Step | Checkpoint | Observable state | Implementation steps |
 
 ## Steps: The Lean Rule
 
-Steps translate task intent into **observable checkpoints**. They are NOT
-implementation guides.
+Steps translate task intent into **observable checkpoints**. They are NOT implementation guides.
 
 ### Format
 
@@ -33,23 +31,22 @@ implementation guides.
 
 ### What Goes WHERE
 
-| Write in Step             | Write NOWHERE (emerges from patterns) |
-| ------------------------- | ------------------------------------- |
-| "Auth middleware exists"  | Which library to use                  |
-| "Tests pass"              | Test implementation details           |
-| "Migration applied"       | SQL schema definition                 |
-| "Function handles errors" | Try/catch structure                   |
+| Write in Step | Write NOWHERE (emerges from patterns) |
+|---------------|---------------------------------------|
+| "Auth middleware exists" | Which library to use |
+| "Tests pass" | Test implementation details |
+| "Migration applied" | SQL schema definition |
+| "Function handles errors" | Try/catch structure |
 
 ### Anti-Patterns (NEVER do this)
 
 ```markdown
 # ❌ BAD: Implementation tutorial disguised as step
-
 ### 1. Create authentication middleware
 
 - **Checkpoint:** Middleware created in src/middleware/auth.ts that:
   - Extracts JWT from Authorization header
-  - Validates token using jsonwebtoken library
+  - Validates token using jsonwebtoken library  
   - Decodes payload and extracts user ID
   - Attaches user object to request context
   - Returns 401 if token invalid or expired
@@ -58,7 +55,6 @@ implementation guides.
 
 ```markdown
 # ✅ GOOD: Observable checkpoint only
-
 ### 1. Create authentication middleware
 
 - **Checkpoint:** Auth middleware validates requests, attaches user to context
@@ -91,11 +87,33 @@ Tasks are **execution authority** — permission to make changes.
 
 ### Task Anti-Patterns
 
-| ❌ Don't                                   | ✅ Do                                 |
-| ------------------------------------------ | ------------------------------------- |
-| "Implement JWT auth using jsonwebtoken"    | "Add token-based authentication"      |
-| "Create UserService class with methods..." | "User operations are encapsulated"    |
-| "Add try/catch blocks to all handlers"     | "API errors return consistent format" |
+| ❌ Don't | ✅ Do |
+|----------|-------|
+| "Implement JWT auth using jsonwebtoken" | "Add token-based authentication" |
+| "Create UserService class with methods..." | "User operations are encapsulated" |
+| "Add try/catch blocks to all handlers" | "API errors return consistent format" |
+
+## Naming Conventions
+
+### Module Files
+
+Name module files with a numeric prefix based on dependency order:
+
+```text
+modules/
+├── 01-core.aps.md      # Foundation, no dependencies
+├── 02-auth.aps.md      # Depends on core
+├── 03-payments.aps.md  # Depends on auth
+└── 04-ui.aps.md        # Depends on all above
+```
+
+- Use zero-padded numbers (`01-`, `02-`, not `1-`, `2-`)
+- Order matches dependency flow (foundational → dependent)
+- Order should reflect the Modules table in `index.aps.md`
+
+### Task IDs
+
+Tasks use the module's ID prefix: `AUTH-001`, `AUTH-002`, `CORE-001`, etc.
 
 ## Creating APS Documents
 
@@ -117,23 +135,25 @@ Tasks are **execution authority** — permission to make changes.
 
 ## File Locations
 
-```
+```text
 plans/
-├── .aps-rules.md          # This file (agent guidance)
+├── aps-rules.md           # This file (agent guidance)
 ├── index.aps.md           # Root plan
-├── modules/               # Leaf modules
-│   └── [module].aps.md
+├── modules/               # Module specs (numbered by dependency order)
+│   ├── 01-core.aps.md
+│   └── 02-auth.aps.md
 ├── execution/             # Step files
-│   └── [TASK-ID].steps.md
+│   ├── [TASK-ID].steps.md # Per-task (complex projects)
+│   └── [MODULE].steps.md  # Per-module (simple projects)
 └── decisions/             # ADRs (optional)
     └── [NNN]-[title].md
 ```
 
 ## Quick Reference
 
-| If agent is...  | Check for...                                           |
-| --------------- | ------------------------------------------------------ |
-| Writing steps   | Max 12 words per checkpoint? No implementation detail? |
-| Writing tasks   | Outcome-focused? Has validation command?               |
-| Planning module | Boundaries clear? No premature tasks?                  |
-| Executing       | Task status is Ready? Prerequisites met?               |
+| If agent is... | Check for... |
+|----------------|--------------|
+| Writing steps | Max 12 words per checkpoint? No implementation detail? |
+| Writing tasks | Outcome-focused? Has validation command? |
+| Planning module | Boundaries clear? No premature tasks? |
+| Executing | Task status is Ready? Prerequisites met? |
