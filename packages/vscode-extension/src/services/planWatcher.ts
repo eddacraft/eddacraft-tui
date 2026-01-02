@@ -7,6 +7,9 @@ export class PlanWatcher implements vscode.Disposable {
   private diagnosticsManager: DiagnosticsManager;
   private fileWatcher: vscode.FileSystemWatcher | undefined;
   private documentWatcher: vscode.Disposable | undefined;
+  private openDocumentWatcher: vscode.Disposable | undefined;
+  private fileChangeWatcher: vscode.Disposable | undefined;
+  private fileDeleteWatcher: vscode.Disposable | undefined;
   private debounceTimers: Map<string, NodeJS.Timeout> = new Map();
   private readonly debounceMs = 500;
 
@@ -29,7 +32,7 @@ export class PlanWatcher implements vscode.Disposable {
 
     // Watch for file opens
     if (config.get<boolean>('validateOnOpen', true)) {
-      vscode.workspace.onDidOpenTextDocument((document) => {
+      this.openDocumentWatcher = vscode.workspace.onDidOpenTextDocument((document) => {
         if (this.isPlanFile(document)) {
           this.debouncedValidate(document.uri);
         }
@@ -39,7 +42,7 @@ export class PlanWatcher implements vscode.Disposable {
     // Watch for file changes in workspace
     this.fileWatcher = vscode.workspace.createFileSystemWatcher('**/*.{plan.md,spec.md,aps.json}');
 
-    this.fileWatcher.onDidChange((uri) => {
+    this.fileChangeWatcher = this.fileWatcher.onDidChange((uri) => {
       // Only validate if file is open
       const openDoc = vscode.workspace.textDocuments.find(
         (doc) => doc.uri.toString() === uri.toString()
@@ -49,8 +52,10 @@ export class PlanWatcher implements vscode.Disposable {
       }
     });
 
-    this.fileWatcher.onDidDelete((uri) => {
+    this.fileDeleteWatcher = this.fileWatcher.onDidDelete((uri) => {
       this.diagnosticsManager.clearForUri(uri);
+      // Clean up cached results for deleted files
+      this.anvilService.clearCacheForUri(uri.fsPath);
     });
 
     // Validate currently open plan files
@@ -112,18 +117,15 @@ export class PlanWatcher implements vscode.Disposable {
   }
 
   dispose(): void {
-    // Clear all debounce timers
     for (const timer of this.debounceTimers.values()) {
       clearTimeout(timer);
     }
     this.debounceTimers.clear();
 
-    if (this.fileWatcher) {
-      this.fileWatcher.dispose();
-    }
-
-    if (this.documentWatcher) {
-      this.documentWatcher.dispose();
-    }
+    this.fileChangeWatcher?.dispose();
+    this.fileDeleteWatcher?.dispose();
+    this.openDocumentWatcher?.dispose();
+    this.documentWatcher?.dispose();
+    this.fileWatcher?.dispose();
   }
 }

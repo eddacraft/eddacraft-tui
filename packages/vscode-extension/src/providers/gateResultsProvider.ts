@@ -32,7 +32,7 @@ interface ExtendedGateResult extends GateResult {
   violationsByPolicy?: Record<string, PolicyViolation[]>;
 }
 
-export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem> {
+export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem>, vscode.Disposable {
   private _onDidChangeTreeData: vscode.EventEmitter<TreeItem | undefined | null | void> =
     new vscode.EventEmitter<TreeItem | undefined | null | void>();
   readonly onDidChangeTreeData: vscode.Event<TreeItem | undefined | null | void> =
@@ -43,6 +43,11 @@ export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem> {
 
   constructor(_anvilService: AnvilService) {
     this.workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+  }
+
+  dispose(): void {
+    this._onDidChangeTreeData.dispose();
+    this.resultsByFile.clear();
   }
 
   refresh(): void {
