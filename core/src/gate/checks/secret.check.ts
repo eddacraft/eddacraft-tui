@@ -1,6 +1,7 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { readFileSync, existsSync } from 'fs';
+import { z } from 'zod';
 import { SECRET_PATTERNS, PatternMatcher } from './secret/secret-patterns.js';
 import { EntropyDetector } from './secret/entropy-detector.js';
 import { GitScanner } from './secret/git-scanner.js';
@@ -15,22 +16,27 @@ export interface SecretFinding {
   source?: 'pattern' | 'entropy' | 'git-history';
 }
 
-export interface SecretCheckConfig {
+/**
+ * Zod schema for SecretCheckConfig with runtime validation
+ */
+export const SecretCheckConfigSchema = z.object({
   /** Enable entropy-based detection (default: true) */
-  enable_entropy?: boolean;
+  enable_entropy: z.boolean().optional(),
   /** Minimum entropy threshold for detection (default: 4.5) */
-  entropy_threshold?: number;
+  entropy_threshold: z.number().optional(),
   /** Minimum string length for entropy analysis (default: 16) */
-  min_entropy_length?: number;
+  min_entropy_length: z.number().optional(),
   /** Enable git history scanning (default: false) */
-  scan_git_history?: boolean;
+  scan_git_history: z.boolean().optional(),
   /** Number of commits to scan in git history (default: 10) */
-  git_history_depth?: number;
+  git_history_depth: z.number().optional(),
   /** Patterns to allowlist (reduce false positives) */
-  allowlist?: string[];
+  allowlist: z.array(z.string()).optional(),
   /** File extensions to skip */
-  skip_extensions?: string[];
-}
+  skip_extensions: z.array(z.string()).optional(),
+});
+
+export type SecretCheckConfig = z.infer<typeof SecretCheckConfigSchema>;
 
 /** File extensions to skip by default */
 const DEFAULT_SKIP_EXTENSIONS = [
@@ -133,7 +139,12 @@ export class SecretCheck extends BaseCheck {
    * Get configuration with defaults
    */
   private getConfig(context: CheckContext): SecretCheckConfig {
-    const checkConfig = context.check_config as SecretCheckConfig;
+    // Parse and validate check_config using Zod schema
+    const parseResult = SecretCheckConfigSchema.safeParse(context.check_config);
+
+    // If parsing fails, use empty config (all defaults will be applied)
+    const checkConfig = parseResult.success ? parseResult.data : {};
+
     return {
       enable_entropy: checkConfig.enable_entropy ?? true,
       entropy_threshold: checkConfig.entropy_threshold ?? 4.5,

@@ -43,7 +43,7 @@ export function createValidateCommand(): Command {
           spinner.text = 'Detecting format...';
 
           const loadResult = await planLoader.loadPlan(planPath, {
-            format: options.format as string | undefined,
+            format: options.format,
             validateHash: options.validateHash ?? true,
             strict: false,
           });

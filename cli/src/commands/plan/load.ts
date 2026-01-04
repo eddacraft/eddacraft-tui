@@ -136,6 +136,34 @@ function formatSummary(plan: LoadedPlan, filtered: FilteredPlan, criteria: Filte
   );
 }
 
+/**
+ * Type guard to check if value is a valid priority
+ */
+function isValidPriority(value: string): value is 'low' | 'medium' | 'high' {
+  return value === 'low' || value === 'medium' || value === 'high';
+}
+
+/**
+ * Type guard to check if array contains only valid priorities
+ */
+function isValidPriorityArray(arr: string[]): arr is Array<'low' | 'medium' | 'high'> {
+  return arr.every(isValidPriority);
+}
+
+/**
+ * Type guard to check if value is a valid confidence level
+ */
+function isValidConfidence(value: string): value is 'low' | 'medium' | 'high' {
+  return value === 'low' || value === 'medium' || value === 'high';
+}
+
+/**
+ * Type guard to check if array contains only valid confidence levels
+ */
+function isValidConfidenceArray(arr: string[]): arr is Array<'low' | 'medium' | 'high'> {
+  return arr.every(isValidConfidence);
+}
+
 export function createLoadSubcommand(): Command {
   return new Command('load')
     .description('Load and filter an APS planning document')
@@ -161,10 +189,22 @@ export function createLoadSubcommand(): Command {
       if (options.owner) criteria.owners = options.owner;
       if (options.tag) criteria.tags = options.tag;
       if (options.priority) {
-        criteria.priorities = options.priority as Array<'low' | 'medium' | 'high'>;
+        if (isValidPriorityArray(options.priority)) {
+          criteria.priorities = options.priority;
+        } else {
+          throw new Error(
+            `Invalid priority values. Must be one of: low, medium, high. Got: ${options.priority.join(', ')}`
+          );
+        }
       }
       if (options.confidence) {
-        criteria.confidences = options.confidence as Array<'low' | 'medium' | 'high'>;
+        if (isValidConfidenceArray(options.confidence)) {
+          criteria.confidences = options.confidence;
+        } else {
+          throw new Error(
+            `Invalid confidence values. Must be one of: low, medium, high. Got: ${options.confidence.join(', ')}`
+          );
+        }
       }
 
       // Determine output mode

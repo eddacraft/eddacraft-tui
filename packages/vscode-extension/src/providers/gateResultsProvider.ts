@@ -32,6 +32,13 @@ interface ExtendedGateResult extends GateResult {
   violationsByPolicy?: Record<string, PolicyViolation[]>;
 }
 
+/**
+ * Type guard to check if a GateResult has extended properties
+ */
+function isExtendedGateResult(gate: GateResult): gate is ExtendedGateResult {
+  return 'violations' in gate || 'violationsByType' in gate || 'violationsByPolicy' in gate;
+}
+
 export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem> {
   private _onDidChangeTreeData: vscode.EventEmitter<TreeItem | undefined | null | void> =
     new vscode.EventEmitter<TreeItem | undefined | null | void>();
@@ -114,14 +121,17 @@ export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem> {
   }
 
   private getGateChildren(gateItem: GateTreeItem): TreeItem[] {
-    const gate = gateItem.gate as ExtendedGateResult;
+    const gate = gateItem.gate;
 
-    if (gate.name === 'architecture' && gate.violations) {
-      return this.getArchitectureChildren(gate, gateItem.filePath);
-    }
+    // Check if this is an extended gate result with additional properties
+    if (isExtendedGateResult(gate)) {
+      if (gate.name === 'architecture' && gate.violations) {
+        return this.getArchitectureChildren(gate, gateItem.filePath);
+      }
 
-    if (gate.name === 'policy' && gate.violationsByPolicy) {
-      return this.getPolicyChildren(gate);
+      if (gate.name === 'policy' && gate.violationsByPolicy) {
+        return this.getPolicyChildren(gate);
+      }
     }
 
     return this.getGenericGateDetails(gateItem);

@@ -580,4 +580,48 @@ describe('SecretCheck', () => {
       expect(gitFindings).toHaveLength(0);
     });
   });
+
+  describe('Configuration validation', () => {
+    it('should handle invalid check_config gracefully', async () => {
+      writeFileSync(join(tempDir, 'test.js'), 'console.log("hello world");');
+
+      // Provide an invalid check_config (wrong types)
+      context.check_config = {
+        enable_entropy: 'yes', // Should be boolean
+        entropy_threshold: 'high', // Should be number
+        allowlist: 'not-an-array', // Should be array
+      };
+
+      // Should not throw, but use defaults instead
+      const result = await secretCheck.run(context);
+
+      expect(result.passed).toBe(true);
+      expect(result.message).toBe('No secrets detected');
+    });
+
+    it('should apply valid config values correctly', async () => {
+      writeFileSync(join(tempDir, 'test.js'), 'const key = "1234567890abcdef1234567890abcdef";');
+
+      context.check_config = {
+        enable_entropy: false, // Disable entropy detection
+        allowlist: [], // Empty allowlist
+      };
+
+      const result = await secretCheck.run(context);
+
+      // With entropy disabled and no pattern match, should pass
+      expect(result.passed).toBe(true);
+    });
+
+    it('should use default values when check_config is empty', async () => {
+      writeFileSync(join(tempDir, 'test.js'), 'console.log("hello");');
+
+      context.check_config = {}; // Empty config
+
+      const result = await secretCheck.run(context);
+
+      // Should use defaults and pass
+      expect(result.passed).toBe(true);
+    });
+  });
 });
