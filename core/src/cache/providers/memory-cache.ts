@@ -201,13 +201,24 @@ export class MemoryCacheProvider implements CacheProvider {
   }
 
   private patternToRegex(pattern: string): RegExp {
-    // Use placeholder for ** to avoid it being affected by * replacement
+    const MAX_PATTERN_LENGTH = 200;
+    const MAX_WILDCARDS = 10;
+
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      throw new Error(`Cache pattern too long: ${pattern.length} > ${MAX_PATTERN_LENGTH}`);
+    }
+
+    const wildcardCount = (pattern.match(/\*/g) || []).length;
+    if (wildcardCount > MAX_WILDCARDS) {
+      throw new Error(`Too many wildcards in pattern: ${wildcardCount} > ${MAX_WILDCARDS}`);
+    }
+
     const DOUBLE_STAR_PLACEHOLDER = '\x00DOUBLESTAR\x00';
     const escaped = pattern
-      .replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER) // Protect ** first
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
-      .replace(/\*/g, '[^:]*') // Single * matches within segment (no colons)
-      .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '.*'); // ** matches anything
+      .replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER)
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+      .replace(/\*/g, '[^:]*')
+      .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '[^:]*(?::[^:]*)*');
     return new RegExp(`^${escaped}$`);
   }
 

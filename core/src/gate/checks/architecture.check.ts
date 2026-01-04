@@ -11,6 +11,7 @@ import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { minimatch } from 'minimatch';
 import { loadBaseline } from '../../architecture/baseline.js';
 import type { ArchitectureBaseline } from '../../architecture/types.js';
 import {
@@ -445,19 +446,8 @@ export class ArchitectureCheck extends BaseCheck {
     return true;
   }
 
-  /**
-   * Simple glob pattern matching (for common patterns)
-   */
   private matchesGlobPattern(filePath: string, pattern: string): boolean {
-    // Convert glob to regex (simplified)
-    const regexPattern = pattern
-      .replace(/\*\*/g, '{{GLOBSTAR}}')
-      .replace(/\*/g, '[^/]*')
-      .replace(/{{GLOBSTAR}}/g, '.*')
-      .replace(/\?/g, '.');
-
-    const regex = new RegExp(regexPattern);
-    return regex.test(filePath);
+    return minimatch(filePath, pattern, { dot: true });
   }
 
   /**

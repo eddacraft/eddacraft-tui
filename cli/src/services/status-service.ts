@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, statSync } from 'fs';
 import { join } from 'path';
+import { z } from 'zod';
 import type {
   StatusData,
   HooksStatus,
@@ -10,6 +11,42 @@ import type {
   RecentResults,
   ValidationResult,
 } from '../tui/commands/status/types.js';
+import { createDebugger } from '@anvil/core';
+
+const debug = createDebugger('validation');
+
+/**
+ * Zod schemas for runtime validation of JSON.parse results
+ */
+const AnvilRcCheckSchema = z.object({
+  name: z.string(),
+  enabled: z.boolean().optional(),
+  config: z.record(z.unknown()).optional(),
+});
+
+const AnvilRcSchema = z.object({
+  version: z.number().optional(),
+  checks: z.array(AnvilRcCheckSchema).optional(),
+  planningDir: z.string().optional(),
+  format: z.string().optional(),
+  schemaVersion: z.string().optional(),
+  thresholds: z.object({ coverage: z.number().optional() }).optional(),
+});
+
+const CacheIndexEntrySchema = z.object({
+  file: z.string(),
+  created_at: z.number(),
+});
+
+type CacheIndexEntry = z.infer<typeof CacheIndexEntrySchema>;
+
+const CacheIndexSchema = z.object({
+  entries: z.record(z.string(), CacheIndexEntrySchema).optional(),
+});
+
+const PackageJsonSchema = z.object({
+  name: z.string().optional(),
+});
 
 const KNOWN_HOOKS = ['pre-commit', 'commit-msg', 'pre-push', 'post-merge', 'post-checkout'];
 const HUSKY_DIR = '.husky';
@@ -26,7 +63,8 @@ function detectHookState(hookPath: string): HookState {
       return 'disabled';
     }
     return 'active';
-  } catch {
+  } catch (error) {
+    debug('Failed to detect hook state', error);
     return 'missing';
   }
 }
@@ -35,7 +73,8 @@ function getHookLastRun(hookPath: string): Date | undefined {
   try {
     const stats = statSync(hookPath);
     return stats.mtime;
-  } catch {
+  } catch (error) {
+    debug('Failed to get hook last run time', error);
     return undefined;
   }
 }
@@ -44,7 +83,8 @@ function isAnvilManagedHook(hookPath: string): boolean {
   try {
     const content = readFileSync(hookPath, 'utf-8');
     return content.includes('anvil') || content.includes('ANVIL');
-  } catch {
+  } catch (error) {
+    debug('Failed to check if hook is Anvil-managed', error);
     return false;
   }
 }
@@ -87,14 +127,16 @@ export function gatherRepoProfile(projectRoot: string): RepoProfile {
 
   try {
     const content = readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(content) as {
-      version?: number;
-      checks?: Array<{ name: string; enabled?: boolean; config?: Record<string, unknown> }>;
-      planningDir?: string;
-      format?: string;
-      schemaVersion?: string;
-      thresholds?: { coverage?: number };
-    };
+    const parseResult = AnvilRcSchema.safeParse(JSON.parse(content));
+    if (!parseResult.success) {
+      debug('Invalid .anvilrc schema', parseResult.error);
+      return {
+        hasConfig: true,
+        configPath,
+        checks: [],
+      };
+    }
+    const config = parseResult.data;
 
     const checks: CheckConfig[] = (config.checks ?? []).map((check) => ({
       name: check.name,
@@ -118,7 +160,8 @@ export function gatherRepoProfile(projectRoot: string): RepoProfile {
       coverageThreshold,
       schemaVersion: config.schemaVersion ?? '0.1.0',
     };
-  } catch {
+  } catch (error) {
+    debug('Failed to parse .anvilrc configuration', error);
     return {
       hasConfig: true,
       configPath,
@@ -150,11 +193,18 @@ export function gatherRecentResults(projectRoot: string, limit = 5): RecentResul
 
   try {
     const indexContent = readFileSync(indexPath, 'utf-8');
-    const index = JSON.parse(indexContent) as {
-      entries?: Record<string, { file: string; created_at: number }>;
-    };
+    const parseResult = CacheIndexSchema.safeParse(JSON.parse(indexContent));
+    if (!parseResult.success) {
+      debug('Invalid cache index schema', parseResult.error);
+      return {
+        hasCache: true,
+        cacheDir,
+        results: [],
+      };
+    }
+    const index = parseResult.data;
 
-    const entries = Object.entries(index.entries ?? {});
+    const entries = Object.entries(index.entries ?? {}) as [string, CacheIndexEntry][];
     const results: ValidationResult[] = entries
       .filter(([key]) => key.startsWith('gate:') || key.startsWith('validate:'))
       .map(([key, entry]) => {
@@ -176,7 +226,8 @@ export function gatherRecentResults(projectRoot: string, limit = 5): RecentResul
       cacheDir,
       results,
     };
-  } catch {
+  } catch (error) {
+    debug('Failed to parse cache index', error);
     return {
       hasCache: true,
       cacheDir,
@@ -191,9 +242,14 @@ function getProjectName(projectRoot: string): string | undefined {
 
   try {
     const content = readFileSync(packageJsonPath, 'utf-8');
-    const pkg = JSON.parse(content) as { name?: string };
-    return pkg.name;
-  } catch {
+    const parseResult = PackageJsonSchema.safeParse(JSON.parse(content));
+    if (!parseResult.success) {
+      debug('Invalid package.json schema', parseResult.error);
+      return undefined;
+    }
+    return parseResult.data.name;
+  } catch (error) {
+    debug('Failed to parse package.json for project name', error);
     return undefined;
   }
 }

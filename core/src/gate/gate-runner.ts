@@ -8,6 +8,9 @@ import {
   PlanData,
 } from '../types/gate.types.js';
 import type { ArchitectureContext } from '../architecture/context.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('gate');
 import { ESLintCheck } from './checks/eslint.check.js';
 import { CoverageCheck } from './checks/coverage.check.js';
 import { SecretCheck } from './checks/secret.check.js';
@@ -221,8 +224,8 @@ export class GateRunner {
         if (cached && cached.input_hash === inputHash) {
           result = cached.value;
         }
-      } catch {
-        // Cache read failed, continue without cache
+      } catch (error) {
+        debug('Cache read failed during file analysis, continuing without cache', error);
       }
 
       if (!result) {
@@ -232,8 +235,8 @@ export class GateRunner {
           if (!result.error) {
             try {
               await cache.set(cacheKey, result, { input_hash: inputHash });
-            } catch {
-              // Cache write failed, continue
+            } catch (error) {
+              debug('Cache write failed during file analysis, continuing', error);
             }
           }
         } catch (error) {
@@ -647,8 +650,8 @@ export class GateRunner {
           executionTimeMs: Date.now() - startTime,
         };
       }
-    } catch {
-      // Cache read failed, continue without cache
+    } catch (error) {
+      debug('Cache read failed during gate run, continuing without cache', error);
     }
 
     // Run the check
@@ -669,8 +672,8 @@ export class GateRunner {
       if (!result.error) {
         try {
           await cache.set(cacheKey, result, { input_hash: inputHash });
-        } catch {
-          // Cache write failed, continue without caching
+        } catch (error) {
+          debug('Cache write failed during gate run, continuing without caching', error);
         }
       }
 
