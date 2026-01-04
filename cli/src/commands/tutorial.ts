@@ -7,6 +7,7 @@ import { renderTUIAndWait } from '../tui/utils/renderer.js';
 import { Tutorial } from '../tui/commands/tutorial/index.js';
 import { theme } from '../tui/utils/theme.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
+import { TutorialProgressSchema } from '../tui/commands/tutorial/types.js';
 import type { TutorialProgress } from '../tui/commands/tutorial/types.js';
 
 interface TutorialOptions {
@@ -29,7 +30,19 @@ function loadProgress(workspaceRoot: string): TutorialProgress | null {
 
   try {
     const content = readFileSync(progressPath, 'utf-8');
-    return JSON.parse(content) as TutorialProgress;
+    const parsed = JSON.parse(content);
+    const result = TutorialProgressSchema.safeParse(parsed);
+
+    if (!result.success) {
+      console.warn(
+        chalk.hex(theme.colours.molten)(
+          `${theme.icons.warning} Invalid tutorial progress format, starting fresh`
+        )
+      );
+      return null;
+    }
+
+    return result.data;
   } catch (err) {
     console.warn(
       chalk.hex(theme.colours.molten)(

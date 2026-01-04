@@ -1,6 +1,10 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { ProvenanceRecordSchema, ProvenanceIndexSchema } from './types.js';
 import type { ProvenanceRecord, ProvenanceIndex } from './types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('provenance');
 
 const PROVENANCE_DIR = '.anvil';
 const HISTORY_DIR = 'history';
@@ -48,35 +52,38 @@ history/
   /**
    * Loads the provenance index
    */
+  private createEmptyIndex(): ProvenanceIndex {
+    return {
+      version: 1,
+      last_updated: new Date().toISOString(),
+      records: [],
+      statistics: {
+        total_checks: 0,
+        total_passed: 0,
+        total_failed: 0,
+      },
+    };
+  }
+
   private loadIndex(): ProvenanceIndex {
     if (!existsSync(this.indexPath)) {
-      return {
-        version: 1,
-        last_updated: new Date().toISOString(),
-        records: [],
-        statistics: {
-          total_checks: 0,
-          total_passed: 0,
-          total_failed: 0,
-        },
-      };
+      return this.createEmptyIndex();
     }
 
     try {
       const content = readFileSync(this.indexPath, 'utf-8');
-      return JSON.parse(content) as ProvenanceIndex;
-    } catch {
-      // Corrupted index, start fresh
-      return {
-        version: 1,
-        last_updated: new Date().toISOString(),
-        records: [],
-        statistics: {
-          total_checks: 0,
-          total_passed: 0,
-          total_failed: 0,
-        },
-      };
+      const parsed = JSON.parse(content);
+      const result = ProvenanceIndexSchema.safeParse(parsed);
+
+      if (!result.success) {
+        debug('Index validation failed, starting fresh', result.error);
+        return this.createEmptyIndex();
+      }
+
+      return result.data;
+    } catch (error) {
+      debug('Failed to load provenance index', error);
+      return this.createEmptyIndex();
     }
   }
 
@@ -112,21 +119,8 @@ history/
       commit: record.git?.commit?.substring(0, 8),
     });
 
-    // Trim old records if over limit
     if (index.records.length > MAX_RECORDS) {
-      const removedRecords = index.records.splice(MAX_RECORDS);
-      // Optionally delete old record files
-      for (const removed of removedRecords) {
-        const oldPath = join(this.historyDir, `${removed.id}.json`);
-        try {
-          if (existsSync(oldPath)) {
-            // We'll keep files but remove from index for now
-            // Could add cleanup option later
-          }
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
+      index.records.splice(MAX_RECORDS);
     }
 
     // Update statistics
@@ -153,8 +147,17 @@ history/
 
     try {
       const content = readFileSync(recordPath, 'utf-8');
-      return JSON.parse(content) as ProvenanceRecord;
-    } catch {
+      const parsed = JSON.parse(content);
+      const result = ProvenanceRecordSchema.safeParse(parsed);
+
+      if (!result.success) {
+        debug(`Record ${id} validation failed`, result.error);
+        return null;
+      }
+
+      return result.data;
+    } catch (error) {
+      debug(`Failed to load provenance record ${id}`, error);
       return null;
     }
   }
@@ -263,30 +266,18 @@ history/
   clear(): void {
     const index = this.loadIndex();
 
-    // Delete all record files
     for (const record of index.records) {
       const recordPath = join(this.historyDir, `${record.id}.json`);
       try {
         if (existsSync(recordPath)) {
-          // Using unlinkSync would be cleaner but keeping simple
-          writeFileSync(recordPath, ''); // Truncate
+          writeFileSync(recordPath, '');
         }
-      } catch {
-        // Ignore errors
+      } catch (error) {
+        debug(`Failed to clear record file ${record.id}`, error);
       }
     }
 
-    // Reset index
-    this.saveIndex({
-      version: 1,
-      last_updated: new Date().toISOString(),
-      records: [],
-      statistics: {
-        total_checks: 0,
-        total_passed: 0,
-        total_failed: 0,
-      },
-    });
+    this.saveIndex(this.createEmptyIndex());
   }
 
   /**

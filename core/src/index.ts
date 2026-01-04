@@ -29,3 +29,6 @@ export * from './architecture/index.js';
 
 // Suppression functionality
 export * from './suppression/index.js';
+
+// Utility functions
+export * from './utils/index.js';

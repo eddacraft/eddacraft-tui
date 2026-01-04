@@ -134,4 +134,76 @@ reformatted or imports are reordered, creating noise.
 
 ---
 
-**Last Updated**: 2025-12-25
+**Last Updated**: 2026-01-04
+
+---
+
+## Security Vulnerabilities Fixed (January 2026)
+
+**GitHub Issues**: #83-88
+
+**Resolved**:
+
+1. **Timing Attack (AP-083)** - Hash comparison now uses `timingSafeEqual`
+2. **Shell Injection (AP-085)** - OPA executor uses `spawn()` with argument
+   arrays
+3. **Path Traversal (AP-086)** - VS Code CLI validates paths before execution
+4. **Binary Downloads (AP-084)** - OPA binary download enforces HTTPS and
+   checksum
+5. **ReDoS (AP-088)** - Vulnerable regex patterns replaced with safe
+   alternatives
+
+**Status**: Resolved (January 2026)
+
+---
+
+## Architecture & Type Safety Improvements (January 2026)
+
+**GitHub Issues**: #89-93
+
+**Resolved**:
+
+1. **Non-deterministic IDs (AP-089)** - Plan IDs now use content SHA-256 hash
+2. **Unsafe z.any() (AP-090)** - Replaced with `z.unknown()` throughout
+3. **Weak Provenance IDs (AP-092)** - Uses `crypto.randomUUID()`
+4. **YAML Export (AP-093)** - Now throws clear error instead of silent JSON
+   fallback
+5. **Hash Validation (AP-091)** - Added `hashValidated` field to
+   ValidationResult
+
+**Status**: Resolved (January 2026)
+
+---
+
+## VS Code Extension Improvements (January 2026)
+
+**GitHub Issues**: #103-104
+
+**Resolved**:
+
+1. **Resource Disposal** - Added proper `dispose()` methods to providers
+2. **Command Timeout** - Commands now have configurable timeouts (60s default)
+3. **Cache Invalidation** - Added `clearCacheForUri()` for file deletion cleanup
+
+**Status**: Resolved (January 2026)
+
+---
+
+## Code Quality Improvements (January 2026)
+
+**GitHub Issues**: #98, #100, #102
+
+**Resolved**:
+
+1. **Magic Numbers (#100)** - Extracted to named constants
+2. **Silent Error Swallowing (#98)** - Added debug logging utility with
+   namespace support (`ANVIL_DEBUG=1` or `DEBUG=anvil:*` to enable)
+3. **Unsafe Type Assertions (#102)** - Added Zod runtime validation for
+   JSON.parse results in provenance store and tutorial progress
+
+**Files Added**:
+
+- `core/src/utils/debug.ts` - Debug logging utility
+- `core/src/utils/index.ts` - Utils barrel export
+
+**Status**: Resolved (January 2026)

@@ -1,6 +1,4 @@
-/**
- * Tutorial types and state management
- */
+import { z } from 'zod';
 
 export type TutorialStepId = 'intro' | 'plan' | 'validate' | 'gate' | 'completion';
 
@@ -68,6 +66,13 @@ export interface TutorialProgress {
   completedSteps: string[];
   startedAt: string;
 }
+
+export const TutorialProgressSchema = z.object({
+  currentStep: z.number(),
+  totalSteps: z.number(),
+  completedSteps: z.array(z.string()),
+  startedAt: z.string(),
+});
 
 export function createInitialTutorialState(): TutorialState {
   return {
