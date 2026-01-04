@@ -215,10 +215,9 @@ graph TD
 
 ### M3: Developer Ergonomics ✅
 
-- **Status:** Complete (suppressions); Draft (drift-reporting)
+- **Status:** Complete
 - **Includes:** suppressions, drift-reporting
-- **Delivered:** Developers can suppress with accountability
-- **Remaining:** Drift trend reports (v1.1)
+- **Delivered:** Developers can suppress with accountability; drift snapshots and reports
 
 ### M4: Integration Points (Partial)
 
@@ -238,8 +237,8 @@ graph TD
 | [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                           |
 | [tui](./modules/tui.aps.md)                                             | TUI     | In Progress | v1.0    | — (Phase 1: onboarding only)                              |
 | [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                         |
-| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Ready       | v1.1    | architecture-safety, antipattern-library                  |
-| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Ready       | v1.1    | architecture-safety, antipattern-library, suppressions    |
+| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
+| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
 | [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Ready       | v1.2    | save-time-trust, architecture-safety, antipattern-library |
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
@@ -294,24 +293,24 @@ graph TD
 
 ### Task Status — v1.1 (Explain Command)
 
-| Task       | Module  | Description               | Status  | Priority |
-| ---------- | ------- | ------------------------- | ------- | -------- |
-| EXPLAIN-01 | explain | Warning ID system         | Planned | high     |
-| EXPLAIN-02 | explain | Explanation templates     | Planned | high     |
-| EXPLAIN-03 | explain | Architecture explanations | Planned | high     |
-| EXPLAIN-04 | explain | Anti-pattern explanations | Planned | high     |
-| EXPLAIN-05 | explain | ExplainService            | Planned | high     |
-| EXPLAIN-06 | explain | CLI explain command       | Planned | high     |
+| Task       | Module  | Description               | Status   | Priority |
+| ---------- | ------- | ------------------------- | -------- | -------- |
+| EXPLAIN-01 | explain | Warning ID system         | Complete | high     |
+| EXPLAIN-02 | explain | Explanation templates     | Complete | high     |
+| EXPLAIN-03 | explain | Architecture explanations | Complete | high     |
+| EXPLAIN-04 | explain | Anti-pattern explanations | Complete | high     |
+| EXPLAIN-05 | explain | ExplainService            | Complete | high     |
+| EXPLAIN-06 | explain | CLI explain command       | Complete | high     |
 
 ### Task Status — v1.1 (Drift Reporting)
 
-| Task     | Module | Description               | Status  | Priority |
-| -------- | ------ | ------------------------- | ------- | -------- |
-| DRIFT-01 | drift  | Snapshot schema & storage | Planned | high     |
-| DRIFT-02 | drift  | Snapshot capture          | Planned | high     |
-| DRIFT-03 | drift  | Snapshot comparison       | Planned | high     |
-| DRIFT-04 | drift  | Report generator          | Planned | medium   |
-| DRIFT-05 | drift  | CLI drift commands        | Planned | high     |
+| Task     | Module | Description               | Status   | Priority |
+| -------- | ------ | ------------------------- | -------- | -------- |
+| DRIFT-01 | drift  | Snapshot schema & storage | Complete | high     |
+| DRIFT-02 | drift  | Snapshot capture          | Complete | high     |
+| DRIFT-03 | drift  | Snapshot comparison       | Complete | high     |
+| DRIFT-04 | drift  | Report generator          | Complete | medium   |
+| DRIFT-05 | drift  | CLI drift commands        | Complete | high     |
 
 ### Task Status — v1.1 (OPA & Architecture Integration)
 

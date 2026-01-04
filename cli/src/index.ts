@@ -4,6 +4,8 @@ import { Command } from 'commander';
 import { createArchitectureCommand } from './commands/architecture.js';
 import { createCheckCommand } from './commands/check.js';
 import { createDoctorCommand } from './commands/doctor.js';
+import { createDriftCommand } from './commands/drift.js';
+import { createExplainCommand } from './commands/explain.js';
 import { createGateCommand } from './commands/gate.js';
 import { createGateConfigCommand } from './commands/gate-config.js';
 import { createNewCommand } from './commands/new.js';
@@ -49,6 +51,8 @@ async function main(): Promise<void> {
   program.addCommand(createArchitectureCommand());
   program.addCommand(createCheckCommand());
   program.addCommand(createDoctorCommand());
+  program.addCommand(createDriftCommand());
+  program.addCommand(createExplainCommand());
   program.addCommand(createInitCommand());
   program.addCommand(createGateCommand());
   program.addCommand(createGateConfigCommand());
