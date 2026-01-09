@@ -349,16 +349,15 @@ FR-01: This is after unclosed YAML`;
       }
     });
 
-    it('should handle concurrent detection operations', async () => {
+    it('should handle concurrent detection operations', () => {
       const contents = Array.from(
         { length: 10 },
         (_v, i) =>
           `# Specification\n\n## Intent\n\nTest ${i}\n\n## Changes\n\n- file_create: test${i}.ts`
       );
 
-      const detections = await Promise.all(
-        contents.map((content) => Promise.resolve(speckitAdapter.detect(content)))
-      );
+      // Detection is synchronous, but we test multiple concurrent calls
+      const detections = contents.map((content) => speckitAdapter.detect(content));
 
       // All detections should succeed
       detections.forEach((detection) => {
