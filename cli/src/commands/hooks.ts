@@ -10,8 +10,21 @@ import { join } from 'path';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
 
-/** Hook script content for pre-commit */
-const PRE_COMMIT_HOOK = `#!/bin/sh
+/** Marker comment to identify Anvil-managed hooks */
+const ANVIL_MARKER = '# Anvil-managed hook';
+
+/**
+ * Check if a hook file contains the Anvil marker
+ */
+function isAnvilManagedHook(hookPath: string): boolean {
+  if (!existsSync(hookPath)) return false;
+  const content = readFileSync(hookPath, 'utf-8');
+  return content.includes(ANVIL_MARKER);
+}
+
+/** Hook script content for pre-commit (loaded from file or embedded) */
+function getPreCommitHook(): string {
+  return `#!/bin/sh
 # Anvil pre-commit hook
 # Validates planning documents before commit
 
@@ -30,9 +43,11 @@ fi
 
 exit 0
 `;
+}
 
-/** Hook script content for pre-push */
-const PRE_PUSH_HOOK = `#!/bin/sh
+/** Hook script content for pre-push (loaded from file or embedded) */
+function getPrePushHook(): string {
+  return `#!/bin/sh
 # Anvil pre-push hook
 # Runs quality gates before push
 
@@ -66,17 +81,6 @@ fi
 
 exit 0
 `;
-
-/** Marker comment to identify Anvil-managed hooks */
-const ANVIL_MARKER = '# Anvil-managed hook';
-
-/**
- * Check if a hook file contains the Anvil marker
- */
-function isAnvilManagedHook(hookPath: string): boolean {
-  if (!existsSync(hookPath)) return false;
-  const content = readFileSync(hookPath, 'utf-8');
-  return content.includes(ANVIL_MARKER);
 }
 
 /**
@@ -259,13 +263,13 @@ export function createHooksCommand(): Command {
 
           // Install pre-commit hook
           if (!options.prePushOnly) {
-            const result = installHook(hooksDir, 'pre-commit', PRE_COMMIT_HOOK, !!options.force);
+            const result = installHook(hooksDir, 'pre-commit', getPreCommitHook(), !!options.force);
             results.push({ hook: 'pre-commit', result });
           }
 
           // Install pre-push hook
           if (!options.preCommitOnly) {
-            const result = installHook(hooksDir, 'pre-push', PRE_PUSH_HOOK, !!options.force);
+            const result = installHook(hooksDir, 'pre-push', getPrePushHook(), !!options.force);
             results.push({ hook: 'pre-push', result });
           }
 
