@@ -65,22 +65,27 @@ function sanitizeSnapshotIdentifier(identifier: string): string {
   return basename;
 }
 
+/**
+ * Resolve a snapshot identifier to a filename.
+ * Handles three formats: .json files (with sanitization), timestamps, and names.
+ */
+function resolveSnapshotFilename(nameOrFilename: string): string {
+  if (nameOrFilename.endsWith('.json')) {
+    // Sanitize the filename to prevent path traversal
+    return sanitizeSnapshotIdentifier(nameOrFilename);
+  } else if (isTimestampIdentifier(nameOrFilename)) {
+    return `snapshot-${nameOrFilename}.json`;
+  } else {
+    return generateNamedSnapshotFilename(nameOrFilename);
+  }
+}
+
 export async function loadSnapshot(
   workspaceRoot: string,
   nameOrFilename: string
 ): Promise<DriftSnapshot | null> {
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
-
-  let filename: string;
-  if (nameOrFilename.endsWith('.json')) {
-    // Sanitize the filename to prevent path traversal
-    filename = sanitizeSnapshotIdentifier(nameOrFilename);
-  } else if (isTimestampIdentifier(nameOrFilename)) {
-    filename = `snapshot-${nameOrFilename}.json`;
-  } else {
-    filename = generateNamedSnapshotFilename(nameOrFilename);
-  }
-
+  const filename = resolveSnapshotFilename(nameOrFilename);
   const filePath = path.join(snapshotsPath, filename);
 
   try {
@@ -146,17 +151,7 @@ export async function deleteSnapshot(
   nameOrFilename: string
 ): Promise<boolean> {
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
-
-  let filename: string;
-  if (nameOrFilename.endsWith('.json')) {
-    // Sanitize the filename to prevent path traversal
-    filename = sanitizeSnapshotIdentifier(nameOrFilename);
-  } else if (isTimestampIdentifier(nameOrFilename)) {
-    filename = `snapshot-${nameOrFilename}.json`;
-  } else {
-    filename = generateNamedSnapshotFilename(nameOrFilename);
-  }
-
+  const filename = resolveSnapshotFilename(nameOrFilename);
   const filePath = path.join(snapshotsPath, filename);
 
   try {
@@ -175,17 +170,7 @@ export async function snapshotExists(
   nameOrFilename: string
 ): Promise<boolean> {
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
-
-  let filename: string;
-  if (nameOrFilename.endsWith('.json')) {
-    // Sanitize the filename to prevent path traversal
-    filename = sanitizeSnapshotIdentifier(nameOrFilename);
-  } else if (isTimestampIdentifier(nameOrFilename)) {
-    filename = `snapshot-${nameOrFilename}.json`;
-  } else {
-    filename = generateNamedSnapshotFilename(nameOrFilename);
-  }
-
+  const filename = resolveSnapshotFilename(nameOrFilename);
   const filePath = path.join(snapshotsPath, filename);
 
   try {
