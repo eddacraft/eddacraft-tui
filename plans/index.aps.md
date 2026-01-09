@@ -103,14 +103,14 @@ deliver both the core value AND a friction-free first experience.
 **Why onboarding is v1:** Without smooth onboarding, users won't adopt the tool
 regardless of how good the engine is. First impressions matter.
 
-#### Documentation & Polish (Ready 📋)
+#### Documentation & Polish (Complete ✅)
 
 | Feature           | Description                     | Status   |
 | ----------------- | ------------------------------- | -------- |
-| Quick Start Guide | 5-minute path to first value    | DOCS-001 |
-| User Guide        | Complete command reference      | DOCS-002 |
-| Demo/Tutorial     | Show Anvil catching real issues | DOCS-003 |
-| Error Messages    | Actionable, not cryptic         | DOCS-004 |
+| Quick Start Guide | 5-minute path to first value    | Complete |
+| User Guide        | Complete command reference      | Complete |
+| Demo/Tutorial     | Show Anvil catching real issues | Complete |
+| Error Messages    | Actionable, not cryptic         | Complete |
 
 ### v1.1 — Drift Visibility & Developer Trust
 
@@ -127,20 +127,20 @@ regardless of how good the engine is. First impressions matter.
 
 ### v1.2 — Advanced Experience
 
-| Feature           | Description                                            | Status |
-| ----------------- | ------------------------------------------------------ | ------ |
-| VS Code Extension | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Ready  |
-| TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)           | Draft  |
-| Template Library  | Pre-built architecture patterns (TUI-006)              | Draft  |
-| Tutorial Mode     | Interactive learning experience (TUI-007)              | Draft  |
+| Feature           | Description                                            | Status   |
+| ----------------- | ------------------------------------------------------ | -------- |
+| VS Code Extension | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Complete |
+| TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)           | Draft    |
+| Template Library  | Pre-built architecture patterns (TUI-006)              | Draft    |
+| Tutorial Mode     | Interactive learning experience (TUI-007)              | Draft    |
 
 #### VS Code Extension Details (v1.2.0 → v1.3.0)
 
-| Phase  | Features                                            | Tasks       |
-| ------ | --------------------------------------------------- | ----------- |
-| v1.2.0 | Embed core, anti-pattern on save, diagnostics, VSIX | IDE-001–003 |
-| v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 |
-| v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 |
+| Phase  | Features                                            | Tasks       | Status   |
+| ------ | --------------------------------------------------- | ----------- | -------- |
+| v1.2.0 | Embed core, anti-pattern on save, diagnostics, VSIX | IDE-001–003 | Complete |
+| v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 | Complete |
+| v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 | Complete |
 
 ### v2.0 — AI Tool Integration
 
@@ -235,7 +235,7 @@ graph TD
 | [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI    | Complete    | v1.0    | save-time-trust                                           |
 | [suppressions](./modules/suppressions.aps.md)                           | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library                  |
 | [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                           |
-| [tui](./modules/tui.aps.md)                                             | TUI     | In Progress | v1.0    | — (Phase 1: onboarding only)                              |
+| [tui](./modules/tui.aps.md)                                             | TUI     | Complete    | v1.0    | — (Phase 1: onboarding only)                              |
 | [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                         |
 | [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
 | [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
@@ -342,16 +342,16 @@ graph TD
 
 #### IDE Integration (VS Code Extension)
 
-| Task    | Module | Description                                     | Status | Priority |
-| ------- | ------ | ----------------------------------------------- | ------ | -------- |
-| IDE-001 | ide    | Embed @anvil/core for fast-path operations      | Done   | high     |
-| IDE-002 | ide    | Anti-pattern detection on save with diagnostics | Done   | high     |
-| IDE-003 | ide    | Improve source location mapping from CLI output | Done   | medium   |
-| IDE-004 | ide    | Architecture gate display in tree view          | Done   | high     |
-| IDE-005 | ide    | OPA policy failure display with remediation     | Done   | high     |
-| IDE-006 | ide    | Click-to-navigate for all violation types       | Done   | medium   |
-| IDE-007 | ide    | APS and Rego syntax highlighting                | Done   | medium   |
-| IDE-008 | ide    | Analysis caching and Marketplace preparation    | Done   | medium   |
+| Task    | Module | Description                                     | Status   | Priority |
+| ------- | ------ | ----------------------------------------------- | -------- | -------- |
+| IDE-001 | ide    | Embed @anvil/core for fast-path operations      | Complete | high     |
+| IDE-002 | ide    | Anti-pattern detection on save with diagnostics | Complete | high     |
+| IDE-003 | ide    | Improve source location mapping from CLI output | Complete | medium   |
+| IDE-004 | ide    | Architecture gate display in tree view          | Complete | high     |
+| IDE-005 | ide    | OPA policy failure display with remediation     | Complete | high     |
+| IDE-006 | ide    | Click-to-navigate for all violation types       | Complete | medium   |
+| IDE-007 | ide    | APS and Rego syntax highlighting                | Complete | medium   |
+| IDE-008 | ide    | Analysis caching and Marketplace preparation    | Complete | medium   |
 
 #### TUI Operational (CLI)
 

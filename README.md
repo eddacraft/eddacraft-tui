@@ -233,6 +233,7 @@ anvil check --changed --profile production
 | TUI (init, status)   | ✅ Complete |
 | GitHub Action        | ✅ Complete |
 | OPA Policy Engine    | ✅ Complete |
+| VS Code Extension    | ✅ Complete |
 
 See [plans/index.aps.md](./plans/index.aps.md) for detailed roadmap.
 
