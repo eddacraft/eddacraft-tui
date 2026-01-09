@@ -12,7 +12,8 @@ import {
   type ProgressEvent,
   type GateRunResultWithCache,
 } from '@anvil/core';
-import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
+import { loadPlan, getWorkspaceRoot } from '../utils/file-io.js';
+import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
 import type { GateOptions, GateProfile } from '../types/command-options.js';
@@ -184,17 +185,12 @@ export function createGateCommand(): Command {
           spinner.succeed('Full codebase scan mode');
         } else {
           // Resolve plan path
-          if (planArg.startsWith('aps-') && planArg.length === 12) {
-            // Plan ID
-            const foundPath = findPlanById(planArg, workspaceRoot);
-            if (!foundPath) {
-              error(`Plan not found: ${planArg}`);
-              process.exit(1);
-            }
-            planPath = foundPath;
-          } else {
-            // File path
-            planPath = planArg;
+          try {
+            const { path: resolvedPath } = resolvePlanPathOrId(planArg, workspaceRoot);
+            planPath = resolvedPath;
+          } catch (err) {
+            error(err instanceof Error ? err.message : String(err));
+            process.exit(1);
           }
 
           // Load plan with format detection
