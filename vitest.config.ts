@@ -26,6 +26,8 @@ export default defineConfig({
       'ui/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packs/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/adapters/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'packages/vscode-extension/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'packages/aps/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: ['**/node_modules/**', '**/dist/**', '**/.nx/**', '**/playwright-report/**'],
   },
@@ -36,6 +38,8 @@ export default defineConfig({
       '@anvil/ui': resolve(__dirname, './ui/src'),
       '@anvil/packs': resolve(__dirname, './packs/src'),
       '@anvil/adapters': resolve(__dirname, './packages/adapters/src'),
+      '@anvil/aps': resolve(__dirname, './packages/aps/src'),
+      vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },
   },
 });
