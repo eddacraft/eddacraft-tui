@@ -14,6 +14,7 @@ import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { scanFile, type ScanOptions, type ScanResult } from '../../antipattern/scanner.js';
 import { createWarningResult, type Warning, type WarningResult } from '../../antipattern/types.js';
+import { parseSeverity } from '../../utils/severity.js';
 
 export interface AntipatternCheckConfig {
   patterns?: string[];
@@ -107,17 +108,11 @@ export class AntipatternCheck extends BaseCheck {
       extensions: Array.isArray(checkConfig.extensions)
         ? checkConfig.extensions.filter((e): e is string => typeof e === 'string')
         : DEFAULT_CONFIG.extensions,
-      severityThreshold: this.parseSeverity(checkConfig.severityThreshold),
+      severityThreshold: parseSeverity(
+        checkConfig.severityThreshold,
+        DEFAULT_CONFIG.severityThreshold
+      ) as 'error' | 'warning' | 'info',
     };
-  }
-
-  private parseSeverity(value: unknown): 'error' | 'warning' | 'info' {
-    if (typeof value !== 'string') return DEFAULT_CONFIG.severityThreshold;
-    const lower = value.toLowerCase();
-    if (lower === 'error' || lower === 'warning' || lower === 'info') {
-      return lower;
-    }
-    return DEFAULT_CONFIG.severityThreshold;
   }
 
   private isScannableFile(filePath: string, config: Required<AntipatternCheckConfig>): boolean {

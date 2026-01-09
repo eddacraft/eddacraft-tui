@@ -8,6 +8,7 @@ import { CheckContext, GateResult } from '../../types/gate.types.js';
 import { getOPABinaryManager } from '../policy/opa-binary-manager.js';
 import { PolicyLoader, type LoadedPolicy } from '../policy/policy-loader.js';
 import { OPAExecutor, type OPAInput, type PolicyViolation } from '../policy/opa-executor.js';
+import { parseSeverity } from '../../utils/severity.js';
 
 /**
  * Configuration for policy check
@@ -182,7 +183,7 @@ export class PolicyCheck extends BaseCheck {
   private parseConfig(checkConfig: Record<string, unknown>): PolicyCheckConfig {
     return {
       policy_dir: typeof checkConfig.policy_dir === 'string' ? checkConfig.policy_dir : undefined,
-      severity_threshold: this.parseSeverity(checkConfig.severity_threshold),
+      severity_threshold: parseSeverity(checkConfig.severity_threshold, undefined),
       enabled_policies: Array.isArray(checkConfig.enabled_policies)
         ? checkConfig.enabled_policies.filter((p): p is string => typeof p === 'string')
         : undefined,
@@ -200,18 +201,6 @@ export class PolicyCheck extends BaseCheck {
           ? checkConfig.include_git_context
           : true, // Default to true
     };
-  }
-
-  /**
-   * Parse severity threshold
-   */
-  private parseSeverity(value: unknown): 'error' | 'warning' | 'info' | undefined {
-    if (typeof value !== 'string') return undefined;
-    const lower = value.toLowerCase();
-    if (lower === 'error' || lower === 'warning' || lower === 'info') {
-      return lower;
-    }
-    return undefined;
   }
 
   /**

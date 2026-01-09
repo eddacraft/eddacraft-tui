@@ -38,3 +38,6 @@ export * from './warnings/index.js';
 
 // Explain command support
 export * from './explain/index.js';
+
+// Utility functions
+export * from './utils/index.js';
