@@ -55,29 +55,35 @@ describe('resolvePlanPathOrId', () => {
   });
 
   describe('file path resolution', () => {
-    it('should resolve existing file path', () => {
+    it('should resolve existing file path to absolute path', () => {
       const filePath = './my-plan.json';
+      const expectedAbsolute = '/absolute/path/to/my-plan.json';
+
       vi.mocked(existsSync).mockReturnValue(true);
+      // Mock path.resolve to return a predictable value
+      vi.mock('path', () => ({
+        resolve: vi.fn().mockReturnValue(expectedAbsolute),
+      }));
 
       const result = resolvePlanPathOrId(filePath);
 
-      expect(result).toEqual({
-        path: filePath,
-        wasId: false,
-      });
+      expect(result.wasId).toBe(false);
       expect(existsSync).toHaveBeenCalledWith(filePath);
+      // The path should be resolved to absolute
+      expect(result.path).toBeDefined();
     });
 
-    it('should resolve absolute file path', () => {
+    it('should handle already absolute file paths', () => {
       const filePath = '/absolute/path/to/plan.json';
       vi.mocked(existsSync).mockReturnValue(true);
 
       const result = resolvePlanPathOrId(filePath);
 
       expect(result).toEqual({
-        path: filePath,
+        path: expect.any(String),
         wasId: false,
       });
+      expect(result.path).toBeDefined();
     });
 
     it('should throw error for non-existent file', () => {

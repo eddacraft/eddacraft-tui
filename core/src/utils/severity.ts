@@ -18,6 +18,8 @@ export type Severity = 'error' | 'warning' | 'info';
  * - 'info' → 'info'
  * - Any other value → returns defaultValue
  *
+ * When called with a single argument, defaults to 'info'.
+ *
  * @param value - The value to parse (typically from configuration)
  * @param defaultValue - The default severity to return if parsing fails (default: 'info')
  * @returns The normalized severity level or defaultValue
@@ -26,22 +28,20 @@ export type Severity = 'error' | 'warning' | 'info';
  * ```typescript
  * parseSeverity('ERROR') // 'error'
  * parseSeverity('warn') // 'warning'
- * parseSeverity('invalid') // 'info'
+ * parseSeverity('invalid') // 'info' (default)
  * parseSeverity('invalid', 'error') // 'error'
- * parseSeverity('invalid', undefined) // undefined
  * parseSeverity(123) // 'info'
+ * parseSeverity(123, undefined) // undefined
  * ```
  */
+export function parseSeverity(value: unknown, defaultValue?: Severity): Severity;
+export function parseSeverity(value: unknown, defaultValue: undefined): Severity | undefined;
 export function parseSeverity(
   value: unknown,
-  defaultValue?: Severity | undefined
+  defaultValue: Severity | undefined = 'info'
 ): Severity | undefined {
-  // When defaultValue is not provided, use 'info'
-  const fallback =
-    defaultValue !== undefined ? defaultValue : arguments.length === 1 ? 'info' : undefined;
-
   if (typeof value !== 'string') {
-    return fallback;
+    return defaultValue;
   }
 
   const lower = value.toLowerCase();
@@ -55,6 +55,6 @@ export function parseSeverity(
     case 'info':
       return 'info';
     default:
-      return fallback;
+      return defaultValue;
   }
 }

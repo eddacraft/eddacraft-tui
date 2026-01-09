@@ -5,6 +5,7 @@
  */
 
 import { existsSync } from 'fs';
+import { resolve } from 'path';
 import { findPlanById, getWorkspaceRoot } from './file-io.js';
 
 /**
@@ -22,11 +23,11 @@ export interface ResolvedPlan {
  *
  * Accepts either:
  * - A plan ID (format: 'aps-XXXXXXXX') - will be resolved to the corresponding file in .anvil/plans
- * - A file path (relative or absolute) - will be validated for existence
+ * - A file path (relative or absolute) - will be validated for existence and converted to absolute
  *
  * @param planPathOrId - The plan ID or file path
  * @param workspaceRoot - Optional workspace root (defaults to auto-detected)
- * @returns Resolved plan information
+ * @returns Resolved plan information with absolute path
  * @throws {Error} If plan ID is not found or file path doesn't exist
  *
  * @example
@@ -61,8 +62,9 @@ export function resolvePlanPathOrId(planPathOrId: string, workspaceRoot?: string
     throw new Error(`Plan file not found: ${planPathOrId}`);
   }
 
+  // Convert to absolute path
   return {
-    path: planPathOrId,
+    path: resolve(planPathOrId),
     wasId: false,
   };
 }

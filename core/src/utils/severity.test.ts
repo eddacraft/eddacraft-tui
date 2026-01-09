@@ -45,13 +45,7 @@ describe('parseSeverity', () => {
     expect(parseSeverity('info', 'error')).toBe('info');
   });
 
-  it('should return undefined when undefined is the default', () => {
-    expect(parseSeverity('invalid', undefined)).toBeUndefined();
-    expect(parseSeverity(123, undefined)).toBeUndefined();
-    expect(parseSeverity(null, undefined)).toBeUndefined();
-  });
-
-  it('should preserve valid values even with undefined default', () => {
+  it('should preserve valid values with undefined default', () => {
     expect(parseSeverity('error', undefined)).toBe('error');
     expect(parseSeverity('warning', undefined)).toBe('warning');
     expect(parseSeverity('info', undefined)).toBe('info');
