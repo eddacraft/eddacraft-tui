@@ -416,13 +416,20 @@ export class PolicyCheck extends BaseCheck {
     const executor = new OPAExecutor(binaryPath, { timeout });
     const result = await executor.runTests(policies, testFiles as string[]);
 
+    // Check for execution errors in addition to test failures
+    const hasErrors = result.errors.length > 0;
+    const errorDetails = hasErrors ? result.errors.map((e) => `Execution error: ${e}`) : [];
+
     return {
-      passed: result.failed === 0,
+      passed: result.failed === 0 && !hasErrors,
       failed: result.failed,
       total: result.passed + result.failed,
-      details: result.details
-        .filter((d) => !d.passed)
-        .map((d) => `${d.name}: ${d.message || 'failed'}`),
+      details: [
+        ...result.details
+          .filter((d) => !d.passed)
+          .map((d) => `${d.name}: ${d.message || 'failed'}`),
+        ...errorDetails,
+      ],
     };
   }
 
