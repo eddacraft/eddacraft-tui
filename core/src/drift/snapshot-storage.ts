@@ -43,19 +43,42 @@ function isTimestampIdentifier(identifier: string): boolean {
   return /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}/.test(identifier);
 }
 
+/**
+ * Sanitize a snapshot identifier to prevent path traversal attacks.
+ * Extracts only the basename and ensures it stays within the snapshots directory.
+ */
+function sanitizeSnapshotIdentifier(identifier: string): string {
+  // Extract basename to prevent path traversal (e.g., ../secrets.json -> secrets.json)
+  const basename = path.basename(identifier);
+
+  // Validate that the identifier doesn't contain suspicious characters after basename extraction
+  // This catches encoded traversals or other edge cases
+  if (
+    basename !== identifier ||
+    basename.includes('..') ||
+    basename.includes('/') ||
+    basename.includes('\\')
+  ) {
+    throw new Error(`Invalid snapshot identifier: ${identifier}`);
+  }
+
+  return basename;
+}
+
 export async function loadSnapshot(
   workspaceRoot: string,
   nameOrFilename: string
 ): Promise<DriftSnapshot | null> {
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
 
-  let filename = nameOrFilename;
-  if (!filename.endsWith('.json')) {
-    if (isTimestampIdentifier(nameOrFilename)) {
-      filename = `snapshot-${nameOrFilename}.json`;
-    } else {
-      filename = generateNamedSnapshotFilename(nameOrFilename);
-    }
+  let filename: string;
+  if (nameOrFilename.endsWith('.json')) {
+    // Sanitize the filename to prevent path traversal
+    filename = sanitizeSnapshotIdentifier(nameOrFilename);
+  } else if (isTimestampIdentifier(nameOrFilename)) {
+    filename = `snapshot-${nameOrFilename}.json`;
+  } else {
+    filename = generateNamedSnapshotFilename(nameOrFilename);
   }
 
   const filePath = path.join(snapshotsPath, filename);
@@ -124,13 +147,14 @@ export async function deleteSnapshot(
 ): Promise<boolean> {
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
 
-  let filename = nameOrFilename;
-  if (!filename.endsWith('.json')) {
-    if (isTimestampIdentifier(nameOrFilename)) {
-      filename = `snapshot-${nameOrFilename}.json`;
-    } else {
-      filename = generateNamedSnapshotFilename(nameOrFilename);
-    }
+  let filename: string;
+  if (nameOrFilename.endsWith('.json')) {
+    // Sanitize the filename to prevent path traversal
+    filename = sanitizeSnapshotIdentifier(nameOrFilename);
+  } else if (isTimestampIdentifier(nameOrFilename)) {
+    filename = `snapshot-${nameOrFilename}.json`;
+  } else {
+    filename = generateNamedSnapshotFilename(nameOrFilename);
   }
 
   const filePath = path.join(snapshotsPath, filename);
@@ -152,13 +176,14 @@ export async function snapshotExists(
 ): Promise<boolean> {
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
 
-  let filename = nameOrFilename;
-  if (!filename.endsWith('.json')) {
-    if (isTimestampIdentifier(nameOrFilename)) {
-      filename = `snapshot-${nameOrFilename}.json`;
-    } else {
-      filename = generateNamedSnapshotFilename(nameOrFilename);
-    }
+  let filename: string;
+  if (nameOrFilename.endsWith('.json')) {
+    // Sanitize the filename to prevent path traversal
+    filename = sanitizeSnapshotIdentifier(nameOrFilename);
+  } else if (isTimestampIdentifier(nameOrFilename)) {
+    filename = `snapshot-${nameOrFilename}.json`;
+  } else {
+    filename = generateNamedSnapshotFilename(nameOrFilename);
   }
 
   const filePath = path.join(snapshotsPath, filename);

@@ -283,3 +283,64 @@ describe('SnapshotStore', () => {
     expect(latest?.name).toBe('second');
   });
 });
+
+describe('SnapshotStorage Security', () => {
+  let testDir: string;
+
+  beforeEach(async () => {
+    testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'anvil-drift-security-'));
+    // Create a file outside snapshots directory to test path traversal prevention
+    await fs.writeFile(path.join(testDir, 'secrets.json'), '{"secret":"data"}', 'utf-8');
+  });
+
+  afterEach(async () => {
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
+
+  describe('path traversal prevention', () => {
+    it('should reject path traversal in loadSnapshot with ../', async () => {
+      await expect(loadSnapshot(testDir, '../secrets.json')).rejects.toThrow(
+        'Invalid snapshot identifier'
+      );
+    });
+
+    it('should reject path traversal in deleteSnapshot with ../', async () => {
+      await expect(deleteSnapshot(testDir, '../secrets.json')).rejects.toThrow(
+        'Invalid snapshot identifier'
+      );
+    });
+
+    it('should reject path traversal in snapshotExists with ../', async () => {
+      await expect(snapshotExists(testDir, '../secrets.json')).rejects.toThrow(
+        'Invalid snapshot identifier'
+      );
+    });
+
+    it('should reject absolute paths in loadSnapshot', async () => {
+      await expect(loadSnapshot(testDir, '/etc/passwd.json')).rejects.toThrow(
+        'Invalid snapshot identifier'
+      );
+    });
+
+    it('should reject paths with directory separators', async () => {
+      await expect(loadSnapshot(testDir, 'subdir/file.json')).rejects.toThrow(
+        'Invalid snapshot identifier'
+      );
+    });
+
+    it('should reject backslash path separators (Windows-style)', async () => {
+      await expect(loadSnapshot(testDir, '..\\secrets.json')).rejects.toThrow(
+        'Invalid snapshot identifier'
+      );
+    });
+
+    it('should accept valid .json filenames', async () => {
+      const snapshot = createEmptySnapshot();
+      await saveSnapshot(testDir, snapshot, 'valid');
+
+      // This should work - valid filename with .json extension
+      const loaded = await loadSnapshot(testDir, 'snapshot-valid.json');
+      expect(loaded).not.toBeNull();
+    });
+  });
+});
