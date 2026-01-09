@@ -37,7 +37,7 @@
     "minimatch": "^10.1.1",
     "safe-regex2": "^5.0.0",
     "shell-quote": "^1.8.2",
-    "zod": "^4.2.1"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
