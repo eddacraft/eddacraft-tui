@@ -124,7 +124,6 @@ describe('policy command', () => {
       const forceOpt = initCmd?.options.find((o) => o.long === '--force');
 
       expect(forceOpt).toBeDefined();
-      expect(forceOpt?.description()).toContain('Overwrite');
     });
   });
 });

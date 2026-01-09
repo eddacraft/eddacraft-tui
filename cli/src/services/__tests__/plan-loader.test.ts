@@ -3,7 +3,7 @@ import { PlanLoader } from '../plan-loader.js';
 
 // Mock dependencies
 vi.mock('@anvil/core', () => ({
-  APSValidator: vi.fn(() => ({
+  APSValidator: vi.fn().mockImplementation(() => ({
     validate: vi.fn(async (data) => ({
       valid: true,
       data,
@@ -21,7 +21,7 @@ vi.mock('@anvil/adapters', () => ({
 }));
 
 vi.mock('../format-detection.js', () => ({
-  FormatDetectionService: vi.fn(() => ({
+  FormatDetectionService: vi.fn().mockImplementation(() => ({
     detectFormat: vi.fn(() => null),
   })),
 }));
@@ -65,7 +65,7 @@ describe('PlanLoader', () => {
       };
 
       const content = JSON.stringify(apsPlan);
-      
+
       const result = await loader.loadPlanFromContent(content, {
         format: 'aps',
       });

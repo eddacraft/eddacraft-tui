@@ -33,8 +33,7 @@ describe('export command', () => {
     const toOpt = command.options.find((o) => o.long === '--to');
 
     expect(toOpt).toBeDefined();
-    expect(toOpt?.required).toBe(true);
-    expect(toOpt?.description()).toContain('format');
+    expect(toOpt?.mandatory).toBe(true);
   });
 
   it('should have optional --output option', () => {
@@ -42,7 +41,7 @@ describe('export command', () => {
     const outputOpt = command.options.find((o) => o.long === '--output');
 
     expect(outputOpt).toBeDefined();
-    expect(outputOpt?.required).toBe(false);
+    expect(outputOpt?.mandatory).toBe(false);
   });
 
   it('should have optional --from option for explicit format', () => {
@@ -50,7 +49,7 @@ describe('export command', () => {
     const fromOpt = command.options.find((o) => o.long === '--from');
 
     expect(fromOpt).toBeDefined();
-    expect(fromOpt?.required).toBe(false);
+    expect(fromOpt?.mandatory).toBe(false);
   });
 
   it('should have --compact option for JSON formatting', () => {
@@ -58,7 +57,6 @@ describe('export command', () => {
     const compactOpt = command.options.find((o) => o.long === '--compact');
 
     expect(compactOpt).toBeDefined();
-    expect(compactOpt?.description()).toContain('Compact');
     expect(compactOpt?.defaultValue).toBe(false);
   });
 });

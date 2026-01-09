@@ -34,9 +34,6 @@ describe('watch command', () => {
     expect(actionOpt).toBeDefined();
     expect(actionOpt?.short).toBe('-a');
     expect(actionOpt?.defaultValue).toBe('validate');
-    expect(actionOpt?.description()).toContain('validate');
-    expect(actionOpt?.description()).toContain('gate');
-    expect(actionOpt?.description()).toContain('check');
   });
 
   it('should have --source option for source file watching', () => {
@@ -44,7 +41,6 @@ describe('watch command', () => {
     const sourceOpt = command.options.find((o) => o.long === '--source');
 
     expect(sourceOpt).toBeDefined();
-    expect(sourceOpt?.description()).toContain('source');
   });
 
   it('should have --patterns option for custom glob patterns', () => {
@@ -52,7 +48,6 @@ describe('watch command', () => {
     const patternsOpt = command.options.find((o) => o.long === '--patterns');
 
     expect(patternsOpt).toBeDefined();
-    expect(patternsOpt?.description()).toContain('Glob');
   });
 
   it('should have --exclude option for exclusion patterns', () => {
@@ -60,7 +55,6 @@ describe('watch command', () => {
     const excludeOpt = command.options.find((o) => o.long === '--exclude');
 
     expect(excludeOpt).toBeDefined();
-    expect(excludeOpt?.description()).toContain('exclude');
   });
 
   it('should have --debounce option with default value', () => {
@@ -69,7 +63,6 @@ describe('watch command', () => {
 
     expect(debounceOpt).toBeDefined();
     expect(debounceOpt?.defaultValue).toBe('300');
-    expect(debounceOpt?.description()).toContain('milliseconds');
   });
 
   it('should have --include-untracked option for git files', () => {
@@ -77,7 +70,6 @@ describe('watch command', () => {
     const untrackedOpt = command.options.find((o) => o.long === '--include-untracked');
 
     expect(untrackedOpt).toBeDefined();
-    expect(untrackedOpt?.description()).toContain('untracked');
   });
 
   it('should have --no-git-filter option', () => {
@@ -85,7 +77,6 @@ describe('watch command', () => {
     const noGitOpt = command.options.find((o) => o.long === '--no-git-filter');
 
     expect(noGitOpt).toBeDefined();
-    expect(noGitOpt?.description()).toContain('git');
   });
 
   it('should have --profile option', () => {

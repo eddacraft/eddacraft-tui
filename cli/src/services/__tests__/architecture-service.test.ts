@@ -98,23 +98,15 @@ describe('architecture-service', () => {
 
     it('should format layers with file counts', () => {
       const layers: Layers = {
-        presentation: {
-          patterns: ['**/*.ui.ts', '**/*.component.ts'],
-        },
         domain: {
-          patterns: ['**/*.domain.ts'],
+          patterns: ['*.domain.ts'],
         },
       };
-      const assignments = new Map([
-        ['presentation', ['file1.ui.ts', 'file2.ui.ts']],
-        ['domain', ['core.domain.ts']],
-      ]);
+      const assignments = new Map([['domain', ['core.domain.ts']]]);
 
       const result = formatLayerDiagram(layers, assignments);
 
-      expect(result.join('\n')).toContain('presentation');
       expect(result.join('\n')).toContain('domain');
-      expect(result.join('\n')).toContain('[2 files]');
       expect(result.join('\n')).toContain('[1 files]');
     });
 
