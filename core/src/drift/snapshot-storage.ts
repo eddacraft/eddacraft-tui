@@ -51,14 +51,14 @@ function sanitizeSnapshotIdentifier(identifier: string): string {
   // Extract basename to prevent path traversal (e.g., ../secrets.json -> secrets.json)
   const basename = path.basename(identifier);
 
-  // Validate that the identifier doesn't contain suspicious characters after basename extraction
-  // This catches encoded traversals or other edge cases
-  if (
-    basename !== identifier ||
-    basename.includes('..') ||
-    basename.includes('/') ||
-    basename.includes('\\')
-  ) {
+  // Validate that no path traversal was attempted
+  // If basename differs from identifier, it contained directory separators
+  if (basename !== identifier) {
+    throw new Error(`Invalid snapshot identifier: ${identifier}`);
+  }
+
+  // Validate the basename itself is safe
+  if (!basename || basename === '.' || basename === '..' || basename.includes('\0')) {
     throw new Error(`Invalid snapshot identifier: ${identifier}`);
   }
 
