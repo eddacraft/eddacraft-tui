@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ArchitectureCheck } from './architecture.check.js';
+import { CircularDetector } from './architecture/circular-detector.js';
+import { LayerValidator } from './architecture/layer-validator.js';
+import type { CruiserViolation } from './architecture/dependency-analyzer.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
 
@@ -243,29 +246,9 @@ describe('ArchitectureCheck', () => {
     });
   });
 
-  describe('isNewViolation logic (via integration)', () => {
+  describe('isNewViolation logic', () => {
     it('should match violations by from_file, to_file, AND rule when rule field exists in baseline', () => {
-      const checkInstance = new ArchitectureCheck();
-      const isNewViolation = (
-        checkInstance as unknown as {
-          isNewViolation: (
-            violation: { from: string; to: string; rule: { name: string; severity: string } },
-            baseline: {
-              baseline_snapshot: {
-                violations: Array<{
-                  id: string;
-                  from_layer: string;
-                  to_layer: string;
-                  from_file: string;
-                  to_file: string;
-                  import_line: number;
-                  rule?: string;
-                }>;
-              };
-            }
-          ) => boolean;
-        }
-      ).isNewViolation.bind(checkInstance);
+      const detector = new CircularDetector();
 
       const baselineWithRule = {
         baseline_snapshot: {
@@ -283,42 +266,24 @@ describe('ArchitectureCheck', () => {
         },
       };
 
-      expect(
-        isNewViolation(
-          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-circular', severity: 'error' } },
-          baselineWithRule
-        )
-      ).toBe(false);
+      const matchingViolation: CruiserViolation = {
+        from: 'src/a.ts',
+        to: 'src/b.ts',
+        rule: { name: 'no-circular', severity: 'error' },
+      };
 
-      expect(
-        isNewViolation(
-          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-orphans', severity: 'warn' } },
-          baselineWithRule
-        )
-      ).toBe(true);
+      const differentRuleViolation: CruiserViolation = {
+        from: 'src/a.ts',
+        to: 'src/b.ts',
+        rule: { name: 'no-orphans', severity: 'warn' },
+      };
+
+      expect(detector.isNewViolation(matchingViolation, baselineWithRule as any)).toBe(false);
+      expect(detector.isNewViolation(differentRuleViolation, baselineWithRule as any)).toBe(true);
     });
 
     it('should match only by from_file and to_file when rule field is missing (backwards compat)', () => {
-      const checkInstance = new ArchitectureCheck();
-      const isNewViolation = (
-        checkInstance as unknown as {
-          isNewViolation: (
-            violation: { from: string; to: string; rule: { name: string; severity: string } },
-            baseline: {
-              baseline_snapshot: {
-                violations: Array<{
-                  id: string;
-                  from_layer: string;
-                  to_layer: string;
-                  from_file: string;
-                  to_file: string;
-                  import_line: number;
-                }>;
-              };
-            }
-          ) => boolean;
-        }
-      ).isNewViolation.bind(checkInstance);
+      const detector = new CircularDetector();
 
       const baselineWithoutRule = {
         baseline_snapshot: {
@@ -335,43 +300,17 @@ describe('ArchitectureCheck', () => {
         },
       };
 
-      expect(
-        isNewViolation(
-          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-circular', severity: 'error' } },
-          baselineWithoutRule
-        )
-      ).toBe(false);
+      const violation: CruiserViolation = {
+        from: 'src/a.ts',
+        to: 'src/b.ts',
+        rule: { name: 'no-circular', severity: 'error' },
+      };
 
-      expect(
-        isNewViolation(
-          { from: 'src/a.ts', to: 'src/b.ts', rule: { name: 'no-orphans', severity: 'warn' } },
-          baselineWithoutRule
-        )
-      ).toBe(false);
+      expect(detector.isNewViolation(violation, baselineWithoutRule as any)).toBe(false);
     });
 
     it('should detect new violations not in baseline', () => {
-      const checkInstance = new ArchitectureCheck();
-      const isNewViolation = (
-        checkInstance as unknown as {
-          isNewViolation: (
-            violation: { from: string; to: string; rule: { name: string; severity: string } },
-            baseline: {
-              baseline_snapshot: {
-                violations: Array<{
-                  id: string;
-                  from_layer: string;
-                  to_layer: string;
-                  from_file: string;
-                  to_file: string;
-                  import_line: number;
-                  rule?: string;
-                }>;
-              };
-            }
-          ) => boolean;
-        }
-      ).isNewViolation.bind(checkInstance);
+      const detector = new CircularDetector();
 
       const baseline = {
         baseline_snapshot: {
@@ -389,69 +328,49 @@ describe('ArchitectureCheck', () => {
         },
       };
 
-      expect(
-        isNewViolation(
-          {
-            from: 'src/new.ts',
-            to: 'src/another.ts',
-            rule: { name: 'no-circular', severity: 'error' },
-          },
-          baseline
-        )
-      ).toBe(true);
+      const newViolation: CruiserViolation = {
+        from: 'src/new.ts',
+        to: 'src/another.ts',
+        rule: { name: 'no-circular', severity: 'error' },
+      };
+
+      expect(detector.isNewViolation(newViolation, baseline as any)).toBe(true);
     });
   });
 
-  describe('calculateScore with effective violations', () => {
+  describe('calculateScore', () => {
     it('should calculate score from provided violations', () => {
-      const checkInstance = new ArchitectureCheck();
-      const calculateScore = (
-        checkInstance as unknown as {
-          calculateScore: (
-            violations: Array<{
-              from: string;
-              to: string;
-              rule: { name: string; severity: 'error' | 'warn' | 'info' | 'ignore' };
-              cycle?: string[];
-            }>,
-            config: {
-              fail_on_circular: boolean;
-              fail_on_orphan: boolean;
-              severity_threshold: string;
-            }
-          ) => { score: number; passed: boolean; violationsByType: Record<string, number> };
-        }
-      ).calculateScore.bind(checkInstance);
+      const validator = new LayerValidator();
 
-      const errorViolation = {
+      const errorViolation: CruiserViolation = {
         from: 'src/a.ts',
         to: 'src/b.ts',
-        rule: { name: 'no-circular', severity: 'error' as const },
+        rule: { name: 'no-circular', severity: 'error' },
         cycle: ['src/a.ts', 'src/b.ts'],
       };
 
-      const warnViolation = {
+      const warnViolation: CruiserViolation = {
         from: 'src/c.ts',
         to: 'src/d.ts',
-        rule: { name: 'no-orphans', severity: 'warn' as const },
+        rule: { name: 'no-orphans', severity: 'warn' },
       };
 
-      const config = {
+      const config = validator.parseConfig({
         fail_on_circular: true,
         fail_on_orphan: false,
         severity_threshold: 'error',
-      };
+      });
 
-      const resultEmpty = calculateScore([], config);
+      const resultEmpty = validator.calculateScore([], config);
       expect(resultEmpty.score).toBe(100);
       expect(resultEmpty.passed).toBe(true);
 
-      const resultOneError = calculateScore([errorViolation], config);
+      const resultOneError = validator.calculateScore([errorViolation], config);
       expect(resultOneError.score).toBe(85);
       expect(resultOneError.passed).toBe(false);
       expect(resultOneError.violationsByType.circular).toBe(1);
 
-      const resultOneWarn = calculateScore([warnViolation], config);
+      const resultOneWarn = validator.calculateScore([warnViolation], config);
       expect(resultOneWarn.score).toBe(95);
       expect(resultOneWarn.passed).toBe(true);
       expect(resultOneWarn.violationsByType.orphan).toBe(1);

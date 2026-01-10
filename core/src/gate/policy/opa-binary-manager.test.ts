@@ -4,7 +4,7 @@
  * Tests OPA binary download, caching, and version management
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OPABinaryManager } from './opa-binary-manager.js';
 import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'fs';
 import { join } from 'path';
@@ -235,25 +235,30 @@ describe('OPABinaryManager', () => {
         autoDownload: false,
       });
 
-      // Should throw since autoDownload is false, but verifies the method exists
-      await expect(downloadManager.forceDownload()).rejects.toThrow();
+      const downloadSpy = vi
+
+        .spyOn(downloadManager as any, 'downloadBinary')
+        .mockResolvedValue(undefined);
+
+      const verifiedPath = await downloadManager.forceDownload();
+
+      expect(downloadSpy).toHaveBeenCalledTimes(1);
+      expect(existsSync(verifiedPath)).toBe(false);
     });
 
     it('should remove existing cached binary', async () => {
-      // Create a mock cached binary
       const binaryPath = join(tempCacheDir, 'opa-0.60.0-linux-amd64');
       writeFileSync(binaryPath, 'mock binary');
 
       expect(existsSync(binaryPath)).toBe(true);
 
-      try {
-        await manager.forceDownload();
-      } catch {
-        // Expected to fail with autoDownload false
-      }
+      const downloadSpy = vi.spyOn(manager as any, 'downloadBinary').mockResolvedValue(undefined);
 
-      // Binary should be removed (or download attempted)
-      expect(true).toBe(true);
+      const verifiedPath = await manager.forceDownload();
+
+      expect(downloadSpy).toHaveBeenCalledTimes(1);
+      expect(existsSync(binaryPath)).toBe(false);
+      expect(verifiedPath).toBe(binaryPath);
     });
   });
 
