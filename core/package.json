@@ -35,6 +35,7 @@
     "eslint": "^9.39.2",
     "js-yaml": "^4.1.1",
     "minimatch": "^10.1.1",
+    "safe-regex2": "^5.0.0",
     "shell-quote": "^1.8.2",
     "zod": "^4.2.1"
   },
