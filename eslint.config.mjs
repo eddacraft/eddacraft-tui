@@ -3,6 +3,7 @@ import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 import reactPlugin from 'eslint-plugin-react';
 import globals from 'globals';
 import typescriptEslint from 'typescript-eslint';
+import anvilPlugin from 'eslint-plugin-anvil';
 // import jsonPlugin from '@eslint/json'; // TODO: Re-enable once compatible with ESLint 9
 
 export default typescriptEslint.config(
@@ -71,6 +72,9 @@ export default typescriptEslint.config(
       '**/jest.config.ts',
       '**/scripts/**/*.ts',
     ],
+    plugins: {
+      anvil: anvilPlugin,
+    },
     languageOptions: {
       parserOptions: {
         project: false,
@@ -80,6 +84,10 @@ export default typescriptEslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off',
+      // Anvil test quality rules (warn initially, promote to error once clean)
+      'anvil/no-any-in-tests': 'warn',
+      'anvil/require-mock-cleanup': 'warn',
+      'anvil/require-cwd-restoration': 'warn',
     },
   },
   {

@@ -1,0 +1,28 @@
+{
+  "name": "eslint-plugin-anvil",
+  "version": "0.1.0",
+  "description": "ESLint rules for Anvil test quality enforcement",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "eslint",
+    "eslintplugin",
+    "anvil",
+    "testing"
+  ],
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  },
+  "devDependencies": {
+    "@types/eslint": "^8.56.0",
+    "@typescript-eslint/types": "^8.0.0",
+    "typescript": "^5.0.0"
+  }
+}
