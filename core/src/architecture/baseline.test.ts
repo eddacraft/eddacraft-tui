@@ -2,7 +2,7 @@
  * Tests for baseline storage
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -230,20 +230,26 @@ describe('Baseline Creation and Update', () => {
   });
 
   describe('updateBaseline', () => {
-    it('should update entry points', async () => {
-      const original = createBaseline({});
-      const newEntryPoints = [
-        { path: 'src/new.ts', type: 'package' as const, confidence: 'high' as const },
-      ];
+    it('should update entry points', () => {
+      vi.useFakeTimers();
 
-      // Wait 1ms to ensure different timestamp
-      await new Promise((resolve) => setTimeout(resolve, 1));
+      try {
+        vi.setSystemTime(new Date('2020-01-01T00:00:00.000Z'));
+        const original = createBaseline({});
 
-      const updated = updateBaseline(original, { entryPoints: newEntryPoints });
+        const newEntryPoints = [
+          { path: 'src/new.ts', type: 'package' as const, confidence: 'high' as const },
+        ];
 
-      expect(updated.entry_points).toEqual(newEntryPoints);
-      expect(updated.created_at).toBe(original.created_at);
-      expect(updated.updated_at).not.toBe(original.updated_at);
+        vi.setSystemTime(new Date('2020-01-01T00:00:01.000Z'));
+        const updated = updateBaseline(original, { entryPoints: newEntryPoints });
+
+        expect(updated.entry_points).toEqual(newEntryPoints);
+        expect(updated.created_at).toBe(original.created_at);
+        expect(updated.updated_at).not.toBe(original.updated_at);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should update layers', () => {

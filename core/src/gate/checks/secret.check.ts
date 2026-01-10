@@ -211,6 +211,7 @@ export class SecretCheck extends BaseCheck {
   }
 
   /**
+
    * Remove duplicate findings
    */
   private deduplicateFindings(findings: SecretFinding[]): SecretFinding[] {
