@@ -14,12 +14,15 @@ let gateResultsProvider: GateResultsProvider;
 let planWatcher: PlanWatcher;
 let sourceWatcher: SourceWatcher;
 let anvilService: AnvilService;
+let outputChannel: vscode.OutputChannel;
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
-  console.log('Anvil extension is activating...');
+  outputChannel = vscode.window.createOutputChannel('Anvil');
+  context.subscriptions.push(outputChannel);
+  outputChannel.appendLine('Anvil extension is activating...');
 
   // Initialise core services
-  anvilService = new AnvilService(context);
+  anvilService = new AnvilService(context, outputChannel);
   diagnosticsManager = new DiagnosticsManager();
   statusBarManager = new StatusBarManager();
   gateResultsProvider = new GateResultsProvider(anvilService);
@@ -99,11 +102,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   statusBarManager.show();
   statusBarManager.setIdle();
 
-  console.log('Anvil extension activated successfully');
+  outputChannel.appendLine('Anvil extension activated successfully');
 }
 
 export function deactivate(): void {
-  console.log('Anvil extension deactivating...');
+  outputChannel?.appendLine('Anvil extension deactivating...');
 
   if (statusBarManager) {
     statusBarManager.dispose();
