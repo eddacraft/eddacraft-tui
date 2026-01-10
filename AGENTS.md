@@ -228,6 +228,7 @@ class MyCheck extends BaseCheck {
 | Document                      | Purpose                       |
 | ----------------------------- | ----------------------------- |
 | `docs/ARCHITECTURE.md`        | System design (1,575 lines)   |
+| `docs/TESTING.md`             | Testing best practices        |
 | `docs/adr/`                   | Architecture decision records |
 | `docs/planning/TODO.md`       | Task tracking                 |
 | `core/API.md`                 | APS Core API reference        |

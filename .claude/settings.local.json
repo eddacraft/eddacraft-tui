@@ -19,7 +19,8 @@
       "SlashCommand(/feature \"CLI integration with SpecKit adapter - implement format auto-detection, enhanced validate/gate/export commands, and evidence bundle integration to enable users to run anvil commands on SpecKit documents without format conversion\")",
       "Bash(mkdir:*)",
       "Bash(cat:*)",
-      "Bash(gh issue create:*)"
+      "Bash(gh issue create:*)",
+      "mcp__nx-mcp__nx_workspace"
     ],
     "deny": [],
     "ask": []
