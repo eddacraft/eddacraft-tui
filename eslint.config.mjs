@@ -65,13 +65,7 @@ export default typescriptEslint.config(
     },
   },
   {
-    files: [
-      '**/*.test.ts',
-      '**/*.spec.ts',
-      '**/vitest.config.ts',
-      '**/jest.config.ts',
-      '**/scripts/**/*.ts',
-    ],
+    files: ['**/*.test.ts', '**/*.spec.ts', '**/vitest.config.ts', '**/jest.config.ts'],
     plugins: {
       anvil: anvilPlugin,
     },

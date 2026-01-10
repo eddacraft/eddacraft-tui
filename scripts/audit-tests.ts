@@ -6,7 +6,7 @@
  * as documented in docs/TESTING.md.
  *
  * Usage:
- *   npx tsx scripts/audit-tests.ts [--json] [--fix]
+ *   npx tsx scripts/audit-tests.ts [--json]
  *
  * Detects:
  *   - `as any` type assertions (should use vi.mocked())
