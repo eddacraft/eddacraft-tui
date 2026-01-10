@@ -4,7 +4,7 @@
  * Tests OPA binary download, caching, and version management
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { OPABinaryManager } from './opa-binary-manager.js';
 import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'fs';
 import { join } from 'path';
@@ -286,11 +286,7 @@ describe('OPABinaryManager', () => {
     it('should generate correct download URL format', () => {
       // This is tested indirectly through the download logic
       // We verify the manager can be created with different configs
-      const configs = [
-        { version: '0.60.0' },
-        { version: '0.55.0' },
-        { version: '0.50.0' },
-      ];
+      const configs = [{ version: '0.60.0' }, { version: '0.55.0' }, { version: '0.50.0' }];
 
       configs.forEach((config) => {
         const m = new OPABinaryManager({ ...config, cacheDir: tempCacheDir });

@@ -4,8 +4,8 @@
  * Tests OPA policy evaluation and violation detection
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { OPAExecutor, type OPAInput, type PolicyViolation } from './opa-executor.js';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { OPAExecutor, type OPAInput } from './opa-executor.js';
 import { type LoadedPolicy } from './policy-loader.js';
 import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'fs';
 import { join } from 'path';
