@@ -26,5 +26,7 @@
     "ask": []
   },
   "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": ["nx-mcp"]
+  "enabledMcpjsonServers": [
+    "nx-mcp"
+  ]
 }
