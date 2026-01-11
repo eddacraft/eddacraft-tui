@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| OPA   | —     | high     | Draft  |
+| OPA   | —     | high     | Ready  |
 
 ## Purpose
 

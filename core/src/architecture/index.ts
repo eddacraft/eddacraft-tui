@@ -142,6 +142,37 @@ export {
   generateDCConfig,
 } from './dc-generator.js';
 
+// Rego policy generator
+export {
+  GENERATED_POLICIES_DIR,
+  REGO_FILENAME,
+  REGO_PACKAGE,
+  getRegoPath,
+  regoExists,
+  needsRegoRegeneration,
+  writeRegoPolicy,
+  generateRegoPolicy,
+} from './rego-generator.js';
+
+// Architecture compiler (DC + Rego orchestration)
+export {
+  type CompileResult,
+  type CompileOptions,
+  compileArchitecture,
+  needsCompilation,
+} from './compiler.js';
+
+// Template loader
+export {
+  type TemplateFile,
+  type LoadedTemplate,
+  TemplateLoader,
+  getTemplateLoader,
+  listTemplates,
+  getTemplate as getArchitectureTemplate,
+  validateTemplate,
+} from './templates/index.js';
+
 // Architecture context (for OPA)
 export {
   ArchViolationSeveritySchema,

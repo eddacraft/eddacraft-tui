@@ -239,6 +239,7 @@ graph TD
 | [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                         |
 | [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
 | [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
+| [opa-architecture-integration](./modules/opa-architecture-integration.aps.md) | OPA | In Progress | v1.1    | architecture-safety, save-time-trust                      |
 | [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Ready       | v1.2    | save-time-trust, architecture-safety, antipattern-library |
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
@@ -315,29 +316,29 @@ graph TD
 
 ### Task Status — v1.1 (OPA & Architecture Integration)
 
-| Task    | Module | Description                         | Status  | Priority |
-| ------- | ------ | ----------------------------------- | ------- | -------- |
-| OPA-001 | opa    | Architecture YAML schema (Zod)      | Planned | high     |
-| OPA-002 | opa    | YAML parser with template expansion | Planned | high     |
-| OPA-003 | opa    | DC config generator from YAML       | Planned | high     |
-| OPA-004 | opa    | `anvil architecture init` command   | Planned | high     |
-| OPA-005 | opa    | Architecture context extraction     | Planned | high     |
-| OPA-006 | opa    | OPA input schema enhancement        | Planned | high     |
-| OPA-007 | opa    | Gate runner integration             | Planned | high     |
-| OPA-008 | opa    | Rego generator from architecture    | Planned | medium   |
-| OPA-009 | opa    | Generated policy marker             | Planned | medium   |
-| OPA-010 | opa    | Auto-regeneration on YAML change    | Planned | medium   |
-| OPA-011 | opa    | Layered architecture template       | Planned | medium   |
-| OPA-012 | opa    | Hexagonal architecture template     | Planned | medium   |
-| OPA-013 | opa    | Clean Architecture template         | Planned | medium   |
-| OPA-014 | opa    | DDD template with bounded contexts  | Planned | medium   |
-| OPA-015 | opa    | Template loader and validator       | Planned | medium   |
-| OPA-016 | opa    | TypeScript analyser foundation      | Planned | low      |
-| OPA-017 | opa    | Path alias resolver                 | Planned | low      |
-| OPA-018 | opa    | Analyser feature flag               | Planned | low      |
-| OPA-019 | opa    | Bundle download and caching         | Planned | medium   |
-| OPA-020 | opa    | Signature verification              | Planned | medium   |
-| OPA-021 | opa    | Basic auth and CLI commands         | Planned | medium   |
+| Task    | Module | Description                         | Status      | Priority |
+| ------- | ------ | ----------------------------------- | ----------- | -------- |
+| OPA-001 | opa    | Architecture YAML schema (Zod)      | Complete    | high     |
+| OPA-002 | opa    | YAML parser with template expansion | Complete    | high     |
+| OPA-003 | opa    | DC config generator from YAML       | Complete    | high     |
+| OPA-004 | opa    | `anvil architecture init` command   | Complete    | high     |
+| OPA-005 | opa    | Architecture context extraction     | Complete    | high     |
+| OPA-006 | opa    | OPA input schema enhancement        | In Progress | high     |
+| OPA-007 | opa    | Gate runner integration             | Complete    | high     |
+| OPA-008 | opa    | Rego generator from architecture    | Complete    | high     |
+| OPA-009 | opa    | Generated policy marker             | Complete    | medium   |
+| OPA-010 | opa    | Auto-regeneration on YAML change    | Complete    | medium   |
+| OPA-011 | opa    | Layered architecture template       | Complete    | medium   |
+| OPA-012 | opa    | Hexagonal architecture template     | Complete    | medium   |
+| OPA-013 | opa    | Clean Architecture template         | Complete    | medium   |
+| OPA-014 | opa    | DDD template with bounded contexts  | Complete    | medium   |
+| OPA-015 | opa    | Template loader and validator       | Complete    | medium   |
+| OPA-016 | opa    | TypeScript analyser foundation      | Planned     | low      |
+| OPA-017 | opa    | Path alias resolver                 | Planned     | low      |
+| OPA-018 | opa    | Analyser feature flag               | Planned     | low      |
+| OPA-019 | opa    | Bundle download and caching         | Planned     | medium   |
+| OPA-020 | opa    | Signature verification              | Planned     | medium   |
+| OPA-021 | opa    | Basic auth and CLI commands         | Planned     | medium   |
 
 ### Task Status — v1.2 (Advanced Experience)
 

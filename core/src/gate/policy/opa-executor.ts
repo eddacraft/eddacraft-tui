@@ -75,11 +75,32 @@ export interface OPAInput {
       labels?: string[];
     };
   };
-  /** Architecture context (for architecture policies) */
+  /** Architecture context from ArchitectureCheck (for architecture-aware policies) */
   architecture?: {
     layers?: Record<string, string[]>;
     boundaries?: Array<{ from: string; to: string }>;
     dependencies?: Record<string, string[]>;
+    summary?: {
+      total_modules: number;
+      total_violations: number;
+      new_violations: number;
+      circular_count: number;
+      orphan_count: number;
+      layer_violation_count: number;
+      error_count: number;
+      warn_count: number;
+      baseline_loaded: boolean;
+    };
+    violations?: Array<{
+      from: string;
+      to: string;
+      rule: string;
+      severity: string;
+      is_circular: boolean;
+      is_new: boolean;
+      from_layer: string | null;
+      to_layer: string | null;
+    }>;
   };
   /** Policy-specific configuration */
   config?: Record<string, unknown>;

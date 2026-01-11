@@ -12,14 +12,13 @@ import {
   type LayerDefinition,
   getAvailableTemplates,
   getTemplateDefaults,
-  mergeWithTemplate,
   architectureYamlExists,
   getArchitectureYamlPath,
   parseArchitectureDefinition,
-  writeDCConfig,
-  needsRegeneration,
-  dcConfigExists,
+  compileArchitecture,
+  needsCompilation,
   getDCConfigPath,
+  getRegoPath,
   ARCHITECTURE_YAML_FILENAME,
   ARCHITECTURE_DEFINITION_VERSION,
   getDefaultOptions,
@@ -170,9 +169,11 @@ function createInitSubcommand(): Command {
 function createGenerateSubcommand(): Command {
   return new Command('generate')
     .alias('gen')
-    .description('Generate dependency-cruiser config from architecture.yaml')
+    .description('Generate DC config and Rego policies from architecture.yaml')
     .option('--force', 'Regenerate even if up to date')
-    .action(async (options: { force?: boolean }) => {
+    .option('--skip-dc', 'Skip dependency-cruiser config generation')
+    .option('--skip-rego', 'Skip Rego policy generation')
+    .action(async (options: { force?: boolean; skipDc?: boolean; skipRego?: boolean }) => {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
@@ -181,36 +182,48 @@ function createGenerateSubcommand(): Command {
         process.exit(1);
       }
 
-      const spinner = ora('Loading architecture definition...').start();
+      const spinner = ora('Checking if regeneration needed...').start();
 
       try {
-        const definition = await parseArchitectureDefinition(projectRoot);
-        const merged = mergeWithTemplate(definition);
+        if (!options.force) {
+          const needs = await needsCompilation(projectRoot);
+          const skipDC = options.skipDc || !needs.dc;
+          const skipRego = options.skipRego || !needs.rego;
 
-        spinner.text = 'Checking if regeneration needed...';
-
-        if (!options.force && dcConfigExists(projectRoot)) {
-          const needsRegen = await needsRegeneration(projectRoot, merged);
-          if (!needsRegen) {
-            spinner.succeed(chalk.green('DC config is up to date'));
-            console.log(chalk.dim(`\nFile: ${getDCConfigPath(projectRoot)}`));
+          if (skipDC && skipRego) {
+            spinner.succeed(chalk.green('All configs are up to date'));
+            console.log(chalk.dim(`\nDC config: ${getDCConfigPath(projectRoot)}`));
+            console.log(chalk.dim(`Rego policy: ${getRegoPath(projectRoot)}`));
             return;
           }
         }
 
-        spinner.text = 'Generating dependency-cruiser config...';
-        const configPath = await writeDCConfig(projectRoot, merged);
+        spinner.text = 'Generating configs from architecture.yaml...';
+        const result = await compileArchitecture(projectRoot, {
+          force: options.force,
+          skipDC: options.skipDc,
+          skipRego: options.skipRego,
+        });
 
-        spinner.succeed(chalk.green('Generated dependency-cruiser config'));
-        console.log(chalk.dim(`\nFile: ${configPath}`));
+        spinner.succeed(chalk.green('Architecture compilation complete'));
+
+        if (result.dcConfig.regenerated) {
+          console.log(chalk.dim(`\nDC config: ${result.dcConfig.path} (regenerated)`));
+        } else if (!options.skipDc) {
+          console.log(chalk.dim(`\nDC config: ${result.dcConfig.path} (up to date)`));
+        }
+
+        if (result.regoPolicy.regenerated) {
+          console.log(chalk.dim(`Rego policy: ${result.regoPolicy.path} (regenerated)`));
+        } else if (!options.skipRego) {
+          console.log(chalk.dim(`Rego policy: ${result.regoPolicy.path} (up to date)`));
+        }
 
         console.log(chalk.cyan('\nNext steps:'));
         console.log(chalk.dim('  Run architecture check: anvil gate --only-checks architecture'));
-        console.log(
-          chalk.dim('  Or directly: npx depcruise --config .anvil/dependency-cruiser.js src')
-        );
+        console.log(chalk.dim('  Run policy check: anvil gate --only-checks policy'));
       } catch (err) {
-        spinner.fail('Failed to generate config');
+        spinner.fail('Failed to generate configs');
         console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
         process.exit(1);
       }

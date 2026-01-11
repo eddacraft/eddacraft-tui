@@ -240,6 +240,8 @@ export class PolicyCheck extends BaseCheck {
       }
     }
 
+    const architecture = this.buildArchitectureInput(context);
+
     return {
       plan: {
         id: plan.id,
@@ -261,7 +263,58 @@ export class PolicyCheck extends BaseCheck {
         affected_directories: Array.from(affectedDirectories),
       },
       context: opaContext,
+      architecture,
       config: context.check_config,
+    };
+  }
+
+  /**
+   * Bridges ArchitectureCheck output to PolicyCheck OPA input.
+   * Enables Rego policies to query architecture context via input.architecture
+   */
+  private buildArchitectureInput(context: CheckContext): OPAInput['architecture'] | undefined {
+    const archContext = context.architectureContext;
+    if (!archContext) {
+      return undefined;
+    }
+
+    const layers: Record<string, string[]> = {};
+    for (const [layerName, layerStats] of Object.entries(archContext.layers)) {
+      layers[layerName] = layerStats.patterns;
+    }
+
+    const boundaries: Array<{ from: string; to: string }> = [];
+    for (const [layerName, layerStats] of Object.entries(archContext.layers)) {
+      for (const depLayer of layerStats.depends_on) {
+        boundaries.push({ from: layerName, to: depLayer });
+      }
+    }
+
+    return {
+      layers,
+      boundaries,
+      dependencies: archContext.dependencies,
+      summary: {
+        total_modules: archContext.summary.total_modules,
+        total_violations: archContext.summary.total_violations,
+        new_violations: archContext.summary.new_violations,
+        circular_count: archContext.summary.circular_count,
+        orphan_count: archContext.summary.orphan_count,
+        layer_violation_count: archContext.summary.layer_violation_count,
+        error_count: archContext.summary.error_count,
+        warn_count: archContext.summary.warn_count,
+        baseline_loaded: archContext.summary.baseline_loaded,
+      },
+      violations: archContext.violations.map((v) => ({
+        from: v.from,
+        to: v.to,
+        rule: v.rule,
+        severity: v.severity,
+        is_circular: v.is_circular,
+        is_new: v.is_new,
+        from_layer: v.from_layer,
+        to_layer: v.to_layer,
+      })),
     };
   }
 
