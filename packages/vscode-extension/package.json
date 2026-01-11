@@ -328,7 +328,7 @@
     "@anvil/adapters": "workspace:*"
   },
   "devDependencies": {
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.108.1",
     "@vscode/vsce": "^3.0.0",
     "esbuild": "^0.27.2"
   }
