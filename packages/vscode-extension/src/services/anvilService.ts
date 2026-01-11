@@ -260,8 +260,11 @@ export class AnvilService {
   }
 
   private isValidCliPath(cliPath: string): boolean {
-    const fs = require('fs');
-    const nodePath = require('path');
+    // Use dynamic imports to avoid bundling issues in VS Code extension
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs') as typeof import('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodePath = require('path') as typeof import('path');
 
     if (!fs.existsSync(cliPath)) {
       return false;

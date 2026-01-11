@@ -21,7 +21,7 @@ const debug = createDebugger('validation');
 const AnvilRcCheckSchema = z.object({
   name: z.string(),
   enabled: z.boolean().optional(),
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
 });
 
 const AnvilRcSchema = z.object({

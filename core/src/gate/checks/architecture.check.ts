@@ -65,6 +65,16 @@ const ARCH_VIOLATION_SUGGESTIONS = {
 } as const;
 
 /**
+ * Score penalties per severity
+ */
+const SEVERITY_PENALTIES: Record<string, number> = {
+  error: 15,
+  warn: 5,
+  info: 1,
+  ignore: 0,
+};
+
+/**
  * Architecture check that validates project structure using dependency-cruiser
  */
 export class ArchitectureCheck extends BaseCheck {

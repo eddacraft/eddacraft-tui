@@ -1,8 +1,6 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
-import { spawn } from 'child_process';
 import { z } from 'zod';
 import { SECRET_PATTERNS, PatternMatcher } from './secret/secret-patterns.js';
 import { EntropyDetector } from './secret/entropy-detector.js';
@@ -208,176 +206,19 @@ export class SecretCheck extends BaseCheck {
             min_entropy_length: config.min_entropy_length ?? 16,
             allowlist: config.allowlist ?? [],
           }
-        }
+        );
+
+        // Filter out findings that were already detected by pattern matching
+        const newEntropyFindings = entropyFindings.filter(() => {
+          const alreadyDetected = SECRET_PATTERNS.some((p) => p.pattern.test(line));
+          return !alreadyDetected;
+        });
+
+        findings.push(...newEntropyFindings);
       }
     }
 
     return findings;
-  }
-
-  /**
-   * Scan git history for secrets in recent commits
-   * Uses spawn with argument arrays to prevent shell injection
-   */
-  private async scanGitHistory(
-    workspaceRoot: string,
-    config: SecretCheckConfig
-  ): Promise<SecretFinding[]> {
-    const findings: SecretFinding[] = [];
-    const depth = config.git_history_depth ?? 10;
-
-    try {
-      const isGitRepo = existsSync(join(workspaceRoot, '.git'));
-      if (!isGitRepo) {
-        return findings;
-      }
-
-      const stdout = await this.executeGitCommand(
-        [
-          'log',
-          '-p',
-          `-${depth}`,
-          '--all',
-          '--diff-filter=A',
-          '--',
-          '*.ts',
-          '*.js',
-          '*.json',
-          '*.env*',
-          '*.yaml',
-          '*.yml',
-        ],
-        workspaceRoot
-      );
-
-      const commitBlocks = stdout.split(/^commit /m).slice(1);
-
-      for (const block of commitBlocks) {
-        const commitMatch = block.match(/^([a-f0-9]+)/);
-        const commitHash = commitMatch ? commitMatch[1].substring(0, 8) : 'unknown';
-
-        const addedLines = block
-          .split('\n')
-          .filter((line) => line.startsWith('+') && !line.startsWith('+++'));
-
-        for (const addedLine of addedLines) {
-          const lineContent = addedLine.substring(1);
-
-          for (const pattern of this.secretPatterns) {
-            const matches = lineContent.match(pattern.pattern);
-            if (matches && !this.isAllowlisted(matches[0], config)) {
-              findings.push({
-                file: `git-history:${commitHash}`,
-                line: 0,
-                type: `${pattern.name} (in git history)`,
-                match: this.redactSecret(matches[0]),
-                context: this.redactLine(lineContent.trim()),
-                source: 'git-history',
-              });
-            }
-          }
-        }
-      }
-    } catch {
-      // Git command failed - not a git repo or git unavailable
-    }
-
-    return findings;
-  }
-
-  /**
-   * Execute git command safely using spawn (prevents shell injection)
-   */
-  private executeGitCommand(args: string[], cwd: string): Promise<string> {
-    return new Promise((resolve, reject) => {
-      const child = spawn('git', args, {
-        cwd,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-
-      let stdout = '';
-      let stderr = '';
-
-      child.stdout.on('data', (data: Buffer) => {
-        stdout += data.toString('utf8');
-      });
-
-      child.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString('utf8');
-      });
-
-      child.on('error', (error: Error) => {
-        reject(new Error(`Git command failed: ${error.message}`));
-      });
-
-      child.on('close', (code: number | null) => {
-        if (code !== 0) {
-          reject(new Error(stderr || `Git exited with code ${code}`));
-          return;
-        }
-        resolve(stdout);
-      });
-    });
-  }
-
-  private isAllowlisted(str: string, config: SecretCheckConfig): boolean {
-    const MAX_INPUT_LENGTH = 1000;
-    const truncatedStr = str.length > MAX_INPUT_LENGTH ? str.substring(0, MAX_INPUT_LENGTH) : str;
-
-    for (const pattern of this.defaultAllowlist) {
-      if (pattern.test(truncatedStr)) return true;
-    }
-
-    for (const patternStr of config.allowlist || []) {
-      if (this.isSafeRegexPattern(patternStr)) {
-        try {
-          if (new RegExp(patternStr, 'i').test(truncatedStr)) return true;
-        } catch {
-          continue;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  private isSafeRegexPattern(pattern: string): boolean {
-    const MAX_PATTERN_LENGTH = 200;
-    if (pattern.length > MAX_PATTERN_LENGTH) {
-      return false;
-    }
-
-    const dangerousPatterns = [
-      /\(\?[^)]*\+[^)]*\)\+/,
-      /\([^)]+\+\)\+/,
-      /\([^)]+\*\)\+/,
-      /\([^)]+\+\)\*/,
-      /\([^)]+\*\)\*/,
-      /\(\.\*\)\{/,
-      /\(\.\+\)\{/,
-    ];
-
-    return !dangerousPatterns.some((dp) => dp.test(pattern));
-  }
-
-  /**
-   * Check if a string looks like code (not a secret)
-   */
-  private looksLikeCode(str: string): boolean {
-    // Common code patterns that aren't secrets
-    const codePatterns = [
-      /^[a-z][a-zA-Z0-9]*\(/, // Function call
-      /^[a-z][a-zA-Z0-9]*\.[a-z]/, // Method chain
-      /^https?:\/\//, // URLs
-      /^[a-z]+:\/\//, // Protocol URLs
-      /\.(js|ts|css|html|json|md|txt)$/, // File extensions
-      /^[A-Z][A-Z0-9_]+$/, // Constants (all caps)
-      /\s+/, // Contains whitespace
-      /^[a-z][a-z0-9]*[A-Z]/, // camelCase
-      /^[A-Z][a-z]+[A-Z]/, // PascalCase
-    ];
-
-    return codePatterns.some((pattern) => pattern.test(str));
   }
 
   /**
