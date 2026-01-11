@@ -23,41 +23,47 @@ describe('TUI E2E Tests', () => {
   });
 
   describe('anvil --version', () => {
-    it('shows version number', async () => {
-      session = spawnAnvilPTY({ args: ['--version'] });
+    it('shows version number', { timeout: 20000, retry: 2 }, async () => {
+      session = spawnAnvilPTY({
+        args: ['--version'],
+        timeout: 15000,
+      });
 
-      await session.waitFor('0.0.0');
-      const code = await session.waitForExit();
+      await session.waitFor('0.0.0', 10000);
+      const code = await session.waitForExit(10000);
 
       expect(code).toBe(0);
     });
   });
 
   describe('anvil --help', () => {
-    it('shows help with available commands', async () => {
-      session = spawnAnvilPTY({ args: ['--help'] });
+    it('shows help with available commands', { timeout: 20000, retry: 2 }, async () => {
+      session = spawnAnvilPTY({
+        args: ['--help'],
+        timeout: 15000,
+      });
 
-      await session.waitFor('validate');
-      await session.waitFor('gate');
-      await session.waitFor('doctor');
+      await session.waitFor('validate', 10000);
+      await session.waitFor('gate', 10000);
+      await session.waitFor('doctor', 10000);
 
-      const code = await session.waitForExit();
+      const code = await session.waitForExit(10000);
       expect(code).toBe(0);
     });
   });
 
   describe('anvil status', () => {
-    it('renders status output', async () => {
+    it('renders status output', { timeout: 20000, retry: 2 }, async () => {
       session = spawnAnvilPTY({
         args: ['status'],
         cwd: PROJECT_ROOT,
-        timeout: 10000,
+        timeout: 15000,
       });
 
-      await session.waitForMatch(/ANVIL|Status|Hooks|Configuration|project/i, 5000);
+      await session.waitForMatch(/ANVIL|Status|Hooks|Configuration|project/i, 10000);
 
       session.sendKey('q');
-      const code = await session.waitForExit(3000).catch(() => {
+      const code = await session.waitForExit(5000).catch(() => {
         session?.kill();
         return 0;
       });

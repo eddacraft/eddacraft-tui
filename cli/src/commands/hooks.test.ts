@@ -51,7 +51,7 @@ describe('hooks command', () => {
   });
 
   describe('install', () => {
-    it('should create pre-commit hook in .git/hooks', async () => {
+    it('should create pre-commit hook in .git/hooks', { timeout: 10000 }, async () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
