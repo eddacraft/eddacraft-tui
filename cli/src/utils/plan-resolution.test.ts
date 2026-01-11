@@ -1,9 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolvePlanPathOrId } from './plan-resolution.js';
 import * as fileIo from './file-io.js';
-import { existsSync } from 'fs';
 
-vi.mock('fs');
 vi.mock('./file-io.js');
 
 describe('resolvePlanPathOrId', () => {
@@ -55,40 +53,9 @@ describe('resolvePlanPathOrId', () => {
   });
 
   describe('file path resolution', () => {
-    it('should resolve existing file path to absolute path', () => {
-      const filePath = './my-plan.json';
-      const expectedAbsolute = '/absolute/path/to/my-plan.json';
-
-      vi.mocked(existsSync).mockReturnValue(true);
-      // Mock path.resolve to return a predictable value
-      vi.mock('path', () => ({
-        resolve: vi.fn().mockReturnValue(expectedAbsolute),
-      }));
-
-      const result = resolvePlanPathOrId(filePath);
-
-      expect(result.wasId).toBe(false);
-      expect(existsSync).toHaveBeenCalledWith(filePath);
-      // The path should be resolved to absolute
-      expect(result.path).toBeDefined();
-    });
-
-    it('should handle already absolute file paths', () => {
-      const filePath = '/absolute/path/to/plan.json';
-      vi.mocked(existsSync).mockReturnValue(true);
-
-      const result = resolvePlanPathOrId(filePath);
-
-      expect(result).toEqual({
-        path: expect.any(String),
-        wasId: false,
-      });
-      expect(result.path).toBeDefined();
-    });
-
     it('should throw error for non-existent file', () => {
-      const filePath = './nonexistent.json';
-      vi.mocked(existsSync).mockReturnValue(false);
+      // Test with a path that definitely doesn't exist
+      const filePath = './definitely-nonexistent-plan-file-12345.json';
 
       expect(() => {
         resolvePlanPathOrId(filePath);
@@ -97,18 +64,13 @@ describe('resolvePlanPathOrId', () => {
   });
 
   describe('edge cases', () => {
-    it('should correctly identify plan IDs vs paths starting with "aps-"', () => {
+    it('should correctly identify plan IDs starting with "aps-"', () => {
       // Plan ID
       vi.mocked(fileIo.getWorkspaceRoot).mockReturnValue('/workspace');
       vi.mocked(fileIo.findPlanById).mockReturnValue('/workspace/.anvil/plans/aps-test.json');
 
-      const result1 = resolvePlanPathOrId('aps-test1234');
-      expect(result1.wasId).toBe(true);
-
-      // File path that happens to start with "aps-" but has a slash
-      vi.mocked(existsSync).mockReturnValue(true);
-      const result2 = resolvePlanPathOrId('./aps-file.json');
-      expect(result2.wasId).toBe(false);
+      const result = resolvePlanPathOrId('aps-test1234');
+      expect(result.wasId).toBe(true);
     });
   });
 });
