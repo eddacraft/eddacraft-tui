@@ -39,7 +39,7 @@ describe('FormatDetectionService', () => {
     it('should include file path in result when provided', async () => {
       const filePath = '/test/file.md';
       const result = await service.detectFormat('content', filePath);
-      
+
       if (result) {
         expect(result.filePath).toBe(filePath);
       }
@@ -54,7 +54,7 @@ describe('FormatDetectionService', () => {
 
     it('should sort results by confidence descending', async () => {
       const results = await service.detectAllFormats('test content');
-      
+
       // Verify sorting if multiple results exist
       if (results.length > 1) {
         for (let i = 0; i < results.length - 1; i++) {

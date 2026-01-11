@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { EvidenceWriter } from '../evidence-writer.js';
 import type { GateRunResult } from '@anvil/core';
 
@@ -8,7 +8,7 @@ describe('EvidenceWriter', () => {
 
   beforeEach(() => {
     writer = new EvidenceWriter();
-    
+
     // Create mock gate results
     mockGateResults = {
       overall: true,
