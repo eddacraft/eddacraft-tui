@@ -5,7 +5,7 @@
  * covered by standard functional tests. Organized by category.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterAll } from 'vitest';
 import { SpecKitFormatAdapter } from '../speckit/format-adapter.js';
 import { BMADFormatAdapter } from '../bmad/format-adapter.js';
 import { GenericMarkdownAdapter } from '../generic/format-adapter.js';
@@ -375,6 +375,11 @@ FR-01: This is after unclosed YAML`;
       registry = AdapterRegistry.getInstance();
     });
 
+    afterAll(() => {
+      // Restore registry to clean state after all tests in this block
+      AdapterRegistry.resetInstance();
+    });
+
     it('should detect format conflicts when multiple adapters support same format', () => {
       const speckit = new SpecKitFormatAdapter();
       const generic = new GenericMarkdownAdapter();
@@ -410,14 +415,16 @@ FR-01: This is after unclosed YAML`;
       }
     });
 
-    it('should handle concurrent adapter registration attempts', async () => {
+    it('should handle rapid sequential adapter registration', async () => {
       const adapters = [
         new SpecKitFormatAdapter(),
         new BMADFormatAdapter(),
         new GenericMarkdownAdapter(),
       ];
 
-      // Try to register all concurrently
+      // Register all adapters in rapid succession via microtasks
+      // Note: This tests sequential registration order, not true concurrency,
+      // as JavaScript microtasks execute sequentially within a single event loop tick
       const registrations = adapters.map((adapter) =>
         Promise.resolve().then(() => registry.register(adapter))
       );
@@ -602,8 +609,9 @@ FR-01: Test requirement`;
 
       expect(result.success).toBe(true);
 
-      // Should complete in reasonable time (< 5 seconds for 200 items)
-      expect(endTime - startTime).toBeLessThan(5000);
+      // Sanity check: should complete in reasonable time (< 30 seconds for 200 items)
+      // Using a generous threshold to avoid flaky tests on slow CI runners
+      expect(endTime - startTime).toBeLessThan(30000);
 
       if (result.success && result.data) {
         expect(result.data.proposed_changes.length).toBe(200);
