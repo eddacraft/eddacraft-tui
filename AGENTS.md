@@ -3,8 +3,6 @@
 > **Deterministic development automation platform that makes AI-generated code
 > changes safe for production**
 
-**Generated:** 2025-12-31 | **Commit:** 633939d | **Branch:** main
-
 ## Overview
 
 Anvil validates AI-generated code changes through **APS (Anvil Plan

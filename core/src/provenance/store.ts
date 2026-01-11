@@ -65,8 +65,9 @@ history/
     try {
       const content = readFileSync(this.indexPath, 'utf-8');
       return JSON.parse(content) as ProvenanceIndex;
-    } catch {
-      // Corrupted index, start fresh
+    } catch (error) {
+      // Corrupted or missing index, start fresh
+      console.warn('[ProvenanceStore] Failed to load index, starting fresh:', error);
       return {
         version: 1,
         last_updated: new Date().toISOString(),
@@ -123,8 +124,8 @@ history/
             // We'll keep files but remove from index for now
             // Could add cleanup option later
           }
-        } catch {
-          // Ignore cleanup errors
+        } catch (error) {
+          console.debug('[ProvenanceStore] Cleanup error for old record:', error);
         }
       }
     }
@@ -154,7 +155,8 @@ history/
     try {
       const content = readFileSync(recordPath, 'utf-8');
       return JSON.parse(content) as ProvenanceRecord;
-    } catch {
+    } catch (error) {
+      console.debug(`[ProvenanceStore] Failed to load record ${id}:`, error);
       return null;
     }
   }
@@ -271,8 +273,8 @@ history/
           // Using unlinkSync would be cleaner but keeping simple
           writeFileSync(recordPath, ''); // Truncate
         }
-      } catch {
-        // Ignore errors
+      } catch (error) {
+        console.debug(`[ProvenanceStore] Failed to clear record ${record.id}:`, error);
       }
     }
 

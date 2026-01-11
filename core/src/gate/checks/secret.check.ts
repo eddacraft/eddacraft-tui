@@ -269,8 +269,9 @@ export class SecretCheck extends BaseCheck {
           ],
         });
         files.push(...matches);
-      } catch {
-        // Ignore glob errors
+      } catch (error) {
+        // Log glob errors for debugging but continue scanning
+        console.debug(`[SecretCheck] Glob error for pattern ${pattern}:`, error);
       }
     }
 
