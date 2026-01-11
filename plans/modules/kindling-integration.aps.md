@@ -434,6 +434,21 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Confidence:** high
 - **Status:** Draft
 
+#### KINDLING-019: OpenAPI spec generation
+
+- **Intent:** Generate machine-readable OpenAPI 3.1 spec from Zod schemas for codegen
+- **Expected Outcome:** OpenAPI spec file enables client library generation in any language
+- **Scope:** `packages/kindling-integration/`
+- **Non-scope:** Client library implementation (just spec)
+- **Files:**
+  - `packages/kindling-integration/scripts/generate-openapi.ts`
+  - `packages/kindling-integration/openapi.json` (generated)
+  - `packages/kindling-integration/openapi.yaml` (generated)
+- **Dependencies:** KINDLING-001, KINDLING-009
+- **Validation:** `pnpm run generate:openapi && validate openapi.json against OpenAPI 3.1 schema`
+- **Confidence:** high
+- **Status:** Draft
+
 ## Decisions
 
 **D-KINDLING-001:** Read-only enforcement at API level, not just documentation
@@ -506,8 +521,12 @@ packages/kindling-integration/
 │   └── emission-overhead.bench.ts
 ├── examples/
 │   └── byo-ai.ts                # BYO-AI integration example
+├── scripts/
+│   └── generate-openapi.ts      # OpenAPI spec generator
 ├── CONTRACTS.md                 # (already exists)
-└── README.md                    # (already exists)
+├── README.md                    # (already exists)
+├── openapi.json                 # (generated)
+└── openapi.yaml                 # (generated)
 ```
 
 **CLI command structure:**
@@ -582,6 +601,32 @@ Users (or their AI) interpret
 
 Truth never moves
 ```
+
+**OpenAPI spec generation (KINDLING-019):**
+
+The Zod schemas in `observation-contract.ts` and `query-contract.ts` can be automatically converted to OpenAPI 3.1 spec using `@asteasolutions/zod-to-openapi`. This enables:
+
+- **Client library generation**: Use OpenAPI generators for TypeScript, Python, Go, Rust, etc.
+- **API documentation**: Auto-generated interactive docs (Swagger UI, Redoc)
+- **Contract testing**: Validate implementations against the spec
+- **IDE autocomplete**: Import spec into tools like Postman, Insomnia
+
+Example command:
+```bash
+pnpm run generate:openapi
+# Outputs: openapi.json, openapi.yaml
+```
+
+Client generation example:
+```bash
+# TypeScript client
+npx openapi-generator-cli generate -i openapi.yaml -g typescript-fetch -o ./clients/ts
+
+# Python client
+openapi-generator-cli generate -i openapi.yaml -g python -o ./clients/python
+```
+
+This is crucial for BYO-AI integration — users can generate type-safe clients in their language of choice.
 
 **Future enhancements (v2+):**
 

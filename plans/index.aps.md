@@ -401,20 +401,27 @@ graph TD
 
 ### Task Status — v2.1 (Kindling Memory Integration)
 
-| Task         | Module   | Description                         | Status  | Priority |
-| ------------ | -------- | ----------------------------------- | ------- | -------- |
-| KINDLING-001 | kindling | Memory service foundation           | Draft   | high     |
-| KINDLING-002 | kindling | Observation schema mapping          | Draft   | high     |
-| KINDLING-003 | kindling | Gate runner observation hook        | Draft   | high     |
-| KINDLING-004 | kindling | Capsule lifecycle orchestration     | Draft   | high     |
-| KINDLING-005 | kindling | Session detection strategy          | Draft   | medium   |
-| KINDLING-006 | kindling | Memory query service                | Draft   | high     |
-| KINDLING-007 | kindling | CLI memory commands                 | Draft   | high     |
-| KINDLING-008 | kindling | Configuration schema and validation | Draft   | high     |
-| KINDLING-009 | kindling | Privacy filtering and retention     | Draft   | high     |
-| KINDLING-010 | kindling | Status dashboard integration        | Draft   | medium   |
-| KINDLING-011 | kindling | Performance benchmarking            | Draft   | medium   |
-| KINDLING-012 | kindling | Documentation and examples          | Draft   | medium   |
+| Task         | Module   | Description                              | Status | Priority |
+| ------------ | -------- | ---------------------------------------- | ------ | -------- |
+| KINDLING-001 | kindling | Kindling service wrapper                 | Draft  | high     |
+| KINDLING-002 | kindling | Configuration schema and loading         | Draft  | high     |
+| KINDLING-003 | kindling | Session observation hooks                | Draft  | high     |
+| KINDLING-004 | kindling | Gate evaluation observations             | Draft  | high     |
+| KINDLING-005 | kindling | Action execution observations            | Draft  | medium   |
+| KINDLING-006 | kindling | Plan lifecycle observations              | Draft  | medium   |
+| KINDLING-007 | kindling | Human input and constraint observations  | Draft  | medium   |
+| KINDLING-008 | kindling | Error observations                       | Draft  | high     |
+| KINDLING-009 | kindling | Query service with scope enforcement     | Draft  | high     |
+| KINDLING-010 | kindling | Query limits and throttling              | Draft  | high     |
+| KINDLING-011 | kindling | Malicious AI test suite                  | Draft  | high     |
+| KINDLING-012 | kindling | Session query command (run show)         | Draft  | high     |
+| KINDLING-013 | kindling | Plan, gate, action query commands        | Draft  | high     |
+| KINDLING-014 | kindling | Status integration                       | Draft  | medium   |
+| KINDLING-015 | kindling | Sensitive data validation                | Draft  | high     |
+| KINDLING-016 | kindling | Retention and pruning                    | Draft  | medium   |
+| KINDLING-017 | kindling | Performance benchmarking                 | Draft  | medium   |
+| KINDLING-018 | kindling | Documentation and examples               | Draft  | medium   |
+| KINDLING-019 | kindling | OpenAPI spec generation                  | Draft  | high     |
 
 ## Risks & Mitigations
 
