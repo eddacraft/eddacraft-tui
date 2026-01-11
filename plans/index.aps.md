@@ -150,6 +150,14 @@ regardless of how good the engine is. First impressions matter.
 | Command Safety  | Validate AI tool commands (CMDSAF)         | Ready   |
 | MCP Server      | Real-time validation during AI generation  | Planned |
 
+### v2.1 — Memory & Context
+
+| Feature              | Description                                      | Status |
+| -------------------- | ------------------------------------------------ | ------ |
+| Kindling Integration | Local-first memory for execution observations    | Draft  |
+| Context Retrieval    | FTS-powered query of past gate checks and errors | Draft  |
+| Pattern Discovery    | Identify recurring violations and drift trends   | Draft  |
+
 ### What's NOT in v1
 
 To ship fast and focused, these are explicitly deferred:
@@ -244,6 +252,7 @@ graph TD
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
 | [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
+| [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.1    | save-time-trust, drift-reporting                          |
 | [test-quality](./modules/test-quality.aps.md)                           | TEST    | In Progress | —       | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
@@ -389,6 +398,23 @@ graph TD
 | MCP-003    | mcp-server     | anvil_gate and anvil_status tools | Planned | high     |
 | MCP-004    | mcp-server     | Resources and prompts             | Planned | medium   |
 | MCP-005    | mcp-server     | HTTP transport and config gen     | Planned | medium   |
+
+### Task Status — v2.1 (Kindling Memory Integration)
+
+| Task         | Module   | Description                         | Status  | Priority |
+| ------------ | -------- | ----------------------------------- | ------- | -------- |
+| KINDLING-001 | kindling | Memory service foundation           | Draft   | high     |
+| KINDLING-002 | kindling | Observation schema mapping          | Draft   | high     |
+| KINDLING-003 | kindling | Gate runner observation hook        | Draft   | high     |
+| KINDLING-004 | kindling | Capsule lifecycle orchestration     | Draft   | high     |
+| KINDLING-005 | kindling | Session detection strategy          | Draft   | medium   |
+| KINDLING-006 | kindling | Memory query service                | Draft   | high     |
+| KINDLING-007 | kindling | CLI memory commands                 | Draft   | high     |
+| KINDLING-008 | kindling | Configuration schema and validation | Draft   | high     |
+| KINDLING-009 | kindling | Privacy filtering and retention     | Draft   | high     |
+| KINDLING-010 | kindling | Status dashboard integration        | Draft   | medium   |
+| KINDLING-011 | kindling | Performance benchmarking            | Draft   | medium   |
+| KINDLING-012 | kindling | Documentation and examples          | Draft   | medium   |
 
 ## Risks & Mitigations
 
