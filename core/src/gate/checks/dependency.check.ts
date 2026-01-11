@@ -4,8 +4,45 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { z } from 'zod';
 
 const execAsync = promisify(exec);
+
+const YarnAdvisoryDataSchema = z.object({
+  id: z.number(),
+  title: z.string(),
+  module_name: z.string(),
+  severity: z.enum(['info', 'low', 'moderate', 'high', 'critical']),
+  url: z.string(),
+  cves: z.array(z.string()),
+  vulnerable_versions: z.string(),
+  patched_versions: z.string(),
+  recommendation: z.string(),
+  findings: z.array(z.object({ version: z.string(), paths: z.array(z.string()) })),
+});
+
+const YarnClassicAdvisorySchema = z.object({
+  type: z.literal('auditAdvisory'),
+  data: z.object({
+    advisory: YarnAdvisoryDataSchema,
+  }),
+});
+
+const YarnClassicSummarySchema = z.object({
+  type: z.literal('auditSummary'),
+  data: z.object({
+    vulnerabilities: z.object({
+      info: z.number(),
+      low: z.number(),
+      moderate: z.number(),
+      high: z.number(),
+      critical: z.number(),
+      total: z.number(),
+    }),
+  }),
+});
+
+const YarnAuditLineSchema = z.union([YarnClassicAdvisorySchema, YarnClassicSummarySchema]);
 
 interface AuditAdvisory {
   id: number;
@@ -66,7 +103,7 @@ interface NpmV7AuditResult {
   };
 }
 
-interface YarnClassicAdvisory {
+interface _YarnClassicAdvisory {
   type: 'auditAdvisory';
   data: {
     advisory: {
@@ -84,7 +121,7 @@ interface YarnClassicAdvisory {
   };
 }
 
-interface YarnClassicSummary {
+interface _YarnClassicSummary {
   type: 'auditSummary';
   data: {
     vulnerabilities: VulnerabilityCount;
@@ -97,9 +134,16 @@ const SEVERITY_SCORES = {
   moderate: 50,
   low: 25,
   info: 10,
-};
+} as const;
 
 const SEVERITY_ORDER = ['critical', 'high', 'moderate', 'low', 'info'] as const;
+
+const VULNERABILITY_SCORE_PENALTIES = {
+  critical: 20,
+  high: 10,
+  moderate: 5,
+  low: 2,
+} as const;
 
 type PackageManager = 'npm' | 'yarn' | 'pnpm';
 
@@ -372,7 +416,11 @@ export class DependencyCheck extends BaseCheck {
       if (!line.trim()) continue;
 
       try {
-        const parsed = JSON.parse(line) as YarnClassicAdvisory | YarnClassicSummary;
+        const parseResult = YarnAuditLineSchema.safeParse(JSON.parse(line));
+        if (!parseResult.success) {
+          continue;
+        }
+        const parsed = parseResult.data;
 
         if (parsed.type === 'auditAdvisory') {
           const advisory = parsed.data.advisory;
@@ -394,14 +442,12 @@ export class DependencyCheck extends BaseCheck {
   }
 
   private calculateScore(critical: number, high: number, moderate: number, low: number): number {
-    // Start with perfect score
     let score = 100;
 
-    // Deduct points based on severity
-    score -= critical * 20; // Critical: -20 points each
-    score -= high * 10; // High: -10 points each
-    score -= moderate * 5; // Moderate: -5 points each
-    score -= low * 2; // Low: -2 points each
+    score -= critical * VULNERABILITY_SCORE_PENALTIES.critical;
+    score -= high * VULNERABILITY_SCORE_PENALTIES.high;
+    score -= moderate * VULNERABILITY_SCORE_PENALTIES.moderate;
+    score -= low * VULNERABILITY_SCORE_PENALTIES.low;
 
     return Math.max(0, score);
   }

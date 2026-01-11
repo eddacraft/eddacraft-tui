@@ -47,6 +47,14 @@ export interface GateResults {
   duration: number;
 }
 
+const DEFAULT_COMMAND_TIMEOUT_MS = 60000;
+const GATE_COMMAND_TIMEOUT_MS = 120000;
+
+export interface CommandOptions {
+  timeout?: number;
+  token?: vscode.CancellationToken;
+}
+
 export class AnvilService {
   private outputChannel: vscode.OutputChannel;
   private lastValidationResults: Map<string, ValidationResult> = new Map();
@@ -68,7 +76,12 @@ export class AnvilService {
     return this.lastGateResults.get(uri);
   }
 
-  async validate(filePath: string): Promise<ValidationResult> {
+  clearCacheForUri(uri: string): void {
+    this.lastValidationResults.delete(uri);
+    this.lastGateResults.delete(uri);
+  }
+
+  async validate(filePath: string, token?: vscode.CancellationToken): Promise<ValidationResult> {
     this.outputChannel.appendLine(`\n[${new Date().toISOString()}] Validating: ${filePath}`);
 
     try {
@@ -78,7 +91,8 @@ export class AnvilService {
       const result = await this.executeCommand(
         command,
         [...baseArgs, 'validate', filePath, '--json'],
-        workspaceFolder
+        workspaceFolder,
+        { timeout: DEFAULT_COMMAND_TIMEOUT_MS, token }
       );
 
       const validationResult = this.parseValidationResult(result);
@@ -112,7 +126,7 @@ export class AnvilService {
     }
   }
 
-  async runGates(filePath: string): Promise<GateResults> {
+  async runGates(filePath: string, token?: vscode.CancellationToken): Promise<GateResults> {
     this.outputChannel.appendLine(`\n[${new Date().toISOString()}] Running gates: ${filePath}`);
 
     const startTime = Date.now();
@@ -124,13 +138,15 @@ export class AnvilService {
 
       const args = [...baseArgs, 'gate', filePath, '--json'];
 
-      // Add gate selection if skipping gates in development
       const skipGates = config.get<string[]>('gates.skipInDevelopment', []);
       if (skipGates.length > 0) {
         args.push('--skip', skipGates.join(','));
       }
 
-      const result = await this.executeCommand(command, args, workspaceFolder);
+      const result = await this.executeCommand(command, args, workspaceFolder, {
+        timeout: GATE_COMMAND_TIMEOUT_MS,
+        token,
+      });
 
       const gateResults = this.parseGateResults(result, startTime);
       this.lastGateResults.set(filePath, gateResults);
@@ -166,7 +182,8 @@ export class AnvilService {
   async exportPlan(
     filePath: string,
     format: string,
-    outputPath?: string
+    outputPath?: string,
+    token?: vscode.CancellationToken
   ): Promise<{ success: boolean; outputPath?: string; error?: string }> {
     this.outputChannel.appendLine(
       `\n[${new Date().toISOString()}] Exporting: ${filePath} to ${format}`
@@ -181,7 +198,10 @@ export class AnvilService {
         args.push('--output', outputPath);
       }
 
-      await this.executeCommand(command, args, workspaceFolder);
+      await this.executeCommand(command, args, workspaceFolder, {
+        timeout: DEFAULT_COMMAND_TIMEOUT_MS,
+        token,
+      });
 
       this.outputChannel.appendLine(`  Export successful`);
 
@@ -200,7 +220,10 @@ export class AnvilService {
     }
   }
 
-  async detectFormat(filePath: string): Promise<string | undefined> {
+  async detectFormat(
+    filePath: string,
+    token?: vscode.CancellationToken
+  ): Promise<string | undefined> {
     try {
       const { command, baseArgs } = this.getCliCommand();
       const workspaceFolder = this.getWorkspaceFolder(filePath);
@@ -208,7 +231,8 @@ export class AnvilService {
       const result = await this.executeCommand(
         command,
         [...baseArgs, 'validate', filePath, '--json'],
-        workspaceFolder
+        workspaceFolder,
+        { timeout: DEFAULT_COMMAND_TIMEOUT_MS, token }
       );
 
       const parsed = JSON.parse(result);
@@ -218,21 +242,46 @@ export class AnvilService {
     }
   }
 
-  /**
-   * Get the CLI command and base arguments.
-   * Returns { command, baseArgs } to support both direct paths and npx invocation.
-   */
   private getCliCommand(): { command: string; baseArgs: string[] } {
     const config = vscode.workspace.getConfiguration('anvil');
     const customPath = config.get<string>('cli.path', '');
 
     if (customPath) {
-      // Custom path - use directly
+      if (!this.isValidCliPath(customPath)) {
+        this.outputChannel.appendLine(
+          `  Warning: Invalid CLI path "${customPath}", falling back to npx`
+        );
+        return { command: 'npx', baseArgs: ['anvil'] };
+      }
       return { command: customPath, baseArgs: [] };
     }
 
-    // Use npx to invoke anvil - npx is the command, 'anvil' is the first arg
     return { command: 'npx', baseArgs: ['anvil'] };
+  }
+
+  private isValidCliPath(cliPath: string): boolean {
+    // Use dynamic imports to avoid bundling issues in VS Code extension
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const fs = require('fs') as typeof import('fs');
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const nodePath = require('path') as typeof import('path');
+
+    if (!fs.existsSync(cliPath)) {
+      return false;
+    }
+
+    const stats = fs.statSync(cliPath);
+    if (!stats.isFile()) {
+      return false;
+    }
+
+    const basename = nodePath.basename(cliPath).toLowerCase();
+    const validNames = ['anvil', 'anvil.js', 'anvil.cmd', 'anvil.exe'];
+    if (!validNames.some((name) => basename === name || basename.startsWith('anvil'))) {
+      return false;
+    }
+
+    return true;
   }
 
   private getWorkspaceFolder(filePath: string): string {
@@ -240,7 +289,14 @@ export class AnvilService {
     return workspaceFolder?.uri.fsPath || path.dirname(filePath);
   }
 
-  private executeCommand(command: string, args: string[], cwd: string): Promise<string> {
+  private executeCommand(
+    command: string,
+    args: string[],
+    cwd: string,
+    options: CommandOptions = {}
+  ): Promise<string> {
+    const { timeout = DEFAULT_COMMAND_TIMEOUT_MS, token } = options;
+
     return new Promise((resolve, reject) => {
       this.outputChannel.appendLine(`  > ${command} ${args.join(' ')}`);
 
@@ -252,6 +308,24 @@ export class AnvilService {
 
       let stdout = '';
       let stderr = '';
+      let killed = false;
+
+      const timeoutId = setTimeout(() => {
+        killed = true;
+        child.kill('SIGTERM');
+        reject(new Error(`Command timed out after ${timeout}ms`));
+      }, timeout);
+
+      const cancellationListener = token?.onCancellationRequested(() => {
+        killed = true;
+        child.kill('SIGTERM');
+        reject(new Error('Operation cancelled'));
+      });
+
+      const cleanup = () => {
+        clearTimeout(timeoutId);
+        cancellationListener?.dispose();
+      };
 
       child.stdout.on('data', (data: Buffer) => {
         stdout += data.toString('utf8');
@@ -262,10 +336,17 @@ export class AnvilService {
       });
 
       child.on('error', (error: Error) => {
+        cleanup();
         reject(new Error(`Failed to spawn command: ${error.message}`));
       });
 
       child.on('close', (code: number | null) => {
+        cleanup();
+
+        if (killed) {
+          return;
+        }
+
         if (code !== 0) {
           if (stderr) {
             try {

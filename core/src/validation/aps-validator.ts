@@ -15,15 +15,13 @@ import {
   createValidationSummary,
 } from './errors.js';
 
-/**
- * Validation result with detailed error information
- */
 export interface ValidationResult {
   valid: boolean;
   data?: APSPlan;
   issues?: ValidationIssue[];
   summary: string;
   formattedErrors?: string;
+  hashValidated?: boolean;
 }
 
 /**
@@ -135,14 +133,19 @@ export class APSValidator {
     }
   }
 
-  /**
-   * Validate plan hash integrity
-   */
   async validateHash(plan: APSPlan): Promise<ValidationResult> {
-    // If hash validator is not set, skip validation
     if (!this.hashValidator) {
       return {
         valid: true,
+        hashValidated: false,
+        issues: [
+          {
+            path: 'hash',
+            message: 'Hash validation skipped (crypto module not available)',
+            code: 'HASH_VALIDATION_SKIPPED',
+            severity: 'warning',
+          },
+        ],
         summary: '⚠️ Hash validation skipped (crypto module not available)',
       };
     }
@@ -154,10 +157,10 @@ export class APSValidator {
       // Calculate the actual hash
       const actualHash = this.hashValidator(planWithoutHash);
 
-      // Compare hashes
       if (actualHash === expectedHash) {
         return {
           valid: true,
+          hashValidated: true,
           summary: '✅ Hash validation passed',
         };
       }

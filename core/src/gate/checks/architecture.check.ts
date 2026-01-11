@@ -11,6 +11,7 @@ import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
 import { existsSync } from 'fs';
 import { join } from 'path';
+import { minimatch } from 'minimatch';
 import { loadBaseline } from '../../architecture/baseline.js';
 import type { ArchitectureBaseline } from '../../architecture/types.js';
 import {
@@ -62,6 +63,16 @@ const ARCH_VIOLATION_SUGGESTIONS = {
   'ARCH-003': 'Move the import target to an appropriate layer or adjust the boundary definition.',
   'ARCH-004': 'Review the dependency-cruiser rule and adjust your code or configuration.',
 } as const;
+
+/**
+ * Score penalties per severity
+ */
+const SEVERITY_PENALTIES: Record<string, number> = {
+  error: 15,
+  warn: 5,
+  info: 1,
+  ignore: 0,
+};
 
 /**
  * Architecture check that validates project structure using dependency-cruiser
@@ -277,6 +288,163 @@ export class ArchitectureCheck extends BaseCheck {
     }
 
     return files;
+  }
+
+  /**
+   * Check if a file should be analysed
+   */
+  private isAnalysableFile(filePath: string, config: Required<ArchitectureCheckConfig>): boolean {
+    const analysableExtensions = ['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'];
+    const hasValidExtension = analysableExtensions.some((ext) => filePath.endsWith(ext));
+
+    if (!hasValidExtension) return false;
+
+    // Check exclusions
+    for (const pattern of config.exclude_patterns) {
+      if (this.matchesGlobPattern(filePath, pattern)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private matchesGlobPattern(filePath: string, pattern: string): boolean {
+    return minimatch(filePath, pattern, { dot: true });
+  }
+
+  /**
+   * Get default cruise options when no config file exists
+   */
+  private getDefaultCruiseOptions(): Record<string, unknown> {
+    return {
+      validate: true,
+      ruleSet: {
+        forbidden: [
+          {
+            name: 'no-circular',
+            severity: 'error',
+            comment: 'Circular dependencies are not allowed',
+            from: {},
+            to: {
+              circular: true,
+            },
+          },
+          {
+            name: 'no-orphans',
+            severity: 'warn',
+            comment: 'Modules without dependents or dependencies',
+            from: {
+              orphan: true,
+              pathNot: [
+                '\\.d\\.ts$',
+                '\\.test\\.(ts|js)$',
+                '\\.spec\\.(ts|js)$',
+                'index\\.(ts|js)$',
+              ],
+            },
+            to: {},
+          },
+        ],
+      },
+    };
+  }
+
+  /**
+   * Calculate score based on violations
+   */
+  private calculateScore(
+    violations: CruiserViolation[],
+    config: Required<ArchitectureCheckConfig>
+  ): {
+    score: number;
+    passed: boolean;
+    violationsByType: Record<string, number>;
+  } {
+    const violationsByType: Record<string, number> = {
+      circular: 0,
+      orphan: 0,
+      layer: 0,
+      other: 0,
+    };
+
+    let totalPenalty = 0;
+    let hasBlockingViolation = false;
+
+    for (const v of violations) {
+      // Categorise violation
+      if (v.cycle && v.cycle.length > 0) {
+        violationsByType.circular++;
+        if (
+          config.fail_on_circular &&
+          this.isBlockingSeverity(v.rule.severity, config.severity_threshold)
+        ) {
+          hasBlockingViolation = true;
+        }
+      } else if (v.rule.name.includes('orphan')) {
+        violationsByType.orphan++;
+        if (
+          config.fail_on_orphan &&
+          this.isBlockingSeverity(v.rule.severity, config.severity_threshold)
+        ) {
+          hasBlockingViolation = true;
+        }
+      } else if (v.rule.name.includes('layer') || v.rule.name.includes('boundary')) {
+        violationsByType.layer++;
+        if (this.isBlockingSeverity(v.rule.severity, config.severity_threshold)) {
+          hasBlockingViolation = true;
+        }
+      } else {
+        violationsByType.other++;
+        if (this.isBlockingSeverity(v.rule.severity, config.severity_threshold)) {
+          hasBlockingViolation = true;
+        }
+      }
+
+      // Calculate penalty
+      totalPenalty += SEVERITY_PENALTIES[v.rule.severity] || 0;
+    }
+
+    const score = Math.max(0, 100 - totalPenalty);
+    const passed = !hasBlockingViolation;
+
+    return { score, passed, violationsByType };
+  }
+
+  /**
+   * Check if a severity level should block the check
+   */
+  private isBlockingSeverity(
+    severity: 'error' | 'warn' | 'info' | 'ignore',
+    threshold: 'error' | 'warn' | 'info'
+  ): boolean {
+    const levels = { error: 3, warn: 2, info: 1, ignore: 0 };
+    return levels[severity] >= levels[threshold];
+  }
+
+  /**
+   * Build human-readable message
+   */
+  private buildMessage(
+    violations: CruiserViolation[],
+    totalCruised: number,
+    passed: boolean
+  ): string {
+    if (violations.length === 0) {
+      return `Architecture check passed: ${totalCruised} modules analysed, no violations`;
+    }
+
+    const errorCount = violations.filter((v) => v.rule.severity === 'error').length;
+    const warnCount = violations.filter((v) => v.rule.severity === 'warn').length;
+    const infoCount = violations.filter((v) => v.rule.severity === 'info').length;
+
+    const parts: string[] = [];
+    if (errorCount > 0) parts.push(`${errorCount} error${errorCount > 1 ? 's' : ''}`);
+    if (warnCount > 0) parts.push(`${warnCount} warning${warnCount > 1 ? 's' : ''}`);
+    if (infoCount > 0) parts.push(`${infoCount} info`);
+
+    const status = passed ? 'passed with issues' : 'failed';
+    return `Architecture check ${status}: ${parts.join(', ')} (${totalCruised} modules analysed)`;
   }
 
   private buildArchitectureContext(

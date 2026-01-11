@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { AnvilService } from '../services/anvilService.js';
 
-export class PlanCodeLensProvider implements vscode.CodeLensProvider {
+export class PlanCodeLensProvider implements vscode.CodeLensProvider, vscode.Disposable {
   private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
 
@@ -9,6 +9,10 @@ export class PlanCodeLensProvider implements vscode.CodeLensProvider {
 
   constructor(anvilService: AnvilService) {
     this.anvilService = anvilService;
+  }
+
+  dispose(): void {
+    this._onDidChangeCodeLenses.dispose();
   }
 
   refresh(): void {

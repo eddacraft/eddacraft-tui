@@ -8,7 +8,35 @@ import { readFile, writeFile, rm, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { createHash } from 'crypto';
 import { homedir } from 'os';
+import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
+import { createDebugger } from '../../utils/debug.js';
+
+const debug = createDebugger('cache');
+
+const CacheEntrySchema = z.object({
+  value: z.unknown(),
+  created_at: z.number(),
+  expires_at: z.number().optional(),
+  key: z.string(),
+  input_hash: z.string().optional(),
+});
+
+const CacheIndexEntrySchema = z.object({
+  file: z.string(),
+  created_at: z.number(),
+  expires_at: z.number().optional(),
+  size_bytes: z.number(),
+});
+
+const CacheIndexSchema = z.object({
+  version: z.number(),
+  entries: z.record(z.string(), CacheIndexEntrySchema),
+  stats: z.object({
+    hits: z.number(),
+    misses: z.number(),
+  }),
+});
 
 /**
  * Default cache directory
@@ -112,15 +140,24 @@ export class FileCacheProvider implements CacheProvider {
     const entryPath = join(this.entriesDir, entryMeta.file);
     try {
       const content = await readFile(entryPath, 'utf-8');
-      const entry = JSON.parse(content) as CacheEntry<T>;
+      const parseResult = CacheEntrySchema.safeParse(JSON.parse(content));
+      if (!parseResult.success) {
+        debug('Invalid cache entry schema, removing from index', parseResult.error);
+        await this.invalidate(key);
+        index.stats.misses++;
+        this.indexDirty = true;
+        await this.saveIndex();
+        return null;
+      }
+      const entry = parseResult.data as CacheEntry<T>;
 
       index.stats.hits++;
       this.indexDirty = true;
       await this.saveIndex();
 
       return entry;
-    } catch {
-      // Entry file missing or corrupted, remove from index
+    } catch (error) {
+      debug('Cache entry file missing or corrupted, removing from index', error);
       await this.invalidate(key);
       index.stats.misses++;
       this.indexDirty = true;
@@ -180,8 +217,8 @@ export class FileCacheProvider implements CacheProvider {
     const filePath = join(this.entriesDir, entryMeta.file);
     try {
       unlinkSync(filePath);
-    } catch {
-      // File already deleted, continue
+    } catch (error) {
+      debug('Cache entry file already deleted or inaccessible', error);
     }
 
     // Remove from index
@@ -227,8 +264,8 @@ export class FileCacheProvider implements CacheProvider {
       await rm(this.cacheDir, { recursive: true, force: true });
       this.index = null;
       this.indexDirty = false;
-    } catch {
-      // Directory might not exist
+    } catch (error) {
+      debug('Failed to clear cache directory (may not exist)', error);
     }
   }
 
@@ -236,7 +273,8 @@ export class FileCacheProvider implements CacheProvider {
     try {
       await this.ensureCacheDir();
       return true;
-    } catch {
+    } catch (error) {
+      debug('Cache directory not available or not writable', error);
       return false;
     }
   }
@@ -272,9 +310,20 @@ export class FileCacheProvider implements CacheProvider {
 
     try {
       const content = await readFile(this.indexPath, 'utf-8');
-      this.index = JSON.parse(content) as CacheIndex;
-    } catch {
-      // Index doesn't exist or is corrupted, create new one
+      const parseResult = CacheIndexSchema.safeParse(JSON.parse(content));
+      if (parseResult.success) {
+        this.index = parseResult.data;
+      } else {
+        debug('Invalid cache index schema, creating new one', parseResult.error);
+        this.index = {
+          version: 1,
+          entries: {},
+          stats: { hits: 0, misses: 0 },
+        };
+        this.indexDirty = true;
+      }
+    } catch (error) {
+      debug('Cache index missing or corrupted, creating new one', error);
       this.index = {
         version: 1,
         entries: {},
@@ -283,7 +332,7 @@ export class FileCacheProvider implements CacheProvider {
       this.indexDirty = true;
     }
 
-    return this.index;
+    return this.index as CacheIndex;
   }
 
   private async saveIndex(): Promise<void> {
@@ -302,13 +351,24 @@ export class FileCacheProvider implements CacheProvider {
   }
 
   private patternToRegex(pattern: string): RegExp {
-    // Convert glob-like pattern to regex
-    // * matches any sequence of characters except :
-    // ** matches any sequence including :
+    const MAX_PATTERN_LENGTH = 200;
+    const MAX_WILDCARDS = 10;
+
+    if (pattern.length > MAX_PATTERN_LENGTH) {
+      throw new Error(`Cache pattern too long: ${pattern.length} > ${MAX_PATTERN_LENGTH}`);
+    }
+
+    const wildcardCount = (pattern.match(/\*/g) || []).length;
+    if (wildcardCount > MAX_WILDCARDS) {
+      throw new Error(`Too many wildcards in pattern: ${wildcardCount} > ${MAX_WILDCARDS}`);
+    }
+
+    const DOUBLE_STAR_PLACEHOLDER = '\x00DOUBLESTAR\x00';
     const escaped = pattern
+      .replace(/\*\*/g, DOUBLE_STAR_PLACEHOLDER)
       .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*\*/g, '.*')
-      .replace(/\*/g, '[^:]*');
+      .replace(/\*/g, '[^:]*')
+      .replace(new RegExp(DOUBLE_STAR_PLACEHOLDER, 'g'), '[^:]*(?::[^:]*)*');
     return new RegExp(`^${escaped}$`);
   }
 

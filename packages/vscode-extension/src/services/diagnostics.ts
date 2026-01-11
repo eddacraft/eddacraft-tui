@@ -3,6 +3,8 @@ import * as path from 'path';
 import type { ValidationResult, GateResults, GateDetail } from './anvilService.js';
 import type { AnalysisResult, AnalysisWarning } from './embeddedAnalysis.js';
 
+const DIAGNOSTIC_HIGHLIGHT_LENGTH = 100;
+
 export class DiagnosticsManager implements vscode.Disposable {
   public readonly diagnosticCollection: vscode.DiagnosticCollection;
   private gateDetailFiles: Set<string> = new Set();
@@ -204,7 +206,7 @@ export class DiagnosticsManager implements vscode.Disposable {
 
     const range = new vscode.Range(
       new vscode.Position(startLine, startCol),
-      new vscode.Position(startLine, startCol + 100) // Highlight the line
+      new vscode.Position(startLine, startCol + DIAGNOSTIC_HIGHLIGHT_LENGTH)
     );
 
     const diagnostic = new vscode.Diagnostic(range, message, severity);

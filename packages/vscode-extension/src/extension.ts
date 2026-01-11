@@ -33,7 +33,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     treeDataProvider: gateResultsProvider,
     showCollapseAll: true,
   });
-  context.subscriptions.push(treeView);
+  context.subscriptions.push(treeView, gateResultsProvider);
 
   // Register CodeLens provider for plan files
   const config = vscode.workspace.getConfiguration('anvil');
@@ -50,7 +50,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ],
       codeLensProvider
     );
-    context.subscriptions.push(codeLensDisposable);
+    context.subscriptions.push(codeLensDisposable, codeLensProvider);
   }
 
   // Register commands
@@ -80,9 +80,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Watch for file changes to update context
   const fileWatcher = vscode.workspace.createFileSystemWatcher('**/*.{plan.md,spec.md,aps.json}');
-  fileWatcher.onDidCreate(() => updatePlanContext());
-  fileWatcher.onDidDelete(() => updatePlanContext());
-  context.subscriptions.push(fileWatcher);
+  context.subscriptions.push(
+    fileWatcher,
+    fileWatcher.onDidCreate(() => updatePlanContext()),
+    fileWatcher.onDidDelete(() => updatePlanContext())
+  );
 
   // Watch for active editor changes
   context.subscriptions.push(

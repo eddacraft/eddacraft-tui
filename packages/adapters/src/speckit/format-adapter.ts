@@ -24,7 +24,7 @@ import {
   type ParseContext,
   type AdapterOptions,
 } from '../base/types.js';
-import { createDetection } from '../base/utils.js';
+import { createDetection, generateDeterministicPlanId } from '../base/utils.js';
 import { SpecKitParser } from './parser.js';
 
 /**
@@ -136,8 +136,7 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
         commit: context?.commit,
       };
 
-      // Generate plan ID
-      const planId = `aps-${Date.now().toString(16).substring(0, 8)}`;
+      const planId = context?.planId ?? generateDeterministicPlanId(content);
 
       // Create APS plan
       const plan: APSPlan = {

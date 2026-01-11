@@ -194,10 +194,8 @@ function generateDefaultOutput(sourcePath: string, targetExt: string): string {
   return join(dir, `${base}.aps.${targetExt}`);
 }
 
-/**
- * Format plan as YAML (placeholder - would need yaml library)
- */
-async function formatAsYaml(plan: unknown): Promise<string> {
-  // For now, just use JSON - in production would use a YAML library
-  return JSON.stringify(plan, null, 2);
+async function formatAsYaml(_plan: unknown): Promise<string> {
+  throw new Error(
+    'YAML export is not yet implemented. Use --format json instead, or install the yaml package.'
+  );
 }

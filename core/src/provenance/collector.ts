@@ -2,18 +2,17 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
+import { randomUUID } from 'crypto';
 import type { AITool, Environment, GitContext, CheckSummary, ProvenanceRecord } from './types.js';
 import type { GateRunResult } from '../types/gate.types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('provenance');
 
 const execAsync = promisify(exec);
 
-/**
- * Generates a unique provenance record ID
- */
 function generateProvenanceId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
-  return `prov-${timestamp}-${random}`;
+  return `prov-${randomUUID()}`;
 }
 
 /**
@@ -29,8 +28,8 @@ export async function collectEnvironment(workspaceRoot: string): Promise<Environ
       const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
       anvilVersion = pkg.version || '0.0.0';
     }
-  } catch {
-    // Ignore errors
+  } catch (error) {
+    debug('Failed to read Anvil CLI package.json for version', error);
   }
 
   return {
@@ -122,8 +121,8 @@ export async function collectGitContext(workspaceRoot: string): Promise<GitConte
     try {
       const { stdout } = await execAsync('git remote get-url origin', { cwd: workspaceRoot });
       repository = stdout.trim();
-    } catch {
-      // No remote configured
+    } catch (error) {
+      debug('No git remote configured or failed to get remote URL', error);
     }
 
     return {
@@ -136,7 +135,8 @@ export async function collectGitContext(workspaceRoot: string): Promise<GitConte
       staged_files: stagedFiles.length > 0 ? stagedFiles : undefined,
       modified_files: modifiedFiles.length > 0 ? modifiedFiles : undefined,
     };
-  } catch {
+  } catch (error) {
+    debug('Failed to collect git context', error);
     return undefined;
   }
 }
@@ -182,8 +182,8 @@ export async function detectAITool(workspaceRoot: string): Promise<AITool | unde
           confidence = 'medium';
         }
       }
-    } catch {
-      // Ignore parse errors
+    } catch (error) {
+      debug('Failed to parse VS Code settings.json for AI tool detection', error);
     }
   }
 
@@ -229,8 +229,8 @@ export async function detectAITool(workspaceRoot: string): Promise<AITool | unde
       name = 'claude-code';
       confidence = 'medium';
     }
-  } catch {
-    // Git command failed
+  } catch (error) {
+    debug('Git log command failed while detecting AI tool from commits', error);
   }
 
   // If no indicators found, return undefined
@@ -289,7 +289,8 @@ export async function createProvenanceRecord(params: {
   try {
     const { stdout } = await execAsync('git config user.name');
     user = stdout.trim() || undefined;
-  } catch {
+  } catch (error) {
+    debug('Failed to get git user.name, falling back to env vars', error);
     user = process.env.USER || process.env.USERNAME;
   }
 

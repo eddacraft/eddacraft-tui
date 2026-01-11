@@ -101,6 +101,8 @@ export interface ParseContext {
   timestamp?: string;
   /** Additional context metadata */
   metadata?: Record<string, unknown>;
+  /** Pre-generated plan ID (for deterministic parsing) */
+  planId?: string;
 }
 
 /**

@@ -34,9 +34,23 @@ export function savePlan(plan: APSPlan, path: string): void {
   writeFileSync(path, JSON.stringify(plan, null, 2), 'utf-8');
 }
 
+/**
+ * Valid plan ID pattern: aps-[8+ hex chars]
+ * Strict validation prevents path traversal attacks
+ */
+const VALID_PLAN_ID_PATTERN = /^aps-[a-f0-9]{8,}$/i;
+
 export function findPlanById(id: string, workspaceRoot: string): string | null {
-  const plansDir = join(workspaceRoot, '.anvil', 'plans');
-  const planFile = join(plansDir, `${id}.json`);
+  if (!VALID_PLAN_ID_PATTERN.test(id)) {
+    return null;
+  }
+
+  const plansDir = resolve(workspaceRoot, '.anvil', 'plans');
+  const planFile = resolve(plansDir, `${id}.json`);
+
+  if (!planFile.startsWith(plansDir)) {
+    return null;
+  }
 
   if (existsSync(planFile)) {
     return planFile;

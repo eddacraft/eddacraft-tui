@@ -9,6 +9,9 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { relative, resolve } from 'path';
 import type { GitFileStatus } from './types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('gate');
 
 const execAsync = promisify(exec);
 
@@ -27,7 +30,8 @@ export class GitStatusChecker {
         cwd: this.workspaceRoot,
       });
       return true;
-    } catch {
+    } catch (error) {
+      debug('Failed to check if directory is a git repository', error);
       return false;
     }
   }
@@ -47,8 +51,8 @@ export class GitStatusChecker {
       });
 
       return this.parseStatusLine(stdout.trim(), relativePath);
-    } catch {
-      // Git command failed - treat as untracked
+    } catch (error) {
+      debug('Git status command failed, treating file as untracked', error);
       return {
         path: relativePath,
         isTracked: false,
@@ -96,7 +100,8 @@ export class GitStatusChecker {
       }
 
       return files;
-    } catch {
+    } catch (error) {
+      debug('Failed to get unstaged files from git status', error);
       return [];
     }
   }
@@ -121,7 +126,8 @@ export class GitStatusChecker {
       }
 
       return files;
-    } catch {
+    } catch (error) {
+      debug('Failed to get untracked files from git status', error);
       return [];
     }
   }
@@ -298,7 +304,8 @@ export async function getChangedFiles(
         }
       }
     }
-  } catch {
+  } catch (error) {
+    debug('Failed to get changed files from git', error);
     return [];
   }
 

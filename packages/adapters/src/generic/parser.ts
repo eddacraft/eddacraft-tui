@@ -7,6 +7,7 @@
 import type { APSPlan, Change } from '@anvil/core';
 import type { ParseContext } from '../base/types.js';
 import type { GenericDocument } from './types.js';
+import { generateDeterministicPlanId } from '../base/utils.js';
 import { parseGenericDocument } from './utils.js';
 
 /**
@@ -46,12 +47,16 @@ function itemToChange(item: string, type: 'requirement' | 'task' | 'feature'): C
   };
 }
 
-/**
- * Convert generic document to APS plan
- */
-export function genericToAPS(document: GenericDocument, context?: ParseContext): APSPlan {
-  // Generate plan ID
-  const planId = `aps-${Math.random().toString(16).substring(2, 10)}`;
+export function genericToAPS(
+  document: GenericDocument,
+  context?: ParseContext,
+  originalContent?: string
+): APSPlan {
+  const planId =
+    context?.planId ??
+    (originalContent
+      ? generateDeterministicPlanId(originalContent)
+      : `aps-${Date.now().toString(16).substring(0, 8)}`);
 
   // Collect all changes from requirements, tasks, and features
   const changes: Change[] = [];
@@ -110,10 +115,7 @@ export function genericToAPS(document: GenericDocument, context?: ParseContext):
   return plan;
 }
 
-/**
- * Parse generic markdown content to APS plan (main entry point)
- */
 export function parseGeneric(content: string, context?: ParseContext): APSPlan {
   const document = parseGenericDocument(content);
-  return genericToAPS(document, context);
+  return genericToAPS(document, context, content);
 }
