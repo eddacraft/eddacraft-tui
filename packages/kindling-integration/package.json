@@ -1,0 +1,47 @@
+{
+  "name": "@anvil/kindling-integration",
+  "version": "0.1.0",
+  "description": "Kindling memory integration contracts for Anvil v1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./query": {
+      "types": "./dist/query-contract.d.ts",
+      "import": "./dist/query-contract.js"
+    },
+    "./observation": {
+      "types": "./dist/observation-contract.d.ts",
+      "import": "./dist/observation-contract.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.0.4"
+  },
+  "keywords": [
+    "anvil",
+    "kindling",
+    "memory",
+    "observability",
+    "governance"
+  ],
+  "license": "MIT"
+}
