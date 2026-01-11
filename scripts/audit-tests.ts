@@ -6,7 +6,8 @@
  * as documented in docs/TESTING.md.
  *
  * Usage:
- *   npx tsx scripts/audit-tests.ts [--json]
+ *   npx tsx scripts/audit-tests.ts          # Console output
+ *   npx tsx scripts/audit-tests.ts --json   # JSON output
  *
  * Detects:
  *   - `as any` type assertions (should use vi.mocked())
@@ -67,7 +68,6 @@ function analyseFile(filePath: string): Violation[] {
   let hasSpyOnCalls = false;
   let hasAfterEach = false;
   let hasRestoreAllMocks = false;
-  let _hasResetAllMocks = false;
   let hasChdirCall = false;
   let hasCwdRestoration = false;
   let hasTempDirCreation = false;
@@ -112,9 +112,7 @@ function analyseFile(filePath: string): Violation[] {
         if (methodName === 'restoreAllMocks') {
           hasRestoreAllMocks = true;
         }
-        if (methodName === 'resetAllMocks') {
-          _hasResetAllMocks = true;
-        }
+        // Note: resetAllMocks tracking could be added here if needed
       }
     }
 

@@ -47,8 +47,11 @@ const rule: Rule.RuleModule = {
             callback.type === 'FunctionExpression'
           ) {
             // Check if vi.restoreAllMocks() is called in the callback body
+            // Use regex to match actual method call, not comments or strings
             const callbackSource = context.sourceCode.getText(callback);
-            if (callbackSource.includes('restoreAllMocks')) {
+            // Match vi.restoreAllMocks() call pattern, avoiding comments and strings
+            const restorePattern = /vi\s*\.\s*restoreAllMocks\s*\(/;
+            if (restorePattern.test(callbackSource)) {
               hasRestoreInAfterEach = true;
             }
           }
