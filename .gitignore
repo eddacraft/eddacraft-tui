@@ -48,5 +48,8 @@ Thumbs.db
 docs/analysis/claude-code-safety-net-review.md
 .anvil/tutorial-progress.json
 
+# Claude (local)
+.claude/settings.local.json
+
 .gemini/
 gha-creds-*.json
