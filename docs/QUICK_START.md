@@ -1,325 +1,272 @@
 # Quick Start Guide
 
-Get started with Anvil in 5 minutes. This guide will walk you through
-installation and initialising your first project.
+Get Anvil catching issues in your code in under 5 minutes.
 
-## What is Anvil?
+## What You'll Achieve
 
-Anvil validates planning documents (SpecKit, BMAD, or any markdown plan) and
-runs quality gates (lint, test, coverage, secrets) to ensure changes are safe
-before execution. It works with your existing planning formats—no need to change
-how you write plans.
+By the end of this guide, you'll have Anvil:
 
-## Installation
+1. Installed and configured in your project
+2. Catching anti-patterns (like `any` types) in your code
+3. Running automatically on file save (optional)
 
-### Prerequisites
+## Prerequisites
 
-- **Node.js** 20.x or 22.x (minimum: 20.0.0)
-- **pnpm** 10.17.1 or higher
+- **Node.js**: 20.x or later
+- **pnpm**: 10.17.1 or later
+- **Git**: Your project should be a git repository
 
-### Install Anvil (Pre-release)
+## Step 1: Install Anvil
 
-> **Note**: Anvil is currently in pre-release. Once published to npm, you'll be
-> able to install with: `npm install -g @anvil/cli`
-
-**Current installation method**:
+Anvil is currently in pre-release. Install from source:
 
 ```bash
 # Clone the repository
 git clone https://github.com/EddaCraft/anvil-001.git
 cd anvil-001
 
-# Install dependencies
+# Install and build
 pnpm install
+pnpm build
 
-# Build all packages and link CLI globally
+# Link CLI globally
 pnpm link:cli
-```
 
-### Verify Installation
-
-```bash
-# Check that anvil is available
+# Verify installation
 anvil --version
-
-# You should see version information
 ```
 
-## Initialise Your Project
+## Step 2: Initialise Your Project
 
-Run `anvil init` in your project directory to set up Anvil:
+Navigate to your project and run the setup wizard:
 
 ```bash
 cd /path/to/your/project
 anvil init
 ```
 
-This will:
+The wizard will:
 
-- Detect your development environment (ESLint, Vitest/Jest, TypeScript, etc.)
-- Create `.anvilrc` configuration with recommended settings
-- Set up directory structure (`.anvil/`, `docs/plans/`)
-- Optionally create example planning documents
-- Update `.gitignore` with Anvil patterns
+- Detect your environment (TypeScript, ESLint, testing framework)
+- Create `.anvilrc` configuration
+- Set up the `.anvil/` directory
+- Optionally install git hooks
 
-**Interactive setup**:
-
-```
-🔨 Initialising Anvil in current project...
-
-Detected environment:
-  Project: my-app
-  Package Manager: pnpm
-  Git: ✓
-  TypeScript: ✓
-  ESLint: ✓
-  Testing: Vitest
-
-? Where should planning documents be stored? (docs/plans)
-? Which planning format do you use? (Use arrow keys)
-❯ SpecKit (GitHub spec-kit format)
-  BMAD (PRD/Architecture format)
-  Generic Markdown
-  Skip example generation
-? Create example planning document? (Y/n)
-? Configuration template: (Use arrow keys)
-❯ Basic (80% thresholds, recommended)
-  Strict (90% thresholds, production-ready)
-  CI-optimised (minimal checks, fast)
-? Enable ESLint gate? (Y/n) (detected)
-? Enable test gate? (Y/n) (detected)
-? Enable coverage gate? (Y/n)
-? Coverage threshold (0-100): (80)
-? Enable secret scanning? (Y/n)
-```
-
-**Non-interactive mode**:
+**Non-interactive mode** (uses defaults):
 
 ```bash
-# Use defaults
 anvil init --non-interactive
 ```
 
-## Your First Validation
+## Step 3: Run Your First Check
 
-After running `anvil init`, you'll have example planning documents ready to
-validate.
-
-### Option 1: Validate Generated Example
-
-If you created an example during init:
+Check your changed files for issues:
 
 ```bash
-# Validate the example plan
-anvil validate docs/plans/example-spec.md
+# Check git-changed files
+anvil check --changed
 
-# You'll see output like:
-# ✓ Detected format: speckit (95% confidence)
-# ✓ Plan is valid
-# ✓ All validation checks passed
+# Or check specific files
+anvil check src/api/*.ts
 ```
 
-### Option 2: Use an Existing Plan
+**Example output** (when issues are found):
 
-If you have a SpecKit, BMAD, or any markdown planning document:
+```
+Checked 3 changed file(s)
+
+Warnings:
+
+⚠ [AP-003] Explicit any type detected
+  src/api/handler.ts:42
+  Using 'any' defeats type safety
+  Fix: Define a proper type or use 'unknown'
+
+⚠ [AP-004] @ts-ignore directive found
+  src/utils/parser.ts:18
+  Type error ignored without fixing root cause
+  Fix: Address the underlying type error
+
+Summary:
+  Total: 2
+  Warnings: 2
+  Time: 45ms
+
+ℹ Warnings found but none are blocking
+```
+
+**When everything is clean**:
+
+```
+✓ No warnings found
+```
+
+## Step 4: Enable Watch Mode (Optional)
+
+For real-time feedback as you code:
 
 ```bash
-# Validate your plan
-anvil validate path/to/your/spec.md
+anvil watch --source
 ```
 
-### Option 3: Create a Sample Plan
+This watches your source files and runs checks automatically when you save.
 
-Create a simple `plan.md` file:
+**Output**:
+
+```
+ANVIL WATCH
+
+  Mode: source files → check
+  Patterns: src/**/*.ts, **/*.tsx
+  Git filter: unstaged changes only
+
+  ◉ Watching for changes... (Ctrl+C to stop)
+
+  [14:32:05] Change detected: src/api/handler.ts
+  [14:32:05] ✓ 0 warnings (23ms)
+
+  [14:35:12] Change detected: src/utils/parser.ts
+  [14:35:12] ⚠ 1 warning (31ms)
+             AP-003: Explicit any type detected
+```
+
+## Step 5: Set Up Git Hooks (Optional)
+
+Run checks automatically before commits:
 
 ```bash
-cat > plan.md << 'EOF'
-# Feature: Add User Authentication
-
-## Overview
-Add secure user authentication to the application.
-
-## Requirements
-- Implement login/logout functionality
-- Add password hashing with bcrypt
-- Create user session management
-
-## Tasks
-- [ ] Create User model with email and password fields
-- [ ] Implement login endpoint
-- [ ] Add logout endpoint
-- [ ] Write authentication middleware
-- [ ] Add tests for auth flow
-
-## Acceptance Criteria
-- Users can register with email and password
-- Passwords are hashed and stored securely
-- Users can log in and receive a session token
-- Session tokens expire after 24 hours
-- All authentication endpoints have tests
-EOF
+# Install pre-commit hook
+anvil hooks install
 ```
 
-Now validate it:
+This adds a pre-commit hook that runs `anvil check --changed --staged`.
+
+**Skip hooks when needed**:
 
 ```bash
-anvil validate plan.md
+ANVIL_SKIP_HOOKS=1 git commit -m "WIP: work in progress"
 ```
 
-## Run Quality Gates
+## What Anvil Catches
 
-Quality gates ensure your changes meet quality standards:
+### Anti-Patterns
 
-```bash
-# Run all quality checks
-anvil gate plan.md
+| Pattern                      | Why It Matters                |
+| ---------------------------- | ----------------------------- |
+| Broad `/* eslint-disable */` | Silences all linting          |
+| Explicit `any` type          | Defeats type safety           |
+| `@ts-ignore` directive       | Ignores errors without fixing |
+| Empty catch blocks           | Silently swallows errors      |
 
-# You'll see a table of check results:
-# ┌──────────┬────────┬─────────┬─────────────────────────────┐
-# │ Check    │ Status │ Score   │ Message                     │
-# ├──────────┼────────┼─────────┼─────────────────────────────┤
-# │ lint     │ ✓ PASS │ 100/100 │ No linting errors found     │
-# │ test     │ ✓ PASS │ 100/100 │ All tests passing           │
-# │ coverage │ ✓ PASS │  85/100 │ Coverage: 85% (≥80%)        │
-# │ secrets  │ ✓ PASS │ 100/100 │ No secrets detected         │
-# └──────────┴────────┴─────────┴─────────────────────────────┘
+### Architecture Violations
+
+Anvil detects when code crosses architectural boundaries you've defined:
+
+```
+⚠ [ARCH-001] New cross-boundary dependency
+  src/api/handler.ts → src/database/queries.ts
+  API layer should not directly access database layer
 ```
 
-**Note:** Gate checks run against your repository code, not the plan itself. If
-you don't have tests or linting set up, some checks may be skipped.
+## Suppressing Warnings
 
-## Export Between Formats
+When you intentionally need to bypass a check, use suppression comments:
 
-Convert your plan to different formats:
-
-```bash
-# Convert to APS (Anvil's internal format)
-anvil export plan.md --to aps --output plan.aps.json
-
-# Convert to YAML
-anvil export plan.md --to yaml --output plan.yaml
-
-# Convert to SpecKit format
-anvil export plan.aps.json --to speckit --output ./speckit-docs/
+```typescript
+// @anvil-ignore AP-003: Third-party SDK requires any for callback
+const handler = sdk.createHandler(callback as any);
 ```
+
+Suppressions require an explanation and are tracked in reports.
 
 ## Common Workflows
 
-### Workflow 1: Quick Validation
+### Before Committing
 
 ```bash
-# Just validate structure and intent
-anvil validate spec.md
+anvil check --changed --staged
 ```
 
-### Workflow 2: Full Quality Check
+### During Development
 
 ```bash
-# Validate + run all quality gates
-anvil validate spec.md && anvil gate spec.md
+anvil watch --source
 ```
 
-### Workflow 3: CI/CD Integration
-
-Use the Anvil GitHub Action for automatic PR validation:
+### In CI/CD
 
 ```yaml
-name: Anvil Check
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
-permissions:
-  contents: read
-  pull-requests: write
-  statuses: write
-  checks: write
-
-jobs:
-  anvil:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/anvil-check
+# .github/workflows/anvil.yml
+- uses: ./.github/actions/anvil-check
 ```
 
-This provides:
+### Quick Health Check
 
-- Automatic changed-files detection
-- PR comment summaries
-- Commit status checks
-- Inline annotations in PR files view
+```bash
+anvil status   # See configuration and recent results
+anvil doctor   # Diagnose setup issues
+```
 
-See [GitHub Action README](../.github/actions/anvil-check/README.md) for full
-documentation.
+## Configuration
 
-## Supported Formats
+Your `.anvilrc` controls Anvil's behaviour:
 
-Anvil automatically detects these formats:
-
-| Format         | Common Files                     | Detection |
-| -------------- | -------------------------------- | --------- |
-| **SpecKit**    | `spec.md`, `plan.md`, `tasks.md` | 90-100%   |
-| **BMAD**       | `prd.md`, `architecture.md`      | 95-100%   |
-| **Generic MD** | `README.md`, `TODO.md`, etc.     | 30-45%    |
-| **APS**        | `*.aps.json`, `*.aps.yaml`       | 100%      |
+```json
+{
+  "checks": {
+    "antipattern": {
+      "enabled": true,
+      "patterns": ["AP-001", "AP-003", "AP-004", "AP-006"]
+    },
+    "architecture": {
+      "enabled": true
+    }
+  },
+  "watch": {
+    "patterns": ["src/**/*.ts", "src/**/*.tsx"],
+    "debounceMs": 300
+  }
+}
+```
 
 ## Next Steps
 
-Now that you've validated your first plan, you can:
-
-1. **Configure Gate Checks** - Customise which quality checks run
-   - See [USER_GUIDE.md](./USER_GUIDE.md#configuration) for details
-
-2. **Explore Examples** - Learn common workflows
-   - See [EXAMPLES.md](./EXAMPLES.md) for real-world use cases
-
-3. **Troubleshoot Issues** - Fix common problems
-   - See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for solutions
-
-4. **Read CLI Reference** - Learn all available commands
-   - See [cli/README.md](../cli/README.md) for complete reference
+- **[User Guide](./USER_GUIDE.md)** — Complete command reference
+- **[Examples](./EXAMPLES.md)** — Real-world workflows
+- **[Troubleshooting](./TROUBLESHOOTING.md)** — Common issues
 
 ## Quick Reference
 
 ```bash
-# Validate a plan
-anvil validate <plan-file>
+# Check changed files
+anvil check --changed
 
-# Run quality gates
-anvil gate <plan-file>
+# Check staged files (pre-commit)
+anvil check --changed --staged
 
-# Export to another format
-anvil export <plan-file> --to <format>
+# Watch source files
+anvil watch --source
 
-# Get help
-anvil --help
-anvil validate --help
-anvil gate --help
+# Verbose output with fix suggestions
+anvil check --changed --verbose
+
+# JSON output for CI/CD
+anvil check --changed --json
+
+# Project health check
+anvil status
+
+# Diagnose setup issues
+anvil doctor
+anvil doctor --fix
 ```
 
 ## Getting Help
 
 - **Documentation**: [docs/](.)
-- **CLI Reference**: [cli/README.md](../cli/README.md)
 - **Issues**: [GitHub Issues](https://github.com/EddaCraft/anvil-001/issues)
-
-## What's Next?
-
-Anvil is under active development. Current capabilities:
-
-- ✅ **Validate** planning documents in multiple formats
-- ✅ **Quality Gates** (lint, test, coverage, secrets)
-- ✅ **Format Conversion** between SpecKit, BMAD, APS
-- ✅ **GitHub Action** for automatic PR validation
-
-Coming soon:
-
-- ⏳ **Apply** changes with snapshot-based rollback
-- ⏳ **Policy Engine** (OPA/Rego) for custom governance
 
 ---
 
-**Ready to dive deeper?** Check out the [User Guide](./USER_GUIDE.md) for
-comprehensive documentation.
+**Ready for more?** See the [User Guide](./USER_GUIDE.md) for comprehensive
+documentation.

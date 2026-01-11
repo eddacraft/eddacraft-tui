@@ -4,6 +4,8 @@ Common issues and solutions for using Anvil.
 
 ## Table of Contents
 
+- [Check Command Issues](#check-command-issues)
+- [Watch Mode Issues](#watch-mode-issues)
 - [Installation Issues](#installation-issues)
 - [Format Detection Issues](#format-detection-issues)
 - [Validation Errors](#validation-errors)
@@ -11,6 +13,288 @@ Common issues and solutions for using Anvil.
 - [Export/Conversion Issues](#exportconversion-issues)
 - [Performance Issues](#performance-issues)
 - [Development Issues](#development-issues)
+
+## Check Command Issues
+
+### Issue: "No files specified"
+
+**Symptoms**:
+
+```bash
+$ anvil check
+✗ No files specified. Use --changed or provide file paths.
+```
+
+**Solution**:
+
+```bash
+# Provide file paths
+anvil check src/api/*.ts
+
+# Or use --changed flag
+anvil check --changed
+
+# Check staged files
+anvil check --changed --staged
+```
+
+---
+
+### Issue: "No changed files to analyse"
+
+**Symptoms**:
+
+```bash
+$ anvil check --changed
+ℹ No changed files to analyse
+```
+
+**Solution**:
+
+This is normal if you have no uncommitted changes. Make some changes first:
+
+```bash
+# Check if you have changes
+git status
+
+# If you have changes but they're committed
+anvil check --changed --since HEAD~1
+
+# Or compare against a branch
+anvil check --changed --since main
+```
+
+---
+
+### Issue: False positives (incorrect warnings)
+
+**Symptoms**:
+
+```bash
+$ anvil check src/types.d.ts
+⚠ [AP-003] Explicit any type detected
+```
+
+**Solution**:
+
+Some patterns have allowlists for expected files:
+
+```json
+// .anvilrc
+{
+  "checks": {
+    "antipattern": {
+      "allowlist": ["**/*.d.ts", "**/__mocks__/**"]
+    }
+  }
+}
+```
+
+Or suppress individual occurrences:
+
+```typescript
+// @anvil-ignore AP-003: Type definition file requires any
+export type LegacyHandler = (data: any) => void;
+```
+
+---
+
+### Issue: Architecture check not running
+
+**Symptoms**:
+
+```bash
+$ anvil check --changed --verbose
+ℹ Checks run: antipattern
+# architecture check not listed
+```
+
+**Solution**:
+
+Architecture check requires dependency-cruiser:
+
+```bash
+# Install dependency-cruiser
+pnpm add -D dependency-cruiser
+
+# Create config
+npx depcruise --init
+
+# Now architecture check will run
+anvil check --changed
+```
+
+---
+
+## Watch Mode Issues
+
+### Issue: Watch mode not detecting changes
+
+**Symptoms**:
+
+```bash
+$ anvil watch --source
+◉ Watching for changes...
+# No output when files are saved
+```
+
+**Solutions**:
+
+**Solution 1** - Check git filter:
+
+Watch mode by default only watches git-unstaged files:
+
+```bash
+# Include all changes (not just git-tracked)
+anvil watch --source --no-git-filter
+```
+
+**Solution 2** - Check patterns:
+
+```bash
+# Verify patterns match your files
+anvil watch --source --verbose
+
+# Custom patterns
+anvil watch --patterns "src/**/*.ts,lib/**/*.ts"
+```
+
+**Solution 3** - Check excludes:
+
+Default excludes may skip your files:
+
+```bash
+# Show what's being watched
+anvil watch --source --verbose
+```
+
+---
+
+### Issue: Watch mode too slow
+
+**Symptoms**:
+
+```bash
+[14:32:05] Change detected: src/api/handler.ts
+[14:32:15] ✓ 0 warnings (10032ms)  # Very slow!
+```
+
+**Solutions**:
+
+**Solution 1** - Use dev profile:
+
+```bash
+anvil watch --source --profile dev
+```
+
+**Solution 2** - Increase debounce:
+
+```bash
+anvil watch --source --debounce 500
+```
+
+**Solution 3** - Limit patterns:
+
+```bash
+anvil watch --patterns "src/api/**/*.ts"
+```
+
+---
+
+### Issue: "Cannot find module '@anvil/core'" in watch
+
+**Symptoms**:
+
+```bash
+$ anvil watch --source
+Error: Cannot find module '@anvil/core'
+```
+
+**Solution**:
+
+Rebuild Anvil packages:
+
+```bash
+cd /path/to/anvil
+pnpm build
+pnpm link:cli
+```
+
+---
+
+## Hook Issues
+
+### Issue: Pre-commit hook not running
+
+**Symptoms**:
+
+```bash
+$ git commit -m "test"
+# No Anvil check runs
+```
+
+**Solutions**:
+
+**Solution 1** - Check hook status:
+
+```bash
+anvil hooks status
+# Shows: pre-commit: missing
+```
+
+**Solution 2** - Install hooks:
+
+```bash
+anvil hooks install
+```
+
+**Solution 3** - Check Husky integration:
+
+```bash
+anvil hooks install --husky
+```
+
+---
+
+### Issue: Pre-commit hook fails on every commit
+
+**Symptoms**:
+
+```bash
+$ git commit -m "fix: update handler"
+✗ Blocking warnings found
+# Can't commit anything
+```
+
+**Solutions**:
+
+**Solution 1** - Fix the issues:
+
+```bash
+anvil check --changed --staged --verbose
+# Review warnings, fix them
+```
+
+**Solution 2** - Skip hooks temporarily:
+
+```bash
+ANVIL_SKIP_HOOKS=1 git commit -m "WIP: work in progress"
+```
+
+**Solution 3** - Configure as non-blocking:
+
+```json
+// .anvilrc
+{
+  "hooks": {
+    "preCommit": {
+      "failOnWarnings": false
+    }
+  }
+}
+```
+
+---
 
 ## Installation Issues
 
@@ -1054,4 +1338,4 @@ Quick reference for error messages:
 
 ---
 
-**Version**: 0.0.0 (Pre-release) **Last Updated**: 2025-11-09
+**Version**: 1.0.0 | **Last Updated**: January 2026

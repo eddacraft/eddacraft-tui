@@ -1,6 +1,8 @@
 export { createArchitectureCommand } from './architecture.js';
 export { createCheckCommand } from './check.js';
 export { createDoctorCommand } from './doctor.js';
+export { createDriftCommand } from './drift.js';
+export { createExplainCommand } from './explain.js';
 export { createGateCommand } from './gate.js';
 export { createGateConfigCommand } from './gate-config.js';
 export { createExportCommand } from './export.js';

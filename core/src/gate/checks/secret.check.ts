@@ -3,6 +3,10 @@ import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.
 import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { spawn } from 'child_process';
+import { z } from 'zod';
+import { SECRET_PATTERNS, PatternMatcher } from './secret/secret-patterns.js';
+import { EntropyDetector } from './secret/entropy-detector.js';
+import { GitScanner } from './secret/git-scanner.js';
 
 export interface SecretFinding {
   file: string;
@@ -14,105 +18,53 @@ export interface SecretFinding {
   source?: 'pattern' | 'entropy' | 'git-history';
 }
 
-export interface SecretCheckConfig {
+/**
+ * Zod schema for SecretCheckConfig with runtime validation
+ */
+export const SecretCheckConfigSchema = z.object({
   /** Enable entropy-based detection (default: true) */
-  enable_entropy?: boolean;
+  enable_entropy: z.boolean().optional(),
   /** Minimum entropy threshold for detection (default: 4.5) */
-  entropy_threshold?: number;
+  entropy_threshold: z.number().optional(),
   /** Minimum string length for entropy analysis (default: 16) */
-  min_entropy_length?: number;
+  min_entropy_length: z.number().optional(),
   /** Enable git history scanning (default: false) */
-  scan_git_history?: boolean;
+  scan_git_history: z.boolean().optional(),
   /** Number of commits to scan in git history (default: 10) */
-  git_history_depth?: number;
+  git_history_depth: z.number().optional(),
   /** Patterns to allowlist (reduce false positives) */
-  allowlist?: string[];
+  allowlist: z.array(z.string()).optional(),
   /** File extensions to skip */
-  skip_extensions?: string[];
-}
+  skip_extensions: z.array(z.string()).optional(),
+});
+
+export type SecretCheckConfig = z.infer<typeof SecretCheckConfigSchema>;
+
+/** File extensions to skip by default */
+const DEFAULT_SKIP_EXTENSIONS = [
+  '.lock',
+  '.min.js',
+  '.min.css',
+  '.map',
+  '.svg',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.ico',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.eot',
+];
 
 export class SecretCheck extends BaseCheck {
   name = 'secret';
   description = 'Scan for potential secrets and sensitive data using patterns and entropy analysis';
 
-  private readonly secretPatterns = [
-    // API Keys
-    { name: 'API Key', pattern: /(?:api[_-]?key|apikey)\s*[:=]\s*['"]?[a-zA-Z0-9_-]{16,}['"]?/i },
-    // JWT Tokens
-    { name: 'JWT Token', pattern: /eyJ[a-zA-Z0-9_-]*\.eyJ[a-zA-Z0-9_-]*\.[a-zA-Z0-9_-]*/ },
-    // AWS Keys
-    { name: 'AWS Key', pattern: /AKIA[0-9A-Z]{16}/ },
-    {
-      name: 'AWS Secret Key',
-      pattern: /(?:aws_secret|aws_secret_access_key)\s*[:=]\s*['"]?[A-Za-z0-9/+=]{40}['"]?/i,
-    },
-    // Private Keys
-    { name: 'Private Key', pattern: /-----BEGIN\s+(?:RSA\s+)?PRIVATE\s+KEY-----/ },
-    { name: 'PGP Private Key', pattern: /-----BEGIN PGP PRIVATE KEY BLOCK-----/ },
-    // Database URLs
-    { name: 'Database URL', pattern: /(?:postgres|mysql|mongodb|redis):\/\/[^:\s]+:[^@\s]+@/ },
-    // Generic secrets
-    {
-      name: 'Generic Secret',
-      pattern: /(?:secret|password|passwd|pwd)\s*[:=]\s*['"]?[^\s'"]{8,}['"]?/i,
-    },
-    // Credit Cards (basic pattern)
-    { name: 'Credit Card', pattern: /\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/ },
-    // GitHub tokens
-    { name: 'GitHub Token', pattern: /gh[pousr]_[A-Za-z0-9_]{36,}/ },
-    // Slack tokens
-    { name: 'Slack Token', pattern: /xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24}/ },
-    // Stripe keys
-    { name: 'Stripe Key', pattern: /sk_live_[0-9a-zA-Z]{24}/ },
-    { name: 'Stripe Test Key', pattern: /sk_test_[0-9a-zA-Z]{24}/ },
-    // Google API keys
-    { name: 'Google API Key', pattern: /AIza[0-9A-Za-z_-]{35}/ },
-    // Heroku API key
-    {
-      name: 'Heroku API Key',
-      pattern:
-        /[h|H]eroku[a-zA-Z0-9_-]*[:=]\s*['"]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['"]?/,
-    },
-    // SendGrid API key
-    { name: 'SendGrid API Key', pattern: /SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}/ },
-    // Twilio API key
-    { name: 'Twilio API Key', pattern: /SK[a-f0-9]{32}/ },
-    // npm token
-    { name: 'NPM Token', pattern: /npm_[A-Za-z0-9]{36}/ },
-  ];
-
-  /** Default patterns to allowlist (common false positives) */
-  private readonly defaultAllowlist = [
-    /^[a-f0-9]{32}$/, // MD5 hashes
-    /^[a-f0-9]{40}$/, // SHA1 hashes
-    /^[a-f0-9]{64}$/, // SHA256 hashes
-    /^0x[a-f0-9]+$/i, // Hex literals
-    /^data:image\/[a-z]+;base64,/, // Base64 images
-    /placeholder/i,
-    /example/i,
-    /test/i,
-    /dummy/i,
-    /sample/i,
-    /lorem ipsum/i,
-  ];
-
-  /** File extensions to skip by default */
-  private readonly defaultSkipExtensions = [
-    '.lock',
-    '.min.js',
-    '.min.css',
-    '.map',
-    '.svg',
-    '.png',
-    '.jpg',
-    '.jpeg',
-    '.gif',
-    '.ico',
-    '.woff',
-    '.woff2',
-    '.ttf',
-    '.eot',
-  ];
+  private matcher = new PatternMatcher();
+  private entropyDetector = new EntropyDetector();
+  private gitScanner = new GitScanner();
 
   async run(context: CheckContext): Promise<GateResult> {
     try {
@@ -137,7 +89,10 @@ export class SecretCheck extends BaseCheck {
 
       // Scan git history if enabled
       if (config.scan_git_history) {
-        const historyFindings = await this.scanGitHistory(context.workspace_root, config);
+        const historyFindings = await this.gitScanner.scanGitHistory(context.workspace_root, {
+          git_history_depth: config.git_history_depth ?? 10,
+          allowlist: config.allowlist ?? [],
+        });
         findings.push(...historyFindings);
       }
 
@@ -186,7 +141,12 @@ export class SecretCheck extends BaseCheck {
    * Get configuration with defaults
    */
   private getConfig(context: CheckContext): SecretCheckConfig {
-    const checkConfig = context.check_config as SecretCheckConfig;
+    // Parse and validate check_config using Zod schema
+    const parseResult = SecretCheckConfigSchema.safeParse(context.check_config);
+
+    // If parsing fails, use empty config (all defaults will be applied)
+    const checkConfig = parseResult.success ? parseResult.data : {};
+
     return {
       enable_entropy: checkConfig.enable_entropy ?? true,
       entropy_threshold: checkConfig.entropy_threshold ?? 4.5,
@@ -202,7 +162,7 @@ export class SecretCheck extends BaseCheck {
    * Check if a file should be skipped based on extension
    */
   private shouldSkipFile(file: string, config: SecretCheckConfig): boolean {
-    const skipExtensions = [...this.defaultSkipExtensions, ...(config.skip_extensions || [])];
+    const skipExtensions = [...DEFAULT_SKIP_EXTENSIONS, ...(config.skip_extensions || [])];
     return skipExtensions.some((ext) => file.endsWith(ext));
   }
 
@@ -223,15 +183,15 @@ export class SecretCheck extends BaseCheck {
       const lineNumber = i + 1;
 
       // Pattern-based detection
-      for (const pattern of this.secretPatterns) {
+      for (const pattern of SECRET_PATTERNS) {
         const matches = line.match(pattern.pattern);
-        if (matches && !this.isAllowlisted(matches[0], config)) {
+        if (matches && !this.matcher.isAllowlisted(matches[0], config.allowlist ?? [])) {
           findings.push({
             file: file.replace(workspaceRoot, ''),
             line: lineNumber,
             type: pattern.name,
-            match: this.redactSecret(matches[0]),
-            context: this.redactLine(line.trim()),
+            match: this.matcher.redactSecret(matches[0]),
+            context: this.matcher.redactLine(line.trim()),
             source: 'pattern',
           });
         }
@@ -239,88 +199,14 @@ export class SecretCheck extends BaseCheck {
 
       // Entropy-based detection (if enabled)
       if (config.enable_entropy) {
-        const entropyFindings = this.detectHighEntropyStrings(
+        const entropyFindings = this.entropyDetector.detectHighEntropyStrings(
           line,
           lineNumber,
           file.replace(workspaceRoot, ''),
-          config
-        );
-        findings.push(...entropyFindings);
-      }
-    }
-
-    return findings;
-  }
-
-  /**
-   * Calculate Shannon entropy of a string
-   * Higher entropy = more randomness = likely a secret
-   */
-  calculateEntropy(str: string): number {
-    if (!str || str.length === 0) return 0;
-
-    const charFrequency: Record<string, number> = {};
-    for (const char of str) {
-      charFrequency[char] = (charFrequency[char] || 0) + 1;
-    }
-
-    let entropy = 0;
-    const len = str.length;
-    for (const char in charFrequency) {
-      const frequency = charFrequency[char] / len;
-      entropy -= frequency * Math.log2(frequency);
-    }
-
-    return entropy;
-  }
-
-  /**
-   * Detect high-entropy strings that might be secrets
-   */
-  private detectHighEntropyStrings(
-    line: string,
-    lineNumber: number,
-    file: string,
-    config: SecretCheckConfig
-  ): SecretFinding[] {
-    const findings: SecretFinding[] = [];
-    const threshold = config.entropy_threshold ?? 4.5;
-    const minLength = config.min_entropy_length ?? 16;
-
-    // Extract potential secret strings (quoted strings, assignments)
-    const stringPatterns = [
-      // Quoted strings
-      /['"]([^'"]{16,})['"]/,
-      // Variable assignments with alphanumeric values
-      /[:=]\s*['"]?([a-zA-Z0-9_/+=-]{16,})['"]?/,
-    ];
-
-    for (const pattern of stringPatterns) {
-      const matches = line.match(pattern);
-      if (matches && matches[1]) {
-        const candidate = matches[1];
-
-        // Skip if too short or already detected by pattern
-        if (candidate.length < minLength) continue;
-        if (this.isAllowlisted(candidate, config)) continue;
-
-        // Skip if it looks like code or common patterns
-        if (this.looksLikeCode(candidate)) continue;
-
-        const entropy = this.calculateEntropy(candidate);
-        if (entropy >= threshold) {
-          // Avoid duplicate if already detected by pattern matching
-          const alreadyDetected = this.secretPatterns.some((p) => p.pattern.test(line));
-          if (!alreadyDetected) {
-            findings.push({
-              file,
-              line: lineNumber,
-              type: 'High Entropy String',
-              match: this.redactSecret(candidate),
-              context: this.redactLine(line.trim()),
-              entropy: Math.round(entropy * 100) / 100,
-              source: 'entropy',
-            });
+          {
+            entropy_threshold: config.entropy_threshold ?? 4.5,
+            min_entropy_length: config.min_entropy_length ?? 16,
+            allowlist: config.allowlist ?? [],
           }
         }
       }
@@ -495,28 +381,7 @@ export class SecretCheck extends BaseCheck {
   }
 
   /**
-   * Redact secret value for safe display
-   */
-  private redactSecret(secret: string): string {
-    if (secret.length <= 8) return '***';
-    const prefix = secret.substring(0, 4);
-    const suffix = secret.substring(secret.length - 4);
-    return `${prefix}...${suffix}`;
-  }
 
-  /**
-   * Redact potential secrets in a line for safe display
-   */
-  private redactLine(line: string): string {
-    let redacted = line;
-
-    // Redact quoted strings that look like secrets
-    redacted = redacted.replace(/(['"])[a-zA-Z0-9_/+=-]{16,}\1/g, '$1[REDACTED]$1');
-
-    return redacted;
-  }
-
-  /**
    * Remove duplicate findings
    */
   private deduplicateFindings(findings: SecretFinding[]): SecretFinding[] {
@@ -574,8 +439,9 @@ export class SecretCheck extends BaseCheck {
           ],
         });
         files.push(...matches);
-      } catch {
-        // Ignore glob errors
+      } catch (error) {
+        // Log glob errors to stderr for debugging but continue scanning
+        console.error(`[SecretCheck] Glob error for pattern ${pattern}:`, error);
       }
     }
 

@@ -119,14 +119,17 @@ export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem>, v
   }
 
   private getGateChildren(gateItem: GateTreeItem): TreeItem[] {
-    const gate = gateItem.gate as ExtendedGateResult;
+    const gate = gateItem.gate;
 
-    if (gate.name === 'architecture' && gate.violations) {
-      return this.getArchitectureChildren(gate, gateItem.filePath);
-    }
+    // Check if this is an extended gate result with additional properties
+    if (isExtendedGateResult(gate)) {
+      if (gate.name === 'architecture' && gate.violations) {
+        return this.getArchitectureChildren(gate, gateItem.filePath);
+      }
 
-    if (gate.name === 'policy' && gate.violationsByPolicy) {
-      return this.getPolicyChildren(gate);
+      if (gate.name === 'policy' && gate.violationsByPolicy) {
+        return this.getPolicyChildren(gate);
+      }
     }
 
     return this.getGenericGateDetails(gateItem);

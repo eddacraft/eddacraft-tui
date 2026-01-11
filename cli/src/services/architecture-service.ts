@@ -62,8 +62,9 @@ function collectSourceFiles(
         }
       }
     }
-  } catch {
-    // Directory doesn't exist or can't be read
+  } catch (error) {
+    // Log directory access errors to stderr for debugging
+    console.error(`[ArchitectureService] Failed to read directory ${dir}:`, error);
   }
 
   return files;

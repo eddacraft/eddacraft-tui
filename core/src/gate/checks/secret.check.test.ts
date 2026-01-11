@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SecretCheck, SecretFinding } from './secret.check.js';
+import { EntropyDetector } from './secret/entropy-detector.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
 import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
@@ -171,7 +172,13 @@ describe('SecretCheck', () => {
   });
 
   it('should handle missing files gracefully', async () => {
-    context.plan.proposed_changes[0].target = 'nonexistent.js';
+    (context.plan as PlanData).proposed_changes = [
+      {
+        type: 'file_update',
+        path: 'nonexistent.js',
+        description: 'Update missing file',
+      },
+    ];
 
     const result = await secretCheck.run(context);
 
@@ -233,14 +240,16 @@ describe('SecretCheck', () => {
 
   describe('Entropy-based detection', () => {
     it('should calculate entropy correctly', () => {
+      const detector = new EntropyDetector();
+
       // Low entropy string (repeated characters)
-      expect(secretCheck.calculateEntropy('aaaaaaaaaaaaaaaa')).toBeLessThan(1);
+      expect(detector.calculateEntropy('aaaaaaaaaaaaaaaa')).toBeLessThan(1);
 
       // Medium entropy string
-      expect(secretCheck.calculateEntropy('abcdefghijklmnop')).toBeGreaterThan(3);
+      expect(detector.calculateEntropy('abcdefghijklmnop')).toBeGreaterThan(3);
 
       // High entropy string (random-looking)
-      const highEntropy = secretCheck.calculateEntropy('aB3dE5fG7hI9jK1lM');
+      const highEntropy = detector.calculateEntropy('aB3dE5fG7hI9jK1lM');
       expect(highEntropy).toBeGreaterThan(4);
     });
 
@@ -358,7 +367,7 @@ describe('SecretCheck', () => {
     it('should skip lock files', async () => {
       writeFileSync(join(tempDir, 'package-lock.json'), '{"apiKey": "sk-1234567890abcdef"}');
 
-      context.plan.proposed_changes = [
+      (context.plan as PlanData).proposed_changes = [
         {
           type: 'file_create',
           path: 'package-lock.json',
@@ -376,7 +385,7 @@ describe('SecretCheck', () => {
     it('should skip minified files', async () => {
       writeFileSync(join(tempDir, 'bundle.min.js'), 'var apiKey="sk-1234567890abcdef";');
 
-      context.plan.proposed_changes = [
+      (context.plan as PlanData).proposed_changes = [
         {
           type: 'file_create',
           path: 'bundle.min.js',
@@ -394,7 +403,7 @@ describe('SecretCheck', () => {
     it('should respect custom skip extensions', async () => {
       writeFileSync(join(tempDir, 'config.custom'), 'apiKey = "sk-1234567890abcdef"');
 
-      context.plan.proposed_changes = [
+      (context.plan as PlanData).proposed_changes = [
         {
           type: 'file_create',
           path: 'config.custom',
@@ -428,10 +437,12 @@ describe('SecretCheck', () => {
 
       const result = await secretCheck.run(context);
 
-      expect(result.details?.summary).toBeDefined();
-      expect(result.details?.summary.total).toBeGreaterThan(0);
-      expect(result.details?.summary.by_pattern).toBeDefined();
-      expect(result.details?.summary.by_entropy).toBeDefined();
+      const summary = (result.details as any)?.summary;
+
+      expect(summary).toBeDefined();
+      expect(summary.total).toBeGreaterThan(0);
+      expect(summary.by_pattern).toBeDefined();
+      expect(summary.by_entropy).toBeDefined();
     });
 
     it('should redact secrets in output', async () => {
@@ -497,7 +508,7 @@ describe('SecretCheck', () => {
           },
         };
 
-        gitContext.plan.proposed_changes = [
+        (gitContext.plan as PlanData).proposed_changes = [
           {
             type: 'file_update',
             path: 'secret.ts',
@@ -567,6 +578,50 @@ describe('SecretCheck', () => {
       const findings = result.details?.findings as SecretFinding[];
       const gitFindings = findings.filter((f) => f.source === 'git-history');
       expect(gitFindings).toHaveLength(0);
+    });
+  });
+
+  describe('Configuration validation', () => {
+    it('should handle invalid check_config gracefully', async () => {
+      writeFileSync(join(tempDir, 'test.js'), 'console.log("hello world");');
+
+      // Provide an invalid check_config (wrong types)
+      context.check_config = {
+        enable_entropy: 'yes', // Should be boolean
+        entropy_threshold: 'high', // Should be number
+        allowlist: 'not-an-array', // Should be array
+      };
+
+      // Should not throw, but use defaults instead
+      const result = await secretCheck.run(context);
+
+      expect(result.passed).toBe(true);
+      expect(result.message).toBe('No secrets detected');
+    });
+
+    it('should apply valid config values correctly', async () => {
+      writeFileSync(join(tempDir, 'test.js'), 'const key = "1234567890abcdef1234567890abcdef";');
+
+      context.check_config = {
+        enable_entropy: false, // Disable entropy detection
+        allowlist: [], // Empty allowlist
+      };
+
+      const result = await secretCheck.run(context);
+
+      // With entropy disabled and no pattern match, should pass
+      expect(result.passed).toBe(true);
+    });
+
+    it('should use default values when check_config is empty', async () => {
+      writeFileSync(join(tempDir, 'test.js'), 'console.log("hello");');
+
+      context.check_config = {}; // Empty config
+
+      const result = await secretCheck.run(context);
+
+      // Should use defaults and pass
+      expect(result.passed).toBe(true);
     });
   });
 });

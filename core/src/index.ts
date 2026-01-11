@@ -30,5 +30,14 @@ export * from './architecture/index.js';
 // Suppression functionality
 export * from './suppression/index.js';
 
+// Drift reporting
+export * from './drift/index.js';
+
+// Warning ID system
+export * from './warnings/index.js';
+
+// Explain command support
+export * from './explain/index.js';
+
 // Utility functions
 export * from './utils/index.js';

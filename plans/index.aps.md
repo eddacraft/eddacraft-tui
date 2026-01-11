@@ -67,9 +67,9 @@ Onboarding Experience:
 
 Documentation:
 
-- [ ] Quick Start Guide update
-- [ ] Demo showing Anvil catching real issues
-- [ ] Error message review
+- [x] Quick Start Guide update
+- [x] Demo showing Anvil catching real issues
+- [x] Error message review
 
 ## Release Plan
 
@@ -103,14 +103,14 @@ deliver both the core value AND a friction-free first experience.
 **Why onboarding is v1:** Without smooth onboarding, users won't adopt the tool
 regardless of how good the engine is. First impressions matter.
 
-#### Documentation & Polish (Ready 📋)
+#### Documentation & Polish (Complete ✅)
 
 | Feature           | Description                     | Status   |
 | ----------------- | ------------------------------- | -------- |
-| Quick Start Guide | 5-minute path to first value    | DOCS-001 |
-| User Guide        | Complete command reference      | DOCS-002 |
-| Demo/Tutorial     | Show Anvil catching real issues | DOCS-003 |
-| Error Messages    | Actionable, not cryptic         | DOCS-004 |
+| Quick Start Guide | 5-minute path to first value    | Complete |
+| User Guide        | Complete command reference      | Complete |
+| Demo/Tutorial     | Show Anvil catching real issues | Complete |
+| Error Messages    | Actionable, not cryptic         | Complete |
 
 ### v1.1 — Drift Visibility & Developer Trust
 
@@ -127,20 +127,20 @@ regardless of how good the engine is. First impressions matter.
 
 ### v1.2 — Advanced Experience
 
-| Feature           | Description                                            | Status |
-| ----------------- | ------------------------------------------------------ | ------ |
-| VS Code Extension | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Ready  |
-| TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)           | Draft  |
-| Template Library  | Pre-built architecture patterns (TUI-006)              | Draft  |
-| Tutorial Mode     | Interactive learning experience (TUI-007)              | Draft  |
+| Feature           | Description                                            | Status   |
+| ----------------- | ------------------------------------------------------ | -------- |
+| VS Code Extension | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Complete |
+| TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)           | Draft    |
+| Template Library  | Pre-built architecture patterns (TUI-006)              | Draft    |
+| Tutorial Mode     | Interactive learning experience (TUI-007)              | Draft    |
 
 #### VS Code Extension Details (v1.2.0 → v1.3.0)
 
-| Phase  | Features                                            | Tasks       |
-| ------ | --------------------------------------------------- | ----------- |
-| v1.2.0 | Embed core, anti-pattern on save, diagnostics, VSIX | IDE-001–003 |
-| v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 |
-| v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 |
+| Phase  | Features                                            | Tasks       | Status   |
+| ------ | --------------------------------------------------- | ----------- | -------- |
+| v1.2.0 | Embed core, anti-pattern on save, diagnostics, VSIX | IDE-001–003 | Complete |
+| v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 | Complete |
+| v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 | Complete |
 
 ### v2.0 — AI Tool Integration
 
@@ -215,10 +215,9 @@ graph TD
 
 ### M3: Developer Ergonomics ✅
 
-- **Status:** Complete (suppressions); Draft (drift-reporting)
+- **Status:** Complete
 - **Includes:** suppressions, drift-reporting
-- **Delivered:** Developers can suppress with accountability
-- **Remaining:** Drift trend reports (v1.1)
+- **Delivered:** Developers can suppress with accountability; drift snapshots and reports
 
 ### M4: Integration Points (Partial)
 
@@ -236,14 +235,15 @@ graph TD
 | [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI    | Complete    | v1.0    | save-time-trust                                           |
 | [suppressions](./modules/suppressions.aps.md)                           | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library                  |
 | [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                           |
-| [tui](./modules/tui.aps.md)                                             | TUI     | In Progress | v1.0    | — (Phase 1: onboarding only)                              |
+| [tui](./modules/tui.aps.md)                                             | TUI     | Complete    | v1.0    | — (Phase 1: onboarding only)                              |
 | [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                         |
-| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Ready       | v1.1    | architecture-safety, antipattern-library                  |
-| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Ready       | v1.1    | architecture-safety, antipattern-library, suppressions    |
+| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
+| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
 | [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Ready       | v1.2    | save-time-trust, architecture-safety, antipattern-library |
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
 | [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
+| [test-quality](./modules/test-quality.aps.md)                           | TEST    | In Progress | —       | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -283,35 +283,35 @@ graph TD
 
 ### Task Status — v1.0 (Documentation)
 
-| Task     | Module | Description            | Status  | Priority |
-| -------- | ------ | ---------------------- | ------- | -------- |
-| DOCS-001 | docs   | Quick Start Guide      | Planned | high     |
-| DOCS-002 | docs   | User Guide command ref | Planned | high     |
-| DOCS-003 | docs   | Demo material creation | Planned | high     |
-| DOCS-004 | docs   | Error message audit    | Planned | medium   |
-| DOCS-005 | docs   | Troubleshooting guide  | Planned | medium   |
-| DOCS-006 | docs   | README refresh         | Planned | high     |
+| Task     | Module | Description            | Status   | Priority |
+| -------- | ------ | ---------------------- | -------- | -------- |
+| DOCS-001 | docs   | Quick Start Guide      | Complete | high     |
+| DOCS-002 | docs   | User Guide command ref | Complete | high     |
+| DOCS-003 | docs   | Demo material creation | Complete | high     |
+| DOCS-004 | docs   | Error message audit    | Complete | medium   |
+| DOCS-005 | docs   | Troubleshooting guide  | Complete | medium   |
+| DOCS-006 | docs   | README refresh         | Complete | high     |
 
 ### Task Status — v1.1 (Explain Command)
 
-| Task       | Module  | Description               | Status  | Priority |
-| ---------- | ------- | ------------------------- | ------- | -------- |
-| EXPLAIN-01 | explain | Warning ID system         | Planned | high     |
-| EXPLAIN-02 | explain | Explanation templates     | Planned | high     |
-| EXPLAIN-03 | explain | Architecture explanations | Planned | high     |
-| EXPLAIN-04 | explain | Anti-pattern explanations | Planned | high     |
-| EXPLAIN-05 | explain | ExplainService            | Planned | high     |
-| EXPLAIN-06 | explain | CLI explain command       | Planned | high     |
+| Task       | Module  | Description               | Status   | Priority |
+| ---------- | ------- | ------------------------- | -------- | -------- |
+| EXPLAIN-01 | explain | Warning ID system         | Complete | high     |
+| EXPLAIN-02 | explain | Explanation templates     | Complete | high     |
+| EXPLAIN-03 | explain | Architecture explanations | Complete | high     |
+| EXPLAIN-04 | explain | Anti-pattern explanations | Complete | high     |
+| EXPLAIN-05 | explain | ExplainService            | Complete | high     |
+| EXPLAIN-06 | explain | CLI explain command       | Complete | high     |
 
 ### Task Status — v1.1 (Drift Reporting)
 
-| Task     | Module | Description               | Status  | Priority |
-| -------- | ------ | ------------------------- | ------- | -------- |
-| DRIFT-01 | drift  | Snapshot schema & storage | Planned | high     |
-| DRIFT-02 | drift  | Snapshot capture          | Planned | high     |
-| DRIFT-03 | drift  | Snapshot comparison       | Planned | high     |
-| DRIFT-04 | drift  | Report generator          | Planned | medium   |
-| DRIFT-05 | drift  | CLI drift commands        | Planned | high     |
+| Task     | Module | Description               | Status   | Priority |
+| -------- | ------ | ------------------------- | -------- | -------- |
+| DRIFT-01 | drift  | Snapshot schema & storage | Complete | high     |
+| DRIFT-02 | drift  | Snapshot capture          | Complete | high     |
+| DRIFT-03 | drift  | Snapshot comparison       | Complete | high     |
+| DRIFT-04 | drift  | Report generator          | Complete | medium   |
+| DRIFT-05 | drift  | CLI drift commands        | Complete | high     |
 
 ### Task Status — v1.1 (OPA & Architecture Integration)
 
@@ -343,16 +343,16 @@ graph TD
 
 #### IDE Integration (VS Code Extension)
 
-| Task    | Module | Description                                     | Status | Priority |
-| ------- | ------ | ----------------------------------------------- | ------ | -------- |
-| IDE-001 | ide    | Embed @anvil/core for fast-path operations      | Done   | high     |
-| IDE-002 | ide    | Anti-pattern detection on save with diagnostics | Done   | high     |
-| IDE-003 | ide    | Improve source location mapping from CLI output | Done   | medium   |
-| IDE-004 | ide    | Architecture gate display in tree view          | Done   | high     |
-| IDE-005 | ide    | OPA policy failure display with remediation     | Done   | high     |
-| IDE-006 | ide    | Click-to-navigate for all violation types       | Done   | medium   |
-| IDE-007 | ide    | APS and Rego syntax highlighting                | Done   | medium   |
-| IDE-008 | ide    | Analysis caching and Marketplace preparation    | Done   | medium   |
+| Task    | Module | Description                                     | Status   | Priority |
+| ------- | ------ | ----------------------------------------------- | -------- | -------- |
+| IDE-001 | ide    | Embed @anvil/core for fast-path operations      | Complete | high     |
+| IDE-002 | ide    | Anti-pattern detection on save with diagnostics | Complete | high     |
+| IDE-003 | ide    | Improve source location mapping from CLI output | Complete | medium   |
+| IDE-004 | ide    | Architecture gate display in tree view          | Complete | high     |
+| IDE-005 | ide    | OPA policy failure display with remediation     | Complete | high     |
+| IDE-006 | ide    | Click-to-navigate for all violation types       | Complete | medium   |
+| IDE-007 | ide    | APS and Rego syntax highlighting                | Complete | medium   |
+| IDE-008 | ide    | Analysis caching and Marketplace preparation    | Complete | medium   |
 
 #### TUI Operational (CLI)
 

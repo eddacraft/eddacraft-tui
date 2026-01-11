@@ -7,21 +7,37 @@
 import type { APSPlan } from '@anvil/core';
 
 /**
+ * Type guard to check if value is a string
+ */
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+/**
+ * Type guard to check if value is a string array
+ */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+/**
  * Serialize APS plan to generic markdown format
  */
 export function serializeToGeneric(plan: APSPlan): string {
   const lines: string[] = [];
 
-  // Title (from intent or metadata)
-  const title = (plan.metadata?.title as string) || plan.intent;
+  // Title (from intent or metadata) - safely check if title is a non-empty string
+  const metadataTitle = plan.metadata?.title;
+  const title = isString(metadataTitle) && metadataTitle ? metadataTitle : plan.intent;
   lines.push(`# ${title}`);
   lines.push('');
 
-  // Overview section
-  if (plan.metadata?.overview) {
+  // Overview section - safely check if overview is a string
+  const metadataOverview = plan.metadata?.overview;
+  if (metadataOverview && isString(metadataOverview)) {
     lines.push('## Overview');
     lines.push('');
-    lines.push(plan.metadata.overview as string);
+    lines.push(metadataOverview);
     lines.push('');
   } else if (plan.intent) {
     lines.push('## Purpose');
@@ -30,11 +46,12 @@ export function serializeToGeneric(plan: APSPlan): string {
     lines.push('');
   }
 
-  // Goals section
-  if (plan.metadata?.goals && Array.isArray(plan.metadata.goals)) {
+  // Goals section - safely check if goals is a string array
+  const metadataGoals = plan.metadata?.goals;
+  if (metadataGoals && isStringArray(metadataGoals)) {
     lines.push('## Goals');
     lines.push('');
-    for (const goal of plan.metadata.goals as string[]) {
+    for (const goal of metadataGoals) {
       lines.push(`- ${goal}`);
     }
     lines.push('');

@@ -60,9 +60,8 @@ export class AnvilService {
   private lastValidationResults: Map<string, ValidationResult> = new Map();
   private lastGateResults: Map<string, GateResults> = new Map();
 
-  constructor(context: vscode.ExtensionContext) {
-    this.outputChannel = vscode.window.createOutputChannel('Anvil');
-    context.subscriptions.push(this.outputChannel);
+  constructor(_context: vscode.ExtensionContext, outputChannel: vscode.OutputChannel) {
+    this.outputChannel = outputChannel;
   }
 
   getOutputChannel(): vscode.OutputChannel {

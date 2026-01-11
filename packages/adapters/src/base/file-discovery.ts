@@ -200,14 +200,14 @@ async function searchDirectory(
                 reason,
               });
             }
-          } catch {
-            // Skip files we can't stat
+          } catch (statError) {
+            console.error(`[FileDiscovery] Failed to stat file ${fullPath}:`, statError);
           }
         }
       }
     }
-  } catch {
-    // Skip directories we can't read
+  } catch (readError) {
+    console.error(`[FileDiscovery] Failed to read directory ${dirPath}:`, readError);
   }
 
   return results;

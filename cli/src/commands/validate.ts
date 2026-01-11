@@ -6,10 +6,10 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { verifyHash } from '@anvil/core';
-import { loadPlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
+import { loadPlan } from '../utils/file-io.js';
+import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import type { ValidateOptions } from '../types/command-options.js';
-import { existsSync } from 'fs';
 
 export function createValidateCommand(): Command {
   return new Command('validate')
@@ -24,21 +24,7 @@ export function createValidateCommand(): Command {
 
       try {
         // Resolve plan path
-        let planPath = planPathOrId;
-
-        // Check if it's a plan ID (starts with 'aps-')
-        if (planPathOrId.startsWith('aps-')) {
-          const workspaceRoot = getWorkspaceRoot();
-          const resolvedPath = findPlanById(planPathOrId, workspaceRoot);
-
-          if (!resolvedPath) {
-            throw new Error(`Plan with ID '${planPathOrId}' not found`);
-          }
-
-          planPath = resolvedPath;
-        } else if (!existsSync(planPath)) {
-          throw new Error(`Plan file not found: ${planPath}`);
-        }
+        const { path: planPath } = resolvePlanPathOrId(planPathOrId);
 
         // Load plan using PlanLoader (supports APS and external formats)
         let plan;
@@ -57,7 +43,7 @@ export function createValidateCommand(): Command {
           spinner.text = 'Detecting format...';
 
           const loadResult = await planLoader.loadPlan(planPath, {
-            format: options.format as string | undefined,
+            format: options.format,
             validateHash: options.validateHash ?? true,
             strict: false,
           });

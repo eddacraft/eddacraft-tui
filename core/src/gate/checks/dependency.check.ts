@@ -289,7 +289,11 @@ export class DependencyCheck extends BaseCheck {
         if (stdout) {
           try {
             return this.normaliseAuditOutput(stdout, packageManager);
-          } catch {
+          } catch (parseError) {
+            console.error(
+              `[DependencyCheck] Failed to parse ${packageManager} audit output:`,
+              parseError
+            );
             return null;
           }
         }
@@ -424,7 +428,8 @@ export class DependencyCheck extends BaseCheck {
         } else if (parsed.type === 'auditSummary') {
           metadata = parsed.data.vulnerabilities;
         }
-      } catch {
+      } catch (parseError) {
+        console.error('[DependencyCheck] Failed to parse Yarn audit line:', parseError);
         continue;
       }
     }
