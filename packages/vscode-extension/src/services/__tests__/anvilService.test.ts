@@ -13,6 +13,7 @@ import * as cp from 'child_process';
 describe('AnvilService', () => {
   let anvilService: AnvilService;
   let mockContext: vscode.ExtensionContext;
+  let mockOutputChannel: vscode.OutputChannel;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -22,13 +23,26 @@ describe('AnvilService', () => {
       globalState: {
         get: vi.fn(),
         update: vi.fn(),
+        keys: vi.fn().mockReturnValue([]),
+        setKeysForSync: vi.fn(),
       },
       workspaceState: {
         get: vi.fn(),
         update: vi.fn(),
+        keys: vi.fn().mockReturnValue([]),
       },
-    };
-    anvilService = new AnvilService(mockContext);
+    } as unknown as vscode.ExtensionContext;
+    mockOutputChannel = {
+      name: 'Anvil',
+      append: vi.fn(),
+      appendLine: vi.fn(),
+      clear: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
+      dispose: vi.fn(),
+      replace: vi.fn(),
+    } as unknown as vscode.OutputChannel;
+    anvilService = new AnvilService(mockContext, mockOutputChannel);
   });
 
   describe('construction', () => {
@@ -292,7 +306,7 @@ describe('AnvilService', () => {
       (vscode.workspace.getConfiguration as ReturnType<typeof vi.fn>).mockReturnValue(mockConfig);
 
       // Create a new service with the custom config
-      const customService = new AnvilService(mockContext);
+      const customService = new AnvilService(mockContext, mockOutputChannel);
 
       const mockChild = createMockChildProcess();
       (cp.spawn as ReturnType<typeof vi.fn>).mockClear();
@@ -313,10 +327,18 @@ describe('AnvilService', () => {
 });
 
 // Helper function to create a mock child process
-function createMockChildProcess() {
-  const mockChild = new EventEmitter();
-  (mockChild as any).stdout = new EventEmitter();
-  (mockChild as any).stderr = new EventEmitter();
-  (mockChild as any).stdin = new EventEmitter();
-  return mockChild as any;
+function createMockChildProcess(): EventEmitter & {
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  stdin: EventEmitter;
+} {
+  const mockChild = new EventEmitter() as EventEmitter & {
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    stdin: EventEmitter;
+  };
+  mockChild.stdout = new EventEmitter();
+  mockChild.stderr = new EventEmitter();
+  mockChild.stdin = new EventEmitter();
+  return mockChild;
 }
