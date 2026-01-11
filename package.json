@@ -65,6 +65,10 @@
     "github-cli": "^0.0.5",
     "markdownlint-cli": "^0.47.0"
   },
+  "overrides": {
+    "node.extend": "1.1.7",
+    "glob": "13.0.0"
+  },
   "pnpm": {
     "overrides": {
       "node.extend": "1.1.7",
