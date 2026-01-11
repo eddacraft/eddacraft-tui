@@ -125,7 +125,7 @@ history/
             // Could add cleanup option later
           }
         } catch (error) {
-          console.debug('[ProvenanceStore] Cleanup error for old record:', error);
+          console.error('[ProvenanceStore] Cleanup error for old record:', error);
         }
       }
     }
@@ -156,7 +156,7 @@ history/
       const content = readFileSync(recordPath, 'utf-8');
       return JSON.parse(content) as ProvenanceRecord;
     } catch (error) {
-      console.debug(`[ProvenanceStore] Failed to load record ${id}:`, error);
+      console.error(`[ProvenanceStore] Failed to load record ${id}:`, error);
       return null;
     }
   }
@@ -274,7 +274,7 @@ history/
           writeFileSync(recordPath, ''); // Truncate
         }
       } catch (error) {
-        console.debug(`[ProvenanceStore] Failed to clear record ${record.id}:`, error);
+        console.error(`[ProvenanceStore] Failed to clear record ${record.id}:`, error);
       }
     }
 

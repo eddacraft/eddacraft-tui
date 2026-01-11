@@ -201,13 +201,13 @@ async function searchDirectory(
               });
             }
           } catch (statError) {
-            console.debug(`[FileDiscovery] Failed to stat file ${fullPath}:`, statError);
+            console.error(`[FileDiscovery] Failed to stat file ${fullPath}:`, statError);
           }
         }
       }
     }
   } catch (readError) {
-    console.debug(`[FileDiscovery] Failed to read directory ${dirPath}:`, readError);
+    console.error(`[FileDiscovery] Failed to read directory ${dirPath}:`, readError);
   }
 
   return results;
