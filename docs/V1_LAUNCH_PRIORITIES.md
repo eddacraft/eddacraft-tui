@@ -1,16 +1,17 @@
 # V1 Launch Priorities - No AI Required
 
-**Date**: 2025-12-25
-**Scope**: Ship-it-now improvements for first public release
-**Constraint**: NO AI dependencies - save for V2
+**Date**: 2025-12-25 **Scope**: Ship-it-now improvements for first public
+release **Constraint**: NO AI dependencies - save for V2
 
 ---
 
 ## Executive Summary
 
-For V1 launch, focus on **fixing the core user experience** without AI features. Get users successfully through their first validation, then add AI magic in V2.
+For V1 launch, focus on **fixing the core user experience** without AI features.
+Get users successfully through their first validation, then add AI magic in V2.
 
-**V1 Goal**: 80%+ success rate getting users from install → first successful validation
+**V1 Goal**: 80%+ success rate getting users from install → first successful
+validation
 
 **V2 Goal**: AI-powered features that make Anvil indispensable
 
@@ -20,8 +21,8 @@ For V1 launch, focus on **fixing the core user experience** without AI features.
 
 ### 1. Fix First-Run Experience (4 hours)
 
-**Problem**: User runs `anvil` and sees cryptic help text
-**Solution**: Friendly welcome with clear next steps
+**Problem**: User runs `anvil` and sees cryptic help text **Solution**: Friendly
+welcome with clear next steps
 
 **Implementation:**
 
@@ -58,16 +59,15 @@ Get help: anvil help <command>
 }
 ```
 
-**Impact**: Users immediately know what to do next
-**Effort**: 4 hours
-**AI Required**: No ✓
+**Impact**: Users immediately know what to do next **Effort**: 4 hours **AI
+Required**: No ✓
 
 ---
 
 ### 2. Add Format Decision Guidance (3 hours)
 
-**Problem**: Users paralyzed by format choice in `anvil init`
-**Solution**: Add context and reassurance
+**Problem**: Users paralyzed by format choice in `anvil init` **Solution**: Add
+context and reassurance
 
 **Implementation:**
 
@@ -104,9 +104,8 @@ const format = await prompts({
 });
 ```
 
-**Impact**: Users make informed decision, know it's not permanent
-**Effort**: 3 hours
-**AI Required**: No ✓
+**Impact**: Users make informed decision, know it's not permanent **Effort**: 3
+hours **AI Required**: No ✓
 
 ---
 
@@ -131,10 +130,14 @@ console.log(`
   ✓ Integrity: Hash verified (SHA-256: ${hash.slice(0, 8)}...)
   ✓ Completeness: ${completenessScore}/100
 
-${suggestions.length > 0 ? `
+${
+  suggestions.length > 0
+    ? `
 💡 Suggestions to improve this plan:
-${suggestions.map(s => `  ${s.icon} ${s.message}`).join('\n')}
-` : ''}
+${suggestions.map((s) => `  ${s.icon} ${s.message}`).join('\n')}
+`
+    : ''
+}
 
 📊 Quality Score: ${qualityScore}/100 (${rating})
 
@@ -153,22 +156,22 @@ With Anvil: ✓
 ${issueCount > 0 ? `⏱️  Time saved: ~${estimatedTimeSaved} minutes of back-and-forth\n` : ''}
 
 Next steps:
-  ${nextSteps.map(s => `${s.icon} ${s.message}`).join('\n  ')}
+  ${nextSteps.map((s) => `${s.icon} ${s.message}`).join('\n  ')}
 `);
 ```
 
-**Impact**: Users understand what value they received
-**Effort**: 4 hours
-**AI Required**: No ✓
+**Impact**: Users understand what value they received **Effort**: 4 hours **AI
+Required**: No ✓
 
 ---
 
 ### 4. Create FAQ Document (2 hours)
 
-**Problem**: Common questions not answered upfront
-**Solution**: Comprehensive FAQ at `docs/FAQ.md`
+**Problem**: Common questions not answered upfront **Solution**: Comprehensive
+FAQ at `docs/FAQ.md`
 
 **Content**: (Already drafted in review)
+
 - What is Anvil?
 - Which format should I use?
 - What's the difference between validate and gate?
@@ -176,15 +179,14 @@ Next steps:
 - Common troubleshooting
 
 **Impact**: Reduces support burden, answers questions before they're asked
-**Effort**: 2 hours
-**AI Required**: No ✓
+**Effort**: 2 hours **AI Required**: No ✓
 
 ---
 
 ### 5. Add Progress Indicators (3 hours)
 
-**Problem**: Silent operations make users think it's frozen
-**Solution**: Visual progress for long-running commands
+**Problem**: Silent operations make users think it's frozen **Solution**: Visual
+progress for long-running commands
 
 **Implementation:**
 
@@ -211,16 +213,15 @@ testSpinner.succeed('  Test: PASS (100/100)');
 // ... etc
 ```
 
-**Impact**: Users know something is happening, builds confidence
-**Effort**: 3 hours
-**AI Required**: No ✓
+**Impact**: Users know something is happening, builds confidence **Effort**: 3
+hours **AI Required**: No ✓
 
 ---
 
 ### 6. Better Error Messages (3 hours)
 
-**Problem**: Cryptic errors like "Validation failed"
-**Solution**: Helpful error messages with fix suggestions
+**Problem**: Cryptic errors like "Validation failed" **Solution**: Helpful error
+messages with fix suggestions
 
 **Implementation:**
 
@@ -261,33 +262,31 @@ throw new AnvilError(
 );
 ```
 
-**Impact**: Users can self-serve fixes instead of asking for help
-**Effort**: 3 hours
-**AI Required**: No ✓
+**Impact**: Users can self-serve fixes instead of asking for help **Effort**: 3
+hours **AI Required**: No ✓
 
 ---
 
 ### 7. Create Format Guide (2 hours)
 
-**Problem**: Users don't know which format to use
-**Solution**: New doc `docs/formats.md` with decision tree
+**Problem**: Users don't know which format to use **Solution**: New doc
+`docs/formats.md` with decision tree
 
 **Content**: (Already drafted in review)
+
 - Quick decision flowchart
 - Format comparison table
 - "You can convert later" reassurance
 - Examples of each format
 
-**Impact**: Removes format confusion, builds confidence
-**Effort**: 2 hours
-**AI Required**: No ✓
+**Impact**: Removes format confusion, builds confidence **Effort**: 2 hours **AI
+Required**: No ✓
 
 ---
 
 ## Total V1 Critical Improvements
 
-**Total Effort**: ~21 hours (2.5 days)
-**Impact**: Fixes top 7 user pain points
+**Total Effort**: ~21 hours (2.5 days) **Impact**: Fixes top 7 user pain points
 **AI Required**: None ✓
 
 ---
@@ -296,8 +295,8 @@ throw new AnvilError(
 
 ### 8. Static Template Library (1 week)
 
-**Problem**: Users start from scratch every time
-**Solution**: Curated templates without AI generation
+**Problem**: Users start from scratch every time **Solution**: Curated templates
+without AI generation
 
 **Implementation:**
 
@@ -319,6 +318,7 @@ anvil new --template jwt-auth
 ```
 
 **Templates stored as files:**
+
 ```
 cli/templates/
   ├── jwt-authentication.speckit.md
@@ -329,6 +329,7 @@ cli/templates/
 ```
 
 **Just copy + variable substitution** (no AI needed):
+
 ```typescript
 // Simple template engine
 let content = fs.readFileSync(`templates/${template}.md`, 'utf-8');
@@ -337,16 +338,15 @@ content = content.replace(/\{\{author\}\}/g, gitUser);
 fs.writeFileSync(outputPath, content);
 ```
 
-**Impact**: 90% time save (30 min → 3 min), no AI needed
-**Effort**: 1 week (create 10-15 high-quality templates)
-**AI Required**: No ✓
+**Impact**: 90% time save (30 min → 3 min), no AI needed **Effort**: 1 week
+(create 10-15 high-quality templates) **AI Required**: No ✓
 
 ---
 
 ### 9. Web Playground (2-3 days)
 
-**Problem**: Can't try Anvil without installing
-**Solution**: Simple web UI for validation
+**Problem**: Can't try Anvil without installing **Solution**: Simple web UI for
+validation
 
 **Implementation:**
 
@@ -392,17 +392,15 @@ export default async function handler(req, res) {
 }
 ```
 
-**No AI needed** - just validation logic
-**Impact**: Try before install, great for demos
-**Effort**: 2-3 days
-**AI Required**: No ✓
+**No AI needed** - just validation logic **Impact**: Try before install, great
+for demos **Effort**: 2-3 days **AI Required**: No ✓
 
 ---
 
 ### 10. Interactive Tutorial (3-5 days)
 
-**Problem**: Users don't know where to start
-**Solution**: Step-by-step walkthrough
+**Problem**: Users don't know where to start **Solution**: Step-by-step
+walkthrough
 
 **Implementation:**
 
@@ -442,17 +440,15 @@ Edit tutorial-plan.md and add:
 # ... continues through 5 steps
 ```
 
-**Just a CLI script** - no AI needed
-**Impact**: Learning by doing, high completion rate
-**Effort**: 3-5 days
-**AI Required**: No ✓
+**Just a CLI script** - no AI needed **Impact**: Learning by doing, high
+completion rate **Effort**: 3-5 days **AI Required**: No ✓
 
 ---
 
 ### 11. Enhanced GitHub Action (2-3 days)
 
-**Problem**: Current action just shows pass/fail
-**Solution**: Rich PR comments (without AI)
+**Problem**: Current action just shows pass/fail **Solution**: Rich PR comments
+(without AI)
 
 **Implementation:**
 
@@ -480,7 +476,7 @@ const comment = `
 
 | Check | Status | Score |
 |-------|--------|-------|
-${gateResults.map(r => `| ${r.name} | ${r.status} | ${r.score}/100 |`).join('\n')}
+${gateResults.map((r) => `| ${r.name} | ${r.status} | ${r.score}/100 |`).join('\n')}
 
 ${failedCount > 0 ? '⚠️ Some checks failed. Review above.' : '✅ All checks passed!'}
 
@@ -494,17 +490,14 @@ await github.rest.issues.createComment({
 });
 ```
 
-**No AI** - just template formatting
-**Impact**: Better PR visibility, team alignment
-**Effort**: 2-3 days
-**AI Required**: No ✓
+**No AI** - just template formatting **Impact**: Better PR visibility, team
+alignment **Effort**: 2-3 days **AI Required**: No ✓
 
 ---
 
 ## Total V1 High-Value Features
 
-**Total Effort**: ~2-3 weeks
-**Impact**: Ecosystem features that drive adoption
+**Total Effort**: ~2-3 weeks **Impact**: Ecosystem features that drive adoption
 **AI Required**: None ✓
 
 ---
@@ -514,24 +507,29 @@ await github.rest.issues.createComment({
 ### Deferred to V2 - Requires AI
 
 ❌ **AI Plan Generation** - `anvil write "description"`
+
 - Requires Claude API integration
 - Prompt engineering for format compliance
 - Repository context analysis
 
 ❌ **Smart PR Integration** - AI-powered insights
+
 - Requires Claude API for analysis
 - ML for effort estimation
 - Historical pattern matching
 
 ❌ **Interactive Plan Improvement** - AI suggestions
+
 - Requires Claude API for suggestions
 - Context-aware recommendations
 
 ❌ **AI-Powered Templates** - Dynamic generation
+
 - Current: Static template files ✓
 - V2: AI customizes based on context
 
 **Why defer?**
+
 - V1 needs to prove core value first
 - AI features are polish, not foundation
 - Can ship V1 faster without AI integration
@@ -541,10 +539,12 @@ await github.rest.issues.createComment({
 ## V1 Success Metrics
 
 **Installation to first successful validation:**
+
 - Current: ~30% success rate, 15-30 min time-to-value
 - V1 Target: ~70% success rate, 3-5 min time-to-value
 
 **Key metrics:**
+
 - % of users who complete `anvil init` successfully
 - % of users who run their first validation
 - % of users who run quality gates
@@ -552,6 +552,7 @@ await github.rest.issues.createComment({
 - % of users who validate a second plan (retention)
 
 **What success looks like:**
+
 - User installs Anvil
 - Runs `anvil` → sees friendly welcome
 - Runs `anvil init` → chooses format confidently
@@ -564,6 +565,7 @@ await github.rest.issues.createComment({
 ## Implementation Order
 
 ### Week 1: Critical UX Fixes (21 hours)
+
 1. ✅ First-run experience (4h)
 2. ✅ Format decision guidance (3h)
 3. ✅ Better validation feedback (4h)
@@ -575,6 +577,7 @@ await github.rest.issues.createComment({
 **Ship:** v0.1.0-beta with improved core experience
 
 ### Week 2-3: High-Value Features (2-3 weeks)
+
 8. ✅ Static template library (1 week)
 9. ✅ Web playground (2-3 days)
 10. ✅ Interactive tutorial (3-5 days)
@@ -583,6 +586,7 @@ await github.rest.issues.createComment({
 **Ship:** v0.2.0 with ecosystem features
 
 ### Week 4: Polish & Launch Prep
+
 - Documentation review
 - Video demos
 - Launch announcement
@@ -597,17 +601,20 @@ await github.rest.issues.createComment({
 **Changed priorities:**
 
 ❌ **Removed from V1:**
+
 - AI plan generation (was #1 killer feature)
 - Smart PR integration with AI
 - Interactive improvement with AI
 
 ✅ **Promoted for V1:**
+
 - Static template library (achieves 90% of AI benefit)
 - Web playground (try before install)
 - Interactive tutorial (learning by doing)
 - Enhanced GitHub Action (visibility without AI)
 
 **Philosophy:**
+
 - V1: Get core experience right, prove value
 - V2: Add AI magic once foundation is solid
 
@@ -616,6 +623,7 @@ await github.rest.issues.createComment({
 ## Launch Messaging (V1 vs V2)
 
 ### V1 Launch Message
+
 ```
 Anvil v1.0 - Validate Planning Documents
 
@@ -635,6 +643,7 @@ Get started: npm install -g @anvil/cli
 ```
 
 ### V2 Launch Message (Future)
+
 ```
 Anvil v2.0 - AI-Powered Planning
 
@@ -653,18 +662,21 @@ Upgrade: npm install -g @anvil/cli@latest
 ## Conclusion
 
 **V1 Strategy**: Ship fast, prove value, build foundation
+
 - Focus on core UX fixes (21 hours)
 - Add ecosystem features (2-3 weeks)
 - NO AI dependencies
 - Launch in ~1 month
 
 **V2 Strategy**: Add AI magic
+
 - AI plan generation
 - Smart PR insights
 - Interactive improvement
 - Launch 2-3 months after V1
 
 **This approach:**
+
 - ✅ Faster to market
 - ✅ Proves core value without AI hype
 - ✅ Builds user base before adding AI
@@ -675,6 +687,7 @@ Upgrade: npm install -g @anvil/cli@latest
 ---
 
 **Next Steps:**
+
 1. Review this priority list
 2. Confirm V1 scope
 3. Create implementation plan

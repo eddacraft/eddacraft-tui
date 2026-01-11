@@ -1,18 +1,21 @@
 # User Documentation Review - First-Time User Perspective
 
-**Date**: 2025-12-25
-**Reviewer**: Claude (simulated first-time user walkthrough)
-**Scope**: Post-install user experience and documentation
+**Date**: 2025-12-25 **Reviewer**: Claude (simulated first-time user
+walkthrough) **Scope**: Post-install user experience and documentation
 
-**Context**: Users install via `npm install -g @anvil/cli` and interact through docs + CLI. They never see the repository.
+**Context**: Users install via `npm install -g @anvil/cli` and interact through
+docs + CLI. They never see the repository.
 
 ---
 
 ## Executive Summary
 
-Anvil's documentation is **technically comprehensive** but lacks **clarity at critical decision points** and is missing **killer features** that would make it indispensable.
+Anvil's documentation is **technically comprehensive** but lacks **clarity at
+critical decision points** and is missing **killer features** that would make it
+indispensable.
 
 **Key Findings:**
+
 - ✅ Documentation is thorough and well-organized
 - ✅ Good examples and troubleshooting coverage
 - ⚠️ Value proposition unclear in first 30 seconds
@@ -22,6 +25,7 @@ Anvil's documentation is **technically comprehensive** but lacks **clarity at cr
 - ❌ No killer features that competitors can't match
 
 **Critical Path After Install:**
+
 ```
 npm install -g @anvil/cli
     ↓
@@ -36,6 +40,7 @@ Either: Get value → Continue using
 ```
 
 **Recommendation Priority:**
+
 1. 🔴 **Critical**: Fix first-run experience to show immediate value
 2. 🔴 **Critical**: Add format decision guidance (users are paralyzed)
 3. 🟠 **High**: Add killer feature - AI plan generation
@@ -52,9 +57,8 @@ Either: Get value → Continue using
 npm install -g @anvil/cli
 ```
 
-**Current state**: Pre-release, requires repo clone
-**Future state**: Simple npm install
-**Assessment**: This will be fine ✅
+**Current state**: Pre-release, requires repo clone **Future state**: Simple npm
+install **Assessment**: This will be fine ✅
 
 ---
 
@@ -63,6 +67,7 @@ npm install -g @anvil/cli
 **What happens right after install?**
 
 **Option A - User runs `anvil`:**
+
 ```bash
 $ anvil
 
@@ -83,14 +88,15 @@ Commands:
 ```
 
 **User reaction:**
+
 - 😕 "What's 'deterministic development automation'?"
 - 🤔 "Which command do I run first?"
 - 😐 "What does this actually DO?"
 
-**Option B - User runs `anvil --help`:**
-Same as above - doesn't help.
+**Option B - User runs `anvil --help`:** Same as above - doesn't help.
 
 **Option C - User runs `anvil init`:**
+
 ```bash
 $ anvil init
 
@@ -113,6 +119,7 @@ Detected environment:
 ```
 
 **User reaction:**
+
 - 🤯 "Which format do I choose?!"
 - 😰 "I don't know what SpecKit or BMAD is"
 - 😤 "If I choose wrong, will I have to redo everything?"
@@ -156,6 +163,7 @@ Learn more: anvil help
 #### Solution 2: Format Decision Made Easy
 
 Instead of:
+
 ```
 ? Which planning format do you use?
   ❯ SpecKit
@@ -165,6 +173,7 @@ Instead of:
 ```
 
 Do this:
+
 ```
 ? Which planning format do you use?
 
@@ -194,13 +203,15 @@ Do this:
 ? Select format:
 ```
 
-**Impact**: User has context to make informed decision, knows it's not permanent.
+**Impact**: User has context to make informed decision, knows it's not
+permanent.
 
 ---
 
 ### Stage 3: First Validation ⚠️ (VALUE DEMONSTRATION)
 
 **What happens:**
+
 ```bash
 $ anvil validate plan.md
 
@@ -210,6 +221,7 @@ $ anvil validate plan.md
 ```
 
 **User reaction:**
+
 - 😐 "OK... so what?"
 - 🤔 "What did it validate exactly?"
 - 😕 "I could have just committed this .md file directly"
@@ -263,13 +275,15 @@ Next steps:
   3. Create PR with confidence: git commit && git push
 ```
 
-**Impact**: User clearly sees what value was delivered. They understand why this is better than just committing markdown.
+**Impact**: User clearly sees what value was delivered. They understand why this
+is better than just committing markdown.
 
 ---
 
 ### Stage 4: First Quality Gate ⚠️ (SHOW REAL VALUE)
 
 **What happens:**
+
 ```bash
 $ anvil gate plan.md
 
@@ -292,11 +306,13 @@ Overall: ✓ PASSED (4/4 checks passed)
 ```
 
 **User reaction:**
+
 - 🤔 "This just ran my existing lint/test commands"
 - 😕 "How is this different from my CI?"
 - 💭 "Why not just use GitHub Actions?"
 
-**PROBLEM: Doesn't explain why running through Anvil is better than existing CI.**
+**PROBLEM: Doesn't explain why running through Anvil is better than existing
+CI.**
 
 ---
 
@@ -347,7 +363,8 @@ Next steps:
   • Or improve coverage: See failing tests with --verbose
 ```
 
-**Impact**: User understands the unique value Anvil provides beyond just running CI commands.
+**Impact**: User understands the unique value Anvil provides beyond just running
+CI commands.
 
 ---
 
@@ -358,12 +375,14 @@ Next steps:
 **Current state**: 4 formats, minimal guidance
 
 **User questions:**
+
 - "Which format should I use?"
 - "What if I choose wrong?"
 - "Can I change later?"
 - "What's the difference?"
 
 **Where this hits:**
+
 - `anvil init` - first decision point
 - QUICK_START.md - "Supported Formats" section
 - USER_GUIDE.md - format descriptions
@@ -375,24 +394,20 @@ Next steps:
 
 ### Quick Decision Tree
 
-Are you just trying Anvil?
-  → **Generic Markdown** (use any .md file)
+Are you just trying Anvil? → **Generic Markdown** (use any .md file)
 
-Working with GitHub Issues/PRs?
-  → **SpecKit** (spec.md, plan.md, tasks.md)
+Working with GitHub Issues/PRs? → **SpecKit** (spec.md, plan.md, tasks.md)
 
-Writing product requirements or architecture docs?
-  → **BMAD** (prd.md, architecture.md)
+Writing product requirements or architecture docs? → **BMAD** (prd.md,
+architecture.md)
 
-Building tools on top of Anvil?
-  → **APS** (JSON/YAML)
+Building tools on top of Anvil? → **APS** (JSON/YAML)
 
 ### Don't Worry!
-You can convert between formats anytime:
-  anvil export plan.md --to speckit
 
-Generic Markdown → SpecKit → BMAD → APS
-All conversions are supported ✓
+You can convert between formats anytime: anvil export plan.md --to speckit
+
+Generic Markdown → SpecKit → BMAD → APS All conversions are supported ✓
 ```
 
 ---
@@ -402,6 +417,7 @@ All conversions are supported ✓
 **Current**: Must read 500+ lines to understand "why Anvil?"
 
 **Problem locations:**
+
 - README.md - buried in technical details
 - QUICK_START.md - jumps straight to installation
 - USER_GUIDE.md - assumes you already know why
@@ -415,16 +431,14 @@ Validate planning documents. Prevent bad code changes.
 
 ## The Problem
 
-You write a plan → commit it → start coding → code review catches issues
-→ "Your plan is missing acceptance criteria"
-→ "Did you add tests for this?"
-→ Back and forth for hours
+You write a plan → commit it → start coding → code review catches issues → "Your
+plan is missing acceptance criteria" → "Did you add tests for this?" → Back and
+forth for hours
 
 ## The Solution
 
-You write a plan → `anvil validate` → catches issues in 10 seconds
-→ Fix upfront → code review focuses on implementation
-→ Ship 3x faster with 80% fewer issues
+You write a plan → `anvil validate` → catches issues in 10 seconds → Fix upfront
+→ code review focuses on implementation → Ship 3x faster with 80% fewer issues
 
 ## How It Works
 
@@ -441,6 +455,7 @@ You write a plan → `anvil validate` → catches issues in 10 seconds
 ### Issue 3: Examples Come Too Late
 
 **Current flow:**
+
 1. README (high-level)
 2. QUICK_START (installation)
 3. USER_GUIDE (comprehensive, 957 lines)
@@ -450,7 +465,7 @@ You write a plan → `anvil validate` → catches issues in 10 seconds
 
 **Solution**: Inline examples in Quick Start
 
-```markdown
+````markdown
 # Quick Start
 
 ## Install
@@ -465,14 +480,17 @@ Create a simple plan:
 # Feature: Add Dark Mode
 
 ## Tasks
+
 - [ ] Create theme toggle
 - [ ] Add dark mode styles
 - [ ] Save user preference
 
 ## Files
+
 - src/components/ThemeToggle.tsx (create)
 - src/styles/dark-theme.css (create)
 ```
+````
 
 Validate it:
 
@@ -486,7 +504,8 @@ anvil validate plan.md
 **You just validated your first plan!** ✓
 
 [See more examples →](./EXAMPLES.md)
-```
+
+````
 
 ---
 
@@ -582,9 +601,10 @@ Quality Score: 95/100 (Excellent)
     Let me edit it first
     Try again with different requirements
     Cancel
-```
+````
 
 **Why this is killer:**
+
 - **10x time save**: 30 min → 30 sec
 - **Perfect format**: AI knows SpecKit/BMAD structure
 - **Always complete**: Pre-validated, all sections included
@@ -592,6 +612,7 @@ Quality Score: 95/100 (Excellent)
 - **No learning curve**: Users don't need to learn format
 
 **Implementation sketch:**
+
 ```typescript
 // Calls Claude API with:
 // - User description
@@ -601,7 +622,8 @@ Quality Score: 95/100 (Excellent)
 // Returns validated, format-compliant plan
 ```
 
-**Competitive moat**: This makes Anvil the ONLY tool that helps you create AND validate plans. Competitors only validate.
+**Competitive moat**: This makes Anvil the ONLY tool that helps you create AND
+validate plans. Competitors only validate.
 
 ---
 
@@ -617,6 +639,7 @@ Quality Score: 95/100 (Excellent)
 ## 🔨 Anvil Analysis - spec-jwt-auth.md
 
 ### ✅ Validation: PASSED
+
 - Format: SpecKit (98% confidence)
 - Quality score: 95/100
 - All required sections present
@@ -626,19 +649,14 @@ Quality Score: 95/100 (Excellent)
 
 **Blast Radius**: 🟡 Medium (12 files affected)
 ```
-File Changes:
-  +5 new files
-   ├─ src/services/token.service.ts
-   ├─ src/middleware/auth.middleware.ts
-   ├─ src/routes/auth.routes.ts
-   ├─ tests/auth/token.test.ts
-   └─ tests/auth/refresh.test.ts
 
-  ~7 modified files
-   ├─ src/config/auth.config.ts
-   ├─ src/routes/index.ts
-   ├─ src/app.ts
-   └─ ... [view all]
+File Changes: +5 new files ├─ src/services/token.service.ts ├─
+src/middleware/auth.middleware.ts ├─ src/routes/auth.routes.ts ├─
+tests/auth/token.test.ts └─ tests/auth/refresh.test.ts
+
+~7 modified files ├─ src/config/auth.config.ts ├─ src/routes/index.ts ├─
+src/app.ts └─ ... [view all]
+
 ```
 
 **Risk Assessment**: 🟡 Medium
@@ -676,14 +694,12 @@ File Changes:
 ### ⚡ Quality Gates: 4/4 PASSED
 
 ```
-┌──────────┬────────┬─────────┐
-│ Check    │ Status │ Score   │
-├──────────┼────────┼─────────┤
-│ lint     │ ✓ PASS │ 100/100 │
-│ test     │ ✓ PASS │ 100/100 │
-│ coverage │ ✓ PASS │  92/100 │
-│ secrets  │ ✓ PASS │ 100/100 │
+
+┌──────────┬────────┬─────────┐ │ Check │ Status │ Score │
+├──────────┼────────┼─────────┤ │ lint │ ✓ PASS │ 100/100 │ │ test │ ✓ PASS │
+100/100 │ │ coverage │ ✓ PASS │ 92/100 │ │ secrets │ ✓ PASS │ 100/100 │
 └──────────┴────────┴─────────┘
+
 ```
 
 **Evidence Bundle**: [Download](https://artifacts/spec-jwt-auth-e3b0c442.json)
@@ -698,13 +714,15 @@ This plan is well-structured and complete. Address the 2 suggestions above, then
 ```
 
 **Why this is killer:**
+
 - **Proactive not reactive**: Suggests improvements before code is written
 - **Context-aware**: Learns from repository history
 - **Risk management**: Highlights blast radius and security implications
 - **Team coordination**: Suggests right reviewers automatically
 - **Effort estimation**: Uses ML on past changes
 
-**Competitive moat**: No other tool connects plan validation to repository context and provides AI insights.
+**Competitive moat**: No other tool connects plan validation to repository
+context and provides AI insights.
 
 ---
 
@@ -723,6 +741,7 @@ anvil preview spec-jwt-auth.md --watch
 ```
 
 **Browser UI:**
+
 ```
 ┌────────────────────────────────────────────────────────┐
 │  Anvil Preview - spec-jwt-auth.md            [⚙ Live] │
@@ -785,6 +804,7 @@ anvil preview spec-jwt-auth.md --watch
 ```
 
 **Real-time updates:**
+
 ```
 User edits spec-jwt-auth.md locally
     ↓
@@ -798,13 +818,15 @@ Blast radius recalculates
 ```
 
 **Why this is killer:**
+
 - **Visual understanding**: See impact before coding
 - **Real-time feedback**: Edit plan, see validation update instantly
 - **Confidence builder**: "This is exactly what will happen"
 - **Team collaboration**: Share URL for review meetings
 - **Demo-friendly**: Perfect for showcasing Anvil
 
-**Competitive moat**: No other planning tool provides real-time visual preview of changes.
+**Competitive moat**: No other planning tool provides real-time visual preview
+of changes.
 
 ---
 
@@ -893,6 +915,7 @@ Next steps:
 ```
 
 **Community templates:**
+
 ```bash
 anvil templates search "authentication"
 
@@ -923,6 +946,7 @@ anvil new --template jwt-authentication
 ```
 
 **Template marketplace:**
+
 ```bash
 anvil templates publish my-custom-auth.md
 
@@ -939,6 +963,7 @@ Share: https://anvil.dev/templates/yourname/my-custom-auth
 ```
 
 **Why this is killer:**
+
 - **Massive time save**: Don't start from scratch
 - **Best practices**: Learn from community
 - **Consistency**: Team uses same templates
@@ -1068,13 +1093,15 @@ Next steps:
 ```
 
 **Why this is killer:**
+
 - **Active improvement**: Not just validation, actual help
 - **Learning tool**: Teaches good planning practices
 - **Quality boost**: Takes plans from "good" to "excellent"
 - **Interactive**: User stays in control, reviews each suggestion
 - **Context-aware**: Suggestions based on plan type and codebase
 
-**Competitive moat**: Only tool that actively helps improve plans, not just validate them.
+**Competitive moat**: Only tool that actively helps improve plans, not just
+validate them.
 
 ---
 
@@ -1083,11 +1110,13 @@ Next steps:
 ### 1. Better First-Run Output
 
 **Current:**
+
 ```bash
 anvil --help
 ```
 
 **Better:**
+
 ```bash
 anvil
 
@@ -1108,6 +1137,7 @@ Documentation: https://anvil.dev/docs
 ### 2. Add Examples to Help Text
 
 **Current:**
+
 ```bash
 anvil validate --help
 
@@ -1122,6 +1152,7 @@ Options:
 ```
 
 **Better:**
+
 ```bash
 anvil validate --help
 
@@ -1159,12 +1190,14 @@ Learn more: https://anvil.dev/docs/commands/validate
 ### 3. Progress Indicators for Long Operations
 
 **Current:**
+
 ```bash
 anvil gate spec.md
 # ... silence for 30 seconds ...
 ```
 
 **Better:**
+
 ```bash
 anvil gate spec.md
 
@@ -1192,11 +1225,13 @@ anvil gate spec.md
 ### 4. Helpful Error Messages
 
 **Current:**
+
 ```
 Error: Validation failed
 ```
 
 **Better:**
+
 ```
 ✗ Validation failed
 
@@ -1252,6 +1287,7 @@ Or try without installing: **[Web Playground →](https://anvil.dev/playground)*
 ## Common Tasks
 
 I want to...
+
 - **Validate my first plan** → [Quickstart](./QUICK_START.md)
 - **Understand what Anvil does** → [Overview](#what-is-anvil)
 - **Choose a planning format** → [Format Guide](./formats.md)
@@ -1260,20 +1296,24 @@ I want to...
 
 ## What is Anvil?
 
-Anvil validates planning documents and runs quality gates
-to catch issues before you start coding.
+Anvil validates planning documents and runs quality gates to catch issues before
+you start coding.
 
 **Without Anvil:**
 ```
-Write plan → Commit → Code → Review catches issues
-         → "Missing tests?" → Back and forth for hours
+
+Write plan → Commit → Code → Review catches issues → "Missing tests?" → Back and
+forth for hours
+
 ```
 
 **With Anvil:**
 ```
-Write plan → anvil validate → Fix in 10 seconds
-         → anvil gate → All checks pass → Code with confidence
-```
+
+Write plan → anvil validate → Fix in 10 seconds → anvil gate → All checks pass →
+Code with confidence
+
+````
 
 **Result**: Ship 3x faster, 80% fewer issues
 
@@ -1306,8 +1346,9 @@ anvil write "add user authentication"
 
 # Get help
 anvil help
-```
-```
+````
+
+````
 
 ---
 
@@ -1341,20 +1382,21 @@ All formats convert to each other:
 anvil export plan.md --to speckit
 anvil export spec.md --to aps
 anvil export prd.md --to yaml
-```
+````
 
 ## Format Comparison
 
-| Feature | Generic | SpecKit | BMAD | APS |
-|---------|---------|---------|------|-----|
-| **Ease of use** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐ |
-| **Structure** | Flexible | Structured | Structured | Strict |
-| **Best for** | Getting started | GitHub workflows | PRDs/Architecture | Tool integration |
-| **Detection** | 30-45% | 90-100% | 95-100% | 100% |
-| **Learning curve** | None | Low | Low | Medium |
+| Feature            | Generic         | SpecKit          | BMAD              | APS              |
+| ------------------ | --------------- | ---------------- | ----------------- | ---------------- |
+| **Ease of use**    | ⭐⭐⭐⭐⭐      | ⭐⭐⭐⭐         | ⭐⭐⭐⭐          | ⭐⭐⭐           |
+| **Structure**      | Flexible        | Structured       | Structured        | Strict           |
+| **Best for**       | Getting started | GitHub workflows | PRDs/Architecture | Tool integration |
+| **Detection**      | 30-45%          | 90-100%          | 95-100%           | 100%             |
+| **Learning curve** | None            | Low              | Low               | Medium           |
 
 [Detailed format guide →](./USER_GUIDE.md#supported-formats)
-```
+
+````
 
 ---
 
@@ -1408,31 +1450,41 @@ No! Anvil works with your existing markdown files.
 Yes! We provide a GitHub Action:
 ```yaml
 - uses: ./.github/actions/anvil-check
-```
+````
+
 [Full CI/CD guide →](./ci-cd.md)
 
 ### Does Anvil work with my language/framework?
-Yes! Anvil validates planning documents, not code.
-Works with any language or framework.
+
+Yes! Anvil validates planning documents, not code. Works with any language or
+framework.
 
 ## Troubleshooting
 
 ### Format not detected
+
 Use `--format` flag:
+
 ```bash
 anvil validate plan.md --format speckit
 ```
 
 ### Validation fails with "missing intent"
+
 Add a purpose statement at the top:
+
 ```markdown
 # Spec: Add User Authentication
+
 ## Overview
+
 Implement JWT authentication...
 ```
 
 ### Gates fail with "command not found"
+
 Install project dependencies first:
+
 ```bash
 npm install
 anvil gate spec.md
@@ -1443,21 +1495,27 @@ anvil gate spec.md
 ## Advanced
 
 ### Can I create custom quality gates?
+
 Coming soon! Policy engine (OPA/Rego) in development.
 
 ### How do I integrate with other tools?
+
 Use Anvil as a library:
+
 ```typescript
 import { APSValidator } from '@anvil/core';
 const result = validator.validate(planData);
 ```
 
 ### Can I contribute templates?
+
 Yes! Coming soon: template marketplace.
 
 ---
 
-Still have questions? [Ask on GitHub Discussions →](https://github.com/EddaCraft/anvil-001/discussions)
+Still have questions?
+[Ask on GitHub Discussions →](https://github.com/EddaCraft/anvil-001/discussions)
+
 ```
 
 ---
@@ -1566,18 +1624,12 @@ Users don't see your repository. They only see:
 ### The Critical Path
 
 ```
-User hears about Anvil
-    ↓
-Reads docs (30 seconds to hook them)
-    ↓
-Installs (must be trivial)
-    ↓
-Runs first command (must show value in 30 sec)
-    ↓
-Tries first validation (feedback quality determines next step)
-    ↓
-    ├─→ Gets value → Continues using ✓
-    └─→ Gets confused → Abandons ✗
+
+User hears about Anvil ↓ Reads docs (30 seconds to hook them) ↓ Installs (must
+be trivial) ↓ Runs first command (must show value in 30 sec) ↓ Tries first
+validation (feedback quality determines next step) ↓ ├─→ Gets value → Continues
+using ✓ └─→ Gets confused → Abandons ✗
+
 ```
 
 **Focus every improvement on this path.**
@@ -1621,50 +1673,28 @@ Anvil with AI generation: **"AI writes your plans, Anvil makes them safe"**
 
 ### Current Journey (Pre-Install)
 ```
-Hear about Anvil
-    ↓
-Find documentation
-    ↓
-Read README (confused by jargon)
-    ↓
-Try to understand value (buried in 500+ lines)
-    ↓
-Give up OR persist
-    ↓
-Install (currently painful, will be fixed)
-    ↓
-Run first command (unclear what to do)
-    ↓
-Choose format (paralyzed by options)
-    ↓
-First validation (unclear what value was delivered)
-    ↓
-Abandon (70%) OR Continue (30%)
 
-Success rate: 30%
-Time to value: 15-30 minutes
+Hear about Anvil ↓ Find documentation ↓ Read README (confused by jargon) ↓ Try
+to understand value (buried in 500+ lines) ↓ Give up OR persist ↓ Install
+(currently painful, will be fixed) ↓ Run first command (unclear what to do) ↓
+Choose format (paralyzed by options) ↓ First validation (unclear what value was
+delivered) ↓ Abandon (70%) OR Continue (30%)
+
+Success rate: 30% Time to value: 15-30 minutes
+
 ```
 
 ### Ideal Journey (With Improvements)
 ```
-Hear about Anvil
-    ↓
-Try web playground (30 seconds, see value immediately)
-    ↓
-Install (npm install -g @anvil/cli, 30 sec)
-    ↓
-Run 'anvil' (friendly welcome, clear next steps)
-    ↓
-Run 'anvil write "description"' (AI generates perfect plan, 30 sec)
-    ↓
-Run 'anvil validate' (clear value demonstration)
-    ↓
-Run 'anvil gate' (quality gates pass, evidence collected)
-    ↓
-Continue using (80%)
 
-Success rate: 80%
-Time to value: 2-3 minutes
+Hear about Anvil ↓ Try web playground (30 seconds, see value immediately) ↓
+Install (npm install -g @anvil/cli, 30 sec) ↓ Run 'anvil' (friendly welcome,
+clear next steps) ↓ Run 'anvil write "description"' (AI generates perfect plan,
+30 sec) ↓ Run 'anvil validate' (clear value demonstration) ↓ Run 'anvil gate'
+(quality gates pass, evidence collected) ↓ Continue using (80%)
+
+Success rate: 80% Time to value: 2-3 minutes
+
 ```
 
 **2.5x better success rate, 10x faster time to value**
@@ -1676,3 +1706,4 @@ Time to value: 2-3 minutes
 Generated: 2025-12-25
 Focus: Post-install user experience
 Next action: Prioritize critical improvements
+```

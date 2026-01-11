@@ -263,7 +263,9 @@ Unique differentiator — no competitor has this.
 
 **Theme**: Remove friction with rich terminal UI (TUI-first approach)
 
-**Reference**: See [TUI Implementation Plan](../plans/TUI-IMPLEMENTATION-PLAN.md) for detailed steps
+**Reference**: See
+[TUI Implementation Plan](../plans/TUI-IMPLEMENTATION-PLAN.md) for detailed
+steps
 
 ### Foundation (Week 1)
 
@@ -361,8 +363,7 @@ Unique differentiator — no competitor has this.
   - [ ] Cross-platform testing (Linux, macOS, Windows)
   - [ ] Performance testing (render latency)
 
-**Total Effort**: ~60 hours (1 month)
-**Dependencies**: None (no AI required)
+**Total Effort**: ~60 hours (1 month) **Dependencies**: None (no AI required)
 **Value**: High (removes friction, improves DX, differentiator)
 
 ---

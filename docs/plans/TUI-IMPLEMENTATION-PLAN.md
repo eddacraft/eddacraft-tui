@@ -1,30 +1,32 @@
 # TUI Implementation Plan - OpenTUI Integration
 
-**Version**: V1.0
-**Target**: Ship TUI-first CLI in 1 month
-**Framework**: OpenTUI (@opentui/react)
-**Constraint**: No AI dependencies
+**Version**: V1.0 **Target**: Ship TUI-first CLI in 1 month **Framework**:
+OpenTUI (@opentui/react) **Constraint**: No AI dependencies
 
 ---
 
 ## Index
 
 ### Phase 1: Foundation (Week 1)
+
 - [1.1 Project Setup](#11-project-setup-4-hours)
 - [1.2 Component Library](#12-component-library-6-hours)
 - [1.3 Testing Infrastructure](#13-testing-infrastructure-2-hours)
 
 ### Phase 2: Core Commands (Week 2)
+
 - [2.1 `anvil init` Wizard](#21-anvil-init-wizard-8-hours)
 - [2.2 `anvil status` Dashboard](#22-anvil-status-dashboard-6-hours)
 - [2.3 `anvil doctor` Diagnostics](#23-anvil-doctor-diagnostics-6-hours)
 
 ### Phase 3: Enhanced Features (Week 2-3)
+
 - [3.1 First-Run Experience](#31-first-run-experience-4-hours)
 - [3.2 Template Library](#32-template-library-8-hours)
 - [3.3 Interactive Tutorial](#33-interactive-tutorial-8-hours)
 
 ### Phase 4: Integration & Polish (Week 3-4)
+
 - [4.1 CLI Integration](#41-cli-integration-4-hours)
 - [4.2 GitHub Action Enhancement](#42-github-action-enhancement-6-hours)
 - [4.3 Documentation](#43-documentation-4-hours)
@@ -56,6 +58,7 @@ curl -fsSL https://bun.sh/install | bash
 ```
 
 **Verification:**
+
 ```bash
 # Test OpenTUI is working
 cat > test-tui.tsx << 'EOF'
@@ -77,6 +80,7 @@ rm test-tui.tsx
 ```
 
 **Deliverable:**
+
 - ✅ OpenTUI installed and verified
 - ✅ Dependencies in package.json
 - ✅ Test script runs successfully
@@ -100,6 +104,7 @@ mkdir -p cli/src/tui/{components,commands,hooks}/__tests__
 ```
 
 **Directory structure:**
+
 ```
 cli/src/tui/
 ├── components/          # Reusable UI components
@@ -135,6 +140,7 @@ export * from './feedback';
 ```
 
 **Deliverable:**
+
 - ✅ Complete directory structure
 - ✅ Index files for exports
 - ✅ Ready for component development
@@ -161,19 +167,13 @@ export * from './feedback';
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true
   },
-  "include": [
-    "src/tui/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts",
-    "**/*.test.tsx"
-  ]
+  "include": ["src/tui/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx"]
 }
 ```
 
 **Update package.json scripts:**
+
 ```json
 {
   "scripts": {
@@ -185,6 +185,7 @@ export * from './feedback';
 ```
 
 **Deliverable:**
+
 - ✅ TypeScript configuration for TUI
 - ✅ Build scripts in package.json
 - ✅ Ready for React/JSX compilation
@@ -268,7 +269,7 @@ export const colors = {
   muted: 'gray',
 } as const;
 
-export type Color = typeof colors[keyof typeof colors];
+export type Color = (typeof colors)[keyof typeof colors];
 ```
 
 ```typescript
@@ -311,6 +312,7 @@ export interface BoxProps extends BaseComponentProps {
 ```
 
 **Deliverable:**
+
 - ✅ TUI renderer utilities
 - ✅ Color and icon constants
 - ✅ Common TypeScript types
@@ -343,9 +345,12 @@ export function Box({
   style = {},
   ...props
 }: BoxProps & { children?: React.ReactNode }) {
-  const borderStyle = typeof border === 'boolean'
-    ? border ? { type: 'single' } : undefined
-    : border;
+  const borderStyle =
+    typeof border === 'boolean'
+      ? border
+        ? { type: 'single' }
+        : undefined
+      : border;
 
   return (
     <box
@@ -398,11 +403,7 @@ export function Container({
   const marginLeft = center ? Math.floor((width - containerWidth) / 2) : 0;
 
   return (
-    <Box
-      width={containerWidth}
-      marginLeft={marginLeft}
-      {...props}
-    >
+    <Box width={containerWidth} marginLeft={marginLeft} {...props}>
       {children}
     </Box>
   );
@@ -424,12 +425,7 @@ interface GridProps extends BaseComponentProps {
 /**
  * Simple grid layout for arranging components
  */
-export function Grid({
-  children,
-  columns = 2,
-  gap = 1,
-  ...props
-}: GridProps) {
+export function Grid({ children, columns = 2, gap = 1, ...props }: GridProps) {
   const items = React.Children.toArray(children);
   const rows: React.ReactNode[][] = [];
 
@@ -458,6 +454,7 @@ export function Grid({
 ```
 
 **Deliverable:**
+
 - ✅ Box component (basic container)
 - ✅ Container component (responsive width)
 - ✅ Grid component (column layout)
@@ -492,13 +489,10 @@ export function Header({
   ...props
 }: HeaderProps) {
   return (
-    <Box
-      border={{ type: 'round', color }}
-      padding={1}
-      {...props}
-    >
+    <Box border={{ type: 'round', color }} padding={1} {...props}>
       <text bold color={color}>
-        {icon && `${icon} `}{title}
+        {icon && `${icon} `}
+        {title}
       </text>
       {subtitle && (
         <text color={colors.muted} marginTop={1}>
@@ -533,13 +527,9 @@ interface InfoPanelProps extends BaseComponentProps {
 /**
  * Display key-value information in a panel
  */
-export function InfoPanel({
-  title,
-  items,
-  ...props
-}: InfoPanelProps) {
+export function InfoPanel({ title, items, ...props }: InfoPanelProps) {
   // Calculate max label width for alignment
-  const maxLabelWidth = Math.max(...items.map(item => item.label.length));
+  const maxLabelWidth = Math.max(...items.map((item) => item.label.length));
 
   return (
     <Box border title={title} padding={1} {...props}>
@@ -644,19 +634,14 @@ interface TableProps extends BaseComponentProps {
 /**
  * Simple table component
  */
-export function Table({
-  title,
-  columns,
-  data,
-  ...props
-}: TableProps) {
+export function Table({ title, columns, data, ...props }: TableProps) {
   // Calculate column widths
-  const columnWidths = columns.map(col => {
+  const columnWidths = columns.map((col) => {
     if (col.width) return col.width;
 
     const maxDataWidth = Math.max(
       col.label.length,
-      ...data.map(row => String(row[col.key] || '').length)
+      ...data.map((row) => String(row[col.key] || '').length)
     );
     return maxDataWidth + 2;
   });
@@ -703,6 +688,7 @@ export function Table({
 ```
 
 **Deliverable:**
+
 - ✅ Header component
 - ✅ InfoPanel component (key-value display)
 - ✅ List component (scrollable)
@@ -747,7 +733,7 @@ export function Select({
   ...props
 }: SelectProps) {
   const [selectedIndex, setSelectedIndex] = useState(
-    value ? options.findIndex(opt => opt.value === value) : 0
+    value ? options.findIndex((opt) => opt.value === value) : 0
   );
 
   useKeyboard((key) => {
@@ -776,7 +762,10 @@ export function Select({
             padding={1}
             marginTop={i > 0 ? 0.5 : 0}
           >
-            <text bold={isSelected} color={option.disabled ? colors.muted : undefined}>
+            <text
+              bold={isSelected}
+              color={option.disabled ? colors.muted : undefined}
+            >
               {isSelected ? '❯ ' : '  '}
               {option.label}
             </text>
@@ -843,6 +832,7 @@ export function Checkbox({
 ```
 
 **Deliverable:**
+
 - ✅ Select component (keyboard navigation)
 - ✅ Checkbox component
 
@@ -973,6 +963,7 @@ export function ProgressBar({
 ```
 
 **Deliverable:**
+
 - ✅ Spinner component (animated loading)
 - ✅ StatusMessage component (success/error/warning/info)
 - ✅ ProgressBar component
@@ -1095,6 +1086,7 @@ if (import.meta.main) {
 ```
 
 **Deliverable:**
+
 - ✅ Complete component library exported
 - ✅ Component showcase for testing
 - ✅ Ready for command development
@@ -1134,6 +1126,7 @@ export default defineConfig({
 ```
 
 **Update package.json:**
+
 ```json
 {
   "scripts": {
@@ -1145,6 +1138,7 @@ export default defineConfig({
 ```
 
 **Deliverable:**
+
 - ✅ Vitest configured for TUI
 - ✅ Testing scripts in package.json
 - ✅ Coverage reporting enabled
@@ -1220,6 +1214,7 @@ describe('StatusMessage', () => {
 ```
 
 **Deliverable:**
+
 - ✅ Test examples for components
 - ✅ Testing patterns established
 - ✅ Ready for test-driven development
@@ -1325,6 +1320,7 @@ export function InitWizard() {
 ```
 
 **Deliverable:**
+
 - ✅ Main wizard component
 - ✅ Step navigation
 - ✅ Config state management
@@ -1343,22 +1339,26 @@ const FORMAT_OPTIONS: SelectOption[] = [
   {
     value: 'generic',
     label: 'Generic Markdown (recommended)',
-    description: '✓ Works with any .md file\n✓ Most flexible\n✓ Convert to other formats anytime\n\nBest for: Getting started, simple plans',
+    description:
+      '✓ Works with any .md file\n✓ Most flexible\n✓ Convert to other formats anytime\n\nBest for: Getting started, simple plans',
   },
   {
     value: 'speckit',
     label: 'SpecKit (for GitHub workflows)',
-    description: 'spec.md, plan.md, tasks.md\n\nBest for: GitHub Issues/PRs, detailed task tracking',
+    description:
+      'spec.md, plan.md, tasks.md\n\nBest for: GitHub Issues/PRs, detailed task tracking',
   },
   {
     value: 'bmad',
     label: 'BMAD (for PRDs & architecture)',
-    description: 'prd.md, architecture.md\n\nBest for: Product requirements, technical designs',
+    description:
+      'prd.md, architecture.md\n\nBest for: Product requirements, technical designs',
   },
   {
     value: 'aps',
     label: 'APS (advanced)',
-    description: 'Native JSON/YAML format\n\nBest for: Tool integration, programmatic use',
+    description:
+      'Native JSON/YAML format\n\nBest for: Tool integration, programmatic use',
   },
 ];
 
@@ -1427,7 +1427,7 @@ export function HooksStep({ value, onNext, onBack }: HooksStepProps) {
 
   const toggleHook = (hook: string) => {
     if (selectedHooks.includes(hook)) {
-      setSelectedHooks(selectedHooks.filter(h => h !== hook));
+      setSelectedHooks(selectedHooks.filter((h) => h !== hook));
     } else {
       setSelectedHooks([...selectedHooks, hook]);
     }
@@ -1477,11 +1477,15 @@ export function HooksStep({ value, onNext, onBack }: HooksStepProps) {
               // Show commands in terminal
               console.log('\nCopy these commands:\n');
               if (selectedHooks.includes('pre-commit')) {
-                console.log(`cat > .git/hooks/pre-commit << 'EOF'\n${PRE_COMMIT_HOOK}\nEOF`);
+                console.log(
+                  `cat > .git/hooks/pre-commit << 'EOF'\n${PRE_COMMIT_HOOK}\nEOF`
+                );
                 console.log('chmod +x .git/hooks/pre-commit\n');
               }
               if (selectedHooks.includes('pre-push')) {
-                console.log(`cat > .git/hooks/pre-push << 'EOF'\n${PRE_PUSH_HOOK}\nEOF`);
+                console.log(
+                  `cat > .git/hooks/pre-push << 'EOF'\n${PRE_PUSH_HOOK}\nEOF`
+                );
                 console.log('chmod +x .git/hooks/pre-push\n');
               }
               onNext([]);
@@ -1499,6 +1503,7 @@ export function HooksStep({ value, onNext, onBack }: HooksStepProps) {
 Continue in next file...
 
 **Deliverable:**
+
 - ✅ All 5 wizard steps implemented
 - ✅ Format selection with previews
 - ✅ Git hooks with code display
@@ -1533,6 +1538,7 @@ export const initCommand = new Command('init')
 ```
 
 **Deliverable:**
+
 - ✅ Init command integrated
 - ✅ TUI/CLI fallback working
 - ✅ Ready to test
@@ -1579,6 +1585,7 @@ describe('InitWizard', () => {
 ```
 
 **Deliverable:**
+
 - ✅ Unit tests for wizard
 - ✅ Integration tests for flow
 - ✅ Tests passing
@@ -1587,13 +1594,13 @@ describe('InitWizard', () => {
 
 ### 2.2 `anvil status` Dashboard (6 hours)
 
-*(Similar detailed breakdown for status dashboard)*
+_(Similar detailed breakdown for status dashboard)_
 
 ---
 
 ### 2.3 `anvil doctor` Diagnostics (6 hours)
 
-*(Similar detailed breakdown for doctor command)*
+_(Similar detailed breakdown for doctor command)_
 
 ---
 
@@ -1643,12 +1650,8 @@ export function Welcome() {
       />
 
       <Box marginBottom={2}>
-        <text>
-          Anvil validates planning documents and runs quality gates
-        </text>
-        <text>
-          to ensure code changes are safe before deployment.
-        </text>
+        <text>Anvil validates planning documents and runs quality gates</text>
+        <text>to ensure code changes are safe before deployment.</text>
       </Box>
 
       <Box marginBottom={1}>
@@ -1677,9 +1680,7 @@ export function Welcome() {
       />
 
       <Box marginTop={2}>
-        <text color="gray">
-          [↑↓ Navigate | Enter Select | q Quit]
-        </text>
+        <text color="gray">[↑↓ Navigate | Enter Select | q Quit]</text>
       </Box>
     </Container>
   );
@@ -1687,6 +1688,7 @@ export function Welcome() {
 ```
 
 **Deliverable:**
+
 - ✅ Welcome screen
 - ✅ First-run detection
 - ✅ Options to setup/validate/learn
@@ -1695,13 +1697,13 @@ export function Welcome() {
 
 ### 3.2 Template Library (8 hours)
 
-*(Detailed implementation of static template system)*
+_(Detailed implementation of static template system)_
 
 ---
 
 ### 3.3 Interactive Tutorial (8 hours)
 
-*(Detailed TUI-based tutorial walkthrough)*
+_(Detailed TUI-based tutorial walkthrough)_
 
 ---
 
@@ -1758,6 +1760,7 @@ program.parse();
 ```
 
 **Deliverable:**
+
 - ✅ CLI integration complete
 - ✅ First-run detection
 - ✅ Graceful fallbacks
@@ -1766,13 +1769,14 @@ program.parse();
 
 ### 4.2 GitHub Action Enhancement (6 hours)
 
-*(Enhanced PR comments without AI)*
+_(Enhanced PR comments without AI)_
 
 ---
 
 ### 4.3 Documentation (4 hours)
 
 Create documentation for:
+
 - Component library usage
 - Creating new TUI commands
 - Testing TUI components
@@ -1791,34 +1795,38 @@ Create documentation for:
 
 ## Timeline Summary
 
-| Phase | Duration | Deliverables |
-|-------|----------|--------------|
-| **Phase 1** | 3 days | Foundation, component library, testing |
-| **Phase 2** | 1 week | Init wizard, status, doctor commands |
-| **Phase 3** | 1 week | First-run, templates, tutorial |
-| **Phase 4** | 1 week | Integration, docs, QA |
-| **Total** | ~1 month | V1 launch ready |
+| Phase       | Duration | Deliverables                           |
+| ----------- | -------- | -------------------------------------- |
+| **Phase 1** | 3 days   | Foundation, component library, testing |
+| **Phase 2** | 1 week   | Init wizard, status, doctor commands   |
+| **Phase 3** | 1 week   | First-run, templates, tutorial         |
+| **Phase 4** | 1 week   | Integration, docs, QA                  |
+| **Total**   | ~1 month | V1 launch ready                        |
 
 ---
 
 ## Success Criteria
 
 ✅ **TUI Components**
+
 - [ ] All 15+ components implemented
 - [ ] Component showcase runs
 - [ ] Tests pass with >80% coverage
 
 ✅ **Core Commands**
+
 - [ ] `anvil init` wizard functional
 - [ ] `anvil status` dashboard working
 - [ ] `anvil doctor` diagnostics complete
 
 ✅ **User Experience**
+
 - [ ] First-run experience smooth
 - [ ] Graceful degradation to CLI works
 - [ ] Documentation complete
 
 ✅ **Quality**
+
 - [ ] All tests passing
 - [ ] Works on macOS/Linux/Windows
 - [ ] Performance acceptable (<100ms render)

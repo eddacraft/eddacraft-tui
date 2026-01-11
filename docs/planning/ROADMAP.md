@@ -47,11 +47,11 @@ Features rated by **Difficulty** (Low/Medium/High) and **Value**
 
 ### Watch Mode
 
-| Feature                                     | Difficulty | Value  | Status      |
-| ------------------------------------------- | ---------- | ------ | ----------- |
-| `anvil watch` daemon mode                   | Medium     | High   | Complete    |
-| Incremental validation (changed files only) | Medium     | High   | Complete    |
-| File system watcher                         | Low        | Medium | Complete    |
+| Feature                                     | Difficulty | Value  | Status   |
+| ------------------------------------------- | ---------- | ------ | -------- |
+| `anvil watch` daemon mode                   | Medium     | High   | Complete |
+| Incremental validation (changed files only) | Medium     | High   | Complete |
+| File system watcher                         | Low        | Medium | Complete |
 
 ### TUI Enhancement
 
