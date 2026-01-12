@@ -220,7 +220,9 @@ export type QueryResponseMetadata = z.infer<typeof QueryResponseMetadataSchema>;
  */
 export const ProvenanceLinkSchema = z.object({
   type: z.enum(['caused_by', 'governed_by', 'approved_by', 'linked_to']).describe('Link type'),
-  entity_type: z.enum(['session', 'plan', 'gate', 'action', 'human']).describe('Target entity type'),
+  entity_type: z
+    .enum(['session', 'plan', 'gate', 'action', 'human'])
+    .describe('Target entity type'),
   entity_id: z.string().describe('Target entity ID'),
   timestamp: z.string().datetime().describe('When link was created'),
 });

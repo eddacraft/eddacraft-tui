@@ -39,21 +39,22 @@ AI never writes back to Kindling
 
 **What:** 11 observation kinds Anvil must emit
 
-| # | Kind | Purpose |
-|---|------|---------|
-| 1 | `session_start` | Session begins (spine) |
-| 2 | `session_end` | Session completes (outcome) |
-| 3 | `plan_created` | Plan authored |
-| 4 | `plan_edited` | Plan modified |
-| 5 | `plan_approved` | Human approves |
-| 6 | `plan_rejected` | Human rejects |
-| 7 | `action_executed` | Command/file operation |
-| 8 | `gate_evaluated` | Gate check result |
-| 9 | `constraint_applied` | Action prevented |
-| 10 | `human_input` | User decision |
-| 11 | `error` | Failure recorded |
+| #   | Kind                 | Purpose                     |
+| --- | -------------------- | --------------------------- |
+| 1   | `session_start`      | Session begins (spine)      |
+| 2   | `session_end`        | Session completes (outcome) |
+| 3   | `plan_created`       | Plan authored               |
+| 4   | `plan_edited`        | Plan modified               |
+| 5   | `plan_approved`      | Human approves              |
+| 6   | `plan_rejected`      | Human rejects               |
+| 7   | `action_executed`    | Command/file operation      |
+| 8   | `gate_evaluated`     | Gate check result           |
+| 9   | `constraint_applied` | Action prevented            |
+| 10  | `human_input`        | User decision               |
+| 11  | `error`              | Failure recorded            |
 
 **Properties:**
+
 - Immutable (write-once)
 - Timestamped (ISO8601)
 - Linked (session_id, plan_id, etc.)
@@ -66,19 +67,21 @@ AI never writes back to Kindling
 
 **What:** 4 query scopes for bounded reads
 
-| Scope | Question | Returns |
-|-------|----------|---------|
-| `session` | "What happened in this run?" | Timeline of observations |
-| `plan` | "What happened because of this plan?" | Plan + linked executions |
-| `gate` | "Why did this gate pass/fail?" | Gate evaluation details |
-| `action` | "What exactly did this action do?" | Action execution details |
+| Scope     | Question                              | Returns                  |
+| --------- | ------------------------------------- | ------------------------ |
+| `session` | "What happened in this run?"          | Timeline of observations |
+| `plan`    | "What happened because of this plan?" | Plan + linked executions |
+| `gate`    | "Why did this gate pass/fail?"        | Gate evaluation details  |
+| `action`  | "What exactly did this action do?"    | Action execution details |
 
 **Mandatory constraints:**
+
 - scope + identifier (no free-text search)
 - max_results (default 100, max 1000)
 - max_payload_bytes (default 1MB, max 10MB)
 
 **Output guarantees:**
+
 1. Stable field names
 2. Explicit timestamps
 3. Explicit links (`caused_by`, `governed_by`, `approved_by`)
@@ -106,13 +109,9 @@ CLI is a thin wrapper over the same query API.
 
 ## Explicit Non-Goals (v1)
 
-❌ Semantic search
-❌ Similarity queries
-❌ Embeddings
-❌ Cross-plan discovery
-❌ Learned relevance
-❌ Auto-summaries stored in Kindling
-❌ AI annotations stored in Kindling
+❌ Semantic search ❌ Similarity queries ❌ Embeddings ❌ Cross-plan discovery
+❌ Learned relevance ❌ Auto-summaries stored in Kindling ❌ AI annotations
+stored in Kindling
 
 **These belong to Edda / Ember, not Kindling v1.**
 
@@ -142,7 +141,7 @@ Create tests that prove read-only enforcement:
 ```typescript
 // These should FAIL
 await kindling.annotate(obs); // No such method
-await kindling.embed(obs);    // No such method
+await kindling.embed(obs); // No such method
 await kindling.query({ scope: 'global' }); // Invalid scope
 await kindling.query({ free_text: 'violations' }); // No free-text
 ```
@@ -182,8 +181,8 @@ packages/kindling-integration/
 
 ## Governing Rule (Repeat to Team)
 
-> **Kindling is a system of record, not a reasoning engine.**
-> Queries may retrieve facts; interpretation is the caller's responsibility.
+> **Kindling is a system of record, not a reasoning engine.** Queries may
+> retrieve facts; interpretation is the caller's responsibility.
 
 ```
 Kindling records

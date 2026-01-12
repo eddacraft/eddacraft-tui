@@ -37,7 +37,9 @@ export const SessionStartObservationSchema = z.object({
     anvil_version: z.string().describe('Anvil CLI version'),
     command: z.string().describe('CLI command invoked (e.g., "anvil check")'),
     args: z.array(z.string()).describe('Command arguments'),
-    environment: z.enum(['development', 'ci', 'production', 'unknown']).describe('Execution context'),
+    environment: z
+      .enum(['development', 'ci', 'production', 'unknown'])
+      .describe('Execution context'),
   }),
 
   // Plan linkage (if this session is executing a plan)
@@ -226,9 +228,7 @@ export const GateEvaluatedObservationSchema = z.object({
   rules_violated: z.array(z.string()).optional().describe('Rule identifiers that failed'),
 
   // Enforcement
-  enforcement: z
-    .enum(['blocking', 'warning', 'informational'])
-    .describe('Action taken on failure'),
+  enforcement: z.enum(['blocking', 'warning', 'informational']).describe('Action taken on failure'),
 
   // Metrics
   duration_ms: z.number().int().nonnegative(),
@@ -319,7 +319,13 @@ export const ErrorObservationSchema = z.object({
 
   error_id: z.string().describe('Unique error identifier'),
   error_type: z
-    .enum(['command_failure', 'tool_error', 'aborted_execution', 'partial_state', 'validation_failure'])
+    .enum([
+      'command_failure',
+      'tool_error',
+      'aborted_execution',
+      'partial_state',
+      'validation_failure',
+    ])
     .describe('Error category'),
 
   // What failed

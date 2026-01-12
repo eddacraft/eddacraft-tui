@@ -2,15 +2,18 @@
 
 > Mechanical contracts for Kindling memory integration in Anvil v1
 
-This package defines the **read-only, queryable memory contract** between Anvil and Kindling. No embedded AI. No magic. Just mechanics.
+This package defines the **read-only, queryable memory contract** between Anvil
+and Kindling. No embedded AI. No magic. Just mechanics.
 
 ## Governing Rule
 
-> **Kindling is a system of record, not a reasoning engine.**
-> Queries may retrieve facts; interpretation is the caller's responsibility.
+> **Kindling is a system of record, not a reasoning engine.** Queries may
+> retrieve facts; interpretation is the caller's responsibility.
 
 Anvil enforces this mechanically:
-- User-supplied AI may **read**, but may not **mutate, infer, or generalise** via Kindling
+
+- User-supplied AI may **read**, but may not **mutate, infer, or generalise**
+  via Kindling
 - All queries are **bounded, explicit, and evidence-preserving**
 - No free-text search. No global scans. No cross-project reads.
 
@@ -20,23 +23,25 @@ Anvil enforces this mechanically:
 
 **File:** [`src/observation-contract.ts`](./src/observation-contract.ts)
 
-Defines what Anvil must emit to be "Kindling-complete". **11 observation kinds:**
+Defines what Anvil must emit to be "Kindling-complete". **11 observation
+kinds:**
 
-| Kind | Purpose | When Emitted |
-|------|---------|--------------|
-| `session_start` | Session recording spine | Every Anvil run starts |
-| `session_end` | Session outcome + summary | Every Anvil run completes |
-| `plan_created` | Plan lifecycle tracking | New plan authored |
-| `plan_edited` | Plan version history | Plan modified |
-| `plan_approved` | Human approval | User approves plan |
-| `plan_rejected` | Human rejection | User rejects plan |
-| `action_executed` | Action provenance | Command/tool/file operation |
-| `gate_evaluated` | Gate check result | Every gate evaluation |
-| `constraint_applied` | Decision constraint | Action prevented by rule/policy |
-| `human_input` | Human decision | Approval/override/rejection |
-| `error` | Failure history | Command/tool/execution error |
+| Kind                 | Purpose                   | When Emitted                    |
+| -------------------- | ------------------------- | ------------------------------- |
+| `session_start`      | Session recording spine   | Every Anvil run starts          |
+| `session_end`        | Session outcome + summary | Every Anvil run completes       |
+| `plan_created`       | Plan lifecycle tracking   | New plan authored               |
+| `plan_edited`        | Plan version history      | Plan modified                   |
+| `plan_approved`      | Human approval            | User approves plan              |
+| `plan_rejected`      | Human rejection           | User rejects plan               |
+| `action_executed`    | Action provenance         | Command/tool/file operation     |
+| `gate_evaluated`     | Gate check result         | Every gate evaluation           |
+| `constraint_applied` | Decision constraint       | Action prevented by rule/policy |
+| `human_input`        | Human decision            | Approval/override/rejection     |
+| `error`              | Failure history           | Command/tool/execution error    |
 
 **Key properties:**
+
 - Immutable (write-once)
 - Timestamped (ISO8601)
 - Linked (session_id, plan_id, gate_id, action_id)
@@ -84,6 +89,7 @@ const query: SessionQuery = {
 ```
 
 **CLI equivalent:**
+
 ```bash
 anvil run show <run_id> --json
 ```
@@ -102,11 +108,13 @@ const query: PlanQuery = {
 ```
 
 **CLI equivalent:**
+
 ```bash
 anvil plan trace <plan_id> --json
 ```
 
-**Note:** This is the **only cross-session read** allowed, via explicit `plan_id`.
+**Note:** This is the **only cross-session read** allowed, via explicit
+`plan_id`.
 
 #### C. Gate Scope
 
@@ -121,6 +129,7 @@ const query: GateQuery = {
 ```
 
 **CLI equivalent:**
+
 ```bash
 anvil gate show <gate_eval_id> --json
 ```
@@ -139,6 +148,7 @@ const query: ActionQuery = {
 ```
 
 **CLI equivalent:**
+
 ```bash
 anvil action show <action_id> --json
 ```
@@ -146,6 +156,7 @@ anvil action show <action_id> --json
 ### Query Characteristics (Mandatory)
 
 Every query must specify:
+
 - **scope**: `session | plan | gate | action`
 - **identifier**: Concrete ID(s) for the scope
 - **time bounds**: Implicit via session, explicit otherwise
@@ -155,6 +166,7 @@ Every query must specify:
 ### Query Limits (Anti-Vacuum-Cleaner)
 
 To prevent "AI vacuum cleaners":
+
 - `max_results`: Default 100, max 1000
 - `max_payload_bytes`: Default 1MB, max 10MB
 - Mandatory scoping (no global queries)
@@ -166,13 +178,15 @@ Every Kindling response guarantees:
 
 1. **Stable field names** — No field names change between queries
 2. **Explicit timestamps** — Every observation has ISO8601 timestamp
-3. **Explicit links** — Provenance via typed links (`caused_by`, `governed_by`, `approved_by`)
+3. **Explicit links** — Provenance via typed links (`caused_by`, `governed_by`,
+   `approved_by`)
 4. **No hidden inference** — Payload contains only raw facts
 5. **No reordered history** — Observations returned in recorded order
 
 **This makes Kindling LLM-safe by construction.**
 
 AI can:
+
 - ✅ Narrate events
 - ✅ Summarise outcomes
 - ✅ Explain facts
@@ -183,14 +197,8 @@ But AI will always be explaining **facts, not ghosts**.
 
 Operations that **MUST NOT** exist in the query API:
 
-❌ `write()`
-❌ `update()`
-❌ `delete()`
-❌ `annotate()`
-❌ `tag()`
-❌ `learn()`
-❌ `embed()`
-❌ `infer()`
+❌ `write()` ❌ `update()` ❌ `delete()` ❌ `annotate()` ❌ `tag()` ❌ `learn()`
+❌ `embed()` ❌ `infer()`
 
 **If user AI wants memory, it must bring its own store.**
 
@@ -198,38 +206,35 @@ Operations that **MUST NOT** exist in the query API:
 
 The following are **OUT OF SCOPE** for v1:
 
-❌ Semantic search
-❌ Similarity queries
-❌ Embeddings
-❌ Cross-plan discovery
-❌ Learned relevance
-❌ Auto-summaries (stored in Kindling)
-❌ AI-generated annotations stored in Kindling
+❌ Semantic search ❌ Similarity queries ❌ Embeddings ❌ Cross-plan discovery
+❌ Learned relevance ❌ Auto-summaries (stored in Kindling) ❌ AI-generated
+annotations stored in Kindling
 
 **These belong to Edda / Ember, not Kindling v1.**
 
 ## CLI Symmetry (Human-First, AI-Compatible)
 
-All queries have CLI equivalents. The CLI is a **thin wrapper** over the same query surface. That symmetry is intentional.
+All queries have CLI equivalents. The CLI is a **thin wrapper** over the same
+query surface. That symmetry is intentional.
 
-| CLI Command | Query Scope | Returns |
-|-------------|-------------|---------|
-| `anvil run show <id>` | session | Timeline of session observations |
-| `anvil plan trace <id>` | plan | Plan metadata + linked executions |
-| `anvil gate show <id>` | gate | Gate evaluation details |
-| `anvil action show <id>` | action | Action execution details |
+| CLI Command              | Query Scope | Returns                           |
+| ------------------------ | ----------- | --------------------------------- |
+| `anvil run show <id>`    | session     | Timeline of session observations  |
+| `anvil plan trace <id>`  | plan        | Plan metadata + linked executions |
+| `anvil gate show <id>`   | gate        | Gate evaluation details           |
+| `anvil action show <id>` | action      | Action execution details          |
 
 ## Integration Points (Where to Emit)
 
-| Observation Kind | Integration Point |
-|------------------|-------------------|
-| `session_start/end` | `cli/src/commands/*.ts` (every command entry/exit) |
-| `gate_evaluated` | `core/src/gate/gate-runner.ts` (GateRunner.run completion) |
-| `action_executed` | Anywhere Anvil executes commands (via child_process) |
-| `plan_*` | `core/src/aps/` (plan parsing, validation, execution) |
-| `human_input` | `cli/src/tui/` (TUI confirmation prompts) |
-| `constraint_applied` | `core/src/gate/` (when gate blocks action) |
-| `error` | All try/catch blocks that handle failures |
+| Observation Kind     | Integration Point                                          |
+| -------------------- | ---------------------------------------------------------- |
+| `session_start/end`  | `cli/src/commands/*.ts` (every command entry/exit)         |
+| `gate_evaluated`     | `core/src/gate/gate-runner.ts` (GateRunner.run completion) |
+| `action_executed`    | Anywhere Anvil executes commands (via child_process)       |
+| `plan_*`             | `core/src/aps/` (plan parsing, validation, execution)      |
+| `human_input`        | `cli/src/tui/` (TUI confirmation prompts)                  |
+| `constraint_applied` | `core/src/gate/` (when gate blocks action)                 |
+| `error`              | All try/catch blocks that handle failures                  |
 
 ## Mental Model (Repeat to Team)
 
@@ -283,6 +288,7 @@ async function explainGateFailure(gateEvalId: string): Promise<string> {
 ```
 
 **Key points:**
+
 - AI reads from Kindling (bounded query)
 - AI interprets facts (external reasoning)
 - AI stores conclusions in **its own memory** (not Kindling)
@@ -292,18 +298,28 @@ async function explainGateFailure(gateEvalId: string): Promise<string> {
 
 ```typescript
 // Emit observations (write-only)
-import { validateObservation, SessionStartObservation } from '@anvil/kindling-integration/observation';
+import {
+  validateObservation,
+  SessionStartObservation,
+} from '@anvil/kindling-integration/observation';
 
-const obs: SessionStartObservation = { /* ... */ };
+const obs: SessionStartObservation = {
+  /* ... */
+};
 const result = validateObservation(obs);
 if (result.success) {
   await kindling.emit(result.data);
 }
 
 // Query observations (read-only)
-import { validateQueryRequest, SessionQuery } from '@anvil/kindling-integration/query';
+import {
+  validateQueryRequest,
+  SessionQuery,
+} from '@anvil/kindling-integration/query';
 
-const query: SessionQuery = { /* ... */ };
+const query: SessionQuery = {
+  /* ... */
+};
 const result = validateQueryRequest(query);
 if (result.success) {
   const response = await kindling.query(result.data);
@@ -317,5 +333,7 @@ MIT
 
 ## See Also
 
-- [Kindling Integration Plan](../../plans/modules/kindling-integration.aps.md) — APS module specification
-- [Kindling Repository](https://github.com/EddaCraft/kindling) — Core Kindling implementation
+- [Kindling Integration Plan](../../plans/modules/kindling-integration.aps.md) —
+  APS module specification
+- [Kindling Repository](https://github.com/EddaCraft/kindling) — Core Kindling
+  implementation
