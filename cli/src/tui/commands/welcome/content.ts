@@ -15,6 +15,12 @@ export const EDDACRAFT_TEXT = 'Part of EddaCraft';
 
 export const QUICK_START_OPTIONS = [
   {
+    key: 'tutorial',
+    label: 'Interactive Tutorial',
+    description: 'Learn Anvil step-by-step (recommended)',
+    command: 'anvil tutorial',
+  },
+  {
     key: 'init',
     label: 'Initialise Anvil',
     description: 'Set up Anvil in this project',

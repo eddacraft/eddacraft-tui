@@ -91,6 +91,11 @@ export interface FormatOption {
 
 export const FORMAT_OPTIONS: FormatOption[] = [
   {
+    value: 'aps',
+    label: 'APS',
+    description: 'Anvil Planning Spec — structured task tracking with dependencies',
+  },
+  {
     value: 'speckit',
     label: 'SpecKit',
     description: 'GitHub spec-kit format with spec.md, plan.md, tasks.md',

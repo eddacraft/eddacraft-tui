@@ -61,6 +61,7 @@ describe('Init Wizard Steps', () => {
       const props = createMockStepProps();
       const { lastFrame } = render(<FormatStep {...props} />);
 
+      expect(lastFrame()).toContain('APS');
       expect(lastFrame()).toContain('SpecKit');
       expect(lastFrame()).toContain('BMAD');
       expect(lastFrame()).toContain('Generic Markdown');

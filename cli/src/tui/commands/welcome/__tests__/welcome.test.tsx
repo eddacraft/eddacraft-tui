@@ -134,8 +134,15 @@ describe('Welcome content', () => {
     expect(VALUE_PROPOSITION).not.toContain('realize');
   });
 
-  it('QUICK_START_OPTIONS has exactly 4 options', () => {
-    expect(QUICK_START_OPTIONS).toHaveLength(4);
+  it('QUICK_START_OPTIONS has exactly 5 options', () => {
+    expect(QUICK_START_OPTIONS).toHaveLength(5);
+  });
+
+  it('QUICK_START_OPTIONS includes tutorial command as first option', () => {
+    const tutorialOption = QUICK_START_OPTIONS.find((o) => o.key === 'tutorial');
+    expect(tutorialOption).toBeDefined();
+    expect(tutorialOption?.command).toBe('anvil tutorial');
+    expect(QUICK_START_OPTIONS[0].key).toBe('tutorial');
   });
 
   it('QUICK_START_OPTIONS includes init command', () => {
