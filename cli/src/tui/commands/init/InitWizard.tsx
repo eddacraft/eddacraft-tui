@@ -44,11 +44,13 @@ export function InitWizard({ context, onComplete, onCancel }: InitWizardProps): 
           return { ...newState, currentStep: nextStep };
         }
 
+        // Last step - complete and exit
         onComplete(newState);
+        exit();
         return newState;
       });
     },
-    [onComplete]
+    [onComplete, exit]
   );
 
   const handleBack = useCallback(() => {
