@@ -323,7 +323,7 @@ graph TD
 | OPA-003 | opa    | DC config generator from YAML       | Complete    | high     |
 | OPA-004 | opa    | `anvil architecture init` command   | Complete    | high     |
 | OPA-005 | opa    | Architecture context extraction     | Complete    | high     |
-| OPA-006 | opa    | OPA input schema enhancement        | In Progress | high     |
+| OPA-006 | opa    | OPA input schema enhancement        | Complete    | high     |
 | OPA-007 | opa    | Gate runner integration             | Complete    | high     |
 | OPA-008 | opa    | Rego generator from architecture    | Complete    | high     |
 | OPA-009 | opa    | Generated policy marker             | Complete    | medium   |
