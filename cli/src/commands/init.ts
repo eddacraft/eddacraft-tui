@@ -372,6 +372,11 @@ async function runTUIWizard(
   env: ReturnType<EnvironmentDetector['detect']>,
   detector: EnvironmentDetector
 ): Promise<InitOptions> {
+  // Resume stdin after inquirer - inquirer pauses stdin which breaks Ink
+  if (process.stdin.isPaused()) {
+    process.stdin.resume();
+  }
+
   return new Promise((resolve, reject) => {
     const context: WizardContext = {
       projectRoot,
@@ -395,6 +400,19 @@ async function runTUIWizard(
       reject(new Error('Setup cancelled by user'));
     };
 
-    renderTUI(InitWizard, { context, onComplete: handleComplete, onCancel: handleCancel });
+    const result = renderTUI(InitWizard, {
+      context,
+      onComplete: handleComplete,
+      onCancel: handleCancel,
+    });
+
+    // If TUI couldn't render, reject immediately
+    if (!result) {
+      reject(new Error('Could not start TUI wizard'));
+      return;
+    }
+
+    // Wait for TUI to exit, then ensure Promise resolves/rejects
+    result.waitUntilExit().catch(reject);
   });
 }

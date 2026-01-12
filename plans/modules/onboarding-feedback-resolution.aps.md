@@ -2,7 +2,7 @@
 
 | ID    | Owner    | Status |
 | ----- | -------- | ------ |
-| ONFBK | @aneki   | Draft  |
+| ONFBK | @aneki   | Ready  |
 
 ## Purpose
 
@@ -56,6 +56,9 @@ infrastructure (src/repositories/**, src/data/**) [0 files]
 shared (src/utils/**, src/lib/**) [0 files]
 ```
 
+**Proposed solution:** Layer detection recognises common project structures
+(monorepo, single-app, workspace) and applies appropriate patterns.
+
 ### ONFBK-F02: Entry Points List is Overwhelming
 
 **Observed:** 28 entry points displayed as a raw bullet list with paths and types
@@ -66,6 +69,9 @@ or what to do with this information. Information overload without insight.
 
 **Desired:** Group by package/type, limit display, or summarise with option to
 expand.
+
+**Proposed solution:** Entry points grouped by type with counts; detailed list
+available on demand.
 
 ### ONFBK-F03: No Architecture Explanation
 
@@ -78,6 +84,9 @@ empty layer buckets, but doesn't explain:
 
 **Impact:** First impression is that Anvil doesn't understand the codebase.
 
+**Proposed solution:** Architecture summary includes detected pattern name and
+brief explanation of what Anvil understood about the project structure.
+
 ### ONFBK-F04: Monorepo Structure Not Recognised
 
 **Observed:** Project `kindling-monorepo` uses `packages/kindling-*/src/...`
@@ -85,6 +94,8 @@ structure. Layer detection uses single-app patterns that don't match.
 
 **Impact:** Monorepos are common; failing to detect their structure makes Anvil
 seem unsuitable for real-world projects.
+
+**Proposed solution:** See ONFBK-F01 — same underlying fix.
 
 ### ONFBK-F05: TUI Wizard Crashes After Architecture Confirmation
 
@@ -103,6 +114,9 @@ input for option selection.
 
 **Impact:** Complete blocker - user cannot complete setup through TUI wizard.
 
+**Proposed solution:** TUI wizard remains interactive until user completes or
+cancels setup.
+
 ### ONFBK-F06: --no-tui Flag Ignored
 
 **Observed:** Running `anvil init --force --no-tui` still launches the TUI
@@ -116,17 +130,67 @@ See `cli/src/tui/utils/tty-detection.ts:22` and `cli/src/commands/init.ts:152`.
 
 **Workaround:** Use environment variable instead: `NO_TUI=1 anvil init --force`
 
+**Proposed solution:** The `--no-tui` flag correctly disables TUI mode.
+
 ## Ready Checklist
 
 Change status to **Ready** when:
 
-- [ ] Purpose and scope are clear
-- [ ] Dependencies identified
-- [ ] At least one task defined
-- [ ] All feedback items have proposed solutions
+- [x] Purpose and scope are clear
+- [x] Dependencies identified
+- [x] At least one task defined
+- [x] All feedback items have proposed solutions
 
 ## Tasks
 
-*No tasks yet — gathering feedback first*
+### ONFBK-001: Fix --no-tui flag handling
 
-<!-- Tasks will be added once feedback collection is complete and solutions designed -->
+**Intent:** Users can disable TUI mode via command-line flag.
+
+**Expected outcome:** `anvil init --no-tui` uses classic CLI prompts.
+
+**Validation:** `anvil init --force --no-tui` completes without launching TUI.
+
+---
+
+### ONFBK-002: Fix TUI wizard early exit
+
+**Intent:** TUI wizard stays interactive until user completes setup.
+
+**Expected outcome:** Wizard accepts input and progresses through all steps.
+
+**Validation:** `anvil init` TUI wizard completes full setup flow.
+
+**Dependencies:** ONFBK-001
+
+---
+
+### ONFBK-003: Improve layer detection for varied project structures
+
+**Intent:** Layer detection works for monorepos and non-standard layouts.
+
+**Expected outcome:** Projects with `packages/*/src/` or similar structures show
+accurate layer assignments.
+
+**Validation:** Running `anvil init` on a monorepo shows non-zero file counts in
+layer diagram.
+
+---
+
+### ONFBK-004: Improve entry points presentation
+
+**Intent:** Entry points display is informative without overwhelming.
+
+**Expected outcome:** Entry points grouped by type with summary counts.
+
+**Validation:** `anvil init` shows grouped entry points summary.
+
+---
+
+### ONFBK-005: Add architecture explanation
+
+**Intent:** Init output explains detected architecture pattern meaningfully.
+
+**Expected outcome:** Users understand what Anvil detected about their project.
+
+**Validation:** `anvil init` includes architecture pattern description.

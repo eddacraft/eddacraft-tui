@@ -28,6 +28,15 @@ describe('TTY Detection', () => {
         expect(result).toBe(false);
       });
 
+      it('should return false when tui option is explicitly false (Commander.js --no-tui behaviour)', () => {
+        Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
+
+        // Commander.js sets options.tui = false for --no-tui, not options.noTui = true
+        const result = isTUIAvailable({ tui: false });
+
+        expect(result).toBe(false);
+      });
+
       it('should return true when --tui flag is set and stdout is TTY', () => {
         Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
 

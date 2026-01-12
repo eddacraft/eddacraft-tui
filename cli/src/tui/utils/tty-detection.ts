@@ -19,11 +19,12 @@ export interface TUIDetectionOptions {
 }
 
 export function isTUIAvailable(options: TUIDetectionOptions = {}): boolean {
-  if (options.noTui) {
+  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
+  if (options.noTui || options.tui === false) {
     return false;
   }
 
-  if (options.tui) {
+  if (options.tui === true) {
     if (!process.stdout.isTTY) {
       console.warn('Warning: --tui requested but stdout is not a TTY');
       return false;
