@@ -11,7 +11,7 @@ variables:
     required: false
   - name: default_ttl
     description: Default TTL in seconds
-    default: 3600
+    default: '3600'
     required: false
   - name: cache_prefix
     description: Cache key prefix

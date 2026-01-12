@@ -11,7 +11,7 @@ variables:
     required: false
   - name: coverage_threshold
     description: Minimum coverage percentage
-    default: 80
+    default: '80'
     required: false
   - name: e2e_framework
     description: E2E testing framework (playwright, cypress)

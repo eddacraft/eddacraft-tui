@@ -8,10 +8,22 @@ import { join, basename } from 'node:path';
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
 
+// Handle YAML multi-line strings (parsed as arrays) and single-line strings
+// Rejects empty arrays to catch parser issues with indented block scalars
+const YamlStringSchema = z
+  .union([z.string(), z.array(z.string()).min(1)])
+  .transform((val) => (Array.isArray(val) ? val.join(' ') : val));
+
+// Handle YAML numbers and strings for default values
+const YamlStringOrNumberSchema = z
+  .union([z.string(), z.number()])
+  .transform((val) => String(val))
+  .optional();
+
 export const TemplateVariableSchema = z.object({
   name: z.string(),
   description: z.string(),
-  default: z.string().optional(),
+  default: YamlStringOrNumberSchema,
   required: z.boolean().default(true),
   type: z.enum(['string', 'boolean', 'choice']).default('string'),
   choices: z.array(z.string()).optional(),
@@ -22,7 +34,7 @@ export type TemplateVariable = z.infer<typeof TemplateVariableSchema>;
 export const TemplateMetadataSchema = z.object({
   id: z.string(),
   name: z.string(),
-  description: z.string(),
+  description: YamlStringSchema,
   category: z.enum([
     'authentication',
     'api',
@@ -130,6 +142,9 @@ function parseFrontmatter(content: string): { metadata: Record<string, unknown>;
       if (currentArray) {
         currentArray.push(parseValue(itemValue));
       }
+    } else if (currentArray && line.match(/^\s+\S/)) {
+      // Handle indented block scalar (text without leading -)
+      currentArray.push(trimmed);
     }
   }
 

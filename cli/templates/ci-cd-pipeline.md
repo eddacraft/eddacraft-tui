@@ -15,7 +15,7 @@ variables:
     required: false
   - name: node_version
     description: Node.js version
-    default: 20
+    default: '20'
     required: false
 ---
 
