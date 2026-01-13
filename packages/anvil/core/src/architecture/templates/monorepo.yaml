@@ -5,18 +5,27 @@ name: monorepo
 description: Multi-package workspace structure with shared libraries and clear package boundaries
 
 layers:
-  packages:
+  apps:
     patterns:
       - apps/**
+      - packages/app-*/**
+    depends_on:
+      - packages
+      - shared
+    description: Application packages (web, mobile, cli)
+
+  packages:
+    patterns:
       - packages/**
       - libs/**
-      - utils/**
     depends_on:
       - shared
-    description: Application and library packages
+    description: Reusable library packages
 
   shared:
     patterns:
       - shared/**
+      - packages/shared/**
+      - packages/common/**
     depends_on: []
     description: Shared utilities, types, and configurations

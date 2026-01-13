@@ -73,6 +73,7 @@ describe('TemplateLoader', () => {
     it('loads monorepo template', async () => {
       const template = await loader.get('monorepo');
       expect(template.name).toBe('monorepo');
+      expect(template.layers.apps).toBeDefined();
       expect(template.layers.packages).toBeDefined();
       expect(template.layers.shared).toBeDefined();
     });

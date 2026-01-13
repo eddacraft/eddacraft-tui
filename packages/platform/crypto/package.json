@@ -17,9 +17,8 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
   "devDependencies": {
-    "@types/node": "^25.0.7",
+    "@types/node": "^25.0.9",
     "vitest": "^4.0.17"
   },
   "keywords": [

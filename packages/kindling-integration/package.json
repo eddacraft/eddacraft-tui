@@ -29,11 +29,11 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "zod": "^3.22.4"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/node": "^25.0.7",
-    "typescript": "^5.3.3",
+    "@types/node": "^25.0.9",
+    "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   },
   "keywords": [

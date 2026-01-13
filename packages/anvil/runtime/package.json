@@ -36,16 +36,16 @@
   "dependencies": {
     "@anvil/contracts": "workspace:*",
     "@anvil/core": "workspace:*",
-    "chokidar": "^4.0.3",
-    "eslint": "^9.17.0",
-    "glob": "^13.0.0",
-    "minimatch": "^9.0.5",
-    "shell-quote": "^1.8.1",
-    "tar": "^7.4.3",
+    "chokidar": "^5.0.0",
+    "eslint": "^9.39.2",
+    "glob": "13.0.0",
+    "minimatch": "^10.1.1",
+    "shell-quote": "^1.8.3",
+    "tar": "^7.5.3",
     "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/shell-quote": "^1.7.1",
+    "@types/shell-quote": "^1.7.5",
     "vitest": "^4.0.17"
   },
   "keywords": [

@@ -13,9 +13,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@anvil/core": "workspace:*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "vitest": "^4.0.17"
   }
