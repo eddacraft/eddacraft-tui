@@ -39,5 +39,8 @@ export * from './warnings/index.js';
 // Explain command support
 export * from './explain/index.js';
 
+// Export functionality (llms.txt, MCP, etc.)
+export * from './export/index.js';
+
 // Utility functions
 export * from './utils/index.js';
