@@ -150,9 +150,11 @@ describe('validatePlanningDoc', () => {
     it('should not warn when task ID scope prefix matches module scope', async () => {
       const result = await validatePlanningDoc(join(fixturesDir, 'scope-mismatch.aps.md'));
 
-      // TEST-001 should not generate a warning
-      const testWarnings = result.warnings.filter((w) => w.message.includes('TEST-001'));
-      expect(testWarnings).toHaveLength(0);
+      // TEST-001 should not generate a scope-mismatch warning
+      const testScopeWarnings = result.warnings.filter(
+        (w) => w.rule === 'scope-mismatch' && w.message.includes('TEST-001')
+      );
+      expect(testScopeWarnings).toHaveLength(0);
     });
   });
 

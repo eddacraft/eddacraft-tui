@@ -25,6 +25,8 @@ export interface TemplateBundle {
   leaf: string;
   /** Simple single-file plan template */
   simple: string;
+  /** Action plan template for execution breakdowns */
+  actions: string;
 }
 
 /**
@@ -529,6 +531,152 @@ function generateFullSimpleTemplate(): string {
 }
 
 // ============================================================================
+// Action Plan Templates
+// ============================================================================
+
+/**
+ * Minimal action plan template - checkpoints only
+ */
+function generateMinimalActionsTemplate(): string {
+  return `# Actions: [SCOPE-NNN]
+
+| Source | Work Item | Created by | Status |
+|--------|-----------|------------|--------|
+| [module.aps.md](./module.aps.md) | [SCOPE-NNN]: [Title] | @[username] | In Progress |
+
+## Actions
+
+### 1. [Action verb] [target]
+
+- **Checkpoint:** [Observable state — max 12 words]
+- **Validate:** \`[command]\`
+
+### 2. [Next action]
+
+- **Checkpoint:** [Observable state]
+- **Validate:** \`[command]\`
+
+## Completion
+
+- [ ] All checkpoints validated
+- [ ] Work item marked complete
+`;
+}
+
+/**
+ * Standard action plan template - recommended for most tasks
+ */
+function generateStandardActionsTemplate(): string {
+  return `# Actions: [SCOPE-NNN]
+
+| Source | Work Item | Created by | Status |
+|--------|-----------|------------|--------|
+| [module.aps.md](./module.aps.md) | [SCOPE-NNN]: [Title] | @[username] | In Progress |
+
+## Prerequisites
+
+- [ ] Dependencies completed: [list any prerequisite work items]
+- [ ] Decisions made: [list any decisions needed]
+- [ ] Context available: [list any required inputs]
+
+## Actions
+
+### 1. [Action verb] [target]
+
+- **Purpose:** [Why this action is needed]
+- **Produces:** [What this action creates or changes]
+- **Checkpoint:** [Observable state — max 12 words]
+- **Validate:** \`[command]\`
+
+### 2. [Next action]
+
+- **Purpose:** [Why this action is needed]
+- **Produces:** [What this action creates or changes]
+- **Checkpoint:** [Observable state — max 12 words]
+- **Validate:** \`[command]\`
+
+### 3. [Final action]
+
+- **Purpose:** [Why this action is needed]
+- **Produces:** [What this action creates or changes]
+- **Checkpoint:** [Observable state — max 12 words]
+- **Validate:** \`[command]\`
+
+## Completion
+
+- [ ] All checkpoints validated
+- [ ] Work item marked complete
+- [ ] Completed by: @[username]
+- [ ] Completed at: [timestamp]
+`;
+}
+
+/**
+ * Full action plan template - comprehensive for complex tasks
+ */
+function generateFullActionsTemplate(): string {
+  return `# Actions: [SCOPE-NNN]
+
+| Source | Work Item | Created by | Status |
+|--------|-----------|------------|--------|
+| [module.aps.md](./module.aps.md) | [SCOPE-NNN]: [Title] | @[username] | In Progress |
+
+## Overview
+
+**Intent:** [Copy from work item — what this achieves]
+**Expected Outcome:** [Copy from work item — success criteria]
+
+## Prerequisites
+
+- [ ] Dependencies completed: [list any prerequisite work items]
+- [ ] Decisions made: [list any decisions needed]
+- [ ] Context available: [list any required inputs]
+- [ ] Environment ready: [list any setup requirements]
+
+## Actions
+
+### 1. [Action verb] [target]
+
+- **Purpose:** [Why this action is needed]
+- **Produces:** [What this action creates or changes]
+- **Checkpoint:** [Observable state — max 12 words]
+- **Validate:** \`[command]\`
+- **Status:** [Blocked/Deferred — only if applicable]
+
+### 2. [Next action]
+
+- **Purpose:** [Why this action is needed]
+- **Produces:** [What this action creates or changes]
+- **Checkpoint:** [Observable state — max 12 words]
+- **Validate:** \`[command]\`
+
+### 3. [Verification action]
+
+- **Purpose:** [Why this action is needed]
+- **Produces:** [What this action creates or changes]
+- **Checkpoint:** [Observable state — max 12 words]
+- **Validate:** \`[command]\`
+
+## Blocked/Deferred
+
+[Document any actions that are blocked or deferred, with reasons]
+
+## Notes
+
+- [Additional context or considerations]
+- [Links to relevant resources]
+
+## Completion
+
+- [ ] All checkpoints validated
+- [ ] Tests pass: \`[test command]\`
+- [ ] Work item marked complete
+- [ ] Completed by: @[username]
+- [ ] Completed at: [timestamp]
+`;
+}
+
+// ============================================================================
 // Public API
 // ============================================================================
 
@@ -593,6 +741,26 @@ export function generateSimplePlanTemplate(options: TemplateOptions = {}): strin
 }
 
 /**
+ * Generate an action plan template for execution breakdowns
+ *
+ * @param options - Template options
+ * @returns Action plan template markdown
+ */
+export function generateActionsTemplate(options: TemplateOptions = {}): string {
+  const variant = options.variant ?? 'standard';
+
+  switch (variant) {
+    case 'minimal':
+      return generateMinimalActionsTemplate();
+    case 'full':
+      return generateFullActionsTemplate();
+    case 'standard':
+    default:
+      return generateStandardActionsTemplate();
+  }
+}
+
+/**
  * Generate all templates and return as a typed bundle
  *
  * @param options - Template options
@@ -603,5 +771,6 @@ export function generateAllTemplates(options: TemplateOptions = {}): TemplateBun
     index: generateIndexTemplate(options),
     leaf: generateLeafTemplate(options),
     simple: generateSimplePlanTemplate(options),
+    actions: generateActionsTemplate(options),
   };
 }

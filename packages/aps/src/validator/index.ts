@@ -8,6 +8,8 @@
  * - Broken module links
  * - Scope mismatches (warning)
  * - Missing Confidence (warning)
+ * - Missing Expected Outcome (warning)
+ * - Missing Validation/Test (warning)
  * - Orphan leaf specs (warning)
  * - Circular module dependencies
  */
@@ -530,7 +532,7 @@ function validateTaskFormat(
 }
 
 /**
- * Validate task content (Intent required, Confidence warning)
+ * Validate task content (Intent required, Confidence/Validation/ExpectedOutcome warnings)
  */
 function validateTaskContent(
   task: { id: string; title: string; line: number },
@@ -547,6 +549,36 @@ function validateTaskContent(
       severity: 'error',
       message: `Task "${task.id}" is missing required **Intent:** field`,
       rule: 'task-intent',
+      path: filePath,
+      lineNumber: task.line,
+    });
+  }
+
+  // Check for Expected Outcome (warning per APS spec)
+  if (
+    !skipRules.has('missing-expected-outcome') &&
+    !fullContent.includes('Expected Outcome:') &&
+    !fullContent.includes('ExpectedOutcome:')
+  ) {
+    issues.push({
+      severity: 'warning',
+      message: `Task "${task.id}" is missing **Expected Outcome:** field (recommended for testability)`,
+      rule: 'missing-expected-outcome',
+      path: filePath,
+      lineNumber: task.line,
+    });
+  }
+
+  // Check for Validation/Test (warning per APS spec)
+  if (
+    !skipRules.has('missing-validation') &&
+    !fullContent.includes('Validation:') &&
+    !fullContent.includes('Test:')
+  ) {
+    issues.push({
+      severity: 'warning',
+      message: `Task "${task.id}" is missing **Validation:** or **Test:** field (recommended for verification)`,
+      rule: 'missing-validation',
       path: filePath,
       lineNumber: task.line,
     });

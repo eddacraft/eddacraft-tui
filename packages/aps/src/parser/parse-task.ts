@@ -156,6 +156,12 @@ function assignField(task: Partial<Task>, key: string, value: string): void {
       task.expectedOutcome = value;
       break;
 
+    case 'Validation':
+    case 'Test':
+      // Support both "Validation:" and "Test:" field names per APS spec
+      task.validation = value;
+      break;
+
     case 'Confidence':
       task.confidence = parseConfidence(value);
       break;
@@ -164,12 +170,29 @@ function assignField(task: Partial<Task>, key: string, value: string): void {
       task.scopes = parseCommaSeparated(value);
       break;
 
+    case 'NonScope':
+    case 'Non-scope':
+      task.nonScope = parseCommaSeparated(value);
+      break;
+
+    case 'Files':
+      task.files = parseCommaSeparated(value);
+      break;
+
     case 'Tags':
       task.tags = parseCommaSeparated(value);
       break;
 
     case 'Dependencies':
       task.dependencies = parseCommaSeparated(value);
+      break;
+
+    case 'Risks':
+      task.risks = parseCommaSeparated(value);
+      break;
+
+    case 'Link':
+      task.link = value;
       break;
 
     case 'Status':
@@ -269,11 +292,16 @@ export function parseTask(
     title,
     intent: fields.intent,
     expectedOutcome: fields.expectedOutcome,
+    validation: fields.validation,
     confidence: fields.confidence ?? 'medium',
     scopes: fields.scopes,
+    nonScope: fields.nonScope,
+    files: fields.files,
     tags: fields.tags,
     dependencies: fields.dependencies,
     inputs: fields.inputs,
+    risks: fields.risks,
+    link: fields.link,
     status: fields.status,
     sourcePath,
     sourceLineNumber: lineNumber,

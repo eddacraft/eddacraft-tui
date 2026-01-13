@@ -42,11 +42,20 @@ export const TaskSchema = z.object({
   /** Success criteria (optional) */
   expectedOutcome: z.string().optional(),
 
+  /** Command or method to verify task completion (optional) */
+  validation: z.string().optional(),
+
   /** Certainty about approach (optional, defaults to 'medium') */
   confidence: ConfidenceSchema.default('medium'),
 
   /** What can be changed - LLM file access constraints (optional) */
   scopes: z.array(z.string()).optional(),
+
+  /** What will NOT be changed (optional) */
+  nonScope: z.array(z.string()).optional(),
+
+  /** Best-effort list of files that may be affected (optional) */
+  files: z.array(z.string()).optional(),
 
   /** Labels for filtering and search (optional) */
   tags: z.array(z.string()).optional(),
@@ -56,6 +65,12 @@ export const TaskSchema = z.object({
 
   /** Required inputs or context (optional) */
   inputs: z.array(z.string()).optional(),
+
+  /** Potential risks associated with this task (optional) */
+  risks: z.array(z.string()).optional(),
+
+  /** External link (e.g., Jira ticket) (optional) */
+  link: z.string().optional(),
 
   /** Current execution state (optional, managed externally) */
   status: TaskStatusSchema.optional(),
@@ -68,6 +83,12 @@ export const TaskSchema = z.object({
 });
 
 export type Task = z.infer<typeof TaskSchema>;
+
+/**
+ * Module status values
+ */
+export const ModuleStatusSchema = z.enum(['Draft', 'Ready', 'In Progress', 'Complete', 'Blocked']);
+export type ModuleStatus = z.infer<typeof ModuleStatusSchema>;
 
 /**
  * Module metadata from index files or leaf spec headers
@@ -87,6 +108,9 @@ export const ModuleMetadataSchema = z.object({
 
   /** Person/team responsible */
   owner: z.string().optional(),
+
+  /** Current module status */
+  status: ModuleStatusSchema.optional(),
 
   /** Priority level */
   priority: PrioritySchema.optional(),

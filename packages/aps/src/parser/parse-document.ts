@@ -214,6 +214,14 @@ function assignMetadataField(metadata: ModuleMetadata, key: string, value: strin
     case 'Owner':
       metadata.owner = value;
       break;
+    case 'Status': {
+      // Normalise status values to match ModuleStatusSchema
+      const normalizedStatus = value.trim();
+      if (['Draft', 'Ready', 'In Progress', 'Complete', 'Blocked'].includes(normalizedStatus)) {
+        metadata.status = normalizedStatus as ModuleMetadata['status'];
+      }
+      break;
+    }
     case 'Priority':
       if (value === 'low' || value === 'medium' || value === 'high') {
         metadata.priority = value;

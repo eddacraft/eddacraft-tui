@@ -5,6 +5,7 @@ import {
   generateIndexTemplate,
   generateLeafTemplate,
   generateSimplePlanTemplate,
+  generateActionsTemplate,
 } from './generator.js';
 
 describe('Template Generator', () => {
@@ -235,6 +236,65 @@ describe('Template Generator', () => {
     });
   });
 
+  describe('generateActionsTemplate', () => {
+    describe('standard variant (default)', () => {
+      it('should generate a valid action plan template', () => {
+        const template = generateActionsTemplate();
+
+        expect(template).toContain('# Actions: [SCOPE-NNN]');
+        expect(template).toContain('| Source | Work Item | Created by | Status |');
+        expect(template).toContain('## Prerequisites');
+        expect(template).toContain('## Actions');
+        expect(template).toContain('### 1.');
+        expect(template).toContain('**Purpose:**');
+        expect(template).toContain('**Produces:**');
+        expect(template).toContain('**Checkpoint:**');
+        expect(template).toContain('**Validate:**');
+        expect(template).toContain('## Completion');
+      });
+
+      it('should include action structure fields', () => {
+        const template = generateActionsTemplate();
+
+        expect(template).toMatch(/\*\*Purpose:\*\*/);
+        expect(template).toMatch(/\*\*Produces:\*\*/);
+        expect(template).toMatch(/\*\*Checkpoint:\*\*/);
+        expect(template).toMatch(/\*\*Validate:\*\*/);
+      });
+    });
+
+    describe('minimal variant', () => {
+      it('should generate a minimal action plan template', () => {
+        const template = generateActionsTemplate({ variant: 'minimal' });
+
+        expect(template).toContain('# Actions: [SCOPE-NNN]');
+        expect(template).toContain('## Actions');
+        expect(template).toContain('**Checkpoint:**');
+        expect(template).toContain('**Validate:**');
+        expect(template).toContain('## Completion');
+        // Should NOT have extra sections
+        expect(template).not.toContain('## Prerequisites');
+        expect(template).not.toContain('**Purpose:**');
+      });
+    });
+
+    describe('full variant', () => {
+      it('should generate a comprehensive action plan template', () => {
+        const template = generateActionsTemplate({ variant: 'full' });
+
+        expect(template).toContain('# Actions: [SCOPE-NNN]');
+        expect(template).toContain('## Overview');
+        expect(template).toContain('**Intent:**');
+        expect(template).toContain('**Expected Outcome:**');
+        expect(template).toContain('## Prerequisites');
+        expect(template).toContain('## Actions');
+        expect(template).toContain('## Blocked/Deferred');
+        expect(template).toContain('## Notes');
+        expect(template).toContain('## Completion');
+      });
+    });
+  });
+
   describe('generateAllTemplates', () => {
     it('should generate all template types', () => {
       const templates = generateAllTemplates();
@@ -242,6 +302,7 @@ describe('Template Generator', () => {
       expect(templates).toHaveProperty('index');
       expect(templates).toHaveProperty('leaf');
       expect(templates).toHaveProperty('simple');
+      expect(templates).toHaveProperty('actions');
     });
 
     it('should return a properly typed TemplateBundle', () => {
@@ -251,6 +312,7 @@ describe('Template Generator', () => {
       expect(typeof templates.index).toBe('string');
       expect(typeof templates.leaf).toBe('string');
       expect(typeof templates.simple).toBe('string');
+      expect(typeof templates.actions).toBe('string');
 
       // TypeScript will error if trying to access unknown keys
       // @ts-expect-error - 'unknown' does not exist on type 'TemplateBundle'
@@ -263,10 +325,12 @@ describe('Template Generator', () => {
       expect(templates.index).toBeTruthy();
       expect(templates.leaf).toBeTruthy();
       expect(templates.simple).toBeTruthy();
+      expect(templates.actions).toBeTruthy();
 
       expect(templates.index.length).toBeGreaterThan(0);
       expect(templates.leaf.length).toBeGreaterThan(0);
       expect(templates.simple.length).toBeGreaterThan(0);
+      expect(templates.actions.length).toBeGreaterThan(0);
     });
 
     it('should return distinct templates', () => {
@@ -274,7 +338,10 @@ describe('Template Generator', () => {
 
       expect(templates.index).not.toEqual(templates.leaf);
       expect(templates.index).not.toEqual(templates.simple);
+      expect(templates.index).not.toEqual(templates.actions);
       expect(templates.leaf).not.toEqual(templates.simple);
+      expect(templates.leaf).not.toEqual(templates.actions);
+      expect(templates.simple).not.toEqual(templates.actions);
     });
 
     it('should respect variant option', () => {
@@ -285,6 +352,7 @@ describe('Template Generator', () => {
         expect(templates.index.length).toBeGreaterThan(0);
         expect(templates.leaf.length).toBeGreaterThan(0);
         expect(templates.simple.length).toBeGreaterThan(0);
+        expect(templates.actions.length).toBeGreaterThan(0);
       }
     });
 
@@ -302,6 +370,9 @@ describe('Template Generator', () => {
 
       expect(full.simple.length).toBeGreaterThan(standard.simple.length);
       expect(standard.simple.length).toBeGreaterThan(minimal.simple.length);
+
+      expect(full.actions.length).toBeGreaterThan(standard.actions.length);
+      expect(standard.actions.length).toBeGreaterThan(minimal.actions.length);
     });
   });
 });

@@ -2,6 +2,8 @@
 
 > This file guides AI agents working with APS specs in this repository.
 > Keep it in `plans/` so agents discover it when exploring the planning directory.
+>
+> **Specification:** [github.com/EddaCraft/anvil-plan-spec](https://github.com/EddaCraft/anvil-plan-spec)
 
 ## Core Principle
 
@@ -14,25 +16,39 @@
 | Index | Plan overview | Modules, milestones, risks | Implementation details |
 | Module | Bounded work area | Interfaces, tasks, boundaries | Code snippets |
 | Task | Execution authority | Outcome, validation command | How to implement |
-| Step | Checkpoint | Observable state | Implementation steps |
+| Action | Checkpoint | Observable state | Implementation steps |
 
-## Steps: The Lean Rule
+## Module Statuses
 
-Steps translate task intent into **observable checkpoints**. They are NOT implementation guides.
+Modules progress through these statuses:
+
+| Status | Meaning | Tasks Executable? |
+|--------|---------|-------------------|
+| Draft | Work in progress, not ready | No |
+| Ready | Scope clear, dependencies identified, tasks defined | Yes |
+| In Progress | Actively being worked on | Yes |
+| Complete | All tasks done | N/A |
+| Blocked | Cannot proceed (document reason) | No |
+
+## Actions: The Lean Rule
+
+Actions translate task intent into **observable checkpoints**. They are NOT implementation guides.
 
 ### Format
 
 ```markdown
 ### 1. [Action verb] [target]
 
+- **Purpose:** [Why this action is needed]
+- **Produces:** [What this action creates or changes]
 - **Checkpoint:** [Observable state — max 12 words]
 - **Validate:** `[command]` (optional)
 ```
 
 ### What Goes WHERE
 
-| Write in Step | Write NOWHERE (emerges from patterns) |
-|---------------|---------------------------------------|
+| Write in Action | Write NOWHERE (emerges from patterns) |
+|-----------------|---------------------------------------|
 | "Auth middleware exists" | Which library to use |
 | "Tests pass" | Test implementation details |
 | "Migration applied" | SQL schema definition |
@@ -41,12 +57,12 @@ Steps translate task intent into **observable checkpoints**. They are NOT implem
 ### Anti-Patterns (NEVER do this)
 
 ```markdown
-# ❌ BAD: Implementation tutorial disguised as step
+# ❌ BAD: Implementation tutorial disguised as action
 ### 1. Create authentication middleware
 
 - **Checkpoint:** Middleware created in src/middleware/auth.ts that:
   - Extracts JWT from Authorization header
-  - Validates token using jsonwebtoken library  
+  - Validates token using jsonwebtoken library
   - Decodes payload and extracts user ID
   - Attaches user object to request context
   - Returns 401 if token invalid or expired
@@ -61,7 +77,7 @@ Steps translate task intent into **observable checkpoints**. They are NOT implem
 - **Validate:** `npm test -- auth.middleware.test.ts`
 ```
 
-### Why Lean Steps?
+### Why Lean Actions?
 
 1. **Implementation emerges** from existing patterns + agent judgment
 2. **Specs don't rot** — checkpoints stay valid even when code changes
@@ -75,15 +91,23 @@ Tasks are **execution authority** — permission to make changes.
 ### Required Fields
 
 - **Intent:** One sentence — what outcome this achieves
+
+### Recommended Fields
+
 - **Expected Outcome:** Testable/observable result
-- **Validation:** Command to verify completion
+- **Validation:** Command to verify completion (also accepts **Test:**)
+- **Confidence:** low/medium/high
 
 ### Optional Fields
 
-- **Scope/Non-scope:** What will and won't change
+- **Scopes:** What can be changed (LLM file access constraints)
+- **Non-scope:** What will NOT change
+- **Files:** Best-effort list of files (not exhaustive)
+- **Tags:** Labels for filtering and search
 - **Dependencies:** Other task IDs that must complete first
-- **Confidence:** low/medium/high
-- **Files:** Best-effort list (not exhaustive)
+- **Inputs:** Required inputs or context (as a list)
+- **Risks:** Potential risks associated with this task
+- **Link:** External reference (e.g., Jira ticket)
 
 ### Task Anti-Patterns
 
@@ -128,9 +152,9 @@ Tasks use the module's ID prefix: `AUTH-001`, `AUTH-002`, `CORE-001`, etc.
 ### When Asked to Execute
 
 1. Find the task in the relevant `.aps.md` file
-2. Check task has **Ready** status
-3. Create steps file in `plans/execution/` if complex
-4. Execute one step at a time, validate checkpoint
+2. Check module has **Ready** or **In Progress** status
+3. Create action plan file in `plans/actions/` if complex
+4. Execute one action at a time, validate checkpoint
 5. Mark task complete when validation passes
 
 ## File Locations
@@ -142,9 +166,9 @@ plans/
 ├── modules/               # Module specs (numbered by dependency order)
 │   ├── 01-core.aps.md
 │   └── 02-auth.aps.md
-├── execution/             # Step files
-│   ├── [TASK-ID].steps.md # Per-task (complex projects)
-│   └── [MODULE].steps.md  # Per-module (simple projects)
+├── actions/               # Action plan files
+│   ├── [TASK-ID].actions.md   # Per-task (complex projects)
+│   └── [MODULE].actions.md    # Per-module (simple projects)
 └── decisions/             # ADRs (optional)
     └── [NNN]-[title].md
 ```
@@ -153,7 +177,7 @@ plans/
 
 | If agent is... | Check for... |
 |----------------|--------------|
-| Writing steps | Max 12 words per checkpoint? No implementation detail? |
+| Writing actions | Max 12 words per checkpoint? No implementation detail? |
 | Writing tasks | Outcome-focused? Has validation command? |
-| Planning module | Boundaries clear? No premature tasks? |
-| Executing | Task status is Ready? Prerequisites met? |
+| Planning module | Boundaries clear? Status set? No premature tasks? |
+| Executing | Module status is Ready/In Progress? Prerequisites met? |
