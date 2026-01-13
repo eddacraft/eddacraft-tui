@@ -22,7 +22,7 @@ const YamlStringOrNumberSchema = z
 
 export const TemplateVariableSchema = z.object({
   name: z.string(),
-  description: z.string(),
+  description: YamlStringSchema,
   default: YamlStringOrNumberSchema,
   required: z.boolean().default(true),
   type: z.enum(['string', 'boolean', 'choice']).default('string'),

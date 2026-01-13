@@ -523,6 +523,15 @@ describe('Schema validation', () => {
       expect(typeof result.default).toBe('string');
     });
 
+    it('transforms array description to joined string', () => {
+      const result = TemplateVariableSchema.parse({
+        name: 'test_var',
+        description: ['A variable that does', 'something important'],
+      });
+
+      expect(result.description).toBe('A variable that does something important');
+    });
+
     it('keeps string default as string', () => {
       const result = TemplateVariableSchema.parse({
         name: 'host',
