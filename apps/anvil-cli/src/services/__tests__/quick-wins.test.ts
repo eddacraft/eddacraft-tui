@@ -380,11 +380,15 @@ describe('QuickWinsIdentifier', () => {
       const analysis = identifier.analyze(warnings);
 
       expect(analysis.batchGroups).toHaveLength(2);
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       expect(analysis.batchGroups.map((g) => g.patternId).sort()).toEqual([
         'AP-003',
         'AP-004',
       ]);
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
+=======
+      expect(analysis.batchGroups.map((g) => g.patternId).sort()).toEqual(['AP-003', 'AP-004']);
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/__tests__/quick-wins.test.ts
     });
 
     it('should separate different types into different batches', () => {
@@ -432,15 +436,20 @@ describe('QuickWinsIdentifier', () => {
             id: 'AP-003',
             location: { file: `src/test${i}.test.ts`, line: 10 },
 <<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
           })
 =======
           }),
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
+=======
+          })
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/__tests__/quick-wins.test.ts
         ),
         ...Array.from({ length: 3 }, (_, i) =>
           createWarning({
             id: 'AP-004',
             location: { file: `src/test${i}.test.ts`, line: 10 },
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
 <<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
           })
         ),
@@ -449,6 +458,9 @@ describe('QuickWinsIdentifier', () => {
       const analysis = identifier.analyse(warnings);
 =======
           }),
+=======
+          })
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/__tests__/quick-wins.test.ts
         ),
       ];
 
@@ -500,10 +512,14 @@ describe('QuickWinsIdentifier', () => {
       const summary = identifier.generateBatchSuppressionSummary(analysis.batchGroups[0]);
 =======
       const analysis = identifier.analyze(warnings);
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const summary = identifier.generateBatchSuppressionSummary(
         analysis.batchGroups[0],
       );
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
+=======
+      const summary = identifier.generateBatchSuppressionSummary(analysis.batchGroups[0]);
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(summary).toContain('3 occurrences');
       expect(summary).toContain('AP-003');

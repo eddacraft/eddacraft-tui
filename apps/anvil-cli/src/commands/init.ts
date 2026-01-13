@@ -290,8 +290,13 @@ export function createInitCommand(): Command {
               console.log('\n' + chalk.dim('Skipping automatic analysis (--no-analysis flag)'));
             }
 
+<<<<<<< HEAD:apps/anvil-cli/src/commands/init.ts
             // Show next steps (only if dashboard was not shown)
             if (!dashboardShown) {
+=======
+            // Show next steps (only if analysis was skipped or TUI not shown)
+            if (options.noAnalysis || !isTUIAvailable({ tui: options.tui, noTui: options.noTui })) {
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/commands/init.ts
               console.log('\n' + chalk.bold('Next steps:'));
               console.log(chalk.cyan('  1. Review configuration:'));
               console.log(chalk.dim('     anvil gate:config --list'));

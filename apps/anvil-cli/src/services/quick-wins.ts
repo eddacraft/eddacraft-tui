@@ -117,11 +117,15 @@ export class QuickWinsIdentifier {
       totalWarnings: warnings.length,
       suppressable: quickWins.length,
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
       suppressablePercent: warnings.length > 0 ? (quickWins.length / warnings.length) * 100 : 0,
 =======
       suppressablePercent:
         warnings.length > 0 ? (quickWins.length / warnings.length) * 100 : 0,
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+      suppressablePercent: warnings.length > 0 ? (quickWins.length / warnings.length) * 100 : 0,
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/quick-wins.ts
     };
   }
 
@@ -278,11 +282,15 @@ export class QuickWinsIdentifier {
     ];
 
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
     const text = `${warning.message} ${warning.explanation} ${warning.location.file}`.toLowerCase();
 =======
     const text =
       `${warning.message} ${warning.explanation} ${warning.location.file}`.toLowerCase();
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+    const text = `${warning.message} ${warning.explanation} ${warning.location.file}`.toLowerCase();
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/quick-wins.ts
 
     return thirdPartyIndicators.some((indicator) => text.includes(indicator));
   }
@@ -301,11 +309,15 @@ export class QuickWinsIdentifier {
     ];
 
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
     const text = `${warning.message} ${warning.explanation} ${warning.location.file}`.toLowerCase();
 =======
     const text =
       `${warning.message} ${warning.explanation} ${warning.location.file}`.toLowerCase();
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+    const text = `${warning.message} ${warning.explanation} ${warning.location.file}`.toLowerCase();
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/quick-wins.ts
 
     return migrationIndicators.some((indicator) => text.includes(indicator));
   }
@@ -334,12 +346,16 @@ export class QuickWinsIdentifier {
     };
 
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
     return patternMap[warning.id] || 'Type definition file - external type compatibility';
 =======
     return (
       patternMap[warning.id] || 'Type definition file - external type compatibility'
     );
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+    return patternMap[warning.id] || 'Type definition file - external type compatibility';
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/quick-wins.ts
   }
 
   /**
@@ -433,10 +449,14 @@ export class QuickWinsIdentifier {
       'config-file': 'configuration files',
       'generated-code': 'generated files',
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
       migration: 'legacy code',
 =======
       'migration': 'legacy code',
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+      migration: 'legacy code',
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/quick-wins.ts
       'third-party': 'third-party integrations',
       'legacy-code': 'legacy code',
     };
@@ -461,10 +481,14 @@ export class QuickWinsIdentifier {
       'config-file': 0,
       'generated-code': 0,
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
       migration: 0,
 =======
       'migration': 0,
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+      migration: 0,
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/quick-wins.ts
       'third-party': 0,
       'legacy-code': 0,
     };

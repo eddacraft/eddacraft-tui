@@ -215,12 +215,16 @@ function HistoricalPanel({ analysis }: { analysis: HistoricalAnalysis }): React.
               <Text color={theme.colours.smoke}>Average per Commit:</Text>
             </Box>
 <<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
             <Text color={theme.colours.ash}>{analysis.avgViolationsPerCommit.toFixed(1)}</Text>
 =======
             <Text color={theme.colours.ash}>
               {analysis.avgViolationsPerCommit.toFixed(1)}
             </Text>
 >>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/ResultsDashboard.tsx
+=======
+            <Text color={theme.colours.ash}>{analysis.avgViolationsPerCommit.toFixed(1)}</Text>
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/tui/components/ResultsDashboard.tsx
           </Box>
 
           {analysis.patternOccurrences.length > 0 && (
@@ -305,13 +309,19 @@ function NavigationPanel(): React.ReactElement {
 }
 
 <<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
+=======
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/tui/components/ResultsDashboard.tsx
 export function ResultsDashboard({
   results,
   focused = false,
 }: ResultsDashboardProps): React.ReactElement {
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
 =======
 export function ResultsDashboard({ results, focused = false }: ResultsDashboardProps): React.ReactElement {
 >>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/ResultsDashboard.tsx
+=======
+>>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/tui/components/ResultsDashboard.tsx
   const { project, quickWins, historical } = results;
 
   return (

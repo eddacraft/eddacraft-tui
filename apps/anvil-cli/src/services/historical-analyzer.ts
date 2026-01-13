@@ -103,7 +103,7 @@ export class HistoricalAnalyzer {
    * Analyze git history to show what Anvil would have caught
    */
   public async analyze(
-    config: Partial<HistoricalAnalysisConfig> = {},
+    config: Partial<HistoricalAnalysisConfig> = {}
   ): Promise<HistoricalAnalysis> {
     const fullConfig = { ...this.defaultConfig, ...config };
 
@@ -120,19 +120,13 @@ export class HistoricalAnalyzer {
       const analyzedCommits = await this.analyzeCommits(commits, fullConfig);
 
       // Generate statistics
-      const totalViolations = analyzedCommits.reduce(
-        (sum, c) => sum + c.estimatedViolations,
-        0,
-      );
+      const totalViolations = analyzedCommits.reduce((sum, c) => sum + c.estimatedViolations, 0);
 
       const avgViolationsPerCommit =
         analyzedCommits.length > 0 ? totalViolations / analyzedCommits.length : 0;
 
       // Extract pattern occurrences
-      const patternOccurrences = this.extractPatternOccurrences(
-        analyzedCommits,
-        fullConfig,
-      );
+      const patternOccurrences = this.extractPatternOccurrences(analyzedCommits, fullConfig);
 
       // Generate timeline
       const timeline = this.generateTimeline(analyzedCommits);
@@ -180,8 +174,10 @@ export class HistoricalAnalyzer {
    * Get commits from git history
    */
   private async getCommits(
-    config: HistoricalAnalysisConfig,
-  ): Promise<Array<{ hash: string; message: string; author: string; date: Date; files: string[] }>> {
+    config: HistoricalAnalysisConfig
+  ): Promise<
+    Array<{ hash: string; message: string; author: string; date: Date; files: string[] }>
+  > {
     const since = `${config.daysBack}.days.ago`;
 
     // Get commit log
@@ -190,7 +186,7 @@ export class HistoricalAnalyzer {
       {
         cwd: this.projectRoot,
         maxBuffer: 10 * 1024 * 1024,
-      },
+      }
     );
 
     const commits: Array<{
@@ -208,9 +204,7 @@ export class HistoricalAnalyzer {
       if (lines.length < 1) continue;
 
       const [hash, author, timestamp, message] = lines[0].split('|');
-      const files = lines
-        .slice(1)
-        .filter((f) => f.trim() && this.shouldAnalyzeFile(f, config));
+      const files = lines.slice(1).filter((f) => f.trim() && this.shouldAnalyzeFile(f, config));
 
       if (files.length === 0) continue;
 
@@ -261,26 +255,20 @@ export class HistoricalAnalyzer {
       date: Date;
       files: string[];
     }>,
-    config: HistoricalAnalysisConfig,
+    config: HistoricalAnalysisConfig
   ): Promise<HistoricalCommit[]> {
     const analyzed: HistoricalCommit[] = [];
 
     for (const commit of commits) {
       try {
         // Get the diff for this commit
-        const { stdout } = await execAsync(
-          `git show ${commit.hash} --pretty="" --unified=0`,
-          {
-            cwd: this.projectRoot,
-            maxBuffer: 5 * 1024 * 1024,
-          },
-        );
+        const { stdout } = await execAsync(`git show ${commit.hash} --pretty="" --unified=0`, {
+          cwd: this.projectRoot,
+          maxBuffer: 5 * 1024 * 1024,
+        });
 
         // Estimate violations from diff
-        const estimatedViolations = this.estimateViolationsFromDiff(
-          stdout,
-          config.antiPatternIds,
-        );
+        const estimatedViolations = this.estimateViolationsFromDiff(stdout, config.antiPatternIds);
 
         analyzed.push({
           hash: commit.hash,
@@ -343,7 +331,7 @@ export class HistoricalAnalyzer {
    */
   private extractPatternOccurrences(
     commits: HistoricalCommit[],
-    config: HistoricalAnalysisConfig,
+    config: HistoricalAnalysisConfig
   ): PatternOccurrence[] {
     const patterns = new Map<string, PatternOccurrence>();
 
@@ -464,7 +452,9 @@ export class HistoricalAnalyzer {
 
     const lines: string[] = [];
 
-    lines.push(`Analyzed ${analysis.totalCommits} commits from the last ${this.defaultConfig.daysBack} days`);
+    lines.push(
+      `Analyzed ${analysis.totalCommits} commits from the last ${this.defaultConfig.daysBack} days`
+    );
     lines.push('');
     lines.push(`🎯 Anvil would have caught ${analysis.totalViolations} potential issues`);
     lines.push(`📊 Average: ${analysis.avgViolationsPerCommit.toFixed(1)} issues per commit`);
@@ -489,9 +479,7 @@ export class HistoricalAnalyzer {
     violationRate: number;
     mostActiveDay: { date: Date; violations: number } | null;
   } {
-    const commitsWithViolations = analysis.commits.filter(
-      (c) => c.estimatedViolations > 0,
-    ).length;
+    const commitsWithViolations = analysis.commits.filter((c) => c.estimatedViolations > 0).length;
     const commitsWithoutViolations = analysis.totalCommits - commitsWithViolations;
     const violationRate =
       analysis.totalCommits > 0 ? commitsWithViolations / analysis.totalCommits : 0;
