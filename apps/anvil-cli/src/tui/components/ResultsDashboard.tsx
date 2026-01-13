@@ -3,12 +3,15 @@ import { Box, Text } from 'ink';
 import { Header } from './Header.js';
 import { QuickWinsPanel } from './QuickWinsPanel.js';
 <<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
 import { theme } from '../utils/theme.js';
 import type { ProjectContext } from '../../services/project-detector.js';
 import type { QuickWinsAnalysis } from '../../services/quick-wins.js';
 import type { HistoricalAnalysis } from '../../services/historical-analyser.js';
 =======
 import { StatusBadge } from './StatusBadge.js';
+=======
+>>>>>>> 2e7659b (fix: Remove unused imports in IFR components):cli/src/tui/components/ResultsDashboard.tsx
 import { theme } from '../utils/theme.js';
 import type { ProjectContext } from '../../services/project-detector.js';
 import type { QuickWinsAnalysis } from '../../services/quick-wins.js';

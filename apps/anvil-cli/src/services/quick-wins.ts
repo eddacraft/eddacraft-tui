@@ -1,8 +1,12 @@
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
 import type { Warning } from '@anvil/core';
 =======
 import type { Warning, WarningCategory } from '@anvil/core';
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+import type { Warning } from '@anvil/core';
+>>>>>>> 2e7659b (fix: Remove unused imports in IFR components):cli/src/services/quick-wins.ts
 
 /**
  * Quick win type categorization
