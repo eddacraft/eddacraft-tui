@@ -372,7 +372,8 @@ async function runTUIWizard(
   env: ReturnType<EnvironmentDetector['detect']>,
   detector: EnvironmentDetector
 ): Promise<InitOptions> {
-  // Resume stdin after inquirer - inquirer pauses stdin which breaks Ink
+  // Ensure stdin is flowing before starting the Ink TUI.
+  // Some prompt libraries (e.g. inquirer) pause stdin, which breaks Ink if not resumed.
   if (process.stdin.isPaused()) {
     process.stdin.resume();
   }

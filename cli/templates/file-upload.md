@@ -11,7 +11,7 @@ variables:
     required: false
   - name: max_file_size
     description: Maximum file size in MB
-    default: 10
+    default: '10'
     required: false
   - name: allowed_types
     description: Comma-separated allowed MIME types

@@ -487,6 +487,157 @@ describe('Schema validation', () => {
 
       expect(result.variables).toEqual([]);
     });
+
+    it('transforms array description to joined string', () => {
+      const result = TemplateMetadataSchema.parse({
+        id: 'test',
+        name: 'Test',
+        description: ['Line one', 'line two', 'line three'],
+        category: 'api',
+      });
+
+      expect(result.description).toBe('Line one line two line three');
+    });
+
+    it('rejects empty array descriptions', () => {
+      const result = TemplateMetadataSchema.safeParse({
+        id: 'test',
+        name: 'Test',
+        description: [],
+        category: 'api',
+      });
+
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('TemplateVariableSchema numeric defaults', () => {
+    it('transforms numeric default to string', () => {
+      const result = TemplateVariableSchema.parse({
+        name: 'port',
+        description: 'Port number',
+        default: 3000,
+      });
+
+      expect(result.default).toBe('3000');
+      expect(typeof result.default).toBe('string');
+    });
+
+    it('transforms array description to joined string', () => {
+      const result = TemplateVariableSchema.parse({
+        name: 'test_var',
+        description: ['A variable that does', 'something important'],
+      });
+
+      expect(result.description).toBe('A variable that does something important');
+    });
+
+    it('keeps string default as string', () => {
+      const result = TemplateVariableSchema.parse({
+        name: 'host',
+        description: 'Hostname',
+        default: 'localhost',
+      });
+
+      expect(result.default).toBe('localhost');
+    });
+
+    it('allows undefined default when field is omitted', () => {
+      const result = TemplateVariableSchema.parse({
+        name: 'required_field',
+        description: 'A required field',
+      });
+
+      expect(result.default).toBeUndefined();
+    });
+  });
+});
+
+describe('YAML formatting variations', () => {
+  beforeEach(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  afterEach(() => {
+    rmSync(TEST_DIR, { recursive: true, force: true });
+  });
+
+  it('parses multi-line YAML description (indented block scalar)', async () => {
+    const content = `---
+id: multiline-test
+name: Multiline Test
+description:
+  This is a multi-line description that spans
+  multiple lines in the YAML frontmatter
+category: api
+---
+
+Content here`;
+    const filePath = join(TEST_DIR, 'multiline.md');
+    writeFileSync(filePath, content);
+
+    const loader = new TemplateLoader(TEST_DIR);
+    const template = await loader.loadTemplate(filePath);
+
+    expect(template.metadata.description).toBe(
+      'This is a multi-line description that spans multiple lines in the YAML frontmatter'
+    );
+  });
+
+  it('parses numeric default values in variables', async () => {
+    const content = `---
+id: numeric-defaults
+name: Numeric Defaults Test
+description: Test template with numeric defaults
+category: api
+variables:
+  - name: port
+    description: Port number
+    default: 8080
+    required: false
+  - name: timeout
+    description: Timeout in ms
+    default: 5000
+    required: false
+---
+
+Port: {{ port }}, Timeout: {{ timeout }}`;
+    const filePath = join(TEST_DIR, 'numeric.md');
+    writeFileSync(filePath, content);
+
+    const loader = new TemplateLoader(TEST_DIR);
+    const template = await loader.loadTemplate(filePath);
+
+    expect(template.metadata.variables[0].default).toBe('8080');
+    expect(template.metadata.variables[1].default).toBe('5000');
+    expect(typeof template.metadata.variables[0].default).toBe('string');
+  });
+
+  it('handles variables with and without defaults', async () => {
+    const content = `---
+id: mixed-defaults
+name: Mixed Defaults Test
+description: Test with mixed default presence
+category: api
+variables:
+  - name: required_var
+    description: A required variable
+    required: true
+  - name: optional_with_default
+    description: Optional with default
+    default: fallback
+    required: false
+---
+
+Content`;
+    const filePath = join(TEST_DIR, 'mixed.md');
+    writeFileSync(filePath, content);
+
+    const loader = new TemplateLoader(TEST_DIR);
+    const template = await loader.loadTemplate(filePath);
+
+    expect(template.metadata.variables[0].default).toBeUndefined();
+    expect(template.metadata.variables[1].default).toBe('fallback');
   });
 });
 
