@@ -42,7 +42,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/utils.test.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -54,7 +58,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/component.spec.tsx', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -65,7 +73,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/__tests__/app.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -76,7 +88,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/__mocks__/api.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -88,7 +104,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/app.test.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].suggestedReason).toContain('Test');
       expect(analysis.quickWins[0].suggestedReason).toContain('any');
@@ -101,7 +121,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/types.d.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('type-definition');
@@ -114,7 +138,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'global.d.ts', line: 5 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].suggestedReason).toContain('Type definition');
     });
@@ -126,7 +154,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'webpack.config.js', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('config-file');
@@ -137,7 +169,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'vite.config.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].type).toBe('config-file');
     });
@@ -147,7 +183,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'next.config.js', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].type).toBe('config-file');
     });
@@ -157,7 +197,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'config/jest.config.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].suggestedReason).toContain('jest.config.ts');
     });
@@ -169,7 +213,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/api.generated.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('generated-code');
@@ -181,7 +229,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/generated/api.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].type).toBe('generated-code');
     });
@@ -191,7 +243,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/__generated__/graphql.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].type).toBe('generated-code');
     });
@@ -204,7 +260,11 @@ describe('QuickWinsIdentifier', () => {
         explanation: 'External library types are incompatible',
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('third-party');
@@ -216,7 +276,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/integrations/third-party-sdk.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins[0].type).toBe('third-party');
     });
@@ -229,7 +293,11 @@ describe('QuickWinsIdentifier', () => {
         explanation: 'Planned for migration in next sprint',
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('migration');
@@ -240,7 +308,11 @@ describe('QuickWinsIdentifier', () => {
         message: 'Deprecated API usage',
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       const quickWin = analysis.quickWins.find((qw) => qw.type === 'migration');
       if (quickWin) {
@@ -267,7 +339,11 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
+=======
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.batchGroups).toHaveLength(1);
       expect(analysis.batchGroups[0].count).toBe(3);
@@ -295,10 +371,20 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
 
       expect(analysis.batchGroups).toHaveLength(2);
       expect(analysis.batchGroups.map((g) => g.patternId).sort()).toEqual(['AP-003', 'AP-004']);
+=======
+      const analysis = identifier.analyze(warnings);
+
+      expect(analysis.batchGroups).toHaveLength(2);
+      expect(analysis.batchGroups.map((g) => g.patternId).sort()).toEqual([
+        'AP-003',
+        'AP-004',
+      ]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
     });
 
     it('should separate different types into different batches', () => {
@@ -313,7 +399,11 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
+=======
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       // Should create one batch for test files and one for type definitions
       expect(analysis.batchGroups).toHaveLength(0); // Neither has 2+ items
@@ -325,7 +415,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/app.test.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.batchGroups).toHaveLength(0);
       expect(analysis.quickWins).toHaveLength(1);
@@ -337,17 +431,29 @@ describe('QuickWinsIdentifier', () => {
           createWarning({
             id: 'AP-003',
             location: { file: `src/test${i}.test.ts`, line: 10 },
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
           })
+=======
+          }),
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
         ),
         ...Array.from({ length: 3 }, (_, i) =>
           createWarning({
             id: 'AP-004',
             location: { file: `src/test${i}.test.ts`, line: 10 },
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
           })
         ),
       ];
 
       const analysis = identifier.analyse(warnings);
+=======
+          }),
+        ),
+      ];
+
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.batchGroups[0].count).toBe(5);
       expect(analysis.batchGroups[1].count).toBe(3);
@@ -361,7 +467,11 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/app.test.ts', line: 10 },
       });
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([warning]);
+=======
+      const analysis = identifier.analyze([warning]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
       const comment = identifier.generateSuppressionComment(analysis.quickWins[0]);
 
       expect(comment).toContain('// @anvil-ignore');
@@ -385,8 +495,15 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
       const summary = identifier.generateBatchSuppressionSummary(analysis.batchGroups[0]);
+=======
+      const analysis = identifier.analyze(warnings);
+      const summary = identifier.generateBatchSuppressionSummary(
+        analysis.batchGroups[0],
+      );
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(summary).toContain('3 occurrences');
       expect(summary).toContain('AP-003');
@@ -403,7 +520,11 @@ describe('QuickWinsIdentifier', () => {
         createWarning({ location: { file: 'next.config.js', line: 3 } }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
+=======
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
       const stats = identifier.getStatistics(analysis);
 
       expect(stats.byType['test-file']).toBe(2);
@@ -427,7 +548,11 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
+=======
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
       const stats = identifier.getStatistics(analysis);
 
       expect(stats.byPattern['AP-003']).toBe(2);
@@ -444,7 +569,11 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
+=======
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
       const stats = identifier.getStatistics(analysis);
 
       expect(stats.batchableCount).toBe(1);
@@ -461,7 +590,11 @@ describe('QuickWinsIdentifier', () => {
         createWarning({ location: { file: 'src/util.ts', line: 20 } }), // Not suppressable
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
+=======
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.totalWarnings).toBe(4);
       expect(analysis.suppressable).toBe(2);
@@ -482,13 +615,21 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse(warnings);
+=======
+      const analysis = identifier.analyze(warnings);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(1);
     });
 
     it('should handle empty warnings array', () => {
+<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/quick-wins.test.ts
       const analysis = identifier.analyse([]);
+=======
+      const analysis = identifier.analyze([]);
+>>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/__tests__/quick-wins.test.ts
 
       expect(analysis.quickWins).toHaveLength(0);
       expect(analysis.batchGroups).toHaveLength(0);
