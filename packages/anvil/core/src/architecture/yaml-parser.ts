@@ -162,18 +162,13 @@ const STARTER_TEMPLATE: LayersRecord = {
 };
 
 const MONOREPO_TEMPLATE: LayersRecord = {
-  apps: {
-    patterns: ['apps/**', 'packages/app-*/**'],
-    depends_on: ['packages', 'shared'],
-    description: 'Application packages',
-  },
   packages: {
-    patterns: ['packages/**', 'libs/**'],
+    patterns: ['apps/**', 'packages/**', 'libs/**', 'utils/**'],
     depends_on: ['shared'],
-    description: 'Reusable library packages',
+    description: 'Application and library packages',
   },
   shared: {
-    patterns: ['shared/**', 'packages/shared/**', 'packages/common/**'],
+    patterns: ['shared/**'],
     depends_on: [],
     description: 'Shared utilities and configurations',
   },
