@@ -65,7 +65,13 @@ export class SampleAnalyzer {
   /**
    * Select representative files for initial analysis
    */
+<<<<<<< HEAD:apps/anvil-cli/src/services/sample-analyzer.ts
   public async selectFiles(config: Partial<SampleAnalysisConfig> = {}): Promise<SampleSelection> {
+=======
+  public async selectFiles(
+    config: Partial<SampleAnalysisConfig> = {},
+  ): Promise<SampleSelection> {
+>>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/sample-analyzer.ts
     const fullConfig = { ...this.defaultConfig, ...config };
 
     // Try git-based selection first
@@ -83,7 +89,11 @@ export class SampleAnalyzer {
             gitAvailable: true,
           };
         }
+<<<<<<< HEAD:apps/anvil-cli/src/services/sample-analyzer.ts
       } catch {
+=======
+      } catch (error) {
+>>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/sample-analyzer.ts
         // Fall through to filesystem search
         console.warn('Git-based file selection failed, falling back to filesystem');
       }
@@ -121,7 +131,13 @@ export class SampleAnalyzer {
   /**
    * Get recently changed files from git
    */
+<<<<<<< HEAD:apps/anvil-cli/src/services/sample-analyzer.ts
   private async getRecentlyChangedFiles(config: SampleAnalysisConfig): Promise<string[]> {
+=======
+  private async getRecentlyChangedFiles(
+    config: SampleAnalysisConfig,
+  ): Promise<string[]> {
+>>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/sample-analyzer.ts
     try {
       // Get files changed in the last N days
       const since = `${config.daysBack}.days.ago`;
@@ -130,7 +146,11 @@ export class SampleAnalyzer {
         {
           cwd: this.projectRoot,
           maxBuffer: 10 * 1024 * 1024,
+<<<<<<< HEAD:apps/anvil-cli/src/services/sample-analyzer.ts
         }
+=======
+        },
+>>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/sample-analyzer.ts
       );
 
       // Parse output, remove empty lines, deduplicate
@@ -144,7 +164,13 @@ export class SampleAnalyzer {
       const uniqueFiles = Array.from(new Set(files));
 
       // Filter to only existing files
+<<<<<<< HEAD:apps/anvil-cli/src/services/sample-analyzer.ts
       const existingFiles = uniqueFiles.filter((f) => existsSync(join(this.projectRoot, f)));
+=======
+      const existingFiles = uniqueFiles.filter((f) =>
+        existsSync(join(this.projectRoot, f)),
+      );
+>>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/sample-analyzer.ts
 
       return existingFiles;
     } catch (error) {
@@ -189,7 +215,11 @@ export class SampleAnalyzer {
     dirPath: string,
     files: string[],
     config: SampleAnalysisConfig,
+<<<<<<< HEAD:apps/anvil-cli/src/services/sample-analyzer.ts
     maxDepth: number
+=======
+    maxDepth: number,
+>>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/sample-analyzer.ts
   ): void {
     if (maxDepth <= 0) return;
 
@@ -261,7 +291,13 @@ export class SampleAnalyzer {
   /**
    * Get summary statistics about the selection
    */
+<<<<<<< HEAD:apps/anvil-cli/src/services/sample-analyzer.ts
   public async getSelectionStats(config: Partial<SampleAnalysisConfig> = {}): Promise<{
+=======
+  public async getSelectionStats(
+    config: Partial<SampleAnalysisConfig> = {},
+  ): Promise<{
+>>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/sample-analyzer.ts
     totalSourceFiles: number;
     recentFiles: number;
     selectedFiles: number;
