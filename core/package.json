@@ -44,6 +44,6 @@
     "@types/json-schema": "^7.0.15",
     "@types/shell-quote": "^1.7.5",
     "tsx": "^4.21.0",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.17"
   }
 }

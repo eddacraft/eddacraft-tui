@@ -17,6 +17,6 @@
     "@anvil/core": "workspace:*"
   },
   "devDependencies": {
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.17"
   }
 }
