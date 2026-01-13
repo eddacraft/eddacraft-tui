@@ -2,10 +2,18 @@ import React from 'react';
 import { Box, Text } from 'ink';
 import { Header } from './Header.js';
 import { QuickWinsPanel } from './QuickWinsPanel.js';
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
 import { theme } from '../utils/theme.js';
 import type { ProjectContext } from '../../services/project-detector.js';
 import type { QuickWinsAnalysis } from '../../services/quick-wins.js';
 import type { HistoricalAnalysis } from '../../services/historical-analyser.js';
+=======
+import { StatusBadge } from './StatusBadge.js';
+import { theme } from '../utils/theme.js';
+import type { ProjectContext } from '../../services/project-detector.js';
+import type { QuickWinsAnalysis } from '../../services/quick-wins.js';
+import type { HistoricalAnalysis } from '../../services/historical-analyzer.js';
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/ResultsDashboard.tsx
 
 export interface InitAnalysisResults {
   /** Project context detection */
@@ -203,7 +211,13 @@ function HistoricalPanel({ analysis }: { analysis: HistoricalAnalysis }): React.
             <Box width={20}>
               <Text color={theme.colours.smoke}>Average per Commit:</Text>
             </Box>
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
             <Text color={theme.colours.ash}>{analysis.avgViolationsPerCommit.toFixed(1)}</Text>
+=======
+            <Text color={theme.colours.ash}>
+              {analysis.avgViolationsPerCommit.toFixed(1)}
+            </Text>
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/ResultsDashboard.tsx
           </Box>
 
           {analysis.patternOccurrences.length > 0 && (
@@ -287,10 +301,14 @@ function NavigationPanel(): React.ReactElement {
   );
 }
 
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
 export function ResultsDashboard({
   results,
   focused = false,
 }: ResultsDashboardProps): React.ReactElement {
+=======
+export function ResultsDashboard({ results, focused = false }: ResultsDashboardProps): React.ReactElement {
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/ResultsDashboard.tsx
   const { project, quickWins, historical } = results;
 
   return (

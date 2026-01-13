@@ -13,7 +13,11 @@ const quickWinTypeLabels: Record<QuickWinType, string> = {
   'type-definition': 'Type Definitions',
   'config-file': 'Config Files',
   'generated-code': 'Generated Code',
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/QuickWinsPanel.tsx
   migration: 'Legacy Code',
+=======
+  'migration': 'Legacy Code',
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/QuickWinsPanel.tsx
   'third-party': 'Third-Party',
   'legacy-code': 'Legacy Code',
 };
@@ -23,7 +27,11 @@ const quickWinTypeIcons: Record<QuickWinType, string> = {
   'type-definition': '📘',
   'config-file': '⚙️',
   'generated-code': '🤖',
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/QuickWinsPanel.tsx
   migration: '🔄',
+=======
+  'migration': '🔄',
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/QuickWinsPanel.tsx
   'third-party': '📦',
   'legacy-code': '📚',
 };
@@ -41,7 +49,13 @@ function BatchGroupRow({ group }: { group: BatchGroup }): React.ReactElement {
         <Text color={theme.colours.ash}>{label}</Text>
       </Box>
       <Box width={10}>
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/QuickWinsPanel.tsx
         <Text color={theme.colours.smoke}>{group.patternId}</Text>
+=======
+        <Text color={theme.colours.smoke}>
+          {group.patternId}
+        </Text>
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/QuickWinsPanel.tsx
       </Box>
       <Box width={8}>
         <Text color={theme.colours.ember} bold>
@@ -52,6 +66,7 @@ function BatchGroupRow({ group }: { group: BatchGroup }): React.ReactElement {
   );
 }
 
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/QuickWinsPanel.tsx
 function ProgressBar({
   current,
   total,
@@ -61,6 +76,9 @@ function ProgressBar({
   total: number;
   width?: number;
 }): React.ReactElement {
+=======
+function ProgressBar({ current, total, width = 30 }: { current: number; total: number; width?: number }): React.ReactElement {
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/QuickWinsPanel.tsx
   if (total === 0) {
     return (
       <Box width={width}>
@@ -84,10 +102,14 @@ function ProgressBar({
   );
 }
 
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/QuickWinsPanel.tsx
 export function QuickWinsPanel({
   analysis,
   focused = false,
 }: QuickWinsPanelProps): React.ReactElement {
+=======
+export function QuickWinsPanel({ analysis, focused = false }: QuickWinsPanelProps): React.ReactElement {
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/QuickWinsPanel.tsx
   const borderColour = focused ? theme.colours.ember : theme.colours.charcoal;
   const titleColour = focused ? theme.colours.ember : theme.colours.ash;
 
@@ -146,8 +168,12 @@ export function QuickWinsPanel({
               {analysis.batchGroups.length > 5 && (
                 <Box marginTop={0}>
                   <Text color={theme.colours.smoke}>
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/QuickWinsPanel.tsx
                     {theme.icons.info} +{analysis.batchGroups.length - 5} more batch groups
                     available
+=======
+                    {theme.icons.info} +{analysis.batchGroups.length - 5} more batch groups available
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/QuickWinsPanel.tsx
                   </Text>
                 </Box>
               )}
@@ -157,8 +183,12 @@ export function QuickWinsPanel({
           <Box marginTop={1}>
             <Text color={theme.colours.smoke}>
               {theme.icons.info} Tip: Use{' '}
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/QuickWinsPanel.tsx
               <Text color={theme.colours.ember}>anvil suppress --batch</Text> to apply batch
               suppressions
+=======
+              <Text color={theme.colours.ember}>anvil suppress --batch</Text> to apply batch suppressions
+>>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/QuickWinsPanel.tsx
             </Text>
           </Box>
         </Box>
