@@ -244,6 +244,11 @@ graph TD
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
 | [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
+| [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.0    | save-time-trust, drift-reporting                          |
+| [onboarding-feedback-resolution](./modules/onboarding-feedback-resolution.aps.md) | ONFBK | Ready | v1.1    | architecture-safety, tui                                  |
+| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTV | Draft | v2.0  | save-time-trust                                           |
+| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
+| [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUI     | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
 | [test-quality](./modules/test-quality.aps.md)                           | TEST    | In Progress | —       | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
@@ -313,6 +318,16 @@ graph TD
 | DRIFT-03 | drift  | Snapshot comparison       | Complete | high     |
 | DRIFT-04 | drift  | Report generator          | Complete | medium   |
 | DRIFT-05 | drift  | CLI drift commands        | Complete | high     |
+
+### Task Status — v1.1 (Onboarding Feedback Resolution)
+
+| Task     | Module | Description                                 | Status  | Priority |
+| -------- | ------ | ------------------------------------------- | ------- | -------- |
+| ONFBK-01 | onfbk  | Fix --no-tui flag handling                  | Planned | high     |
+| ONFBK-02 | onfbk  | Fix TUI wizard early exit                   | Planned | high     |
+| ONFBK-03 | onfbk  | Improve layer detection for project variety | Planned | high     |
+| ONFBK-04 | onfbk  | Improve entry points presentation           | Planned | medium   |
+| ONFBK-05 | onfbk  | Add architecture explanation                | Planned | medium   |
 
 ### Task Status — v1.1 (OPA & Architecture Integration)
 
