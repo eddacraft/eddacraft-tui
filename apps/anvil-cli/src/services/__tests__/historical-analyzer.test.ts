@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { HistoricalAnalyzer } from '../historical-analyzer.js';
+import { HistoricalAnalyzer } from '../historical-analyser.js';
 import {
   createTestWorkspace,
   type TestWorkspace,
@@ -38,7 +38,7 @@ describe('HistoricalAnalyzer', () => {
 
   describe('git availability', () => {
     it('should return empty analysis when git is not available', async () => {
-      const analysis = await analyzer.analyze();
+      const analysis = await analyzer.analyse();
 
       expect(analysis.totalCommits).toBe(0);
       expect(analysis.totalViolations).toBe(0);
@@ -50,7 +50,7 @@ describe('HistoricalAnalyzer', () => {
     it('should return empty analysis when git repo has no commits', async () => {
       initGitRepo(workspace.root);
 
-      const analysis = await analyzer.analyze();
+      const analysis = await analyzer.analyse();
 
       expect(analysis.totalCommits).toBe(0);
       expect(analysis.totalViolations).toBe(0);
@@ -69,7 +69,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add app.ts"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         expect(analysis.totalCommits).toBeGreaterThanOrEqual(0);
       } catch (error) {
@@ -84,7 +84,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add readme"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         // Should not include commits with only non-source files
         expect(analysis.commits.every((c) => c.filesChanged.length > 0)).toBe(true);
@@ -99,7 +99,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Recent commit"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ daysBack: 1 });
+        const analysis = await analyzer.analyse({ daysBack: 1 });
 
         // Should only get commits from the last day
         if (analysis.totalCommits > 0) {
@@ -120,7 +120,7 @@ describe('HistoricalAnalyzer', () => {
           await execAsync(`git commit -m "Commit ${i}"`, { cwd: workspace.root });
         }
 
-        const analysis = await analyzer.analyze({ maxCommits: 3 });
+        const analysis = await analyzer.analyse({ maxCommits: 3 });
 
         expect(analysis.totalCommits).toBeLessThanOrEqual(3);
       } catch (error) {
@@ -145,7 +145,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add eslint-disable"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ antiPatternIds: ['AP-001'] });
+        const analysis = await analyzer.analyse({ antiPatternIds: ['AP-001'] });
 
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
@@ -165,7 +165,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add any type"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ antiPatternIds: ['AP-003'] });
+        const analysis = await analyzer.analyse({ antiPatternIds: ['AP-003'] });
 
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
@@ -185,7 +185,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add ts-ignore"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ antiPatternIds: ['AP-004'] });
+        const analysis = await analyzer.analyse({ antiPatternIds: ['AP-004'] });
 
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
@@ -205,7 +205,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add empty catch"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ antiPatternIds: ['AP-006'] });
+        const analysis = await analyzer.analyse({ antiPatternIds: ['AP-006'] });
 
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
@@ -221,7 +221,7 @@ describe('HistoricalAnalyzer', () => {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add console.log"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ antiPatternIds: ['AP-007'] });
+        const analysis = await analyzer.analyse({ antiPatternIds: ['AP-007'] });
 
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
@@ -245,7 +245,7 @@ function test(x: any) {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add multiple violations"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         if (analysis.totalCommits > 0) {
           // Should detect multiple violations (ts-ignore, any, console.log)
@@ -271,7 +271,7 @@ function test(x: any) {
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add any types"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ antiPatternIds: ['AP-003'] });
+        const analysis = await analyzer.analyse({ antiPatternIds: ['AP-003'] });
 
         if (analysis.totalViolations > 0) {
           expect(analysis.patternOccurrences.length).toBeGreaterThan(0);
@@ -302,7 +302,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Mixed violations"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         if (analysis.patternOccurrences.length > 1) {
           // Verify sorted by count descending
@@ -326,7 +326,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add any type"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ antiPatternIds: ['AP-003'] });
+        const analysis = await analyzer.analyse({ antiPatternIds: ['AP-003'] });
 
         if (analysis.patternOccurrences.length > 0) {
           const pattern = analysis.patternOccurrences[0];
@@ -357,7 +357,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Commit 2"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         if (analysis.timeline.length > 0) {
           expect(analysis.timeline[0].date).toBeInstanceOf(Date);
@@ -380,7 +380,7 @@ console.log(x);`,
           await execAsync(`git commit -m "Commit ${i}"`, { cwd: workspace.root });
         }
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         if (analysis.timeline.length > 1) {
           for (let i = 0; i < analysis.timeline.length - 1; i++) {
@@ -409,7 +409,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add violations"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         if (analysis.totalCommits > 0) {
           expect(analysis.avgViolationsPerCommit).toBe(
@@ -424,7 +424,7 @@ console.log(x);`,
     it('should handle zero commits gracefully', async () => {
       initGitRepo(workspace.root);
 
-      const analysis = await analyzer.analyze();
+      const analysis = await analyzer.analyse();
 
       expect(analysis.avgViolationsPerCommit).toBe(0);
     });
@@ -438,7 +438,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "First commit"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         if (analysis.totalCommits > 0) {
           expect(analysis.dateRange.from).toBeInstanceOf(Date);
@@ -463,7 +463,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add violation"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
         const summary = analyzer.generateSummary(analysis);
 
         expect(summary).toContain('Analyzed');
@@ -479,7 +479,7 @@ console.log(x);`,
     });
 
     it('should handle empty analysis in summary', async () => {
-      const analysis = await analyzer.analyze();
+      const analysis = await analyzer.analyse();
       const summary = analyzer.generateSummary(analysis);
 
       expect(summary).toContain('No git history available');
@@ -498,7 +498,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add violations"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
         const summary = analyzer.generateSummary(analysis);
 
         if (analysis.patternOccurrences.length > 0) {
@@ -526,7 +526,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Dirty commit"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
         const stats = analyzer.getStatistics(analysis);
 
         expect(stats.commitsWithViolations).toBeGreaterThanOrEqual(0);
@@ -548,7 +548,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add violation"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
         const stats = analyzer.getStatistics(analysis);
 
         if (analysis.totalCommits > 0) {
@@ -572,7 +572,7 @@ console.log(x);`,
           await execAsync(`git commit -m "Commit ${i}"`, { cwd: workspace.root });
         }
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
         const stats = analyzer.getStatistics(analysis);
 
         if (analysis.totalViolations > 0) {
@@ -586,7 +586,7 @@ console.log(x);`,
     });
 
     it('should handle no violations in statistics', async () => {
-      const analysis = await analyzer.analyze();
+      const analysis = await analyzer.analyse();
       const stats = analyzer.getStatistics(analysis);
 
       expect(stats.commitsWithViolations).toBe(0);
@@ -608,7 +608,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add test file"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         // Test files should be excluded
         expect(
@@ -626,7 +626,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add build file"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze();
+        const analysis = await analyzer.analyse();
 
         // Build files should be excluded
         expect(
@@ -644,7 +644,7 @@ console.log(x);`,
         await execAsync('git add .', { cwd: workspace.root });
         await execAsync('git commit -m "Add files"', { cwd: workspace.root });
 
-        const analysis = await analyzer.analyze({ filePatterns: ['.ts', '.tsx'] });
+        const analysis = await analyzer.analyse({ filePatterns: ['.ts', '.tsx'] });
 
         // Should only include TypeScript files
         expect(

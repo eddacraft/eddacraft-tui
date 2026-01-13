@@ -15,8 +15,12 @@ import { StatusBadge } from './StatusBadge.js';
 import { theme } from '../utils/theme.js';
 import type { ProjectContext } from '../../services/project-detector.js';
 import type { QuickWinsAnalysis } from '../../services/quick-wins.js';
+<<<<<<< HEAD:apps/anvil-cli/src/tui/components/ResultsDashboard.tsx
 import type { HistoricalAnalysis } from '../../services/historical-analyzer.js';
 >>>>>>> 5af1817 (feat(cli): Add interactive results dashboard TUI (IFR-005)):cli/src/tui/components/ResultsDashboard.tsx
+=======
+import type { HistoricalAnalysis } from '../../services/historical-analyser.js';
+>>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/tui/components/ResultsDashboard.tsx
 
 export interface InitAnalysisResults {
   /** Project context detection */

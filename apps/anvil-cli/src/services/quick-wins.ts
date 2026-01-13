@@ -92,6 +92,7 @@ export interface QuickWinsAnalysis {
 export class QuickWinsIdentifier {
   /**
 <<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
+<<<<<<< HEAD:apps/anvil-cli/src/services/quick-wins.ts
    * Analyse warnings to find quick wins
    */
   public analyse(warnings: Warning[]): QuickWinsAnalysis {
@@ -100,6 +101,11 @@ export class QuickWinsIdentifier {
    */
   public analyze(warnings: Warning[]): QuickWinsAnalysis {
 >>>>>>> 85ae182 (feat(cli): Add quick wins identifier for easy suppressions (IFR-004)):cli/src/services/quick-wins.ts
+=======
+   * Analyse warnings to find quick wins
+   */
+  public analyse(warnings: Warning[]): QuickWinsAnalysis {
+>>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/quick-wins.ts
     const quickWins: QuickWin[] = [];
 
     for (const warning of warnings) {

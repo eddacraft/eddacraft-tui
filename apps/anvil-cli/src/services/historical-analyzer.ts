@@ -55,7 +55,7 @@ export interface TimelineEntry {
 export interface HistoricalAnalysis {
   /** Analyzed commits */
   commits: HistoricalCommit[];
-  /** Total commits analyzed */
+  /** Total commits analysed */
   totalCommits: number;
   /** Total estimated violations */
   totalViolations: number;
@@ -65,7 +65,7 @@ export interface HistoricalAnalysis {
   patternOccurrences: PatternOccurrence[];
   /** Timeline data */
   timeline: TimelineEntry[];
-  /** Date range analyzed */
+  /** Date range analysed */
   dateRange: {
     from: Date;
     to: Date;
@@ -78,9 +78,9 @@ export interface HistoricalAnalysis {
 export interface HistoricalAnalysisConfig {
   /** Number of days to look back */
   daysBack: number;
-  /** Maximum commits to analyze */
+  /** Maximum commits to analyse */
   maxCommits: number;
-  /** File patterns to analyze */
+  /** File patterns to analyse */
   filePatterns: string[];
   /** Anti-pattern IDs to detect */
   antiPatternIds: string[];
@@ -100,9 +100,9 @@ export class HistoricalAnalyzer {
   constructor(private readonly projectRoot: string) {}
 
   /**
-   * Analyze git history to show what Anvil would have caught
+   * Analyse git history to show what Anvil would have caught
    */
-  public async analyze(
+  public async analyse(
     config: Partial<HistoricalAnalysisConfig> = {}
   ): Promise<HistoricalAnalysis> {
     const fullConfig = { ...this.defaultConfig, ...config };
@@ -116,31 +116,31 @@ export class HistoricalAnalyzer {
       // Get commits from history
       const commits = await this.getCommits(fullConfig);
 
-      // Analyze each commit for potential violations
-      const analyzedCommits = await this.analyzeCommits(commits, fullConfig);
+      // Analyse each commit for potential violations
+      const analysedCommits = await this.analyseCommits(commits, fullConfig);
 
       // Generate statistics
-      const totalViolations = analyzedCommits.reduce((sum, c) => sum + c.estimatedViolations, 0);
+      const totalViolations = analysedCommits.reduce((sum, c) => sum + c.estimatedViolations, 0);
 
       const avgViolationsPerCommit =
-        analyzedCommits.length > 0 ? totalViolations / analyzedCommits.length : 0;
+        analysedCommits.length > 0 ? totalViolations / analysedCommits.length : 0;
 
       // Extract pattern occurrences
-      const patternOccurrences = this.extractPatternOccurrences(analyzedCommits, fullConfig);
+      const patternOccurrences = this.extractPatternOccurrences(analysedCommits, fullConfig);
 
       // Generate timeline
-      const timeline = this.generateTimeline(analyzedCommits);
+      const timeline = this.generateTimeline(analysedCommits);
 
       // Determine date range
-      const dates = analyzedCommits.map((c) => c.date);
+      const dates = analysedCommits.map((c) => c.date);
       const dateRange = {
         from: dates.length > 0 ? new Date(Math.min(...dates.map((d) => d.getTime()))) : new Date(),
         to: dates.length > 0 ? new Date(Math.max(...dates.map((d) => d.getTime()))) : new Date(),
       };
 
       return {
-        commits: analyzedCommits,
-        totalCommits: analyzedCommits.length,
+        commits: analysedCommits,
+        totalCommits: analysedCommits.length,
         totalViolations,
         avgViolationsPerCommit,
         patternOccurrences,
@@ -148,7 +148,7 @@ export class HistoricalAnalyzer {
         dateRange,
       };
     } catch (error) {
-      console.warn('Failed to analyze git history:', error);
+      console.warn('Failed to analyse git history:', error);
       return this.createEmptyAnalysis();
     }
   }
@@ -204,7 +204,7 @@ export class HistoricalAnalyzer {
       if (lines.length < 1) continue;
 
       const [hash, author, timestamp, message] = lines[0].split('|');
-      const files = lines.slice(1).filter((f) => f.trim() && this.shouldAnalyzeFile(f, config));
+      const files = lines.slice(1).filter((f) => f.trim() && this.shouldAnalyseFile(f, config));
 
       if (files.length === 0) continue;
 
@@ -221,9 +221,9 @@ export class HistoricalAnalyzer {
   }
 
   /**
-   * Check if file should be analyzed
+   * Check if file should be analysed
    */
-  private shouldAnalyzeFile(file: string, config: HistoricalAnalysisConfig): boolean {
+  private shouldAnalyseFile(file: string, config: HistoricalAnalysisConfig): boolean {
     // Exclude test files and generated code
     const excludePatterns = [
       '.test.',
@@ -245,9 +245,9 @@ export class HistoricalAnalyzer {
   }
 
   /**
-   * Analyze commits for potential violations
+   * Analyse commits for potential violations
    */
-  private async analyzeCommits(
+  private async analyseCommits(
     commits: Array<{
       hash: string;
       message: string;
@@ -257,7 +257,7 @@ export class HistoricalAnalyzer {
     }>,
     config: HistoricalAnalysisConfig
   ): Promise<HistoricalCommit[]> {
-    const analyzed: HistoricalCommit[] = [];
+    const analysed: HistoricalCommit[] = [];
 
     for (const commit of commits) {
       try {
@@ -270,7 +270,7 @@ export class HistoricalAnalyzer {
         // Estimate violations from diff
         const estimatedViolations = this.estimateViolationsFromDiff(stdout, config.antiPatternIds);
 
-        analyzed.push({
+        analysed.push({
           hash: commit.hash,
           message: commit.message,
           author: commit.author,
@@ -279,12 +279,12 @@ export class HistoricalAnalyzer {
           estimatedViolations,
         });
       } catch {
-        // Skip commits that fail to analyze
+        // Skip commits that fail to analyse
         continue;
       }
     }
 
-    return analyzed;
+    return analysed;
   }
 
   /**
@@ -353,7 +353,7 @@ export class HistoricalAnalyzer {
       });
     }
 
-    // This is a simplified version - in reality, we'd need to re-analyze
+    // This is a simplified version - in reality, we'd need to re-analyse
     // the diffs to count specific patterns. For now, we distribute violations
     // proportionally across patterns based on common occurrence rates.
     const totalViolations = commits.reduce((sum, c) => sum + c.estimatedViolations, 0);
