@@ -5,12 +5,20 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info, warning } from '../utils/output.js';
-import { PolicyLoader, OPAExecutor, getOPABinaryManager } from '@anvil/core';
+import {
+  PolicyLoader,
+  OPAExecutor,
+  getOPABinaryManager,
+  GateConfigManager,
+  BundleManager,
+  getBundleManager,
+} from '@anvil/core';
+import type { BundleAuthConfig, PolicyBundleConfig } from '@anvil/core';
 
 /**
  * Default policy directory relative to workspace root
@@ -559,5 +567,439 @@ export function createPolicyCommand(): Command {
       }
     });
 
+  // Add bundle command group
+  command
+    .command('bundle')
+    .description('Manage remote policy bundles')
+    .addCommand(createBundleListCommand())
+    .addCommand(createBundleAddCommand())
+    .addCommand(createBundleRemoveCommand())
+    .addCommand(createBundleSyncCommand());
+
   return command;
+}
+
+/**
+ * Format a timestamp as relative time (e.g., "2 hours ago")
+ */
+function formatRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp;
+  const seconds = Math.floor(diff / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (minutes > 0) return `${minutes}m ago`;
+  return 'just now';
+}
+
+/**
+ * Format bytes as human-readable size
+ */
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+/**
+ * Get bundle status string
+ */
+function getBundleStatus(entry: { expires_at: number; signature_verified: boolean } | null): {
+  text: string;
+  color: typeof chalk.green;
+} {
+  if (!entry) {
+    return { text: 'not synced', color: chalk.yellow };
+  }
+
+  const isExpired = Date.now() > entry.expires_at;
+
+  if (isExpired) {
+    return { text: 'expired', color: chalk.yellow };
+  }
+
+  if (entry.signature_verified) {
+    return { text: 'verified', color: chalk.green };
+  }
+
+  return { text: 'synced', color: chalk.cyan };
+}
+
+/**
+ * Create bundle list subcommand
+ */
+function createBundleListCommand(): Command {
+  return new Command('list').description('List configured policy bundles').action(async () => {
+    try {
+      const workspaceRoot = getWorkspaceRoot();
+      const configManager = new GateConfigManager(workspaceRoot);
+      const config = configManager.loadConfig();
+
+      const bundles = config.policy?.bundles || [];
+
+      if (bundles.length === 0) {
+        info('No policy bundles configured');
+        console.log(chalk.dim('\nRun `anvil policy bundle add <url>` to add a bundle'));
+        return;
+      }
+
+      // Initialize bundle manager to get cache status
+      const bundleManager = getBundleManager();
+
+      console.log(chalk.bold('\nConfigured Policy Bundles:\n'));
+
+      // Print table header
+      console.log(
+        chalk.dim('  ') +
+          chalk.bold('Name'.padEnd(20)) +
+          chalk.bold('URL'.padEnd(40)) +
+          chalk.bold('Last Sync'.padEnd(15)) +
+          chalk.bold('Status')
+      );
+      console.log(chalk.dim('  ' + '-'.repeat(85)));
+
+      // Print each bundle
+      for (const bundle of bundles) {
+        const entry = await bundleManager.getBundleEntry(bundle.name);
+        const lastSync = entry ? formatRelativeTime(entry.downloaded_at) : '-';
+        const status = getBundleStatus(entry);
+        const enabledIndicator = bundle.enabled === false ? chalk.dim('[disabled] ') : '';
+
+        // Truncate URL if too long
+        const maxUrlLen = 38;
+        const displayUrl =
+          bundle.url.length > maxUrlLen ? bundle.url.slice(0, maxUrlLen - 2) + '..' : bundle.url;
+
+        console.log(
+          '  ' +
+            enabledIndicator +
+            chalk.cyan(bundle.name.padEnd(20 - enabledIndicator.length)) +
+            chalk.dim(displayUrl.padEnd(40)) +
+            chalk.dim(lastSync.padEnd(15)) +
+            status.color(status.text)
+        );
+
+        if (entry) {
+          console.log(chalk.dim(`      Size: ${formatSize(entry.size_bytes)}`));
+        }
+      }
+
+      console.log('');
+      success(`${bundles.length} bundle(s) configured`);
+    } catch (err) {
+      error(`Failed to list bundles: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      process.exit(1);
+    }
+  });
+}
+
+/**
+ * Create bundle add subcommand
+ */
+function createBundleAddCommand(): Command {
+  return new Command('add')
+    .description('Add a remote policy bundle')
+    .argument('<url>', 'URL of the bundle to add')
+    .option('-n, --name <name>', 'Name for the bundle (defaults to URL basename)')
+    .option('-r, --refresh <ms>', 'Refresh interval in milliseconds', '300000')
+    .option('-k, --key <path>', 'Path to public key for signature verification')
+    .option('--auth-user <username>', 'Username for basic authentication')
+    .option('--auth-pass-env <envvar>', 'Environment variable containing password for basic auth')
+    .option('--auth-token-env <envvar>', 'Environment variable containing bearer token')
+    .option('--no-sync', 'Do not download the bundle immediately')
+    .action(
+      async (
+        url: string,
+        options: {
+          name?: string;
+          refresh?: string;
+          key?: string;
+          authUser?: string;
+          authPassEnv?: string;
+          authTokenEnv?: string;
+          sync?: boolean;
+        }
+      ) => {
+        const spinner = ora('Adding bundle configuration...').start();
+
+        try {
+          const workspaceRoot = getWorkspaceRoot();
+          const configManager = new GateConfigManager(workspaceRoot);
+          const config = configManager.loadConfig();
+
+          // Initialize policy config if needed
+          if (!config.policy) {
+            config.policy = {};
+          }
+          if (!config.policy.bundles) {
+            config.policy.bundles = [];
+          }
+
+          // Derive bundle name from URL if not provided
+          const bundleName = options.name || deriveBundleName(url);
+
+          // Check if bundle with this name already exists
+          const existingIndex = config.policy.bundles.findIndex((b) => b.name === bundleName);
+          if (existingIndex >= 0) {
+            spinner.fail(`Bundle '${bundleName}' already exists`);
+            console.log(chalk.dim('\nUse a different --name or remove the existing bundle first'));
+            process.exit(1);
+          }
+
+          // Build bundle config
+          const bundleConfig: PolicyBundleConfig = {
+            name: bundleName,
+            url,
+            refresh_interval_ms: parseInt(options.refresh || '300000', 10),
+            enabled: true,
+          };
+
+          // Add signature key if provided
+          if (options.key) {
+            if (!existsSync(options.key)) {
+              spinner.fail(`Key file not found: ${options.key}`);
+              process.exit(1);
+            }
+            bundleConfig.signature_key = readFileSync(options.key, 'utf-8').trim();
+          }
+
+          // Add auth config if provided
+          if (options.authUser || options.authPassEnv || options.authTokenEnv) {
+            const auth: BundleAuthConfig = {
+              type: options.authTokenEnv ? 'bearer' : 'basic',
+            };
+
+            if (options.authUser) {
+              auth.username = options.authUser;
+            }
+            if (options.authPassEnv) {
+              auth.password_env = options.authPassEnv;
+            }
+            if (options.authTokenEnv) {
+              auth.token_env = options.authTokenEnv;
+            }
+
+            bundleConfig.auth = auth;
+          }
+
+          // Add to config
+          config.policy.bundles.push(bundleConfig);
+          configManager.saveConfig(config);
+
+          spinner.succeed(`Added bundle '${bundleName}'`);
+
+          // Optionally sync immediately
+          if (options.sync !== false) {
+            const syncSpinner = ora('Downloading bundle...').start();
+
+            try {
+              const bundleManager = new BundleManager({
+                bundles: [bundleConfig],
+              });
+
+              const result = await bundleManager.downloadBundle(bundleName);
+
+              if (result.success) {
+                syncSpinner.succeed(`Bundle downloaded to ${result.path}`);
+              } else {
+                syncSpinner.warn(`Download failed: ${result.error}`);
+                console.log(chalk.dim('\nRun `anvil policy bundle sync` to retry'));
+              }
+            } catch (syncErr) {
+              syncSpinner.warn(
+                `Download failed: ${syncErr instanceof Error ? syncErr.message : 'Unknown error'}`
+              );
+              console.log(chalk.dim('\nRun `anvil policy bundle sync` to retry'));
+            }
+          }
+
+          console.log('');
+          success('Bundle configuration saved to .anvilrc');
+        } catch (err) {
+          spinner.fail('Failed to add bundle');
+          error(err instanceof Error ? err.message : 'Unknown error');
+          process.exit(1);
+        }
+      }
+    );
+}
+
+/**
+ * Derive a bundle name from its URL
+ */
+function deriveBundleName(url: string): string {
+  try {
+    const parsed = new URL(url);
+    const pathParts = parsed.pathname.split('/').filter(Boolean);
+    const lastPart = pathParts[pathParts.length - 1] || '';
+
+    // Remove common bundle extensions
+    let name = lastPart
+      .replace(/\.tar\.gz$/, '')
+      .replace(/\.tgz$/, '')
+      .replace(/\.bundle$/, '')
+      .replace(/\.opa$/, '');
+
+    // Fallback to hostname if path is empty
+    if (!name) {
+      name = parsed.hostname.replace(/\./g, '-');
+    }
+
+    return name;
+  } catch {
+    // If URL parsing fails, use a hash
+    return `bundle-${Date.now().toString(36)}`;
+  }
+}
+
+/**
+ * Create bundle remove subcommand
+ */
+function createBundleRemoveCommand(): Command {
+  return new Command('remove')
+    .description('Remove a policy bundle')
+    .argument('<name>', 'Name of the bundle to remove')
+    .option('--keep-cache', 'Keep cached bundle files')
+    .action(async (name: string, options: { keepCache?: boolean }) => {
+      const spinner = ora(`Removing bundle '${name}'...`).start();
+
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configManager = new GateConfigManager(workspaceRoot);
+        const config = configManager.loadConfig();
+
+        const bundles = config.policy?.bundles || [];
+        const bundleIndex = bundles.findIndex((b) => b.name === name);
+
+        if (bundleIndex < 0) {
+          spinner.fail(`Bundle '${name}' not found`);
+          process.exit(1);
+        }
+
+        // Remove from config
+        bundles.splice(bundleIndex, 1);
+        if (config.policy) {
+          config.policy.bundles = bundles;
+        }
+        configManager.saveConfig(config);
+
+        // Clear cache unless --keep-cache
+        if (!options.keepCache) {
+          const bundleManager = getBundleManager();
+          await bundleManager.invalidateBundle(name);
+          spinner.succeed(`Removed bundle '${name}' and cleared cache`);
+        } else {
+          spinner.succeed(`Removed bundle '${name}' (cache preserved)`);
+        }
+
+        success('Bundle configuration updated');
+      } catch (err) {
+        spinner.fail('Failed to remove bundle');
+        error(err instanceof Error ? err.message : 'Unknown error');
+        process.exit(1);
+      }
+    });
+}
+
+/**
+ * Create bundle sync subcommand
+ */
+function createBundleSyncCommand(): Command {
+  return new Command('sync')
+    .description('Download or update policy bundles')
+    .option('-f, --force', 'Force re-download even if cached')
+    .option('-n, --name <name>', 'Sync only a specific bundle')
+    .action(async (options: { force?: boolean; name?: string }) => {
+      const spinner = ora('Syncing policy bundles...').start();
+
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configManager = new GateConfigManager(workspaceRoot);
+        const config = configManager.loadConfig();
+
+        let bundles = config.policy?.bundles || [];
+
+        if (bundles.length === 0) {
+          spinner.warn('No bundles configured');
+          console.log(chalk.dim('\nRun `anvil policy bundle add <url>` to add a bundle'));
+          return;
+        }
+
+        // Filter to specific bundle if --name provided
+        if (options.name) {
+          bundles = bundles.filter((b) => b.name === options.name);
+          if (bundles.length === 0) {
+            spinner.fail(`Bundle '${options.name}' not found`);
+            process.exit(1);
+          }
+        }
+
+        // Filter out disabled bundles
+        const enabledBundles = bundles.filter((b) => b.enabled !== false);
+
+        if (enabledBundles.length === 0) {
+          spinner.warn('All bundles are disabled');
+          return;
+        }
+
+        // If force, clear cache first
+        if (options.force) {
+          const bundleManager = getBundleManager();
+          for (const bundle of enabledBundles) {
+            await bundleManager.invalidateBundle(bundle.name);
+          }
+        }
+
+        // Create bundle manager with configured bundles
+        const bundleManager = new BundleManager({
+          bundles: enabledBundles,
+        });
+
+        spinner.text = `Syncing ${enabledBundles.length} bundle(s)...`;
+
+        const results = await bundleManager.syncAll();
+
+        spinner.stop();
+
+        // Display results
+        console.log(chalk.bold('\nBundle Sync Results:\n'));
+
+        let successCount = 0;
+        let failCount = 0;
+
+        for (const result of results) {
+          if (result.success) {
+            successCount++;
+            const updateStatus = result.updated ? chalk.green('updated') : chalk.dim('unchanged');
+            console.log(`  ${chalk.green('✓')} ${result.name}: ${updateStatus}`);
+            if (result.path) {
+              console.log(chalk.dim(`      Path: ${result.path}`));
+            }
+          } else {
+            failCount++;
+            console.log(
+              `  ${chalk.red('✗')} ${result.name}: ${chalk.red(result.error || 'Failed')}`
+            );
+          }
+        }
+
+        console.log('');
+
+        if (failCount === 0) {
+          success(`All ${successCount} bundle(s) synced successfully`);
+        } else if (successCount > 0) {
+          warning(`${successCount} succeeded, ${failCount} failed`);
+        } else {
+          error(`All ${failCount} bundle(s) failed to sync`);
+          process.exit(1);
+        }
+      } catch (err) {
+        spinner.fail('Bundle sync failed');
+        error(err instanceof Error ? err.message : 'Unknown error');
+        process.exit(1);
+      }
+    });
 }
