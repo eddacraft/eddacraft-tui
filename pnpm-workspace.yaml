@@ -1,18 +1,27 @@
 packages:
-  # Current structure (v1.0)
-  - cli
+  # Apps (v1.1+)
+  - apps/*
+  # Core domain packages
+  - packages/anvil/*
+  # Existing packages
+  - packages/adapters
+  - packages/aps
+  - packages/edda-stack
+  - packages/eslint-plugin-anvil
+  - packages/kindling-integration
+  - packages/vscode-extension
+  # Platform packages
+  - packages/platform/*
+  # Shared packages
+  - packages/shared/*
+  # Tooling packages
+  - packages/tooling/*
+  # Tools
+  - tools/*
+  # Legacy (to be migrated)
   - ui
   - core
   - packs
-  - packages/*
-  # Future structure (v1.1+) - ready for migration
-  - apps/*
-  - packages/anvil/*
-  - packages/edda-stack/*
-  - packages/platform/*
-  - packages/shared/*
-  - packages/tooling/*
-  - tools/*
 
 ignoredBuiltDependencies:
   - '@devm33/node-pty'

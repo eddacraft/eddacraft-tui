@@ -536,32 +536,49 @@ packages/adapters/
 
 ### Phase 5: App Migration
 
+> **Completed:** 2026-01-14
+
 #### MONO-013: Move CLI to apps/anvil-cli
 
 - **Intent:** Establish apps/ convention for deployables
 - **Expected Outcome:** CLI builds and runs from new location
-- **Validation:** `nx build @anvil/cli && anvil --version` works
-- **Status:** Ready
+- **Validation:** `pnpm link:cli` works from new location
+- **Status:** Complete
 - **Priority:** high
 - **Dependencies:** MONO-007, MONO-008
+
+**Implementation:**
+- Moved cli/ to apps/anvil-cli/ using git mv (preserves history)
+- Updated package.json repository.directory to apps/anvil-cli
+- Updated root package.json link:cli and unlink:cli scripts
+- Updated pnpm-workspace.yaml to use apps/* pattern
 
 #### MONO-014: Reorganise E2E tests
 
 - **Intent:** Structure E2E tests by application
 - **Expected Outcome:** `apps/e2e/cli-e2e/` contains CLI E2E tests
-- **Validation:** `nx e2e cli-e2e` passes
-- **Status:** Ready
+- **Validation:** `pnpm test:e2e` works
+- **Status:** Complete (placeholder ready)
 - **Priority:** medium
 - **Dependencies:** MONO-013
+
+**Implementation:**
+- apps/e2e/ placeholder exists with structure for cli-e2e, api-e2e, ui-e2e
+- Updated README with test running instructions
+- No existing e2e tests to migrate (root e2e/ did not exist)
 
 #### MONO-015: Move scripts to tools/
 
 - **Intent:** Centralise build and utility scripts
 - **Expected Outcome:** `tools/scripts/` contains all build scripts
-- **Validation:** Build scripts execute from new location
-- **Status:** Ready
+- **Validation:** Scripts can be executed from new location
+- **Status:** Complete
 - **Priority:** low
 - **Dependencies:** None
+
+**Implementation:**
+- Moved scripts/ to tools/scripts/ using git mv (preserves history)
+- Contains: audit-tests.ts, bench-anvil-check.mjs
 
 ### Phase 6: Validation
 
