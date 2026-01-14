@@ -1,0 +1,56 @@
+{
+  "$schema": "https://code.claude.com/mcp.schema.json",
+  "mcpServers": {
+    "codex": {
+      "type": "stdio",
+      "command": "codex",
+      "args": ["-m", "gpt-4.1-mini", "mcp-server"],
+      "env": {},
+      "description": "OpenAI Codex for expert delegation"
+    },
+    "memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-memory-server"],
+      "env": {
+        "MEMORY_FILE": "${CLAUDE_PROJECT_DIR}/.claude/memory.json"
+      },
+      "description": "Persistent memory across sessions"
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-filesystem-server", "${CLAUDE_PROJECT_DIR}"],
+      "env": {},
+      "description": "Enhanced filesystem operations"
+    },
+    "brave-search": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-brave-search"],
+      "env": {
+        "BRAVE_API_KEY": "${BRAVE_API_KEY}"
+      },
+      "description": "Web search via Brave",
+      "disabled": true
+    },
+    "github": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "description": "GitHub integration for issues, PRs, etc.",
+      "disabled": true
+    },
+    "puppeteer": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@anthropic/mcp-puppeteer"],
+      "env": {},
+      "description": "Browser automation for web scraping and testing",
+      "disabled": true
+    }
+  }
+}
