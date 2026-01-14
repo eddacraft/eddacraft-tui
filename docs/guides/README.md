@@ -17,6 +17,11 @@ How-to guides for developers working on Anvil.
 
 - [Git Worktree Workflow](git-worktree-workflow.md) - Managing multiple branches
 
+### Edda Stack
+
+- [Stack Migration Guide](stack-migration.md) - Coordinating schema changes
+  across layers
+
 ### Coming Soon
 
 - Development Setup Guide
