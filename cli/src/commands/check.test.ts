@@ -60,6 +60,14 @@ describe('check command', () => {
 
     expect(noCacheOpt).toBeDefined();
   });
+
+  it('should have --all option for analysing all files', () => {
+    const command = createCheckCommand();
+    const allOpt = command.options.find((o) => o.long === '--all');
+
+    expect(allOpt).toBeDefined();
+    expect(allOpt?.description).toContain('all source files');
+  });
 });
 
 describe('check command JSON output structure', () => {

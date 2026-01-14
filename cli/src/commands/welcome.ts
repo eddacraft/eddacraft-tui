@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import chalk from 'chalk';
+import { Command } from 'commander';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { Welcome } from '../tui/commands/welcome/Welcome.js';
@@ -10,6 +11,18 @@ import {
   VALUE_PROPOSITION,
   QUICK_START_OPTIONS,
 } from '../tui/commands/welcome/content.js';
+
+export function createStartCommand(): Command {
+  const command = new Command('start');
+
+  command
+    .description('Show getting started options (tutorial, init, diagnostics)')
+    .action(async () => {
+      await showWelcome();
+    });
+
+  return command;
+}
 
 export async function showWelcome(): Promise<void> {
   const useTUI = isTUIAvailable();
@@ -74,8 +87,10 @@ function showWelcomePlain(): void {
 
 function runCommand(command: string): void {
   const [cmd, ...args] = command.split(' ');
+  // Windows requires shell: true to execute .cmd batch files created by npm.
+  // Linux/macOS don't need it and it triggers DEP0190 deprecation in Node.js v24+.
   spawn(cmd, args, {
     stdio: 'inherit',
-    shell: true,
+    shell: process.platform === 'win32',
   });
 }

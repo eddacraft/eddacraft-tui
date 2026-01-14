@@ -2,7 +2,8 @@
 # Traditional 3-tier architecture: presentation → business → data
 
 name: layered
-description: Traditional layered architecture with presentation, business, and data tiers
+description:
+  Classic 3-tier architecture - ideal for APIs, web backends, and traditional applications
 
 layers:
   presentation:

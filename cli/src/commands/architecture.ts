@@ -24,10 +24,427 @@ import {
   getDefaultOptions,
 } from '@anvil/core';
 
+/** Template metadata for display */
+const TEMPLATE_INFO: Record<
+  ArchitectureTemplate,
+  { title: string; description: string; layers: string[] }
+> = {
+  starter: {
+    title: 'Starter',
+    description: 'Simple and flexible structure for new projects, MVPs, and learning',
+    layers: ['components', 'lib', 'services'],
+  },
+  layered: {
+    title: 'Layered Architecture',
+    description: 'Classic 3-tier architecture - ideal for APIs and web backends',
+    layers: ['presentation', 'business', 'data', 'shared'],
+  },
+  hexagonal: {
+    title: 'Hexagonal (Ports & Adapters)',
+    description: 'Core domain isolated from external concerns via ports and adapters',
+    layers: ['core', 'ports', 'adapters', 'application'],
+  },
+  clean: {
+    title: 'Clean Architecture',
+    description: "Uncle Bob's architecture with strict dependency rules",
+    layers: ['entities', 'use_cases', 'interface_adapters', 'frameworks'],
+  },
+  ddd: {
+    title: 'Domain-Driven Design',
+    description: 'Organise code around business domains and bounded contexts',
+    layers: ['domain', 'application', 'infrastructure', 'interfaces'],
+  },
+  monorepo: {
+    title: 'Monorepo',
+    description: 'Multi-package workspace with shared libraries and clear boundaries',
+    layers: ['apps', 'packages', 'shared'],
+  },
+  serverless: {
+    title: 'Serverless',
+    description: 'Functions-as-a-Service for AWS Lambda, Azure Functions, etc.',
+    layers: ['functions', 'services', 'shared'],
+  },
+  'nx-workspace': {
+    title: 'Nx Workspace',
+    description: 'Nx monorepo with apps, feature libs, and shared libs',
+    layers: ['apps', 'feature-libs', 'data-access-libs', 'ui-libs', 'shared-libs'],
+  },
+  custom: {
+    title: 'Custom Architecture',
+    description: 'Start with an empty template and define your own layers',
+    layers: [],
+  },
+};
+
+/** Print the welcome banner */
+function printWelcomeBanner(): void {
+  console.log('');
+  console.log(chalk.bold.cyan('  Anvil Architecture Setup'));
+  console.log(chalk.dim('  ─────────────────────────────────────────'));
+  console.log('');
+  console.log(chalk.dim('  Define your project structure to enforce dependency rules'));
+  console.log(chalk.dim('  and prevent architectural violations.'));
+  console.log('');
+}
+
+/** Print template details */
+function printTemplatePreview(template: ArchitectureTemplate): void {
+  const info = TEMPLATE_INFO[template];
+  console.log('');
+  console.log(chalk.dim('  ─────────────────────────────────────────'));
+  console.log(`  ${chalk.bold(info.title)}`);
+  console.log(`  ${chalk.dim(info.description)}`);
+  if (info.layers.length > 0) {
+    console.log('');
+    console.log(`  ${chalk.cyan('Layers:')} ${info.layers.join(' → ')}`);
+  }
+  console.log(chalk.dim('  ─────────────────────────────────────────'));
+  console.log('');
+}
+
+/** Run the interactive architecture wizard */
+async function runInteractiveWizard(options: { force?: boolean }): Promise<void> {
+  const projectRoot = process.cwd();
+  const yamlPath = getArchitectureYamlPath(projectRoot);
+  const exists = architectureYamlExists(projectRoot);
+
+  printWelcomeBanner();
+
+  // Check if architecture already exists
+  if (exists && !options.force) {
+    console.log(chalk.yellow('  An architecture definition already exists.'));
+    console.log('');
+
+    const { action } = await inquirer.prompt<{
+      action: 'show' | 'validate' | 'generate' | 'replace' | 'exit';
+    }>([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'What would you like to do?',
+        choices: [
+          { name: 'View current architecture', value: 'show' },
+          { name: 'Validate configuration', value: 'validate' },
+          { name: 'Regenerate configs', value: 'generate' },
+          { name: 'Replace with new template (overwrites)', value: 'replace' },
+          new inquirer.Separator(),
+          { name: 'Exit', value: 'exit' },
+        ],
+      },
+    ]);
+
+    switch (action) {
+      case 'show':
+        await showArchitectureDefinition(projectRoot, {});
+        return;
+      case 'validate':
+        await validateArchitectureDefinition(projectRoot);
+        return;
+      case 'generate':
+        await generateArchitectureConfigs(projectRoot, {});
+        return;
+      case 'replace':
+        // Continue to template selection
+        break;
+      case 'exit':
+      default:
+        return;
+    }
+  }
+
+  // Template selection
+  console.log(chalk.bold('  Choose an Architecture Pattern'));
+  console.log('');
+
+  const templates = getAvailableTemplates();
+  const choices = templates.map((t) => {
+    const info = TEMPLATE_INFO[t];
+    return {
+      name: `${info.title}\n     ${chalk.dim(info.description)}`,
+      value: t,
+      short: info.title,
+    };
+  });
+
+  const { template } = await inquirer.prompt<{ template: ArchitectureTemplate }>([
+    {
+      type: 'list',
+      name: 'template',
+      message: 'Select a template:',
+      choices,
+      pageSize: 10,
+    },
+  ]);
+
+  // Show template preview
+  printTemplatePreview(template);
+
+  // Confirm selection
+  const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
+    {
+      type: 'confirm',
+      name: 'confirmed',
+      message: `Create ${TEMPLATE_INFO[template].title} configuration?`,
+      default: true,
+    },
+  ]);
+
+  if (!confirmed) {
+    console.log(chalk.dim('\n  Setup cancelled.\n'));
+    return;
+  }
+
+  // Create the architecture file
+  await createArchitectureFile(projectRoot, yamlPath, template);
+}
+
+/** Create the architecture.yaml file */
+async function createArchitectureFile(
+  projectRoot: string,
+  yamlPath: string,
+  template: ArchitectureTemplate,
+  layerPaths?: Record<string, string[]>
+): Promise<void> {
+  console.log('');
+  const spinner = ora({
+    text: 'Creating architecture configuration...',
+    indent: 2,
+  }).start();
+
+  try {
+    const templateLayers = getTemplateDefaults(template);
+    const layers: Record<string, LayerDefinition> = {};
+
+    for (const [name, def] of Object.entries(templateLayers)) {
+      layers[name] = {
+        patterns: layerPaths?.[name] ?? def.patterns,
+        depends_on: def.depends_on,
+        description: def.description,
+      };
+    }
+
+    const definition: ArchitectureDefinition = {
+      schema_version: ARCHITECTURE_DEFINITION_VERSION,
+      template,
+      layers,
+      rules: [],
+      options: getDefaultOptions(),
+    };
+
+    const yamlDir = dirname(yamlPath);
+    if (!existsSync(yamlDir)) {
+      await mkdir(yamlDir, { recursive: true });
+    }
+
+    const content = YAML.stringify(definition, { indent: 2 });
+    await writeFile(yamlPath, content, 'utf-8');
+
+    spinner.succeed(chalk.green('Architecture configuration created'));
+
+    // Success output - simple and clean
+    console.log('');
+    console.log(chalk.bold.green('  Configuration created successfully'));
+    console.log('');
+    console.log(`  ${chalk.cyan('File:')}     .anvil/${ARCHITECTURE_YAML_FILENAME}`);
+    console.log(`  ${chalk.cyan('Template:')} ${template}`);
+    console.log(`  ${chalk.cyan('Layers:')}   ${Object.keys(layers).length}`);
+
+    // Next steps
+    console.log('');
+    console.log(chalk.bold('  Next Steps'));
+    console.log('');
+    console.log(chalk.white('  1.') + chalk.dim(' Review layer paths in .anvil/architecture.yaml'));
+    console.log(chalk.white('  2.') + chalk.dim(' Generate enforcement configs:'));
+    console.log(chalk.cyan('     anvil arch generate'));
+    console.log(chalk.white('  3.') + chalk.dim(' Run architecture checks:'));
+    console.log(chalk.cyan('     anvil gate --only-checks architecture'));
+    console.log('');
+  } catch (err) {
+    spinner.fail('Failed to create architecture configuration');
+    console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    process.exit(1);
+  }
+}
+
+/** Show architecture definition (extracted for reuse) */
+async function showArchitectureDefinition(
+  projectRoot: string,
+  options: { json?: boolean; yaml?: boolean }
+): Promise<void> {
+  const definition = await parseArchitectureDefinition(projectRoot);
+
+  if (options.json) {
+    console.log(JSON.stringify(definition, null, 2));
+    return;
+  }
+
+  if (options.yaml) {
+    console.log(YAML.stringify(definition, { indent: 2 }));
+    return;
+  }
+
+  console.log('');
+  console.log(chalk.bold.cyan('  Architecture Definition'));
+  console.log(chalk.dim('  ─────────────────────────────────────────'));
+  console.log('');
+  console.log(`  ${chalk.cyan('Template:')}  ${definition.template}`);
+  console.log(`  ${chalk.cyan('Schema:')}    ${definition.schema_version}`);
+
+  console.log('');
+  console.log(chalk.bold('  Layers'));
+  console.log('');
+  for (const [name, layer] of Object.entries(definition.layers)) {
+    console.log(`  ${chalk.cyan(name)}`);
+    console.log(chalk.dim(`    Patterns:   ${layer.patterns.join(', ')}`));
+    console.log(
+      chalk.dim(
+        `    Depends on: ${layer.depends_on.length > 0 ? layer.depends_on.join(', ') : '(none)'}`
+      )
+    );
+    if (layer.description) {
+      console.log(chalk.dim(`    ${layer.description}`));
+    }
+    console.log('');
+  }
+
+  if (definition.rules.length > 0) {
+    console.log(chalk.bold('  Custom Rules'));
+    console.log('');
+    for (const rule of definition.rules) {
+      const arrow = rule.allowed ? chalk.green('→') : chalk.red('✗');
+      console.log(`  ${arrow} ${rule.name}: ${rule.from} → ${rule.to} [${rule.severity}]`);
+    }
+    console.log('');
+  }
+
+  if (definition.options) {
+    console.log(chalk.bold('  Options'));
+    console.log('');
+    console.log(chalk.dim(`  Detect circular: ${definition.options.detect_circular}`));
+    console.log(chalk.dim(`  Detect orphans:  ${definition.options.detect_orphans}`));
+    console.log(chalk.dim(`  Default severity: ${definition.options.default_severity}`));
+    console.log('');
+  }
+}
+
+/** Validate architecture definition (extracted for reuse) */
+async function validateArchitectureDefinition(projectRoot: string): Promise<void> {
+  console.log('');
+  const spinner = ora({ text: 'Validating architecture.yaml...', indent: 2 }).start();
+
+  try {
+    const definition = await parseArchitectureDefinition(projectRoot);
+    const issues: string[] = [];
+
+    for (const [name, layer] of Object.entries(definition.layers)) {
+      for (const dep of layer.depends_on) {
+        if (!definition.layers[dep]) {
+          issues.push(`Layer "${name}" depends on unknown layer "${dep}"`);
+        }
+      }
+    }
+
+    for (const rule of definition.rules) {
+      if (!definition.layers[rule.from]) {
+        issues.push(`Rule "${rule.name}" references unknown source layer "${rule.from}"`);
+      }
+      if (!definition.layers[rule.to]) {
+        issues.push(`Rule "${rule.name}" references unknown target layer "${rule.to}"`);
+      }
+    }
+
+    if (issues.length > 0) {
+      spinner.fail(chalk.red('Validation failed'));
+      console.log('');
+      for (const issue of issues) {
+        console.log(chalk.yellow(`  • ${issue}`));
+      }
+      console.log('');
+      process.exit(1);
+    }
+
+    spinner.succeed(chalk.green('Architecture configuration is valid'));
+    console.log('');
+    console.log(chalk.dim(`  Template: ${definition.template}`));
+    console.log(chalk.dim(`  Layers:   ${Object.keys(definition.layers).length}`));
+    console.log(chalk.dim(`  Rules:    ${definition.rules.length}`));
+    console.log('');
+  } catch (err) {
+    spinner.fail('Validation failed');
+    console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    process.exit(1);
+  }
+}
+
+/** Generate architecture configs (extracted for reuse) */
+async function generateArchitectureConfigs(
+  projectRoot: string,
+  options: { force?: boolean; skipDc?: boolean; skipRego?: boolean }
+): Promise<void> {
+  console.log('');
+  const spinner = ora({ text: 'Checking configuration status...', indent: 2 }).start();
+
+  try {
+    if (!options.force) {
+      const needs = await needsCompilation(projectRoot);
+      const skipDC = options.skipDc || !needs.dc;
+      const skipRego = options.skipRego || !needs.rego;
+
+      if (skipDC && skipRego) {
+        spinner.succeed(chalk.green('All configs are up to date'));
+        console.log('');
+        console.log(chalk.dim(`  DC config:   ${getDCConfigPath(projectRoot)}`));
+        console.log(chalk.dim(`  Rego policy: ${getRegoPath(projectRoot)}`));
+        console.log('');
+        return;
+      }
+    }
+
+    spinner.text = 'Generating enforcement configs...';
+    const result = await compileArchitecture(projectRoot, {
+      force: options.force,
+      skipDC: options.skipDc,
+      skipRego: options.skipRego,
+    });
+
+    spinner.succeed(chalk.green('Architecture configs generated'));
+
+    console.log('');
+    if (result.dcConfig.regenerated) {
+      console.log(chalk.dim(`  DC config:   ${result.dcConfig.path}`) + chalk.green(' (updated)'));
+    } else if (!options.skipDc) {
+      console.log(chalk.dim(`  DC config:   ${result.dcConfig.path} (unchanged)`));
+    }
+
+    if (result.regoPolicy.regenerated) {
+      console.log(
+        chalk.dim(`  Rego policy: ${result.regoPolicy.path}`) + chalk.green(' (updated)')
+      );
+    } else if (!options.skipRego) {
+      console.log(chalk.dim(`  Rego policy: ${result.regoPolicy.path} (unchanged)`));
+    }
+
+    console.log('');
+    console.log(chalk.bold('  Next Steps'));
+    console.log('');
+    console.log(chalk.dim('  Run architecture checks:'));
+    console.log(chalk.cyan('  anvil gate --only-checks architecture'));
+    console.log('');
+  } catch (err) {
+    spinner.fail('Failed to generate configs');
+    console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    process.exit(1);
+  }
+}
+
 export function createArchitectureCommand(): Command {
   const command = new Command('architecture')
     .alias('arch')
-    .description('Manage architecture definition and dependency rules');
+    .description('Manage architecture definition and dependency rules')
+    .action(async () => {
+      // When called without subcommand, run interactive wizard
+      await runInteractiveWizard({});
+    });
 
   command.addCommand(createInitSubcommand());
   command.addCommand(createGenerateSubcommand());
@@ -51,8 +468,10 @@ function createInitSubcommand(): Command {
       const yamlPath = getArchitectureYamlPath(projectRoot);
 
       if (architectureYamlExists(projectRoot) && !options.force) {
-        console.log(chalk.yellow(`\n${ARCHITECTURE_YAML_FILENAME} already exists.`));
-        console.log(chalk.dim('Use --force to overwrite, or edit the existing file.'));
+        console.log('');
+        console.log(chalk.yellow(`  ${ARCHITECTURE_YAML_FILENAME} already exists.`));
+        console.log(chalk.dim('  Use --force to overwrite, or edit the existing file.'));
+        console.log('');
         process.exit(1);
       }
 
@@ -60,17 +479,28 @@ function createInitSubcommand(): Command {
       let layerPaths: Record<string, string[]> | undefined;
 
       if (options.nonInteractive) {
+        // Non-interactive mode: just create with defaults
         template = validateTemplate(options.template) || 'layered';
-      } else if (options.template) {
+        await createArchitectureFile(projectRoot, yamlPath, template, layerPaths);
+        return;
+      }
+
+      if (options.template) {
+        // Template specified: validate and optionally customise
         const validated = validateTemplate(options.template);
         if (!validated) {
-          console.log(chalk.red(`\nInvalid template: ${options.template}`));
-          console.log(chalk.dim(`Available templates: ${getAvailableTemplates().join(', ')}`));
+          console.log('');
+          console.log(chalk.red(`  Invalid template: ${options.template}`));
+          console.log(chalk.dim(`  Available templates: ${getAvailableTemplates().join(', ')}`));
+          console.log('');
           process.exit(1);
         }
         template = validated;
 
-        const customise = await inquirer.prompt([
+        // Show what they're getting
+        printTemplatePreview(template);
+
+        const customise = await inquirer.prompt<{ customiseLayers: boolean }>([
           {
             type: 'confirm',
             name: 'customiseLayers',
@@ -82,87 +512,13 @@ function createInitSubcommand(): Command {
         if (customise.customiseLayers) {
           layerPaths = await promptLayerPaths(template);
         }
-      } else {
-        const answers = await inquirer.prompt([
-          {
-            type: 'list',
-            name: 'template',
-            message: 'Select an architecture template:',
-            choices: [
-              { name: 'Layered (presentation → business → data)', value: 'layered' },
-              { name: 'Hexagonal (ports & adapters)', value: 'hexagonal' },
-              { name: 'Clean Architecture (entities → use cases → adapters)', value: 'clean' },
-              { name: 'DDD (domain-driven design)', value: 'ddd' },
-              { name: 'Custom (empty, define your own)', value: 'custom' },
-            ],
-            default: 'layered',
-          },
-        ]);
-        template = answers.template;
 
-        if (template !== 'custom') {
-          const customise = await inquirer.prompt([
-            {
-              type: 'confirm',
-              name: 'customiseLayers',
-              message: 'Would you like to customise layer paths?',
-              default: false,
-            },
-          ]);
-
-          if (customise.customiseLayers) {
-            layerPaths = await promptLayerPaths(template);
-          }
-        }
+        await createArchitectureFile(projectRoot, yamlPath, template, layerPaths);
+        return;
       }
 
-      const spinner = ora('Creating architecture.yaml...').start();
-
-      try {
-        const templateLayers = getTemplateDefaults(template);
-        const layers: Record<string, LayerDefinition> = {};
-
-        for (const [name, def] of Object.entries(templateLayers)) {
-          layers[name] = {
-            patterns: layerPaths?.[name] ?? def.patterns,
-            depends_on: def.depends_on,
-            description: def.description,
-          };
-        }
-
-        const definition: ArchitectureDefinition = {
-          schema_version: ARCHITECTURE_DEFINITION_VERSION,
-          template,
-          layers,
-          rules: [],
-          options: getDefaultOptions(),
-        };
-
-        const yamlDir = dirname(yamlPath);
-        if (!existsSync(yamlDir)) {
-          await mkdir(yamlDir, { recursive: true });
-        }
-
-        const content = YAML.stringify(definition, { indent: 2 });
-        await writeFile(yamlPath, content, 'utf-8');
-
-        spinner.succeed(chalk.green(`Created ${ARCHITECTURE_YAML_FILENAME}`));
-
-        console.log(chalk.dim(`\nFile: ${yamlPath}`));
-        console.log(chalk.dim(`Template: ${template}`));
-        console.log(chalk.dim(`Layers: ${Object.keys(layers).join(', ')}`));
-
-        console.log(chalk.cyan('\nNext steps:'));
-        console.log(chalk.dim('  1. Review and customise layer paths in architecture.yaml'));
-        console.log(chalk.dim('  2. Generate DC config: anvil architecture generate'));
-        console.log(
-          chalk.dim('  3. Run architecture check: anvil gate --only-checks architecture')
-        );
-      } catch (err) {
-        spinner.fail('Failed to create architecture.yaml');
-        console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-        process.exit(1);
-      }
+      // Interactive mode: full wizard experience
+      await runInteractiveWizard({ force: options.force });
     });
 }
 
@@ -177,56 +533,14 @@ function createGenerateSubcommand(): Command {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
-        console.log(chalk.red('\nNo architecture.yaml found.'));
-        console.log(chalk.dim('Run: anvil architecture init'));
+        console.log('');
+        console.log(chalk.red('  No architecture.yaml found.'));
+        console.log(chalk.dim('  Run: anvil arch init'));
+        console.log('');
         process.exit(1);
       }
 
-      const spinner = ora('Checking if regeneration needed...').start();
-
-      try {
-        if (!options.force) {
-          const needs = await needsCompilation(projectRoot);
-          const skipDC = options.skipDc || !needs.dc;
-          const skipRego = options.skipRego || !needs.rego;
-
-          if (skipDC && skipRego) {
-            spinner.succeed(chalk.green('All configs are up to date'));
-            console.log(chalk.dim(`\nDC config: ${getDCConfigPath(projectRoot)}`));
-            console.log(chalk.dim(`Rego policy: ${getRegoPath(projectRoot)}`));
-            return;
-          }
-        }
-
-        spinner.text = 'Generating configs from architecture.yaml...';
-        const result = await compileArchitecture(projectRoot, {
-          force: options.force,
-          skipDC: options.skipDc,
-          skipRego: options.skipRego,
-        });
-
-        spinner.succeed(chalk.green('Architecture compilation complete'));
-
-        if (result.dcConfig.regenerated) {
-          console.log(chalk.dim(`\nDC config: ${result.dcConfig.path} (regenerated)`));
-        } else if (!options.skipDc) {
-          console.log(chalk.dim(`\nDC config: ${result.dcConfig.path} (up to date)`));
-        }
-
-        if (result.regoPolicy.regenerated) {
-          console.log(chalk.dim(`Rego policy: ${result.regoPolicy.path} (regenerated)`));
-        } else if (!options.skipRego) {
-          console.log(chalk.dim(`Rego policy: ${result.regoPolicy.path} (up to date)`));
-        }
-
-        console.log(chalk.cyan('\nNext steps:'));
-        console.log(chalk.dim('  Run architecture check: anvil gate --only-checks architecture'));
-        console.log(chalk.dim('  Run policy check: anvil gate --only-checks policy'));
-      } catch (err) {
-        spinner.fail('Failed to generate configs');
-        console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-        process.exit(1);
-      }
+      await generateArchitectureConfigs(projectRoot, options);
     });
 }
 
@@ -237,52 +551,14 @@ function createValidateSubcommand(): Command {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
-        console.log(chalk.red('\nNo architecture.yaml found.'));
-        console.log(chalk.dim('Run: anvil architecture init'));
+        console.log('');
+        console.log(chalk.red('  No architecture.yaml found.'));
+        console.log(chalk.dim('  Run: anvil arch init'));
+        console.log('');
         process.exit(1);
       }
 
-      const spinner = ora('Validating architecture.yaml...').start();
-
-      try {
-        const definition = await parseArchitectureDefinition(projectRoot);
-        const issues: string[] = [];
-
-        for (const [name, layer] of Object.entries(definition.layers)) {
-          for (const dep of layer.depends_on) {
-            if (!definition.layers[dep]) {
-              issues.push(`Layer "${name}" depends on unknown layer "${dep}"`);
-            }
-          }
-        }
-
-        for (const rule of definition.rules) {
-          if (!definition.layers[rule.from]) {
-            issues.push(`Rule "${rule.name}" references unknown source layer "${rule.from}"`);
-          }
-          if (!definition.layers[rule.to]) {
-            issues.push(`Rule "${rule.name}" references unknown target layer "${rule.to}"`);
-          }
-        }
-
-        if (issues.length > 0) {
-          spinner.fail(chalk.red('Validation failed'));
-          console.log('');
-          for (const issue of issues) {
-            console.log(chalk.yellow(`  • ${issue}`));
-          }
-          process.exit(1);
-        }
-
-        spinner.succeed(chalk.green('architecture.yaml is valid'));
-        console.log(chalk.dim(`\nTemplate: ${definition.template}`));
-        console.log(chalk.dim(`Layers: ${Object.keys(definition.layers).length}`));
-        console.log(chalk.dim(`Rules: ${definition.rules.length}`));
-      } catch (err) {
-        spinner.fail('Validation failed');
-        console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-        process.exit(1);
-      }
+      await validateArchitectureDefinition(projectRoot);
     });
 }
 
@@ -295,59 +571,15 @@ function createShowSubcommand(): Command {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
-        console.log(chalk.red('\nNo architecture.yaml found.'));
-        console.log(chalk.dim('Run: anvil architecture init'));
+        console.log('');
+        console.log(chalk.red('  No architecture.yaml found.'));
+        console.log(chalk.dim('  Run: anvil arch init'));
+        console.log('');
         process.exit(1);
       }
 
       try {
-        const definition = await parseArchitectureDefinition(projectRoot);
-
-        if (options.json) {
-          console.log(JSON.stringify(definition, null, 2));
-          return;
-        }
-
-        if (options.yaml) {
-          console.log(YAML.stringify(definition, { indent: 2 }));
-          return;
-        }
-
-        console.log(chalk.bold('\nArchitecture Definition'));
-        console.log(chalk.dim('─'.repeat(40)));
-        console.log(chalk.cyan('Template:'), definition.template);
-        console.log(chalk.cyan('Schema:'), definition.schema_version);
-
-        console.log(chalk.bold('\nLayers:'));
-        for (const [name, layer] of Object.entries(definition.layers)) {
-          console.log(chalk.cyan(`  ${name}:`));
-          console.log(chalk.dim(`    Patterns: ${layer.patterns.join(', ')}`));
-          console.log(
-            chalk.dim(
-              `    Depends on: ${layer.depends_on.length > 0 ? layer.depends_on.join(', ') : '(none)'}`
-            )
-          );
-          if (layer.description) {
-            console.log(chalk.dim(`    Description: ${layer.description}`));
-          }
-        }
-
-        if (definition.rules.length > 0) {
-          console.log(chalk.bold('\nRules:'));
-          for (const rule of definition.rules) {
-            const arrow = rule.allowed ? chalk.green('→') : chalk.red('✗');
-            console.log(`  ${arrow} ${rule.name}: ${rule.from} → ${rule.to} [${rule.severity}]`);
-          }
-        }
-
-        if (definition.options) {
-          console.log(chalk.bold('\nOptions:'));
-          console.log(chalk.dim(`  Detect circular: ${definition.options.detect_circular}`));
-          console.log(chalk.dim(`  Detect orphans: ${definition.options.detect_orphans}`));
-          console.log(chalk.dim(`  Default severity: ${definition.options.default_severity}`));
-        }
-
-        console.log('');
+        await showArchitectureDefinition(projectRoot, options);
       } catch (err) {
         console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
         process.exit(1);

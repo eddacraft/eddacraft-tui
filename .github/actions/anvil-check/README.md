@@ -13,15 +13,16 @@ workflow.
 
 ## Inputs
 
-| Input               | Description                                                          | Required | Default |
-| ------------------- | -------------------------------------------------------------------- | -------- | ------- |
-| `node-version`      | Explicit Node.js version (e.g., `20`, `22`). If empty, auto-detects. | No       | `''`    |
-| `node-version-file` | File to read Node version from                                       | No       | `''`    |
-| `working-directory` | Directory to run Anvil in (for monorepos)                            | No       | `.`     |
-| `fail-on-warnings`  | Fail the check if warnings are found                                 | No       | `false` |
-| `check-type`        | Type of check: `gate` (full) or `check` (quick)                      | No       | `check` |
-| `files`             | Specific files to check (space-separated)                            | No       | `''`    |
-| `auto-detect-files` | Auto-detect changed files in PR/push                                 | No       | `true`  |
+| Input               | Description                                                                | Required | Default        |
+| ------------------- | -------------------------------------------------------------------------- | -------- | -------------- |
+| `node-version`      | Explicit Node.js version (e.g., `20`, `22`). If empty, auto-detects.       | No       | `''`           |
+| `node-version-file` | File to read Node version from                                             | No       | `''`           |
+| `working-directory` | Directory to run Anvil in (for monorepos)                                  | No       | `.`            |
+| `fail-on-warnings`  | Fail the check if warnings are found                                       | No       | `false`        |
+| `check-type`        | Type of check: `gate` (full) or `check` (quick)                            | No       | `check`        |
+| `files`             | Specific files to check (space-separated)                                  | No       | `''`           |
+| `auto-detect-files` | Auto-detect changed files in PR/push                                       | No       | `true`         |
+| `github_token`      | GitHub token for API access. Use for custom tokens (e.g., `GH_AUTH_TOKEN`) | No       | `github.token` |
 
 ## Outputs
 
@@ -174,6 +175,17 @@ jobs:
     echo "Errors: ${{ steps.anvil.outputs.errors-count }}"
 ```
 
+### Using a Custom GitHub Token
+
+If the default `github.token` doesn't have sufficient permissions (e.g., "User
+does not have write access"), provide a custom token:
+
+```yaml
+- uses: ./.github/actions/anvil-check
+  with:
+    github_token: ${{ secrets.GH_AUTH_TOKEN }}
+```
+
 ## Troubleshooting
 
 ### "Command not found: anvil"
@@ -186,6 +198,22 @@ access to npm registry.
 If you don't have `.node-version`, `.nvmrc`, or `package.json` with
 `engines.node`, the action falls back to Node 20. Add a version file or use the
 `node-version` input explicitly.
+
+### "User does not have write access on this repository"
+
+This error occurs when the default `github.token` lacks sufficient permissions.
+To fix this:
+
+1. **Option 1: Create a Personal Access Token (PAT)** or **GitHub App token**
+   with appropriate permissions
+2. **Option 2: Add the token as a repository secret** (e.g., `GH_AUTH_TOKEN`)
+3. **Option 3: Use the custom token in your workflow:**
+
+```yaml
+- uses: ./.github/actions/anvil-check
+  with:
+    github_token: ${{ secrets.GH_AUTH_TOKEN }}
+```
 
 ### Warnings not blocking PR
 

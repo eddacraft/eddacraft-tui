@@ -29,10 +29,14 @@ export interface LoadedTemplate {
 }
 
 const TEMPLATE_FILES: Record<Exclude<ArchitectureTemplate, 'custom'>, string> = {
+  starter: 'starter.yaml',
   layered: 'layered.yaml',
   hexagonal: 'hexagonal.yaml',
   clean: 'clean.yaml',
   ddd: 'ddd.yaml',
+  monorepo: 'monorepo.yaml',
+  serverless: 'serverless.yaml',
+  'nx-workspace': 'nx-workspace.yaml',
 };
 
 export class TemplateLoader {
@@ -44,7 +48,17 @@ export class TemplateLoader {
   }
 
   async list(): Promise<ArchitectureTemplate[]> {
-    return ['layered', 'hexagonal', 'clean', 'ddd', 'custom'];
+    return [
+      'starter',
+      'layered',
+      'hexagonal',
+      'clean',
+      'ddd',
+      'monorepo',
+      'serverless',
+      'nx-workspace',
+      'custom',
+    ];
   }
 
   async get(name: ArchitectureTemplate): Promise<LoadedTemplate> {

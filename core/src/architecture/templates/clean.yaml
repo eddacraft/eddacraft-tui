@@ -2,7 +2,7 @@
 # Uncle Bob's Clean Architecture with inward dependencies
 
 name: clean
-description: Clean Architecture with entities at the core and frameworks at the edge
+description: Uncle Bob's Clean Architecture - strict dependency rules with entities at the core
 
 layers:
   entities:

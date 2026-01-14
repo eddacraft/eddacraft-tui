@@ -39,7 +39,7 @@ describe('architecture-service', () => {
       expect(result[0]).toContain('no entry points');
     });
 
-    it('should format entry points with type', () => {
+    it('should format entry points grouped by type', () => {
       const entryPoints: EntryPoint[] = [
         {
           path: 'src/index.ts',
@@ -49,38 +49,73 @@ describe('architecture-service', () => {
       ];
 
       const result = formatEntryPoints(entryPoints);
+      const output = result.join('\n');
 
-      expect(result).toHaveLength(1);
-      expect(result[0]).toContain('src/index.ts');
-      expect(result[0]).toContain('cli');
+      // New format groups by type with header
+      expect(output).toContain('CLI (1)');
+      expect(output).toContain('src/index.ts');
     });
 
     it('should show confidence for non-high confidence entries', () => {
       const entryPoints: EntryPoint[] = [
         {
           path: 'src/main.ts',
-          type: 'server',
+          type: 'application',
           confidence: 'medium',
         },
       ];
 
       const result = formatEntryPoints(entryPoints);
+      const output = result.join('\n');
 
-      expect(result[0]).toContain('medium confidence');
+      // New format uses [medium] notation
+      expect(output).toContain('[medium]');
     });
 
     it('should not show confidence for high confidence entries', () => {
       const entryPoints: EntryPoint[] = [
         {
           path: 'src/app.ts',
-          type: 'web',
+          type: 'package',
           confidence: 'high',
         },
       ];
 
       const result = formatEntryPoints(entryPoints);
+      const output = result.join('\n');
 
-      expect(result[0]).not.toContain('high confidence');
+      expect(output).not.toContain('[high]');
+      expect(output).toContain('src/app.ts');
+    });
+
+    it('should group multiple entry points by type', () => {
+      const entryPoints: EntryPoint[] = [
+        { path: 'src/index.ts', type: 'package', confidence: 'high' },
+        { path: 'packages/core/index.ts', type: 'package', confidence: 'high' },
+        { path: 'src/app.ts', type: 'application', confidence: 'high' },
+      ];
+
+      const result = formatEntryPoints(entryPoints);
+      const output = result.join('\n');
+
+      expect(output).toContain('Package (2)');
+      expect(output).toContain('Application (1)');
+    });
+
+    it('should limit examples and show remaining count', () => {
+      const entryPoints: EntryPoint[] = [
+        { path: 'packages/a/index.ts', type: 'package', confidence: 'high' },
+        { path: 'packages/b/index.ts', type: 'package', confidence: 'high' },
+        { path: 'packages/c/index.ts', type: 'package', confidence: 'high' },
+        { path: 'packages/d/index.ts', type: 'package', confidence: 'high' },
+        { path: 'packages/e/index.ts', type: 'package', confidence: 'high' },
+      ];
+
+      const result = formatEntryPoints(entryPoints);
+      const output = result.join('\n');
+
+      // Should show 3 examples and "and 2 more"
+      expect(output).toContain('and 2 more');
     });
   });
 

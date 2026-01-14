@@ -237,32 +237,66 @@ export function isExistingViolation(
 }
 
 /**
- * Create default layer structure for common patterns
+ * Create default layer structure for common patterns.
+ *
+ * Patterns use **\/ prefix to match files in any directory structure,
+ * supporting both single-app (src/) and monorepo (packages/star/src/) layouts.
  */
 export function createDefaultLayers(): Layers {
   return {
     presentation: {
-      patterns: ['src/controllers/**', 'src/routes/**', 'src/api/**', 'src/handlers/**'],
+      patterns: [
+        '**/controllers/**',
+        '**/routes/**',
+        '**/api/**',
+        '**/handlers/**',
+        '**/endpoints/**',
+        '**/pages/**',
+      ],
       depends_on: ['application', 'shared'],
       description: 'HTTP handlers, controllers, API routes',
     },
     application: {
-      patterns: ['src/services/**', 'src/use-cases/**', 'src/application/**'],
+      patterns: [
+        '**/services/**',
+        '**/use-cases/**',
+        '**/usecases/**',
+        '**/application/**',
+        '**/interactors/**',
+      ],
       depends_on: ['domain', 'infrastructure', 'shared'],
       description: 'Business logic, use cases, services',
     },
     domain: {
-      patterns: ['src/domain/**', 'src/entities/**', 'src/models/**'],
+      patterns: ['**/domain/**', '**/entities/**', '**/models/**', '**/core/**', '**/business/**'],
       depends_on: ['shared'],
       description: 'Domain entities, value objects, domain logic',
     },
     infrastructure: {
-      patterns: ['src/repositories/**', 'src/data/**', 'src/infrastructure/**', 'src/db/**'],
+      patterns: [
+        '**/repositories/**',
+        '**/data/**',
+        '**/infrastructure/**',
+        '**/db/**',
+        '**/database/**',
+        '**/adapters/**',
+        '**/external/**',
+        '**/clients/**',
+      ],
       depends_on: ['domain', 'shared'],
       description: 'Data access, external services, infrastructure',
     },
     shared: {
-      patterns: ['src/utils/**', 'src/lib/**', 'src/common/**', 'src/shared/**'],
+      patterns: [
+        '**/utils/**',
+        '**/lib/**',
+        '**/common/**',
+        '**/shared/**',
+        '**/helpers/**',
+        '**/types/**',
+        '**/constants/**',
+        '**/config/**',
+      ],
       depends_on: [],
       description: 'Shared utilities, helpers, common code',
     },

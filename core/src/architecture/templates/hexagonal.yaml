@@ -2,7 +2,7 @@
 # Ports and Adapters pattern with core isolation
 
 name: hexagonal
-description: Ports and Adapters architecture with isolated domain core
+description: Ports & Adapters pattern - keeps business logic isolated from external dependencies
 
 layers:
   core:

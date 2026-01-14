@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { glob } from 'glob';
 import {
   GateRunner,
   createCacheProvider,
@@ -20,6 +21,7 @@ interface CheckOptions {
   changed?: boolean;
   staged?: boolean;
   since?: string;
+  all?: boolean;
 }
 
 interface JSONCheckOutput {
@@ -130,6 +132,23 @@ function formatResultsHuman(result: AnalyzeResult, verbose: boolean): void {
   console.log(`  Time: ${result.executionTimeMs}ms`);
 }
 
+async function getSourceFiles(workspaceRoot: string): Promise<string[]> {
+  const patterns = ANALYSABLE_EXTENSIONS.map((ext) => `**/*${ext}`);
+  const ignorePatterns = ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'];
+
+  const files: string[] = [];
+  for (const pattern of patterns) {
+    const matches = await glob(pattern, {
+      cwd: workspaceRoot,
+      ignore: ignorePatterns,
+      nodir: true,
+    });
+    files.push(...matches);
+  }
+
+  return [...new Set(files)].sort();
+}
+
 export function createCheckCommand(): Command {
   const command = new Command('check');
 
@@ -142,6 +161,7 @@ export function createCheckCommand(): Command {
     .option('--changed', 'Analyse git-changed files only')
     .option('--staged', 'With --changed, analyse only staged files')
     .option('--since <ref>', 'With --changed, compare against git ref (e.g., main, HEAD~3)')
+    .option('--all', 'Analyse all source files in the project')
     .action(async (files: string[], options: CheckOptions) => {
       const spinner = options.json ? null : ora('Analysing files...').start();
 
@@ -149,7 +169,46 @@ export function createCheckCommand(): Command {
         const workspaceRoot = getWorkspaceRoot();
         let filesToAnalyse = files;
 
-        if (options.changed) {
+        if (options.all && options.changed) {
+          spinner?.stop();
+          error('Cannot use --all and --changed together. Choose one.');
+          process.exit(1);
+        }
+
+        if (options.all) {
+          if (spinner) spinner.text = 'Gathering all source files...';
+
+          const allFiles = await getSourceFiles(workspaceRoot);
+
+          if (allFiles.length === 0) {
+            spinner?.stop();
+            if (options.json) {
+              console.log(
+                JSON.stringify(
+                  {
+                    version: '1.0.0',
+                    timestamp: new Date().toISOString(),
+                    files: [],
+                    hasBlockingWarnings: false,
+                    executionTimeMs: 0,
+                    checksRun: [],
+                    warnings: [],
+                    summary: { total: 0, errors: 0, warnings: 0, info: 0, suppressed: 0 },
+                    message: 'No source files found',
+                  },
+                  null,
+                  2
+                )
+              );
+            } else {
+              info('No source files found');
+            }
+            process.exit(0);
+          }
+
+          filesToAnalyse = allFiles;
+          if (spinner) spinner.text = `Analysing ${allFiles.length} file(s)...`;
+        } else if (options.changed) {
           if (spinner) spinner.text = 'Detecting changed files...';
 
           const changedFiles = await getChangedFiles(workspaceRoot, {
@@ -192,7 +251,7 @@ export function createCheckCommand(): Command {
 
         if (filesToAnalyse.length === 0) {
           spinner?.stop();
-          error('No files specified. Use --changed or provide file paths.');
+          error('No files specified. Use --all, --changed, or provide file paths.');
           process.exit(1);
         }
 
@@ -216,7 +275,9 @@ export function createCheckCommand(): Command {
         if (options.json) {
           formatResultsJSON(filesToAnalyse, result);
         } else {
-          if (options.changed) {
+          if (options.all) {
+            console.log(chalk.gray(`\nChecked ${filesToAnalyse.length} file(s)\n`));
+          } else if (options.changed) {
             console.log(chalk.gray(`\nChecked ${filesToAnalyse.length} changed file(s)\n`));
           }
           formatResultsHuman(result, options.verbose ?? false);

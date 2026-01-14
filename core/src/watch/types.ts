@@ -12,8 +12,8 @@ import { z } from 'zod';
 export const WatchGitConfigSchema = z.object({
   /** Only watch files with unstaged changes (default: true) */
   unstagedOnly: z.boolean().default(true),
-  /** Include untracked files in watch (default: false) */
-  includeUntracked: z.boolean().default(false),
+  /** Include untracked files in watch (default: true) */
+  includeUntracked: z.boolean().default(true),
 });
 
 export type WatchGitConfig = z.infer<typeof WatchGitConfigSchema>;
@@ -35,7 +35,7 @@ export const WatchConfigSchema = z.object({
   /** Debounce interval in milliseconds (default: 300) */
   debounceMs: z.number().min(50).max(5000).default(300),
   /** Git filter configuration */
-  git: WatchGitConfigSchema.default({ unstagedOnly: true, includeUntracked: false }),
+  git: WatchGitConfigSchema.default({ unstagedOnly: true, includeUntracked: true }),
   /** Gate profile to use when action is 'gate' */
   gateProfile: z.enum(['dev', 'ci', 'production']).optional(),
 });

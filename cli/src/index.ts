@@ -19,7 +19,7 @@ import { createWatchCommand } from './commands/watch.js';
 import { createStatusCommand } from './commands/status.js';
 import { createTutorialCommand } from './commands/tutorial.js';
 import { isFirstRun } from './services/first-run-detector.js';
-import { showWelcome } from './commands/welcome.js';
+import { showWelcome, createStartCommand } from './commands/welcome.js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -63,6 +63,7 @@ async function main(): Promise<void> {
   program.addCommand(createHooksCommand());
   program.addCommand(createPolicyCommand());
   program.addCommand(createWatchCommand());
+  program.addCommand(createStartCommand());
   program.addCommand(createStatusCommand());
   program.addCommand(createTutorialCommand());
 

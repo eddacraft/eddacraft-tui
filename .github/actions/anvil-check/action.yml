@@ -38,6 +38,12 @@ inputs:
     description: 'Automatically detect changed files in PR/push. Set to false to check all files.'
     required: false
     default: 'true'
+  github_token:
+    description:
+      'GitHub token for API access. Defaults to the automatic github.token. Use this to provide a
+      custom token with write access (e.g., GH_AUTH_TOKEN).'
+    required: false
+    default: ''
 
 outputs:
   warnings-count:
@@ -104,7 +110,7 @@ runs:
       if: inputs.files == '' && inputs.auto-detect-files == 'true'
       shell: bash
       env:
-        GH_TOKEN: ${{ github.token }}
+        GH_TOKEN: ${{ inputs.github_token || github.token }}
       run: |
         FILES=""
 

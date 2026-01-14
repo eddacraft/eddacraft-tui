@@ -36,6 +36,7 @@ jobs:
         #   node-version: '22'           # Explicit Node version
         #   fail-on-warnings: 'true'     # Block PR on warnings
         #   check-type: 'gate'           # Run full gates instead of quick check
+        #   github_token: ${{ secrets.GH_AUTH_TOKEN }}  # Use custom GitHub token
 
       # Optional: Use outputs in subsequent steps
       - name: Report Results

@@ -3,10 +3,14 @@ import { z } from 'zod';
 export const ARCHITECTURE_DEFINITION_VERSION = '0.1.0' as const;
 
 export const ArchitectureTemplateSchema = z.enum([
+  'starter',
   'layered',
   'hexagonal',
   'clean',
   'ddd',
+  'monorepo',
+  'serverless',
+  'nx-workspace',
   'custom',
 ]);
 export type ArchitectureTemplate = z.infer<typeof ArchitectureTemplateSchema>;
@@ -67,10 +71,14 @@ export const ArchitectureDefinitionSchema = z.object({
 export type ArchitectureDefinition = z.infer<typeof ArchitectureDefinitionSchema>;
 
 export const AVAILABLE_TEMPLATES: ArchitectureTemplate[] = [
+  'starter',
   'layered',
   'hexagonal',
   'clean',
   'ddd',
+  'monorepo',
+  'serverless',
+  'nx-workspace',
   'custom',
 ];
 

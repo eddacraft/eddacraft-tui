@@ -12,12 +12,16 @@ describe('TemplateLoader', () => {
   describe('list', () => {
     it('returns all available templates', async () => {
       const templates = await loader.list();
+      expect(templates).toContain('starter');
       expect(templates).toContain('layered');
       expect(templates).toContain('hexagonal');
       expect(templates).toContain('clean');
       expect(templates).toContain('ddd');
+      expect(templates).toContain('monorepo');
+      expect(templates).toContain('serverless');
+      expect(templates).toContain('nx-workspace');
       expect(templates).toContain('custom');
-      expect(templates).toHaveLength(5);
+      expect(templates).toHaveLength(9);
     });
   });
 
@@ -25,7 +29,7 @@ describe('TemplateLoader', () => {
     it('loads layered template', async () => {
       const template = await loader.get('layered');
       expect(template.name).toBe('layered');
-      expect(template.description).toContain('layered');
+      expect(template.description).toContain('3-tier');
       expect(template.layers.presentation).toBeDefined();
       expect(template.layers.business).toBeDefined();
       expect(template.layers.data).toBeDefined();
@@ -56,6 +60,39 @@ describe('TemplateLoader', () => {
       expect(template.layers.application).toBeDefined();
       expect(template.layers.infrastructure).toBeDefined();
       expect(template.layers.interfaces).toBeDefined();
+    });
+
+    it('loads starter template', async () => {
+      const template = await loader.get('starter');
+      expect(template.name).toBe('starter');
+      expect(template.layers.components).toBeDefined();
+      expect(template.layers.lib).toBeDefined();
+      expect(template.layers.services).toBeDefined();
+    });
+
+    it('loads monorepo template', async () => {
+      const template = await loader.get('monorepo');
+      expect(template.name).toBe('monorepo');
+      expect(template.layers.packages).toBeDefined();
+      expect(template.layers.shared).toBeDefined();
+    });
+
+    it('loads serverless template', async () => {
+      const template = await loader.get('serverless');
+      expect(template.name).toBe('serverless');
+      expect(template.layers.functions).toBeDefined();
+      expect(template.layers.services).toBeDefined();
+      expect(template.layers.shared).toBeDefined();
+    });
+
+    it('loads nx-workspace template', async () => {
+      const template = await loader.get('nx-workspace');
+      expect(template.name).toBe('nx-workspace');
+      expect(template.layers.apps).toBeDefined();
+      expect(template.layers['feature-libs']).toBeDefined();
+      expect(template.layers['data-access-libs']).toBeDefined();
+      expect(template.layers['ui-libs']).toBeDefined();
+      expect(template.layers['shared-libs']).toBeDefined();
     });
 
     it('returns empty layers for custom template', async () => {
@@ -89,7 +126,16 @@ describe('TemplateLoader', () => {
     });
 
     it('validates all built-in templates', async () => {
-      const templates = ['layered', 'hexagonal', 'clean', 'ddd'] as const;
+      const templates = [
+        'starter',
+        'layered',
+        'hexagonal',
+        'clean',
+        'ddd',
+        'monorepo',
+        'serverless',
+        'nx-workspace',
+      ] as const;
 
       for (const name of templates) {
         const result = await loader.validate(name);
@@ -107,8 +153,10 @@ describe('TemplateLoader', () => {
   describe('getAll', () => {
     it('returns all templates', async () => {
       const templates = await loader.getAll();
-      expect(templates).toHaveLength(5);
+      expect(templates).toHaveLength(9);
+      expect(templates.map((t) => t.name)).toContain('starter');
       expect(templates.map((t) => t.name)).toContain('layered');
+      expect(templates.map((t) => t.name)).toContain('nx-workspace');
       expect(templates.map((t) => t.name)).toContain('custom');
     });
   });

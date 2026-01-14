@@ -48,6 +48,7 @@
     "chokidar": "^5.0.0",
     "commander": "^14.0.1",
     "fs-extra": "^11.3.3",
+    "glob": "^13.0.0",
     "ink": "^6.6.0",
     "ink-select-input": "^6.0.0",
     "ink-spinner": "^5.0.0",

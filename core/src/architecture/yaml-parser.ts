@@ -143,11 +143,92 @@ const DDD_TEMPLATE: LayersRecord = {
   },
 };
 
+const STARTER_TEMPLATE: LayersRecord = {
+  components: {
+    patterns: ['src/components/**', 'src/ui/**'],
+    depends_on: ['lib'],
+    description: 'UI components and visual elements',
+  },
+  lib: {
+    patterns: ['src/lib/**', 'src/utils/**', 'src/helpers/**'],
+    depends_on: [],
+    description: 'Shared utilities and helper functions',
+  },
+  services: {
+    patterns: ['src/services/**', 'src/api/**'],
+    depends_on: ['lib'],
+    description: 'API calls and external service integrations',
+  },
+};
+
+const MONOREPO_TEMPLATE: LayersRecord = {
+  packages: {
+    patterns: ['apps/**', 'packages/**', 'libs/**', 'utils/**'],
+    depends_on: ['shared'],
+    description: 'Application and library packages',
+  },
+  shared: {
+    patterns: ['shared/**'],
+    depends_on: [],
+    description: 'Shared utilities and configurations',
+  },
+};
+
+const SERVERLESS_TEMPLATE: LayersRecord = {
+  functions: {
+    patterns: ['src/functions/**', 'src/handlers/**', 'src/lambdas/**'],
+    depends_on: ['services', 'shared'],
+    description: 'Serverless function handlers',
+  },
+  services: {
+    patterns: ['src/services/**', 'src/business/**'],
+    depends_on: ['shared'],
+    description: 'Business logic shared across functions',
+  },
+  shared: {
+    patterns: ['src/shared/**', 'src/utils/**', 'src/lib/**'],
+    depends_on: [],
+    description: 'Shared utilities and configurations',
+  },
+};
+
+const NX_WORKSPACE_TEMPLATE: LayersRecord = {
+  apps: {
+    patterns: ['apps/**'],
+    depends_on: ['feature-libs', 'shared-libs'],
+    description: 'Deployable applications',
+  },
+  'feature-libs': {
+    patterns: ['libs/feature-*/**', 'libs/*/feature-*/**'],
+    depends_on: ['data-access-libs', 'ui-libs', 'shared-libs'],
+    description: 'Feature libraries',
+  },
+  'data-access-libs': {
+    patterns: ['libs/data-access-*/**', 'libs/*/data-access-*/**'],
+    depends_on: ['shared-libs'],
+    description: 'Data access libraries',
+  },
+  'ui-libs': {
+    patterns: ['libs/ui-*/**', 'libs/*/ui-*/**'],
+    depends_on: ['shared-libs'],
+    description: 'UI component libraries',
+  },
+  'shared-libs': {
+    patterns: ['libs/shared/**', 'libs/util-*/**', 'libs/*/util-*/**'],
+    depends_on: [],
+    description: 'Shared utilities and configurations',
+  },
+};
+
 const TEMPLATE_DEFAULTS: Record<ArchitectureTemplate, LayersRecord> = {
+  starter: STARTER_TEMPLATE,
   layered: LAYERED_TEMPLATE,
   hexagonal: HEXAGONAL_TEMPLATE,
   clean: CLEAN_TEMPLATE,
   ddd: DDD_TEMPLATE,
+  monorepo: MONOREPO_TEMPLATE,
+  serverless: SERVERLESS_TEMPLATE,
+  'nx-workspace': NX_WORKSPACE_TEMPLATE,
   custom: {},
 };
 

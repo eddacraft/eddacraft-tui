@@ -124,6 +124,7 @@ regardless of how good the engine is. First impressions matter.
 | OPA Architecture       | DC → OPA bridge, YAML-first architecture       | Draft  |
 | Architecture Templates | Layered, Hexagonal, Clean, DDD presets         | Draft  |
 | Remote Policy Bundles  | Centralised policy distribution                | Draft  |
+| Monorepo Migration     | Restructure to apps/packages layered layout    | Ready  |
 
 ### v1.2 — Advanced Experience
 
@@ -250,6 +251,7 @@ graph TD
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
 | [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUI     | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
 | [test-quality](./modules/test-quality.aps.md)                           | TEST    | In Progress | —       | —                                                         |
+| [monorepo-migration](./modules/monorepo-migration.aps.md)               | MONO    | Ready       | v1.1    | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -354,6 +356,29 @@ graph TD
 | OPA-019 | opa    | Bundle download and caching         | Planned     | medium   |
 | OPA-020 | opa    | Signature verification              | Planned     | medium   |
 | OPA-021 | opa    | Basic auth and CLI commands         | Planned     | medium   |
+
+### Task Status — v1.1 (Monorepo Migration)
+
+| Task     | Module | Description                          | Status  | Priority |
+| -------- | ------ | ------------------------------------ | ------- | -------- |
+| MONO-001 | mono   | Nx generators for package scaffolding | Ready   | high     |
+| MONO-002 | mono   | Import path codemod                  | Ready   | high     |
+| MONO-003 | mono   | Shared tooling packages              | Ready   | medium   |
+| MONO-004 | mono   | Extract contracts from core          | Ready   | high     |
+| MONO-005 | mono   | Extract ports from core              | Ready   | high     |
+| MONO-006 | mono   | Extract pure domain to core          | Ready   | high     |
+| MONO-007 | mono   | Extract runtime package              | Ready   | high     |
+| MONO-008 | mono   | Extract policy package               | Ready   | high     |
+| MONO-009 | mono   | Extract config package               | Ready   | medium   |
+| MONO-010 | mono   | Extract storage package              | Ready   | medium   |
+| MONO-011 | mono   | Extract crypto package               | Ready   | medium   |
+| MONO-012 | mono   | Split adapters per-integration       | Ready   | medium   |
+| MONO-013 | mono   | Move CLI to apps/                    | Ready   | high     |
+| MONO-014 | mono   | Reorganise E2E tests                 | Ready   | medium   |
+| MONO-015 | mono   | Move scripts to tools/               | Ready   | low      |
+| MONO-016 | mono   | Full test suite validation           | Ready   | high     |
+| MONO-017 | mono   | Dependency graph validation          | Ready   | high     |
+| MONO-018 | mono   | Documentation update                 | Ready   | medium   |
 
 ### Task Status — v1.2 (Advanced Experience)
 

@@ -15,6 +15,8 @@ import {
   analyseProjectArchitecture,
   formatEntryPoints,
   formatLayerDiagram,
+  generateArchitectureExplanation,
+  formatArchitectureExplanation,
   saveArchitectureBaseline,
   hasExistingBaseline,
   type ArchitectureSummary,
@@ -23,6 +25,11 @@ import { success, error } from '../utils/output.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { InitWizard, type WizardState, type WizardContext } from '../tui/commands/init/index.js';
+import { ProjectDetector } from '../services/project-detector.js';
+import { SampleAnalyzer } from '../services/sample-analyzer.js';
+import { HistoricalAnalyzer } from '../services/historical-analyser.js';
+import { InitResults } from '../tui/commands/init/InitResults.js';
+import type { InitAnalysisResults } from '../tui/components/ResultsDashboard.js';
 
 export function createInitCommand(): Command {
   const command = new Command('init');
@@ -33,12 +40,14 @@ export function createInitCommand(): Command {
     .option('--non-interactive', 'Skip interactive prompts and use defaults')
     .option('--no-tui', 'Use classic CLI prompts instead of TUI wizard')
     .option('--tui', 'Force TUI wizard mode')
+    .option('--no-analysis', 'Skip automatic project analysis')
     .action(
       async (options: {
         force?: boolean;
         nonInteractive?: boolean;
         tui?: boolean;
         noTui?: boolean;
+        noAnalysis?: boolean;
       }) => {
         try {
           console.log(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
@@ -94,6 +103,14 @@ export function createInitCommand(): Command {
             // Display layer diagram
             console.log(chalk.cyan('\nDetected layer structure:'));
             formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
+              console.log(chalk.dim(line))
+            );
+            console.log('');
+
+            // Display architecture explanation
+            const explanation = generateArchitectureExplanation(archSummary);
+            console.log(chalk.cyan('Architecture summary:'));
+            formatArchitectureExplanation(explanation).forEach((line) =>
               console.log(chalk.dim(line))
             );
             console.log('');
@@ -209,25 +226,92 @@ export function createInitCommand(): Command {
               });
             }
 
-            // Show next steps
-            console.log('\n' + chalk.bold('Next steps:'));
-            console.log(chalk.cyan('  1. Review configuration:'));
-            console.log(chalk.dim('     anvil gate:config --list'));
+            // Run intelligent first-run analysis (unless skipped)
+            let dashboardShown = false;
+            if (!options.noAnalysis) {
+              console.log('');
+              const analysisSpinner = ora('Analysing project...').start();
 
-            if (exampleFiles.length > 0) {
-              const firstExample = exampleFiles[0].replace(projectRoot + '/', '');
-              console.log(chalk.cyan('  2. Validate example plan:'));
-              console.log(chalk.dim(`     anvil validate ${firstExample}`));
-              console.log(chalk.cyan('  3. Run quality gates:'));
-              console.log(chalk.dim(`     anvil gate ${firstExample}`));
+              try {
+                const analysisResults = await runIntelligentAnalysis(projectRoot, anvilrcPath);
+
+                analysisSpinner.succeed(
+                  chalk.green(
+                    `Analysis complete: ${analysisResults.sampleFiles?.analyzed ?? 0} files analyzed`
+                  )
+                );
+
+                // Show results dashboard if TUI is available
+                if (isTUIAvailable({ tui: options.tui, noTui: options.noTui })) {
+                  console.log('');
+
+                  // Prepare stdin for Ink after inquirer prompts
+                  prepareStdinForInk();
+
+                  await new Promise<void>((resolve, reject) => {
+                    const result = renderTUI(InitResults, {
+                      results: analysisResults,
+                      onComplete: () => resolve(),
+                      onQuit: () => resolve(),
+                    });
+
+                    if (!result) {
+                      reject(new Error('Could not render results dashboard'));
+                      return;
+                    }
+
+                    result.waitUntilExit().catch(reject);
+                  });
+
+                  // Dashboard was successfully shown
+                  dashboardShown = true;
+                } else {
+                  // Fallback: Show text-based summary
+                  console.log('\n' + chalk.bold('Project Analysis:'));
+                  console.log(chalk.dim(`  Framework: ${analysisResults.project.framework}`));
+                  console.log(chalk.dim(`  Project Size: ${analysisResults.project.size}`));
+
+                  if (analysisResults.historical && analysisResults.historical.totalCommits > 0) {
+                    console.log('\n' + chalk.bold('Historical Insights:'));
+                    console.log(
+                      chalk.dim(
+                        `  Would have caught ${analysisResults.historical.totalViolations} issues in ${analysisResults.historical.totalCommits} commits`
+                      )
+                    );
+                  }
+                }
+              } catch (analysisError) {
+                analysisSpinner.warn(chalk.yellow('Analysis skipped - see next steps below'));
+                if (analysisError instanceof Error) {
+                  console.log(chalk.dim(`  Reason: ${analysisError.message}`));
+                }
+              }
             } else {
-              console.log(chalk.cyan('  2. Create a planning document in:'));
-              console.log(chalk.dim(`     ${initOptions.planningDir}/`));
-              console.log(chalk.cyan('  3. Validate your plan:'));
-              console.log(chalk.dim('     anvil validate <plan-file>'));
+              console.log('\n' + chalk.dim('Skipping automatic analysis (--no-analysis flag)'));
             }
 
-            console.log('');
+            // Show next steps (only if dashboard was not shown)
+            if (!dashboardShown) {
+              console.log('\n' + chalk.bold('Next steps:'));
+              console.log(chalk.cyan('  1. Review configuration:'));
+              console.log(chalk.dim('     anvil gate:config --list'));
+
+              if (exampleFiles.length > 0) {
+                const firstExample = exampleFiles[0].replace(projectRoot + '/', '');
+                console.log(chalk.cyan('  2. Validate example plan:'));
+                console.log(chalk.dim(`     anvil validate ${firstExample}`));
+                console.log(chalk.cyan('  3. Run quality gates:'));
+                console.log(chalk.dim(`     anvil gate ${firstExample}`));
+              } else {
+                console.log(chalk.cyan('  2. Create a planning document in:'));
+                console.log(chalk.dim(`     ${initOptions.planningDir}/`));
+                console.log(chalk.cyan('  3. Validate your plan:'));
+                console.log(chalk.dim('     anvil validate <plan-file>'));
+              }
+
+              console.log('');
+            }
+
             success('Anvil is ready to use!');
           } catch (err) {
             spinner.fail('Initialisation failed');
@@ -367,16 +451,42 @@ async function runInteractiveSetup(
   };
 }
 
+/**
+ * Prepares stdin for Ink TUI after inquirer prompts.
+ *
+ * Inquirer uses readline which:
+ * 1. Leaves stdin in "line" mode (not "raw" mode)
+ * 2. May leave buffered keystrokes that Ink could misinterpret
+ *
+ * This function resets stdin to a clean state for Ink's useInput hook.
+ */
+function prepareStdinForInk(): void {
+  // Resume stdin if paused by inquirer
+  if (process.stdin.isPaused()) {
+    process.stdin.resume();
+  }
+
+  // Drain any buffered input that might be misinterpreted by Ink
+  // This prevents leftover keystrokes from inquirer causing immediate exits
+  if (process.stdin.readable) {
+    process.stdin.read();
+  }
+
+  // Set stdin to raw mode for Ink's useInput hook to work correctly.
+  // Without this, keystrokes are buffered until Enter is pressed, causing
+  // the TUI wizard to appear unresponsive and exit immediately.
+  if (process.stdin.isTTY && process.stdin.setRawMode) {
+    process.stdin.setRawMode(true);
+  }
+}
+
 async function runTUIWizard(
   projectRoot: string,
   env: ReturnType<EnvironmentDetector['detect']>,
   detector: EnvironmentDetector
 ): Promise<InitOptions> {
-  // Ensure stdin is flowing before starting the Ink TUI.
-  // Some prompt libraries (e.g. inquirer) pause stdin, which breaks Ink if not resumed.
-  if (process.stdin.isPaused()) {
-    process.stdin.resume();
-  }
+  // Prepare stdin for Ink after inquirer prompts
+  prepareStdinForInk();
 
   return new Promise((resolve, reject) => {
     const context: WizardContext = {
@@ -416,4 +526,48 @@ async function runTUIWizard(
     // Wait for TUI to exit, then ensure Promise resolves/rejects
     result.waitUntilExit().catch(reject);
   });
+}
+
+/**
+ * Run intelligent first-run analysis
+ *
+ * Orchestrates:
+ * 1. Project context detection
+ * 2. Sample file selection
+ * 3. Quick wins identification
+ * 4. Historical git analysis
+ */
+async function runIntelligentAnalysis(
+  projectRoot: string,
+  configPath: string
+): Promise<InitAnalysisResults> {
+  // Step 1: Detect project context
+  const projectDetector = new ProjectDetector(projectRoot);
+  const projectContext = projectDetector.detect();
+
+  // Step 2: Select sample files for analysis
+  const sampleAnalyzer = new SampleAnalyzer(projectRoot);
+  const sampleSelection = await sampleAnalyzer.selectFiles({ maxFiles: 50 });
+
+  // Step 3: Analyse git history (async, don't wait)
+  const historicalAnalyzer = new HistoricalAnalyzer(projectRoot);
+  const historicalAnalysis = await historicalAnalyzer.analyse({
+    daysBack: 30,
+    maxCommits: 100,
+  });
+
+  // Build results structure
+  // Note: Full gate check integration is not included in this initial version
+  // This provides the foundation for future integration
+  const results: InitAnalysisResults = {
+    project: projectContext,
+    configPath,
+    sampleFiles: {
+      analyzed: sampleSelection.files.length,
+      total: sampleSelection.totalFound,
+    },
+    historical: historicalAnalysis,
+  };
+
+  return results;
 }

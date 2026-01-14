@@ -1,9 +1,18 @@
 packages:
+  # Current structure (v1.0)
   - cli
   - ui
   - core
   - packs
   - packages/*
+  # Future structure (v1.1+) - ready for migration
+  - apps/*
+  - packages/anvil/*
+  - packages/edda-stack/*
+  - packages/platform/*
+  - packages/shared/*
+  - packages/tooling/*
+  - tools/*
 
 ignoredBuiltDependencies:
   - '@devm33/node-pty'

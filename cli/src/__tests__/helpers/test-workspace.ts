@@ -48,6 +48,7 @@ export function createPackageJson(
     name?: string;
     version?: string;
     scripts?: Record<string, string>;
+    dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
   } = {}
 ): void {
@@ -55,15 +56,26 @@ export function createPackageJson(
     name = 'test-workspace',
     version = '1.0.0',
     scripts = {},
+    dependencies = {},
     devDependencies = {},
   } = options;
 
-  const packageJson = {
+  const packageJson: Record<string, unknown> = {
     name,
     version,
-    scripts,
-    devDependencies,
   };
+
+  if (Object.keys(scripts).length > 0) {
+    packageJson.scripts = scripts;
+  }
+
+  if (Object.keys(dependencies).length > 0) {
+    packageJson.dependencies = dependencies;
+  }
+
+  if (Object.keys(devDependencies).length > 0) {
+    packageJson.devDependencies = devDependencies;
+  }
 
   writeFileSync(join(workspace, 'package.json'), JSON.stringify(packageJson, null, 2), 'utf-8');
 }
@@ -181,6 +193,16 @@ coverage/
  */
 export function initGitRepo(workspace: string): void {
   mkdirSync(join(workspace, '.git'), { recursive: true });
+
+  // Configure git for testing
+  try {
+    const { execSync } = require('child_process');
+    execSync('git init', { cwd: workspace, stdio: 'pipe' });
+    execSync('git config user.email "test@example.com"', { cwd: workspace, stdio: 'pipe' });
+    execSync('git config user.name "Test User"', { cwd: workspace, stdio: 'pipe' });
+  } catch {
+    // If git commands fail, at least we have a .git directory
+  }
 }
 
 /**

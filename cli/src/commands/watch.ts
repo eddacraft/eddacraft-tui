@@ -4,6 +4,7 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import inquirer from 'inquirer';
 import {
   GateRunner,
   GateConfigManager,
@@ -35,6 +36,8 @@ const SOURCE_EXCLUDE_PATTERNS = [
   '**/*.d.ts',
 ];
 
+type WatchMode = 'plans' | 'source' | 'all';
+
 interface WatchOptions {
   action?: 'validate' | 'gate' | 'check';
   patterns?: string;
@@ -45,8 +48,38 @@ interface WatchOptions {
   profile?: 'dev' | 'ci' | 'production';
   verbose?: boolean;
   source?: boolean;
+  plans?: boolean;
+  all?: boolean;
   tui?: boolean;
   noTui?: boolean;
+}
+
+/**
+ * Prompt user to select watch mode interactively
+ */
+async function promptWatchMode(): Promise<WatchMode> {
+  const { mode } = await inquirer.prompt<{ mode: WatchMode }>([
+    {
+      type: 'list',
+      name: 'mode',
+      message: 'What would you like to watch?',
+      choices: [
+        {
+          name: 'Planning documents (*.md, prd.*, plan.*, spec.*, etc.)',
+          value: 'plans',
+        },
+        {
+          name: 'Source files (*.ts, *.tsx) — anti-patterns & architecture',
+          value: 'source',
+        },
+        {
+          name: 'Everything (plans + source files)',
+          value: 'all',
+        },
+      ],
+    },
+  ]);
+  return mode;
 }
 
 export function createWatchCommand(): Command {
@@ -55,8 +88,10 @@ export function createWatchCommand(): Command {
   command
     .description('Watch files for changes and run validation or gates in real-time')
     .argument('[file]', 'Specific file to watch (optional)')
-    .option('-a, --action <action>', 'Action to run: validate, gate, or check', 'validate')
+    .option('-a, --action <action>', 'Action to run: validate, gate, or check')
+    .option('--plans', 'Watch planning documents (*.md, prd.*, plan.*, etc.)')
     .option('--source', 'Watch source files and run checks (anti-patterns, architecture)')
+    .option('--all', 'Watch both planning documents and source files')
     .option('--patterns <patterns>', 'Glob patterns to watch (comma-separated)')
     .option('--exclude <patterns>', 'Patterns to exclude (comma-separated)')
     .option('--debounce <ms>', 'Debounce interval in milliseconds', '300')
@@ -73,33 +108,78 @@ export function createWatchCommand(): Command {
 
         const savedConfig = configManager.getWatchConfig();
         const defaultConfig = getDefaultWatchConfig();
-        const isSourceMode = options.source === true;
 
-        // Build effective config (CLI options override file config)
+        // Determine watch mode
+        let watchMode: WatchMode;
+        const hasExplicitMode =
+          options.source || options.plans || options.all || options.patterns || file;
+
+        if (options.all) {
+          watchMode = 'all';
+        } else if (options.source) {
+          watchMode = 'source';
+        } else if (options.plans || options.patterns || file) {
+          watchMode = 'plans';
+        } else if (!hasExplicitMode && process.stdin.isTTY) {
+          // Interactive mode - prompt user to choose
+          watchMode = await promptWatchMode();
+        } else {
+          // Non-interactive fallback - default to plans
+          watchMode = 'plans';
+        }
+
+        // Determine patterns based on mode
+        let patterns: string[];
+        let excludePatterns: string[];
+        let action: 'validate' | 'gate' | 'check';
+
+        if (options.patterns) {
+          patterns = options.patterns.split(',').map((p) => p.trim());
+          excludePatterns = options.exclude
+            ? options.exclude.split(',').map((p) => p.trim())
+            : DEFAULT_EXCLUDE_PATTERNS;
+          action = (options.action as 'validate' | 'gate' | 'check') ?? 'validate';
+        } else {
+          switch (watchMode) {
+            case 'source':
+              patterns = SOURCE_WATCH_PATTERNS;
+              excludePatterns = SOURCE_EXCLUDE_PATTERNS;
+              action = options.action ? (options.action as 'validate' | 'gate' | 'check') : 'check';
+              break;
+            case 'all':
+              patterns = [...DEFAULT_WATCH_PATTERNS, ...SOURCE_WATCH_PATTERNS];
+              excludePatterns = SOURCE_EXCLUDE_PATTERNS; // Use stricter excludes
+              action = options.action ? (options.action as 'validate' | 'gate' | 'check') : 'check';
+              break;
+            case 'plans':
+            default:
+              patterns = savedConfig?.patterns ?? DEFAULT_WATCH_PATTERNS;
+              excludePatterns = options.exclude
+                ? options.exclude.split(',').map((p) => p.trim())
+                : (savedConfig?.exclude ?? DEFAULT_EXCLUDE_PATTERNS);
+              action =
+                (options.action as 'validate' | 'gate' | 'check') ??
+                savedConfig?.action ??
+                'validate';
+              break;
+          }
+        }
+
+        // Build effective config
         const watchConfig: WatchConfig = {
           enabled: true,
-          patterns: options.patterns
-            ? options.patterns.split(',').map((p) => p.trim())
-            : isSourceMode
-              ? SOURCE_WATCH_PATTERNS
-              : (savedConfig?.patterns ?? DEFAULT_WATCH_PATTERNS),
-          exclude: options.exclude
-            ? options.exclude.split(',').map((p) => p.trim())
-            : isSourceMode
-              ? SOURCE_EXCLUDE_PATTERNS
-              : (savedConfig?.exclude ?? DEFAULT_EXCLUDE_PATTERNS),
-          action: isSourceMode
-            ? 'check'
-            : ((options.action as 'validate' | 'gate' | 'check') ??
-              savedConfig?.action ??
-              'validate'),
+          patterns,
+          exclude: excludePatterns,
+          action,
           debounceMs: options.debounce
             ? parseInt(options.debounce, 10)
             : (savedConfig?.debounceMs ?? defaultConfig.debounceMs),
           git: {
             unstagedOnly: options.noGitFilter !== true,
             includeUntracked:
-              options.includeUntracked ?? savedConfig?.git.includeUntracked ?? false,
+              options.includeUntracked ??
+              savedConfig?.git.includeUntracked ??
+              defaultConfig.git.includeUntracked,
           },
           gateProfile: options.profile ?? savedConfig?.gateProfile,
         };

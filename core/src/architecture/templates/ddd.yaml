@@ -2,7 +2,7 @@
 # Domain-Driven Design with bounded contexts
 
 name: ddd
-description: Domain-Driven Design architecture with bounded contexts
+description: Domain-Driven Design - organise code around business domains and bounded contexts
 
 layers:
   domain:

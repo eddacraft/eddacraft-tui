@@ -117,6 +117,8 @@ export function createTutorialCommand(): Command {
 
       ensureTutorialDir(workspaceRoot);
 
+      let cleanedUp = false;
+
       const handleComplete = () => {
         const progress: TutorialProgress = {
           currentStep: 5,
@@ -129,15 +131,20 @@ export function createTutorialCommand(): Command {
 
       const handleCleanup = () => {
         cleanupTutorialFiles(workspaceRoot);
-        console.log(
-          chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial files cleaned up`)
-        );
+        cleanedUp = true;
       };
 
       await renderTUIAndWait(Tutorial, {
         onComplete: handleComplete,
         onCleanup: handleCleanup,
       });
+
+      // Print cleanup message after TUI exits to avoid rendering issues
+      if (cleanedUp) {
+        console.log(
+          chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial files cleaned up`)
+        );
+      }
     });
 
   return command;
