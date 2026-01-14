@@ -245,7 +245,7 @@ See [plans/index.aps.md](./plans/index.aps.md) for detailed roadmap.
 | [User Guide](./docs/USER_GUIDE.md)           | Complete command reference  |
 | [Examples](./docs/EXAMPLES.md)               | Real-world workflows        |
 | [Troubleshooting](./docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [CLI Reference](./cli/README.md)             | All CLI commands            |
+| [CLI Reference](./apps/anvil-cli/README.md)  | All CLI commands            |
 | [Architecture](./docs/ARCHITECTURE.md)       | System design               |
 
 ## Development
@@ -271,12 +271,31 @@ pnpm lint
 
 ```
 anvil/
-├── cli/                  # CLI application (Commander.js + Ink TUI)
-├── core/                 # Analysis engine, checks, caching
+├── apps/
+│   ├── anvil-cli/        # CLI application (Commander.js + Ink TUI)
+│   └── e2e/              # E2E test suites
+├── core/                 # Legacy core (being migrated)
 ├── packages/
 │   ├── adapters/         # Format converters (SpecKit, BMAD)
 │   ├── aps/              # APS document parser
-│   └── vscode-extension/ # VS Code integration (v1.2)
+│   ├── anvil/            # New modular core packages
+│   │   ├── contracts/    # Shared interfaces & types
+│   │   ├── ports/        # Adapter interfaces
+│   │   ├── core/         # Pure domain logic
+│   │   ├── runtime/      # Execution environment
+│   │   └── policy/       # Policy evaluation
+│   ├── platform/         # Platform services
+│   │   ├── config/       # Configuration management
+│   │   ├── storage/      # Storage abstractions
+│   │   └── crypto/       # Cryptographic utilities
+│   ├── tooling/          # Build & dev tooling
+│   │   ├── tsconfig/     # Shared TypeScript configs
+│   │   └── eslint-config/# Shared ESLint configs
+│   └── vscode-extension/ # VS Code integration
+├── tools/
+│   ├── scripts/          # Build & utility scripts
+│   ├── generators/       # Code generators
+│   └── codemods/         # Codemod transformations
 ├── plans/                # Project planning (.aps.md specs)
 └── docs/                 # Documentation
 ```

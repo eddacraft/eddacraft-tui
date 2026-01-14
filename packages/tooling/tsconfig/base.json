@@ -16,15 +16,8 @@
     "noUnusedLocals": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "es2022"
+    "target": "es2022",
+    "types": ["node"]
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    ".nx",
-    "tmp",
-    "coverage",
-    "playwright-report",
-    "test-results"
-  ]
+  "exclude": ["node_modules", "dist", ".nx", "tmp", "coverage", "playwright-report", "test-results"]
 }

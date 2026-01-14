@@ -13,7 +13,8 @@
     "noEmitOnError": false,
     "declaration": true,
     "emitDeclarationOnly": false,
-    "composite": true
+    "composite": true,
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "**/*.test.ts", "**/__tests__/**"]
