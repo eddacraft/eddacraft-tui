@@ -317,8 +317,8 @@ export function createMockEmberPort(options: MockEmberPortOptions = {}): MockEmb
     return count;
   };
 
-  // Mark promoted implementation (STACK-007) - reserved for future use
-  const _markPromotedImpl = async (
+  // Mark promoted implementation (STACK-007)
+  const markPromotedImpl = async (
     id: ProposalId,
     memoryId: MemoryId,
     resolvedBy: string
@@ -339,8 +339,8 @@ export function createMockEmberPort(options: MockEmberPortOptions = {}): MockEmb
     });
   };
 
-  // Mark dismissed implementation (STACK-007) - reserved for future use
-  const _markDismissedImpl = async (
+  // Mark dismissed implementation (STACK-007)
+  const markDismissedImpl = async (
     id: ProposalId,
     reason: string,
     resolvedBy: string
@@ -360,18 +360,18 @@ export function createMockEmberPort(options: MockEmberPortOptions = {}): MockEmb
     });
   };
 
-  // Expire stale proposals implementation (STACK-007) - reserved for future use
-  const _expireStaleProposalsImpl = async (): Promise<number> => {
+  // Expire stale proposals implementation (STACK-007)
+  const expireStaleProposalsImpl = async (): Promise<number> => {
     return processExpiredProposalsImpl();
   };
 
-  // Is available implementation (STACK-007) - reserved for future use
-  const _isAvailableImpl = async (): Promise<boolean> => {
+  // Is available implementation (STACK-007)
+  const isAvailableImpl = async (): Promise<boolean> => {
     return true;
   };
 
-  // Get stats implementation (STACK-007) - reserved for future use
-  const _getStatsImpl = async (): Promise<EmberStats> => {
+  // Get stats implementation (STACK-007)
+  const getStatsImpl = async (): Promise<EmberStats> => {
     const proposals = Array.from(store.values());
     const currentTime = Date.now();
 
@@ -454,6 +454,11 @@ export function createMockEmberPort(options: MockEmberPortOptions = {}): MockEmb
     proposalExists: vi.fn(proposalExistsImpl),
     getExpiredProposals: vi.fn(getExpiredProposalsImpl),
     processExpiredProposals: vi.fn(processExpiredProposalsImpl),
+    markPromoted: vi.fn(markPromotedImpl),
+    markDismissed: vi.fn(markDismissedImpl),
+    expireStaleProposals: vi.fn(expireStaleProposalsImpl),
+    isAvailable: vi.fn(isAvailableImpl),
+    getStats: vi.fn(getStatsImpl),
     countProposals: vi.fn(countProposalsImpl),
     pruneProposals: vi.fn(pruneProposalsImpl),
   };
@@ -470,6 +475,11 @@ export function createMockEmberPort(options: MockEmberPortOptions = {}): MockEmb
     proposalExists: mocks.proposalExists,
     getExpiredProposals: mocks.getExpiredProposals,
     processExpiredProposals: mocks.processExpiredProposals,
+    markPromoted: mocks.markPromoted,
+    markDismissed: mocks.markDismissed,
+    expireStaleProposals: mocks.expireStaleProposals,
+    isAvailable: mocks.isAvailable,
+    getStats: mocks.getStats,
     countProposals: mocks.countProposals,
     pruneProposals: mocks.pruneProposals,
 

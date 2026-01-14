@@ -1,4 +1,4 @@
-import { GateConfig, GateCheck, PolicyConfig } from '../types/gate.types.js';
+import { GateConfig, GateCheck, PolicyConfig, StackConfig } from '../types/gate.types.js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { WatchConfigSchema, type WatchConfig } from '../watch/types.js';
@@ -288,6 +288,46 @@ export class GateConfigManager {
       policyConfig = configObj.policy as PolicyConfig;
     }
 
+    // Parse stack config if present (STACK-012)
+    let stackConfig: StackConfig | undefined;
+    if (
+      configObj.stack !== undefined &&
+      typeof configObj.stack === 'object' &&
+      configObj.stack !== null
+    ) {
+      const stack = configObj.stack as Record<string, unknown>;
+
+      // Validate layer configs
+      for (const layer of ['kindling', 'ember', 'edda'] as const) {
+        if (stack[layer] !== undefined) {
+          if (typeof stack[layer] !== 'object' || stack[layer] === null) {
+            errors.push(`stack.${layer}: expected object`);
+          } else {
+            const layerConfig = stack[layer] as Record<string, unknown>;
+            if (layerConfig.enabled !== undefined && typeof layerConfig.enabled !== 'boolean') {
+              errors.push(`stack.${layer}.enabled: expected boolean`);
+            }
+          }
+        }
+      }
+
+      // Validate validation config
+      if (stack.validation !== undefined) {
+        if (typeof stack.validation !== 'object' || stack.validation === null) {
+          errors.push('stack.validation: expected object');
+        } else {
+          const validation = stack.validation as Record<string, unknown>;
+          for (const key of ['check_provenance_integrity', 'check_schema_compatibility']) {
+            if (validation[key] !== undefined && typeof validation[key] !== 'boolean') {
+              errors.push(`stack.validation.${key}: expected boolean`);
+            }
+          }
+        }
+      }
+
+      stackConfig = stack as StackConfig;
+    }
+
     const validatedConfig: GateConfig = {
       version: configObj.version as number,
       checks: validatedChecks,
@@ -295,6 +335,7 @@ export class GateConfigManager {
       global_config: configObj.global_config as Record<string, unknown> | undefined,
       watch: watchConfig,
       policy: policyConfig,
+      stack: stackConfig,
     };
 
     return { config: validatedConfig, errors };

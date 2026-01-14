@@ -36,6 +36,44 @@ export interface PolicyConfig {
   verification?: PolicyVerificationConfig;
 }
 
+// =============================================================================
+// Stack Configuration (STACK-012)
+// =============================================================================
+
+/**
+ * Configuration for a single stack layer (Kindling, Ember, or Edda)
+ */
+export interface StackLayerConfig {
+  /** Whether this layer is enabled */
+  enabled: boolean;
+  /** Layer-specific configuration */
+  [key: string]: unknown;
+}
+
+/**
+ * Validation settings for stack integrity checks
+ */
+export interface StackValidationConfig {
+  /** Check that provenance links resolve correctly across layers */
+  check_provenance_integrity?: boolean;
+  /** Check that schemas are compatible between layers */
+  check_schema_compatibility?: boolean;
+}
+
+/**
+ * Stack-wide configuration for the Edda Stack (Kindling → Ember → Edda)
+ */
+export interface StackConfig {
+  /** Kindling layer configuration (observation) */
+  kindling?: StackLayerConfig;
+  /** Ember layer configuration (candidate memories) */
+  ember?: StackLayerConfig;
+  /** Edda layer configuration (canonical memories) */
+  edda?: StackLayerConfig;
+  /** Validation settings for stack integrity checks */
+  validation?: StackValidationConfig;
+}
+
 export interface GateCheck {
   name: string;
   description: string;
@@ -102,6 +140,8 @@ export interface GateConfig {
   watch?: WatchConfig;
   /** Policy configuration including remote bundles */
   policy?: PolicyConfig;
+  /** Stack configuration for Edda Stack layers */
+  stack?: StackConfig;
 }
 
 // Use APSPlan directly instead of a separate interface

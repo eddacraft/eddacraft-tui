@@ -274,9 +274,9 @@ importers:
 
   packages/edda-stack:
     dependencies:
-      '@anvil/kindling-integration':
-        specifier: workspace:*
-        version: link:../kindling-integration
+      uuid:
+        specifier: ^13.0.0
+        version: 13.0.0
       zod:
         specifier: ^3.22.4
         version: 3.25.76
@@ -284,6 +284,9 @@ importers:
       '@types/node':
         specifier: ^25.0.7
         version: 25.0.7
+      '@types/uuid':
+        specifier: ^11.0.0
+        version: 11.0.0
       typescript:
         specifier: ^5.3.3
         version: 5.9.3
@@ -3068,6 +3071,15 @@ packages:
       {
         integrity: sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q==,
       }
+
+  '@types/uuid@11.0.0':
+    resolution:
+      {
+        integrity: sha512-HVyk8nj2m+jcFRNazzqyVKiZezyhDKrGUA3jlEcg/nZ6Ms+qHwocba1Y/AaVaznJTAM9xpdFSh+ptbNrhOGvZA==,
+      }
+    deprecated:
+      This is a stub types definition. uuid provides its own type definitions, so you do not need
+      this installed.
 
   '@types/vscode@1.108.1':
     resolution:
@@ -9560,6 +9572,13 @@ packages:
       }
     engines: { node: '>= 0.4.0' }
 
+  uuid@13.0.0:
+    resolution:
+      {
+        integrity: sha512-XQegIaBTVUjSHliKqcnFqYypAd4S+WCYt5NIeRs6w/UAry7z8Y9j5ZwRRL4kzq9U3sD6v+85er9FvkEaBpji2w==,
+      }
+    hasBin: true
+
   uuid@8.3.2:
     resolution:
       {
@@ -11865,6 +11884,10 @@ snapshots:
   '@types/unist@2.0.11': {}
 
   '@types/unist@3.0.3': {}
+
+  '@types/uuid@11.0.0':
+    dependencies:
+      uuid: 13.0.0
 
   '@types/vscode@1.108.1': {}
 
@@ -16333,6 +16356,8 @@ snapshots:
   util-deprecate@1.0.2: {}
 
   utils-merge@1.0.1: {}
+
+  uuid@13.0.0: {}
 
   uuid@8.3.2: {}
 

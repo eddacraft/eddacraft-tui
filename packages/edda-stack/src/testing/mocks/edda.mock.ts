@@ -14,7 +14,13 @@ import type {
   CreateMemoryInput,
   UpdateMemoryInput,
   RetireMemoryInput,
+  ProvenanceResolutionResult,
+  MemoryTypeStats,
+  MemoryStatusStats,
+  ConfidenceLevelStats,
+  EddaStats,
 } from '../../contracts/ports/edda.port.js';
+import type { EddaConfidenceLevel } from '../../contracts/confidence.js';
 import type {
   MemoryObject,
   PromoteProposalInput,
@@ -23,6 +29,8 @@ import type {
   MemoryStatus,
   MemoryType,
 } from '../../contracts/edda-memory.js';
+import type { CandidateProposal } from '../../contracts/ember-proposal.js';
+import type { ProvenanceChain } from '../../contracts/provenance.js';
 import type { MemoryId, ProposalId, Timestamp } from '../../contracts/index.js';
 import { now } from '../../contracts/temporal.js';
 import { createMemoryId, createProposalId, createSessionId } from '../../contracts/identifiers.js';
@@ -140,7 +148,7 @@ export function createMockEddaPort(options: MockEddaPortOptions = {}): MockEddaP
         method: 'cli_command',
         reason: input.reason,
       },
-      evolution: {},
+      evolution: { supersedes: [] },
       created_at: timestamp,
       metadata: input.metadata,
     };
@@ -171,7 +179,7 @@ export function createMockEddaPort(options: MockEddaPortOptions = {}): MockEddaP
         method: 'cli_command',
         reason: input.reason,
       },
-      evolution: {},
+      evolution: { supersedes: [] },
       created_at: timestamp,
       metadata: input.metadata,
     };
@@ -440,12 +448,131 @@ export function createMockEddaPort(options: MockEddaPortOptions = {}): MockEddaP
     return count;
   };
 
+  // Create memory from proposal (STACK-007)
+  const createMemoryFromProposalImpl = async (
+    input: PromoteProposalInput,
+    _proposal: CandidateProposal
+  ): Promise<MemoryObject> => {
+    return promoteProposalImpl(input);
+  };
+
+  // Retire memory by ID (STACK-007)
+  const retireMemoryByIdImpl = async (
+    id: MemoryId,
+    supersededBy: MemoryId | undefined,
+    reason: string,
+    retiredBy: string
+  ): Promise<void> => {
+    await retireMemoryImpl(id, { reason, retired_by: retiredBy, superseded_by: supersededBy });
+  };
+
+  // Resolve provenance (STACK-007)
+  const resolveProvenanceImpl = async (
+    chain: ProvenanceChain
+  ): Promise<ProvenanceResolutionResult> => {
+    const totalCount =
+      chain.kindling_sources.length + chain.source_sessions.length + (chain.ember_source ? 1 : 0);
+    return {
+      complete: true,
+      resolved_count: totalCount,
+      total_count: totalCount,
+      missing_links: [],
+      resolved_data: {
+        sessions: chain.source_sessions as string[],
+        observations: chain.kindling_sources.map((s) => s.observation_id as string),
+        proposal_id: chain.ember_source?.proposal_id as string | undefined,
+      },
+      warnings: [],
+    };
+  };
+
+  // Is available (STACK-007)
+  const isAvailableImpl = async (): Promise<boolean> => {
+    return true;
+  };
+
+  // Get stats (STACK-007)
+  const getStatsImpl = async (): Promise<EddaStats> => {
+    const memories = Array.from(store.values());
+
+    // Calculate type stats
+    const typeCounts = new Map<string, number>();
+    for (const m of memories) {
+      typeCounts.set(m.type, (typeCounts.get(m.type) ?? 0) + 1);
+    }
+    const byType: MemoryTypeStats[] = Array.from(typeCounts.entries()).map(([type, count]) => ({
+      type: type as MemoryType,
+      count,
+    }));
+
+    // Calculate status stats
+    const statusCounts = new Map<string, number>();
+    for (const m of memories) {
+      statusCounts.set(m.status, (statusCounts.get(m.status) ?? 0) + 1);
+    }
+    const byStatus: MemoryStatusStats[] = Array.from(statusCounts.entries()).map(
+      ([status, count]) => ({
+        status: status as MemoryStatus,
+        count,
+      })
+    );
+
+    // Calculate confidence stats
+    const confidenceCounts = new Map<string, number>();
+    for (const m of memories) {
+      confidenceCounts.set(m.confidence, (confidenceCounts.get(m.confidence) ?? 0) + 1);
+    }
+    const byConfidence: ConfidenceLevelStats[] = Array.from(confidenceCounts.entries()).map(
+      ([level, count]) => ({
+        level: level as EddaConfidenceLevel,
+        count,
+      })
+    );
+
+    // Calculate unique tags
+    const uniqueTags = new Set<string>();
+    for (const m of memories) {
+      if (m.context.tags) {
+        for (const tag of m.context.tags) {
+          uniqueTags.add(tag);
+        }
+      }
+    }
+
+    // Find oldest and most recent
+    let oldest: Timestamp | undefined;
+    let mostRecent: Timestamp | undefined;
+    for (const m of memories) {
+      if (!oldest || m.created_at < oldest) {
+        oldest = m.created_at;
+      }
+      if (!mostRecent || m.created_at > mostRecent) {
+        mostRecent = m.created_at;
+      }
+    }
+
+    return {
+      total_memories: memories.length,
+      by_type: byType,
+      by_status: byStatus,
+      by_confidence: byConfidence,
+      active_count: memories.filter((m) => m.status === 'active').length,
+      superseded_count: memories.filter((m) => m.status === 'superseded').length,
+      retired_count: memories.filter((m) => m.status === 'retired').length,
+      oldest_memory: oldest,
+      most_recent: mostRecent,
+      unique_tags_count: uniqueTags.size,
+    };
+  };
+
   // Create mock functions
   const mocks = {
     promoteProposal: vi.fn(promoteProposalImpl),
     createMemory: vi.fn(createMemoryImpl),
+    createMemoryFromProposal: vi.fn(createMemoryFromProposalImpl),
     updateMemory: vi.fn(updateMemoryImpl),
     retireMemory: vi.fn(retireMemoryImpl),
+    retireMemoryById: vi.fn(retireMemoryByIdImpl),
     supersedeMemory: vi.fn(supersedeMemoryImpl),
     getMemory: vi.fn(getMemoryImpl),
     getMemoryByProposalId: vi.fn(getMemoryByProposalIdImpl),
@@ -456,6 +583,9 @@ export function createMockEddaPort(options: MockEddaPortOptions = {}): MockEddaP
     memoryExists: vi.fn(memoryExistsImpl),
     getEvolutionChain: vi.fn(getEvolutionChainImpl),
     getLatestVersion: vi.fn(getLatestVersionImpl),
+    resolveProvenance: vi.fn(resolveProvenanceImpl),
+    isAvailable: vi.fn(isAvailableImpl),
+    getStats: vi.fn(getStatsImpl),
     countMemories: vi.fn(countMemoriesImpl),
     exportMemories: vi.fn(exportMemoriesImpl),
     importMemories: vi.fn(importMemoriesImpl),
@@ -465,8 +595,10 @@ export function createMockEddaPort(options: MockEddaPortOptions = {}): MockEddaP
     // IEddaPort implementation
     promoteProposal: mocks.promoteProposal,
     createMemory: mocks.createMemory,
+    createMemoryFromProposal: mocks.createMemoryFromProposal,
     updateMemory: mocks.updateMemory,
     retireMemory: mocks.retireMemory,
+    retireMemoryById: mocks.retireMemoryById,
     supersedeMemory: mocks.supersedeMemory,
     getMemory: mocks.getMemory,
     getMemoryByProposalId: mocks.getMemoryByProposalId,
@@ -477,6 +609,9 @@ export function createMockEddaPort(options: MockEddaPortOptions = {}): MockEddaP
     memoryExists: mocks.memoryExists,
     getEvolutionChain: mocks.getEvolutionChain,
     getLatestVersion: mocks.getLatestVersion,
+    resolveProvenance: mocks.resolveProvenance,
+    isAvailable: mocks.isAvailable,
+    getStats: mocks.getStats,
     countMemories: mocks.countMemories,
     exportMemories: mocks.exportMemories,
     importMemories: mocks.importMemories,
@@ -551,7 +686,7 @@ export function mockEddaWithMemories(): MockEddaPort {
         method: 'cli_command',
         reason: 'Codifying team decision',
       },
-      evolution: {},
+      evolution: { supersedes: [] },
       created_at: baseTimestamp.toISOString() as Timestamp,
     },
     {
@@ -584,7 +719,7 @@ export function mockEddaWithMemories(): MockEddaPort {
         method: 'cli_command',
         reason: 'Documenting recurring pattern',
       },
-      evolution: {},
+      evolution: { supersedes: [] },
       created_at: new Date(baseTimestamp.getTime() + 172800000).toISOString() as Timestamp,
     },
     {
@@ -618,7 +753,7 @@ export function mockEddaWithMemories(): MockEddaPort {
         method: 'manual_edit',
         reason: 'Adding team guideline',
       },
-      evolution: {},
+      evolution: { supersedes: [] },
       created_at: new Date(baseTimestamp.getTime() + 259200000).toISOString() as Timestamp,
     },
   ];
@@ -678,6 +813,7 @@ export function mockEddaWithEvolutionChain(): MockEddaPort {
         reason: 'Initial decision',
       },
       evolution: {
+        supersedes: [],
         superseded_by: newMemoryId,
         retired_at: new Date(baseTimestamp.getTime() + 2592000000).toISOString() as Timestamp,
         retired_reason: 'Migrated to pnpm for better performance',
