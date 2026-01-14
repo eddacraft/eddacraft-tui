@@ -269,6 +269,25 @@ importers:
         specifier: ^4.0.17
         version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/edda-stack:
+    dependencies:
+      '@anvil/kindling-integration':
+        specifier: workspace:*
+        version: link:../kindling-integration
+      zod:
+        specifier: ^3.22.4
+        version: 3.25.76
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.7
+        version: 25.0.7
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/eslint-plugin-anvil:
     dependencies:
       eslint:

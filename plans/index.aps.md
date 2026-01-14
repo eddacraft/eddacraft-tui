@@ -246,6 +246,9 @@ graph TD
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
 | [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
 | [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.0    | save-time-trust, drift-reporting                          |
+| [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | v2.0    | kindling-integration                                      |
+| [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | v2.0    | ember                                                     |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md)       | STACK   | Draft       | v2.0    | kindling-integration, ember, edda                         |
 | [onboarding-feedback-resolution](./modules/onboarding-feedback-resolution.aps.md) | ONFBK | Ready | v1.1    | architecture-safety, tui                                  |
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTV | Draft | v2.0  | save-time-trust                                           |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
@@ -429,6 +432,99 @@ graph TD
 | MCP-003    | mcp-server     | anvil_gate and anvil_status tools | Planned | high     |
 | MCP-004    | mcp-server     | Resources and prompts             | Planned | medium   |
 | MCP-005    | mcp-server     | HTTP transport and config gen     | Planned | medium   |
+
+### Task Status — v2.0 (Edda Stack — Memory System)
+
+The Edda Stack provides a three-layer architecture for memory: Kindling (observation),
+Ember (interpretation), and Edda (canonical memory).
+
+#### Kindling Integration (Observation Layer)
+
+| Task         | Module   | Description                         | Status | Priority |
+| ------------ | -------- | ----------------------------------- | ------ | -------- |
+| KINDLING-001 | kindling | Kindling service wrapper            | Draft  | high     |
+| KINDLING-002 | kindling | Configuration schema and loading    | Draft  | high     |
+| KINDLING-003 | kindling | Session observation hooks           | Draft  | high     |
+| KINDLING-004 | kindling | Gate evaluation observations        | Draft  | high     |
+| KINDLING-005 | kindling | Action execution observations       | Draft  | medium   |
+| KINDLING-006 | kindling | Plan lifecycle observations         | Draft  | medium   |
+| KINDLING-007 | kindling | Human input and constraint obs      | Draft  | medium   |
+| KINDLING-008 | kindling | Error observations                  | Draft  | high     |
+| KINDLING-009 | kindling | Query service with scope enforcement| Draft  | high     |
+| KINDLING-010 | kindling | Query limits and throttling         | Draft  | high     |
+| KINDLING-011 | kindling | Malicious AI test suite             | Draft  | high     |
+| KINDLING-012 | kindling | Session query command (run show)    | Draft  | high     |
+| KINDLING-013 | kindling | Plan, gate, action query commands   | Draft  | high     |
+| KINDLING-014 | kindling | Status integration                  | Draft  | medium   |
+| KINDLING-015 | kindling | Sensitive data validation           | Draft  | high     |
+| KINDLING-016 | kindling | Retention and pruning               | Draft  | medium   |
+| KINDLING-017 | kindling | Performance benchmarking            | Draft  | medium   |
+| KINDLING-018 | kindling | Documentation and examples          | Draft  | medium   |
+| KINDLING-019 | kindling | OpenAPI spec generation             | Draft  | medium   |
+
+#### Ember (Interpretive Layer — Candidate Memory)
+
+| Task      | Module | Description                       | Status | Priority |
+| --------- | ------ | --------------------------------- | ------ | -------- |
+| EMBER-001 | ember  | Candidate Memory Proposal schema  | Draft  | high     |
+| EMBER-002 | ember  | Proposal type definitions         | Draft  | high     |
+| EMBER-003 | ember  | Ember configuration schema        | Draft  | high     |
+| EMBER-004 | ember  | ProposalStore implementation      | Draft  | high     |
+| EMBER-005 | ember  | DecayService implementation       | Draft  | high     |
+| EMBER-006 | ember  | AggregatorService foundation      | Draft  | medium   |
+| EMBER-007 | ember  | Evaluation rules engine           | Draft  | medium   |
+| EMBER-008 | ember  | Built-in evaluation rules         | Draft  | medium   |
+| EMBER-009 | ember  | CandidateService (high-level API) | Draft  | high     |
+| EMBER-010 | ember  | Kindling observation hooks        | Draft  | medium   |
+| EMBER-011 | ember  | CLI ember commands                | Draft  | high     |
+| EMBER-012 | ember  | Query API implementation          | Draft  | high     |
+| EMBER-013 | ember  | Status integration                | Draft  | medium   |
+| EMBER-014 | ember  | Documentation and examples        | Draft  | medium   |
+
+#### Edda (Canonical Memory Layer)
+
+| Task      | Module | Description                       | Status | Priority |
+| --------- | ------ | --------------------------------- | ------ | -------- |
+| EDDA-001  | edda   | Memory Object schema              | Draft  | high     |
+| EDDA-002  | edda   | Memory type definitions           | Draft  | high     |
+| EDDA-003  | edda   | Provenance schema                 | Draft  | high     |
+| EDDA-004  | edda   | Evolution graph schema            | Draft  | high     |
+| EDDA-005  | edda   | Edda configuration schema         | Draft  | high     |
+| EDDA-006  | edda   | Git-backed MemoryStore            | Draft  | high     |
+| EDDA-007  | edda   | YAML serialisation                | Draft  | high     |
+| EDDA-008  | edda   | Version tracking                  | Draft  | medium   |
+| EDDA-009  | edda   | PromotionService                  | Draft  | high     |
+| EDDA-010  | edda   | ProvenanceService                 | Draft  | medium   |
+| EDDA-011  | edda   | EvolutionService                  | Draft  | high     |
+| EDDA-012  | edda   | MemoryService (high-level API)    | Draft  | high     |
+| EDDA-013  | edda   | CLI list and show commands        | Draft  | high     |
+| EDDA-014  | edda   | CLI promote command               | Draft  | high     |
+| EDDA-015  | edda   | CLI retire and trace commands     | Draft  | high     |
+| EDDA-016  | edda   | Human-in-the-loop enforcement     | Draft  | high     |
+| EDDA-017  | edda   | Status integration                | Draft  | medium   |
+| EDDA-018  | edda   | Schema migration tooling          | Draft  | medium   |
+| EDDA-019  | edda   | Documentation                     | Draft  | medium   |
+
+#### Edda Stack Integration
+
+| Task      | Module | Description                       | Status | Priority |
+| --------- | ------ | --------------------------------- | ------ | -------- |
+| STACK-001 | stack  | Common identifier schemas         | Draft  | high     |
+| STACK-002 | stack  | Timestamp and temporal schemas    | Draft  | high     |
+| STACK-003 | stack  | Confidence scale definitions      | Draft  | high     |
+| STACK-004 | stack  | Provenance link schema            | Draft  | high     |
+| STACK-005 | stack  | Proposal → Memory type mapping    | Draft  | high     |
+| STACK-006 | stack  | Observation → Proposal mapping    | Draft  | medium   |
+| STACK-007 | stack  | Layer port definitions            | Draft  | high     |
+| STACK-008 | stack  | Event bus for layer communication | Draft  | medium   |
+| STACK-009 | stack  | Layer mock factories              | Draft  | high     |
+| STACK-010 | stack  | Integration test fixtures         | Draft  | high     |
+| STACK-011 | stack  | Provenance chain validator        | Draft  | high     |
+| STACK-012 | stack  | Stack configuration schema        | Draft  | high     |
+| STACK-013 | stack  | CLI stack status command          | Draft  | high     |
+| STACK-014 | stack  | CLI stack validate command        | Draft  | high     |
+| STACK-015 | stack  | Stack architecture documentation  | Draft  | medium   |
+| STACK-016 | stack  | Migration guide                   | Draft  | medium   |
 
 ## Risks & Mitigations
 

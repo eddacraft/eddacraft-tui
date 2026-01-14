@@ -1,0 +1,49 @@
+{
+  "name": "@anvil/edda-stack",
+  "version": "0.1.0",
+  "description": "Kindling · Ember · Edda memory stack for Anvil",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/contracts/index.d.ts",
+      "import": "./dist/contracts/index.js"
+    },
+    "./contracts/*": {
+      "types": "./dist/contracts/*.d.ts",
+      "import": "./dist/contracts/*.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "@anvil/kindling-integration": "workspace:*",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.7",
+    "typescript": "^5.3.3",
+    "vitest": "^4.0.17"
+  },
+  "keywords": [
+    "anvil",
+    "edda",
+    "ember",
+    "kindling",
+    "memory",
+    "observability"
+  ],
+  "license": "MIT"
+}
