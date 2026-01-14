@@ -6,6 +6,7 @@
  * This package provides:
  * - Shared contracts for all three layers
  * - Type definitions and schemas
+ * - Port interfaces for layer abstractions
  * - Utilities for cross-layer operations
  *
  * @module @anvil/edda-stack

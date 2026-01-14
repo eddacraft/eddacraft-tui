@@ -206,3 +206,118 @@ export {
   // Utilities
   suggestMemoryType,
 } from './edda-memory.js';
+
+// =============================================================================
+// Type Mappings (STACK-005)
+// =============================================================================
+
+export {
+  // Constants
+  PROPOSAL_TO_MEMORY_TYPE_MAPPING,
+  // Utilities
+  mapProposalToMemoryType,
+  mapProposalConfidence,
+  createPromotionInput,
+  expandProvenanceSummary,
+} from './type-mappings.js';
+
+// =============================================================================
+// Events (STACK-008)
+// =============================================================================
+
+export {
+  // Schemas
+  SourceLayerSchema,
+  BaseEventSchema,
+  EventTypeSchema,
+  ObservationRecordedPayloadSchema,
+  SessionCompletedPayloadSchema,
+  ProposalCreatedPayloadSchema,
+  ProposalNearExpiryPayloadSchema,
+  MemoryPromotedPayloadSchema,
+  MemoryRetiredPayloadSchema,
+  ObservationRecordedEventSchema,
+  SessionCompletedEventSchema,
+  ProposalCreatedEventSchema,
+  ProposalNearExpiryEventSchema,
+  MemoryPromotedEventSchema,
+  MemoryRetiredEventSchema,
+  StackEventSchema,
+  // Types
+  type SourceLayer,
+  type BaseEvent,
+  type EventType,
+  type ObservationRecordedPayload,
+  type SessionCompletedPayload,
+  type ProposalCreatedPayload,
+  type ProposalNearExpiryPayload,
+  type MemoryPromotedPayload,
+  type MemoryRetiredPayload,
+  type ObservationRecordedEvent,
+  type SessionCompletedEvent,
+  type ProposalCreatedEvent,
+  type ProposalNearExpiryEvent,
+  type MemoryPromotedEvent,
+  type MemoryRetiredEvent,
+  type StackEvent,
+  type EventHandler,
+  type Unsubscribe,
+  type IStackEventBus,
+  // Factory functions
+  createEvent,
+  createObservationRecordedEvent,
+  createSessionCompletedEvent,
+  createProposalCreatedEvent,
+  createProposalNearExpiryEvent,
+  createMemoryPromotedEvent,
+  createMemoryRetiredEvent,
+  // Type guards
+  isObservationRecordedEvent,
+  isSessionCompletedEvent,
+  isProposalCreatedEvent,
+  isProposalNearExpiryEvent,
+  isMemoryPromotedEvent,
+  isMemoryRetiredEvent,
+  isFromLayer,
+  isKindlingEvent,
+  isEmberEvent,
+  isEddaEvent,
+  // Constants
+  eventTypeDescriptions,
+} from './events.js';
+
+// =============================================================================
+// Ports (STACK-007, STACK-009)
+// =============================================================================
+
+export type {
+  // Kindling Port
+  ObservationKind,
+  Observation,
+  CreateObservationInput,
+  ObservationQuery,
+  ObservationQueryResult,
+  SessionQueryOptions,
+  SessionQueryResult,
+  PlanQueryOptions,
+  SessionSummary,
+  PlanQueryResult,
+  IKindlingPort,
+  // Ember Port
+  UpdateProposalInput,
+  ResolveProposalInput,
+  ProposalTypeStats,
+  ProposalStatusStats,
+  EmberStats,
+  IEmberPort,
+  // Edda Port
+  CreateMemoryInput,
+  UpdateMemoryInput,
+  RetireMemoryInput,
+  ProvenanceResolutionResult,
+  MemoryTypeStats,
+  MemoryStatusStats,
+  ConfidenceLevelStats,
+  EddaStats,
+  IEddaPort,
+} from './ports/index.js';
