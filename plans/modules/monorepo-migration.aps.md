@@ -359,50 +359,86 @@ Migration path:
 
 ### Phase 2: Core Split
 
+> **Completed:** 2026-01-14 (scaffolds in place, file migration pending)
+
 #### MONO-004: Extract contracts package from core
 
 - **Intent:** Isolate schemas, types, and events with no dependencies
 - **Expected Outcome:** `packages/anvil/contracts/` contains all Zod schemas
 - **Validation:** `nx test @anvil/contracts` passes
-- **Status:** Ready
+- **Status:** Complete (scaffold)
 - **Priority:** high
 - **Dependencies:** MONO-001, MONO-002
+
+**Implementation:**
+- Created `packages/anvil/contracts/` with package.json, tsconfig, project.json
+- Added `src/schemas/aps.schema.ts` with APSPlan, Change, Evidence schemas
+- Added `src/schemas/warning.schema.ts` with Warning, Location, Suppression schemas
+- Added `src/types/index.ts` re-exporting all types
+- Zero external dependencies (only zod)
 
 #### MONO-005: Extract ports package from core
 
 - **Intent:** Define interfaces without implementations
 - **Expected Outcome:** `packages/anvil/ports/` contains interface definitions
 - **Validation:** `nx build @anvil/ports` succeeds
-- **Status:** Ready
+- **Status:** Complete (scaffold)
 - **Priority:** high
 - **Dependencies:** MONO-004
+
+**Implementation:**
+- Created `packages/anvil/ports/` with package.json, tsconfig, project.json
+- Added `src/interfaces/check.interface.ts` with ICheck, CheckContext, GateResult
+- Added `src/interfaces/cache.interface.ts` with ICacheProvider
+- Added `src/interfaces/storage.interface.ts` with IStorageProvider
+- Added `src/interfaces/config.interface.ts` with IConfigProvider
+- Depends only on @anvil/contracts
 
 #### MONO-006: Extract pure domain logic to core package
 
 - **Intent:** Isolate business logic from I/O concerns
 - **Expected Outcome:** `packages/anvil/core/` contains pure domain functions
 - **Validation:** `nx test @anvil/core` passes with no I/O mocks
-- **Status:** Ready
+- **Status:** Complete (scaffold)
 - **Priority:** high
 - **Dependencies:** MONO-005
+
+**Implementation:**
+- Created `packages/anvil/core/` with package.json, tsconfig, project.json
+- Added module placeholders: antipattern, suppression, architecture, drift, provenance, warnings, explain
+- Depends on @anvil/contracts and @anvil/ports
+- Actual file migration from core/src/ pending
 
 #### MONO-007: Extract runtime package
 
 - **Intent:** Isolate orchestration and execution logic
 - **Expected Outcome:** `packages/anvil/runtime/` contains runner, executor
 - **Validation:** `nx test @anvil/runtime` passes
-- **Status:** Ready
+- **Status:** Complete (scaffold)
 - **Priority:** high
 - **Dependencies:** MONO-006
+
+**Implementation:**
+- Created `packages/anvil/runtime/` with package.json, tsconfig, project.json
+- Added module placeholders: gate, cache, watch, export
+- Depends on @anvil/contracts, @anvil/ports, @anvil/core, @anvil/policy
+- Actual file migration from core/src/ pending
 
 #### MONO-008: Extract policy package
 
 - **Intent:** Isolate OPA/Rego integration
 - **Expected Outcome:** `packages/anvil/policy/` contains OPA wrappers
 - **Validation:** `nx test @anvil/policy` passes
-- **Status:** Ready
+- **Status:** Complete (scaffold)
 - **Priority:** high
 - **Dependencies:** MONO-006
+
+**Implementation:**
+- Created `packages/anvil/policy/` with package.json, tsconfig, project.json
+- Added placeholder classes: OPABinaryManager, OPAExecutor, PolicyLoader, BundleManager, BundleVerifier
+- Added types.ts with SignatureAlgorithm, BundleConfig, PolicyResult
+- Depends on @anvil/contracts
+- Actual file migration from core/src/gate/policy/ pending
 
 ### Phase 3: Platform Extract
 

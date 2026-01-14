@@ -1,0 +1,8 @@
+{
+  "name": "runtime",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/anvil/runtime/src",
+  "projectType": "library",
+  "tags": ["scope:core", "layer:3"],
+  "targets": {}
+}
