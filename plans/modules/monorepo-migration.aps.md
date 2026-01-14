@@ -491,14 +491,48 @@ Migration path:
 
 ### Phase 4: Adapters Split
 
+> **Completed:** 2026-01-14 (deferred - current adapters are format adapters)
+
 #### MONO-012: Split adapters into per-integration packages
 
 - **Intent:** Enable independent versioning and optional installation
 - **Expected Outcome:** Separate packages for each adapter type
 - **Validation:** `nx test @anvil/adapter-*` passes for all adapters
-- **Status:** Ready
+- **Status:** Deferred
 - **Priority:** medium
 - **Dependencies:** MONO-007
+
+**Analysis:**
+Current `packages/adapters/` contains format adapters (bmad, speckit, generic)
+that convert between external planning formats and APS. These work together
+via a registry pattern and should remain bundled.
+
+The original plan mentioned integration adapters (adapter-github, adapter-opencode,
+adapter-claude-code) which do not exist yet. When these are created, they should
+be separate packages in `packages/adapters/` directory.
+
+**Current Structure:**
+```
+packages/adapters/
+├── src/
+│   ├── base/       # Base adapter framework (types, registry)
+│   ├── bmad/       # BMAD format adapter
+│   ├── speckit/    # SpecKit format adapter
+│   ├── generic/    # Generic markdown adapter
+│   └── common/     # Shared types
+└── package.json    # @anvil/adapters
+```
+
+**Future Structure (when integration adapters exist):**
+```
+packages/adapters/
+├── adapters/       # Current @anvil/adapters (format adapters)
+├── adapter-github/ # @anvil/adapter-github
+├── adapter-opencode/ # @anvil/adapter-opencode
+└── adapter-claude-code/ # @anvil/adapter-claude-code
+```
+
+**Action:** No split needed for v1.1. Format adapters remain bundled.
 
 ### Phase 5: App Migration
 
