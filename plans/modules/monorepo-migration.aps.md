@@ -442,32 +442,52 @@ Migration path:
 
 ### Phase 3: Platform Extract
 
+> **Completed:** 2026-01-14
+
 #### MONO-009: Extract config package
 
 - **Intent:** Centralise configuration loading and validation
 - **Expected Outcome:** `packages/platform/config/` handles all config
-- **Validation:** `nx test @anvil/config` passes
-- **Status:** Ready
+- **Validation:** `nx test @anvil/platform-config` passes
+- **Status:** Complete
 - **Priority:** medium
 - **Dependencies:** MONO-004
+
+**Implementation:**
+- Created `packages/platform/config/` with @anvil/platform-config
+- Added ConfigLoader class with get, set, has, getAll methods
+- Added types for ConfigSource, ConfigEntry, ConfigLoaderOptions
+- Depends on @anvil/contracts for type validation
 
 #### MONO-010: Extract storage package
 
 - **Intent:** Abstract file system and cache operations
 - **Expected Outcome:** `packages/platform/storage/` handles persistence
-- **Validation:** `nx test @anvil/storage` passes
-- **Status:** Ready
+- **Validation:** `nx test @anvil/platform-storage` passes
+- **Status:** Complete
 - **Priority:** medium
 - **Dependencies:** MONO-005
+
+**Implementation:**
+- Created `packages/platform/storage/` with @anvil/platform-storage
+- Added FileStorage class implementing IStorageProvider from @anvil/ports
+- Supports read, write, exists, delete, list, mkdir operations
+- Depends on @anvil/ports for interface definition
 
 #### MONO-011: Extract crypto package
 
 - **Intent:** Centralise hashing, signing, verification
 - **Expected Outcome:** `packages/platform/crypto/` handles crypto ops
-- **Validation:** `nx test @anvil/crypto` passes
-- **Status:** Ready
+- **Validation:** `nx test @anvil/platform-crypto` passes
+- **Status:** Complete
 - **Priority:** medium
 - **Dependencies:** MONO-004
+
+**Implementation:**
+- Created `packages/platform/crypto/` with @anvil/platform-crypto
+- Migrated hash.ts from core/src/crypto/
+- Exports: generateHash, verifyHash, generatePlanId, isValidPlanId, isValidHash
+- Zero dependencies (uses Node.js crypto module)
 
 ### Phase 4: Adapters Split
 

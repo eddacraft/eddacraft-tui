@@ -1,0 +1,8 @@
+{
+  "name": "platform-config",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "packages/platform/config/src",
+  "projectType": "library",
+  "tags": ["scope:platform"],
+  "targets": {}
+}
