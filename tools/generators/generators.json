@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "generators": {
+    "package": {
+      "factory": "./src/generators/package/generator",
+      "schema": "./src/generators/package/schema.json",
+      "description": "Create a new package in the Anvil monorepo"
+    },
+    "anvil-package": {
+      "factory": "./src/generators/anvil-package/generator",
+      "schema": "./src/generators/anvil-package/schema.json",
+      "description": "Create a new @anvil/* package in packages/anvil/"
+    }
+  }
+}

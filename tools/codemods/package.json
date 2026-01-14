@@ -1,0 +1,32 @@
+{
+  "name": "@anvil/codemods",
+  "version": "0.0.1",
+  "description": "Codemods for Anvil monorepo migration",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "anvil-codemod": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "codemod:imports": "tsx src/cli.ts imports",
+    "codemod:imports:dry": "tsx src/cli.ts imports --dry-run"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^13.1.0",
+    "glob": "^11.0.2",
+    "ts-morph": "^25.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.7",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "anvil",
+    "codemod",
+    "migration"
+  ],
+  "license": "MIT"
+}

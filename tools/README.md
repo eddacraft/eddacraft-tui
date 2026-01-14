@@ -1,28 +1,64 @@
 # Tools
 
-> **Status:** Placeholder for v1.1+
-
-Development tools, generators, and infrastructure.
+Development tools, generators, codemods, and infrastructure for the Anvil monorepo.
 
 ## Structure
 
 ```
 tools/
-├── generators/   # Nx generators for scaffolding
+├── generators/   # @anvil/generators - Nx generators for scaffolding
+├── codemods/     # @anvil/codemods - Code transformation utilities
 ├── scripts/      # Build and utility scripts (migrate from scripts/)
 └── docker/       # Docker configurations and compose files
 ```
 
-## Migration Plan
+## @anvil/generators
 
-| Directory  | Source          |
-| ---------- | --------------- |
-| generators | New             |
-| scripts    | Root `scripts/` |
-| docker     | New             |
+Nx generators for creating new packages in the monorepo.
 
-## Generators (Planned)
+### Usage
 
-- `anvil:package` - Create new @anvil/\* package
-- `anvil:adapter` - Create new adapter package
-- `anvil:app` - Create new application
+```bash
+# Create a new package in any directory
+pnpm generate:package <name>
+
+# Create a new anvil core package (contracts, ports, core, runtime, policy, sdk)
+pnpm generate:anvil-package <name>
+```
+
+### Available Generators
+
+- `@anvil/generators:package` - Create new package in any directory
+- `@anvil/generators:anvil-package` - Create new @anvil/* package with proper dependencies
+
+## @anvil/codemods
+
+Code transformation utilities for the monorepo migration.
+
+### Usage
+
+```bash
+# Preview import path changes (dry run)
+pnpm codemod:imports:dry
+
+# Apply import path changes
+pnpm codemod:imports
+```
+
+### Available Codemods
+
+- `imports` - Rewrite @anvil/core imports to new package structure
+  - `@anvil/core/schema` -> `@anvil/contracts`
+  - `@anvil/core/types` -> `@anvil/contracts`
+  - `@anvil/core/gate/policy` -> `@anvil/policy`
+  - `@anvil/core/cache` -> `@anvil/runtime`
+  - etc.
+
+## Migration Status
+
+| Directory  | Status   | Source          |
+| ---------- | -------- | --------------- |
+| generators | Complete | New (MONO-001)  |
+| codemods   | Complete | New (MONO-002)  |
+| scripts    | Pending  | Root `scripts/` |
+| docker     | Pending  | New             |

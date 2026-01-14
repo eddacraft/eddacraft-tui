@@ -18,20 +18,56 @@ lets us ship quickly while preparing for growth.
 
 ## Current State
 
+> **Updated:** 2026-01-14 (Phase 0 Discovery)
+
 ```
 anvil/
-├── cli/                 # @anvil/cli
-├── core/                # @anvil/core (monolithic)
-├── ui/                  # @anvil/ui (minimal)
-├── packs/               # @anvil/packs
+├── apps/                    # App scaffolds (READMEs only)
+│   ├── anvil-api/          # Placeholder
+│   ├── anvil-ui/           # Placeholder
+│   ├── docs-site/          # Placeholder
+│   ├── e2e/                # Placeholder
+│   └── website/            # Placeholder
+│
+├── cli/                     # @anvil/cli (production, ~6k lines)
+│
+├── core/                    # @anvil/core (monolithic, 41,580 lines)
+│   └── src/
+│       ├── antipattern/    # 2,010 lines - pattern detection
+│       ├── architecture/   # 6,469 lines - layer/boundary analysis
+│       ├── cache/          # 1,744 lines - caching layer
+│       ├── crypto/         # 405 lines - hashing utilities
+│       ├── drift/          # 3,060 lines - snapshot/drift reporting
+│       ├── explain/        # 1,407 lines - explain command
+│       ├── export/         # 2,817 lines - llms.txt, MCP export
+│       ├── gate/           # 16,757 lines - gate runner, checks, OPA
+│       ├── provenance/     # 1,274 lines - provenance tracking
+│       ├── schema/         # 651 lines - APS schemas
+│       ├── suppression/    # 1,595 lines - warning suppression
+│       ├── types/          # 278 lines - shared types
+│       ├── utils/          # 204 lines - utilities
+│       ├── validation/     # 917 lines - APS validation
+│       ├── warnings/       # 564 lines - warning IDs
+│       └── watch/          # 1,168 lines - file watching
+│
 ├── packages/
-│   ├── adapters/        # @anvil/adapters (bundled)
-│   ├── aps/             # @anvil/aps
+│   ├── adapters/           # @anvil/adapters (production)
+│   ├── anvil/              # Placeholder (README only)
+│   ├── aps/                # @anvil/aps (production)
+│   ├── edda-stack/         # @anvil/edda-stack (10,422 lines) ★
+│   │   ├── contracts/      # Schemas, types, events, ports
+│   │   └── testing/        # Mocks, fixtures, validators
 │   ├── eslint-plugin-anvil/
+│   ├── kindling-integration/ # Kindling contracts (NEW)
+│   ├── platform/           # Placeholder (README only)
+│   ├── shared/             # Placeholder (README only)
+│   ├── tooling/            # Placeholder (README only)
 │   └── vscode-extension/
-├── e2e/                 # Playwright tests
-├── scripts/             # Build utilities
-└── docs/                # Internal docs
+│
+├── packs/                   # @anvil/packs
+├── scripts/                 # Build utilities
+├── tools/                   # Generators (placeholder)
+└── docs/                    # Internal docs
 ```
 
 **Issues with current structure:**
@@ -41,6 +77,9 @@ anvil/
 - Adapters bundled together instead of per-integration
 - No shared tooling configuration packages
 - Scripts scattered rather than organised
+- Placeholder directories exist but are empty (apps/, packages/anvil, platform, shared, tooling)
+- edda-stack exists with 10k+ lines but not integrated into migration plan
+- kindling-integration exists but not documented in plan
 
 ## Target State
 
@@ -116,11 +155,13 @@ anvil/
 - Updating import paths (automated via codemod)
 - Updating workspace configuration
 - Creating package scaffolds for new locations
+- **edda-stack integration** (migration only - existing 10k+ lines)
+- **kindling-integration disposition** (evaluate merge vs keep separate)
 
 ### Out of Scope
 
 - Implementing new apps (API, UI, website, docs-site)
-- Implementing edda-stack functionality
+- **New** edda-stack functionality (existing code migrates as-is)
 - Changing package functionality (move only)
 - Rewriting tests (path updates only)
 
@@ -157,31 +198,164 @@ No package may depend on a package above it in this hierarchy.
 
 ## Tasks
 
+### Phase 0: Discovery & Analysis
+
+> **Added:** 2026-01-14 (negotiation consensus between architect and planner)
+>
+> This phase must complete BEFORE Phase 1 to establish accurate boundaries
+> and prevent tooling from being built on incorrect assumptions.
+
+#### MONO-000a: Audit actual current state vs documented state
+
+- **Intent:** Establish ground truth for migration planning
+- **Expected Outcome:** Updated Current State section with accurate inventory
+- **Validation:** Line counts match, all packages identified, placeholder status documented
+- **Status:** Complete
+- **Priority:** critical
+
+**Findings:**
+- apps/ directory exists with 5 placeholder scaffolds (README only)
+- packages/anvil, platform, shared, tooling are placeholders (README only)
+- packages/edda-stack has 10,422 lines of production code
+- packages/kindling-integration has 3 files (~500 lines)
+- core/ has 41,580 lines across 17 subdirectories
+
+#### MONO-000b: Map core/ subdirectories to target packages
+
+- **Intent:** Define exact split boundaries before building tooling
+- **Expected Outcome:** Each core/ subdirectory assigned to target package
+- **Validation:** Mapping documented in `docs/planning/monorepo-phase0-discovery.md`
+- **Status:** Complete
+- **Priority:** critical
+
+**Mapping Summary:**
+
+| Subdirectory | Lines | Target Package | Rationale |
+|--------------|-------|----------------|-----------|
+| schema/ | 651 | @anvil/contracts | Pure Zod schemas |
+| types/ | 278 | @anvil/contracts | Shared type definitions |
+| validation/ | 917 | @anvil/contracts | Schema validation utilities |
+| crypto/ | 405 | @anvil/platform/crypto | Hashing utilities (I/O adjacent) |
+| utils/ | 204 | @anvil/shared/util | Generic utilities |
+| provenance/ | 1,274 | @anvil/core | Pure domain logic |
+| warnings/ | 564 | @anvil/core | Pure domain logic |
+| antipattern/ | 2,010 | @anvil/core | Pure domain logic |
+| suppression/ | 1,595 | @anvil/core | Pure domain logic |
+| explain/ | 1,407 | @anvil/core | Pure domain logic |
+| architecture/ | 6,469 | @anvil/core | Architecture analysis domain |
+| drift/ | 3,060 | @anvil/core | Drift detection domain |
+| cache/ | 1,744 | @anvil/runtime | Has I/O (file system) |
+| watch/ | 1,168 | @anvil/runtime | Has I/O (file watching) |
+| export/ | 2,817 | @anvil/runtime | Has I/O (file writing) |
+| gate/ | 16,757 | Split | See below |
+
+**gate/ Split (16,757 lines):**
+- `gate/policy/` (OPA integration) → @anvil/policy
+- `gate/checks/` (check implementations) → @anvil/runtime
+- `gate/gate-runner.ts`, `gate-config.ts` → @anvil/runtime
+- `gate/check.interface.ts` → @anvil/ports
+
+#### MONO-000c: Document edda-stack integration points
+
+- **Intent:** Understand how edda-stack relates to anvil packages
+- **Expected Outcome:** Integration diagram and dependency requirements
+- **Validation:** Documented in `docs/planning/monorepo-phase0-discovery.md`
+- **Status:** Complete
+- **Priority:** high
+
+**Findings:**
+- edda-stack is self-contained with contracts/, testing/ submodules
+- Provides IKindlingPort, IEmberPort, IEddaPort interfaces
+- kindling-integration contains complementary Kindling contracts
+- No direct dependencies on core/ currently
+- Expected to integrate via @anvil/ports in target state
+
+#### MONO-000d: Determine kindling-integration disposition
+
+- **Intent:** Decide whether kindling-integration merges into edda-stack or stays separate
+- **Expected Outcome:** Clear disposition decision with rationale
+- **Validation:** Decision documented with migration path
+- **Status:** Complete
+- **Priority:** high
+
+**Decision: Merge into edda-stack**
+
+Rationale:
+- kindling-integration (3 files, ~500 lines) defines observation/query contracts
+- edda-stack already has contracts/ submodule with kindling.port.ts
+- Both are part of the same Kindling/Ember/Edda architecture
+- Keeping separate creates confusion and circular dependency risk
+
+Migration path:
+1. Move kindling-integration/src/*.ts to edda-stack/src/contracts/kindling/
+2. Update imports in edda-stack
+3. Re-export from edda-stack/contracts
+4. Delete kindling-integration package
+
+---
+
 ### Phase 1: Tooling Setup
+
+> **Completed:** 2026-01-14
 
 #### MONO-001: Create Nx generators for package scaffolding
 
 - **Intent:** Enable consistent package creation in target structure
-- **Expected Outcome:** `nx g @anvil/tools:package` creates correctly configured package
-- **Validation:** `nx g @anvil/tools:package --name=test-pkg --dry-run` shows expected output
-- **Status:** Ready
+- **Expected Outcome:** `nx g @anvil/generators:package` creates correctly configured package
+- **Validation:** `pnpm generate:package --name=test-pkg --dry-run` shows expected output
+- **Status:** Complete
 - **Priority:** high
+- **Dependencies:** MONO-000a, MONO-000b (requires accurate package boundaries)
+
+**Implementation:**
+- Created `tools/generators/` with `@anvil/generators` package
+- Two generators available:
+  - `@anvil/generators:package` - Generic package generator
+  - `@anvil/generators:anvil-package` - Core domain package generator (contracts, ports, core, runtime, policy, sdk)
+- Generators create package.json, tsconfig.json, project.json, and source scaffolds
+- Enforces proper dependency layering based on package type
 
 #### MONO-002: Create import path codemod
 
 - **Intent:** Automate import path updates across codebase
 - **Expected Outcome:** Codemod updates all `@anvil/*` imports to new paths
-- **Validation:** `pnpm codemod:imports --dry-run` shows expected changes
-- **Status:** Ready
+- **Validation:** `pnpm codemod:imports:dry` shows expected changes
+- **Status:** Complete
 - **Priority:** high
+- **Dependencies:** MONO-000b (requires core/ mapping to generate correct paths)
+
+**Implementation:**
+- Created `tools/codemods/` with `@anvil/codemods` package
+- Uses ts-morph for AST-based import transformation
+- Supports dry-run mode for preview
+- Handles:
+  - Direct path rewrites (`@anvil/core/schema` -> `@anvil/contracts`)
+  - Symbol-based splitting (splits imports with symbols from multiple packages)
+  - Subpath matching for nested imports
+- Mapping based on Phase 0 discovery document
 
 #### MONO-003: Create shared tooling packages
 
 - **Intent:** Centralise ESLint and TypeScript configurations
 - **Expected Outcome:** `@anvil/eslint-config` and `@anvil/tsconfig` packages exist
 - **Validation:** `pnpm build` succeeds with shared configs
-- **Status:** Ready
+- **Status:** Complete
 - **Priority:** medium
+- **Dependencies:** MONO-000a (requires accurate placeholder status)
+
+**Implementation:**
+- Created `packages/tooling/eslint-config/` with:
+  - `@anvil/eslint-config` - Default config (base + TypeScript)
+  - `@anvil/eslint-config/base` - Base JavaScript + Prettier rules
+  - `@anvil/eslint-config/typescript` - TypeScript-specific rules
+  - `@anvil/eslint-config/react` - React-specific rules
+- Created `packages/tooling/tsconfig/` with:
+  - `@anvil/tsconfig/base.json` - Base configuration
+  - `@anvil/tsconfig/lib.json` - Library projects
+  - `@anvil/tsconfig/app.json` - Application projects
+  - `@anvil/tsconfig/node.json` - Node.js projects
+  - `@anvil/tsconfig/react.json` - React projects
+- Updated `tsconfig.base.json` with new path mappings for all target packages
 
 ### Phase 2: Core Split
 
@@ -351,6 +525,7 @@ order. The codemod is reversible.
 
 ## References
 
-- [Impact Assessment](../docs/planning/monorepo-cleanup-impact-assessment.md)
-- [Monorepo Structure](../docs/MONOREPO_STRUCTURE.md)
+- [Impact Assessment](../../docs/planning/monorepo-cleanup-impact-assessment.md)
+- [Phase 0 Discovery](../../docs/planning/monorepo-phase0-discovery.md) (NEW)
+- [Monorepo Structure](../../docs/MONOREPO_STRUCTURE.md)
 - [ADR: Nx Workspace](./decisions/007-nx-workspace.md) (to be created)

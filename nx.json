@@ -13,6 +13,13 @@
     ],
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
   },
+  "generators": {
+    "@anvil/generators": {
+      "package": {
+        "directory": "packages"
+      }
+    }
+  },
   "plugins": [
     {
       "plugin": "@nx/js/typescript",

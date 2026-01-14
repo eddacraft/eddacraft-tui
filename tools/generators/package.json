@@ -1,0 +1,23 @@
+{
+  "name": "@anvil/generators",
+  "version": "0.0.1",
+  "description": "Nx generators for Anvil monorepo",
+  "type": "module",
+  "generators": "./generators.json",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@nx/devkit": "^22.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.7",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "anvil",
+    "nx",
+    "generators"
+  ],
+  "license": "MIT"
+}

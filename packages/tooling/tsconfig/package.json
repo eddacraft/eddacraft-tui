@@ -1,0 +1,22 @@
+{
+  "name": "@anvil/tsconfig",
+  "version": "0.0.1",
+  "description": "Shared TypeScript configurations for Anvil monorepo",
+  "type": "module",
+  "files": [
+    "*.json"
+  ],
+  "exports": {
+    "./base.json": "./base.json",
+    "./lib.json": "./lib.json",
+    "./app.json": "./app.json",
+    "./node.json": "./node.json",
+    "./react.json": "./react.json"
+  },
+  "keywords": [
+    "anvil",
+    "tsconfig",
+    "typescript"
+  ],
+  "license": "MIT"
+}
