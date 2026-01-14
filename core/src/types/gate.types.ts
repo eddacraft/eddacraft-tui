@@ -2,8 +2,39 @@
 import type { APSPlan } from '../schema/index.js';
 import type { WatchConfig } from '../watch/types.js';
 import type { Warning, WarningResult } from '../antipattern/types.js';
+import type { BundleConfig, SignatureAlgorithm } from '../gate/policy/index.js';
 import { existsSync } from 'fs';
 import { join, isAbsolute } from 'path';
+
+/**
+ * Policy bundle configuration for remote bundles in GateConfig
+ */
+export interface PolicyBundleConfig extends BundleConfig {
+  /** Whether this bundle is enabled */
+  enabled?: boolean;
+}
+
+/**
+ * Policy verification settings
+ */
+export interface PolicyVerificationConfig {
+  /** Whether to require signatures on bundles */
+  require_signatures?: boolean;
+  /** Allowed signature algorithms */
+  allowed_algorithms?: SignatureAlgorithm[];
+  /** Public keys for verification (key ID to PEM content or path) */
+  keys?: Record<string, string>;
+}
+
+/**
+ * Policy-specific configuration within GateConfig
+ */
+export interface PolicyConfig {
+  /** Remote policy bundles */
+  bundles?: PolicyBundleConfig[];
+  /** Signature verification settings */
+  verification?: PolicyVerificationConfig;
+}
 
 export interface GateCheck {
   name: string;
@@ -69,6 +100,8 @@ export interface GateConfig {
   global_config?: Record<string, unknown>;
   /** Watch mode configuration */
   watch?: WatchConfig;
+  /** Policy configuration including remote bundles */
+  policy?: PolicyConfig;
 }
 
 // Use APSPlan directly instead of a separate interface

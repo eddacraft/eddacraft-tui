@@ -1,4 +1,4 @@
-import { GateConfig, GateCheck } from '../types/gate.types.js';
+import { GateConfig, GateCheck, PolicyConfig } from '../types/gate.types.js';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { WatchConfigSchema, type WatchConfig } from '../watch/types.js';
@@ -278,12 +278,23 @@ export class GateConfigManager {
       }
     }
 
+    // Pass through policy config if present (bundles, verification settings)
+    let policyConfig: PolicyConfig | undefined;
+    if (
+      configObj.policy !== undefined &&
+      typeof configObj.policy === 'object' &&
+      configObj.policy !== null
+    ) {
+      policyConfig = configObj.policy as PolicyConfig;
+    }
+
     const validatedConfig: GateConfig = {
       version: configObj.version as number,
       checks: validatedChecks,
       thresholds: configObj.thresholds as { overall_score: number; [key: string]: number },
       global_config: configObj.global_config as Record<string, unknown> | undefined,
       watch: watchConfig,
+      policy: policyConfig,
     };
 
     return { config: validatedConfig, errors };

@@ -18,3 +18,21 @@ export type {
   OPAExecutorConfig,
   ViolationCategory,
 } from './opa-executor.js';
+
+export { BundleManager, getBundleManager } from './bundle-manager.js';
+export type {
+  BundleConfig,
+  BundleAuthConfig,
+  BundleCacheEntry,
+  BundleManagerConfig,
+  BundleSyncResult,
+} from './bundle-manager.js';
+
+export { BundleVerifier, loadKeyFromFile } from './bundle-verifier.js';
+export type {
+  VerificationResult,
+  PublicKeyConfig,
+  BundleVerifierConfig,
+  SignatureManifest,
+  SignatureAlgorithm,
+} from './bundle-verifier.js';
