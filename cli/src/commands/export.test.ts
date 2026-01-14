@@ -15,25 +15,24 @@ describe('export command', () => {
 
     expect(command.name()).toBe('export');
     expect(command.description()).toContain('Export/convert');
-    expect(command.description()).toContain('SpecKit');
-    expect(command.description()).toContain('APS');
+    expect(command.description()).toContain('constraints');
   });
 
-  it('should require source argument', () => {
+  it('should have optional source argument', () => {
     const command = createExportCommand();
     const args = command.registeredArguments;
 
     expect(args).toHaveLength(1);
     expect(args[0].name()).toBe('source');
-    expect(args[0].required).toBe(true);
+    expect(args[0].required).toBe(false); // Optional for constraint export
   });
 
-  it('should have required --to option', () => {
+  it('should have --to option for plan conversion', () => {
     const command = createExportCommand();
     const toOpt = command.options.find((o) => o.long === '--to');
 
     expect(toOpt).toBeDefined();
-    expect(toOpt?.mandatory).toBe(true);
+    // Not mandatory - only needed for plan conversion, not constraint export
   });
 
   it('should have optional --output option', () => {

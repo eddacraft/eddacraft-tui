@@ -227,7 +227,7 @@ export class ProjectDetector {
    */
   private estimateFileCount(): number {
     try {
-      const srcDirs = ['src', 'lib', 'app', 'pages', 'components', 'packages'];
+      const srcDirs = ['src', 'lib', 'app', 'apps', 'pages', 'components', 'packages'];
       let totalCount = 0;
 
       for (const dir of srcDirs) {
@@ -364,16 +364,14 @@ export class ProjectDetector {
    * Detect workspace packages
    */
   private detectWorkspacePackages(): string[] {
-    const packageJson = this.readPackageJson();
-    if (!packageJson) {
-      return [];
-    }
-
     // Check for workspaces in package.json
-    if (Array.isArray(packageJson.workspaces)) {
-      return packageJson.workspaces;
-    } else if (packageJson.workspaces?.packages) {
-      return packageJson.workspaces.packages;
+    const packageJson = this.readPackageJson();
+    if (packageJson) {
+      if (Array.isArray(packageJson.workspaces)) {
+        return packageJson.workspaces;
+      } else if (packageJson.workspaces?.packages) {
+        return packageJson.workspaces.packages;
+      }
     }
 
     // Check for pnpm-workspace.yaml

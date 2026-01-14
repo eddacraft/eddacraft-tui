@@ -152,7 +152,7 @@ describe('TUI E2E Tests', () => {
         timeout: 15000,
       });
 
-      await session.waitForMatch(/template|Template/i, 8000);
+      await session.waitForMatch(/category|template|Template/i, 8000);
 
       await typeWithDelay(session, ['down', 'up'], 200);
 

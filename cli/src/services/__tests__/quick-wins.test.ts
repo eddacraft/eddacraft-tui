@@ -42,7 +42,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/utils.test.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -54,7 +54,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/component.spec.tsx', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -65,7 +65,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/__tests__/app.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -76,7 +76,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/__mocks__/api.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('test-file');
@@ -88,7 +88,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/app.test.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].suggestedReason).toContain('Test');
       expect(analysis.quickWins[0].suggestedReason).toContain('any');
@@ -101,7 +101,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/types.d.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('type-definition');
@@ -114,7 +114,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'global.d.ts', line: 5 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].suggestedReason).toContain('Type definition');
     });
@@ -126,7 +126,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'webpack.config.js', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('config-file');
@@ -137,7 +137,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'vite.config.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].type).toBe('config-file');
     });
@@ -147,7 +147,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'next.config.js', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].type).toBe('config-file');
     });
@@ -157,7 +157,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'config/jest.config.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].suggestedReason).toContain('jest.config.ts');
     });
@@ -169,7 +169,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/api.generated.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('generated-code');
@@ -181,7 +181,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/generated/api.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].type).toBe('generated-code');
     });
@@ -191,7 +191,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/__generated__/graphql.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].type).toBe('generated-code');
     });
@@ -204,7 +204,7 @@ describe('QuickWinsIdentifier', () => {
         explanation: 'External library types are incompatible',
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('third-party');
@@ -216,7 +216,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/integrations/third-party-sdk.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins[0].type).toBe('third-party');
     });
@@ -229,7 +229,7 @@ describe('QuickWinsIdentifier', () => {
         explanation: 'Planned for migration in next sprint',
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.quickWins).toHaveLength(1);
       expect(analysis.quickWins[0].type).toBe('migration');
@@ -240,7 +240,7 @@ describe('QuickWinsIdentifier', () => {
         message: 'Deprecated API usage',
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       const quickWin = analysis.quickWins.find((qw) => qw.type === 'migration');
       if (quickWin) {
@@ -267,7 +267,7 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
 
       expect(analysis.batchGroups).toHaveLength(1);
       expect(analysis.batchGroups[0].count).toBe(3);
@@ -295,7 +295,7 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
 
       expect(analysis.batchGroups).toHaveLength(2);
       expect(analysis.batchGroups.map((g) => g.patternId).sort()).toEqual(['AP-003', 'AP-004']);
@@ -313,7 +313,7 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
 
       // Should create one batch for test files and one for type definitions
       expect(analysis.batchGroups).toHaveLength(0); // Neither has 2+ items
@@ -325,7 +325,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/app.test.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
 
       expect(analysis.batchGroups).toHaveLength(0);
       expect(analysis.quickWins).toHaveLength(1);
@@ -347,7 +347,7 @@ describe('QuickWinsIdentifier', () => {
         ),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
 
       expect(analysis.batchGroups[0].count).toBe(5);
       expect(analysis.batchGroups[1].count).toBe(3);
@@ -361,7 +361,7 @@ describe('QuickWinsIdentifier', () => {
         location: { file: 'src/app.test.ts', line: 10 },
       });
 
-      const analysis = identifier.analyze([warning]);
+      const analysis = identifier.analyse([warning]);
       const comment = identifier.generateSuppressionComment(analysis.quickWins[0]);
 
       expect(comment).toContain('// @anvil-ignore');
@@ -385,7 +385,7 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
       const summary = identifier.generateBatchSuppressionSummary(analysis.batchGroups[0]);
 
       expect(summary).toContain('3 occurrences');
@@ -403,7 +403,7 @@ describe('QuickWinsIdentifier', () => {
         createWarning({ location: { file: 'next.config.js', line: 3 } }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
       const stats = identifier.getStatistics(analysis);
 
       expect(stats.byType['test-file']).toBe(2);
@@ -427,7 +427,7 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
       const stats = identifier.getStatistics(analysis);
 
       expect(stats.byPattern['AP-003']).toBe(2);
@@ -444,7 +444,7 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
       const stats = identifier.getStatistics(analysis);
 
       expect(stats.batchableCount).toBe(1);
@@ -461,7 +461,7 @@ describe('QuickWinsIdentifier', () => {
         createWarning({ location: { file: 'src/util.ts', line: 20 } }), // Not suppressable
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
 
       expect(analysis.totalWarnings).toBe(4);
       expect(analysis.suppressable).toBe(2);
@@ -482,13 +482,13 @@ describe('QuickWinsIdentifier', () => {
         }),
       ];
 
-      const analysis = identifier.analyze(warnings);
+      const analysis = identifier.analyse(warnings);
 
       expect(analysis.quickWins).toHaveLength(1);
     });
 
     it('should handle empty warnings array', () => {
-      const analysis = identifier.analyze([]);
+      const analysis = identifier.analyse([]);
 
       expect(analysis.quickWins).toHaveLength(0);
       expect(analysis.batchGroups).toHaveLength(0);

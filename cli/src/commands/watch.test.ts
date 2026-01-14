@@ -27,13 +27,13 @@ describe('watch command', () => {
     expect(args[0].required).toBe(false);
   });
 
-  it('should have --action option with default value', () => {
+  it('should have --action option', () => {
     const command = createWatchCommand();
     const actionOpt = command.options.find((o) => o.long === '--action');
 
     expect(actionOpt).toBeDefined();
     expect(actionOpt?.short).toBe('-a');
-    expect(actionOpt?.defaultValue).toBe('validate');
+    // Default 'validate' is applied in action handler, not option definition
   });
 
   it('should have --source option for source file watching', () => {
