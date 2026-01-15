@@ -1,6 +1,6 @@
 # Anvil
 
-[![CI](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml/badge.svg)](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml)
+[![CI](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js->=20.0.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
