@@ -9,10 +9,16 @@
     "e2e/**/*"
   ],
   "references": [
-    { "path": "./cli" },
+    { "path": "./apps/anvil-cli" },
     { "path": "./ui" },
     { "path": "./core" },
     { "path": "./packs" },
-    { "path": "./packages/adapters" }
+    { "path": "./packages/adapters" },
+    { "path": "./packages/anvil/contracts" },
+    { "path": "./packages/anvil/ports" },
+    { "path": "./packages/anvil/core" },
+    { "path": "./packages/anvil/runtime" },
+    { "path": "./packages/anvil/policy" },
+    { "path": "./packages/edda-stack" }
   ]
 }

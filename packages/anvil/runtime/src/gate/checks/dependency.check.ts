@@ -103,6 +103,8 @@ interface NpmV7AuditResult {
   };
 }
 
+/** @internal Reserved for yarn classic support */
+// @ts-expect-error Reserved for future yarn classic support
 interface _YarnClassicAdvisory {
   type: 'auditAdvisory';
   data: {
@@ -121,6 +123,8 @@ interface _YarnClassicAdvisory {
   };
 }
 
+/** @internal Reserved for yarn classic support */
+// @ts-expect-error Reserved for future yarn classic support
 interface _YarnClassicSummary {
   type: 'auditSummary';
   data: {

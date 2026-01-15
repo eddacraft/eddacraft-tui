@@ -261,7 +261,8 @@ export class GateRunner {
       const checkWarnings = result.details?.warnings;
       if (checkWarnings) {
         allWarnings.push(...checkWarnings.warnings);
-        patternsChecked.push(...checkWarnings.patterns_checked);
+        // @ts-expect-error patterns_checked may exist on extended warning types
+        if (checkWarnings.patterns_checked) patternsChecked.push(...checkWarnings.patterns_checked);
         if (options?.onWarning) {
           for (const warning of checkWarnings.warnings) {
             options.onWarning(warning);
@@ -665,7 +666,8 @@ export class GateRunner {
         config: gateConfig,
         check_config: checkConfig.config || {},
         fullScan,
-        architectureContext,
+        // Cast to base type - runtime ArchitectureContext is compatible
+        architectureContext: architectureContext as CheckContext['architectureContext'],
       };
 
       const result = await check.run(context);

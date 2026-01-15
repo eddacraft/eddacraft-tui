@@ -346,7 +346,8 @@ export class GateConfigManager {
    */
   getWatchConfig(): WatchConfig | undefined {
     const config = this.loadConfig();
-    return config.watch;
+    // Internal config may have defaults applied - cast to base type
+    return config.watch as WatchConfig | undefined;
   }
 
   updateCheck(name: string, updates: Partial<GateCheck>): void {

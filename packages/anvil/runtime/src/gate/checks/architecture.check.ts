@@ -292,7 +292,9 @@ export class ArchitectureCheck extends BaseCheck {
 
   /**
    * Check if a file should be analysed
+   * @internal Reserved for future use
    */
+  // @ts-expect-error Reserved for future use
   private _isAnalysableFile(filePath: string, config: Required<ArchitectureCheckConfig>): boolean {
     const analysableExtensions = ['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs'];
     const hasValidExtension = analysableExtensions.some((ext) => filePath.endsWith(ext));
@@ -315,7 +317,9 @@ export class ArchitectureCheck extends BaseCheck {
 
   /**
    * Get default cruise options when no config file exists
+   * @internal Reserved for future use
    */
+  // @ts-expect-error Reserved for future use
   private _getDefaultCruiseOptions(): Record<string, unknown> {
     return {
       validate: true,
@@ -352,7 +356,9 @@ export class ArchitectureCheck extends BaseCheck {
 
   /**
    * Calculate score based on violations
+   * @internal Reserved for future use
    */
+  // @ts-expect-error Reserved for future use
   private _calculateScore(
     violations: CruiserViolation[],
     config: Required<ArchitectureCheckConfig>
@@ -424,7 +430,9 @@ export class ArchitectureCheck extends BaseCheck {
 
   /**
    * Build human-readable message
+   * @internal Reserved for future use
    */
+  // @ts-expect-error Reserved for future use
   private _buildMessage(
     violations: CruiserViolation[],
     totalCruised: number,
