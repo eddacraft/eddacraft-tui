@@ -16,7 +16,7 @@ import {
   type WatchActionResult,
   type WatchStatusEvent,
   type GateRunResultWithCache,
-} from '@anvil/core';
+} from '@anvil/runtime';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { createWatchOutput } from '../services/watch-output.js';

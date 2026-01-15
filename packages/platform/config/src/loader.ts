@@ -11,14 +11,19 @@ import type { ConfigLoaderOptions, ConfigEntry, ConfigSource } from './types.js'
  * Configuration loader class
  */
 export class ConfigLoader {
-  private readonly options: Required<ConfigLoaderOptions>;
+  private readonly _options: Required<ConfigLoaderOptions>;
   private config: Map<string, ConfigEntry> = new Map();
 
   constructor(options: ConfigLoaderOptions = {}) {
-    this.options = {
+    this._options = {
       baseDir: options.baseDir ?? process.cwd(),
       envPrefix: options.envPrefix ?? 'ANVIL_',
-      fileNames: options.fileNames ?? ['.anvilrc', '.anvilrc.yaml', '.anvilrc.json', 'anvil.config.js'],
+      fileNames: options.fileNames ?? [
+        '.anvilrc',
+        '.anvilrc.yaml',
+        '.anvilrc.json',
+        'anvil.config.js',
+      ],
     };
   }
 

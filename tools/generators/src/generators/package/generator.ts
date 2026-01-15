@@ -1,12 +1,4 @@
-import {
-  Tree,
-  formatFiles,
-  generateFiles,
-  names,
-  offsetFromRoot,
-  joinPathFragments,
-} from '@nx/devkit';
-import * as path from 'path';
+import { Tree, formatFiles, names, offsetFromRoot, joinPathFragments } from '@nx/devkit';
 
 export interface PackageGeneratorSchema {
   name: string;
@@ -24,16 +16,13 @@ interface NormalizedSchema extends PackageGeneratorSchema {
   importPath: string;
 }
 
-function normalizeOptions(
-  tree: Tree,
-  options: PackageGeneratorSchema
-): NormalizedSchema {
+function normalizeOptions(tree: Tree, options: PackageGeneratorSchema): NormalizedSchema {
   const projectDirectory = options.name;
   const projectRoot = joinPathFragments(options.directory, projectDirectory);
   const projectName = options.name.replace(/\//g, '-');
 
   // Determine npm scope based on directory
-  let npmScope = '@anvil';
+  const npmScope = '@anvil';
   let importPath = `${npmScope}/${options.name}`;
 
   // For platform/shared packages, use the directory as part of the import
@@ -67,7 +56,8 @@ function normalizeOptions(
 }
 
 function addFiles(tree: Tree, options: NormalizedSchema) {
-  const templateOptions = {
+  // Template options for future use with generateFiles
+  const _templateOptions = {
     ...options,
     ...names(options.name),
     offsetFromRoot: offsetFromRoot(options.projectRoot),
@@ -94,9 +84,7 @@ function addFiles(tree: Tree, options: NormalizedSchema) {
       'test:watch': 'vitest',
       typecheck: 'tsc --noEmit',
     },
-    ...(options.publishable
-      ? {}
-      : { private: true }),
+    ...(options.publishable ? {} : { private: true }),
     dependencies: {},
     devDependencies: {
       vitest: '^4.0.17',

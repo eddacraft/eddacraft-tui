@@ -11,7 +11,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { GateConfigManager } from '@anvil/core';
+import { GateConfigManager } from '@anvil/runtime';
 import { getEnabledLayerCount, isLayerEnabled, type StackConfig } from '@anvil/edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { success, info, warning } from '../../utils/output.js';

@@ -17,8 +17,9 @@ import {
   GateConfigManager,
   BundleManager,
   getBundleManager,
-} from '@anvil/core';
-import type { BundleAuthConfig, PolicyBundleConfig } from '@anvil/core';
+  type BundleAuthConfig,
+  type PolicyBundleConfig,
+} from '@anvil/runtime';
 
 /**
  * Default policy directory relative to workspace root

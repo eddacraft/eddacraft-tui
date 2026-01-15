@@ -18,5 +18,10 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
-  "references": [{ "path": "../../core" }, { "path": "../adapters" }]
+  "references": [
+    { "path": "../anvil/contracts" },
+    { "path": "../anvil/core" },
+    { "path": "../anvil/runtime" },
+    { "path": "../adapters" }
+  ]
 }

@@ -11,12 +11,11 @@ import { tmpdir } from 'os';
 import {
   generatePlanId,
   generateHash,
-  GateRunner,
-  GateConfigManager,
   type APSPlan,
   type Evidence,
   APS_SCHEMA_VERSION,
 } from '@anvil/core';
+import { GateRunner, GateConfigManager } from '@anvil/runtime';
 import { savePlan, loadPlan } from '../utils/file-io.js';
 
 describe('CLI + Gate Integration Tests', () => {

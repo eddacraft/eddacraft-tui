@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { GateRunner } from '../gate/gate-runner.js';
-import { SuppressionStore } from './store.js';
+import { GateRunner } from './gate-runner.js';
+import { SuppressionStore } from '@anvil/core';
 
 describe('Suppression Integration', () => {
   let tempDir: string;

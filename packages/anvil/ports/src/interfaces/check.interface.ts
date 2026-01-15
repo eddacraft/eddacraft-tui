@@ -4,7 +4,7 @@
  * Defines the contract for gate checks.
  */
 
-import type { APSPlan, Warning, WarningResult } from '@anvil/contracts';
+import type { APSPlan, WarningResult } from '@anvil/contracts';
 
 /**
  * Extended details that can include warnings from anti-pattern/boundary checks

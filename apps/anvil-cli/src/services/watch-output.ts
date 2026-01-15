@@ -5,7 +5,7 @@
  */
 
 import chalk from 'chalk';
-import type { WatchStatusEvent, WatchActionResult } from '@anvil/core';
+import type { WatchStatusEvent, WatchActionResult } from '@anvil/runtime';
 
 /**
  * Format timestamp for display

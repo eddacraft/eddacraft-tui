@@ -5,7 +5,7 @@
  * based on the monorepo migration mapping.
  */
 
-import { Project, SourceFile, ImportDeclaration, SyntaxKind } from 'ts-morph';
+import { Project, SourceFile, ImportDeclaration } from 'ts-morph';
 import { getRewrittenPath, getPackageForSymbol } from '../import-mappings.js';
 
 export interface TransformOptions {
@@ -111,10 +111,7 @@ function processImportDeclaration(importDecl: ImportDeclaration): ImportChange |
  *   import { GateRunner } from '@anvil/runtime';
  *   import { OPAExecutor } from '@anvil/policy';
  */
-function processSplitImports(
-  sourceFile: SourceFile,
-  options: TransformOptions
-): ImportChange[] {
+function processSplitImports(sourceFile: SourceFile, options: TransformOptions): ImportChange[] {
   const changes: ImportChange[] = [];
   const imports = sourceFile.getImportDeclarations();
 

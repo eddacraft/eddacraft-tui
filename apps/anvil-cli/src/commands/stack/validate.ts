@@ -12,7 +12,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { GateConfigManager } from '@anvil/core';
+import { GateConfigManager } from '@anvil/runtime';
 import {
   StackConfigSchema,
   isLayerEnabled,

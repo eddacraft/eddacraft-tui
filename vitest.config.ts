@@ -21,21 +21,36 @@ export default defineConfig({
       ],
     },
     include: [
-      'core/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'cli/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      // New monorepo structure
+      'packages/anvil/*/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'apps/anvil-cli/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'ui/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packs/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/adapters/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/vscode-extension/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/aps/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/edda-stack/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      // Archive excluded - migration complete, legacy code frozen for reference
+      // 'archive/legacy-core/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
-    exclude: ['**/node_modules/**', '**/dist/**', '**/.nx/**', '**/playwright-report/**'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.nx/**',
+      '**/playwright-report/**',
+      // Archive tests excluded - legacy code frozen post-migration
+      'archive/**',
+    ],
   },
   resolve: {
     alias: {
-      '@anvil/core': resolve(__dirname, './core/src'),
-      '@anvil/cli': resolve(__dirname, './cli/src'),
+      // New package structure
+      '@anvil/contracts': resolve(__dirname, './packages/anvil/contracts/src'),
+      '@anvil/ports': resolve(__dirname, './packages/anvil/ports/src'),
+      '@anvil/core': resolve(__dirname, './packages/anvil/core/src'),
+      '@anvil/runtime': resolve(__dirname, './packages/anvil/runtime/src'),
+      '@anvil/policy': resolve(__dirname, './packages/anvil/policy/src'),
+      '@anvil/cli': resolve(__dirname, './apps/anvil-cli/src'),
       '@anvil/ui': resolve(__dirname, './ui/src'),
       '@anvil/packs': resolve(__dirname, './packs/src'),
       '@anvil/adapters': resolve(__dirname, './packages/adapters/src'),

@@ -16,7 +16,7 @@ import http from 'http';
 import { pipeline } from 'stream/promises';
 import { createGunzip } from 'zlib';
 import { extract } from 'tar';
-import { createDebugger } from '../../utils/debug.js';
+import { createDebugger } from '@anvil/core';
 
 const debug = createDebugger('policy');
 
