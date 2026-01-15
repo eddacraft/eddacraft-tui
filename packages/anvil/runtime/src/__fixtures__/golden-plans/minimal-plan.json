@@ -1,0 +1,17 @@
+{
+  "id": "aps-00000000",
+  "intent": "This is a minimal valid APS plan with only required fields",
+  "schema_version": "0.1.0",
+  "proposed_changes": [],
+  "provenance": {
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "author": "system",
+    "source": "manual",
+    "version": "1.0.0"
+  },
+  "validations": {
+    "required_checks": [],
+    "skip_checks": []
+  },
+  "hash": "efe6bdbe42e13ed644c1f8f20736b11104b6ff9914ac8f50e0fab659f5241d9d"
+}

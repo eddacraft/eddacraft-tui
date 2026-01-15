@@ -35,9 +35,10 @@
   },
   "dependencies": {
     "@anvil/contracts": "workspace:*",
-    "@anvil/ports": "workspace:*",
     "@anvil/core": "workspace:*",
-    "@anvil/policy": "workspace:*"
+    "@anvil/policy": "workspace:*",
+    "@anvil/ports": "workspace:*",
+    "minimatch": "^9.0.5"
   },
   "devDependencies": {
     "vitest": "^4.0.17"

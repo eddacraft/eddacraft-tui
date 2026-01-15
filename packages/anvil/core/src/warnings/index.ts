@@ -1,8 +1,16 @@
-/**
- * Warning utilities module
- *
- * Utilities for warning ID generation and formatting.
- * This is a placeholder - actual implementation will be moved from core/.
- */
-
-export {};
+export {
+  WARNING_ID_PATTERN,
+  ParsedWarningIdSchema,
+  type ParsedWarningId,
+  generateWarningId,
+  createWarningId,
+  parseWarningId,
+  isValidWarningId,
+  findWarningById,
+  findWarningsByRule,
+  findWarningsByFile,
+  indexWarningsById,
+  getWarningIds,
+  generateShortId,
+  resolveShortId,
+} from './warning-id.js';

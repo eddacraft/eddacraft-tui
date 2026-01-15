@@ -1,8 +1,42 @@
-/**
- * Gate runner module
- *
- * Orchestrates check execution and produces gate results.
- * This is a placeholder - actual implementation will be moved from core/.
- */
+export { GateRunner } from './gate-runner.js';
+export type {
+  AnalyzeOptions,
+  AnalyzeResult,
+  GateRunOptions,
+  GateRunResultWithCache,
+  ProgressCallback,
+  ProgressEvent,
+  ProgressEventType,
+} from './gate-runner.js';
+export { GateConfigManager } from './gate-config.js';
+export type { ConfigLoadResult } from './gate-config.js';
+export type { Check } from './check.interface.js';
+export { BaseCheck } from './check.interface.js';
+export { ESLintCheck } from './checks/eslint.check.js';
+export { CoverageCheck } from './checks/coverage.check.js';
+export { SecretCheck } from './checks/secret.check.js';
+export { PolicyCheck } from './checks/policy.check.js';
+export type { PolicyCheckConfig } from './checks/policy.check.js';
+export { ArchitectureCheck } from './checks/architecture.check.js';
+export type { ArchitectureCheckConfig } from './checks/architecture.check.js';
+export { CommandSafetyCheck } from './checks/command-safety.check.js';
+export type {
+  CommandRule,
+  CommandSafetyConfig,
+  CommandSafetyFinding,
+  CommandAnalysisSummary,
+  ResolvedCommandSafetyConfig,
+} from './rules/types.js';
 
-export {};
+export {
+  loadCommandSafetyRules,
+  resolveCommandSafetyConfig,
+  DEFAULT_COMMAND_SAFETY_CONFIG,
+} from './config/index.js';
+
+export { formatBlockedCommands, formatWarningCommands, formatSummary } from './formatters/index.js';
+
+// Policy module exports
+export * from './policy/index.js';
+
+export * from '../types/gate.types.js';

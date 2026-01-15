@@ -25,6 +25,30 @@
     "./drift": {
       "types": "./dist/drift/index.d.ts",
       "import": "./dist/drift/index.js"
+    },
+    "./validation": {
+      "types": "./dist/validation/index.d.ts",
+      "import": "./dist/validation/index.js"
+    },
+    "./warnings": {
+      "types": "./dist/warnings/index.d.ts",
+      "import": "./dist/warnings/index.js"
+    },
+    "./explain": {
+      "types": "./dist/explain/index.d.ts",
+      "import": "./dist/explain/index.js"
+    },
+    "./provenance": {
+      "types": "./dist/provenance/index.d.ts",
+      "import": "./dist/provenance/index.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto/index.d.ts",
+      "import": "./dist/crypto/index.js"
+    },
+    "./utils": {
+      "types": "./dist/utils/index.d.ts",
+      "import": "./dist/utils/index.js"
     }
   },
   "scripts": {
@@ -35,9 +59,11 @@
   },
   "dependencies": {
     "@anvil/contracts": "workspace:*",
-    "@anvil/ports": "workspace:*"
+    "@anvil/ports": "workspace:*",
+    "minimatch": "^9.0.5"
   },
   "devDependencies": {
+    "@types/minimatch": "^6.0.0",
     "vitest": "^4.0.17"
   },
   "keywords": [

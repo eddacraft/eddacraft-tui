@@ -1,8 +1,4 @@
-/**
- * Provenance tracking module
- *
- * Tracks the origin and history of plans and changes.
- * This is a placeholder - actual implementation will be moved from core/.
- */
-
-export {};
+// Provenance system for tracking check history and audit trails
+export * from './types.js';
+export * from './collector.js';
+export * from './store.js';

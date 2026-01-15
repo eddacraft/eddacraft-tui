@@ -34,7 +34,7 @@
     "ajv-formats": "^3.0.1",
     "eslint": "^9.39.2",
     "js-yaml": "^4.1.1",
-    "minimatch": "^10.1.1",
+    "minimatch": "^9.0.5",
     "safe-regex2": "^5.0.0",
     "shell-quote": "^1.8.2",
     "tar": "^7.4.3",
@@ -43,6 +43,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/json-schema": "^7.0.15",
+    "@types/minimatch": "^6.0.0",
     "@types/shell-quote": "^1.7.5",
     "tsx": "^4.21.0",
     "vitest": "^4.0.17"

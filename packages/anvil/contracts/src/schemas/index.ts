@@ -1,10 +1,11 @@
 /**
- * Schema exports for @anvil/contracts
+ * APS Schema Module
  *
- * All Zod schemas and their inferred TypeScript types.
+ * This module exports the Anvil Plan Specification (APS) schema definitions,
+ * TypeScript types, validation utilities, and JSON Schema generation.
  */
 
-// APS Plan schemas
+// Re-export all Zod schemas
 export {
   APSPlanSchema,
   ChangeSchema,
@@ -15,43 +16,27 @@ export {
   EvidenceEntrySchema,
   ApprovalSchema,
   ExecutionResultSchema,
-  validatePlan,
-  createPlan,
-  APS_SCHEMA_VERSION,
-  type APSPlan,
-  type Change,
-  type ChangeType,
-  type Provenance,
-  type Validation,
-  type Evidence,
-  type EvidenceEntry,
-  type Approval,
-  type ExecutionResult,
-  type SchemaValidationResult,
 } from './aps.schema.js';
 
-// Warning schemas
-export {
-  WarningSchema,
-  WarningResultSchema,
-  WarningCategorySchema,
-  WarningSeveritySchema,
-  ConfidenceSchema,
-  LocationSchema,
-  DriftSchema,
-  SuppressionSchema,
-  createWarningFingerprint,
-  createWarningResult,
-  countBySeverity,
-  isBlockingWarning,
-  validateWarningResultConsistency,
-  type Warning,
-  type WarningResult,
-  type WarningCategory,
-  type WarningSeverity,
-  type Confidence,
-  type Location,
-  type Drift,
-  type Suppression,
-  type WarningSummary,
-} from './warning.schema.js';
+// Re-export all TypeScript types
+export type {
+  APSPlan,
+  Change,
+  ChangeType,
+  Provenance,
+  Validation,
+  Evidence,
+  EvidenceEntry,
+  Approval,
+  ExecutionResult,
+  SchemaValidationResult,
+} from './aps.schema.js';
+
+// Re-export utility functions
+export { validatePlan, createPlan, APS_SCHEMA_VERSION } from './aps.schema.js';
+
+// Warning schema (planless checks)
+export * from './warning.schema.js';
+
+// Export JSON Schema generation (will be implemented when we add the dependency)
+export { generateJSONSchema } from './json-schema.js';

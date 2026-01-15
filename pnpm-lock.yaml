@@ -127,17 +127,17 @@ importers:
         specifier: ^4.0.17
         version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
 
-  cli:
+  apps/anvil-cli:
     dependencies:
       '@anvil/adapters':
         specifier: workspace:*
-        version: link:../packages/adapters
+        version: link:../../packages/adapters
       '@anvil/aps':
         specifier: workspace:*
-        version: link:../packages/aps
+        version: link:../../packages/aps
       '@anvil/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../../packages/anvil/core
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
@@ -206,8 +206,8 @@ importers:
         specifier: ^4.1.1
         version: 4.1.1
       minimatch:
-        specifier: ^10.1.1
-        version: 10.1.1
+        specifier: ^9.0.5
+        version: 9.0.5
       safe-regex2:
         specifier: ^5.0.0
         version: 5.0.0
@@ -227,6 +227,9 @@ importers:
       '@types/json-schema':
         specifier: ^7.0.15
         version: 7.0.15
+      '@types/minimatch':
+        specifier: ^6.0.0
+        version: 6.0.0
       '@types/shell-quote':
         specifier: ^1.7.5
         version: 1.7.5
@@ -241,7 +244,81 @@ importers:
     dependencies:
       '@anvil/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../anvil/core
+    devDependencies:
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/anvil/contracts:
+    dependencies:
+      zod:
+        specifier: ^4.3.5
+        version: 4.3.5
+    devDependencies:
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/anvil/core:
+    dependencies:
+      '@anvil/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@anvil/ports':
+        specifier: workspace:*
+        version: link:../ports
+      minimatch:
+        specifier: ^9.0.5
+        version: 9.0.5
+    devDependencies:
+      '@types/minimatch':
+        specifier: ^6.0.0
+        version: 6.0.0
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/anvil/policy:
+    dependencies:
+      '@anvil/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      tar:
+        specifier: ^7.4.3
+        version: 7.5.2
+    devDependencies:
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/anvil/ports:
+    dependencies:
+      '@anvil/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+    devDependencies:
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/anvil/runtime:
+    dependencies:
+      '@anvil/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      '@anvil/core':
+        specifier: workspace:*
+        version: link:../core
+      '@anvil/policy':
+        specifier: workspace:*
+        version: link:../policy
+      '@anvil/ports':
+        specifier: workspace:*
+        version: link:../ports
+      minimatch:
+        specifier: ^9.0.5
+        version: 9.0.5
     devDependencies:
       vitest:
         specifier: ^4.0.17
@@ -251,7 +328,7 @@ importers:
     dependencies:
       '@anvil/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../anvil/core
       remark-parse:
         specifier: ^11.0.0
         version: 11.0.0
@@ -335,6 +412,79 @@ importers:
         specifier: ^4.0.17
         version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/platform/config:
+    dependencies:
+      '@anvil/contracts':
+        specifier: workspace:*
+        version: link:../../anvil/contracts
+      js-yaml:
+        specifier: ^4.1.1
+        version: 4.1.1
+    devDependencies:
+      '@types/js-yaml':
+        specifier: ^4.0.9
+        version: 4.0.9
+      '@types/node':
+        specifier: ^25.0.7
+        version: 25.0.7
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/platform/crypto:
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.7
+        version: 25.0.7
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/platform/storage:
+    dependencies:
+      '@anvil/ports':
+        specifier: workspace:*
+        version: link:../../anvil/ports
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.7
+        version: 25.0.7
+      vitest:
+        specifier: ^4.0.17
+        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/tooling/eslint-config:
+    devDependencies:
+      '@eslint/js':
+        specifier: ^9.39.2
+        version: 9.39.2
+      '@typescript-eslint/eslint-plugin':
+        specifier: ^8.53.0
+        version: 8.53.0(@typescript-eslint/parser@8.53.0(eslint@9.39.2)(typescript@5.9.3))(eslint@9.39.2)(typescript@5.9.3)
+      '@typescript-eslint/parser':
+        specifier: ^8.53.0
+        version: 8.53.0(eslint@9.39.2)(typescript@5.9.3)
+      eslint:
+        specifier: ^9.39.2
+        version: 9.39.2
+      eslint-config-prettier:
+        specifier: ^10.1.8
+        version: 10.1.8(eslint@9.39.2)
+      eslint-plugin-prettier:
+        specifier: ^5.5.4
+        version: 5.5.4(@types/eslint@9.6.1)(eslint-config-prettier@10.1.8(eslint@9.39.2))(eslint@9.39.2)(prettier@3.7.4)
+      eslint-plugin-react:
+        specifier: ^7.37.5
+        version: 7.37.5(eslint@9.39.2)
+      globals:
+        specifier: ^17.0.0
+        version: 17.0.0
+      typescript-eslint:
+        specifier: ^8.53.0
+        version: 8.53.0(eslint@9.39.2)(typescript@5.9.3)
+
+  packages/tooling/tsconfig: {}
+
   packages/vscode-extension:
     dependencies:
       '@anvil/adapters':
@@ -342,7 +492,7 @@ importers:
         version: link:../adapters
       '@anvil/core':
         specifier: workspace:*
-        version: link:../../core
+        version: link:../anvil/core
     devDependencies:
       '@types/vscode':
         specifier: ^1.108.1
@@ -358,13 +508,51 @@ importers:
     dependencies:
       '@anvil/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../packages/anvil/core
+
+  tools/codemods:
+    dependencies:
+      chalk:
+        specifier: ^5.3.0
+        version: 5.6.2
+      commander:
+        specifier: ^13.1.0
+        version: 13.1.0
+      glob:
+        specifier: 13.0.0
+        version: 13.0.0
+      ts-morph:
+        specifier: ^25.0.1
+        version: 25.0.1
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.7
+        version: 25.0.7
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  tools/generators:
+    dependencies:
+      '@nx/devkit':
+        specifier: ^22.3.3
+        version: 22.3.3(nx@22.3.3(@swc-node/register@1.11.1(@swc/core@1.15.8(@swc/helpers@0.5.18))(@swc/types@0.1.25)(typescript@5.9.3))(@swc/core@1.15.8(@swc/helpers@0.5.18)))
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.7
+        version: 25.0.7
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
   ui:
     dependencies:
       '@anvil/core':
         specifier: workspace:*
-        version: link:../core
+        version: link:../packages/anvil/core
 
 packages:
   '@alcalzone/ansi-tokenize@0.2.2':
@@ -2892,6 +3080,12 @@ packages:
         integrity: sha512-EjAPbuA+3NyQ9WyFP7iUlddi35F3mGrf4tb4cZM0nWywbtEJ3+XAYqL+5RsF0qFeSguxGir09NdZOWrG9wVOUQ==,
       }
 
+  '@ts-morph/common@0.26.1':
+    resolution:
+      {
+        integrity: sha512-Sn28TGl/4cFpcM+jwsH1wLncYq3FtN/BIpem+HOygfBWPT5pAeS5dB4VFVzV8FbnOKHpDLZmvAl4AjPEev5idA==,
+      }
+
   '@tsconfig/node10@1.0.12':
     resolution:
       {
@@ -2999,6 +3193,15 @@ packages:
       {
         integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==,
       }
+
+  '@types/minimatch@6.0.0':
+    resolution:
+      {
+        integrity: sha512-zmPitbQ8+6zNutpwgcQuLcsEpn/Cj54Kbn7L5pX0Os5kdWplB7xPgEh/g+SWOB/qmows2gpuCaPyduq8ZZRnxA==,
+      }
+    deprecated:
+      This is a stub types definition. minimatch provides its own type definitions, so you do not
+      need this installed.
 
   '@types/ms@2.1.0':
     resolution:
@@ -4368,6 +4571,12 @@ packages:
       }
     engines: { node: '>=16' }
 
+  code-block-writer@13.0.3:
+    resolution:
+      {
+        integrity: sha512-Oofo0pq3IKnsFtuHqSF7TqBfr71aeyZDVJ0HpmqB7FBM2qEigL0iPONSCZSO9pE9dZTAxANe5XHG9Uy0YMv8cg==,
+      }
+
   code-excerpt@4.0.0:
     resolution:
       {
@@ -4412,6 +4621,13 @@ packages:
     resolution:
       {
         integrity: sha512-Vw8qHK3bZM9y/P10u3Vib8o/DdkvA2OtPtZvD871QKjy74Wj1WSKFILMPRPSdUSx5RFK1arlJzEtA4PkFgnbuA==,
+      }
+    engines: { node: '>=18' }
+
+  commander@13.1.0:
+    resolution:
+      {
+        integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==,
       }
     engines: { node: '>=18' }
 
@@ -7836,6 +8052,12 @@ packages:
       }
     engines: { node: ^12.20.0 || ^14.13.1 || >=16.0.0 }
 
+  path-browserify@1.0.1:
+    resolution:
+      {
+        integrity: sha512-b7uo2UCUOYZcnF/3ID0lulOJi/bafxa1xPe7ZPsammBSpjSWQkjNxlt635YGS2MiR9GjvuXCtz2emr3jbsz98g==,
+      }
+
   path-exists@4.0.0:
     resolution:
       {
@@ -9256,6 +9478,12 @@ packages:
     engines: { node: '>=18.12' }
     peerDependencies:
       typescript: '>=4.8.4'
+
+  ts-morph@25.0.1:
+    resolution:
+      {
+        integrity: sha512-QJEiTdnz1YjrB3JFhd626gX4rKHDLSjSVMvGGG4v7ONc3RBwa0Eei98G9AT9uNFDMtV54JyuXsFeC+OH0n6bXQ==,
+      }
 
   ts-node@10.9.2:
     resolution:
@@ -11792,6 +12020,12 @@ snapshots:
     dependencies:
       '@textlint/ast-node-types': 15.5.0
 
+  '@ts-morph/common@0.26.1':
+    dependencies:
+      fast-glob: 3.3.3
+      minimatch: 9.0.5
+      path-browserify: 1.0.1
+
   '@tsconfig/node10@1.0.12': {}
 
   '@tsconfig/node12@1.0.11': {}
@@ -11850,6 +12084,10 @@ snapshots:
   '@types/mdast@4.0.4':
     dependencies:
       '@types/unist': 3.0.3
+
+  '@types/minimatch@6.0.0':
+    dependencies:
+      minimatch: 9.0.5
 
   '@types/ms@2.1.0': {}
 
@@ -12832,6 +13070,8 @@ snapshots:
 
   cockatiel@3.2.1: {}
 
+  code-block-writer@13.0.3: {}
+
   code-excerpt@4.0.0:
     dependencies:
       convert-to-spaces: 2.0.1
@@ -12854,6 +13094,8 @@ snapshots:
       delayed-stream: 1.0.0
 
   commander@12.1.0: {}
+
+  commander@13.1.0: {}
 
   commander@14.0.2: {}
 
@@ -15139,7 +15381,7 @@ snapshots:
       bl: 4.1.0
       chalk: 4.1.2
       cli-cursor: 3.1.0
-      cli-spinners: 2.6.1
+      cli-spinners: 2.9.2
       is-interactive: 1.0.0
       log-symbols: 4.1.0
       strip-ansi: 6.0.1
@@ -15246,6 +15488,8 @@ snapshots:
   parseurl@1.3.3: {}
 
   patch-console@2.0.0: {}
+
+  path-browserify@1.0.1: {}
 
   path-exists@4.0.0: {}
 
@@ -16160,6 +16404,11 @@ snapshots:
   ts-api-utils@2.4.0(typescript@5.9.3):
     dependencies:
       typescript: 5.9.3
+
+  ts-morph@25.0.1:
+    dependencies:
+      '@ts-morph/common': 0.26.1
+      code-block-writer: 13.0.3
 
   ts-node@10.9.2(@swc/core@1.15.8(@swc/helpers@0.5.18))(@types/node@25.0.7)(typescript@5.9.3):
     dependencies:

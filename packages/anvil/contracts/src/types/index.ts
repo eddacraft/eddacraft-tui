@@ -27,3 +27,6 @@ export type {
   Suppression,
   WarningSummary,
 } from '../schemas/index.js';
+
+// Re-export gate types
+export * from './gate.types.js';

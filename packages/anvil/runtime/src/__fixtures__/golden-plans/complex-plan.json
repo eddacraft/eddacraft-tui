@@ -1,0 +1,56 @@
+{
+  "id": "aps-87654321",
+  "intent": "Complex plan with multiple operations including nested changes and dependencies",
+  "schema_version": "0.1.0",
+  "proposed_changes": [
+    {
+      "type": "file_create",
+      "path": "src/features/auth/login.ts",
+      "description": "Implement login functionality",
+      "metadata": {
+        "dependencies": ["src/features/auth/types.ts"]
+      }
+    },
+    {
+      "type": "file_create",
+      "path": "src/features/auth/types.ts",
+      "description": "Define authentication types"
+    },
+    {
+      "type": "file_update",
+      "path": "src/router.ts",
+      "description": "Add authentication routes",
+      "diff": "--- src/router.ts\n+++ src/router.ts\n@@ -1,3 +1,7 @@\n const routes = [\n-  { path: '/', component: Home }\n+  { path: '/', component: Home },\n+  { path: '/login', component: Login },\n+  { path: '/logout', component: Logout }\n ];"
+    },
+    {
+      "type": "file_delete",
+      "path": "src/legacy-auth.ts",
+      "description": "Remove deprecated authentication module"
+    }
+  ],
+  "provenance": {
+    "timestamp": "2024-01-15T12:30:45.000Z",
+    "author": "dev-team",
+    "source": "automation",
+    "version": "2.1.0",
+    "repository": "https://github.com/example/project",
+    "branch": "feature/auth-implementation",
+    "commit": "abc123def456"
+  },
+  "validations": {
+    "required_checks": ["lint", "test", "security-scan"],
+    "skip_checks": ["performance"],
+    "custom_rules": {
+      "auth-review": {
+        "description": "Security team review for authentication changes",
+        "required": true
+      }
+    }
+  },
+  "metadata": {
+    "tags": ["security", "authentication", "breaking-change"],
+    "priority": "high",
+    "estimated_hours": 8
+  },
+  "hash": "77c1b89326c8131fc48b035eac4097214ce3a147fc26d9e29a065df345faf5b5"
+}

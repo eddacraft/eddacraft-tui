@@ -1,0 +1,29 @@
+{
+  "id": "aps-12345678",
+  "intent": "Simple test plan for golden file testing",
+  "schema_version": "0.1.0",
+  "proposed_changes": [
+    {
+      "type": "file_create",
+      "path": "src/test.ts",
+      "description": "Create a new test file"
+    },
+    {
+      "type": "file_update",
+      "path": "src/index.ts",
+      "description": "Update imports",
+      "diff": "--- src/index.ts\n+++ src/index.ts\n@@ -1,1 +1,2 @@\n import { foo } from './foo';\n+import { test } from './test';"
+    }
+  ],
+  "provenance": {
+    "timestamp": "2024-01-01T00:00:00.000Z",
+    "author": "test-system",
+    "source": "cli",
+    "version": "1.0.0"
+  },
+  "validations": {
+    "required_checks": ["lint", "test"],
+    "skip_checks": []
+  },
+  "hash": "5ffade0c8b706927bf8b2c0b68a4bca4e72328feb94363d9bf14baeefd5dc674"
+}

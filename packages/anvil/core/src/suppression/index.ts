@@ -1,8 +1,20 @@
-/**
- * Suppression management module
- *
- * Handles @anvil-ignore directives and suppression tracking.
- * This is a placeholder - actual implementation will be moved from core/.
- */
+export {
+  parseSuppressions,
+  isExpired,
+  suppressionMatches,
+  findMatchingSuppression,
+  ParsedSuppressionSchema,
+  type ParsedSuppression,
+  type SuppressionScope,
+  type SuppressionParseError,
+  type ParseResult,
+} from './parser.js';
 
-export {};
+export {
+  SuppressionStore,
+  SuppressionStoreDataSchema,
+  type SuppressionStoreData,
+  type SuppressionMatch,
+} from './store.js';
+
+export { SuppressionService, type SuppressionStats, type FileSuppressions } from './service.js';
