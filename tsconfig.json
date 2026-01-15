@@ -9,13 +9,53 @@
     "e2e/**/*"
   ],
   "references": [
-    { "path": "./apps/anvil-cli" },
-    { "path": "./packages/adapters" },
-    { "path": "./packages/anvil/contracts" },
-    { "path": "./packages/anvil/ports" },
-    { "path": "./packages/anvil/core" },
-    { "path": "./packages/anvil/runtime" },
-    { "path": "./packages/anvil/policy" },
-    { "path": "./packages/edda-stack" }
+    {
+      "path": "./apps/anvil-cli"
+    },
+    {
+      "path": "./packages/adapters"
+    },
+    {
+      "path": "./packages/anvil/contracts"
+    },
+    {
+      "path": "./packages/anvil/ports"
+    },
+    {
+      "path": "./packages/anvil/core"
+    },
+    {
+      "path": "./packages/anvil/runtime"
+    },
+    {
+      "path": "./packages/anvil/policy"
+    },
+    {
+      "path": "./packages/edda-stack"
+    },
+    {
+      "path": "./packages/kindling-integration"
+    },
+    {
+      "path": "./packages/vscode-extension"
+    },
+    {
+      "path": "./packages/platform/storage"
+    },
+    {
+      "path": "./packages/platform/config"
+    },
+    {
+      "path": "./packages/platform/crypto"
+    },
+    {
+      "path": "./tools/generators"
+    },
+    {
+      "path": "./tools/codemods"
+    },
+    {
+      "path": "./packages/aps"
+    }
   ]
 }

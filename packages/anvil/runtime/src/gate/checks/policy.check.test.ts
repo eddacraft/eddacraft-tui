@@ -123,6 +123,7 @@ describe('PolicyCheck', () => {
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });
     }
+    vi.restoreAllMocks();
   });
 
   describe('check metadata', () => {

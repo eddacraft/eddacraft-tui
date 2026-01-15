@@ -16,6 +16,7 @@ describe('TTY Detection', () => {
 
   afterEach(() => {
     process.env = originalEnv;
+    vi.restoreAllMocks();
   });
 
   describe('isTUIAvailable', () => {

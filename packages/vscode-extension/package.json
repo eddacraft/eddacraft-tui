@@ -324,12 +324,12 @@
     "publish": "vsce publish --no-dependencies"
   },
   "dependencies": {
-    "@anvil/core": "workspace:*",
-    "@anvil/adapters": "workspace:*"
+    "@anvil/core": "workspace:*"
   },
   "devDependencies": {
     "@types/vscode": "^1.108.1",
     "@vscode/vsce": "^3.0.0",
-    "esbuild": "^0.27.2"
+    "esbuild": "^0.27.2",
+    "vitest": "^4.0.17"
   }
 }

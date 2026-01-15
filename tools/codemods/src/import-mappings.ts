@@ -11,23 +11,23 @@
  */
 export const CORE_SUBDIR_TO_PACKAGE: Record<string, string> = {
   // Contracts package (schemas, types, validation)
-  'schema': '@anvil/contracts',
-  'types': '@anvil/contracts',
-  'validation': '@anvil/contracts',
+  schema: '@anvil/contracts',
+  types: '@anvil/contracts',
+  validation: '@anvil/contracts',
 
   // Core package (pure domain logic)
-  'provenance': '@anvil/core',
-  'warnings': '@anvil/core',
-  'antipattern': '@anvil/core',
-  'suppression': '@anvil/core',
-  'explain': '@anvil/core',
-  'architecture': '@anvil/core',
-  'drift': '@anvil/core',
+  provenance: '@anvil/core',
+  warnings: '@anvil/core',
+  antipattern: '@anvil/core',
+  suppression: '@anvil/core',
+  explain: '@anvil/core',
+  architecture: '@anvil/core',
+  drift: '@anvil/core',
 
   // Runtime package (I/O and orchestration)
-  'cache': '@anvil/runtime',
-  'watch': '@anvil/runtime',
-  'export': '@anvil/runtime',
+  cache: '@anvil/runtime',
+  watch: '@anvil/runtime',
+  export: '@anvil/runtime',
   'gate/checks': '@anvil/runtime',
   'gate/config': '@anvil/runtime',
   'gate/formatters': '@anvil/runtime',
@@ -43,8 +43,8 @@ export const CORE_SUBDIR_TO_PACKAGE: Record<string, string> = {
   'gate/check.interface': '@anvil/ports',
 
   // Platform packages
-  'crypto': '@anvil/platform/crypto',
-  'utils': '@anvil/shared/util',
+  crypto: '@anvil/platform/crypto',
+  utils: '@anvil/shared/util',
 };
 
 /**

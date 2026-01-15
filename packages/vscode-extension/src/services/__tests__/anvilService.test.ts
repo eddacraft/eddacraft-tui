@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AnvilService } from '../anvilService.js';
 import * as vscode from 'vscode';
 import { EventEmitter } from 'events';
@@ -43,6 +43,10 @@ describe('AnvilService', () => {
       replace: vi.fn(),
     } as unknown as vscode.OutputChannel;
     anvilService = new AnvilService(mockContext, mockOutputChannel);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('construction', () => {

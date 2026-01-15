@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   formatEntryPoints,
   formatLayerDiagram,
@@ -31,6 +31,10 @@ vi.mock('@anvil/core', () => ({
 }));
 
 describe('architecture-service', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe('formatEntryPoints', () => {
     it('should return placeholder message for empty entry points', () => {
       const result = formatEntryPoints([]);

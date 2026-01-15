@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import reactPlugin from 'eslint-plugin-react';
+import nxPlugin from '@nx/eslint-plugin';
 import globals from 'globals';
 import typescriptEslint from 'typescript-eslint';
 import anvilPlugin from 'eslint-plugin-anvil';
@@ -30,8 +31,37 @@ export default typescriptEslint.config(
       },
     },
   },
-  // JSON files - temporarily disabled due to compatibility issues
-  // TODO: Re-enable once @eslint/json is properly configured for ESLint 9
+  // Nx dependency checks for package.json files
+  {
+    files: ['**/package.json'],
+    ignores: ['node_modules/**'],
+    plugins: {
+      '@nx': nxPlugin,
+    },
+    languageOptions: {
+      parser: (await import('jsonc-eslint-parser')).default,
+    },
+    rules: {
+      '@nx/dependency-checks': [
+        'error',
+        {
+          ignoredFiles: [
+            '{projectRoot}/eslint.config.{js,cjs,mjs,ts,cts,mts}',
+            '{projectRoot}/vitest.config.{js,ts,mjs,mts}',
+            '{projectRoot}/**/*.test.ts',
+            '{projectRoot}/**/*.spec.ts',
+            '{projectRoot}/**/__tests__/**',
+            '{projectRoot}/**/__mocks__/**',
+          ],
+          ignoredDependencies: [
+            'vscode',
+            '@types/vscode',
+            'vitest',
+          ],
+        },
+      ],
+    },
+  },
   // React files
   {
     files: ['**/*.jsx', '**/*.tsx'],
@@ -85,13 +115,13 @@ export default typescriptEslint.config(
     },
   },
   {
-    files: ['cli/**/*.ts'],
+    files: ['apps/anvil-cli/**/*.ts', 'cli/**/*.ts'],
     rules: {
       'no-console': 'off',
     },
   },
   {
-    files: ['**/scripts/**/*.ts'],
+    files: ['**/scripts/**/*.ts', 'tools/**/*.ts'],
     rules: {
       'no-console': 'off',
     },

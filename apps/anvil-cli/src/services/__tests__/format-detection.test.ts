@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FormatDetectionService } from '../format-detection.js';
 
 // Mock AdapterRegistry
@@ -16,6 +16,10 @@ describe('FormatDetectionService', () => {
 
   beforeEach(() => {
     service = new FormatDetectionService();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('constructor', () => {

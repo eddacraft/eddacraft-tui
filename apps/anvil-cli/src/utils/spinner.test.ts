@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { withSpinner, createSpinner } from './spinner.js';
 import ora from 'ora';
 
@@ -15,6 +15,10 @@ describe('spinner utilities', () => {
       text: '',
     };
     vi.mocked(ora).mockReturnValue(mockSpinner);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('withSpinner', () => {

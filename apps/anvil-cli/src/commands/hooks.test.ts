@@ -48,6 +48,7 @@ describe('hooks command', () => {
   afterEach(() => {
     process.chdir(originalCwd);
     cleanupTempDir(tempDir);
+    vi.restoreAllMocks();
   });
 
   describe('install', () => {

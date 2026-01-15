@@ -41,6 +41,8 @@ describe('OPABinaryManager', () => {
     if (existsSync(tempCacheDir)) {
       rmSync(tempCacheDir, { recursive: true, force: true });
     }
+
+    vi.restoreAllMocks();
   });
 
   describe('initialization', () => {

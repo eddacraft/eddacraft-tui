@@ -83,7 +83,7 @@ export class SampleAnalyzer {
             gitAvailable: true,
           };
         }
-      } catch (error) {
+      } catch {
         // Fall through to filesystem search
         console.warn('Git-based file selection failed, falling back to filesystem');
       }

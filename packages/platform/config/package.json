@@ -17,10 +17,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@anvil/contracts": "workspace:*",
-    "js-yaml": "^4.1.1"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^25.0.7",

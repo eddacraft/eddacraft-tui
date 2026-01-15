@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolvePlanPathOrId } from './plan-resolution.js';
 import * as fileIo from './file-io.js';
 
@@ -7,6 +7,10 @@ vi.mock('./file-io.js');
 describe('resolvePlanPathOrId', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('plan ID resolution', () => {

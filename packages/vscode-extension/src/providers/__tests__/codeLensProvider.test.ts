@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PlanCodeLensProvider } from '../codeLensProvider.js';
 import { AnvilService } from '../../services/anvilService.js';
 import * as vscode from 'vscode';
@@ -18,6 +18,10 @@ describe('PlanCodeLensProvider', () => {
     };
     mockAnvilService = new AnvilService(mockContext);
     provider = new PlanCodeLensProvider(mockAnvilService);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('provideCodeLenses', () => {

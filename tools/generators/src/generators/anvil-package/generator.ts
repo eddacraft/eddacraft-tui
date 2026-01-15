@@ -1,9 +1,4 @@
-import {
-  Tree,
-  formatFiles,
-  joinPathFragments,
-  offsetFromRoot,
-} from '@nx/devkit';
+import { Tree, formatFiles, joinPathFragments, offsetFromRoot } from '@nx/devkit';
 
 export interface AnvilPackageGeneratorSchema {
   name: 'contracts' | 'ports' | 'core' | 'runtime' | 'policy' | 'sdk';
@@ -14,10 +9,7 @@ export interface AnvilPackageGeneratorSchema {
  * Package dependency configuration
  * Defines the allowed dependencies for each anvil package
  */
-const PACKAGE_CONFIG: Record<
-  string,
-  { description: string; deps: string[]; layer: number }
-> = {
+const PACKAGE_CONFIG: Record<string, { description: string; deps: string[]; layer: number }> = {
   contracts: {
     description: 'Schemas, types, and events with zero dependencies',
     deps: [],
@@ -93,10 +85,7 @@ export default async function (tree: Tree, options: AnvilPackageGeneratorSchema)
     },
   };
 
-  tree.write(
-    joinPathFragments(projectRoot, 'package.json'),
-    JSON.stringify(packageJson, null, 2)
-  );
+  tree.write(joinPathFragments(projectRoot, 'package.json'), JSON.stringify(packageJson, null, 2));
 
   // Create tsconfig.json
   const offset = offsetFromRoot(projectRoot);
@@ -110,10 +99,7 @@ export default async function (tree: Tree, options: AnvilPackageGeneratorSchema)
     exclude: ['node_modules', 'dist', '**/*.test.ts', '**/*.spec.ts'],
   };
 
-  tree.write(
-    joinPathFragments(projectRoot, 'tsconfig.json'),
-    JSON.stringify(tsconfig, null, 2)
-  );
+  tree.write(joinPathFragments(projectRoot, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2));
 
   // Create tsconfig.lib.json
   const tsconfigLib = {
@@ -153,10 +139,7 @@ export default async function (tree: Tree, options: AnvilPackageGeneratorSchema)
     targets: {},
   };
 
-  tree.write(
-    joinPathFragments(projectRoot, 'project.json'),
-    JSON.stringify(projectJson, null, 2)
-  );
+  tree.write(joinPathFragments(projectRoot, 'project.json'), JSON.stringify(projectJson, null, 2));
 
   // Create src/index.ts with appropriate exports
   let indexContent = `/**

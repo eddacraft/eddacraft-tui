@@ -22,12 +22,20 @@
   "include": ["src/**/*", "src/**/*.tsx"],
   "exclude": ["**/*.test.ts", "**/*.test.tsx", "**/__tests__/**"],
   "references": [
-    { "path": "../../packages/anvil/contracts" },
-    { "path": "../../packages/anvil/ports" },
-    { "path": "../../packages/anvil/core" },
-    { "path": "../../packages/anvil/runtime" },
-    { "path": "../../packages/anvil/policy" },
-    { "path": "../../packages/adapters" },
-    { "path": "../../packages/edda-stack" }
+    {
+      "path": "../../packages/anvil/runtime"
+    },
+    {
+      "path": "../../packages/edda-stack"
+    },
+    {
+      "path": "../../packages/anvil/core"
+    },
+    {
+      "path": "../../packages/aps"
+    },
+    {
+      "path": "../../packages/adapters"
+    }
   ]
 }

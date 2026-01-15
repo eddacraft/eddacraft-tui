@@ -4,6 +4,7 @@
  * Shared utilities for setting up and tearing down test workspaces
  */
 
+import { execSync } from 'child_process';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -196,7 +197,6 @@ export function initGitRepo(workspace: string): void {
 
   // Configure git for testing
   try {
-    const { execSync } = require('child_process');
     execSync('git init', { cwd: workspace, stdio: 'pipe' });
     execSync('git config user.email "test@example.com"', { cwd: workspace, stdio: 'pipe' });
     execSync('git config user.name "Test User"', { cwd: workspace, stdio: 'pipe' });

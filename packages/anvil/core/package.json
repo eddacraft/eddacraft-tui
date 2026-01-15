@@ -59,8 +59,9 @@
   },
   "dependencies": {
     "@anvil/contracts": "workspace:*",
-    "@anvil/ports": "workspace:*",
-    "minimatch": "^9.0.5"
+    "minimatch": "^9.0.5",
+    "yaml": "^2.7.1",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/minimatch": "^6.0.0",

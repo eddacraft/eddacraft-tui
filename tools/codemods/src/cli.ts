@@ -19,10 +19,7 @@ import {
 
 const ROOT_DIR = resolve(import.meta.dirname, '../../..');
 
-program
-  .name('anvil-codemod')
-  .description('Codemods for Anvil monorepo migration')
-  .version('0.0.1');
+program.name('anvil-codemod').description('Codemods for Anvil monorepo migration').version('0.0.1');
 
 program
   .command('imports')

@@ -3,5 +3,10 @@
   "compilerOptions": {
     "declaration": true,
     "declarationMap": true
-  }
+  },
+  "references": [
+    {
+      "path": "../../anvil/ports/tsconfig.lib.json"
+    }
+  ]
 }

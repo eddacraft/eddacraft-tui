@@ -13,7 +13,7 @@ import { homedir } from 'os';
 import { createHash, createVerify } from 'crypto';
 import https from 'https';
 import http from 'http';
-import { pipeline } from 'stream/promises';
+import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'zlib';
 import { extract } from 'tar';
 import { createDebugger } from '@anvil/core';
