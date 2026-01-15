@@ -39,3 +39,43 @@ export * from './crypto/index.js';
 
 // General utilities
 export * from './utils/index.js';
+
+// Re-export from @anvil/contracts for backward compatibility
+// (only types - no circular dependency)
+export {
+  APSPlanSchema,
+  APS_SCHEMA_VERSION,
+  ChangeTypeSchema,
+  ChangeSchema,
+  ProvenanceSchema,
+  ValidationSchema,
+  EvidenceEntrySchema,
+  EvidenceSchema,
+  ApprovalSchema,
+  ExecutionResultSchema,
+  validatePlan,
+  createPlan,
+} from '@anvil/contracts';
+
+export type {
+  APSPlan,
+  Change,
+  ChangeType,
+  Provenance,
+  Validation,
+  EvidenceEntry,
+  Evidence,
+  Approval,
+  ExecutionResult,
+  SchemaValidationResult,
+  GateConfig,
+  GateCheck,
+  GateResult,
+  GateRunResult,
+  CheckContext,
+  PlanData,
+  WatchConfig,
+  PolicyConfig,
+  StackConfig,
+  ArchitectureContextBase,
+} from '@anvil/contracts';
