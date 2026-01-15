@@ -981,22 +981,6 @@ function createBundleRemoveCommand(): Command {
           spinner.succeed(`Removed bundle '${bundleName}' (cache preserved)`);
         }
 
-        // Remove from config
-        bundles.splice(bundleIndex, 1);
-        if (config.policy) {
-          config.policy.bundles = bundles;
-        }
-        configManager.saveConfig(config);
-
-        // Clear cache unless --keep-cache
-        if (!options.keepCache) {
-          const bundleManager = getBundleManager();
-          await bundleManager.invalidateBundle(name);
-          spinner.succeed(`Removed bundle '${name}' and cleared cache`);
-        } else {
-          spinner.succeed(`Removed bundle '${name}' (cache preserved)`);
-        }
-
         success('Bundle configuration updated');
       } catch (err) {
         spinner.fail('Failed to remove bundle');
