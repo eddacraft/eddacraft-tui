@@ -12,7 +12,7 @@ better discoverability
 - docs/adr/ (1 file)
 - docs/formats/ (2 files)
 - docs/prd/ (1 file)
-- archive/ (8+ files)
+- docs/archive/ (8+ files)
 - core/ (3 files)
 - packages/adapters/ (2 files)
 - .claude/ (40+ files)
@@ -115,10 +115,10 @@ anvil-001/
    - ADAPTER_WORKFLOW_GUIDE.md → guides/adapters/workflow-guide.md
 
 4. **Archive**
-   - Move archive/INTEGRATION_GAPS.md → docs/archive/integration-gaps.md
-   - Move archive/RFC_SPEC_TOOLS_ADOPTION.md →
+   - Archive content lives under docs/archive/
+   - Move legacy INTEGRATION_GAPS.md → docs/archive/integration-gaps.md
+   - Move legacy RFC_SPEC_TOOLS_ADOPTION.md →
      docs/archive/rfc-spec-tools-adoption.md
-   - Keep archive/old-plans/ and archive/old-todo/ as is
 
 ### Phase 3: Create Indexes
 

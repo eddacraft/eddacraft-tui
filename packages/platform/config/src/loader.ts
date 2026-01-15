@@ -27,6 +27,10 @@ export class ConfigLoader {
     };
   }
 
+  get options(): Required<ConfigLoaderOptions> {
+    return this._options;
+  }
+
   /**
    * Get a configuration value
    */

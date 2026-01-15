@@ -35,10 +35,10 @@ helps you find documents in their new locations.
 
 ### Archive Documents
 
-| Old Location                         | New Location                              |
-| ------------------------------------ | ----------------------------------------- |
-| `archive/INTEGRATION_GAPS.md`        | `docs/archive/integration-gaps.md`        |
-| `archive/RFC_SPEC_TOOLS_ADOPTION.md` | `docs/archive/rfc-spec-tools-adoption.md` |
+| Old Location                 | New Location                              |
+| ---------------------------- | ----------------------------------------- |
+| `INTEGRATION_GAPS.md`        | `docs/archive/integration-gaps.md`        |
+| `RFC_SPEC_TOOLS_ADOPTION.md` | `docs/archive/rfc-spec-tools-adoption.md` |
 
 ## Unchanged Locations
 

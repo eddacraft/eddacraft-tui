@@ -27,10 +27,10 @@ milestone**, not a go-live blocker.
 
 ```
 anvil-001/
-├── core/                    # @anvil/core (schema, validation, gates)
-├── cli/                     # @anvil/cli (Commander.js CLI + TUI)
-├── ui/                      # (referenced in workspace but minimal)
-├── packs/                   # (referenced in workspace)
+├── core (removed)           # @anvil/core (schema, validation, gates)
+├── cli (removed)            # @anvil/cli (Commander.js CLI + TUI)
+├── ui (removed)             # Legacy UI root
+├── packs (removed)          # Legacy packs root
 ├── packages/
 │   ├── adapters/           # @anvil/adapters
 │   ├── aps/                # @anvil/aps
@@ -46,14 +46,14 @@ anvil-001/
 
 | Location                        | Package             | Status     |
 | ------------------------------- | ------------------- | ---------- |
-| `core/`                         | @anvil/core         | Production |
-| `cli/`                          | @anvil/cli          | Production |
+| legacy core root (removed)      | @anvil/core         | Production |
+| legacy cli root (removed)       | @anvil/cli          | Production |
 | `packages/adapters/`            | @anvil/adapters     | Production |
 | `packages/aps/`                 | @anvil/aps          | Production |
 | `packages/eslint-plugin-anvil/` | eslint-plugin-anvil | Production |
 | `packages/vscode-extension/`    | anvil-vscode        | Complete   |
-| `ui/`                           | @anvil/ui           | Minimal    |
-| `packs/`                        | @anvil/packs        | Minimal    |
+| legacy UI root (removed)        | @anvil/ui           | Minimal    |
+| legacy packs root (removed)     | @anvil/packs        | Minimal    |
 
 **Total: 8 workspace packages**
 
@@ -72,7 +72,7 @@ anvil-001/
 ```
 anvil/
 ├─ apps/
-│  ├─ anvil-cli/           # CLI entrypoint (moved from cli/)
+│  ├─ anvil-cli/           # CLI entrypoint
 │  ├─ anvil-api/           # NEW: API/gateway
 │  ├─ anvil-ui/            # NEW: UI for plans/runs/audits
 │  ├─ website/             # NEW: Marketing site
@@ -86,7 +86,7 @@ anvil/
 │     └─ oss-compat-e2e/
 │
 ├─ packages/
-│  ├─ anvil/               # SPLIT from core/
+│  ├─ anvil/               # Split from legacy core
 │  │  ├─ contracts/        # schemas/events/types
 │  │  ├─ ports/            # interfaces
 │  │  ├─ core/             # pure domain logic

@@ -1,4 +1,4 @@
-import { Tree, formatFiles, names, offsetFromRoot, joinPathFragments } from '@nx/devkit';
+import { Tree, formatFiles, offsetFromRoot, joinPathFragments } from '@nx/devkit';
 
 export interface PackageGeneratorSchema {
   name: string;
@@ -56,14 +56,6 @@ function normalizeOptions(tree: Tree, options: PackageGeneratorSchema): Normaliz
 }
 
 function addFiles(tree: Tree, options: NormalizedSchema) {
-  // Template options for future use with generateFiles
-  const _templateOptions = {
-    ...options,
-    ...names(options.name),
-    offsetFromRoot: offsetFromRoot(options.projectRoot),
-    template: '',
-  };
-
   // Create package.json
   const packageJson = {
     name: options.importPath,

@@ -75,7 +75,7 @@ function validateStackConfig(workspaceRoot: string): ValidationResult {
         severity: 'error',
         code: 'CONFIG_PARSE_ERROR',
         message: err,
-        path: path,
+        path: path ?? undefined,
       });
     }
   }
@@ -93,7 +93,7 @@ function validateStackConfig(workspaceRoot: string): ValidationResult {
       valid: true, // Not invalid, just unconfigured
       issues,
       summary: countIssues(issues),
-      configPath: path,
+      configPath: path ?? undefined,
     };
   }
 
@@ -110,32 +110,34 @@ function validateStackConfig(workspaceRoot: string): ValidationResult {
     }
   }
 
-  const stackConfig = config.stack;
+  const stackConfig = schemaResult.success ? schemaResult.data : undefined;
 
-  // Check layer dependencies
-  validateLayerDependencies(stackConfig, issues);
+  if (stackConfig) {
+    // Check layer dependencies
+    validateLayerDependencies(stackConfig, issues);
 
-  // Check validation settings
-  validateValidationSettings(stackConfig, issues);
+    // Check validation settings
+    validateValidationSettings(stackConfig, issues);
 
-  // Provenance integrity check (placeholder for future implementation)
-  if (stackConfig.validation?.check_provenance_integrity) {
-    // This would check actual provenance links in storage
-    // For now, just report that the check is enabled
-    issues.push({
-      severity: 'info',
-      code: 'PROVENANCE_CHECK_ENABLED',
-      message: 'Provenance integrity checking is enabled',
-    });
-  }
+    // Provenance integrity check (placeholder for future implementation)
+    if (stackConfig.validation?.check_provenance_integrity) {
+      // This would check actual provenance links in storage
+      // For now, just report that the check is enabled
+      issues.push({
+        severity: 'info',
+        code: 'PROVENANCE_CHECK_ENABLED',
+        message: 'Provenance integrity checking is enabled',
+      });
+    }
 
-  // Schema compatibility check (placeholder for future implementation)
-  if (stackConfig.validation?.check_schema_compatibility) {
-    issues.push({
-      severity: 'info',
-      code: 'SCHEMA_CHECK_ENABLED',
-      message: 'Schema compatibility checking is enabled',
-    });
+    // Schema compatibility check (placeholder for future implementation)
+    if (stackConfig.validation?.check_schema_compatibility) {
+      issues.push({
+        severity: 'info',
+        code: 'SCHEMA_CHECK_ENABLED',
+        message: 'Schema compatibility checking is enabled',
+      });
+    }
   }
 
   // Calculate if valid (no errors)
@@ -146,7 +148,7 @@ function validateStackConfig(workspaceRoot: string): ValidationResult {
     valid,
     issues,
     summary,
-    configPath: path,
+    configPath: path ?? undefined,
   };
 }
 

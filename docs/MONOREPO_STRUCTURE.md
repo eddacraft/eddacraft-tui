@@ -2,23 +2,31 @@
 
 This document describes the current and target monorepo structure.
 
-## Current Structure (v1.0)
+## Current Structure (migration state)
 
 ```
 anvil/
-├── cli/                 # @anvil/cli - Command-line interface
-├── core/                # @anvil/core - Schema, validation, gates
-├── ui/                  # @anvil/ui - UI components
-├── packs/               # @anvil/packs - Pack definitions
+├── apps/                # Deployable applications
+│   ├── anvil-cli/
+│   ├── anvil-api/
+│   ├── anvil-ui/
+│   ├── website/
+│   ├── docs-site/
+│   └── e2e/
 ├── packages/
-│   ├── adapters/        # @anvil/adapters - Format converters
-│   ├── aps/             # @anvil/aps - APS parser
+│   ├── anvil/
+│   ├── adapters/
+│   ├── aps/
+│   ├── edda-stack/
 │   ├── eslint-plugin-anvil/
+│   ├── kindling-integration/
+│   ├── platform/
+│   ├── shared/
+│   ├── tooling/
 │   └── vscode-extension/
-├── e2e/                 # Playwright E2E tests
+├── tools/               # Generators and scripts
 ├── docs/                # Internal documentation
-├── plans/               # APS planning specs
-└── scripts/             # Build utilities
+└── plans/               # APS planning specs
 ```
 
 ## Target Structure (v1.1+)
@@ -26,7 +34,7 @@ anvil/
 ```
 anvil/
 ├── apps/                    # Deployable applications
-│   ├── anvil-cli/          # CLI (migrate from cli/)
+│   ├── anvil-cli/          # CLI application
 │   ├── anvil-api/          # REST/GraphQL API
 │   ├── anvil-ui/           # Web UI
 │   ├── website/            # Marketing site
@@ -34,7 +42,7 @@ anvil/
 │   └── e2e/                # E2E test suites
 │
 ├── packages/
-│   ├── anvil/              # Core domain (split from core/)
+│   ├── anvil/              # Core domain
 │   │   ├── contracts/      # Schemas, events, types
 │   │   ├── ports/          # Interfaces
 │   │   ├── core/           # Pure domain logic
@@ -61,17 +69,17 @@ anvil/
 
 ## Migration Status
 
-| Component | Current              | Target                | Status            |
-| --------- | -------------------- | --------------------- | ----------------- |
-| CLI       | `cli/`               | `apps/anvil-cli/`     | Placeholder ready |
-| Core      | `core/`              | `packages/anvil/*`    | Placeholder ready |
-| Adapters  | `packages/adapters/` | `packages/adapters/*` | Placeholder ready |
-| API       | -                    | `apps/anvil-api/`     | Placeholder ready |
-| UI        | `ui/`                | `apps/anvil-ui/`      | Placeholder ready |
-| Website   | -                    | `apps/website/`       | Placeholder ready |
-| Docs site | -                    | `apps/docs-site/`     | Placeholder ready |
-| E2E       | `e2e/`               | `apps/e2e/*`          | Placeholder ready |
-| Scripts   | `scripts/`           | `tools/scripts/`      | Placeholder ready |
+| Component | Current              | Target                | Status   |
+| --------- | -------------------- | --------------------- | -------- |
+| CLI       | `apps/anvil-cli/`    | `apps/anvil-cli/`     | In place |
+| Core      | `packages/anvil/*`   | `packages/anvil/*`    | In place |
+| Adapters  | `packages/adapters/` | `packages/adapters/*` | In place |
+| API       | `apps/anvil-api/`    | `apps/anvil-api/`     | In place |
+| UI        | `apps/anvil-ui/`     | `apps/anvil-ui/`      | In place |
+| Website   | `apps/website/`      | `apps/website/`       | In place |
+| Docs site | `apps/docs-site/`    | `apps/docs-site/`     | In place |
+| E2E       | `apps/e2e/`          | `apps/e2e/*`          | In place |
+| Scripts   | `tools/scripts/`     | `tools/scripts/`      | In place |
 
 ## Migration Plan
 
@@ -82,5 +90,6 @@ The full migration is planned for v1.1. See:
 
 ## Workspace Configuration
 
-The `pnpm-workspace.yaml` already includes the target paths, so new packages can
-be created in the target locations immediately.
+The `pnpm-workspace.yaml` tracks `apps/*`, `packages/*`, and `tools/*` after
+removing legacy roots, so new packages can be created in the target locations
+immediately.

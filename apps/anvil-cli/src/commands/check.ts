@@ -7,8 +7,8 @@ import {
   createCacheProvider,
   getChangedFiles,
   type AnalyzeResult,
-  type Warning,
-} from '@anvil/core';
+} from '@anvil/runtime';
+import type { Warning } from '@anvil/core/antipattern';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
 

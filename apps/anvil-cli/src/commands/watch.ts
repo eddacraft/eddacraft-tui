@@ -166,7 +166,7 @@ export function createWatchCommand(): Command {
         }
 
         // Build effective config
-        const watchConfig: WatchConfig = {
+        const watchConfig = {
           enabled: true,
           patterns,
           exclude: excludePatterns,
@@ -178,11 +178,11 @@ export function createWatchCommand(): Command {
             unstagedOnly: options.noGitFilter !== true,
             includeUntracked:
               options.includeUntracked ??
-              savedConfig?.git.includeUntracked ??
+              savedConfig?.git?.includeUntracked ??
               defaultConfig.git.includeUntracked,
           },
           gateProfile: options.profile ?? savedConfig?.gateProfile,
-        };
+        } satisfies WatchConfig;
 
         // If a specific file is provided, watch only that file
         if (file) {

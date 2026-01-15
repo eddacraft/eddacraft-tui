@@ -18,66 +18,45 @@ lets us ship quickly while preparing for growth.
 
 ## Current State
 
-> **Updated:** 2026-01-14 (Phase 0 Discovery)
+> **Updated:** 2026-01-15 (post-cleanup)
 
 ```
 anvil/
-├── apps/                    # App scaffolds (READMEs only)
-│   ├── anvil-api/          # Placeholder
-│   ├── anvil-ui/           # Placeholder
-│   ├── docs-site/          # Placeholder
-│   ├── e2e/                # Placeholder
-│   └── website/            # Placeholder
-│
-├── cli/                     # @anvil/cli (production, ~6k lines)
-│
-├── core/                    # @anvil/core (monolithic, 41,580 lines)
-│   └── src/
-│       ├── antipattern/    # 2,010 lines - pattern detection
-│       ├── architecture/   # 6,469 lines - layer/boundary analysis
-│       ├── cache/          # 1,744 lines - caching layer
-│       ├── crypto/         # 405 lines - hashing utilities
-│       ├── drift/          # 3,060 lines - snapshot/drift reporting
-│       ├── explain/        # 1,407 lines - explain command
-│       ├── export/         # 2,817 lines - llms.txt, MCP export
-│       ├── gate/           # 16,757 lines - gate runner, checks, OPA
-│       ├── provenance/     # 1,274 lines - provenance tracking
-│       ├── schema/         # 651 lines - APS schemas
-│       ├── suppression/    # 1,595 lines - warning suppression
-│       ├── types/          # 278 lines - shared types
-│       ├── utils/          # 204 lines - utilities
-│       ├── validation/     # 917 lines - APS validation
-│       ├── warnings/       # 564 lines - warning IDs
-│       └── watch/          # 1,168 lines - file watching
+├── apps/                    # Deployable applications
+│   ├── anvil-cli/          # CLI
+│   ├── anvil-api/          # API gateway
+│   ├── anvil-ui/           # Web UI
+│   ├── website/            # Marketing site
+│   ├── docs-site/          # Public docs
+│   └── e2e/                # E2E suites
 │
 ├── packages/
+│   ├── anvil/              # Core domain modules
 │   ├── adapters/           # @anvil/adapters (production)
-│   ├── anvil/              # Placeholder (README only)
 │   ├── aps/                # @anvil/aps (production)
 │   ├── edda-stack/         # @anvil/edda-stack (10,422 lines) ★
 │   │   ├── contracts/      # Schemas, types, events, ports
 │   │   └── testing/        # Mocks, fixtures, validators
 │   ├── eslint-plugin-anvil/
-│   ├── kindling-integration/ # Kindling contracts (NEW)
+│   ├── kindling-integration/
 │   ├── platform/           # Placeholder (README only)
 │   ├── shared/             # Placeholder (README only)
 │   ├── tooling/            # Placeholder (README only)
 │   └── vscode-extension/
 │
-├── packs/                   # @anvil/packs
-├── scripts/                 # Build utilities
-├── tools/                   # Generators (placeholder)
-└── docs/                    # Internal docs
+├── tools/                   # Generators and scripts
+├── docs/                    # Internal docs
+└── plans/                   # APS planning specs
 ```
 
 **Issues with current structure:**
 
-- `core/` is monolithic — mixes schemas, domain logic, I/O, and orchestration
-- No separation between apps and libraries
+- Legacy core (now `packages/anvil`) remains monolithic — mixes schemas, domain logic, I/O, and orchestration
+- App/package separation still evolving across tooling
 - Adapters bundled together instead of per-integration
 - No shared tooling configuration packages
 - Scripts scattered rather than organised
-- Placeholder directories exist but are empty (apps/, packages/anvil, platform, shared, tooling)
+- Placeholder directories remain (`packages/platform`, `packages/shared`, `packages/tooling`)
 - edda-stack exists with 10k+ lines but not integrated into migration plan
 - kindling-integration exists but not documented in plan
 
@@ -86,7 +65,7 @@ anvil/
 ```
 anvil/
 ├── apps/                    # Deployable applications
-│   ├── anvil-cli/          # CLI (from cli/)
+│   ├── anvil-cli/          # CLI application
 │   ├── anvil-api/          # API gateway (new)
 │   ├── anvil-ui/           # Web UI (new)
 │   ├── website/            # Marketing (new)
@@ -94,7 +73,7 @@ anvil/
 │   └── e2e/                # E2E test suites
 │
 ├── packages/
-│   ├── anvil/              # Core domain (from core/)
+│   ├── anvil/              # Core domain
 │   │   ├── contracts/      # Schemas, events, types
 │   │   ├── ports/          # Interfaces only
 │   │   ├── core/           # Pure domain logic
@@ -149,7 +128,7 @@ anvil/
 ### In Scope
 
 - Moving existing packages to new locations
-- Splitting `core/` into layered packages
+- Splitting legacy core into layered packages
 - Splitting `adapters/` into per-integration packages
 - Creating Nx project configurations
 - Updating import paths (automated via codemod)
@@ -626,6 +605,46 @@ packages/adapters/
 - Updated README.md with new project structure tree
 - Fixed CLI reference link (cli/ -> apps/anvil-cli/)
 - Added new packages section (anvil/, platform/, tooling/, tools/)
+
+### Phase 7: Cleanup & Alignment
+
+> **Status:** Proposed
+
+#### MONO-019: Legacy root cleanup
+
+- **Intent:** Remove or relocate remaining legacy roots to target layout
+- **Expected Outcome:** Root directories `packs/`, `ui/`, `archive/` no longer exist; content moved under `apps/` or `packages/`
+- **Validation:** `test ! -d packs && test ! -d ui && test ! -d archive`
+- **Status:** Ready
+- **Priority:** high
+- **Dependencies:** MONO-018
+
+#### MONO-020: Workspace alignment
+
+- **Intent:** Align workspace configuration to the target layout
+- **Expected Outcome:** Workspace configuration references only `apps/*`, `packages/*`, `tools/*`
+- **Validation:** `rg -n "packs|ui|archive" pnpm-workspace.yaml nx.json project.json`
+- **Status:** Ready
+- **Priority:** medium
+- **Dependencies:** MONO-019
+
+#### MONO-021: Root artefact cleanup
+
+- **Intent:** Remove stale generated artefacts from repo root
+- **Expected Outcome:** `package-lock.json`, `tsconfig.tsbuildinfo`, `test-results/`, `node_modules/` are absent
+- **Validation:** `test ! -f package-lock.json && test ! -f tsconfig.tsbuildinfo && test ! -d test-results && test ! -d node_modules`
+- **Status:** Ready
+- **Priority:** medium
+- **Dependencies:** MONO-020
+
+#### MONO-022: GitHub template parity
+
+- **Intent:** Provide the standard issue and PR templates
+- **Expected Outcome:** `.github/ISSUE_TEMPLATE/` and `.github/PULL_REQUEST_TEMPLATE.md` exist
+- **Validation:** `test -d .github/ISSUE_TEMPLATE && test -f .github/PULL_REQUEST_TEMPLATE.md`
+- **Status:** Ready
+- **Priority:** low
+- **Dependencies:** MONO-020
 
 ## Risks
 

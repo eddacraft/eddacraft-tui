@@ -22,22 +22,10 @@ lists that provide context but are no longer actively maintained.
   (superseded by
   [cli-integration-complete.md](../status/cli-integration-complete.md))
 
-### Old Plans
+### Old Plans and TODOs
 
-See [../archive/old-plans/](../../archive/old-plans/) for historical planning
-documents:
-
-- MVP_PLAN.md
-- PLAN-20250930.md
-- PLAN-MVP.md
-- TODO_PHASE_1.md
-
-### Old TODOs
-
-See [../archive/old-todo/](../../archive/old-todo/) for historical task lists:
-
-- PROJECT_TODO.md
-- TODO-20250930.md
+Historical planning and task lists were removed during the monorepo cleanup. Use
+git history if you need to recover older plans or TODOs.
 
 ## When to Archive
 

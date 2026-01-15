@@ -63,9 +63,6 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.0.17
         version: 4.0.17(vitest@4.0.17)
-      '@vitest/ui':
-        specifier: ^4.0.17
-        version: 4.0.17(vitest@4.0.17)
       eslint:
         specifier: ^9.39.2
         version: 9.39.2
@@ -138,6 +135,12 @@ importers:
       '@anvil/core':
         specifier: workspace:*
         version: link:../../packages/anvil/core
+      '@anvil/edda-stack':
+        specifier: workspace:*
+        version: link:../../packages/edda-stack
+      '@anvil/runtime':
+        specifier: workspace:*
+        version: link:../../packages/anvil/runtime
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
@@ -190,55 +193,6 @@ importers:
       node-pty:
         specifier: ^1.1.0
         version: 1.1.0
-
-  core:
-    dependencies:
-      ajv:
-        specifier: ^8.17.1
-        version: 8.17.1
-      ajv-formats:
-        specifier: ^3.0.1
-        version: 3.0.1(ajv@8.17.1)
-      eslint:
-        specifier: ^9.39.2
-        version: 9.39.2
-      js-yaml:
-        specifier: ^4.1.1
-        version: 4.1.1
-      minimatch:
-        specifier: ^9.0.5
-        version: 9.0.5
-      safe-regex2:
-        specifier: ^5.0.0
-        version: 5.0.0
-      shell-quote:
-        specifier: ^1.8.2
-        version: 1.8.3
-      tar:
-        specifier: ^7.4.3
-        version: 7.5.2
-      zod:
-        specifier: ^4.3.5
-        version: 4.3.5
-    devDependencies:
-      '@types/js-yaml':
-        specifier: ^4.0.9
-        version: 4.0.9
-      '@types/json-schema':
-        specifier: ^7.0.15
-        version: 7.0.15
-      '@types/minimatch':
-        specifier: ^6.0.0
-        version: 6.0.0
-      '@types/shell-quote':
-        specifier: ^1.7.5
-        version: 1.7.5
-      tsx:
-        specifier: ^4.21.0
-        version: 4.21.0
-      vitest:
-        specifier: ^4.0.17
-        version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
 
   packages/adapters:
     dependencies:
@@ -319,7 +273,13 @@ importers:
       minimatch:
         specifier: ^9.0.5
         version: 9.0.5
+      shell-quote:
+        specifier: ^1.8.1
+        version: 1.8.3
     devDependencies:
+      '@types/shell-quote':
+        specifier: ^1.7.1
+        version: 1.7.5
       vitest:
         specifier: ^4.0.17
         version: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
@@ -504,12 +464,6 @@ importers:
         specifier: ^0.27.2
         version: 0.27.2
 
-  packs:
-    dependencies:
-      '@anvil/core':
-        specifier: workspace:*
-        version: link:../packages/anvil/core
-
   tools/codemods:
     dependencies:
       chalk:
@@ -547,12 +501,6 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-
-  ui:
-    dependencies:
-      '@anvil/core':
-        specifier: workspace:*
-        version: link:../packages/anvil/core
 
 packages:
   '@alcalzone/ansi-tokenize@0.2.2':
@@ -3838,17 +3786,6 @@ packages:
         integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==,
       }
     engines: { node: '>= 14' }
-
-  ajv-formats@3.0.1:
-    resolution:
-      {
-        integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==,
-      }
-    peerDependencies:
-      ajv: ^8.0.0
-    peerDependenciesMeta:
-      ajv:
-        optional: true
 
   ajv@6.12.6:
     resolution:
@@ -8651,13 +8588,6 @@ packages:
       }
     engines: { node: '>=18' }
 
-  ret@0.5.0:
-    resolution:
-      {
-        integrity: sha512-I1XxrZSQ+oErkRR4jYbAyEEu2I0avBvvMM5JN+6EBprOGRCs63ENqZ3vjavq8fBw2+62G5LF5XelKwuJpcvcxw==,
-      }
-    engines: { node: '>=10' }
-
   reusify@1.1.0:
     resolution:
       {
@@ -8752,12 +8682,6 @@ packages:
         integrity: sha512-x/+Cz4YrimQxQccJf5mKEbIa1NzeCRNI5Ecl/ekmlYaampdNLPalVyIcCZNNH3MvmqBugV5TMYZXv0ljslUlaw==,
       }
     engines: { node: '>= 0.4' }
-
-  safe-regex2@5.0.0:
-    resolution:
-      {
-        integrity: sha512-YwJwe5a51WlK7KbOJREPdjNrpViQBI3p4T50lfwPuDhZnE3XGVTlGvi+aolc5+RvxDD6bnUmjVsU9n1eboLUYw==,
-      }
 
   safe-stable-stringify@2.5.0:
     resolution:
@@ -11753,7 +11677,8 @@ snapshots:
     dependencies:
       playwright: 1.57.0
 
-  '@polka/url@1.0.0-next.29': {}
+  '@polka/url@1.0.0-next.29':
+    optional: true
 
   '@rollup/rollup-android-arm-eabi@4.54.0':
     optional: true
@@ -12505,6 +12430,7 @@ snapshots:
       tinyglobby: 0.2.15
       tinyrainbow: 3.0.3
       vitest: 4.0.17(@types/node@25.0.7)(@vitest/ui@4.0.17)(happy-dom@20.1.0)(tsx@4.21.0)(yaml@2.8.2)
+    optional: true
 
   '@vitest/utils@4.0.17':
     dependencies:
@@ -12630,10 +12556,6 @@ snapshots:
       - supports-color
 
   agent-base@7.1.4: {}
-
-  ajv-formats@3.0.1(ajv@8.17.1):
-    optionalDependencies:
-      ajv: 8.17.1
 
   ajv@6.12.6:
     dependencies:
@@ -13787,7 +13709,8 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.3
 
-  fflate@0.8.2: {}
+  fflate@0.8.2:
+    optional: true
 
   figures@3.2.0:
     dependencies:
@@ -15175,7 +15098,8 @@ snapshots:
 
   mkdirp@1.0.4: {}
 
-  mrmime@2.0.1: {}
+  mrmime@2.0.1:
+    optional: true
 
   ms@2.0.0: {}
 
@@ -15856,8 +15780,6 @@ snapshots:
       onetime: 7.0.0
       signal-exit: 4.1.0
 
-  ret@0.5.0: {}
-
   reusify@1.1.0: {}
 
   rfdc@1.4.1: {}
@@ -15935,10 +15857,6 @@ snapshots:
       call-bound: 1.0.4
       es-errors: 1.3.0
       is-regex: 1.2.1
-
-  safe-regex2@5.0.0:
-    dependencies:
-      ret: 0.5.0
 
   safe-stable-stringify@2.5.0: {}
 
@@ -16076,6 +15994,7 @@ snapshots:
       '@polka/url': 1.0.0-next.29
       mrmime: 2.0.1
       totalist: 3.0.1
+    optional: true
 
   slash@3.0.0: {}
 
@@ -16385,7 +16304,8 @@ snapshots:
 
   toidentifier@1.0.1: {}
 
-  totalist@3.0.1: {}
+  totalist@3.0.1:
+    optional: true
 
   tough-cookie@5.1.2:
     dependencies:

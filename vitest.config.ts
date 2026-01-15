@@ -24,22 +24,18 @@ export default defineConfig({
       // New monorepo structure
       'packages/anvil/*/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'apps/anvil-cli/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'ui/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packs/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/adapters/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/vscode-extension/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/aps/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/edda-stack/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      // Archive excluded - migration complete, legacy code frozen for reference
-      // 'archive/legacy-core/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
       '**/.nx/**',
       '**/playwright-report/**',
-      // Archive tests excluded - legacy code frozen post-migration
-      'archive/**',
+      // Docs archive excluded from test discovery
+      'docs/archive/**',
     ],
   },
   resolve: {
@@ -51,8 +47,6 @@ export default defineConfig({
       '@anvil/runtime': resolve(__dirname, './packages/anvil/runtime/src'),
       '@anvil/policy': resolve(__dirname, './packages/anvil/policy/src'),
       '@anvil/cli': resolve(__dirname, './apps/anvil-cli/src'),
-      '@anvil/ui': resolve(__dirname, './ui/src'),
-      '@anvil/packs': resolve(__dirname, './packs/src'),
       '@anvil/adapters': resolve(__dirname, './packages/adapters/src'),
       '@anvil/aps': resolve(__dirname, './packages/aps/src'),
       '@anvil/edda-stack': resolve(__dirname, './packages/edda-stack/src'),

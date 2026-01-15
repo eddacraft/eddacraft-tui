@@ -19,9 +19,7 @@ packages:
   # Tools
   - tools/*
   # Legacy (to be migrated)
-  - ui
   - core
-  - packs
 
 ignoredBuiltDependencies:
   - '@devm33/node-pty'

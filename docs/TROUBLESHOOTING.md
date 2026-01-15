@@ -385,14 +385,14 @@ pnpm unlink:cli
 **Option 2** - Use directly:
 
 ```bash
-cd cli
+cd apps/anvil-cli
 node dist/index.js validate spec.md
 ```
 
 **Option 3** - Use npx:
 
 ```bash
-cd cli
+cd apps/anvil-cli
 npx tsx src/index.ts validate spec.md
 ```
 
@@ -1018,10 +1018,10 @@ $ anvil export temp.json --to speckit --output ./output/
 
 ```bash
 # Keep APS as source of truth
-anvil export spec.md --to aps --output archive/spec.aps.json
+anvil export spec.md --to aps --output output/spec.aps.json
 
 # Generate SpecKit for viewing
-anvil export archive/spec.aps.json --to speckit --output ./specs/
+anvil export output/spec.aps.json --to speckit --output ./specs/
 ```
 
 **Solution 2** - Improve source format:

@@ -32,7 +32,7 @@ real-time feedback during validation and gate execution.
   architecture
 - Graceful degradation to basic CLI output when TTY unavailable
 - Opt-in via `--tui` flag with auto-detection
-- Separate `@anvil/ui` package for clean separation of concerns
+- TUI module co-located under `apps/anvil-cli` for tighter integration
 
 ### 2. Execution Steps: `plans/execution/TUI-001.steps.md` (578 lines)
 
@@ -49,7 +49,7 @@ Detailed implementation guide covering:
 
 **Key deliverables:**
 
-- Functional `@anvil/ui` package
+- Functional TUI module under `apps/anvil-cli`
 - TTY detection logic with auto-fallback
 - Reusable component library
 - 100% test coverage for utilities
@@ -112,19 +112,18 @@ Comprehensive guide for building the interactive watch mode dashboard:
 **Trade-off:** Could surprise users expecting simple output (mitigated by clear
 docs and obvious keyboard shortcuts)
 
-### D-003: Separate `@anvil/ui` Package
+### D-003: Co-locate with CLI
 
-**Chosen:** Implement TUI in dedicated package, not in CLI
+**Chosen:** Implement TUI inside `apps/anvil-cli`, not as a separate package
 
 **Rationale:**
 
-- Clear separation of concerns
-- Optional dependency (not needed in CI-only environments)
-- Reusable components for future web dashboard
-- Smaller CLI bundle when TUI features not used
+- Keeps TUI behaviour close to CLI command handling
+- Avoids additional workspace package overhead
+- Simplifies dependency management for Ink
 
-**Trade-off:** Additional package to maintain (acceptable — follows existing
-monorepo pattern)
+**Trade-off:** Larger CLI package footprint and less isolation for future web UI
+reuse
 
 ## Implementation Roadmap
 
@@ -133,7 +132,7 @@ monorepo pattern)
 - Set up Ink infrastructure
 - Implement TTY detection
 - Build basic reusable components
-- **Outcome:** `@anvil/ui` package ready for use
+- **Outcome:** TUI module under `apps/anvil-cli` ready for use
 
 ### Phase 2: Watch Dashboard (Sprint 2, TUI-002)
 
@@ -166,7 +165,7 @@ monorepo pattern)
 
 ## Dependencies Required
 
-### New Dependencies for `@anvil/ui`
+### New Dependencies for anvil-cli TUI
 
 ```json
 {
@@ -187,15 +186,8 @@ monorepo pattern)
 
 ### CLI Integration
 
-```json
-{
-  "@anvil/cli": {
-    "dependencies": {
-      "@anvil/ui": "workspace:*"
-    }
-  }
-}
-```
+TUI components live under `apps/anvil-cli/src/tui`, so no workspace dependency
+is required.
 
 ## Success Metrics
 

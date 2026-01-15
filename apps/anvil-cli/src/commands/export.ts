@@ -14,7 +14,7 @@ import {
   formatAsLlmsTxt,
   formatAsMcpResourceJson,
   formatAsPrompt,
-} from '@anvil/core';
+} from '@anvil/runtime';
 import type { ExportOptions } from '../types/command-options.js';
 
 export function createExportCommand(): Command {

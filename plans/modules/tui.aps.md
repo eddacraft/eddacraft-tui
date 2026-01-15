@@ -167,7 +167,7 @@ function shouldUseTUI(options: CommandOptions): boolean {
 **Tasks:**
 
 - [ ] Install Ink and dependencies (`ink`, `ink-text-input`, `ink-spinner`)
-- [ ] Create `@anvil/ui` package structure
+- [ ] Create TUI module under `apps/anvil-cli`
 - [ ] Implement `shouldUseTUI()` detection function
 - [ ] Build base TUI component wrapper
 - [ ] Create simple progress bar component
@@ -176,20 +176,19 @@ function shouldUseTUI(options: CommandOptions): boolean {
 **Files:**
 
 ```
-ui/
-├── src/
-│   ├── index.ts
-│   ├── components/
-│   │   ├── ProgressBar.tsx
-│   │   ├── StatusBadge.tsx
-│   │   └── KeyboardShortcuts.tsx
-│   ├── utils/
-│   │   ├── tty-detection.ts
-│   │   └── terminal-size.ts
-│   └── __tests__/
-│       └── components.test.tsx
-├── package.json
-└── tsconfig.json
+apps/anvil-cli/
+└── src/
+    └── tui/
+        ├── index.ts
+        ├── components/
+        │   ├── ProgressBar.tsx
+        │   ├── StatusBadge.tsx
+        │   └── KeyboardShortcuts.tsx
+        ├── utils/
+        │   ├── tty-detection.ts
+        │   └── terminal-size.ts
+        └── __tests__/
+            └── components.test.tsx
 ```
 
 ### Phase 2: Watch Dashboard (Sprint 2)
@@ -350,21 +349,20 @@ disable.
 - Could surprise users expecting simple output
 - Mitigated by clear docs and obvious keyboard shortcuts
 
-### D-003: Separate Package
+### D-003: Co-locate with CLI
 
-**Decision:** Implement TUI in `@anvil/ui` package, keep CLI separate.
+**Decision:** Implement TUI inside `apps/anvil-cli` to avoid a separate package.
 
 **Rationale:**
 
-- Clear separation of concerns
-- Optional dependency (TUI not needed in CI)
-- Reusable components for future web dashboard
-- Smaller CLI bundle when TUI not used
+- Keeps TUI behaviour close to CLI command handling
+- Avoids additional workspace package overhead
+- Simplifies dependency management for Ink
 
 **Trade-offs:**
 
-- Additional package to maintain
-- Build complexity (TypeScript + React JSX)
+- Larger CLI package footprint
+- Less isolation for potential future web UI reuse
 
 ## Dependencies
 
@@ -372,7 +370,7 @@ disable.
 
 ```json
 {
-  "@anvil/ui": {
+  "@anvil/cli": {
     "dependencies": {
       "ink": "^5.0.1",
       "ink-spinner": "^5.0.0",
@@ -385,15 +383,8 @@ disable.
 
 **CLI Integration:**
 
-```json
-{
-  "@anvil/cli": {
-    "dependencies": {
-      "@anvil/ui": "workspace:*"
-    }
-  }
-}
-```
+TUI components live under `apps/anvil-cli/src/tui`, so no cross-package
+dependency is required.
 
 ## Testing Strategy
 
@@ -427,7 +418,7 @@ disable.
 
 ### Developer Documentation
 
-- [ ] `ui/README.md` — Component API documentation
+- [ ] `apps/anvil-cli/src/tui/README.md` — Component API documentation
 - [ ] Architecture diagrams
 - [ ] Contributing guide for new components
 

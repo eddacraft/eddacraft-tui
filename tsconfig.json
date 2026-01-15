@@ -10,8 +10,6 @@
   ],
   "references": [
     { "path": "./apps/anvil-cli" },
-    { "path": "./ui" },
-    { "path": "./packs" },
     { "path": "./packages/adapters" },
     { "path": "./packages/anvil/contracts" },
     { "path": "./packages/anvil/ports" },

@@ -18,7 +18,9 @@ import {
   BundleManager,
   getBundleManager,
   type BundleAuthConfig,
+  type BundleConfig,
   type PolicyBundleConfig,
+  type PolicyVerificationConfig,
 } from '@anvil/runtime';
 
 /**
@@ -629,6 +631,75 @@ function getBundleStatus(entry: { expires_at: number; signature_verified: boolea
   return { text: 'synced', color: chalk.cyan };
 }
 
+function resolveBundleName(bundle: PolicyBundleConfig): string {
+  return bundle.name ?? deriveBundleName(bundle.url);
+}
+
+function toBundleAuthConfig(
+  auth: PolicyBundleConfig['auth'] | undefined
+): BundleAuthConfig | undefined {
+  if (!auth) {
+    return undefined;
+  }
+
+  if (auth.type === 'basic') {
+    const basicAuth: BundleAuthConfig = {
+      type: 'basic',
+    };
+
+    if (auth.username) {
+      basicAuth.username = auth.username;
+    }
+
+    if (auth.password) {
+      basicAuth.password_env = auth.password;
+    }
+
+    return basicAuth;
+  }
+
+  if (auth.type === 'bearer') {
+    const bearerAuth: BundleAuthConfig = {
+      type: 'bearer',
+    };
+
+    if (auth.token) {
+      bearerAuth.token_env = auth.token;
+    }
+
+    return bearerAuth;
+  }
+
+  return undefined;
+}
+
+function toBundleConfig(
+  bundle: PolicyBundleConfig,
+  verification: PolicyVerificationConfig | undefined
+): BundleConfig {
+  const name = resolveBundleName(bundle);
+  const config: BundleConfig = {
+    name,
+    url: bundle.url,
+  };
+
+  if (bundle.polling_interval !== undefined) {
+    config.refresh_interval_ms = bundle.polling_interval;
+  }
+
+  const auth = toBundleAuthConfig(bundle.auth);
+  if (auth) {
+    config.auth = auth;
+  }
+
+  const signatureKey = verification?.keys?.[name];
+  if (signatureKey) {
+    config.signature_key = signatureKey;
+  }
+
+  return config;
+}
+
 /**
  * Create bundle list subcommand
  */
@@ -664,7 +735,8 @@ function createBundleListCommand(): Command {
 
       // Print each bundle
       for (const bundle of bundles) {
-        const entry = await bundleManager.getBundleEntry(bundle.name);
+        const bundleName = resolveBundleName(bundle);
+        const entry = await bundleManager.getBundleEntry(bundleName);
         const lastSync = entry ? formatRelativeTime(entry.downloaded_at) : '-';
         const status = getBundleStatus(entry);
         const enabledIndicator = bundle.enabled === false ? chalk.dim('[disabled] ') : '';
@@ -677,7 +749,7 @@ function createBundleListCommand(): Command {
         console.log(
           '  ' +
             enabledIndicator +
-            chalk.cyan(bundle.name.padEnd(20 - enabledIndicator.length)) +
+            chalk.cyan(bundleName.padEnd(20 - enabledIndicator.length)) +
             chalk.dim(displayUrl.padEnd(40)) +
             chalk.dim(lastSync.padEnd(15)) +
             status.color(status.text)
@@ -754,7 +826,7 @@ function createBundleAddCommand(): Command {
           const bundleConfig: PolicyBundleConfig = {
             name: bundleName,
             url,
-            refresh_interval_ms: parseInt(options.refresh || '300000', 10),
+            polling_interval: parseInt(options.refresh || '300000', 10),
             enabled: true,
           };
 
@@ -764,12 +836,21 @@ function createBundleAddCommand(): Command {
               spinner.fail(`Key file not found: ${options.key}`);
               process.exit(1);
             }
-            bundleConfig.signature_key = readFileSync(options.key, 'utf-8').trim();
+            const signatureKey = readFileSync(options.key, 'utf-8').trim();
+
+            if (!config.policy.verification) {
+              config.policy.verification = {};
+            }
+            if (!config.policy.verification.keys) {
+              config.policy.verification.keys = {};
+            }
+            config.policy.verification.keys[bundleName] = signatureKey;
+            config.policy.verification.require_signatures = true;
           }
 
           // Add auth config if provided
           if (options.authUser || options.authPassEnv || options.authTokenEnv) {
-            const auth: BundleAuthConfig = {
+            const auth: PolicyBundleConfig['auth'] = {
               type: options.authTokenEnv ? 'bearer' : 'basic',
             };
 
@@ -777,10 +858,10 @@ function createBundleAddCommand(): Command {
               auth.username = options.authUser;
             }
             if (options.authPassEnv) {
-              auth.password_env = options.authPassEnv;
+              auth.password = options.authPassEnv;
             }
             if (options.authTokenEnv) {
-              auth.token_env = options.authTokenEnv;
+              auth.token = options.authTokenEnv;
             }
 
             bundleConfig.auth = auth;
@@ -797,11 +878,12 @@ function createBundleAddCommand(): Command {
             const syncSpinner = ora('Downloading bundle...').start();
 
             try {
+              const bundleManagerConfig = toBundleConfig(bundleConfig, config.policy?.verification);
               const bundleManager = new BundleManager({
-                bundles: [bundleConfig],
+                bundles: [bundleManagerConfig],
               });
 
-              const result = await bundleManager.downloadBundle(bundleName);
+              const result = await bundleManager.downloadBundle(bundleManagerConfig.name);
 
               if (result.success) {
                 syncSpinner.succeed(`Bundle downloaded to ${result.path}`);
@@ -873,11 +955,30 @@ function createBundleRemoveCommand(): Command {
         const config = configManager.loadConfig();
 
         const bundles = config.policy?.bundles || [];
-        const bundleIndex = bundles.findIndex((b) => b.name === name);
+        const bundleIndex = bundles.findIndex((b) => resolveBundleName(b) === name);
 
         if (bundleIndex < 0) {
           spinner.fail(`Bundle '${name}' not found`);
+          console.log(chalk.dim('\nUse `anvil policy bundle list` to see available bundles'));
           process.exit(1);
+        }
+
+        const bundleName = resolveBundleName(bundles[bundleIndex]);
+
+        // Remove from config
+        bundles.splice(bundleIndex, 1);
+        if (config.policy) {
+          config.policy.bundles = bundles;
+        }
+        configManager.saveConfig(config);
+
+        // Clear cache unless --keep-cache
+        if (!options.keepCache) {
+          const bundleManager = getBundleManager();
+          await bundleManager.invalidateBundle(bundleName);
+          spinner.succeed(`Removed bundle '${bundleName}' and cleared cache`);
+        } else {
+          spinner.succeed(`Removed bundle '${bundleName}' (cache preserved)`);
         }
 
         // Remove from config
@@ -922,6 +1023,7 @@ function createBundleSyncCommand(): Command {
         const config = configManager.loadConfig();
 
         let bundles = config.policy?.bundles || [];
+        const verification = config.policy?.verification;
 
         if (bundles.length === 0) {
           spinner.warn('No bundles configured');
@@ -931,7 +1033,7 @@ function createBundleSyncCommand(): Command {
 
         // Filter to specific bundle if --name provided
         if (options.name) {
-          bundles = bundles.filter((b) => b.name === options.name);
+          bundles = bundles.filter((b) => resolveBundleName(b) === options.name);
           if (bundles.length === 0) {
             spinner.fail(`Bundle '${options.name}' not found`);
             process.exit(1);
@@ -946,20 +1048,22 @@ function createBundleSyncCommand(): Command {
           return;
         }
 
+        const bundleConfigs = enabledBundles.map((bundle) => toBundleConfig(bundle, verification));
+
         // If force, clear cache first
         if (options.force) {
           const bundleManager = getBundleManager();
-          for (const bundle of enabledBundles) {
+          for (const bundle of bundleConfigs) {
             await bundleManager.invalidateBundle(bundle.name);
           }
         }
 
         // Create bundle manager with configured bundles
         const bundleManager = new BundleManager({
-          bundles: enabledBundles,
+          bundles: bundleConfigs,
         });
 
-        spinner.text = `Syncing ${enabledBundles.length} bundle(s)...`;
+        spinner.text = `Syncing ${bundleConfigs.length} bundle(s)...`;
 
         const results = await bundleManager.syncAll();
 

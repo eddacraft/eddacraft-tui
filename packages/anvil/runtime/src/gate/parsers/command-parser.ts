@@ -36,6 +36,8 @@ interface OperatorToken {
   op: string;
 }
 
+type ShellToken = string | GlobToken | OperatorToken | Record<string, unknown>;
+
 function isGlobToken(token: unknown): token is GlobToken {
   return (
     typeof token === 'object' &&
@@ -55,9 +57,7 @@ function isOperatorToken(token: unknown): token is OperatorToken {
   );
 }
 
-function splitByOperators(
-  tokens: ReturnType<typeof shellParse>
-): Array<{ tokens: string[]; operator?: string }> {
+function splitByOperators(tokens: ShellToken[]): Array<{ tokens: string[]; operator?: string }> {
   const commands: Array<{ tokens: string[]; operator?: string }> = [];
   let currentTokens: string[] = [];
   let lastOperator: string | undefined;
@@ -84,7 +84,7 @@ function splitByOperators(
 }
 
 function tokenise(cmd: string): string[] {
-  const parsed = shellParse(cmd);
+  const parsed = shellParse(cmd) as ShellToken[];
   return parsed
     .map((token) => {
       if (typeof token === 'string') {
@@ -103,7 +103,7 @@ function tokeniseWithOperators(cmd: string): {
   isCompound: boolean;
   subCommands: Array<{ tokens: string[]; operator?: string }>;
 } {
-  const parsed = shellParse(cmd);
+  const parsed = shellParse(cmd) as ShellToken[];
   const hasOperator = parsed.some(isOperatorToken);
 
   if (!hasOperator) {

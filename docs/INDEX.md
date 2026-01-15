@@ -86,8 +86,6 @@ Historical documents, old plans, and superseded documentation.
 - [Archive Index](archive/README.md)
 - [Integration Gaps Analysis](archive/integration-gaps.md) - Historical analysis
 - [RFC: Spec Tools Adoption](archive/rfc-spec-tools-adoption.md) - Initial RFC
-- [Old Plans](archive/old-plans/) - Superseded planning documents
-- [Old TODOs](archive/old-todo/) - Historical task lists
 
 ## Document Status Legend
 
@@ -137,7 +135,7 @@ Historical documents, old plans, and superseded documentation.
 ### Updating Existing Documentation
 
 1. Update the "Last Updated" date
-2. If significantly changed, move old version to archive/
+2. If significantly changed, move old version to docs/archive/
 3. Update links if file path changes
 4. Keep CHANGELOG.md current
 

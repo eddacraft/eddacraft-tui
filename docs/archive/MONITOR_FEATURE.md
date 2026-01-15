@@ -1209,7 +1209,7 @@ cli/src/monitor/
 │   ├── safe-fixes.ts       # Safe fix implementations
 │   ├── ai-fixes.ts         # AI-generated fixes
 │   └── git.ts              # Git operations
-├── ui/
+├── tui/
 │   ├── terminal.ts         # Terminal UI (ora)
 │   ├── reporter.ts         # Issue reporting
 │   ├── interactive.ts      # Interactive prompts

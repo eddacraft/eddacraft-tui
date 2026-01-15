@@ -12,7 +12,12 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { GateConfigManager } from '@anvil/runtime';
-import { getEnabledLayerCount, isLayerEnabled, type StackConfig } from '@anvil/edda-stack';
+import {
+  StackConfigSchema,
+  getEnabledLayerCount,
+  isLayerEnabled,
+  type StackConfig,
+} from '@anvil/edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { success, info, warning } from '../../utils/output.js';
 
@@ -87,7 +92,7 @@ function getStackStatus(workspaceRoot: string): StackStatusResult {
   const configManager = new GateConfigManager(workspaceRoot);
   const { config, path } = configManager.loadConfigWithDetails();
 
-  const stackConfig = config.stack;
+  const stackConfig = config.stack ? StackConfigSchema.parse(config.stack) : undefined;
   const configured = stackConfig !== undefined;
 
   return {
@@ -102,7 +107,7 @@ function getStackStatus(workspaceRoot: string): StackStatusResult {
       check_schema_compatibility: stackConfig?.validation?.check_schema_compatibility ?? true,
     },
     enabledCount: getEnabledLayerCount(stackConfig),
-    configPath: path,
+    configPath: path ?? undefined,
   };
 }
 
