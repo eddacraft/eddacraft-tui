@@ -1,6 +1,7 @@
 # Tools
 
-Development tools, generators, codemods, and infrastructure for the Anvil monorepo.
+Development tools, generators, codemods, and infrastructure for the Anvil
+monorepo.
 
 ## Structure
 
@@ -29,7 +30,8 @@ pnpm generate:anvil-package <name>
 ### Available Generators
 
 - `@anvil/generators:package` - Create new package in any directory
-- `@anvil/generators:anvil-package` - Create new @anvil/* package with proper dependencies
+- `@anvil/generators:anvil-package` - Create new @anvil/\* package with proper
+  dependencies
 
 ## @anvil/codemods
 

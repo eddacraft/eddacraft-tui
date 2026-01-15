@@ -44,7 +44,11 @@ const content = await storage.read('file.txt');
 Cryptographic utilities for hashing and verification.
 
 ```typescript
-import { generateHash, verifyHash, generatePlanId } from '@anvil/platform-crypto';
+import {
+  generateHash,
+  verifyHash,
+  generatePlanId,
+} from '@anvil/platform-crypto';
 
 const hash = generateHash({ key: 'value' });
 const isValid = verifyHash({ key: 'value' }, hash);
@@ -53,14 +57,14 @@ const planId = generatePlanId(); // 'aps-a1b2c3d4'
 
 ## Migration Status
 
-| Package   | Status   | Source               |
-| --------- | -------- | -------------------- |
-| config    | Complete | New                  |
-| storage   | Complete | New                  |
-| crypto    | Complete | core/src/crypto/     |
-| telemetry | Pending  | New                  |
-| auth      | Pending  | New                  |
-| http      | Pending  | New                  |
+| Package   | Status   | Source           |
+| --------- | -------- | ---------------- |
+| config    | Complete | New              |
+| storage   | Complete | New              |
+| crypto    | Complete | core/src/crypto/ |
+| telemetry | Pending  | New              |
+| auth      | Pending  | New              |
+| http      | Pending  | New              |
 
 ## Design Principles
 

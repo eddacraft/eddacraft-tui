@@ -35,8 +35,8 @@ pnpm test:e2e --project=cli-e2e
 
 ## Migration Status
 
-| Suite   | Status   | Description              |
-| ------- | -------- | ------------------------ |
-| cli-e2e | Pending  | CLI integration tests    |
-| api-e2e | Future   | API endpoint tests       |
-| ui-e2e  | Future   | UI interaction tests     |
+| Suite   | Status  | Description           |
+| ------- | ------- | --------------------- |
+| cli-e2e | Pending | CLI integration tests |
+| api-e2e | Future  | API endpoint tests    |
+| ui-e2e  | Future  | UI interaction tests  |

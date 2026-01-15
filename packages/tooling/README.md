@@ -19,13 +19,17 @@ Shared ESLint configuration with base, TypeScript, and React presets.
 
 ```javascript
 // eslint.config.mjs
-import { baseConfig, typescriptConfig, reactConfig } from '@anvil/eslint-config';
+import {
+  baseConfig,
+  typescriptConfig,
+  reactConfig,
+} from '@anvil/eslint-config';
 import typescriptEslint from 'typescript-eslint';
 
 export default typescriptEslint.config(
   ...baseConfig,
   ...typescriptConfig,
-  ...reactConfig, // optional, for React projects
+  ...reactConfig // optional, for React projects
 );
 ```
 

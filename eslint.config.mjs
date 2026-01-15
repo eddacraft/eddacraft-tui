@@ -53,11 +53,7 @@ export default typescriptEslint.config(
             '{projectRoot}/**/__tests__/**',
             '{projectRoot}/**/__mocks__/**',
           ],
-          ignoredDependencies: [
-            'vscode',
-            '@types/vscode',
-            'vitest',
-          ],
+          ignoredDependencies: ['vscode', '@types/vscode', 'vitest'],
         },
       ],
     },

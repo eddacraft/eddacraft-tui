@@ -1,4 +1,4 @@
-# @anvil/* Core Packages
+# @anvil/\* Core Packages
 
 Layered architecture packages for the Anvil core domain.
 
@@ -37,7 +37,11 @@ import { ICheck, ICacheProvider, IStorageProvider } from '@anvil/ports';
 Pure domain logic with no I/O operations.
 
 ```typescript
-import { scanForAntipatterns, detectDrift, analyzeArchitecture } from '@anvil/core';
+import {
+  scanForAntipatterns,
+  detectDrift,
+  analyzeArchitecture,
+} from '@anvil/core';
 ```
 
 ### @anvil/policy (Layer 2)

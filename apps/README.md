@@ -35,10 +35,10 @@ anvil gate
 
 ## Migration Status
 
-| App       | Status   | Source      |
-| --------- | -------- | ----------- |
+| App       | Status   | Source                 |
+| --------- | -------- | ---------------------- |
 | anvil-cli | Complete | cli/ -> apps/anvil-cli |
-| anvil-api | Future   | New         |
-| anvil-ui  | Future   | New         |
-| website   | Future   | New         |
-| docs-site | Future   | New         |
+| anvil-api | Future   | New                    |
+| anvil-ui  | Future   | New                    |
+| website   | Future   | New                    |
+| docs-site | Future   | New                    |
