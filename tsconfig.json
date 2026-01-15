@@ -11,7 +11,6 @@
   "references": [
     { "path": "./apps/anvil-cli" },
     { "path": "./ui" },
-    { "path": "./core" },
     { "path": "./packs" },
     { "path": "./packages/adapters" },
     { "path": "./packages/anvil/contracts" },

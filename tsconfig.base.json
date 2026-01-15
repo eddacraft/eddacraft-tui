@@ -20,7 +20,7 @@
     "paths": {
       "@anvil/adapters": ["packages/adapters/dist/index.d.ts"],
       "@anvil/aps": ["packages/aps/dist/index.d.ts"],
-      "@anvil/core": ["core/dist/index.d.ts"],
+      "@anvil/core": ["packages/anvil/core/dist/index.d.ts"],
       "@anvil/contracts": ["packages/anvil/contracts/dist/index.d.ts"],
       "@anvil/ports": ["packages/anvil/ports/dist/index.d.ts"],
       "@anvil/runtime": ["packages/anvil/runtime/dist/index.d.ts"],
