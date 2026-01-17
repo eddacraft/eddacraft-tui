@@ -91,6 +91,20 @@ describe('parseDocument', () => {
       expect(doc.tasks[7].id).toBe('AUTH-008');
       expect(doc.tasks[7].dependencies).toEqual(['AUTH-003', 'AUTH-005', 'AUTH-007']);
     });
+
+    it('should parse hyphenated Non-scope field', async () => {
+      const content = await loadFixture('non-scope-hyphenated.aps.md');
+      const doc = await parseDocument(content, 'non-scope-hyphenated.aps.md');
+
+      expect(doc.title).toBe('Test Non-scope Field');
+      expect(doc.tasks).toHaveLength(1);
+      expect(doc.tasks[0]).toMatchObject({
+        id: 'TEST-001',
+        title: 'Test hyphenated Non-scope field',
+        intent: 'Test that Non-scope field with hyphen is parsed correctly',
+        nonScope: ['database', 'external APIs', 'authentication'],
+      });
+    });
   });
 
   describe('error handling', () => {

@@ -113,7 +113,7 @@ function extractFieldsFromParagraph(para: Paragraph): Record<string, string> {
     if (child.type === 'strong') {
       // Check if this strong node contains a field name
       const strongText = extractPlainText(child as Strong);
-      const fieldMatch = strongText.match(/^(\w+(?:\s+\w+)*):$/);
+      const fieldMatch = strongText.match(/^([\w-]+(?:\s+[\w-]+)*):$/);
 
       if (fieldMatch) {
         // Save previous field if exists (even if value is empty)
