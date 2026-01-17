@@ -3,7 +3,7 @@
  * Extracts task information from Markdown AST nodes
  */
 
-import type { Heading, Paragraph, Strong, Text, List, PhrasingContent } from 'mdast';
+import type { Heading, Paragraph, Strong, List, PhrasingContent } from 'mdast';
 import { ParseError, type Task, type Confidence, type TaskStatus } from '../types/index.js';
 
 /**
@@ -125,11 +125,15 @@ function extractFieldsFromParagraph(para: Paragraph): Record<string, string> {
         currentValue = '';
         inField = true;
       }
-    } else if (child.type === 'text' && inField) {
-      currentValue += (child as Text).value;
-    } else if (child.type === 'break' && inField) {
-      // Convert breaks to spaces to handle multi-line values
-      currentValue += ' ';
+    } else if (inField) {
+      // Extract text from any phrasing content node (text, inlineCode, etc.)
+      // This handles validation commands in backticks and other inline formatting
+      if (child.type === 'break') {
+        // Convert breaks to spaces to handle multi-line values
+        currentValue += ' ';
+      } else {
+        currentValue += extractPlainText(child as PhrasingContent);
+      }
     }
   }
 

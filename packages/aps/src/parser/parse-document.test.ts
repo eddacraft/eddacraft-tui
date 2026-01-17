@@ -318,4 +318,70 @@ describe('parseDocument', () => {
       expect(doc.tasks[0].inputs).toEqual(['List item one', 'List item two']);
     });
   });
+
+  describe('validation field parsing', () => {
+    it('should parse validation command with inline code (backticks)', async () => {
+      const content = `# Plan
+
+## Tasks
+
+### TEST-001: Task with validation command
+
+**Intent:** Do something
+**Validation:** \`pnpm test\`
+`;
+
+      const doc = await parseDocument(content);
+
+      expect(doc.tasks[0].validation).toBe('pnpm test');
+    });
+
+    it('should parse validation command with plain text', async () => {
+      const content = `# Plan
+
+## Tasks
+
+### TEST-001: Task with plain validation
+
+**Intent:** Do something
+**Validation:** npm run test
+`;
+
+      const doc = await parseDocument(content);
+
+      expect(doc.tasks[0].validation).toBe('npm run test');
+    });
+
+    it('should parse Test field as alias for Validation', async () => {
+      const content = `# Plan
+
+## Tasks
+
+### TEST-001: Task with Test field
+
+**Intent:** Do something
+**Test:** \`pnpm nx run test\`
+`;
+
+      const doc = await parseDocument(content);
+
+      expect(doc.tasks[0].validation).toBe('pnpm nx run test');
+    });
+
+    it('should parse validation with mixed inline code and text', async () => {
+      const content = `# Plan
+
+## Tasks
+
+### TEST-001: Task with mixed validation
+
+**Intent:** Do something
+**Validation:** Run \`pnpm test\` after changes
+`;
+
+      const doc = await parseDocument(content);
+
+      expect(doc.tasks[0].validation).toBe('Run pnpm test after changes');
+    });
+  });
 });
