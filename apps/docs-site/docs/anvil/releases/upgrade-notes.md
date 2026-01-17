@@ -34,15 +34,16 @@ Anvil 1.0 is the first stable release. If you were using the beta:
 ```
 
 **Migration:**
+
 ```bash
 # Rename "checks" to "gates" in anvil.config.json
 ```
 
 #### CLI Changes
 
-| Old Command | New Command |
-|-------------|-------------|
-| `anvil check` | `anvil run` |
+| Old Command           | New Command   |
+| --------------------- | ------------- |
+| `anvil check`         | `anvil run`   |
 | `anvil check --watch` | `anvil watch` |
 
 #### Evidence Format
@@ -50,6 +51,7 @@ Anvil 1.0 is the first stable release. If you were using the beta:
 Evidence format changed. Old evidence files are not compatible.
 
 **Migration:**
+
 ```bash
 # Clear old evidence
 rm -rf .anvil/evidence

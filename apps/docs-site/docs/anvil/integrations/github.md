@@ -56,21 +56,21 @@ jobs:
 
 ### Action Inputs
 
-| Input | Description | Default |
-|-------|-------------|---------|
-| `github_token` | Token for PR comments | Required |
-| `comment` | Post results as PR comment | `true` |
-| `fail_on_warnings` | Fail workflow on warnings | `false` |
-| `config` | Path to config file | `anvil.config.json` |
+| Input              | Description                | Default             |
+| ------------------ | -------------------------- | ------------------- |
+| `github_token`     | Token for PR comments      | Required            |
+| `comment`          | Post results as PR comment | `true`              |
+| `fail_on_warnings` | Fail workflow on warnings  | `false`             |
+| `config`           | Path to config file        | `anvil.config.json` |
 
 ### Action Outputs
 
-| Output | Description |
-|--------|-------------|
-| `status` | `pass`, `warn`, or `fail` |
-| `errors` | Number of errors |
-| `warnings` | Number of warnings |
-| `evidence_id` | ID of generated evidence |
+| Output        | Description               |
+| ------------- | ------------------------- |
+| `status`      | `pass`, `warn`, or `fail` |
+| `errors`      | Number of errors          |
+| `warnings`    | Number of warnings        |
+| `evidence_id` | ID of generated evidence  |
 
 ## PR Comments
 
@@ -81,11 +81,11 @@ When enabled, Anvil posts a summary comment:
 
 ✓ All gates passed
 
-| Check | Status | Duration |
-|-------|--------|----------|
-| Architecture | ✓ Pass | 23ms |
-| Anti-patterns | ✓ Pass | 15ms |
-| Secrets | ✓ Pass | 8ms |
+| Check         | Status | Duration |
+| ------------- | ------ | -------- |
+| Architecture  | ✓ Pass | 23ms     |
+| Anti-patterns | ✓ Pass | 15ms     |
+| Secrets       | ✓ Pass | 8ms      |
 
 [View full evidence](link-to-evidence)
 ```
@@ -99,20 +99,21 @@ When enabled, Anvil posts a summary comment:
 
 ### Errors
 
-| File | Line | Issue |
-|------|------|-------|
-| `src/api/users.ts` | 42 | AP-003: Explicit 'any' type |
+| File               | Line | Issue                       |
+| ------------------ | ---- | --------------------------- |
+| `src/api/users.ts` | 42   | AP-003: Explicit 'any' type |
 
 ### Warnings
 
-| File | Line | Issue |
-|------|------|-------|
-| `src/utils/log.ts` | 15 | AP-007: Console in production |
+| File               | Line | Issue                         |
+| ------------------ | ---- | ----------------------------- |
+| `src/utils/log.ts` | 15   | AP-007: Console in production |
 
 <details>
 <summary>How to fix</summary>
 
 **AP-003**: Replace `any` with a specific type or generic...
+
 </details>
 ```
 

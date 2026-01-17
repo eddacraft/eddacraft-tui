@@ -43,6 +43,7 @@ anvil init
 ```
 
 This will:
+
 1. Detect your project type
 2. Create an `anvil.config.json` file
 3. Set up default gate checks
@@ -147,4 +148,5 @@ See [Configuration](/docs/anvil/operations/config) for full options.
 
 ---
 
-**Need help?** Check [Troubleshooting](/docs/anvil/operations/troubleshooting) or [open an issue](https://github.com/EddaCraft/anvil-001/issues).
+**Need help?** Check [Troubleshooting](/docs/anvil/operations/troubleshooting)
+or [open an issue](https://github.com/EddaCraft/anvil-001/issues).

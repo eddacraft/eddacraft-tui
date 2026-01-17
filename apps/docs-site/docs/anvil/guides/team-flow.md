@@ -7,7 +7,8 @@ sidebar_position: 2
 
 # Team Flow
 
-This guide covers Anvil workflows for teams, including CI integration, PR checks, and governance.
+This guide covers Anvil workflows for teams, including CI integration, PR
+checks, and governance.
 
 ## Overview
 
@@ -18,7 +19,8 @@ Developer → Local Anvil → Push → CI Anvil → PR Review → Merge
               (catch)            (enforce)   (verify)
 ```
 
-**Local Anvil** catches issues early. **CI Anvil** enforces standards. **Review** verifies intent.
+**Local Anvil** catches issues early. **CI Anvil** enforces standards.
+**Review** verifies intent.
 
 ## CI Integration
 
@@ -63,20 +65,20 @@ jobs:
 
 `--ci` flag changes behaviour:
 
-| Aspect | Interactive | CI Mode |
-|--------|-------------|---------|
-| Output | Terminal UI | JSON lines |
-| Colours | Yes | No |
-| Exit code | 0/1 | 0/1/2 (warn) |
-| Caching | Enabled | Disabled (clean) |
+| Aspect    | Interactive | CI Mode          |
+| --------- | ----------- | ---------------- |
+| Output    | Terminal UI | JSON lines       |
+| Colours   | Yes         | No               |
+| Exit code | 0/1         | 0/1/2 (warn)     |
+| Caching   | Enabled     | Disabled (clean) |
 
 ### Exit Codes
 
-| Code | Meaning | Action |
-|------|---------|--------|
-| 0 | All gates passed | Continue |
-| 1 | Gate failure | Block merge |
-| 2 | Warnings only | Configurable |
+| Code | Meaning          | Action       |
+| ---- | ---------------- | ------------ |
+| 0    | All gates passed | Continue     |
+| 1    | Gate failure     | Block merge  |
+| 2    | Warnings only    | Configurable |
 
 Configure warning behaviour:
 
@@ -182,8 +184,7 @@ Require PR review for new suppressions:
 
 ```yaml
 # .github/CODEOWNERS
-anvil.config.json @team/architecture
-**/anvil-ignore* @team/leads
+anvil.config.json @team/architecture **/anvil-ignore* @team/leads
 ```
 
 ### 2. Evidence Review
@@ -206,7 +207,7 @@ Regular export for compliance:
 # .github/workflows/audit.yml
 on:
   schedule:
-    - cron: '0 0 * * 0'  # Weekly
+    - cron: '0 0 * * 0' # Weekly
 
 jobs:
   audit:

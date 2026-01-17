@@ -1,13 +1,16 @@
 ---
 id: overview
 title: APS Overview
-description: The Anvil Plan Specification — a deterministic, hash-stable format for development plans.
+description:
+  The Anvil Plan Specification — a deterministic, hash-stable format for
+  development plans.
 sidebar_position: 1
 ---
 
 # Anvil Plan Specification (APS)
 
-APS is an open-source specification for defining deterministic, hash-stable development plans.
+APS is an open-source specification for defining deterministic, hash-stable
+development plans.
 
 ## What is APS?
 
@@ -36,20 +39,22 @@ version: 1.0
 
 ### Determinism
 
-Given the same plan, tools produce the same validation. The plan's hash doesn't change unless content changes.
+Given the same plan, tools produce the same validation. The plan's hash doesn't
+change unless content changes.
 
 **Enables:**
+
 - Reproducible builds
 - Reliable caching
 - Audit trails
 
 ### Separation of Concerns
 
-Plans describe *intent*, not *implementation*:
+Plans describe _intent_, not _implementation_:
 
 ```markdown
-❌ "Create middleware that extracts JWT, validates signature using
-    jsonwebtoken library, checks expiry..."
+❌ "Create middleware that extracts JWT, validates signature using jsonwebtoken
+library, checks expiry..."
 
 ✓ "Auth middleware validates requests, attaches user to context"
 ```
@@ -59,6 +64,7 @@ The executor (human or AI) determines implementation. The plan defines success.
 ### Tool Interoperability
 
 APS is a common format. Different tools can:
+
 - Generate APS from their native formats
 - Consume APS for validation
 - Exchange plans without lock-in
@@ -78,6 +84,7 @@ version: 1.0
 # Project Plan
 
 ## Modules
+
 - [auth](modules/auth.aps.md)
 - [payments](modules/payments.aps.md)
 ```
@@ -95,6 +102,7 @@ module: auth
 # Authentication Module
 
 ## Tasks
+
 - AUTH-001: Login endpoint
 - AUTH-002: Registration endpoint
 ```
@@ -111,6 +119,7 @@ A unit of authorised work:
 **Validation:** `pnpm test src/auth/login.test.ts`
 
 **Steps:**
+
 1. [ ] Endpoint accepts POST /auth/login
 2. [ ] Returns 401 for invalid credentials
 3. [ ] Returns JWT for valid credentials
@@ -122,6 +131,7 @@ An observable checkpoint (what should be true, not how):
 
 ```markdown
 **Steps:**
+
 1. [ ] API responds to health check
 2. [ ] Database connection established
 3. [ ] Cache warmed on startup
@@ -134,8 +144,8 @@ An observable checkpoint (what should be true, not how):
 Plans describe outcomes, not code:
 
 ```markdown
-❌ "Import bcrypt, hash password with 10 rounds..."
-✓ "Passwords stored securely (not plaintext)"
+❌ "Import bcrypt, hash password with 10 rounds..." ✓ "Passwords stored securely
+(not plaintext)"
 ```
 
 ### Observable State Only
@@ -143,8 +153,8 @@ Plans describe outcomes, not code:
 Steps describe what can be verified:
 
 ```markdown
-❌ "Refactor the auth module" (not observable)
-✓ "Auth module has <100 lines per file" (observable)
+❌ "Refactor the auth module" (not observable) ✓ "Auth module has <100 lines per
+file" (observable)
 ```
 
 ### Hash Stability
@@ -155,10 +165,12 @@ Content changes = hash changes. Formatting changes don't:
 # These produce the same hash:
 
 ## Task: AUTH-001
+
 Outcome: Users can log in
 
 ## Task: AUTH-001
-Outcome:  Users   can   log in
+
+Outcome: Users can log in
 ```
 
 ## Getting Started
@@ -184,6 +196,7 @@ version: 1.0
 # My Project
 
 ## Modules
+
 - [core](modules/core.aps.md)
 ```
 

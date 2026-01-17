@@ -7,7 +7,8 @@ sidebar_position: 2
 
 # Create a Capsule
 
-Capsules are containers for related observations. Create one for each project, feature, or context.
+Capsules are containers for related observations. Create one for each project,
+feature, or context.
 
 ## Create a Capsule
 
@@ -25,12 +26,14 @@ Location: ~/.kindling/capsules/my-project.db
 ## Naming Conventions
 
 Good capsule names:
+
 - `payment-integration` — feature-focused
 - `auth-refactor` — task-focused
 - `q1-2024-learnings` — time-boxed
 - `debugging-session-001` — session-focused
 
 Avoid:
+
 - Spaces (use hyphens)
 - Special characters
 - Very long names
@@ -103,15 +106,14 @@ kindling capsule archive payment-integration
 ```
 
 Archived capsules:
+
 - Remain searchable
 - Don't appear in active list
 - Can be unarchived later
 
 ## Delete a Capsule
 
-:::caution
-Deletion is permanent.
-:::
+:::caution Deletion is permanent. :::
 
 ```bash
 kindling capsule delete old-project
@@ -129,6 +131,7 @@ kindling capsule create --local .
 ```
 
 This creates `.kindling/` in the project root. Useful for:
+
 - Team-shared observations
 - Version-controlled knowledge
 - Project-specific context

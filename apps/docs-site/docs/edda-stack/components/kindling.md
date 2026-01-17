@@ -32,6 +32,7 @@ Kindling captures observations during development. It's optimised for:
 **Available Now**
 
 Kindling is fully functional:
+
 - CLI for capture and search
 - SQLite storage
 - Adapter framework

@@ -67,11 +67,13 @@ AI assists; humans verify.
 ### How
 
 AI suggests:
+
 - "This observation might be worth promoting"
 - "This seems similar to existing entry X"
 - "Consider adding to category Y"
 
 Humans decide:
+
 - Approve/reject promotions
 - Verify accuracy
 - Edit and improve
@@ -155,6 +157,7 @@ Each layer works independently.
 ### How
 
 Kindling works without Ember or Edda:
+
 ```bash
 kindling observe "..."
 kindling search "..."

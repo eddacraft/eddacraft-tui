@@ -58,6 +58,7 @@ Full plan specification:
 **Status: In Design**
 
 Planned capabilities:
+
 - Manual promotion from Kindling
 - Review workflow
 - Team sharing
@@ -68,6 +69,7 @@ Planned capabilities:
 **Status: Planning**
 
 Planned capabilities:
+
 - Verified knowledge entries
 - Search and discovery
 - Versioning
@@ -78,6 +80,7 @@ Planned capabilities:
 **Status: Ongoing**
 
 Planned:
+
 - Additional IDE integrations
 - More adapter support
 - Deeper MCP integration
@@ -92,6 +95,7 @@ We don't provide specific dates because:
 3. **Honesty** — Software estimation is notoriously unreliable
 
 What we can say:
+
 - Kindling, Anvil, and APS are production-ready today
 - Ember is the next major addition
 - We're actively developing
@@ -101,6 +105,7 @@ What we can say:
 ### Feedback
 
 Tell us what you need:
+
 - [GitHub Issues](https://github.com/EddaCraft/anvil-001/issues)
 - Feature requests
 - Bug reports
@@ -108,13 +113,15 @@ Tell us what you need:
 ### Contribution
 
 Contribute to development:
+
 - Code contributions
 - Documentation improvements
 - Adapter development
 
 ### Adoption
 
-Using the tools informs our priorities. The more feedback we get, the better we can prioritise.
+Using the tools informs our priorities. The more feedback we get, the better we
+can prioritise.
 
 ## Commitment
 

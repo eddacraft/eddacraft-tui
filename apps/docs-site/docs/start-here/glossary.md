@@ -7,7 +7,8 @@ sidebar_position: 3
 
 # Glossary
 
-Key terms used throughout EddaCraft documentation. We use forge metaphors sparingly—each term has a plain definition alongside.
+Key terms used throughout EddaCraft documentation. We use forge metaphors
+sparingly—each term has a plain definition alongside.
 
 ---
 
@@ -15,21 +16,29 @@ Key terms used throughout EddaCraft documentation. We use forge metaphors sparin
 
 ### Anvil
 
-The EddaCraft tool for validating AI-generated code changes. Named for the blacksmith's anvil—the stable surface where raw material is shaped into something reliable.
+The EddaCraft tool for validating AI-generated code changes. Named for the
+blacksmith's anvil—the stable surface where raw material is shaped into
+something reliable.
 
-**Plain definition:** A CLI and service that runs quality gates on code changes before they reach review.
+**Plain definition:** A CLI and service that runs quality gates on code changes
+before they reach review.
 
 ### APS (Anvil Plan Specification)
 
-A deterministic, hash-stable format for defining development plans. The specification that Anvil validates against.
+A deterministic, hash-stable format for defining development plans. The
+specification that Anvil validates against.
 
-**Plain definition:** A structured document format (Markdown with frontmatter) that describes what should be built, enabling reproducible validation.
+**Plain definition:** A structured document format (Markdown with frontmatter)
+that describes what should be built, enabling reproducible validation.
 
 ### Kindling
 
-A tool for capturing structured observations from development sessions. Named for the small material that catches fire first—observations that spark larger understanding.
+A tool for capturing structured observations from development sessions. Named
+for the small material that catches fire first—observations that spark larger
+understanding.
 
-**Plain definition:** A memory capture system that stores context from coding sessions in a structured, searchable format.
+**Plain definition:** A memory capture system that stores context from coding
+sessions in a structured, searchable format.
 
 ---
 
@@ -37,27 +46,33 @@ A tool for capturing structured observations from development sessions. Named fo
 
 ### Index
 
-The root document of an APS plan. Lists all modules and provides project-level metadata.
+The root document of an APS plan. Lists all modules and provides project-level
+metadata.
 
-**Plain definition:** The `index.aps.md` file that ties together all parts of a plan.
+**Plain definition:** The `index.aps.md` file that ties together all parts of a
+plan.
 
 ### Module
 
 A cohesive unit of functionality within a plan. Contains related tasks.
 
-**Plain definition:** A group of related tasks, typically mapping to a feature or component.
+**Plain definition:** A group of related tasks, typically mapping to a feature
+or component.
 
 ### Task
 
 A unit of authorised work. Defines an outcome and how to validate it.
 
-**Plain definition:** A specific piece of work with clear success criteria and a validation command.
+**Plain definition:** A specific piece of work with clear success criteria and a
+validation command.
 
 ### Step
 
-A checkpoint within task execution. Observable state only—no implementation details.
+A checkpoint within task execution. Observable state only—no implementation
+details.
 
-**Plain definition:** A milestone that describes *what* should be true, not *how* to achieve it.
+**Plain definition:** A milestone that describes _what_ should be true, not
+_how_ to achieve it.
 
 ---
 
@@ -65,21 +80,26 @@ A checkpoint within task execution. Observable state only—no implementation de
 
 ### Gate
 
-A quality check that code must pass before proceeding. Gates are deterministic and composable.
+A quality check that code must pass before proceeding. Gates are deterministic
+and composable.
 
-**Plain definition:** A validation rule (lint, test, coverage, policy) that blocks or allows changes.
+**Plain definition:** A validation rule (lint, test, coverage, policy) that
+blocks or allows changes.
 
 ### Check
 
-A single validation rule within a gate. Examples: ESLint check, coverage check, secret detection.
+A single validation rule within a gate. Examples: ESLint check, coverage check,
+secret detection.
 
 **Plain definition:** One specific test applied during gate validation.
 
 ### Evidence
 
-The immutable record of a validation run. Includes inputs, outputs, and provenance.
+The immutable record of a validation run. Includes inputs, outputs, and
+provenance.
 
-**Plain definition:** A timestamped, signed record proving what was validated and the result.
+**Plain definition:** A timestamped, signed record proving what was validated
+and the result.
 
 ---
 
@@ -87,9 +107,11 @@ The immutable record of a validation run. Includes inputs, outputs, and provenan
 
 ### Capsule
 
-A container for observations from a bounded context (typically a session or project).
+A container for observations from a bounded context (typically a session or
+project).
 
-**Plain definition:** A named collection of observations, stored together for retrieval.
+**Plain definition:** A named collection of observations, stored together for
+retrieval.
 
 ### Observation
 
@@ -109,19 +131,22 @@ The origin and lineage of data. Who created it, when, from what source.
 
 ### Edda Stack
 
-The complete EddaCraft architecture: Kindling (capture) → Ember (candidate) → Edda (curated).
+The complete EddaCraft architecture: Kindling (capture) → Ember (candidate) →
+Edda (curated).
 
-**Plain definition:** The layered system for capturing, promoting, and curating development memory.
+**Plain definition:** The layered system for capturing, promoting, and curating
+development memory.
 
 ### Ember
 
-*(Planned)* Candidate memory awaiting promotion to curated status.
+_(Planned)_ Candidate memory awaiting promotion to curated status.
 
-**Plain definition:** Observations that have been flagged as potentially valuable but not yet verified.
+**Plain definition:** Observations that have been flagged as potentially
+valuable but not yet verified.
 
 ### Edda
 
-*(Planned)* Curated, verified knowledge extracted from observations.
+_(Planned)_ Curated, verified knowledge extracted from observations.
 
 **Plain definition:** The final layer of trusted, reusable knowledge.
 
@@ -155,7 +180,8 @@ Any file or data produced during execution that may be referenced later.
 
 A component that connects external tools to EddaCraft systems.
 
-**Plain definition:** Code that translates between external formats and EddaCraft's internal formats.
+**Plain definition:** Code that translates between external formats and
+EddaCraft's internal formats.
 
 ### MCP (Model Context Protocol)
 

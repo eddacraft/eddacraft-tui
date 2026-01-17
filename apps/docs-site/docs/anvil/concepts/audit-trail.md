@@ -7,7 +7,8 @@ sidebar_position: 4
 
 # Audit Trail
 
-Every action in Anvil produces an auditable record. This page explains how provenance works and why it matters.
+Every action in Anvil produces an auditable record. This page explains how
+provenance works and why it matters.
 
 ## Why Audit Trails?
 
@@ -40,15 +41,15 @@ Provenance tracks the origin and lineage of every artefact:
 
 ### Provenance Fields
 
-| Field | Description |
-|-------|-------------|
-| `subject` | What was validated (files, commits) |
-| `timestamp` | When validation occurred |
-| `actor` | Who triggered validation |
-| `method` | How validation was triggered |
-| `configuration` | Config hash at time of validation |
-| `result` | Validation outcome |
-| `signature` | Cryptographic integrity hash |
+| Field           | Description                         |
+| --------------- | ----------------------------------- |
+| `subject`       | What was validated (files, commits) |
+| `timestamp`     | When validation occurred            |
+| `actor`         | Who triggered validation            |
+| `method`        | How validation was triggered        |
+| `configuration` | Config hash at time of validation   |
+| `result`        | Validation outcome                  |
+| `signature`     | Cryptographic integrity hash        |
 
 ## Trust Model
 
@@ -66,7 +67,8 @@ Every run records the configuration hash:
 }
 ```
 
-If configuration changes, the hash changes. You can prove what rules were active.
+If configuration changes, the hash changes. You can prove what rules were
+active.
 
 ### 2. Inputs are Recorded
 
@@ -116,6 +118,7 @@ anvil evidence list --since 7d
 ```
 
 Output:
+
 ```
 ID              RUN         TIMESTAMP              STATUS  FILES
 evidence_001    run_abc123  2024-01-15T10:30:00Z   PASS    3
@@ -136,6 +139,7 @@ anvil evidence verify evidence_001
 ```
 
 Output:
+
 ```
 Verifying evidence_001...
   ✓ Hash matches content

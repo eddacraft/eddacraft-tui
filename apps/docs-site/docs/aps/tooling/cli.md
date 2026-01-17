@@ -20,6 +20,7 @@ anvil plan create
 ```
 
 Interactive prompts:
+
 ```
 ? Project name: My Project
 ? Initial module: core
@@ -40,6 +41,7 @@ anvil plan validate plans/index.aps.md
 ```
 
 Output:
+
 ```
 Validating plans/index.aps.md...
   ✓ Format valid

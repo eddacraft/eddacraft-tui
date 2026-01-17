@@ -7,13 +7,15 @@ sidebar_position: 3
 
 # Determinism Rules
 
-APS is designed for deterministic, reproducible validation. This page explains how.
+APS is designed for deterministic, reproducible validation. This page explains
+how.
 
 ## What is Determinism?
 
 **Determinism** means: same inputs → same outputs.
 
 For APS:
+
 - Same plan content → same hash
 - Same plan → same validation result
 - Same task → same success criteria
@@ -37,36 +39,42 @@ The hash is computed from the **semantic content**, not the raw text.
 ### What Changes the Hash
 
 **Content changes:**
+
 ```markdown
 # Before
+
 Outcome: Users can log in
 
 # After (hash changes)
+
 Outcome: Users can log in with SSO
 ```
 
 ### What Doesn't Change the Hash
 
 **Whitespace normalisation:**
+
 ```markdown
 # These produce the same hash:
 
 Outcome: Users can log in
 
-Outcome:   Users   can   log in
+Outcome: Users can log in
 
-Outcome:
-  Users can log in
+Outcome: Users can log in
 ```
 
 **Comment changes:**
+
 ```markdown
 # These produce the same hash:
 
 Outcome: Users can log in
+
 <!-- This is a comment -->
 
 Outcome: Users can log in
+
 <!-- Different comment -->
 ```
 
@@ -116,11 +124,13 @@ anvil plan hash plans/index.aps.md
 ### Validation Reproducibility
 
 Given:
+
 - Same plan (by hash)
 - Same configuration
 - Same codebase state
 
 Result:
+
 - Same validation outcome
 - Same evidence produced
 
@@ -154,6 +164,7 @@ A: Evidence shows plan abc123 passed at timestamp T
 ### Hash Algorithm
 
 APS uses SHA-256:
+
 - Widely supported
 - Collision resistant
 - Fast computation
@@ -212,8 +223,8 @@ Unicode is normalised (NFC) before hashing:
 
 ```markdown
 # These produce the same hash:
-café (composed)
-café (decomposed: e + combining accent)
+
+café (composed) café (decomposed: e + combining accent)
 ```
 
 ### Ordering
@@ -224,10 +235,12 @@ Task order matters (affects hash). Step order matters.
 # Different hashes:
 
 ## Tasks
+
 - AUTH-001
 - AUTH-002
 
 ## Tasks
+
 - AUTH-002
 - AUTH-001
 ```

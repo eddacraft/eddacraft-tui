@@ -11,7 +11,8 @@ Capsules are the primary organisational unit in Kindling.
 
 ## What is a Capsule?
 
-A capsule is a container for related observations. Think of it as a folder for knowledge about a specific context:
+A capsule is a container for related observations. Think of it as a folder for
+knowledge about a specific context:
 
 ```
 Capsule: payment-integration
@@ -25,7 +26,8 @@ Capsule: payment-integration
 
 ### Bounded Context
 
-Observations make sense within their context. "Use the new API" means different things in different projects.
+Observations make sense within their context. "Use the new API" means different
+things in different projects.
 
 Capsules provide that context.
 
@@ -44,6 +46,7 @@ kindling search "API" --capsule auth-system
 ### Portability
 
 Each capsule is a standalone SQLite database. You can:
+
 - Back up individual capsules
 - Share capsules with teammates
 - Archive completed projects
@@ -120,6 +123,7 @@ kindling capsule create --local .
 ```
 
 Creates `.kindling/` in current directory. Benefits:
+
 - Version controlled
 - Team shared
 - Project-specific

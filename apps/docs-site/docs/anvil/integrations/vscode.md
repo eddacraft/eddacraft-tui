@@ -56,6 +56,7 @@ Some issues have automatic fixes:
 2. Select the fix
 
 Available quick fixes:
+
 - Add type annotation (AP-003)
 - Add error logging (AP-006)
 - Add suppression with placeholder
@@ -73,6 +74,7 @@ Click for quick actions.
 ### Code Actions
 
 Right-click context menu:
+
 - **Anvil: Suppress this issue**
 - **Anvil: Run check on file**
 - **Anvil: View evidence**
@@ -83,13 +85,13 @@ Right-click context menu:
 
 Open Settings (Ctrl+, / Cmd+,) and search for "Anvil":
 
-| Setting | Description | Default |
-|---------|-------------|---------|
-| `anvil.enable` | Enable/disable extension | `true` |
-| `anvil.configPath` | Path to config file | `anvil.config.json` |
-| `anvil.validateOnSave` | Run on save | `true` |
-| `anvil.validateOnType` | Run while typing | `false` |
-| `anvil.debounceMs` | Delay before validation | `300` |
+| Setting                | Description              | Default             |
+| ---------------------- | ------------------------ | ------------------- |
+| `anvil.enable`         | Enable/disable extension | `true`              |
+| `anvil.configPath`     | Path to config file      | `anvil.config.json` |
+| `anvil.validateOnSave` | Run on save              | `true`              |
+| `anvil.validateOnType` | Run while typing         | `false`             |
+| `anvil.debounceMs`     | Delay before validation  | `300`               |
 
 ### Workspace Settings
 
@@ -107,22 +109,22 @@ Configure per-workspace in `.vscode/settings.json`:
 
 Access via Command Palette (Ctrl+Shift+P / Cmd+Shift+P):
 
-| Command | Description |
-|---------|-------------|
-| `Anvil: Run` | Run Anvil on current file |
-| `Anvil: Run All` | Run Anvil on entire workspace |
-| `Anvil: Toggle` | Enable/disable Anvil |
-| `Anvil: Show Output` | View Anvil output channel |
-| `Anvil: Clear Cache` | Clear validation cache |
+| Command              | Description                   |
+| -------------------- | ----------------------------- |
+| `Anvil: Run`         | Run Anvil on current file     |
+| `Anvil: Run All`     | Run Anvil on entire workspace |
+| `Anvil: Toggle`      | Enable/disable Anvil          |
+| `Anvil: Show Output` | View Anvil output channel     |
+| `Anvil: Clear Cache` | Clear validation cache        |
 
 ## Keyboard Shortcuts
 
 Default shortcuts:
 
-| Shortcut | Command |
-|----------|---------|
+| Shortcut       | Command                   |
+| -------------- | ------------------------- |
 | `Ctrl+Shift+A` | Run Anvil on current file |
-| `Ctrl+Alt+A` | Toggle Anvil |
+| `Ctrl+Alt+A`   | Toggle Anvil              |
 
 Customise in Keyboard Shortcuts.
 
@@ -140,6 +142,7 @@ Useful for debugging configuration issues.
 ### ESLint
 
 Anvil complements ESLint—they run independently:
+
 - ESLint shows style/semantic issues
 - Anvil shows architecture/pattern issues
 

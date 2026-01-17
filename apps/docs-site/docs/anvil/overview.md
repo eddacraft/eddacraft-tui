@@ -1,23 +1,29 @@
 ---
 id: overview
 title: What Anvil Does
-description: Anvil catches architecture drift and AI anti-patterns at save-time, before they reach code review.
+description:
+  Anvil catches architecture drift and AI anti-patterns at save-time, before
+  they reach code review.
 sidebar_position: 1
 ---
 
 # What Anvil Does
 
-Anvil is a deterministic development automation platform that makes AI-generated code changes safe for production.
+Anvil is a deterministic development automation platform that makes AI-generated
+code changes safe for production.
 
 ## The Problem Anvil Solves
 
 AI coding assistants produce code that compiles and passes tests. But they also:
 
-- **Drift from architecture** — introducing dependency edges that violate your intended boundaries
-- **Introduce anti-patterns** — broad `eslint-disable`, explicit `any` types, empty catch blocks
+- **Drift from architecture** — introducing dependency edges that violate your
+  intended boundaries
+- **Introduce anti-patterns** — broad `eslint-disable`, explicit `any` types,
+  empty catch blocks
 - **Erode quality gradually** — each small compromise compounds over time
 
-Code review *should* catch these issues. But:
+Code review _should_ catch these issues. But:
+
 - Reviewers are overwhelmed by AI-generated volume
 - Architectural violations are subtle and easy to miss
 - By the time issues reach review, the cognitive load to fix them is high
@@ -52,7 +58,8 @@ When files change, Anvil runs quality gates:
 
 ### 3. Immediate Feedback
 
-Issues surface instantly in your terminal or editor—not in a PR comment hours later.
+Issues surface instantly in your terminal or editor—not in a PR comment hours
+later.
 
 ```
 ⚠️  AP-003: Explicit 'any' type at src/utils/parser.ts:42
@@ -61,28 +68,29 @@ Issues surface instantly in your terminal or editor—not in a PR comment hours 
 
 ### 4. Evidence Trail
 
-Every validation run produces evidence: what was checked, what passed, what failed, and when.
+Every validation run produces evidence: what was checked, what passed, what
+failed, and when.
 
 ## Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Architecture Safety** | Detects dependency violations using import analysis |
-| **Anti-Pattern Library** | 7 built-in patterns (AP-001 through AP-007) |
-| **Watch Mode** | Real-time validation on file save |
-| **Suppression System** | Allow exceptions with mandatory explanations |
-| **GitHub Integration** | PR checks and inline comments |
-| **VS Code Extension** | In-editor diagnostics and quick fixes |
+| Feature                  | Description                                         |
+| ------------------------ | --------------------------------------------------- |
+| **Architecture Safety**  | Detects dependency violations using import analysis |
+| **Anti-Pattern Library** | 7 built-in patterns (AP-001 through AP-007)         |
+| **Watch Mode**           | Real-time validation on file save                   |
+| **Suppression System**   | Allow exceptions with mandatory explanations        |
+| **GitHub Integration**   | PR checks and inline comments                       |
+| **VS Code Extension**    | In-editor diagnostics and quick fixes               |
 
 ## Anti-Patterns Detected
 
-| ID | Pattern | Severity |
-|----|---------|----------|
-| AP-001 | Broad `/* eslint-disable */` | warning |
-| AP-003 | Explicit `any` type | warning |
-| AP-004 | `@ts-ignore` directive | warning |
-| AP-006 | Empty catch block | warning |
-| AP-007 | Console in production code | info |
+| ID     | Pattern                      | Severity |
+| ------ | ---------------------------- | -------- |
+| AP-001 | Broad `/* eslint-disable */` | warning  |
+| AP-003 | Explicit `any` type          | warning  |
+| AP-004 | `@ts-ignore` directive       | warning  |
+| AP-006 | Empty catch block            | warning  |
+| AP-007 | Console in production code   | info     |
 
 ## What Anvil Doesn't Do
 
@@ -93,7 +101,7 @@ Anvil is focused. It doesn't:
 - **Deploy your code** — use your existing CI/CD
 - **Replace code review** — it augments review, not replaces it
 
-Anvil catches *structural* and *architectural* issues that other tools miss.
+Anvil catches _structural_ and _architectural_ issues that other tools miss.
 
 ---
 

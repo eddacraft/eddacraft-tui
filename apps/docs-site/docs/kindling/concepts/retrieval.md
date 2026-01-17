@@ -18,7 +18,8 @@ Kindling follows a **mechanical-first** approach:
 3. **Full-text search** — find by content keywords
 4. **AI-assisted** — optional semantic search (future)
 
-This is intentional. You should find exactly what you stored, not what an algorithm thinks you want.
+This is intentional. You should find exactly what you stored, not what an
+algorithm thinks you want.
 
 ## Search Methods
 
@@ -131,6 +132,7 @@ kindling export --capsule current-project --format context
 ```
 
 Output:
+
 ```
 Relevant context from development:
 - The API uses OAuth2 with PKCE flow

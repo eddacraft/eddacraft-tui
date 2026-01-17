@@ -7,7 +7,8 @@ sidebar_position: 3
 
 # Agent Harness Patterns
 
-Anvil can serve as a "harness" for AI coding agents—constraining their actions and validating their outputs.
+Anvil can serve as a "harness" for AI coding agents—constraining their actions
+and validating their outputs.
 
 ## The Problem
 
@@ -44,11 +45,13 @@ Agent works within a defined plan:
 Outcome: Users can log in with email/password
 
 Allowed files:
-- src/auth/**
+
+- src/auth/\*\*
 - src/types/auth.ts
 
 Forbidden:
-- src/payments/**
+
+- src/payments/\*\*
 - Any database migrations
 ```
 
@@ -115,6 +118,7 @@ Use Anvil via MCP (Model Context Protocol):
 ```
 
 The agent can then:
+
 - Query allowed files for a task
 - Validate changes before proposing
 - Check current violations
@@ -173,17 +177,19 @@ async function runWithHarness(task: string) {
   // Run Claude with constraints in prompt
   const response = await claude.messages.create({
     model: 'claude-3-opus-20240229',
-    messages: [{
-      role: 'user',
-      content: `
+    messages: [
+      {
+        role: 'user',
+        content: `
         Task: ${constraints.outcome}
 
         Allowed files: ${constraints.allowedFiles.join(', ')}
         Forbidden: ${constraints.forbiddenPatterns.join(', ')}
 
         Implement this task.
-      `
-    }]
+      `,
+      },
+    ],
   });
 
   // Validate Claude's output
@@ -208,6 +214,7 @@ anvil evidence list --agent claude --since 30d
 ```
 
 Analyse:
+
 - **Violation rate** — how often does the agent drift?
 - **Common violations** — what patterns recur?
 - **Improvement over time** — is the agent learning from rejections?

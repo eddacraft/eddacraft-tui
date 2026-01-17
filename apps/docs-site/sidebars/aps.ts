@@ -7,47 +7,31 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Specification',
       collapsed: false,
-      items: [
-        'spec/taxonomy',
-        'spec/file-layout',
-        'spec/determinism',
-      ],
+      items: ['spec/taxonomy', 'spec/file-layout', 'spec/determinism'],
     },
     {
       type: 'category',
       label: 'Schemas',
       collapsed: true,
-      items: [
-        'schemas/json-schema',
-        'schemas/examples',
-      ],
+      items: ['schemas/json-schema', 'schemas/examples'],
     },
     {
       type: 'category',
       label: 'Examples',
       collapsed: false,
-      items: [
-        'examples/minimal-plan',
-        'examples/multi-module',
-      ],
+      items: ['examples/minimal-plan', 'examples/multi-module'],
     },
     {
       type: 'category',
       label: 'Tooling',
       collapsed: true,
-      items: [
-        'tooling/cli',
-        'tooling/validation',
-      ],
+      items: ['tooling/cli', 'tooling/validation'],
     },
     {
       type: 'category',
       label: 'Design Notes',
       collapsed: true,
-      items: [
-        'design/rationale',
-        'design/alternatives',
-      ],
+      items: ['design/rationale', 'design/alternatives'],
     },
   ],
 };

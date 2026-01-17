@@ -7,7 +7,8 @@ sidebar_position: 1
 
 # Solo Dev Flow
 
-This guide covers the optimal Anvil workflow for solo developers using AI assistance.
+This guide covers the optimal Anvil workflow for solo developers using AI
+assistance.
 
 ## The Setup
 
@@ -18,7 +19,8 @@ As a solo dev, your workflow looks like:
 3. Validate as you go
 4. Commit when ready
 
-Anvil integrates at step 3, giving you confidence that AI-generated code meets your standards.
+Anvil integrates at step 3, giving you confidence that AI-generated code meets
+your standards.
 
 ## Daily Workflow
 
@@ -117,6 +119,7 @@ code --install-extension eddacraft.anvil-vscode
 ```
 
 Benefits:
+
 - Inline diagnostics (squiggly lines)
 - Problems panel integration
 - Quick fixes for some issues
@@ -126,7 +129,8 @@ Benefits:
 
 ### 1. Trust the Feedback
 
-When Anvil warns you, don't dismiss it. The cost of fixing now is lower than fixing in production.
+When Anvil warns you, don't dismiss it. The cost of fixing now is lower than
+fixing in production.
 
 ### 2. Suppress Thoughtfully
 
@@ -146,6 +150,7 @@ anvil evidence list --since 7d
 ```
 
 Look for patterns. If you're suppressing the same thing repeatedly, consider:
+
 - Adjusting configuration
 - Fixing the root cause
 - Adding a global suppression

@@ -57,14 +57,14 @@ kindling observe "See RFC 7231 for status codes" --kind reference
 
 ### Available Kinds
 
-| Kind | Use for |
-|------|---------|
-| `discovery` | Things you learned |
-| `decision` | Choices made and why |
-| `gotcha` | Pitfalls and warnings |
-| `reference` | Links and citations |
-| `question` | Open questions |
-| `todo` | Things to follow up on |
+| Kind        | Use for                |
+| ----------- | ---------------------- |
+| `discovery` | Things you learned     |
+| `decision`  | Choices made and why   |
+| `gotcha`    | Pitfalls and warnings  |
+| `reference` | Links and citations    |
+| `question`  | Open questions         |
+| `todo`      | Things to follow up on |
 
 ## Multi-line Observations
 
@@ -165,6 +165,7 @@ kindling observe "Use processPaymentV2() - the old method has a race condition"
 ### Tag Consistently
 
 Establish conventions:
+
 - `#bug` for bugs found
 - `#perf` for performance insights
 - `#security` for security notes
@@ -173,6 +174,7 @@ Establish conventions:
 ### Capture Promptly
 
 Record observations while context is fresh. Waiting leads to:
+
 - Lost details
 - Forgotten reasoning
 - Incomplete knowledge

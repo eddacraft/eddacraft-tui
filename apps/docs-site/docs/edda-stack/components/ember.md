@@ -7,11 +7,11 @@ sidebar_position: 2
 
 # Ember (Candidate Layer)
 
-:::note Coming Soon
-Ember is in active development. This page describes the planned functionality.
-:::
+:::note Coming Soon Ember is in active development. This page describes the
+planned functionality. :::
 
-Ember is the middle layer—where observations are reviewed and refined before becoming verified knowledge.
+Ember is the middle layer—where observations are reviewed and refined before
+becoming verified knowledge.
 
 ## Role in the Stack
 
@@ -121,6 +121,7 @@ await ember.edit(entryId, { content: 'Improved version...' });
 Ember development is planned to begin after Kindling stabilisation.
 
 Expected capabilities:
+
 - Phase 1: Manual promotion and review
 - Phase 2: Automatic suggestions
 - Phase 3: Team workflows

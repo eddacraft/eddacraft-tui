@@ -7,7 +7,8 @@ sidebar_position: 2
 
 # Multi-Module Plan
 
-A realistic example showing a multi-module APS structure for an e-commerce platform.
+A realistic example showing a multi-module APS structure for an e-commerce
+platform.
 
 ## Directory Structure
 
@@ -33,8 +34,8 @@ version: 1.0
 
 # ShopCraft E-Commerce
 
-An online store platform with authentication, product catalog,
-shopping cart, and payment processing.
+An online store platform with authentication, product catalog, shopping cart,
+and payment processing.
 
 ## Modules
 
@@ -63,13 +64,13 @@ User registration, login, and session management.
 
 **Status:** complete
 
-**Outcome:**
-New users can create accounts with email and password.
-Passwords are hashed. Email uniqueness enforced.
+**Outcome:** New users can create accounts with email and password. Passwords
+are hashed. Email uniqueness enforced.
 
 **Validation:** `pnpm test src/auth/register.test.ts`
 
 **Steps:**
+
 1. [x] POST /auth/register endpoint
 2. [x] Email format validation
 3. [x] Password hashing (bcrypt)
@@ -81,12 +82,12 @@ Passwords are hashed. Email uniqueness enforced.
 
 **Status:** complete
 
-**Outcome:**
-Users authenticate with email/password and receive JWT.
+**Outcome:** Users authenticate with email/password and receive JWT.
 
 **Validation:** `pnpm test src/auth/login.test.ts`
 
 **Steps:**
+
 1. [x] POST /auth/login endpoint
 2. [x] Credential verification
 3. [x] JWT generation
@@ -98,8 +99,7 @@ Users authenticate with email/password and receive JWT.
 
 **Status:** complete
 
-**Outcome:**
-Protected routes require valid JWT. Invalid tokens return 401.
+**Outcome:** Protected routes require valid JWT. Invalid tokens return 401.
 
 **Validation:** `pnpm test src/middleware/auth.test.ts`
 ```
@@ -122,12 +122,12 @@ Product catalog management.
 
 **Status:** complete
 
-**Outcome:**
-GET /products returns paginated product list with filtering.
+**Outcome:** GET /products returns paginated product list with filtering.
 
 **Validation:** `pnpm test src/products/list.test.ts`
 
 **Steps:**
+
 1. [x] Pagination (limit, offset)
 2. [x] Category filtering
 3. [x] Price range filtering
@@ -139,8 +139,7 @@ GET /products returns paginated product list with filtering.
 
 **Status:** complete
 
-**Outcome:**
-GET /products/:id returns full product details.
+**Outcome:** GET /products/:id returns full product details.
 
 **Validation:** `pnpm test src/products/details.test.ts`
 
@@ -150,12 +149,12 @@ GET /products/:id returns full product details.
 
 **Status:** pending
 
-**Outcome:**
-Admins can create, update, and delete products.
+**Outcome:** Admins can create, update, and delete products.
 
 **Validation:** `pnpm test src/products/admin.test.ts`
 
 **Dependencies:**
+
 - AUTH-003 (auth middleware for admin check)
 ```
 
@@ -180,17 +179,18 @@ Shopping cart functionality.
 
 **Status:** in_progress
 
-**Outcome:**
-Authenticated users can add products to their cart.
-Cart persists across sessions.
+**Outcome:** Authenticated users can add products to their cart. Cart persists
+across sessions.
 
 **Validation:** `pnpm test src/cart/add.test.ts`
 
 **Dependencies:**
+
 - AUTH-002 (user must be logged in)
 - PROD-002 (product must exist)
 
 **Steps:**
+
 1. [x] POST /cart/items endpoint
 2. [x] Quantity validation
 3. [ ] Stock check
@@ -202,12 +202,12 @@ Cart persists across sessions.
 
 **Status:** pending
 
-**Outcome:**
-Users see their cart with items, quantities, and totals.
+**Outcome:** Users see their cart with items, quantities, and totals.
 
 **Validation:** `pnpm test src/cart/view.test.ts`
 
 **Dependencies:**
+
 - CART-001
 
 ---
@@ -216,12 +216,12 @@ Users see their cart with items, quantities, and totals.
 
 **Status:** pending
 
-**Outcome:**
-Users can update quantities or remove items.
+**Outcome:** Users can update quantities or remove items.
 
 **Validation:** `pnpm test src/cart/update.test.ts`
 
 **Dependencies:**
+
 - CART-001
 ```
 
@@ -246,13 +246,13 @@ Payment processing and order creation.
 
 **Status:** pending
 
-**Outcome:**
-System can process payments via Stripe.
-Supports card payments. PCI compliant.
+**Outcome:** System can process payments via Stripe. Supports card payments. PCI
+compliant.
 
 **Validation:** `pnpm test src/payments/stripe.test.ts`
 
 **Dependencies:**
+
 - AUTH-003 (user context)
 - CART-002 (cart contents)
 
@@ -264,13 +264,13 @@ Supports card payments. PCI compliant.
 
 **Status:** pending
 
-**Outcome:**
-Users complete checkout: review → payment → confirmation.
-Cart cleared on success. Order created.
+**Outcome:** Users complete checkout: review → payment → confirmation. Cart
+cleared on success. Order created.
 
 **Validation:** `pnpm test src/payments/checkout.test.ts`
 
 **Dependencies:**
+
 - PAY-001
 - CART-002
 ```

@@ -77,7 +77,9 @@
   border: 1px solid var(--ifm-toc-border-color);
   border-radius: 8px;
   background-color: var(--ifm-background-color);
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
 }
 
 .productTile:hover {

@@ -27,18 +27,20 @@
   --ec-gray-950: #09090b;
 
   /* Product accent colours */
-  --ec-anvil-accent: #f59e0b;      /* Amber */
+  --ec-anvil-accent: #f59e0b; /* Amber */
   --ec-anvil-accent-dim: #d97706;
-  --ec-aps-accent: #64748b;        /* Cool steel */
+  --ec-aps-accent: #64748b; /* Cool steel */
   --ec-aps-accent-dim: #475569;
-  --ec-kindling-accent: #c2410c;   /* Ember/rust */
+  --ec-kindling-accent: #c2410c; /* Ember/rust */
   --ec-kindling-accent-dim: #9a3412;
-  --ec-edda-accent: #6366f1;       /* Indigo */
+  --ec-edda-accent: #6366f1; /* Indigo */
   --ec-edda-accent-dim: #4f46e5;
 
   /* Typography */
-  --ifm-font-family-base: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --ifm-font-family-monospace: 'IBM Plex Mono', 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
+  --ifm-font-family-base:
+    system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --ifm-font-family-monospace:
+    'IBM Plex Mono', 'SF Mono', Monaco, 'Cascadia Code', Consolas, monospace;
   --ifm-code-font-size: 0.875rem;
   --ifm-heading-font-weight: 600;
 
@@ -96,7 +98,12 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   letter-spacing: -0.02em;
 }
 
@@ -253,7 +260,8 @@ th {
   color: var(--ec-gray-400);
 }
 
-td, th {
+td,
+th {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--ifm-toc-border-color);
 }
@@ -297,7 +305,9 @@ td, th {
   padding: 1.5rem;
   border: 1px solid var(--ifm-toc-border-color);
   border-radius: 8px;
-  transition: border-color 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    transform 0.2s;
 }
 
 .product-tile:hover {

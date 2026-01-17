@@ -30,6 +30,7 @@ A simple todo list application.
 **Validation:** `pnpm build`
 
 **Steps:**
+
 1. [ ] package.json created
 2. [ ] TypeScript configured
 3. [ ] Build produces dist/
@@ -43,6 +44,7 @@ A simple todo list application.
 **Validation:** `pnpm test src/todos/create.test.ts`
 
 **Steps:**
+
 1. [ ] Endpoint accepts POST /todos
 2. [ ] Request body validated
 3. [ ] Todo stored in database
@@ -57,6 +59,7 @@ A simple todo list application.
 **Validation:** `pnpm test src/todos/list.test.ts`
 
 **Steps:**
+
 1. [ ] Endpoint accepts GET /todos
 2. [ ] Todos filtered by user
 3. [ ] Response paginated
@@ -109,6 +112,7 @@ version: 1.0
 **Validation:** `{command}`
 
 **Steps:**
+
 1. [ ] {Observable state}
 2. [ ] {Observable state}
 ```

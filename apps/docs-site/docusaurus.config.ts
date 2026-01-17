@@ -209,9 +209,7 @@ const config: Config = {
         },
         {
           title: 'More',
-          items: [
-            { label: 'Blog', to: '/blog' },
-          ],
+          items: [{ label: 'Blog', to: '/blog' }],
         },
       ],
       copyright: `Copyright © ${new Date().getFullYear()} EddaCraft. Built with Docusaurus.`,

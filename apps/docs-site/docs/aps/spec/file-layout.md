@@ -37,6 +37,7 @@ Root directory for all planning documents. Keeps plans separate from code.
 ### `plans/modules/`
 
 One file per module. Each file contains:
+
 - Module metadata
 - Task list
 - Brief task descriptions
@@ -44,13 +45,15 @@ One file per module. Each file contains:
 ### `plans/execution/`
 
 Detailed step breakdowns for complex tasks. Used when:
+
 - Task has many steps
 - Steps need extensive detail
 - Multiple people working on same task
 
 ### `plans/decisions/`
 
-Architecture Decision Records (ADRs) that inform the plan. Not strictly APS, but useful context.
+Architecture Decision Records (ADRs) that inform the plan. Not strictly APS, but
+useful context.
 
 ## File Naming
 
@@ -69,6 +72,7 @@ Always named `index.aps.md` at the plans root.
 ```
 
 Examples:
+
 - `auth.aps.md`
 - `payments.aps.md`
 - `user-management.aps.md`
@@ -82,6 +86,7 @@ Use kebab-case for multi-word names.
 ```
 
 Examples:
+
 - `AUTH-001.steps.md`
 - `PAY-002.steps.md`
 
@@ -125,12 +130,15 @@ As projects grow, split into modules:
 
 ```markdown
 <!-- Before: inline module -->
+
 ## Module: Auth
 
 ### AUTH-001 — Login
+
 ### AUTH-002 — Registration
 
 <!-- After: reference -->
+
 ## Modules
 
 - [auth](modules/auth.aps.md)
@@ -142,14 +150,16 @@ When tasks get complex:
 
 ```markdown
 <!-- Before: inline steps -->
+
 ### Task: AUTH-001 — Login
 
 **Steps:**
+
 1. [ ] Endpoint exists
-2. [ ] Validation works
-... (20 more steps)
+2. [ ] Validation works ... (20 more steps)
 
 <!-- After: reference -->
+
 ### Task: AUTH-001 — Login
 
 **Steps:** See [AUTH-001.steps.md](../execution/AUTH-001.steps.md)
@@ -171,6 +181,7 @@ git commit -m "plan: add notifications module"
 ### Branching
 
 For large planning changes:
+
 ```bash
 git checkout -b plan/add-payments-module
 ```
@@ -178,6 +189,7 @@ git checkout -b plan/add-payments-module
 ### Code Review
 
 Plans are code. Review them:
+
 - Is the outcome clear?
 - Is the validation correct?
 - Are steps observable?

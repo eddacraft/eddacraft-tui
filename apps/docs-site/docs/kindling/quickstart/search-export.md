@@ -133,8 +133,8 @@ kindling export --capsule api-project --format markdown > api-notes.md
 
 Tags: auth, jwt
 
-The Authorization header must contain `Bearer <token>`.
-Requests without valid JWT return 401.
+The Authorization header must contain `Bearer <token>`. Requests without valid
+JWT return 401.
 
 ---
 

@@ -7,28 +7,29 @@ sidebar_position: 2
 
 # Security Model
 
-Anvil is a security-conscious tool. This page covers its security model and best practices.
+Anvil is a security-conscious tool. This page covers its security model and best
+practices.
 
 ## Threat Model
 
 ### What Anvil Protects Against
 
-| Threat | How Anvil Helps |
-|--------|-----------------|
+| Threat                    | How Anvil Helps             |
+| ------------------------- | --------------------------- |
 | Accidental secret commits | Pattern + entropy detection |
-| Architecture violations | Import boundary enforcement |
-| Quality erosion | Anti-pattern detection |
-| Audit gaps | Evidence trail |
-| AI drift | Real-time validation |
+| Architecture violations   | Import boundary enforcement |
+| Quality erosion           | Anti-pattern detection      |
+| Audit gaps                | Evidence trail              |
+| AI drift                  | Real-time validation        |
 
 ### What Anvil Does NOT Protect Against
 
-| Threat | Why Not |
-|--------|---------|
-| Malicious insiders | Anvil is a tool, not access control |
+| Threat                   | Why Not                                |
+| ------------------------ | -------------------------------------- |
+| Malicious insiders       | Anvil is a tool, not access control    |
 | Zero-day vulnerabilities | Anvil validates patterns, not exploits |
-| Supply chain attacks | Use npm audit, Snyk, etc. |
-| Runtime attacks | Anvil is static analysis only |
+| Supply chain attacks     | Use npm audit, Snyk, etc.              |
+| Runtime attacks          | Anvil is static analysis only          |
 
 ## Secret Detection
 
@@ -92,6 +93,7 @@ Tampering changes the hash, invalidating the evidence.
 Default: local `.anvil/evidence/`
 
 For compliance:
+
 - Use remote storage (S3, GCS)
 - Enable encryption at rest
 - Configure retention policies
@@ -111,6 +113,7 @@ For compliance:
 ### Access Control
 
 Evidence files are read-only after creation. Control access via:
+
 - File permissions (local)
 - IAM policies (remote)
 - RBAC (enterprise)
@@ -140,6 +143,7 @@ Never put secrets in `anvil.config.json`:
 ### Config Versioning
 
 Version config in git for auditability:
+
 - Who changed what rules
 - When rules were added/removed
 - Why (via commit messages)
@@ -184,6 +188,7 @@ Review periodically—are they still needed?
 ### GitHub Token Scope
 
 Minimum required scopes:
+
 - `contents: read` — read code
 - `checks: write` — create check runs
 - `pull-requests: write` — comment on PRs
@@ -200,6 +205,7 @@ env:
 ### Output Sanitisation
 
 CI output may be visible. Anvil:
+
 - Never logs detected secrets
 - Redacts sensitive file contents
 - Uses generic error messages
@@ -209,6 +215,7 @@ CI output may be visible. Anvil:
 ### Audit Requirements
 
 For SOC 2, ISO 27001, etc.:
+
 - Enable evidence collection
 - Configure remote storage
 - Set retention to required period
@@ -217,6 +224,7 @@ For SOC 2, ISO 27001, etc.:
 ### Multi-Tenant
 
 For platforms serving multiple customers:
+
 - Isolate evidence per tenant
 - Configure boundaries per project
 - Use separate configs per environment

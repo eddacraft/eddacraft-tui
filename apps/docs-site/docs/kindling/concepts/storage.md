@@ -145,6 +145,7 @@ kindling capsule verify my-project
 ```
 
 Output:
+
 ```
 Verifying my-project...
   ✓ Database integrity
@@ -210,6 +211,7 @@ For simplicity or version control:
 ### Remote Storage (Future)
 
 Planned support for:
+
 - S3/GCS buckets
 - PostgreSQL
 - Custom backends

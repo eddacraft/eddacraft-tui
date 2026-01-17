@@ -1,17 +1,20 @@
 ---
 id: overview
 title: Kindling Overview
-description: Capture and store structured observations from development sessions.
+description:
+  Capture and store structured observations from development sessions.
 sidebar_position: 1
 ---
 
 # Kindling
 
-Kindling is an open-source tool for capturing structured observations from development sessions.
+Kindling is an open-source tool for capturing structured observations from
+development sessions.
 
 ## What is Kindling?
 
-Kindling captures the *context* that matters—decisions made, problems solved, patterns discovered—without drowning in noise.
+Kindling captures the _context_ that matters—decisions made, problems solved,
+patterns discovered—without drowning in noise.
 
 ```
 Session → Observations → Capsule → Retrieval
@@ -30,18 +33,20 @@ Session → Observations → Capsule → Retrieval
 ### The Problem
 
 Development sessions generate valuable context:
+
 - "This approach didn't work because..."
 - "The API expects this specific format..."
 - "This error means you need to..."
 
 But that context is lost:
+
 - Chat history disappears
 - Terminal scrollback clears
 - Memory fades
 
 ### The Solution
 
-Kindling captures observations *as you work*:
+Kindling captures observations _as you work_:
 
 ```bash
 kindling observe "The retry logic needs exponential backoff; linear fails under load"
@@ -87,6 +92,7 @@ An observation is a single piece of captured context:
 ```
 
 Observations have:
+
 - **Content** — the actual knowledge
 - **Kind** — what type of observation
 - **Source** — where it came from
@@ -118,7 +124,8 @@ Kindling is part of the **Edda Stack**:
      Now              Coming Soon         Coming Soon
 ```
 
-Kindling captures raw observations. Ember (planned) promotes valuable ones. Edda (planned) curates verified knowledge.
+Kindling captures raw observations. Ember (planned) promotes valuable ones. Edda
+(planned) curates verified knowledge.
 
 ## Quick Example
 

@@ -65,11 +65,11 @@ Brief description of the project.
 
 ### Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `format` | Yes | Must be `aps` |
-| `version` | Yes | APS version (e.g., `1.0`) |
-| `hash` | Auto | Content hash (generated) |
+| Field     | Required | Description               |
+| --------- | -------- | ------------------------- |
+| `format`  | Yes      | Must be `aps`             |
+| `version` | Yes      | APS version (e.g., `1.0`) |
+| `hash`    | Auto     | Content hash (generated)  |
 
 ## Level 2: Module
 
@@ -100,6 +100,7 @@ Handles user authentication and authorisation.
 ## Overview
 
 This module provides:
+
 - Login/logout
 - Registration
 - Password reset
@@ -108,18 +109,20 @@ This module provides:
 ## Tasks
 
 ### AUTH-001 — Login endpoint
+
 ### AUTH-002 — Registration endpoint
+
 ### AUTH-003 — Password reset
 ```
 
 ### Fields
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `format` | Yes | Must be `aps` |
-| `module` | Yes | Module identifier |
-| `depends_on` | No | Other modules this depends on |
-| `files` | No | Glob patterns for module scope |
+| Field        | Required | Description                    |
+| ------------ | -------- | ------------------------------ |
+| `format`     | Yes      | Must be `aps`                  |
+| `module`     | Yes      | Module identifier              |
+| `depends_on` | No       | Other modules this depends on  |
+| `files`      | No       | Glob patterns for module scope |
 
 ## Level 3: Task
 
@@ -133,29 +136,33 @@ A unit of authorised work.
 
 ### Format
 
-```markdown
+````markdown
 ### Task: AUTH-001 — Login endpoint
 
 **Status:** pending | in_progress | complete | blocked
 
-**Outcome:**
-Users can authenticate with email and password, receiving a JWT
+**Outcome:** Users can authenticate with email and password, receiving a JWT
 that can be used for subsequent authenticated requests.
 
 **Validation:**
+
 ```bash
 pnpm test src/auth/login.test.ts
 ```
+````
 
 **Dependencies:**
+
 - CORE-001 (database setup)
 
 **Steps:**
+
 1. [ ] Endpoint accepts POST /auth/login
 2. [ ] Invalid credentials return 401
 3. [ ] Valid credentials return JWT
 4. [ ] JWT contains user ID and expiry
-```
+
+````
 
 ### Fields
 
@@ -196,16 +203,18 @@ An observable checkpoint within a task.
 3. [ ] Password compared against stored hash
 4. [x] JWT generation working
 5. [ ] Response includes token and expiry
-```
+````
 
 ### Rules
 
 **Do:**
+
 - Describe observable state
 - Use verifiable conditions
 - Keep under 12 words
 
 **Don't:**
+
 - Include implementation details
 - Reference specific code
 - Use subjective criteria
@@ -213,17 +222,13 @@ An observable checkpoint within a task.
 ### Examples
 
 ```markdown
-❌ "Refactor the authentication code"
-   (Not observable, subjective)
+❌ "Refactor the authentication code" (Not observable, subjective)
 
-❌ "Import bcrypt and hash with 10 rounds"
-   (Implementation detail)
+❌ "Import bcrypt and hash with 10 rounds" (Implementation detail)
 
-✓ "Passwords are hashed before storage"
-   (Observable outcome)
+✓ "Passwords are hashed before storage" (Observable outcome)
 
-✓ "Login returns 401 for wrong password"
-   (Verifiable behaviour)
+✓ "Login returns 401 for wrong password" (Verifiable behaviour)
 ```
 
 ## Relationships
@@ -236,6 +241,7 @@ Tasks can depend on other tasks:
 ### Task: AUTH-002 — Registration
 
 **Dependencies:**
+
 - CORE-001 (database)
 - AUTH-001 (shares JWT logic)
 ```

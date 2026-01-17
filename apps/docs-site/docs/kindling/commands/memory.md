@@ -85,6 +85,7 @@ Observation recorded.
 ### In Editors
 
 VS Code command palette:
+
 ```
 > Kindling: Add Memory
 ```
@@ -113,6 +114,7 @@ Configure shortcuts in `config.json`:
 ```
 
 Now use:
+
 ```
 /ma "Quick observation"
 /ms api

@@ -7,7 +7,8 @@ sidebar_position: 3
 
 # Sessions and Runs
 
-Anvil organises work into **sessions** (bounded development periods) and **runs** (individual validation executions).
+Anvil organises work into **sessions** (bounded development periods) and
+**runs** (individual validation executions).
 
 ## Sessions
 
@@ -85,11 +86,11 @@ Status: PASS
 
 ### Run Modes
 
-| Mode | Trigger | Output |
-|------|---------|--------|
-| Watch | File save | Inline terminal |
-| Interactive | `anvil run` | Full terminal UI |
-| CI | `anvil run --ci` | Machine-readable JSON |
+| Mode        | Trigger          | Output                |
+| ----------- | ---------------- | --------------------- |
+| Watch       | File save        | Inline terminal       |
+| Interactive | `anvil run`      | Full terminal UI      |
+| CI          | `anvil run --ci` | Machine-readable JSON |
 
 ## Artefacts
 
@@ -97,11 +98,11 @@ Runs produce artefacts—files and data for later reference.
 
 ### Types of Artefacts
 
-| Artefact | Purpose |
-|----------|---------|
-| Evidence | Immutable validation record |
-| Reports | Human-readable summaries |
-| Coverage | Code coverage data |
+| Artefact  | Purpose                         |
+| --------- | ------------------------------- |
+| Evidence  | Immutable validation record     |
+| Reports   | Human-readable summaries        |
+| Coverage  | Code coverage data              |
 | Snapshots | Pre-change state (for rollback) |
 
 ### Artefact Storage

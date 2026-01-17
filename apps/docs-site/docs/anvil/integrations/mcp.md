@@ -11,7 +11,8 @@ Anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
 ## What is MCP?
 
-MCP is a protocol for providing context to AI models. Anvil's MCP server exposes:
+MCP is a protocol for providing context to AI models. Anvil's MCP server
+exposes:
 
 - Current project configuration
 - Active gates and their status

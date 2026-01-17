@@ -49,16 +49,16 @@ Anvil is configured via `anvil.config.json` in your project root.
 }
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `enabled` | boolean | Enable architecture checks |
-| `boundaries` | array | Boundary definitions |
-| `boundaries[].name` | string | Human-readable name |
-| `boundaries[].pattern` | glob | Files this boundary applies to |
-| `boundaries[].allow` | glob[] | Allowed import patterns |
-| `boundaries[].deny` | glob[] | Forbidden import patterns |
-| `detectCircular` | boolean | Detect circular dependencies |
-| `maxDepth` | number | Max import chain depth |
+| Option                 | Type    | Description                    |
+| ---------------------- | ------- | ------------------------------ |
+| `enabled`              | boolean | Enable architecture checks     |
+| `boundaries`           | array   | Boundary definitions           |
+| `boundaries[].name`    | string  | Human-readable name            |
+| `boundaries[].pattern` | glob    | Files this boundary applies to |
+| `boundaries[].allow`   | glob[]  | Allowed import patterns        |
+| `boundaries[].deny`    | glob[]  | Forbidden import patterns      |
+| `detectCircular`       | boolean | Detect circular dependencies   |
+| `maxDepth`             | number  | Max import chain depth         |
 
 ### Anti-Patterns
 
@@ -77,13 +77,13 @@ Anvil is configured via `anvil.config.json` in your project root.
 }
 ```
 
-| Pattern | Description | Default Severity |
-|---------|-------------|------------------|
-| `AP-001` | Broad `eslint-disable` | warning |
-| `AP-003` | Explicit `any` type | warning |
-| `AP-004` | `@ts-ignore` directive | warning |
-| `AP-006` | Empty catch block | warning |
-| `AP-007` | Console in production | info (off) |
+| Pattern  | Description            | Default Severity |
+| -------- | ---------------------- | ---------------- |
+| `AP-001` | Broad `eslint-disable` | warning          |
+| `AP-003` | Explicit `any` type    | warning          |
+| `AP-004` | `@ts-ignore` directive | warning          |
+| `AP-006` | Empty catch block      | warning          |
+| `AP-007` | Console in production  | info (off)       |
 
 ### Secrets
 
@@ -91,27 +91,21 @@ Anvil is configured via `anvil.config.json` in your project root.
 {
   "secrets": {
     "enabled": true,
-    "patterns": [
-      "api[_-]?key",
-      "secret[_-]?key",
-      "password"
-    ],
+    "patterns": ["api[_-]?key", "secret[_-]?key", "password"],
     "entropyThreshold": 4.5,
     "checkGitHistory": false,
-    "allowList": [
-      "src/config/example.ts"
-    ]
+    "allowList": ["src/config/example.ts"]
   }
 }
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `enabled` | boolean | Enable secret detection |
-| `patterns` | regex[] | Additional patterns to match |
-| `entropyThreshold` | number | Shannon entropy threshold (0-8) |
-| `checkGitHistory` | boolean | Scan git history |
-| `allowList` | glob[] | Files to skip |
+| Option             | Type    | Description                     |
+| ------------------ | ------- | ------------------------------- |
+| `enabled`          | boolean | Enable secret detection         |
+| `patterns`         | regex[] | Additional patterns to match    |
+| `entropyThreshold` | number  | Shannon entropy threshold (0-8) |
+| `checkGitHistory`  | boolean | Scan git history                |
+| `allowList`        | glob[]  | Files to skip                   |
 
 ### ESLint
 
@@ -149,21 +143,16 @@ Anvil is configured via `anvil.config.json` in your project root.
   "watch": {
     "enabled": true,
     "debounceMs": 300,
-    "ignore": [
-      "node_modules",
-      "dist",
-      ".git",
-      "coverage"
-    ],
+    "ignore": ["node_modules", "dist", ".git", "coverage"],
     "extensions": [".ts", ".tsx", ".js", ".jsx"]
   }
 }
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `debounceMs` | number | Delay before validation |
-| `ignore` | glob[] | Patterns to ignore |
+| Option       | Type     | Description              |
+| ------------ | -------- | ------------------------ |
+| `debounceMs` | number   | Delay before validation  |
+| `ignore`     | glob[]   | Patterns to ignore       |
 | `extensions` | string[] | File extensions to watch |
 
 ## CI Mode
@@ -236,12 +225,12 @@ Override via environment:
 ANVIL_FAIL_ON_WARNINGS=true anvil run
 ```
 
-| Variable | Description |
-|----------|-------------|
-| `ANVIL_CONFIG` | Path to config file |
-| `ANVIL_CI` | Force CI mode |
-| `ANVIL_FAIL_ON_WARNINGS` | Fail on warnings |
-| `ANVIL_DISABLE` | Disable Anvil entirely |
+| Variable                 | Description            |
+| ------------------------ | ---------------------- |
+| `ANVIL_CONFIG`           | Path to config file    |
+| `ANVIL_CI`               | Force CI mode          |
+| `ANVIL_FAIL_ON_WARNINGS` | Fail on warnings       |
+| `ANVIL_DISABLE`          | Disable Anvil entirely |
 
 ## Full Example
 

@@ -7,11 +7,11 @@ sidebar_position: 3
 
 # Edda (Curated Layer)
 
-:::note Coming Soon
-Edda is in the planning phase. This page describes the envisioned functionality.
-:::
+:::note Coming Soon Edda is in the planning phase. This page describes the
+envisioned functionality. :::
 
-Edda is the crown of the stack—verified, reusable knowledge curated from team experience.
+Edda is the crown of the stack—verified, reusable knowledge curated from team
+experience.
 
 ## Role in the Stack
 
@@ -78,9 +78,9 @@ content: |
   The parsed JSON body will have different signature.
 
 sources:
-  - ember_abc123: "Stripe uses cents not dollars"
-  - ember_def456: "Webhook signature verification"
-  - ember_ghi789: "Idempotency key requirements"
+  - ember_abc123: 'Stripe uses cents not dollars'
+  - ember_def456: 'Webhook signature verification'
+  - ember_ghi789: 'Idempotency key requirements'
 ```
 
 ## Envisioned Features
@@ -195,7 +195,8 @@ Validate code against Edda knowledge:
 
 ## The Name
 
-**Edda** (Old Norse: [ˈedːɑ]) refers to the Prose Edda and Poetic Edda—medieval Icelandic texts that preserved Norse mythology and wisdom.
+**Edda** (Old Norse: [ˈedːɑ]) refers to the Prose Edda and Poetic Edda—medieval
+Icelandic texts that preserved Norse mythology and wisdom.
 
 Like those texts, this Edda preserves knowledge that would otherwise be lost.
 

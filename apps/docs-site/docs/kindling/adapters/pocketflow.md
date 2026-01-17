@@ -11,7 +11,8 @@ Integrate Kindling as nodes in PocketFlow workflows.
 
 ## What is PocketFlow?
 
-PocketFlow is a workflow automation tool. The Kindling adapter provides nodes for capturing and retrieving observations within workflows.
+PocketFlow is a workflow automation tool. The Kindling adapter provides nodes
+for capturing and retrieving observations within workflows.
 
 ## Setup
 
@@ -38,7 +39,7 @@ Captures an observation:
 ```yaml
 - node: kindling.observe
   inputs:
-    content: "{{ workflow.result }}"
+    content: '{{ workflow.result }}'
     kind: discovery
     tags:
       - automated
@@ -54,7 +55,7 @@ Queries observations:
 ```yaml
 - node: kindling.search
   inputs:
-    query: "API rate limit"
+    query: 'API rate limit'
     capsule: my-project
     limit: 5
   outputs:
@@ -87,7 +88,7 @@ trigger:
 steps:
   - node: github.get_review
     inputs:
-      pr: "{{ trigger.pr_number }}"
+      pr: '{{ trigger.pr_number }}'
     outputs:
       review: review_data
 
@@ -105,7 +106,7 @@ steps:
 
   - node: slack.notify
     inputs:
-      message: "Captured review insights: {{ captured_id }}"
+      message: 'Captured review insights: {{ captured_id }}'
 ```
 
 ## Context Injection
@@ -115,7 +116,7 @@ Use Kindling to inject context into workflows:
 ```yaml
 - node: kindling.search
   inputs:
-    query: "{{ task.description }}"
+    query: '{{ task.description }}'
     capsule: team-knowledge
     limit: 3
   outputs:

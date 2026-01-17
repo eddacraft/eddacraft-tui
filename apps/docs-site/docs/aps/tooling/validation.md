@@ -20,6 +20,7 @@ anvil plan validate --level syntax plans/index.aps.md
 ```
 
 Checks:
+
 - Valid Markdown
 - Valid YAML frontmatter
 - Required fields present
@@ -33,6 +34,7 @@ anvil plan validate --level structure plans/index.aps.md
 ```
 
 Checks:
+
 - Heading hierarchy correct
 - Task IDs match pattern
 - Steps formatted correctly
@@ -46,6 +48,7 @@ anvil plan validate --level references plans/index.aps.md
 ```
 
 Checks:
+
 - All module files exist
 - All dependencies resolved
 - No dangling references
@@ -59,6 +62,7 @@ anvil plan validate --level semantic plans/index.aps.md
 ```
 
 Checks:
+
 - No circular dependencies
 - All tasks have outcomes
 - Validation commands present
@@ -77,8 +81,8 @@ anvil plan validate plans/index.aps.md
 
 ```yaml
 ---
-format: aps      # Required, must be "aps"
-version: 1.0     # Required, semver format
+format: aps # Required, must be "aps"
+version: 1.0 # Required, semver format
 ---
 ```
 
@@ -87,13 +91,10 @@ version: 1.0     # Required, semver format
 Pattern: `{PREFIX}-{NNN}`
 
 ```markdown
-✓ AUTH-001
-✓ PAY-123
-✓ CORE-001
+✓ AUTH-001 ✓ PAY-123 ✓ CORE-001
 
-✗ auth-001    # Must be uppercase
-✗ AUTH-1      # Must be 3 digits
-✗ AUTH_001    # Must use hyphen
+✗ auth-001 # Must be uppercase ✗ AUTH-1 # Must be 3 digits ✗ AUTH_001 # Must use
+hyphen
 ```
 
 ### Required Task Fields
@@ -107,6 +108,7 @@ Pattern: `{PREFIX}-{NNN}`
 ```
 
 Optional:
+
 - Status
 - Dependencies
 - Steps
@@ -115,12 +117,14 @@ Optional:
 
 ```markdown
 **Steps:**
+
 1. [ ] Incomplete step
 2. [x] Complete step
 3. [ ] Another step
 ```
 
 Rules:
+
 - Numbered list
 - Checkbox format
 - Max 12 words recommended

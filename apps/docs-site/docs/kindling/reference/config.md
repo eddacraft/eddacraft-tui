@@ -41,6 +41,7 @@ Directory for Kindling data.
 ```
 
 Or use environment:
+
 ```bash
 export KINDLING_DATA_DIR=/path/to/data
 ```
@@ -103,12 +104,12 @@ Config schema version.
 }
 ```
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `defaultLimit` | number | 20 | Default result limit |
-| `highlightMatches` | boolean | true | Highlight matches |
-| `fuzzyMatch` | boolean | false | Enable fuzzy matching |
-| `caseSensitive` | boolean | false | Case-sensitive search |
+| Option             | Type    | Default | Description           |
+| ------------------ | ------- | ------- | --------------------- |
+| `defaultLimit`     | number  | 20      | Default result limit  |
+| `highlightMatches` | boolean | true    | Highlight matches     |
+| `fuzzyMatch`       | boolean | false   | Enable fuzzy matching |
+| `caseSensitive`    | boolean | false   | Case-sensitive search |
 
 ## Adapter Settings
 
@@ -163,13 +164,13 @@ Command shortcuts:
 }
 ```
 
-| Option | Values | Description |
-|--------|--------|-------------|
-| `dateFormat` | `relative`, `iso`, `local` | Timestamp format |
-| `colors` | boolean | ANSI colors |
-| `maxContentLength` | number | Truncate content |
-| `showTags` | boolean | Display tags |
-| `showSource` | boolean | Display source |
+| Option             | Values                     | Description      |
+| ------------------ | -------------------------- | ---------------- |
+| `dateFormat`       | `relative`, `iso`, `local` | Timestamp format |
+| `colors`           | boolean                    | ANSI colors      |
+| `maxContentLength` | number                     | Truncate content |
+| `showTags`         | boolean                    | Display tags     |
+| `showSource`       | boolean                    | Display source   |
 
 ## Export Settings
 
@@ -185,13 +186,13 @@ Command shortcuts:
 
 ## Environment Variables
 
-| Variable | Description |
-|----------|-------------|
-| `KINDLING_DATA_DIR` | Data directory |
-| `KINDLING_CONFIG` | Config file path |
-| `KINDLING_DEFAULT_CAPSULE` | Default capsule |
-| `KINDLING_NO_COLOR` | Disable colors |
-| `KINDLING_VERBOSE` | Verbose output |
+| Variable                   | Description      |
+| -------------------------- | ---------------- |
+| `KINDLING_DATA_DIR`        | Data directory   |
+| `KINDLING_CONFIG`          | Config file path |
+| `KINDLING_DEFAULT_CAPSULE` | Default capsule  |
+| `KINDLING_NO_COLOR`        | Disable colors   |
+| `KINDLING_VERBOSE`         | Verbose output   |
 
 ## Project-Local Config
 

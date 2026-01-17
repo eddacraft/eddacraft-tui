@@ -11,7 +11,8 @@ This page walks through the experience of Anvil catching an issue in real-time.
 
 ## The Scenario
 
-You're using an AI coding assistant to add a new endpoint. The AI generates working code, but it violates your architecture.
+You're using an AI coding assistant to add a new endpoint. The AI generates
+working code, but it violates your architecture.
 
 ## Step 1: Start Watch Mode
 
@@ -38,7 +39,7 @@ The AI generates `src/api/handlers/delete-user.ts`:
 
 ```typescript
 import { Request, Response } from 'express';
-import { db } from '../../repositories/db';  // Direct DB access!
+import { db } from '../../repositories/db'; // Direct DB access!
 
 export async function deleteUser(req: Request, res: Response) {
   const { id } = req.params;
@@ -80,13 +81,14 @@ Gate status: FAIL
 
 ## Step 4: Fix Before Commit
 
-You now know *immediately* that this code has issues—before you commit, before you push, before a reviewer has to point it out.
+You now know _immediately_ that this code has issues—before you commit, before
+you push, before a reviewer has to point it out.
 
 Fix the architecture violation:
 
 ```typescript
 import { Request, Response } from 'express';
-import { UserService } from '../../services/user.service';  // Correct!
+import { UserService } from '../../services/user.service'; // Correct!
 
 export async function deleteUser(req: Request, res: Response) {
   const { id } = req.params;
@@ -95,7 +97,7 @@ export async function deleteUser(req: Request, res: Response) {
     await UserService.delete(id);
     res.status(204).send();
   } catch (error) {
-    console.error('Failed to delete user:', error);  // Proper handling
+    console.error('Failed to delete user:', error); // Proper handling
     res.status(500).json({ error: 'Failed to delete user' });
   }
 }
@@ -115,6 +117,7 @@ All gates passed.
 ## The Value
 
 In traditional workflows:
+
 1. AI generates code
 2. You commit and push
 3. CI runs (5 minutes)
@@ -122,22 +125,24 @@ In traditional workflows:
 5. You context-switch back to fix
 
 With Anvil:
+
 1. AI generates code
 2. You save
 3. Anvil catches it (milliseconds)
 4. You fix while context is fresh
 
-**Time saved:** Hours of review cycles, context-switching, and accumulated technical debt.
+**Time saved:** Hours of review cycles, context-switching, and accumulated
+technical debt.
 
 ## What Gates Provide
 
-| Traditional | With Anvil |
-|-------------|------------|
-| Issues found in review | Issues found at save |
-| Reviewer cognitive load | Automated enforcement |
-| Inconsistent enforcement | Deterministic rules |
-| "It passed tests" excuses | Architecture is tested too |
-| Invisible AI drift | Visible, immediate feedback |
+| Traditional               | With Anvil                  |
+| ------------------------- | --------------------------- |
+| Issues found in review    | Issues found at save        |
+| Reviewer cognitive load   | Automated enforcement       |
+| Inconsistent enforcement  | Deterministic rules         |
+| "It passed tests" excuses | Architecture is tested too  |
+| Invisible AI drift        | Visible, immediate feedback |
 
 ---
 

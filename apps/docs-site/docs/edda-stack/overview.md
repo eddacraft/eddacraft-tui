@@ -7,16 +7,19 @@ sidebar_position: 1
 
 # Edda Stack
 
-The Edda Stack is EddaCraft's architecture for capturing, promoting, and curating development knowledge.
+The Edda Stack is EddaCraft's architecture for capturing, promoting, and
+curating development knowledge.
 
 ## The Vision
 
 Development generates valuable knowledge:
+
 - Decisions made and why
 - Problems solved and how
 - Patterns discovered and when to use them
 
-But this knowledge is lost. Chat histories clear. Memory fades. The same lessons get relearned.
+But this knowledge is lost. Chat histories clear. Memory fades. The same lessons
+get relearned.
 
 The Edda Stack preserves and promotes knowledge systematically.
 
@@ -71,6 +74,7 @@ Observation: "API requires idempotency keys"
 ```
 
 Ember will provide:
+
 - Automatic promotion suggestions
 - Human review workflow
 - Team sharing
@@ -91,6 +95,7 @@ Entry: "Idempotency Keys"
 ```
 
 Edda will provide:
+
 - Verified accuracy
 - Team-wide visibility
 - Search and discovery
@@ -148,13 +153,14 @@ Relevant Edda entries:
 
 ## What Exists Today
 
-| Component | Status | Description |
-|-----------|--------|-------------|
+| Component    | Status    | Description                     |
+| ------------ | --------- | ------------------------------- |
 | **Kindling** | Available | Observation capture and storage |
-| **Ember** | Planned | Promotion and review workflow |
-| **Edda** | Planned | Curated knowledge base |
+| **Ember**    | Planned   | Promotion and review workflow   |
+| **Edda**     | Planned   | Curated knowledge base          |
 
-Kindling is fully functional today. Start capturing observations and benefit from the stack as it grows.
+Kindling is fully functional today. Start capturing observations and benefit
+from the stack as it grows.
 
 ## Why This Architecture?
 
@@ -170,7 +176,8 @@ AI can suggest, but humans verify. Critical for accuracy.
 
 ### Provenance Matters
 
-Every piece of knowledge traces to its origin. Who observed it, when, how it was verified.
+Every piece of knowledge traces to its origin. Who observed it, when, how it was
+verified.
 
 ### Team Scale
 

@@ -29,16 +29,16 @@ kindling observe <content> [options]
 
 ### Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--kind` | `-k` | Observation kind |
-| `--tag` | `-t` | Add tag (repeatable) |
-| `--capsule` | `-c` | Target capsule |
-| `--source` | `-s` | Source identifier |
-| `--context` | | File/line context |
-| `--file` | `-f` | Read content from file |
-| `--clipboard` | | Read from clipboard |
-| `--interactive` | `-i` | Interactive mode |
+| Option          | Short | Description            |
+| --------------- | ----- | ---------------------- |
+| `--kind`        | `-k`  | Observation kind       |
+| `--tag`         | `-t`  | Add tag (repeatable)   |
+| `--capsule`     | `-c`  | Target capsule         |
+| `--source`      | `-s`  | Source identifier      |
+| `--context`     |       | File/line context      |
+| `--file`        | `-f`  | Read content from file |
+| `--clipboard`   |       | Read from clipboard    |
+| `--interactive` | `-i`  | Interactive mode       |
 
 ### Examples
 
@@ -59,16 +59,16 @@ kindling search [query] [options]
 
 ### Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--capsule` | `-c` | Search in capsule |
-| `--all-capsules` | `-a` | Search all capsules |
-| `--tag` | `-t` | Filter by tag |
-| `--kind` | `-k` | Filter by kind |
-| `--since` | | After date/duration |
-| `--until` | | Before date |
-| `--limit` | `-n` | Max results |
-| `--export` | `-e` | Export format |
+| Option           | Short | Description         |
+| ---------------- | ----- | ------------------- |
+| `--capsule`      | `-c`  | Search in capsule   |
+| `--all-capsules` | `-a`  | Search all capsules |
+| `--tag`          | `-t`  | Filter by tag       |
+| `--kind`         | `-k`  | Filter by kind      |
+| `--since`        |       | After date/duration |
+| `--until`        |       | Before date         |
+| `--limit`        | `-n`  | Max results         |
+| `--export`       | `-e`  | Export format       |
 
 ### Examples
 
@@ -89,15 +89,15 @@ kindling capsule <command> [options]
 
 ### Subcommands
 
-| Command | Description |
-|---------|-------------|
-| `list` | List capsules |
-| `create <name>` | Create capsule |
-| `use <name>` | Set default capsule |
-| `show <name>` | Show capsule details |
-| `archive <name>` | Archive capsule |
-| `delete <name>` | Delete capsule |
-| `export <name>` | Export capsule |
+| Command          | Description          |
+| ---------------- | -------------------- |
+| `list`           | List capsules        |
+| `create <name>`  | Create capsule       |
+| `use <name>`     | Set default capsule  |
+| `show <name>`    | Show capsule details |
+| `archive <name>` | Archive capsule      |
+| `delete <name>`  | Delete capsule       |
+| `export <name>`  | Export capsule       |
 
 ### Examples
 
@@ -119,13 +119,13 @@ kindling export [options]
 
 ### Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--capsule` | `-c` | Capsule to export |
-| `--format` | `-f` | Output format |
-| `--since` | | After date |
-| `--until` | | Before date |
-| `--output` | `-o` | Output file |
+| Option      | Short | Description       |
+| ----------- | ----- | ----------------- |
+| `--capsule` | `-c`  | Capsule to export |
+| `--format`  | `-f`  | Output format     |
+| `--since`   |       | After date        |
+| `--until`   |       | Before date       |
+| `--output`  | `-o`  | Output file       |
 
 ### Formats
 
@@ -152,12 +152,12 @@ kindling import <file> [options]
 
 ### Options
 
-| Option | Description |
-|--------|-------------|
-| `--capsule` | Target capsule |
-| `--kind` | Default kind |
-| `--parse-tags` | Extract inline tags |
-| `--dry-run` | Preview without importing |
+| Option         | Description               |
+| -------------- | ------------------------- |
+| `--capsule`    | Target capsule            |
+| `--kind`       | Default kind              |
+| `--parse-tags` | Extract inline tags       |
+| `--dry-run`    | Preview without importing |
 
 ### Examples
 
@@ -177,11 +177,11 @@ kindling recent [options]
 
 ### Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--capsule` | `-c` | From capsule |
-| `--limit` | `-n` | Number to show (default: 10) |
-| `--source` | | Filter by source |
+| Option      | Short | Description                  |
+| ----------- | ----- | ---------------------------- |
+| `--capsule` | `-c`  | From capsule                 |
+| `--limit`   | `-n`  | Number to show (default: 10) |
+| `--source`  |       | Filter by source             |
 
 ### Examples
 
@@ -215,10 +215,10 @@ kindling stats [options]
 
 ### Options
 
-| Option | Short | Description |
-|--------|-------|-------------|
-| `--capsule` | `-c` | For capsule |
-| `--all` | `-a` | All capsules |
+| Option      | Short | Description  |
+| ----------- | ----- | ------------ |
+| `--capsule` | `-c`  | For capsule  |
+| `--all`     | `-a`  | All capsules |
 
 ### Examples
 
@@ -237,12 +237,12 @@ kindling config <command> [options]
 
 ### Subcommands
 
-| Command | Description |
-|---------|-------------|
-| `show` | Show configuration |
-| `set <key> <value>` | Set value |
-| `get <key>` | Get value |
-| `reset` | Reset to defaults |
+| Command             | Description        |
+| ------------------- | ------------------ |
+| `show`              | Show configuration |
+| `set <key> <value>` | Set value          |
+| `get <key>`         | Get value          |
+| `reset`             | Reset to defaults  |
 
 ### Examples
 
@@ -262,12 +262,12 @@ kindling adapter <command> [options]
 
 ### Subcommands
 
-| Command | Description |
-|---------|-------------|
-| `list` | List installed |
-| `install <name>` | Install adapter |
-| `remove <name>` | Remove adapter |
-| `<name> config` | Configure adapter |
+| Command          | Description       |
+| ---------------- | ----------------- |
+| `list`           | List installed    |
+| `install <name>` | Install adapter   |
+| `remove <name>`  | Remove adapter    |
+| `<name> config`  | Configure adapter |
 
 ### Examples
 

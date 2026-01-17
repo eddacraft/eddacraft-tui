@@ -29,29 +29,19 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Adapters',
       collapsed: true,
-      items: [
-        'adapters/opencode',
-        'adapters/pocketflow',
-        'adapters/custom',
-      ],
+      items: ['adapters/opencode', 'adapters/pocketflow', 'adapters/custom'],
     },
     {
       type: 'category',
       label: 'Commands',
       collapsed: true,
-      items: [
-        'commands/memory',
-      ],
+      items: ['commands/memory'],
     },
     {
       type: 'category',
       label: 'Reference',
       collapsed: true,
-      items: [
-        'reference/formats',
-        'reference/cli',
-        'reference/config',
-      ],
+      items: ['reference/formats', 'reference/cli', 'reference/config'],
     },
   ],
 };

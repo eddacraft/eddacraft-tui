@@ -16,6 +16,7 @@ Common issues and solutions for Anvil.
 The CLI isn't in your PATH.
 
 **Solution (global install):**
+
 ```bash
 pnpm add -g @anvil/cli
 # or
@@ -23,6 +24,7 @@ npm install -g @anvil/cli
 ```
 
 **Solution (local install):**
+
 ```bash
 pnpm anvil run
 # or
@@ -34,6 +36,7 @@ npx anvil run
 Dependencies not installed.
 
 **Solution:**
+
 ```bash
 pnpm install
 ```
@@ -43,6 +46,7 @@ pnpm install
 Anvil requires Node.js 20+.
 
 **Solution:**
+
 ```bash
 node --version  # Check version
 nvm use 20      # Switch to Node 20
@@ -55,6 +59,7 @@ nvm use 20      # Switch to Node 20
 No `anvil.config.json` in project root.
 
 **Solution:**
+
 ```bash
 anvil init
 ```
@@ -64,6 +69,7 @@ anvil init
 Config syntax error.
 
 **Solution:**
+
 ```bash
 # Validate config
 anvil config validate
@@ -79,12 +85,14 @@ anvil config validate
 Boundary patterns not matching files.
 
 **Debugging:**
+
 ```bash
 # Test pattern matching
 anvil debug boundaries src/api/users.ts
 ```
 
 **Common issues:**
+
 - Glob pattern mismatch (`src/api` vs `src/api/**`)
 - Wrong path separator on Windows
 - Pattern doesn't include file extension
@@ -96,17 +104,21 @@ anvil debug boundaries src/api/users.ts
 Files changing but Anvil not responding.
 
 **Solutions:**
+
 1. Check ignore patterns:
+
    ```bash
    anvil config show | grep ignore
    ```
 
 2. Check file extensions:
+
    ```json
    { "watch": { "extensions": [".ts", ".tsx"] } }
    ```
 
 3. Increase debounce:
+
    ```json
    { "watch": { "debounceMs": 500 } }
    ```
@@ -122,6 +134,7 @@ Files changing but Anvil not responding.
 Anvil consuming too much CPU.
 
 **Solutions:**
+
 1. Increase debounce time
 2. Add more patterns to ignore
 3. Disable `validateOnType` in VS Code
@@ -132,12 +145,14 @@ Anvil consuming too much CPU.
 Out of memory errors.
 
 **Solutions:**
+
 ```bash
 # Increase Node memory
 NODE_OPTIONS="--max-old-space-size=4096" anvil watch
 ```
 
 Check for:
+
 - Very large files being scanned
 - Many files in watch scope
 - Circular dependencies causing infinite loops
@@ -149,7 +164,9 @@ Check for:
 Anvil flagging code that's actually fine.
 
 **Solutions:**
+
 1. Add specific suppression with explanation:
+
    ```typescript
    // @anvil-ignore AP-003 Using any for JSON.parse result
    ```
@@ -157,11 +174,13 @@ Anvil flagging code that's actually fine.
 2. Add pattern suppression in config:
    ```json
    {
-     "suppressions": [{
-       "pattern": "src/types/external.ts",
-       "checks": ["AP-003"],
-       "reason": "External type definitions"
-     }]
+     "suppressions": [
+       {
+         "pattern": "src/types/external.ts",
+         "checks": ["AP-003"],
+         "reason": "External type definitions"
+       }
+     ]
    }
    ```
 
@@ -170,6 +189,7 @@ Anvil flagging code that's actually fine.
 Anvil not catching problems it should.
 
 **Check:**
+
 ```bash
 # Verify check is enabled
 anvil config show | grep -A5 antiPatterns
@@ -183,7 +203,9 @@ anvil run --verbose
 Boundary validation taking too long.
 
 **Solutions:**
+
 1. Reduce `maxDepth`:
+
    ```json
    { "architecture": { "maxDepth": 5 } }
    ```
@@ -199,6 +221,7 @@ Boundary validation taking too long.
 Anvil passing when it should fail.
 
 **Check:**
+
 - `--ci` flag is present
 - `failOnWarnings` setting if using warnings
 - Config is being read (check logs)
@@ -208,12 +231,14 @@ Anvil passing when it should fail.
 Action taking too long.
 
 **Solutions:**
+
 ```yaml
 - uses: eddacraft/anvil-action@v1
   timeout-minutes: 10
 ```
 
 Or:
+
 - Enable caching
 - Reduce check scope
 - Parallelise with matrix
@@ -223,6 +248,7 @@ Or:
 Action runs but no comment.
 
 **Check:**
+
 - `github_token` is provided
 - Token has `pull-requests: write` permission
 - `comment: true` is set
@@ -234,6 +260,7 @@ Action runs but no comment.
 No diagnostics appearing.
 
 **Solutions:**
+
 1. Check Output panel → Anvil
 2. Verify config file exists
 3. Reload window: `Ctrl+Shift+P` → "Reload Window"
@@ -244,6 +271,7 @@ No diagnostics appearing.
 Old issues still showing.
 
 **Solutions:**
+
 ```
 Ctrl+Shift+P → "Anvil: Clear Cache"
 ```
@@ -255,6 +283,7 @@ Or restart VS Code.
 ### Debug Mode
 
 Run with debug output:
+
 ```bash
 DEBUG=anvil:* anvil run
 ```
@@ -262,6 +291,7 @@ DEBUG=anvil:* anvil run
 ### Log Collection
 
 Collect logs for bug reports:
+
 ```bash
 anvil run --verbose 2>&1 | tee anvil.log
 ```
@@ -269,6 +299,7 @@ anvil run --verbose 2>&1 | tee anvil.log
 ### Filing Issues
 
 Include:
+
 - Anvil version: `anvil --version`
 - Node version: `node --version`
 - OS and version
@@ -276,7 +307,8 @@ Include:
 - Error message and stack trace
 - Steps to reproduce
 
-File at: [github.com/EddaCraft/anvil-001/issues](https://github.com/EddaCraft/anvil-001/issues)
+File at:
+[github.com/EddaCraft/anvil-001/issues](https://github.com/EddaCraft/anvil-001/issues)
 
 ---
 

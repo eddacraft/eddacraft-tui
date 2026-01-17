@@ -7,7 +7,8 @@ sidebar_position: 4
 
 # First Project
 
-This guide walks through setting up Anvil in an existing TypeScript project with intentional architecture boundaries.
+This guide walks through setting up Anvil in an existing TypeScript project with
+intentional architecture boundaries.
 
 ## Scenario
 
@@ -25,6 +26,7 @@ my-app/
 ```
 
 You want to enforce these boundaries:
+
 - `api/` can import from `services/` but not `repositories/`
 - `services/` can import from `repositories/` and `utils/`
 - `repositories/` can only import from `utils/`
@@ -112,7 +114,8 @@ For architecture violations, you have two options:
 
 ### Option A: Fix the Code
 
-Refactor to respect boundaries. In the example above, the API handler should call a service, not a repository directly:
+Refactor to respect boundaries. In the example above, the API handler should
+call a service, not a repository directly:
 
 ```typescript
 // Before (violation)
@@ -131,9 +134,8 @@ If the violation is intentional, add a suppression:
 import { UserRepo } from '../repositories/user.repo';
 ```
 
-:::caution
-Suppressions require explanations. `@anvil-ignore` without a reason will itself trigger a warning.
-:::
+:::caution Suppressions require explanations. `@anvil-ignore` without a reason
+will itself trigger a warning. :::
 
 ## Step 5: Start Watch Mode
 
@@ -155,7 +157,8 @@ Add Anvil to your CI pipeline:
   run: pnpm anvil run --ci
 ```
 
-The `--ci` flag produces machine-readable output and sets appropriate exit codes.
+The `--ci` flag produces machine-readable output and sets appropriate exit
+codes.
 
 ## What You've Achieved
 

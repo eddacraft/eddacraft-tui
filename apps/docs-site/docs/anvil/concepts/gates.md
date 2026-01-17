@@ -1,17 +1,20 @@
 ---
 id: gates
 title: Gates
-description: Quality gates that validate code changes against deterministic rules.
+description:
+  Quality gates that validate code changes against deterministic rules.
 sidebar_position: 2
 ---
 
 # Gates
 
-Gates are quality checks that code must pass before proceeding. They're deterministic, composable, and run automatically.
+Gates are quality checks that code must pass before proceeding. They're
+deterministic, composable, and run automatically.
 
 ## What is a Gate?
 
-A gate is a validation checkpoint. Code enters, gets checked, and either passes or fails:
+A gate is a validation checkpoint. Code enters, gets checked, and either passes
+or fails:
 
 ```
 ┌─────────┐     ┌─────────┐     ┌─────────┐
@@ -49,6 +52,7 @@ Validates that imports respect defined boundaries.
 ```
 
 **Catches:**
+
 - Layer violations (UI importing data layer directly)
 - Domain violations (one domain importing another's internals)
 - Circular dependencies
@@ -57,13 +61,13 @@ Validates that imports respect defined boundaries.
 
 Detects known problematic patterns:
 
-| ID | Pattern | Why it matters |
-|----|---------|----------------|
+| ID     | Pattern                | Why it matters        |
+| ------ | ---------------------- | --------------------- |
 | AP-001 | Broad `eslint-disable` | Hides multiple issues |
-| AP-003 | Explicit `any` | Defeats type safety |
-| AP-004 | `@ts-ignore` | Masks type errors |
-| AP-006 | Empty catch block | Swallows errors |
-| AP-007 | Console in production | Debug code leaked |
+| AP-003 | Explicit `any`         | Defeats type safety   |
+| AP-004 | `@ts-ignore`           | Masks type errors     |
+| AP-006 | Empty catch block      | Swallows errors       |
+| AP-007 | Console in production  | Debug code leaked     |
 
 ### Secret Detection
 
@@ -136,12 +140,12 @@ interface GateResult {
 
 ### Status Levels
 
-| Status | Meaning | Default behaviour |
-|--------|---------|-------------------|
-| `pass` | Check passed | Continue |
+| Status | Meaning                   | Default behaviour      |
+| ------ | ------------------------- | ---------------------- |
+| `pass` | Check passed              | Continue               |
 | `warn` | Issue found, not blocking | Continue (log warning) |
-| `fail` | Blocking issue | Stop execution |
-| `skip` | Check not applicable | Continue |
+| `fail` | Blocking issue            | Stop execution         |
+| `skip` | Check not applicable      | Continue               |
 
 ### Configuring Severity
 
@@ -202,6 +206,7 @@ const legacyData: any = fetchLegacyApi();
 ```
 
 **Rules:**
+
 - Suppressions require explanations
 - Suppressions are tracked in evidence
 - Unexplained suppressions trigger warnings

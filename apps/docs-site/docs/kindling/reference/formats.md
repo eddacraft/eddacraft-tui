@@ -42,29 +42,29 @@ Specification of Kindling's data formats.
 
 ### Field Descriptions
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `id` | string | Yes | Unique identifier (obs_*) |
-| `content` | string | Yes | Observation content |
-| `kind` | enum | Yes | Type of observation |
-| `tags` | string[] | No | Categorisation tags |
-| `source` | object | Yes | Origin information |
-| `context` | object | No | Location context |
-| `provenance` | object | Yes | Full origin metadata |
-| `capsule` | string | Yes | Parent capsule |
-| `createdAt` | ISO8601 | Yes | Creation timestamp |
-| `updatedAt` | ISO8601 | No | Last update timestamp |
+| Field        | Type     | Required | Description                 |
+| ------------ | -------- | -------- | --------------------------- |
+| `id`         | string   | Yes      | Unique identifier (obs\_\*) |
+| `content`    | string   | Yes      | Observation content         |
+| `kind`       | enum     | Yes      | Type of observation         |
+| `tags`       | string[] | No       | Categorisation tags         |
+| `source`     | object   | Yes      | Origin information          |
+| `context`    | object   | No       | Location context            |
+| `provenance` | object   | Yes      | Full origin metadata        |
+| `capsule`    | string   | Yes      | Parent capsule              |
+| `createdAt`  | ISO8601  | Yes      | Creation timestamp          |
+| `updatedAt`  | ISO8601  | No       | Last update timestamp       |
 
 ### Kind Values
 
 ```typescript
 type ObservationKind =
-  | 'discovery'   // Something learned
-  | 'decision'    // Choice made
-  | 'gotcha'      // Warning/pitfall
-  | 'reference'   // Link/citation
-  | 'question'    // Open question
-  | 'todo';       // Follow-up action
+  | 'discovery' // Something learned
+  | 'decision' // Choice made
+  | 'gotcha' // Warning/pitfall
+  | 'reference' // Link/citation
+  | 'question' // Open question
+  | 'todo'; // Follow-up action
 ```
 
 ### Source Types
@@ -94,8 +94,8 @@ interface Source {
 - **Tags:** api, rate-limit
 - **Source:** manual
 
-Exceeding the rate limit returns HTTP 429 Too Many Requests.
-Use exponential backoff with jitter for retries.
+Exceeding the rate limit returns HTTP 429 Too Many Requests. Use exponential
+backoff with jitter for retries.
 
 ---
 ```
@@ -178,6 +178,7 @@ Webhook signature required
 ```
 
 Import:
+
 ```bash
 kindling import notes.txt --kind discovery
 ```
@@ -193,6 +194,7 @@ kindling import notes.txt --kind discovery
 ```
 
 Import:
+
 ```bash
 kindling import notes.md --parse-tags
 ```

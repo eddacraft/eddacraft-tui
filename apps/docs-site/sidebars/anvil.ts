@@ -6,70 +6,43 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Overview',
       collapsed: false,
-      items: [
-        'overview',
-        'when-to-use',
-      ],
+      items: ['overview', 'when-to-use'],
     },
     {
       type: 'category',
       label: 'Quickstart',
       collapsed: false,
-      items: [
-        'quickstart',
-        'first-project',
-        'first-gate',
-      ],
+      items: ['quickstart', 'first-project', 'first-gate'],
     },
     {
       type: 'category',
       label: 'Core Concepts',
       collapsed: false,
-      items: [
-        'concepts/plans',
-        'concepts/gates',
-        'concepts/sessions',
-        'concepts/audit-trail',
-      ],
+      items: ['concepts/plans', 'concepts/gates', 'concepts/sessions', 'concepts/audit-trail'],
     },
     {
       type: 'category',
       label: 'Guides',
       collapsed: true,
-      items: [
-        'guides/solo-dev-flow',
-        'guides/team-flow',
-        'guides/agent-harness',
-      ],
+      items: ['guides/solo-dev-flow', 'guides/team-flow', 'guides/agent-harness'],
     },
     {
       type: 'category',
       label: 'Integrations',
       collapsed: true,
-      items: [
-        'integrations/github',
-        'integrations/vscode',
-        'integrations/mcp',
-      ],
+      items: ['integrations/github', 'integrations/vscode', 'integrations/mcp'],
     },
     {
       type: 'category',
       label: 'Operations',
       collapsed: true,
-      items: [
-        'operations/config',
-        'operations/security',
-        'operations/troubleshooting',
-      ],
+      items: ['operations/config', 'operations/security', 'operations/troubleshooting'],
     },
     {
       type: 'category',
       label: 'Release Notes',
       collapsed: true,
-      items: [
-        'releases/changelog',
-        'releases/upgrade-notes',
-      ],
+      items: ['releases/changelog', 'releases/upgrade-notes'],
     },
   ],
 };

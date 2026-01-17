@@ -57,9 +57,9 @@ export class MyToolAdapter implements KindlingAdapter {
       source: {
         type: 'tool',
         name: 'my-tool',
-        version: this.version
+        version: this.version,
       },
-      capsule: this.capsule
+      capsule: this.capsule,
     };
   }
 }
@@ -165,7 +165,7 @@ export const MyToolConfigSchema = z.object({
   capsule: z.string().default('default'),
   apiKey: z.string(),
   pollInterval: z.number().default(60000),
-  tags: z.array(z.string()).default([])
+  tags: z.array(z.string()).default([]),
 });
 
 type MyToolConfig = z.infer<typeof MyToolConfigSchema>;
@@ -184,7 +184,7 @@ describe('MyToolAdapter', () => {
 
     const obs = await adapter.capture({
       content: 'Test observation',
-      kind: 'discovery'
+      kind: 'discovery',
     });
 
     expect(obs.content).toBe('Test observation');

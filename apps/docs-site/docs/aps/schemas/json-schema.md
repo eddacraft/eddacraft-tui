@@ -16,6 +16,7 @@ https://eddacraft.dev/schemas/aps/v1.0/aps.schema.json
 ```
 
 Or in the repository:
+
 ```
 packages/aps/schemas/aps.schema.json
 ```
@@ -162,7 +163,9 @@ Common validation errors:
 {
   "keyword": "enum",
   "message": "must be equal to one of the allowed values",
-  "params": { "allowedValues": ["pending", "in_progress", "complete", "blocked"] }
+  "params": {
+    "allowedValues": ["pending", "in_progress", "complete", "blocked"]
+  }
 }
 ```
 

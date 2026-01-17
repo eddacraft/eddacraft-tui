@@ -11,7 +11,8 @@ Capture observations from OpenCode sessions.
 
 ## What is OpenCode?
 
-OpenCode is a terminal-based AI coding assistant. The Kindling adapter captures observations from your OpenCode sessions automatically.
+OpenCode is a terminal-based AI coding assistant. The Kindling adapter captures
+observations from your OpenCode sessions automatically.
 
 ## Setup
 
@@ -104,14 +105,14 @@ kindling recent --source opencode
 }
 ```
 
-| Option | Description | Default |
-|--------|-------------|---------|
-| `capsule` | Target capsule | Active capsule |
-| `capture.decisions` | Capture decisions | `true` |
-| `capture.discoveries` | Capture discoveries | `true` |
-| `capture.errors` | Capture error resolutions | `true` |
-| `capture.codeBlocks` | Capture code snippets | `false` |
-| `minLength` | Minimum content length | `20` |
+| Option                | Description               | Default        |
+| --------------------- | ------------------------- | -------------- |
+| `capsule`             | Target capsule            | Active capsule |
+| `capture.decisions`   | Capture decisions         | `true`         |
+| `capture.discoveries` | Capture discoveries       | `true`         |
+| `capture.errors`      | Capture error resolutions | `true`         |
+| `capture.codeBlocks`  | Capture code snippets     | `false`        |
+| `minLength`           | Minimum content length    | `20`           |
 
 ### Exclude Patterns
 
@@ -120,11 +121,7 @@ Don't capture certain content:
 ```json
 {
   "opencode": {
-    "exclude": [
-      "password",
-      "secret",
-      "token"
-    ]
+    "exclude": ["password", "secret", "token"]
   }
 }
 ```
@@ -134,11 +131,13 @@ Don't capture certain content:
 ### Observations Not Appearing
 
 1. Check adapter is installed:
+
    ```bash
    kindling adapter list
    ```
 
 2. Check configuration:
+
    ```bash
    kindling adapter opencode config --show
    ```

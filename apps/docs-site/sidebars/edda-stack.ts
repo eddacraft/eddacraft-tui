@@ -7,11 +7,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Components',
       collapsed: false,
-      items: [
-        'components/kindling',
-        'components/ember',
-        'components/edda',
-      ],
+      items: ['components/kindling', 'components/ember', 'components/edda'],
     },
     {
       type: 'doc',

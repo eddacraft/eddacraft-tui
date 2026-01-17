@@ -1,10 +1,12 @@
 # Toggling Documentation Sections
 
-This document explains how to enable/disable specific documentation sections in the EddaCraft Docusaurus site.
+This document explains how to enable/disable specific documentation sections in
+the EddaCraft Docusaurus site.
 
 ## Architecture
 
-The site uses Docusaurus multi-instance docs. Each product section is a separate plugin:
+The site uses Docusaurus multi-instance docs. Each product section is a separate
+plugin:
 
 ```
 plugins: [
@@ -22,7 +24,8 @@ This means each section can be independently enabled or disabled.
 
 ### Step 1: Comment Out the Plugin
 
-In `apps/docs-site/docusaurus.config.ts`, find the plugins array and comment out the section:
+In `apps/docs-site/docusaurus.config.ts`, find the plugins array and comment out
+the section:
 
 ```typescript
 plugins: [
@@ -41,7 +44,8 @@ plugins: [
 
 ### Step 2: Remove from Navbar
 
-In the same file, find `themeConfig.navbar.items` and remove/comment the Products dropdown entry:
+In the same file, find `themeConfig.navbar.items` and remove/comment the
+Products dropdown entry:
 
 ```typescript
 {
@@ -74,7 +78,8 @@ In `themeConfig.footer.links`, remove the footer entries:
 
 ### Step 4: Update Homepage (Optional)
 
-In `apps/docs-site/src/pages/index.tsx`, you may want to remove or mark the product tile:
+In `apps/docs-site/src/pages/index.tsx`, you may want to remove or mark the
+product tile:
 
 ```tsx
 // Option A: Remove entirely
@@ -91,6 +96,7 @@ In `apps/docs-site/src/pages/index.tsx`, you may want to remove or mark the prod
 ### Step 5: Fix Cross-Links
 
 Search for links to the disabled section and either:
+
 - Remove them
 - Redirect to a placeholder
 - Add conditional rendering
@@ -103,6 +109,7 @@ grep -r "/docs/kindling" apps/docs-site/docs/
 ## To Re-Enable a Section
 
 Reverse the process:
+
 1. Uncomment the plugin
 2. Uncomment navbar entry
 3. Uncomment footer entry
@@ -144,13 +151,13 @@ pnpm start
 
 ## Current Section Status
 
-| Section | Status | Notes |
-|---------|--------|-------|
+| Section    | Status  | Notes                   |
+| ---------- | ------- | ----------------------- |
 | start-here | Enabled | Always on - entry point |
-| anvil | Enabled | Primary product |
-| aps | Enabled | OSS spec |
-| kindling | Enabled | OSS memory capture |
-| edda-stack | Enabled | Placeholder/roadmap |
+| anvil      | Enabled | Primary product         |
+| aps        | Enabled | OSS spec                |
+| kindling   | Enabled | OSS memory capture      |
+| edda-stack | Enabled | Placeholder/roadmap     |
 
 ## Checklist for Disabling a Section
 

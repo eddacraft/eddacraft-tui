@@ -58,6 +58,7 @@ kindling init
 ```
 
 This creates:
+
 - `~/.kindling/` — data directory
 - `~/.kindling/config.json` — configuration
 - Default capsule — for immediate use

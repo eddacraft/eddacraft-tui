@@ -1,13 +1,15 @@
 ---
 id: plans
 title: Plans
-description: Understanding APS plans as the foundation for deterministic validation.
+description:
+  Understanding APS plans as the foundation for deterministic validation.
 sidebar_position: 1
 ---
 
 # Plans
 
-Plans define *what* should be built. Anvil validates *how* it's being built against that definition.
+Plans define _what_ should be built. Anvil validates _how_ it's being built
+against that definition.
 
 ## What is a Plan?
 
@@ -39,7 +41,8 @@ A plan is an APS (Anvil Plan Specification) document that describes:
 
 ### Determinism
 
-Plans are hash-stable. Given the same plan, Anvil produces the same validation. This enables:
+Plans are hash-stable. Given the same plan, Anvil produces the same validation.
+This enables:
 
 - **Reproducible builds** — same inputs, same outputs
 - **Audit trails** — prove what was validated
@@ -47,7 +50,8 @@ Plans are hash-stable. Given the same plan, Anvil produces the same validation. 
 
 ### Intent Declaration
 
-Plans capture *intent* before execution. The AI (or developer) works within the plan's boundaries:
+Plans capture _intent_ before execution. The AI (or developer) works within the
+plan's boundaries:
 
 ```markdown
 ## Task: AUTH-001 — Implement login endpoint
@@ -57,11 +61,13 @@ Outcome: Users can authenticate with email/password
 Validation: `pnpm test src/auth/login.test.ts`
 ```
 
-The plan doesn't say *how* to implement login—that's up to the executor. It says *what* success looks like.
+The plan doesn't say _how_ to implement login—that's up to the executor. It says
+_what_ success looks like.
 
 ### Bounded Context
 
-Each module is a bounded context. Anvil can enforce that changes stay within their module's boundaries:
+Each module is a bounded context. Anvil can enforce that changes stay within
+their module's boundaries:
 
 ```
 Module: auth
@@ -110,7 +116,9 @@ module: auth
 ## Tasks
 
 ### AUTH-001 — Login endpoint
+
 ### AUTH-002 — Registration endpoint
+
 ### AUTH-003 — Password reset
 ```
 
@@ -126,6 +134,7 @@ A unit of authorised work:
 **Validation:** `pnpm test src/auth/login.test.ts`
 
 **Steps:**
+
 1. [ ] Endpoint accepts POST /auth/login
 2. [ ] Invalid credentials return 401
 3. [ ] Valid credentials return JWT
@@ -143,17 +152,20 @@ anvil run --plan plans/index.aps.md
 ```
 
 Anvil checks:
+
 - Are the modified files within an active task's scope?
 - Does the change align with the task's stated outcome?
 - Are steps being completed in order?
 
 ### Plan-less Mode
 
-Anvil works without plans too. In this mode, it only runs gate checks (architecture, anti-patterns, etc.) without plan validation.
+Anvil works without plans too. In this mode, it only runs gate checks
+(architecture, anti-patterns, etc.) without plan validation.
 
 ### Creating Plans
 
 Plans can be created:
+
 - **Manually** — write APS markdown
 - **Via CLI** — `anvil plan create`
 - **From external formats** — Anvil adapters convert SpecKit, BMAD, etc.

@@ -15,8 +15,8 @@ Every observation has:
 
 ```typescript
 interface Observation {
-  id: string;           // Unique identifier
-  content: string;      // The actual knowledge
+  id: string; // Unique identifier
+  content: string; // The actual knowledge
   kind: ObservationKind;
   tags: string[];
   source: Source;
@@ -37,6 +37,7 @@ kindling observe "Stripe webhooks require signature verification using the raw r
 ### Content Guidelines
 
 **Be specific:**
+
 ```bash
 # ❌ Vague
 kindling observe "API thing"
@@ -46,6 +47,7 @@ kindling observe "API returns 429 after 100 requests per minute"
 ```
 
 **Include reasoning:**
+
 ```bash
 # ❌ Just the what
 kindling observe "Use Redis"
@@ -55,6 +57,7 @@ kindling observe "Use Redis for session storage - it handles our 10k concurrent 
 ```
 
 **Note exceptions:**
+
 ```bash
 kindling observe "All API calls need auth EXCEPT /health and /metrics"
 ```
@@ -123,14 +126,14 @@ kindling observe "Use content-type: application/json" --tag api --tag headers
 
 Establish consistent tags:
 
-| Tag | Use for |
-|-----|---------|
-| `#api` | API-related knowledge |
+| Tag         | Use for                 |
+| ----------- | ----------------------- |
+| `#api`      | API-related knowledge   |
 | `#security` | Security considerations |
-| `#perf` | Performance insights |
-| `#bug` | Bug findings |
-| `#config` | Configuration details |
-| `#debug` | Debugging techniques |
+| `#perf`     | Performance insights    |
+| `#bug`      | Bug findings            |
+| `#config`   | Configuration details   |
+| `#debug`    | Debugging techniques    |
 
 ### Inline Tags
 
@@ -193,11 +196,11 @@ kindling observe "This function is O(n²)" \
 
 ```typescript
 interface Context {
-  file?: string;      // File path
-  line?: number;      // Line number
-  function?: string;  // Function name
-  commit?: string;    // Git commit
-  url?: string;       // URL reference
+  file?: string; // File path
+  line?: number; // Line number
+  function?: string; // Function name
+  commit?: string; // Git commit
+  url?: string; // URL reference
 }
 ```
 
@@ -221,6 +224,7 @@ Full origin tracking:
 ```
 
 Provenance enables:
+
 - Attribution
 - Timeline reconstruction
 - Audit trails
