@@ -1,0 +1,253 @@
+/**
+ * EddaCraft Homepage Styles
+ */
+
+/* Hero Section */
+.heroBanner {
+  padding: 6rem 0 4rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.heroTitle {
+  font-size: 3.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.5rem;
+}
+
+.heroSubtitle {
+  font-size: 1.5rem;
+  color: var(--ec-gray-500);
+  margin-bottom: 1rem;
+}
+
+[data-theme='dark'] .heroSubtitle {
+  color: var(--ec-gray-400);
+}
+
+.heroDescription {
+  font-size: 1.125rem;
+  color: var(--ec-gray-600);
+  max-width: 600px;
+  margin: 0 auto 2rem;
+}
+
+[data-theme='dark'] .heroDescription {
+  color: var(--ec-gray-400);
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding: 3rem 1rem;
+  }
+
+  .heroTitle {
+    font-size: 2.5rem;
+  }
+
+  .heroSubtitle {
+    font-size: 1.25rem;
+  }
+}
+
+/* Products Section */
+.products {
+  padding: 4rem 0;
+  background-color: var(--ifm-background-surface-color);
+}
+
+.productGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.productTile {
+  padding: 1.5rem;
+  border: 1px solid var(--ifm-toc-border-color);
+  border-radius: 8px;
+  background-color: var(--ifm-background-color);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.productTile:hover {
+  transform: translateY(-2px);
+}
+
+.productTileAnvil {
+  border-left: 4px solid var(--ec-anvil-accent);
+}
+
+.productTileAnvil:hover {
+  border-color: var(--ec-anvil-accent);
+}
+
+.productTileAps {
+  border-left: 4px solid var(--ec-aps-accent);
+}
+
+.productTileAps:hover {
+  border-color: var(--ec-aps-accent);
+}
+
+.productTileKindling {
+  border-left: 4px solid var(--ec-kindling-accent);
+}
+
+.productTileKindling:hover {
+  border-color: var(--ec-kindling-accent);
+}
+
+.productTileEddastack {
+  border-left: 4px solid var(--ec-edda-accent);
+  opacity: 0.85;
+}
+
+.productTileEddastack:hover {
+  border-color: var(--ec-edda-accent);
+}
+
+.productTileHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.productTileTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.25em 0.5em;
+  font-size: 0.65rem;
+  font-weight: 500;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background-color: var(--ec-gray-200);
+  color: var(--ec-gray-600);
+}
+
+[data-theme='dark'] .badge {
+  background-color: var(--ec-gray-700);
+  color: var(--ec-gray-300);
+}
+
+.productTileTagline {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ec-gray-600);
+  margin-bottom: 0.75rem;
+}
+
+[data-theme='dark'] .productTileTagline {
+  color: var(--ec-gray-400);
+}
+
+.productTileDescription {
+  font-size: 0.9rem;
+  color: var(--ec-gray-500);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+}
+
+[data-theme='dark'] .productTileDescription {
+  color: var(--ec-gray-400);
+}
+
+.productTileLink {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Value Props Section */
+.valueProps {
+  padding: 4rem 0;
+}
+
+.valueGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 2rem;
+}
+
+.valueProp h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.valueProp p {
+  font-size: 0.9rem;
+  color: var(--ec-gray-500);
+  line-height: 1.6;
+}
+
+[data-theme='dark'] .valueProp p {
+  color: var(--ec-gray-400);
+}
+
+/* Quick Links Section */
+.quickLinks {
+  padding: 4rem 0;
+  background-color: var(--ifm-background-surface-color);
+  border-top: 1px solid var(--ifm-toc-border-color);
+}
+
+.quickLinks h2 {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.linkGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+}
+
+.linkGroup h4 {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ec-gray-500);
+  margin-bottom: 0.75rem;
+}
+
+[data-theme='dark'] .linkGroup h4 {
+  color: var(--ec-gray-400);
+}
+
+.linkGroup ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.linkGroup li {
+  margin-bottom: 0.5rem;
+}
+
+.linkGroup a {
+  font-size: 0.9rem;
+  color: var(--ifm-color-primary);
+  text-decoration: none;
+}
+
+.linkGroup a:hover {
+  text-decoration: underline;
+}

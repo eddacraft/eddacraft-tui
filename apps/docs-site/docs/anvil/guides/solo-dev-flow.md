@@ -1,0 +1,187 @@
+---
+id: solo-dev-flow
+title: Solo Dev Flow
+description: How to use Anvil effectively as a solo developer.
+sidebar_position: 1
+---
+
+# Solo Dev Flow
+
+This guide covers the optimal Anvil workflow for solo developers using AI assistance.
+
+## The Setup
+
+As a solo dev, your workflow looks like:
+
+1. Plan what to build
+2. Use AI to help implement
+3. Validate as you go
+4. Commit when ready
+
+Anvil integrates at step 3, giving you confidence that AI-generated code meets your standards.
+
+## Daily Workflow
+
+### Start of Session
+
+```bash
+# Terminal 1: Start watch mode
+anvil watch
+
+# Terminal 2: Your editor/AI assistant
+code .
+```
+
+Keep watch mode running in a visible terminal or use the VS Code extension.
+
+### During Development
+
+As you work with AI:
+
+1. **AI generates code** — you accept the suggestion
+2. **You save the file** — Anvil validates immediately
+3. **Issues surface** — fix before moving on
+4. **Clean save** — continue to next task
+
+```
+[10:30:00] Watching...
+[10:30:15] Changed: src/api/users.ts
+           ✓ architecture
+           ✓ anti-patterns
+           ✓ secrets
+           All gates passed.
+[10:31:02] Changed: src/services/auth.ts
+           ⚠️ AP-003: Explicit 'any' at line 42
+           Fix before committing.
+```
+
+### Before Committing
+
+Run a full check:
+
+```bash
+anvil run
+```
+
+This ensures nothing slipped through (e.g., if watch mode wasn't running).
+
+### Commit
+
+Standard git workflow:
+
+```bash
+git add -p  # Review changes
+git commit -m "feat: add user authentication"
+```
+
+## Configuration for Solo
+
+Recommended config for solo development:
+
+```json
+{
+  "version": "1.0",
+  "gates": {
+    "architecture": {
+      "enabled": true,
+      "boundaries": []
+    },
+    "antiPatterns": {
+      "enabled": true,
+      "patterns": ["AP-001", "AP-003", "AP-004", "AP-006"]
+    },
+    "secrets": {
+      "enabled": true
+    }
+  },
+  "watch": {
+    "debounce_ms": 300,
+    "ignore": ["node_modules", "dist", ".git"]
+  }
+}
+```
+
+### Why These Settings?
+
+- **Architecture without boundaries** — catches circular deps, still useful
+- **Core anti-patterns only** — high signal, low noise
+- **Secrets always on** — prevent accidental commits
+- **300ms debounce** — balances responsiveness with CPU
+
+## VS Code Integration
+
+Install the Anvil VS Code extension for in-editor feedback:
+
+```bash
+code --install-extension eddacraft.anvil-vscode
+```
+
+Benefits:
+- Inline diagnostics (squiggly lines)
+- Problems panel integration
+- Quick fixes for some issues
+- No separate terminal needed
+
+## Tips for Solo Devs
+
+### 1. Trust the Feedback
+
+When Anvil warns you, don't dismiss it. The cost of fixing now is lower than fixing in production.
+
+### 2. Suppress Thoughtfully
+
+If you need to suppress a warning:
+
+```typescript
+// @anvil-ignore AP-003 Third-party API returns untyped data
+const response: any = await legacyApi.fetch();
+```
+
+Write a real reason. Future-you will thank present-you.
+
+### 3. Review Evidence Occasionally
+
+```bash
+anvil evidence list --since 7d
+```
+
+Look for patterns. If you're suppressing the same thing repeatedly, consider:
+- Adjusting configuration
+- Fixing the root cause
+- Adding a global suppression
+
+### 4. Keep Config in Git
+
+Your `anvil.config.json` is part of your project. Version it.
+
+### 5. Run Before Push
+
+Even with watch mode, run a full check before pushing:
+
+```bash
+anvil run && git push
+```
+
+## When to Skip Anvil
+
+Even solo, there are times to bypass:
+
+- **Rapid prototyping** — `anvil run --skip` for throwaway experiments
+- **Emergency hotfix** — fix it now, clean it later (but do clean it)
+- **Third-party code** — suppress entire directories
+
+```json
+{
+  "suppressions": [
+    {
+      "pattern": "src/generated/**",
+      "checks": ["*"],
+      "reason": "Auto-generated code from protobuf"
+    }
+  ]
+}
+```
+
+---
+
+**Next:** [Team workflow →](/docs/anvil/guides/team-flow)

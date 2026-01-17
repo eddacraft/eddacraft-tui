@@ -1,0 +1,267 @@
+---
+id: team-flow
+title: Team Flow
+description: Integrating Anvil into team workflows with CI/CD and code review.
+sidebar_position: 2
+---
+
+# Team Flow
+
+This guide covers Anvil workflows for teams, including CI integration, PR checks, and governance.
+
+## Overview
+
+Team workflow adds layers to the solo flow:
+
+```
+Developer → Local Anvil → Push → CI Anvil → PR Review → Merge
+              (catch)            (enforce)   (verify)
+```
+
+**Local Anvil** catches issues early. **CI Anvil** enforces standards. **Review** verifies intent.
+
+## CI Integration
+
+### GitHub Actions
+
+Add Anvil to your CI workflow:
+
+```yaml
+# .github/workflows/ci.yml
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  anvil:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v2
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Run Anvil
+        run: pnpm anvil run --ci
+        env:
+          ANVIL_CI: true
+```
+
+### CI Mode Behaviour
+
+`--ci` flag changes behaviour:
+
+| Aspect | Interactive | CI Mode |
+|--------|-------------|---------|
+| Output | Terminal UI | JSON lines |
+| Colours | Yes | No |
+| Exit code | 0/1 | 0/1/2 (warn) |
+| Caching | Enabled | Disabled (clean) |
+
+### Exit Codes
+
+| Code | Meaning | Action |
+|------|---------|--------|
+| 0 | All gates passed | Continue |
+| 1 | Gate failure | Block merge |
+| 2 | Warnings only | Configurable |
+
+Configure warning behaviour:
+
+```json
+{
+  "ci": {
+    "fail_on_warnings": false
+  }
+}
+```
+
+## PR Comments
+
+Anvil can post results as PR comments:
+
+```yaml
+- name: Run Anvil
+  run: pnpm anvil run --ci --output anvil-results.json
+
+- name: Comment on PR
+  if: github.event_name == 'pull_request'
+  uses: actions/github-script@v7
+  with:
+    script: |
+      const results = require('./anvil-results.json');
+      // Post formatted comment
+```
+
+Or use the Anvil GitHub Action:
+
+```yaml
+- uses: eddacraft/anvil-action@v1
+  with:
+    github_token: ${{ secrets.GITHUB_TOKEN }}
+    comment: true
+```
+
+## Branch Protection
+
+Require Anvil to pass before merge:
+
+1. Go to **Settings → Branches → Branch protection rules**
+2. Add rule for `main`
+3. Check **Require status checks to pass**
+4. Select **Anvil** from the list
+
+## Team Configuration
+
+### Shared Config
+
+Store configuration in the repo root:
+
+```
+project/
+├── anvil.config.json      # Shared team config
+├── anvil.local.json       # Personal overrides (gitignored)
+└── ...
+```
+
+### Local Overrides
+
+Developers can override for their environment:
+
+```json
+// anvil.local.json
+{
+  "extends": "./anvil.config.json",
+  "watch": {
+    "debounce_ms": 500
+  }
+}
+```
+
+Add to `.gitignore`:
+
+```
+anvil.local.json
+```
+
+### Team-Wide Suppressions
+
+Suppress known issues team-wide:
+
+```json
+{
+  "suppressions": [
+    {
+      "pattern": "src/legacy/**",
+      "checks": ["AP-003"],
+      "reason": "Legacy code migration in progress (JIRA-123)"
+    }
+  ]
+}
+```
+
+## Governance Workflow
+
+For teams needing approval workflows:
+
+### 1. Suppression Approval
+
+Require PR review for new suppressions:
+
+```yaml
+# .github/CODEOWNERS
+anvil.config.json @team/architecture
+**/anvil-ignore* @team/leads
+```
+
+### 2. Evidence Review
+
+Attach evidence to PRs:
+
+```yaml
+- name: Upload Evidence
+  uses: actions/upload-artifact@v4
+  with:
+    name: anvil-evidence
+    path: .anvil/evidence/
+```
+
+### 3. Audit Export
+
+Regular export for compliance:
+
+```yaml
+# .github/workflows/audit.yml
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pnpm anvil evidence export --since 7d --output audit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: weekly-audit
+          path: audit.json
+```
+
+## Rollout Strategy
+
+### Phase 1: Shadow Mode
+
+Run Anvil in CI without blocking:
+
+```yaml
+- name: Run Anvil (Shadow)
+  run: pnpm anvil run --ci || true
+  continue-on-error: true
+```
+
+Collect data on what would fail.
+
+### Phase 2: Warn Mode
+
+Fail on errors, warn on anti-patterns:
+
+```json
+{
+  "ci": {
+    "fail_on_warnings": false
+  }
+}
+```
+
+### Phase 3: Strict Mode
+
+All issues block:
+
+```json
+{
+  "ci": {
+    "fail_on_warnings": true
+  }
+}
+```
+
+### Phase 4: Full Governance
+
+Add evidence, auditing, and approval workflows.
+
+---
+
+**Next:** [Agent harness patterns →](/docs/anvil/guides/agent-harness)
