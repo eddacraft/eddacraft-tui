@@ -67,6 +67,7 @@ pnpm build                    # Build all (REQUIRED before cross-package testing
 pnpm test                     # Unit tests (Vitest)
 pnpm lint                     # ESLint + markdownlint with auto-fix
 pnpm typecheck                # TypeScript strict mode
+pnpm format                   # Prettier formatting with auto-fix
 
 # Package-specific
 nx test core --testNamePattern="validator"    # Test pattern
@@ -77,6 +78,27 @@ pnpm -F core run update-golden-hashes         # Update golden test hashes
 pnpm link:cli                 # Build and link globally ('anvil' command)
 pnpm unlink:cli               # Unlink when done
 ```
+
+## Before Committing (Required)
+
+**All changes must pass these checks before committing:**
+
+```bash
+pnpm build           # Build all packages
+pnpm test            # Run unit tests
+pnpm lint            # ESLint + markdownlint
+pnpm format          # Prettier formatting
+pnpm typecheck       # TypeScript strict mode
+```
+
+Or run the full verification in one go:
+
+```bash
+pnpm build && pnpm test && pnpm lint && pnpm format && pnpm typecheck
+```
+
+**CI will reject PRs that fail any of these checks.** Fix issues locally before
+pushing to avoid failed CI runs.
 
 ## Where to Look
 
