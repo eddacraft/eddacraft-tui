@@ -10,10 +10,15 @@
       "img",
       "br",
       "h1",
+      "h3",
       "p",
       "kbd",
       "sup",
       "sub",
+      "div",
+      "ul",
+      "li",
+      "a",
       "intent",
       "plan",
       "name",
@@ -21,6 +26,9 @@
       "typeof",
       "filename"
     ]
+  },
+  "MD025": {
+    "front_matter_title": ""
   },
   "MD060": false,
   "MD040": false,
