@@ -245,7 +245,9 @@ graph TD
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
 | [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
+| [aps-markdown-adapter](./modules/aps-markdown-adapter.aps.md)           | APSMD   | Draft       | v2.0    | —                                                         |
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md)                 | OPENSPEC| Draft       | v2.0    | —                                                         |
+| [adapter-upstream-updates](./modules/adapter-upstream-updates.aps.md)   | ADAPTUP | Draft       | v1.2    | —                                                         |
 | [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.0    | save-time-trust, drift-reporting                          |
 | [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | v2.0    | kindling-integration                                      |
 | [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | v2.0    | ember                                                     |
