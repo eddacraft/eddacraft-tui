@@ -18,8 +18,6 @@ packages:
   - packages/tooling/*
   # Tools
   - tools/*
-  # Legacy (to be migrated)
-  - core
 
 ignoredBuiltDependencies:
   - '@devm33/node-pty'
