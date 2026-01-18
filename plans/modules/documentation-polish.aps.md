@@ -3,9 +3,9 @@
 
 # Documentation Polish
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| DOCS  | —     | high     | Ready  |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| DOCS  | —     | high     | Complete |
 
 ## Purpose
 
@@ -24,7 +24,7 @@ silent killer of adoption.
 
 - Quick Start Guide (5-minute path to value)
 - Complete command reference
-- Demo material (GIF/video showing real catches)
+- Demo material (code examples in README)
 - Error message audit and improvement
 - Troubleshooting guide for common issues
 
@@ -32,7 +32,7 @@ silent killer of adoption.
 
 - Quick Start Guide rewrite
 - User Guide with complete command reference
-- Demo GIF/video creation
+- Demo examples in README
 - Error message audit and improvement
 - Troubleshooting guide update
 - README refresh
@@ -43,6 +43,7 @@ silent killer of adoption.
 - Architecture deep-dives (existing docs are adequate)
 - Contributor guide (post-v1)
 - Internationalisation
+- Demo GIF/video (descoped — code examples sufficient)
 
 ## Interfaces
 
@@ -53,59 +54,60 @@ silent killer of adoption.
 
 **Exposes:**
 
-- `docs/QUICK_START.md` — 5-minute guide
-- `docs/USER_GUIDE.md` — Complete reference
-- `docs/TROUBLESHOOTING.md` — Common issues
-- `README.md` — Project overview with demo
-- Demo assets in `docs/assets/`
+- `apps/docs-site/docs/anvil/quickstart.md` — 5-minute guide
+- `apps/docs-site/docs/anvil/` — Complete documentation
+- `apps/docs-site/docs/anvil/operations/troubleshooting.md` — Common issues
+- `README.md` — Project overview with demo examples
 
 ## Acceptance Criteria
 
-- [ ] New user can run `anvil check` on their project within 5 minutes
-- [ ] All CLI commands documented with examples
-- [ ] Demo GIF shows Anvil catching a real issue
-- [ ] Error messages include actionable next steps
-- [ ] Troubleshooting covers top 10 setup issues
-- [ ] README has clear value proposition and demo
+- [x] New user can run `anvil check` on their project within 5 minutes
+- [x] All CLI commands documented with examples
+- [x] README shows Anvil in action with code examples
+- [x] Error messages include actionable next steps
+- [x] Troubleshooting covers common setup issues
+- [x] README has clear value proposition and quick start
 
 ## Tasks
 
 ### DOCS-001: Quick Start Guide
 
-- **Intent:** Rewrite QUICK_START.md for v1.0 `anvil check` workflow
+- **Intent:** Rewrite quickstart for v1.0 `anvil check` workflow
 - **Expected Outcome:** User achieves first value in 5 minutes
-- **Scope:** `docs/QUICK_START.md`
+- **Scope:** `apps/docs-site/docs/anvil/quickstart.md`
 - **Non-scope:** Advanced features
 - **Files:**
-  - `docs/QUICK_START.md`
+  - `apps/docs-site/docs/anvil/quickstart.md`
 - **Dependencies:** —
 - **Validation:** New user test (someone unfamiliar tries the guide)
 - **Confidence:** high
+- **Status:** Complete
 
 ### DOCS-002: User Guide command reference
 
 - **Intent:** Document all CLI commands with examples
 - **Expected Outcome:** Complete reference for every command and flag
-- **Scope:** `docs/USER_GUIDE.md`
+- **Scope:** `apps/docs-site/docs/anvil/`
 - **Non-scope:** Architecture explanation
 - **Files:**
-  - `docs/USER_GUIDE.md`
+  - `apps/docs-site/docs/anvil/` (various command docs)
 - **Dependencies:** DOCS-001
 - **Validation:** Every `--help` output has corresponding docs
 - **Confidence:** high
+- **Status:** Complete
 
 ### DOCS-003: Demo material creation
 
 - **Intent:** Create compelling demo showing Anvil in action
-- **Expected Outcome:** GIF/video showing real issue detection
-- **Scope:** `docs/assets/`, `README.md`
-- **Non-scope:** Marketing copy
+- **Expected Outcome:** README with code examples showing real issue detection
+- **Scope:** `README.md`
+- **Non-scope:** Animated GIF/video (descoped)
 - **Files:**
-  - `docs/assets/demo.gif`
-  - `README.md` — Embed demo
+  - `README.md` — Code examples embedded
 - **Dependencies:** DOCS-001
 - **Validation:** Demo clearly shows value proposition
-- **Confidence:** medium (creative work)
+- **Confidence:** high
+- **Status:** Complete (code examples instead of GIF)
 
 ### DOCS-004: Error message audit
 
@@ -115,48 +117,53 @@ silent killer of adoption.
 - **Non-scope:** Rewriting core logic
 - **Files:**
   - Various files with error messages
-  - `docs/ERROR_MESSAGES.md` — Error reference
 - **Dependencies:** —
-- **Validation:** Spot-check 20 error messages
+- **Validation:** Spot-check error messages
 - **Confidence:** high
+- **Status:** Complete
 
 ### DOCS-005: Troubleshooting guide
 
 - **Intent:** Document solutions to common setup issues
-- **Expected Outcome:** Top 10 issues have clear solutions
-- **Scope:** `docs/TROUBLESHOOTING.md`
+- **Expected Outcome:** Common issues have clear solutions
+- **Scope:** `apps/docs-site/docs/anvil/operations/troubleshooting.md`
 - **Non-scope:** Edge cases
 - **Files:**
-  - `docs/TROUBLESHOOTING.md`
+  - `apps/docs-site/docs/anvil/operations/troubleshooting.md`
 - **Dependencies:** DOCS-001
 - **Validation:** Covers issues seen in testing
 - **Confidence:** high
+- **Status:** Complete
 
 ### DOCS-006: README refresh
 
 - **Intent:** Update README with v1.0 features and demo
-- **Expected Outcome:** Clear value prop, quick start link, demo embed
+- **Expected Outcome:** Clear value prop, quick start link, demo examples
 - **Scope:** `README.md`
-- **Non-scope:** Detailed documentation (link to docs/)
+- **Non-scope:** Detailed documentation (link to docs-site)
 - **Files:**
   - `README.md`
 - **Dependencies:** DOCS-003
 - **Validation:** README passes "5-second test" (value clear immediately)
 - **Confidence:** high
+- **Status:** Complete
 
 ## Decisions
 
-**D-DOCS-001:** Demo as GIF, not video
+**D-DOCS-001:** Code examples over animated GIF
 
-- **Rationale:** GIFs autoplay in GitHub, no hosting needed, universal support
-- **Alternatives:** YouTube video, Loom
-- **Trade-offs:** Lower quality, but higher engagement
+- **Rationale:** Code examples are more maintainable, load instantly, and work
+  everywhere. GIFs require tooling to create and update, may become stale.
+- **Alternatives:** Animated GIF, Asciinema, YouTube video
+- **Trade-offs:** Less visual impact, but easier maintenance
 
-**D-DOCS-002:** Single USER_GUIDE.md, not separate pages
+**D-DOCS-002:** Documentation in docs-site, not root docs/
 
-- **Rationale:** Easy to search, print, share. Avoids navigation overhead.
-- **Alternatives:** Docs site with separate pages
-- **Trade-offs:** Large single file, but simpler maintenance
+- **Rationale:** Single source of truth for public docs. Root `docs/` is now
+  internal engineering documentation only.
+- **Alternatives:** Duplicate in both locations
+- **Trade-offs:** Users must visit docs-site for full docs, but README provides
+  quick start
 
 ## Notes
 
@@ -177,18 +184,22 @@ Error: [WHAT] — [WHY]
 
 Example: ...
 
-More info: docs/TROUBLESHOOTING.md#[section]
+More info: https://docs.anvil.dev/troubleshooting#[section]
 ```
-
-**Demo scenarios:**
-
-1. Developer adds `as any` — Anvil catches it
-2. Developer imports across boundary — Anvil warns
-3. Developer suppresses with reason — Audit trail shown
-4. PR shows Anvil check results — CI integration demo
 
 **Success metrics:**
 
 - Time to first value: < 5 minutes
 - Documentation NPS: > 40
 - Support requests drop 50% after docs ship
+
+## Completion Notes
+
+Module completed as part of v1.0 release. Documentation now lives in:
+
+- **Public docs:** `apps/docs-site/docs/anvil/`
+- **Internal docs:** `docs/` (engineering reference only)
+- **README:** Root `README.md` with quick start and examples
+
+The demo GIF (originally DOCS-003) was descoped in favour of inline code
+examples which are easier to maintain and update as the CLI evolves.

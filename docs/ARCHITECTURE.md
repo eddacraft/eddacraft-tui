@@ -1,7 +1,6 @@
 # Anvil Architecture
 
-**Version**: 2.0.0 **Last Updated**: 30 September 2025  
-**Status**: Living Document
+**Version**: 2.1.0 **Last Updated**: 18 January 2026 **Status**: Living Document
 
 ---
 
@@ -250,6 +249,41 @@ by default.
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Monorepo Package Structure
+
+The codebase is organised as an Nx monorepo with layered packages:
+
+```
+packages/
+├── anvil/                    # Core Anvil packages (layered)
+│   ├── contracts/            # Layer 0: Schemas, types, events (zero deps)
+│   ├── ports/                # Layer 1: Interface definitions
+│   ├── core/                 # Layer 2: Pure domain logic
+│   ├── runtime/              # Layer 3: Orchestration, gate, watch
+│   └── policy/               # OPA/Rego wrappers
+├── adapters/                 # Format adapters (SpecKit, BMAD, etc.)
+├── aps/                      # APS parser and tooling
+├── edda-stack/               # Memory system (Kindling/Ember/Edda)
+├── platform/                 # Cross-cutting utilities
+│   ├── config/
+│   ├── crypto/
+│   └── storage/
+└── tooling/                  # Shared configuration
+    ├── eslint-config/
+    └── tsconfig/
+
+apps/
+├── anvil-cli/                # CLI application
+├── docs-site/                # Docusaurus documentation
+└── vscode-extension/         # VS Code extension
+```
+
+**Dependency Rules**:
+
+- Layer N can only depend on layers < N
+- `contracts` (Layer 0) has zero internal dependencies
+- `runtime` (Layer 3) orchestrates all lower layers
+
 ---
 
 ## Component Deep Dive
@@ -348,7 +382,7 @@ types:
 - Inject evidence as markdown comments
 - Support for v1 (simple) and v2 (official) formats
 
-**Implementation Structure**: `adapters/src/speckit/`
+**Implementation Structure**: `packages/adapters/src/speckit/`
 
 ```
 speckit/
@@ -409,7 +443,7 @@ Architecture Documents, PRDs).
 - `Acceptance Criteria` → `metadata.acceptance_criteria[]`
 - Requirement IDs → `metadata.requirement_ids[]`
 
-**Planned Implementation Location**: `adapters/src/bmad/`
+**Planned Implementation Location**: `packages/adapters/src/bmad/`
 
 ```
 bmad/
@@ -433,7 +467,7 @@ bmad/
 - YAML ↔ JSON conversion
 
 **Implementation Location**: Native APS handling is built into core
-(`@anvil/core`) and base adapter framework (`adapters/src/base/`)
+(`@anvil/core`) and base adapter framework (`packages/adapters/src/base/`)
 
 ### 2. Core Layer (APS)
 
@@ -441,7 +475,7 @@ bmad/
 
 #### APS Schema (Zod)
 
-**Schema Definition**: `core/src/schema/aps.schema.ts`
+**Schema Definition**: `packages/anvil/contracts/src/schemas/`
 
 **Key Fields**:
 
@@ -492,7 +526,7 @@ interface APSPlan {
 
 3. **Verify**: Compare computed hash with stored hash
 
-**Implementation**: `core/src/hash/`
+**Implementation**: `packages/anvil/core/src/crypto/`
 
 **Critical Property**: Same plan content → same hash, always.
 
@@ -526,7 +560,7 @@ interface APSPlan {
 - Actionable suggestions
 - CLI-formatted output
 
-**Implementation**: `core/src/validation/`
+**Implementation**: `packages/anvil/core/src/validation/`
 
 ### 3. Gate Layer
 
@@ -619,7 +653,7 @@ interface Evidence {
 
 **Storage**: Appended to `evidence[]` array in APS plan.
 
-**Implementation**: `gate/src/`
+**Implementation**: `packages/anvil/runtime/src/gate/`
 
 ### 4. Sidecar Layer
 
@@ -639,7 +673,7 @@ interface Evidence {
 
 **No side effects**: Dry-run never modifies files or state.
 
-**Implementation**: `sidecar/src/dry-run/`
+**Implementation**: `packages/anvil/runtime/src/`
 
 #### Apply Engine
 
@@ -669,7 +703,7 @@ interface Evidence {
 
 **Idempotency**: Re-applying same plan should have no additional effect.
 
-**Implementation**: `sidecar/src/apply/`
+**Implementation**: `packages/anvil/runtime/src/`
 
 #### Rollback Engine
 
@@ -685,7 +719,7 @@ interface Evidence {
 
 **Safety**: Rollback itself is reversible (can "undo rollback").
 
-**Implementation**: `sidecar/src/rollback/`
+**Implementation**: `packages/anvil/runtime/src/`
 
 ### 5. Storage Layer
 
@@ -974,11 +1008,12 @@ Plan ID or Hash
 - Efficient disk usage
 - Fast installs
 
-**Build System**: Nx 21.5+
+**Build System**: Nx 22.3+
 
-- Monorepo management
+- Monorepo management (pnpm workspaces)
 - Incremental builds
 - Task caching
+- Layered package architecture
 
 ### Key Libraries
 
@@ -1003,12 +1038,12 @@ Plan ID or Hash
 
 #### Testing
 
-- **Vitest** (^1.x): Unit and integration tests
+- **Vitest** (^4.x): Unit and integration tests
 - **@vitest/coverage-v8**: Coverage reporting
 
 #### Code Quality
 
-- **ESLint** (^8.x): Linting
+- **ESLint** (^9.x): Linting (flat config)
 - **Prettier** (^3.x): Code formatting
 - **TypeScript ESLint**: TypeScript linting
 
@@ -1569,6 +1604,5 @@ This architecture is a living document. As we build and learn, it will evolve.
 
 ---
 
-**Document Version**: 2.0  
-**Last Updated**: 30 September 2025  
-**Next Review**: Weekly during MVP development
+**Document Version**: 2.1 **Last Updated**: 18 January 2026 **Next Review**: As
+needed during development

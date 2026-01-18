@@ -1,8 +1,6 @@
 # OPA Enhancement Vision: Making Policy-as-Code Delightful
 
-**Status:** Vision Document
-**Priority:** High
-**Last Updated:** January 2026
+**Status:** Vision Document **Priority:** High **Last Updated:** January 2026
 
 ## Executive Summary
 
@@ -83,7 +81,7 @@ rules:
   # Presentation accesses application only
   - layer: presentation
     can_import: [application]
-    cannot_import: [domain, infrastructure]  # Must go through application
+    cannot_import: [domain, infrastructure] # Must go through application
 ```
 
 #### Module Boundaries
@@ -113,7 +111,7 @@ module_rules:
   # Or be explicit about allowed interactions
   - from: ordering
     can_import: [inventory]
-    via: public_api  # Must use public API, not internals
+    via: public_api # Must use public API, not internals
 
   - from: shipping
     can_import: [ordering, inventory]
@@ -137,8 +135,8 @@ file_rules:
 
   # Utils should be pure
   - pattern: 'src/utils/**'
-    cannot_import: ['src/**']  # Only external deps
-    can_import: ['src/types/**']  # Except types
+    cannot_import: ['src/**'] # Only external deps
+    can_import: ['src/types/**'] # Except types
 ```
 
 #### Import Restrictions
@@ -352,7 +350,7 @@ policies:
       exclude:
         - '*.lock'
         - '*.snap'
-      warn_at: 15  # Warn before blocking
+      warn_at: 15 # Warn before blocking
 
   security-review:
     enabled: true
@@ -382,9 +380,9 @@ policies:
     enabled: true
     config:
       patterns:
-        - 'AKIA[0-9A-Z]{16}'  # AWS keys
-        - 'sk_live_[a-zA-Z0-9]+'  # Stripe keys
-        - 'ghp_[a-zA-Z0-9]{36}'  # GitHub tokens
+        - 'AKIA[0-9A-Z]{16}' # AWS keys
+        - 'sk_live_[a-zA-Z0-9]+' # Stripe keys
+        - 'ghp_[a-zA-Z0-9]{36}' # GitHub tokens
       exclude_files:
         - '**/*.test.ts'
         - '**/fixtures/**'
@@ -773,12 +771,13 @@ Policies added:
 ## Anvil Policy Check Results
 
 ### Summary
-| Check | Status | Score |
-|-------|--------|-------|
-| Architecture | ✓ Pass | 100/100 |
-| Security | ✓ Pass | 100/100 |
-| Coverage | ⚠ Warning | 85/100 |
-| Scope | ✓ Pass | 100/100 |
+
+| Check        | Status    | Score   |
+| ------------ | --------- | ------- |
+| Architecture | ✓ Pass    | 100/100 |
+| Security     | ✓ Pass    | 100/100 |
+| Coverage     | ⚠ Warning | 85/100  |
+| Scope        | ✓ Pass    | 100/100 |
 
 ### Coverage Warning
 
@@ -787,15 +786,15 @@ Policies added:
 > **Affected lines:** 45-67 (new payment validation logic)
 >
 > This is a warning, not a blocker. Consider adding tests for:
+>
 > - `validatePaymentMethod()` (lines 45-52)
 > - `processRefund()` (lines 58-67)
 
 ### Architecture Diagram
-
 ```
-src/api/handler.ts
-    └─→ src/services/payment.ts  ✓
-         └─→ src/domain/order.ts  ✓
+
+src/api/handler.ts └─→ src/services/payment.ts ✓ └─→ src/domain/order.ts ✓
+
 ```
 
 <details>
@@ -906,6 +905,7 @@ RECOMMENDATIONS
 ## Related Documents
 
 - [OPA Policy Engine](./opa-policy-engine.md) — Current implementation
-- [Architecture Integration](../../plans/modules/opa-architecture-integration.aps.md) — Technical plan
-- [Hybrid DC+OPA Decision](../../plans/decisions/006-hybrid-dc-opa.md) — Architecture decision
-
+- [Architecture Integration](../../plans/modules/opa-architecture-integration.aps.md)
+  — Technical plan
+- [Hybrid DC+OPA Decision](../../plans/decisions/006-hybrid-dc-opa.md) —
+  Architecture decision

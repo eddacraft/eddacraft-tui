@@ -1,43 +1,42 @@
 # Documentation Archive
 
-**Last Updated:** 2025-10-23
+This directory contains historical documents preserved for reference.
 
-## Purpose
-
-This directory contains historical documents, superseded plans, and old TODO
-lists that provide context but are no longer actively maintained.
+**These documents are read-only** - do not update archived content.
 
 ## Contents
 
-### Analysis & RFCs
+### Historical Planning (`planning/`)
 
-- [integration-gaps.md](integration-gaps.md) - Historical integration gaps
-  analysis
-- [rfc-spec-tools-adoption.md](rfc-spec-tools-adoption.md) - Initial RFC for
-  spec tools
+Past planning documents moved here during docs cleanup (2026-01-18):
 
-### Superseded Status Documents
+- V1 feature alignment docs
+- Monorepo planning docs
+- LSP/TUI implementation plans
+- Roadmaps and TODOs
 
-- [cli-integration-status-old.md](cli-integration-status-old.md) - Old status
-  (superseded by
-  [cli-integration-complete.md](../status/cli-integration-complete.md))
+### Historical Status (`status/`)
 
-### Old Plans and TODOs
+Past status reports and milestone summaries.
 
-Historical planning and task lists were removed during the monorepo cleanup. Use
-git history if you need to recover older plans or TODOs.
+### Superseded Documents
 
-## When to Archive
+- Implementation plans that have been completed or abandoned
+- Old integration plans
+- Feature architecture docs for completed features
 
-Documents should be moved to archive when:
+## Why Archive?
+
+Documents are archived when:
 
 1. Superseded by newer documentation
-2. Related milestone/phase is complete
+2. Related work is complete
 3. Information is outdated but historically valuable
-4. Still referenced for context
 
-## Navigation
+## Current Documentation
 
-- [Back to Documentation Index](../INDEX.md)
-- [Current Status](../status/README.md)
-- [Active Planning](../planning/README.md)
+For current documentation:
+
+- **Planning** → `plans/` (root directory)
+- **Engineering docs** → `docs/` (parent directory)
+- **Public docs** → `apps/docs-site/docs/`

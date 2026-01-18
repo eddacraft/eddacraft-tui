@@ -237,7 +237,7 @@ graph TD
 | [suppressions](./modules/suppressions.aps.md)                           | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library                  |
 | [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                           |
 | [tui](./modules/tui.aps.md)                                             | TUI     | Complete    | v1.0    | — (Phase 1: onboarding only)                              |
-| [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Ready       | v1.0    | —                                                         |
+| [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Complete    | v1.0    | —                                                         |
 | [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
 | [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
 | [opa-architecture-integration](./modules/opa-architecture-integration.aps.md) | OPA | In Progress | v1.1    | architecture-safety, save-time-trust                      |
@@ -603,12 +603,13 @@ Ember (interpretation), and Edda (canonical memory).
 | Architecture fitness functions | Med   | ✅ Planned (Rego policies)             |
 | Suggested refactorings         | Med   | Open                                   |
 
-### Documentation Gaps
+### Documentation Status
 
-| Doc                   | Status  | Notes                               |
-| --------------------- | ------- | ----------------------------------- |
-| QUICK_START.md        | Stale   | ✅ Planned: DOCS-001                |
-| USER_GUIDE.md         | Stale   | ✅ Planned: DOCS-002                |
-| TROUBLESHOOTING.md    | Partial | ✅ Planned: DOCS-005                |
-| Demo GIF              | Missing | ✅ Planned: DOCS-003                |
-| Architecture patterns | Missing | Show hexagonal/clean/layered setups |
+| Doc                   | Status   | Notes                                          |
+| --------------------- | -------- | ---------------------------------------------- |
+| Quick Start           | Complete | `apps/docs-site/docs/anvil/quickstart.md`      |
+| User Guide            | Complete | `apps/docs-site/docs/anvil/` (multiple files)  |
+| Troubleshooting       | Complete | `apps/docs-site/docs/anvil/operations/`        |
+| README                | Complete | Root `README.md` with examples                 |
+| Demo GIF              | Descoped | Code examples in README instead               |
+| Architecture patterns | Complete | OPA templates (layered, hexagonal, clean, DDD) |
