@@ -34,7 +34,7 @@ Source: [github.com/bmad-code-org/BMAD-METHOD](https://github.com/bmad-code-org/
 - Diataxis framework adoption
 - Site-relative link format
 
-### SpecKit v0.0.22 (November 2025)
+### SpecKit (tracked from upstream main)
 
 Source: [github.com/github/spec-kit](https://github.com/github/spec-kit)
 
