@@ -737,11 +737,10 @@ anvil gate spec.md --skip-checks coverage
 
 ## Next Steps
 
-- Read [PLAN.md](../PLAN.md) for strategic roadmap
-- Read [TODO.md](../TODO.md) for detailed task tracking
-- Read [packages/adapters/README.md](../packages/adapters/README.md) for adapter
-  development
-- Read [core/API.md](../core/API.md) for APS Core API reference
+- Read [plans/index.aps.md](../../plans/index.aps.md) for project roadmap
+- Read [packages/adapters/README.md](../../packages/adapters/README.md) for
+  adapter development
+- Read [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) for system design
 
 ---
 
@@ -752,4 +751,4 @@ anvil gate spec.md --skip-checks coverage
 
 ---
 
-**Version:** 0.0.0 (Pre-release) **Last Updated:** 2025-12-30
+**Version:** 0.0.0 (Pre-release) **Last Updated:** 2026-01-19

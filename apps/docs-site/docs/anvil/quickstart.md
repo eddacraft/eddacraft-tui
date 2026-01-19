@@ -18,20 +18,22 @@ Get Anvil running in your project in under 5 minutes.
 ## Installation
 
 ```bash
+# Clone and build (pre-release)
+git clone https://github.com/EddaCraft/anvil-001.git
+cd anvil-001 && pnpm install && pnpm build
+
+# Link CLI globally
+pnpm link:cli
+```
+
+Once published to npm, installation will be:
+
+```bash
 # Using pnpm (recommended)
 pnpm add -D @anvil/cli
 
 # Using npm
 npm install -D @anvil/cli
-
-# Using yarn
-yarn add -D @anvil/cli
-```
-
-Or install globally:
-
-```bash
-pnpm add -g @anvil/cli
 ```
 
 ## Initialise Anvil
@@ -39,47 +41,51 @@ pnpm add -g @anvil/cli
 Run the interactive setup wizard:
 
 ```bash
+cd /path/to/your/project
 anvil init
 ```
 
 This will:
 
 1. Detect your project type
-2. Create an `anvil.config.json` file
+2. Create an `.anvilrc` configuration file
 3. Set up default gate checks
-4. Optionally create an initial plan
+4. Create the `.anvil/` directory
 
 **Expected output:**
 
 ```
-🔨 Anvil Init
+🔨 Initialising Anvil in current project...
 
-Detected: TypeScript project with pnpm
-Creating configuration...
+Detected environment:
+  Project: my-app
+  Package Manager: pnpm
+  Git: ✓
+  TypeScript: ✓
 
-✓ Created anvil.config.json
-✓ Configured default gates
-✓ Ready to run
+✓ Anvil initialised successfully!
+
+Created files:
+  ✓ .anvilrc
+  ✓ .anvil/
 
 Next steps:
   anvil status    View current configuration
+  anvil check     Run checks on changed files
   anvil watch     Start watching for changes
-  anvil run       Run gates once
 ```
 
-## Your First Run
+## Your First Check
 
 Run Anvil once to see current issues:
 
 ```bash
-anvil run
+anvil check --changed
 ```
 
 **Expected output (clean project):**
 
 ```
-🔨 Anvil Run
-
 Checking architecture... ✓
 Checking anti-patterns... ✓
 Checking secrets... ✓
@@ -90,17 +96,14 @@ All gates passed.
 **Expected output (issues found):**
 
 ```
-🔨 Anvil Run
-
 Checking architecture... ✓
 Checking anti-patterns...
-  ⚠️  AP-003: Explicit 'any' type
-      src/utils/parser.ts:42:10
-  ⚠️  AP-006: Empty catch block
-      src/services/api.ts:87:5
+  ⚠ [AP-003] Explicit any type detected
+    src/utils/parser.ts:42
+    Using 'any' defeats type safety
+    Fix: Define a proper type or use 'unknown'
 
-2 warnings found.
-Gate status: WARN
+1 warning found.
 ```
 
 ## Start Watch Mode
@@ -108,7 +111,7 @@ Gate status: WARN
 For the best experience, run Anvil in watch mode:
 
 ```bash
-anvil watch
+anvil watch --source
 ```
 
 Anvil will now validate your code every time you save a file.
@@ -117,23 +120,26 @@ Anvil will now validate your code every time you save a file.
 
 ## Configuration
 
-Your `anvil.config.json` controls which checks run:
+Your `.anvilrc` controls which checks run:
 
 ```json
 {
-  "version": "1.0",
-  "gates": {
+  "checks": {
     "architecture": {
       "enabled": true,
-      "boundaries": []
+      "baseline": ".anvil/baseline.json"
     },
-    "antiPatterns": {
+    "antipattern": {
       "enabled": true,
       "patterns": ["AP-001", "AP-003", "AP-004", "AP-006"]
     },
     "secrets": {
       "enabled": true
     }
+  },
+  "watch": {
+    "patterns": ["src/**/*.ts"],
+    "debounceMs": 300
   }
 }
 ```

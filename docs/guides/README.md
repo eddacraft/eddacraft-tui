@@ -1,6 +1,6 @@
 # Development Guides
 
-**Last Updated:** 2025-10-23
+**Last Updated:** 2026-01-19
 
 ## Overview
 
@@ -22,36 +22,39 @@ How-to guides for developers working on Anvil.
 - [Stack Migration Guide](stack-migration.md) - Coordinating schema changes
   across layers
 
-### Coming Soon
+### Command Safety
 
-- Development Setup Guide
-- Testing Best Practices
-- Release Process Guide
+- [Command Safety](command-safety.md) - Command safety validation
+- [Command Safety Configuration](command-safety-configuration.md) - Configuring
+  command safety rules
+
+### Architecture
+
+- [Custom Architecture Policies](custom-architecture-policies.md) - Writing
+  custom OPA policies
 
 ## Quick Links
 
 ### For New Contributors
 
 1. Start with [Project README](../../README.md)
-2. Review [Architecture](../../ARCHITECTURE.md)
-3. Follow [Development Setup]
+2. Review [Architecture](../ARCHITECTURE.md)
+3. Read [Testing Guide](../TESTING.md)
 4. Read [Adapter Guide](adapters/README.md)
 
 ### For Building Adapters
 
 1. [Adapter Framework Overview](adapters/README.md)
 2. [Adapter Workflow Guide](adapters/workflow-guide.md)
-3. [SpecKit Templates](../formats/speckit-templates.md)
-4. [BMAD Templates](../formats/bmad-templates.md)
+3. [Adapters Package README](../../packages/adapters/README.md)
 
 ### For CLI Development
 
-1. [CLI README](../../cli/README.md)
-2. [CLI-SpecKit Integration PRD](../prd/cli-speckit-integration.md)
-3. [Implementation Status](../status/cli-integration-complete.md)
+1. [CLI README](../../apps/anvil-cli/README.md)
+2. [Monorepo Structure](../MONOREPO_STRUCTURE.md)
 
 ## Navigation
 
-- [Back to Documentation Index](../INDEX.md)
-- [Planning Documents](../planning/README.md)
-- [Project Status](../status/README.md)
+- [Back to Documentation](../README.md)
+- [Architecture](../ARCHITECTURE.md)
+- [Testing](../TESTING.md)

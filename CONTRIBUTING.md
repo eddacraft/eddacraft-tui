@@ -111,14 +111,18 @@ including:
 
 ```
 anvil/
-├── core/                 # APS schema, validation, gates, crypto
-├── cli/                  # Commander.js CLI
+├── apps/
+│   ├── anvil-cli/        # CLI application (Commander.js + Ink TUI)
+│   ├── docs-site/        # Docusaurus documentation site
+│   └── e2e/              # E2E test suites
 ├── packages/
 │   ├── adapters/         # Format converters (SpecKit, BMAD)
-│   ├── aps/              # APS document management
+│   ├── anvil/            # Core packages (contracts, core, runtime, policy)
+│   ├── aps/              # APS document parser and tooling
+│   ├── edda-stack/       # Memory system contracts
 │   └── vscode-extension/ # VS Code integration
-├── docs/                 # Documentation
-└── e2e/                  # Playwright E2E tests
+├── docs/                 # Internal engineering documentation
+└── plans/                # Project planning (.aps.md specs)
 ```
 
 ## Additional Resources

@@ -239,14 +239,14 @@ See [plans/index.aps.md](./plans/index.aps.md) for detailed roadmap.
 
 ## Documentation
 
-| Document                                     | Description                 |
-| -------------------------------------------- | --------------------------- |
-| [Quick Start](./docs/QUICK_START.md)         | Get running in 5 minutes    |
-| [User Guide](./docs/USER_GUIDE.md)           | Complete command reference  |
-| [Examples](./docs/EXAMPLES.md)               | Real-world workflows        |
-| [Troubleshooting](./docs/TROUBLESHOOTING.md) | Common issues and solutions |
-| [CLI Reference](./apps/anvil-cli/README.md)  | All CLI commands            |
-| [Architecture](./docs/ARCHITECTURE.md)       | System design               |
+| Document                                                                     | Description                 |
+| ---------------------------------------------------------------------------- | --------------------------- |
+| [Quick Start](./apps/docs-site/docs/anvil/quickstart.md)                     | Get running in 5 minutes    |
+| [CLI Reference](./apps/anvil-cli/README.md)                                  | Complete command reference  |
+| [First Project](./apps/docs-site/docs/anvil/first-project.md)                | Real-world setup example    |
+| [Troubleshooting](./apps/docs-site/docs/anvil/operations/troubleshooting.md) | Common issues and solutions |
+| [Configuration](./apps/docs-site/docs/anvil/operations/config.md)            | Configuration options       |
+| [Architecture](./docs/ARCHITECTURE.md)                                       | System design               |
 
 ## Development
 
