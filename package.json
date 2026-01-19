@@ -64,7 +64,7 @@
     "vitest": "^4.0.17"
   },
   "dependencies": {
-    "@github/copilot": "^0.0.384",
+    "@github/copilot": "^0.0.385",
     "@nx/eslint": "^22.3.3",
     "@nx/vite": "^22.3.3",
     "markdownlint-cli": "^0.47.0"
