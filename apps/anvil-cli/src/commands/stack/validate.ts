@@ -100,12 +100,12 @@ function validateStackConfig(workspaceRoot: string): ValidationResult {
   // Validate with Zod schema for strict checking
   const schemaResult = StackConfigSchema.safeParse(config.stack);
   if (!schemaResult.success) {
-    for (const zodError of schemaResult.error.errors) {
+    for (const zodIssue of schemaResult.error.issues) {
       issues.push({
         severity: 'error',
         code: 'SCHEMA_VALIDATION_ERROR',
-        message: zodError.message,
-        path: `stack.${zodError.path.join('.')}`,
+        message: zodIssue.message,
+        path: `stack.${zodIssue.path.join('.')}`,
       });
     }
   }

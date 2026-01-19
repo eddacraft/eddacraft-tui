@@ -93,7 +93,7 @@ export const ObservationRecordedPayloadSchema = z.object({
   observation_kind: z.string().describe('Kind of observation recorded'),
 
   /** Optional metadata about the observation */
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type ObservationRecordedPayload = z.infer<typeof ObservationRecordedPayloadSchema>;

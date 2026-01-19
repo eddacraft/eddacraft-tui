@@ -88,7 +88,7 @@ export const EvaluationSignalSchema = z.object({
   weight: z.number().positive().describe('Rule weight in evaluation'),
 
   /** Additional context from the rule */
-  context: z.record(z.unknown()).optional().describe('Rule-specific context'),
+  context: z.record(z.string(), z.unknown()).optional().describe('Rule-specific context'),
 });
 
 export type EvaluationSignal = z.infer<typeof EvaluationSignalSchema>;
@@ -128,7 +128,7 @@ export const CandidateProposalSchema = z.object({
   rationale: z.string().min(1).max(2000).describe('Why this might be worth remembering'),
 
   /** Type-specific metadata */
-  metadata: z.record(z.unknown()).optional().describe('Type-specific additional data'),
+  metadata: z.record(z.string(), z.unknown()).optional().describe('Type-specific additional data'),
 
   // ─────────────────────────────────────────────────────────────────────────
   // Confidence & Evaluation
@@ -253,7 +253,7 @@ export const CreateProposalInputSchema = z.object({
   confidence: EmberConfidenceSchema,
   provenance: ProvenanceSummarySchema,
   ttl_days: DurationDaysSchema.optional().default(30),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
   signals: z.array(EvaluationSignalSchema).optional(),
 });
 

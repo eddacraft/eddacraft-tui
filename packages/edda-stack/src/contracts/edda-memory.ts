@@ -163,7 +163,7 @@ export const MemoryObjectSchema = z.object({
   context: MemoryContextSchema,
 
   /** Type-specific metadata */
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 
   // ─────────────────────────────────────────────────────────────────────────
   // Confidence
@@ -194,7 +194,7 @@ export const MemoryObjectSchema = z.object({
   // ─────────────────────────────────────────────────────────────────────────
 
   /** Evolution tracking (supersedes/superseded_by) */
-  evolution: EvolutionSchema.default({}),
+  evolution: EvolutionSchema.default({ supersedes: [] }),
 
   // ─────────────────────────────────────────────────────────────────────────
   // Temporal
@@ -301,7 +301,7 @@ export const PromoteProposalInputSchema = z.object({
   reason: z.string().describe('Why this is being promoted'),
 
   /** Additional metadata */
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export type PromoteProposalInput = z.infer<typeof PromoteProposalInputSchema>;

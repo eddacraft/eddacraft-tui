@@ -66,11 +66,10 @@ describe('init command', () => {
 
     // Mock process.exit
     originalExit = process.exit;
-    // @ts-expect-error - Mocking process.exit
     process.exit = vi.fn((code?: number) => {
       exitCode = code ?? 0;
       throw new Error(`process.exit(${exitCode})`);
-    });
+    }) as unknown as typeof process.exit;
 
     // Mock console.log to capture output
     consoleOutput = [];

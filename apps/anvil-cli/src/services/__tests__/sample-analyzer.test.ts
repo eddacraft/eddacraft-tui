@@ -268,17 +268,7 @@ describe('SampleAnalyzer', () => {
       expect(selection.files.length).toBe(10);
 
       // Check that files are distributed (not all from the start)
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/sample-analyzer.test.ts
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/sample-analyzer.test.ts
       const allFromStart = selection.files.every((f) => fileNames.slice(0, 20).includes(f));
-=======
-      const allFromStart = selection.files.every((f) =>
-        fileNames.slice(0, 20).includes(f),
-      );
->>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/__tests__/sample-analyzer.test.ts
-=======
-      const allFromStart = selection.files.every((f) => fileNames.slice(0, 20).includes(f));
->>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/__tests__/sample-analyzer.test.ts
       expect(allFromStart).toBe(false);
     });
   });
@@ -289,15 +279,7 @@ describe('SampleAnalyzer', () => {
       writeFileSync(
         join(workspace.root, 'src', 'components', 'ui', 'Button.tsx'),
         'content',
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/sample-analyzer.test.ts
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/sample-analyzer.test.ts
         'utf-8'
-=======
-        'utf-8',
->>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/services/__tests__/sample-analyzer.test.ts
-=======
-        'utf-8'
->>>>>>> 177f91e (style: Apply Prettier formatting to IFR files):cli/src/services/__tests__/sample-analyzer.test.ts
       );
 
       const selection = await analyzer.selectFiles();

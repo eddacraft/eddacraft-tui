@@ -256,7 +256,7 @@ export const ObservationSchema = z.object({
   provenance: z.array(ProvenanceLinkSchema).describe('Explicit links to other entities'),
 
   // Payload (fact data, no inference)
-  payload: z.record(z.unknown()).describe('Observation-specific data (raw facts only)'),
+  payload: z.record(z.string(), z.unknown()).describe('Observation-specific data (raw facts only)'),
 });
 
 export type Observation = z.infer<typeof ObservationSchema>;

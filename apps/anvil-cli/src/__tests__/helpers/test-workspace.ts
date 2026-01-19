@@ -197,10 +197,6 @@ export function initGitRepo(workspace: string): void {
 
   // Configure git for testing
   try {
-<<<<<<< HEAD:apps/anvil-cli/src/__tests__/helpers/test-workspace.ts
-=======
-    const { execSync } = require('child_process');
->>>>>>> 0c9fbc0 (feat(cli): Add sample analyzer for post-init analysis (IFR-003)):cli/src/__tests__/helpers/test-workspace.ts
     execSync('git init', { cwd: workspace, stdio: 'pipe' });
     execSync('git config user.email "test@example.com"', { cwd: workspace, stdio: 'pipe' });
     execSync('git config user.name "Test User"', { cwd: workspace, stdio: 'pipe' });

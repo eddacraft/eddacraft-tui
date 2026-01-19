@@ -72,11 +72,7 @@ describe('HistoricalAnalyzer', () => {
         const analysis = await analyzer.analyse();
 
         expect(analysis.totalCommits).toBeGreaterThanOrEqual(0);
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         // Skip test if git operations fail in CI
         console.warn('Git operations failed, skipping test');
       }
@@ -92,11 +88,7 @@ describe('HistoricalAnalyzer', () => {
 
         // Should not include commits with only non-source files
         expect(analysis.commits.every((c) => c.filesChanged.length > 0)).toBe(true);
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -114,11 +106,7 @@ describe('HistoricalAnalyzer', () => {
           const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
           expect(analysis.commits.every((c) => c.date >= dayAgo)).toBe(true);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -135,11 +123,7 @@ describe('HistoricalAnalyzer', () => {
         const analysis = await analyzer.analyse({ maxCommits: 3 });
 
         expect(analysis.totalCommits).toBeLessThanOrEqual(3);
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -166,11 +150,7 @@ describe('HistoricalAnalyzer', () => {
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -190,11 +170,7 @@ describe('HistoricalAnalyzer', () => {
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -214,11 +190,7 @@ describe('HistoricalAnalyzer', () => {
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -238,11 +210,7 @@ describe('HistoricalAnalyzer', () => {
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -258,11 +226,7 @@ describe('HistoricalAnalyzer', () => {
         if (analysis.totalCommits > 0) {
           expect(analysis.totalViolations).toBeGreaterThan(0);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -287,11 +251,7 @@ function test(x: any) {
           // Should detect multiple violations (ts-ignore, any, console.log)
           expect(analysis.totalViolations).toBeGreaterThanOrEqual(2);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -322,11 +282,7 @@ function test(x: any) {
             expect(anyPattern.count).toBeGreaterThan(0);
           }
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -356,11 +312,7 @@ console.log(x);`,
             );
           }
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -381,11 +333,7 @@ console.log(x);`,
           expect(pattern.commits.length).toBeGreaterThan(0);
           expect(pattern.commits[0]).toMatch(/^[a-f0-9]{8}$/); // Short hash format
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -416,11 +364,7 @@ console.log(x);`,
           expect(analysis.timeline[0].violations).toBeGreaterThanOrEqual(0);
           expect(analysis.timeline[0].commits).toBeGreaterThanOrEqual(0);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -445,11 +389,7 @@ console.log(x);`,
             );
           }
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -476,11 +416,7 @@ console.log(x);`,
             analysis.totalViolations / analysis.totalCommits
           );
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -511,11 +447,7 @@ console.log(x);`,
             analysis.dateRange.to.getTime()
           );
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -541,11 +473,7 @@ console.log(x);`,
           expect(summary).toContain('would have caught');
           expect(summary).toContain('issues');
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -576,11 +504,7 @@ console.log(x);`,
         if (analysis.patternOccurrences.length > 0) {
           expect(summary).toContain('Most common patterns');
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -610,11 +534,7 @@ console.log(x);`,
         expect(stats.commitsWithViolations + stats.commitsWithoutViolations).toBe(
           analysis.totalCommits
         );
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -636,11 +556,7 @@ console.log(x);`,
           expect(stats.violationRate).toBeLessThanOrEqual(1);
           expect(stats.violationRate).toBe(stats.commitsWithViolations / analysis.totalCommits);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -664,11 +580,7 @@ console.log(x);`,
           expect(stats.mostActiveDay?.date).toBeInstanceOf(Date);
           expect(stats.mostActiveDay?.violations).toBeGreaterThan(0);
         }
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -702,11 +614,7 @@ console.log(x);`,
         expect(
           analysis.commits.every((c) => c.filesChanged.every((f) => !f.includes('.test.')))
         ).toBe(true);
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -724,11 +632,7 @@ console.log(x);`,
         expect(
           analysis.commits.every((c) => c.filesChanged.every((f) => !f.includes('/dist/')))
         ).toBe(true);
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });
@@ -748,11 +652,7 @@ console.log(x);`,
             c.filesChanged.every((f) => f.endsWith('.ts') || f.endsWith('.tsx'))
           )
         ).toBe(true);
-<<<<<<< HEAD:apps/anvil-cli/src/services/__tests__/historical-analyser.test.ts
       } catch {
-=======
-      } catch (error) {
->>>>>>> a4db1bf (fix: Address CLAUDE.md compliance issues (UK English + type safety)):cli/src/services/__tests__/historical-analyser.test.ts
         console.warn('Git operations failed, skipping test');
       }
     });

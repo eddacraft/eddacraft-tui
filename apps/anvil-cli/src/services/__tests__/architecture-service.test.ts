@@ -23,11 +23,25 @@ vi.mock('@anvil/core', () => ({
     load: vi.fn(() => null),
     save: vi.fn(),
   })),
-  createBaseline: vi.fn((data) => ({
-    version: '1.0.0',
-    timestamp: new Date().toISOString(),
-    ...data,
-  })),
+  createBaseline: vi.fn(
+    (data: { entryPoints?: unknown; layers?: unknown; moduleCount?: number }) => {
+      const now = new Date().toISOString();
+
+      return {
+        schema_version: '0.1.0',
+        created_at: now,
+        updated_at: now,
+        entry_points: data.entryPoints ?? [],
+        layers: data.layers ?? {},
+        boundaries: [],
+        baseline_snapshot: {
+          module_count: data.moduleCount ?? 0,
+          timestamp: now,
+          violations: [],
+        },
+      };
+    }
+  ),
 }));
 
 describe('architecture-service', () => {
@@ -139,6 +153,7 @@ describe('architecture-service', () => {
       const layers: Layers = {
         domain: {
           patterns: ['*.domain.ts'],
+          depends_on: [],
         },
       };
       const assignments = new Map([['domain', ['core.domain.ts']]]);
@@ -153,6 +168,7 @@ describe('architecture-service', () => {
       const layers: Layers = {
         infrastructure: {
           patterns: ['**/*.infra.ts'],
+          depends_on: [],
         },
       };
       const assignments = new Map([['infrastructure', []]]);
@@ -182,6 +198,7 @@ describe('architecture-service', () => {
         layers: {
           presentation: {
             patterns: ['**/*.ui.ts'],
+            depends_on: [],
           },
         },
         layerAssignments: new Map([['presentation', ['file1.ui.ts']]]),
@@ -205,8 +222,10 @@ describe('architecture-service', () => {
       const baseline = saveArchitectureBaseline('/test/project', mockSummary);
 
       expect(baseline).toBeDefined();
-      expect(baseline.version).toBeDefined();
-      expect(baseline.timestamp).toBeDefined();
+      expect(baseline.schema_version).toBe('0.1.0');
+      expect(baseline.created_at).toBeDefined();
+      expect(baseline.baseline_snapshot.timestamp).toBeDefined();
+      expect(baseline.baseline_snapshot.module_count).toBe(mockSummary.moduleCount);
     });
   });
 });
