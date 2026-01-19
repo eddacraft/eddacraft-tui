@@ -15,6 +15,78 @@ This document compares three storage approaches for Edda:
 
 **Recommendation:** Proceed with **Git-backed YAML + SQLite Index** for Phase 0-1, with abstraction layer enabling future PostgreSQL migration if needed.
 
+**Context:** Edda is the top layer of a three-layer memory stack (Kindling → Ember → Edda). Each layer has different storage requirements based on its role and data characteristics.
+
+---
+
+## Three-Layer Stack Architecture
+
+Before diving into Edda's storage options, it's important to understand how Edda fits into the broader memory stack:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Anvil Runtime Activity                    │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+                    Observations
+                         ↓
+┌────────────────────────▼────────────────────────────────────┐
+│ LAYER 1: KINDLING (Capture)                                 │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ Purpose:  Capture facts, no interpretation                   │
+│ Storage:  SQLite + WAL mode + FTS5                          │
+│ Volume:   High (1000s per session)                          │
+│ Lifetime: Bounded (per session/capsule)                     │
+│ Trust:    Facts only (what actually happened)               │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+                 Pattern Detection
+                         ↓
+┌────────────────────────▼────────────────────────────────────┐
+│ LAYER 2: EMBER (Interpretation)                             │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ Purpose:  Propose candidate memories (heuristic)            │
+│ Storage:  SQLite (ephemeral, TTL-based)                     │
+│ Volume:   Medium (10s-100s active)                          │
+│ Lifetime: Temporary (30 day TTL)                            │
+│ Trust:    Heuristic (may be wrong)                          │
+└────────────────────────┬────────────────────────────────────┘
+                         ↓
+                Human Approval
+                         ↓
+┌────────────────────────▼────────────────────────────────────┐
+│ LAYER 3: EDDA (Memory) ← THIS DOCUMENT                      │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ │
+│ Purpose:  Store curated institutional truth                 │
+│ Storage:  Git+YAML + SQLite Index (PROPOSED)                │
+│ Volume:   Low (100s-1000s total)                            │
+│ Lifetime: Permanent (explicit retirement only)              │
+│ Trust:    High (human-approved)                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why Different Storage for Each Layer?
+
+| Layer | Storage | Why This Choice |
+|-------|---------|----------------|
+| **Kindling** | SQLite + FTS5 | • High-volume writes (1000s/session)<br>• Local-first, no external deps<br>• Bounded queries (session-scoped)<br>• Fast text search (FTS5)<br>• Disposable (old sessions pruned) |
+| **Ember** | SQLite + TTL | • Ephemeral by design (30d TTL)<br>• Medium volume (candidates)<br>• Fast queries for review<br>• Disposable (expired proposals deleted)<br>• Same tech as Kindling (simplicity) |
+| **Edda** | Git+YAML + Index | • **Durable** (never auto-deleted)<br>• **Auditable** (Git history)<br>• **Human-readable** (YAML for reviews)<br>• **Versioned** (Git commits)<br>• Low volume (infrequent writes)<br>• High trust (institutional truth) |
+
+### Key Insight: Storage Strategy Reflects Trust Level
+
+The storage durability increases as trust increases:
+
+```
+Kindling (SQLite)     → Disposable facts (can rebuild from logs)
+     ↓
+Ember (SQLite+TTL)    → Disposable candidates (can regenerate)
+     ↓
+Edda (Git+YAML)       → Permanent truth (cannot lose!)
+```
+
+**Edda is the only layer where data loss is unacceptable.** This is why Git-backed storage (with its inherent versioning, backup, and audit trail) is critical for Edda but not necessary for Kindling or Ember.
+
 ---
 
 ## Approach 1: Git-backed YAML + SQLite Index (Proposed)
@@ -598,7 +670,18 @@ If we're concerned about future scalability, consider:
 - Notion: PostgreSQL + custom storage
 - GitHub Issues: PostgreSQL (not Git-backed)
 
-**Edda's Position:** Closer to GitOps/IaC than issue trackers. Prioritizes human readability and auditability over agent speed.
+**Multi-Layer Memory Architectures:**
+- **Kindling + Ember + Edda:** Three layers with different storage strategies
+  - Layer 1 (Kindling): SQLite for high-volume capture
+  - Layer 2 (Ember): SQLite+TTL for ephemeral candidates
+  - Layer 3 (Edda): Git+YAML for permanent truth
+- **LangChain:** Single-layer (immediate storage, no curation pipeline)
+- **Beads:** Two-layer (JSONL + SQLite cache, no human review)
+
+**Edda's Position:**
+- Closer to **GitOps/IaC** than issue trackers (prioritizes human readability and auditability)
+- Unique three-layer approach with **intentional storage heterogeneity**
+- Each layer optimized for its trust level and data characteristics
 
 ---
 
