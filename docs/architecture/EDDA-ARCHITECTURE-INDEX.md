@@ -19,6 +19,7 @@ docs/architecture/
 ├── EDDA-ARCHITECTURE-INDEX.md         ← You are here
 ├── edda-system-architecture.md        ← Master architecture
 ├── edda-component-dependencies.md     ← Component relationships
+├── edda-storage-comparison.md         ← Storage strategy analysis
 │
 docs/specs/
 ├── edda-authority-trust.md            ← Authority & trust model
@@ -268,7 +269,44 @@ Your roadmap:
 
 ---
 
-### 7. TypeScript Contracts
+### 7. Storage Strategy Comparison
+
+**File:** [docs/architecture/edda-storage-comparison.md](./edda-storage-comparison.md)
+
+**Contents:**
+- Comparison of 3 storage approaches:
+  1. Git-backed YAML + SQLite Index (proposed)
+  2. Git-backed JSONL + SQLite Cache (Beads-inspired)
+  3. PostgreSQL + Git Snapshots (enterprise)
+- Detailed architecture diagrams for each
+- Performance benchmarks and scalability limits
+- Feature comparison matrix
+- Risk assessment per approach
+- Cost analysis (dev, ops, migration)
+
+**Key Insights:**
+- Beads uses JSONL + SQLite for high-frequency agent writes
+- Edda prioritizes human readability over agent speed
+- Git+YAML sufficient for <5K memories (v1 target)
+- Abstraction layer enables PostgreSQL migration if needed
+- YAML's readability critical for human review workflow
+
+**Recommendation:**
+- **Phase 0-1:** Git+YAML + SQLite Index
+- **Phase 2+:** Add storage abstraction layer
+- **Post-v1:** Migrate to PostgreSQL if >10K memories
+
+**Performance Targets:**
+- Single write: <100ms p95
+- Single read: <50ms p95
+- Query (10 results): <200ms p95
+- Full-text search: <300ms p95
+
+**Decision:** Approved - proceed with Git+YAML for v1
+
+---
+
+### 8. TypeScript Contracts
 
 **File:** [packages/edda-stack/src/contracts/edda-extended.ts](../../packages/edda-stack/src/contracts/edda-extended.ts)
 
