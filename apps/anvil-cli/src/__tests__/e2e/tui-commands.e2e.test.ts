@@ -1,10 +1,21 @@
 import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { spawnAnvilPTY, stripAnsi, typeWithDelay, type PTYSession } from './pty-utils.js';
 import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const CLI_PATH = resolve(__dirname, '../../..', 'dist', 'index.js');
 const PROJECT_ROOT = resolve(__dirname, '../../../..');
+const PACKAGE_JSON_PATH = resolve(__dirname, '../../..', 'package.json');
+
+// Read version from package.json to avoid hardcoding
+const getPackageVersion = (): string => {
+  try {
+    const pkg = JSON.parse(readFileSync(PACKAGE_JSON_PATH, 'utf-8'));
+    return pkg.version;
+  } catch {
+    return '0.1.0-beta.1'; // fallback
+  }
+};
 
 describe('TUI E2E Tests', () => {
   let session: PTYSession | null = null;
@@ -29,7 +40,8 @@ describe('TUI E2E Tests', () => {
         timeout: 15000,
       });
 
-      await session.waitFor('0.0.0', 10000);
+      const expectedVersion = getPackageVersion();
+      await session.waitFor(expectedVersion, 10000);
       const code = await session.waitForExit(10000);
 
       expect(code).toBe(0);

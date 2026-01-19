@@ -1,12 +1,10 @@
-# NPM Package Publishing Workflow (DRAFT)
+# NPM Package Publishing Workflow
 #
-# This workflow is ready to use but currently disabled.
-# To activate:
-# 1. Rename this file from publish.yml.draft to publish.yml
-# 2. Set up NPM_TOKEN secret in GitHub repository settings
-# 3. Update version in cli/package.json
-# 4. Push a tag matching v* pattern
-
+# To use:
+# 1. Set up NPM_TOKEN secret in GitHub repository settings
+# 2. Update version in apps/anvil-cli/package.json
+# 3. Push a tag matching v* pattern
+---
 name: Publish to NPM
 
 on:
@@ -75,24 +73,26 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           TAG_VERSION=${GITHUB_REF#refs/tags/v}
-          PKG_VERSION=$(node -p "require('./cli/package.json').version")
+          CLI_PKG='./apps/anvil-cli/package.json'
+          PKG_VERSION=$(node -p "require('$CLI_PKG').version")
           if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "Error: Tag version ($TAG_VERSION) doesn't match package.json version ($PKG_VERSION)"
+            echo "Tag ($TAG_VERSION) != package.json ($PKG_VERSION)"
             exit 1
           fi
 
       - name: Publish to NPM (Dry Run)
         if: github.event.inputs.dry-run == 'true'
         run: |
-          cd cli
+          cd apps/anvil-cli
           npm publish --dry-run
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish to NPM
-        if: startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry-run != 'true'
+        if: >-
+          startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry-run != 'true'
         run: |
-          cd cli
+          cd apps/anvil-cli
           npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -51,6 +51,7 @@ pnpm typecheck
 nx lint aps
 ```
 
-## License
+## Licence
 
-MIT
+Copyright (c) 2026 EddaCraft. All rights reserved. See [LICENSE](../../LICENSE)
+for details.

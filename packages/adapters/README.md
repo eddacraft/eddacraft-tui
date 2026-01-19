@@ -494,6 +494,7 @@ packages/adapters/
 5. **Extensible**: Easy to add new format adapters
 6. **Type Safe**: Full TypeScript support
 
-## License
+## Licence
 
-MIT
+Copyright (c) 2026 EddaCraft. All rights reserved. See [LICENSE](../../LICENSE)
+for details.

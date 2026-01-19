@@ -48,14 +48,17 @@ or work item:**
 
 ```
 anvil/
-├── core/                 # @anvil/core - Schema, validation, gates, crypto
-├── cli/                  # @anvil/cli - Commander.js CLI with TUI (Ink)
+├── apps/
+│   └── anvil-cli/        # @anvil/cli - Commander.js CLI with TUI (Ink)
 ├── packages/
 │   ├── adapters/         # Format converters (SpecKit, BMAD, Generic)
+│   ├── anvil/
+│   │   ├── core/         # @anvil/core - Schema, validation, crypto
+│   │   └── runtime/      # Gate checks, execution engine
 │   ├── aps/              # APS document parser, validator, state management
 │   └── vscode-extension/ # VS Code integration
 ├── plans/                # .aps.md specs, execution/*.steps.md, decisions/
-├── docs/                 # Architecture, ADRs, guides, status
+├── docs/                 # Architecture, guides
 └── e2e/                  # Playwright E2E tests
 ```
 
@@ -102,15 +105,15 @@ pushing to avoid failed CI runs.
 
 ## Where to Look
 
-| Task               | Location                        | Notes                                                  |
-| ------------------ | ------------------------------- | ------------------------------------------------------ |
-| APS schema changes | `core/src/schema/aps.schema.ts` | Run generate:schema + update-golden-hashes after       |
-| Add gate check     | `core/src/gate/checks/`         | Extend BaseCheck, register in gate-runner.ts           |
-| Add CLI command    | `cli/src/commands/`             | Use create{Name}Command() factory pattern              |
-| Add format adapter | `packages/adapters/src/`        | Implement FormatAdapter, register with AdapterRegistry |
-| TUI components     | `cli/src/tui/components/`       | Ink/React components with useInput hooks               |
-| Validation rules   | `packages/aps/src/validator/`   | AST-based with remark-parse                            |
-| **Planning/specs** | `plans/aps-rules.md`            | **READ FIRST** before creating/editing .aps.md files   |
+| Task               | Location                                       | Notes                                                  |
+| ------------------ | ---------------------------------------------- | ------------------------------------------------------ |
+| APS schema changes | `packages/anvil/core/src/schema/aps.schema.ts` | Run generate:schema + update-golden-hashes after       |
+| Add gate check     | `packages/anvil/runtime/src/gate/checks/`      | Extend BaseCheck, register in gate-runner.ts           |
+| Add CLI command    | `apps/anvil-cli/src/commands/`                 | Use create{Name}Command() factory pattern              |
+| Add format adapter | `packages/adapters/src/`                       | Implement FormatAdapter, register with AdapterRegistry |
+| TUI components     | `apps/anvil-cli/src/tui/components/`           | Ink/React components with useInput hooks               |
+| Validation rules   | `packages/aps/src/validator/`                  | AST-based with remark-parse                            |
+| **Planning/specs** | `plans/aps-rules.md`                           | **READ FIRST** before creating/editing .aps.md files   |
 
 ## Conventions (Deviations from Standard)
 
@@ -221,7 +224,7 @@ class MyCheck extends BaseCheck {
 4. **Execute**: Apply changes with snapshots (rollback capability)
 5. **Evidence**: Immutable audit trail with provenance
 
-### Gate Checks (`core/src/gate/checks/`)
+### Gate Checks (`packages/anvil/runtime/src/gate/checks/`)
 
 - `architecture.check.ts` - Dependency analysis, layer violations
 - `coverage.check.ts` - Code coverage thresholds
@@ -247,18 +250,15 @@ class MyCheck extends BaseCheck {
 
 | Document                      | Purpose                       |
 | ----------------------------- | ----------------------------- |
-| `docs/ARCHITECTURE.md`        | System design (1,575 lines)   |
+| `docs/ARCHITECTURE.md`        | System design                 |
 | `docs/TESTING.md`             | Testing best practices        |
-| `docs/adr/`                   | Architecture decision records |
-| `docs/planning/TODO.md`       | Task tracking                 |
-| `core/API.md`                 | APS Core API reference        |
+| `plans/decisions/`            | Architecture decision records |
 | `packages/adapters/README.md` | Adapter framework guide       |
 
 ## Package-Specific Instructions
 
 See AGENTS.md in each package:
 
-- `core/AGENTS.md` - Schema, validation, gates, crypto
-- `cli/AGENTS.md` - Commands, services, TUI
+- `apps/anvil-cli/AGENTS.md` - Commands, services, TUI
 - `packages/adapters/AGENTS.md` - Format adapter framework
 - `packages/aps/AGENTS.md` - APS document management

@@ -327,9 +327,10 @@ if (result.success) {
 }
 ```
 
-## License
+## Licence
 
-MIT
+Copyright (c) 2026 EddaCraft. All rights reserved. See [LICENSE](../../LICENSE)
+for details.
 
 ## See Also
 
