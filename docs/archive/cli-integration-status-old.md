@@ -63,7 +63,7 @@ building successfully
    - Placeholder for evidence injection
 
 3. **`cli/package.json`** ✅
-   - Added `@anvil/adapters` dependency
+   - Added `@eddacraft/anvil-adapters` dependency
 
 4. **`packages/adapters/src/index.ts`** ✅
    - Updated to export base framework
@@ -110,7 +110,7 @@ JavaScript file emission
 
 #### Fix 3: TypeScript Path Mappings ✅
 
-**Issue**: TypeScript couldn't resolve `@anvil/core` and `@anvil/adapters`
+**Issue**: TypeScript couldn't resolve `@eddacraft/anvil-core` and `@eddacraft/anvil-adapters`
 imports
 
 **Fix Applied**:
@@ -118,8 +118,8 @@ imports
 - Added path mappings in `tsconfig.base.json`:
   ```json
   "paths": {
-    "@anvil/core": ["core/dist/index.d.ts"],
-    "@anvil/adapters": ["packages/adapters/dist/index.d.ts"]
+    "@eddacraft/anvil-core": ["core/dist/index.d.ts"],
+    "@eddacraft/anvil-adapters": ["packages/adapters/dist/index.d.ts"]
   }
   ```
 
@@ -159,9 +159,9 @@ updating
 
 ### Packages Built Successfully: ✅ ALL PASSING
 
-- ✅ `@anvil/core` - Built successfully, emits to `core/dist/`
-- ✅ `@anvil/adapters` - Built successfully, emits to `packages/adapters/dist/`
-- ✅ `@anvil/cli` - Built successfully, all TypeScript errors resolved
+- ✅ `@eddacraft/anvil-core` - Built successfully, emits to `core/dist/`
+- ✅ `@eddacraft/anvil-adapters` - Built successfully, emits to `packages/adapters/dist/`
+- ✅ `@eddacraft/anvil-cli` - Built successfully, all TypeScript errors resolved
 
 ### Tests Status:
 

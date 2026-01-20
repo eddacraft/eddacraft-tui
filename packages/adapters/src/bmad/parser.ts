@@ -4,7 +4,7 @@
  * Parses BMAD format documents (PRD, Architecture, Epics, Stories) into APS plans.
  */
 
-import type { APSPlan, Change } from '@anvil/core';
+import type { APSPlan, Change } from '@eddacraft/anvil-core';
 import type { ParseContext, AdapterError, AdapterWarning } from '../base/types.js';
 import { BMADDocument, BMADRequirement, BMADUserStory, RequirementType } from './types.js';
 import {

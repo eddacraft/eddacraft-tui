@@ -65,7 +65,7 @@ anvil run
 If you're new to Anvil, start with:
 
 ```bash
-pnpm add -D @anvil/cli
+pnpm add -D @eddacraft/anvil-cli
 anvil init
 anvil run
 ```

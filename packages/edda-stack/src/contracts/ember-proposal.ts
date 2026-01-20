@@ -10,7 +10,7 @@
  * - Allowed to be wrong (probabilistic thinking)
  * - Links back to Kindling observations
  *
- * @module @anvil/edda-stack/contracts/ember-proposal
+ * @module @eddacraft/anvil-edda-stack/contracts/ember-proposal
  */
 
 import { z } from 'zod';

@@ -3,7 +3,7 @@
  *
  * Mock implementations of port interfaces for testing.
  *
- * @module @anvil/edda-stack/testing/mocks
+ * @module @eddacraft/anvil-edda-stack/testing/mocks
  */
 
 // Kindling Mocks

@@ -1,10 +1,10 @@
 /**
- * @anvil/aps - Anvil Planning Spec library
+ * @eddacraft/anvil-aps - Anvil Planning Spec library
  *
  * This package provides functionality for parsing, loading, validating,
  * and managing Anvil Planning Spec (APS) documents.
  *
- * @module @anvil/aps
+ * @module @eddacraft/anvil-aps
  */
 
 export * from './parser/index.js';

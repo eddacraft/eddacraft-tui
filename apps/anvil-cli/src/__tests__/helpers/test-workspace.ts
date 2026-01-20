@@ -8,8 +8,8 @@ import { execSync } from 'child_process';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import type { APSPlan } from '@anvil/core';
-import { APS_SCHEMA_VERSION, generatePlanId, generateHash } from '@anvil/core';
+import type { APSPlan } from '@eddacraft/anvil-core';
+import { APS_SCHEMA_VERSION, generatePlanId, generateHash } from '@eddacraft/anvil-core';
 
 export interface TestWorkspace {
   root: string;

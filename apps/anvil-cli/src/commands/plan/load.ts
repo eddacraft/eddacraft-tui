@@ -15,7 +15,7 @@ import {
   type FilterCriteria,
   type LoadedPlan,
   type FilteredPlan,
-} from '@anvil/aps';
+} from '@eddacraft/anvil-aps';
 
 export interface LoadOptions {
   scope?: string[];

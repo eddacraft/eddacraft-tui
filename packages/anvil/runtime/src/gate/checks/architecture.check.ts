@@ -12,20 +12,20 @@ import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.
 import { existsSync } from 'fs';
 import { join } from 'path';
 import { minimatch } from 'minimatch';
-import { loadBaseline } from '@anvil/core/architecture';
-import type { ArchitectureBaseline } from '@anvil/core/architecture';
+import { loadBaseline } from '@eddacraft/anvil-core/architecture';
+import type { ArchitectureBaseline } from '@eddacraft/anvil-core/architecture';
 import {
   createContextBuilder,
   type ArchitectureContext,
   type ArchViolation,
-} from '@anvil/core/architecture';
+} from '@eddacraft/anvil-core/architecture';
 import {
   createWarningResult,
   createWarningFingerprint,
   type Warning,
   type WarningResult,
   type WarningSeverity,
-} from '@anvil/core/antipattern';
+} from '@eddacraft/anvil-core/antipattern';
 import { DependencyAnalyzer, type CruiserViolation } from './architecture/dependency-analyzer.js';
 import { CircularDetector } from './architecture/circular-detector.js';
 import { LayerValidator, type ArchitectureCheckConfig } from './architecture/layer-validator.js';

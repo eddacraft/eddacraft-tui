@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SpecKitExportAdapter } from '../speckit/export.js';
-import type { APSPlan } from '@anvil/core';
+import type { APSPlan } from '@eddacraft/anvil-core';
 
 describe('SpecKitExportAdapter', () => {
   let adapter: SpecKitExportAdapter;

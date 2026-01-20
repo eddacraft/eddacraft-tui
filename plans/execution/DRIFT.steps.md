@@ -89,7 +89,7 @@ Module: [drift-reporting](../modules/drift-reporting.aps.md)
 ### 1. Export from core [DONE]
 
 - **Checkpoint:** `core/src/drift/index.ts` barrel exports all public API
-- **Validate:** `import { DriftSnapshot } from '@anvil/core'` - PASSED
+- **Validate:** `import { DriftSnapshot } from '@eddacraft/anvil-core'` - PASSED
 
 ### 2. Build and verify [DONE]
 

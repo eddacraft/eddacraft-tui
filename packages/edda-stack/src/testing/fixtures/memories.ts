@@ -4,7 +4,7 @@
  * Factory functions for creating valid MemoryObject test fixtures.
  * All fixtures pass Zod validation.
  *
- * @module @anvil/edda-stack/testing/fixtures/memories
+ * @module @eddacraft/anvil-edda-stack/testing/fixtures/memories
  */
 
 import { v4 as uuidv4 } from 'uuid';

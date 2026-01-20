@@ -1,7 +1,7 @@
 /**
  * Embedded Analysis Service
  *
- * Provides fast-path analysis using @anvil/core directly (no CLI subprocess).
+ * Provides fast-path analysis using @eddacraft/anvil-core directly (no CLI subprocess).
  * Used for operations that need sub-100ms response times:
  * - Anti-pattern detection
  * - Format detection (basic)
@@ -20,7 +20,7 @@ import {
   getPattern,
   getDefaultPatterns,
   type AntiPattern,
-} from '@anvil/core/antipattern';
+} from '@eddacraft/anvil-core/antipattern';
 
 /**
  * Cache entry for analysis results

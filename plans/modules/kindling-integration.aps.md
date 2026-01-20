@@ -84,7 +84,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - `save-time-trust` — GateRunner, check execution infrastructure
 - `drift-reporting` — Snapshot data structures (for consistency)
 - Kindling packages: `@kindling/core`, `@kindling/store-sqlite`, `@kindling/provider-local`
-- Contracts: `@anvil/kindling-integration` (observation + query schemas)
+- Contracts: `@eddacraft/anvil-kindling-integration` (observation + query schemas)
 
 **Exposes:**
 
@@ -560,7 +560,7 @@ anvil action show <action_id> [--json]
 **BYO-AI example usage:**
 
 ```typescript
-import { KindlingService, SessionQuery } from '@anvil/kindling-integration';
+import { KindlingService, SessionQuery } from '@eddacraft/anvil-kindling-integration';
 
 // User brings their own AI (e.g., Claude via API)
 async function explainGateFailure(runId: string) {

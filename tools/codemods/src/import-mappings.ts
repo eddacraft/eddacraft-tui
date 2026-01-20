@@ -1,7 +1,7 @@
 /**
  * Import path mappings for monorepo migration
  *
- * Maps old @anvil/core imports to new package structure based on
+ * Maps old @eddacraft/anvil-core imports to new package structure based on
  * the discovery document at docs/planning/monorepo-phase0-discovery.md
  */
 
@@ -11,40 +11,40 @@
  */
 export const CORE_SUBDIR_TO_PACKAGE: Record<string, string> = {
   // Contracts package (schemas, types, validation)
-  schema: '@anvil/contracts',
-  types: '@anvil/contracts',
-  validation: '@anvil/contracts',
+  schema: '@eddacraft/anvil-contracts',
+  types: '@eddacraft/anvil-contracts',
+  validation: '@eddacraft/anvil-contracts',
 
   // Core package (pure domain logic)
-  provenance: '@anvil/core',
-  warnings: '@anvil/core',
-  antipattern: '@anvil/core',
-  suppression: '@anvil/core',
-  explain: '@anvil/core',
-  architecture: '@anvil/core',
-  drift: '@anvil/core',
+  provenance: '@eddacraft/anvil-core',
+  warnings: '@eddacraft/anvil-core',
+  antipattern: '@eddacraft/anvil-core',
+  suppression: '@eddacraft/anvil-core',
+  explain: '@eddacraft/anvil-core',
+  architecture: '@eddacraft/anvil-core',
+  drift: '@eddacraft/anvil-core',
 
   // Runtime package (I/O and orchestration)
-  cache: '@anvil/runtime',
-  watch: '@anvil/runtime',
-  export: '@anvil/runtime',
-  'gate/checks': '@anvil/runtime',
-  'gate/config': '@anvil/runtime',
-  'gate/formatters': '@anvil/runtime',
-  'gate/parsers': '@anvil/runtime',
-  'gate/rules': '@anvil/runtime',
-  'gate/gate-runner': '@anvil/runtime',
-  'gate/gate-config': '@anvil/runtime',
+  cache: '@eddacraft/anvil-runtime',
+  watch: '@eddacraft/anvil-runtime',
+  export: '@eddacraft/anvil-runtime',
+  'gate/checks': '@eddacraft/anvil-runtime',
+  'gate/config': '@eddacraft/anvil-runtime',
+  'gate/formatters': '@eddacraft/anvil-runtime',
+  'gate/parsers': '@eddacraft/anvil-runtime',
+  'gate/rules': '@eddacraft/anvil-runtime',
+  'gate/gate-runner': '@eddacraft/anvil-runtime',
+  'gate/gate-config': '@eddacraft/anvil-runtime',
 
   // Policy package (OPA/Rego)
-  'gate/policy': '@anvil/policy',
+  'gate/policy': '@eddacraft/anvil-policy',
 
   // Ports package (interfaces)
-  'gate/check.interface': '@anvil/ports',
+  'gate/check.interface': '@eddacraft/anvil-ports',
 
   // Platform packages
-  crypto: '@anvil/platform/crypto',
-  utils: '@anvil/shared/util',
+  crypto: '@eddacraft/anvil-platform/crypto',
+  utils: '@eddacraft/anvil-shared/util',
 };
 
 /**
@@ -53,30 +53,30 @@ export const CORE_SUBDIR_TO_PACKAGE: Record<string, string> = {
  */
 export const IMPORT_REWRITES: Record<string, string> = {
   // Main package rewrites
-  '@anvil/core': '@anvil/contracts',
-  '@anvil/core/schema': '@anvil/contracts',
-  '@anvil/core/types': '@anvil/contracts',
-  '@anvil/core/validation': '@anvil/contracts',
+  '@eddacraft/anvil-core': '@eddacraft/anvil-contracts',
+  '@eddacraft/anvil-core/schema': '@eddacraft/anvil-contracts',
+  '@eddacraft/anvil-core/types': '@eddacraft/anvil-contracts',
+  '@eddacraft/anvil-core/validation': '@eddacraft/anvil-contracts',
 
-  '@anvil/core/antipattern': '@anvil/core/antipattern',
-  '@anvil/core/suppression': '@anvil/core/suppression',
-  '@anvil/core/provenance': '@anvil/core/provenance',
-  '@anvil/core/warnings': '@anvil/core/warnings',
-  '@anvil/core/explain': '@anvil/core/explain',
-  '@anvil/core/architecture': '@anvil/core/architecture',
-  '@anvil/core/drift': '@anvil/core/drift',
+  '@eddacraft/anvil-core/antipattern': '@eddacraft/anvil-core/antipattern',
+  '@eddacraft/anvil-core/suppression': '@eddacraft/anvil-core/suppression',
+  '@eddacraft/anvil-core/provenance': '@eddacraft/anvil-core/provenance',
+  '@eddacraft/anvil-core/warnings': '@eddacraft/anvil-core/warnings',
+  '@eddacraft/anvil-core/explain': '@eddacraft/anvil-core/explain',
+  '@eddacraft/anvil-core/architecture': '@eddacraft/anvil-core/architecture',
+  '@eddacraft/anvil-core/drift': '@eddacraft/anvil-core/drift',
 
-  '@anvil/core/cache': '@anvil/runtime/cache',
-  '@anvil/core/watch': '@anvil/runtime/watch',
-  '@anvil/core/export': '@anvil/runtime/export',
-  '@anvil/core/gate': '@anvil/runtime/gate',
+  '@eddacraft/anvil-core/cache': '@eddacraft/anvil-runtime/cache',
+  '@eddacraft/anvil-core/watch': '@eddacraft/anvil-runtime/watch',
+  '@eddacraft/anvil-core/export': '@eddacraft/anvil-runtime/export',
+  '@eddacraft/anvil-core/gate': '@eddacraft/anvil-runtime/gate',
 
-  '@anvil/core/crypto': '@anvil/platform/crypto',
-  '@anvil/core/utils': '@anvil/shared/util',
+  '@eddacraft/anvil-core/crypto': '@eddacraft/anvil-platform/crypto',
+  '@eddacraft/anvil-core/utils': '@eddacraft/anvil-shared/util',
 };
 
 /**
- * Symbols that should be imported from @anvil/contracts
+ * Symbols that should be imported from @eddacraft/anvil-contracts
  * These are Zod schemas, types, and validation utilities
  */
 export const CONTRACT_SYMBOLS = [
@@ -106,7 +106,7 @@ export const CONTRACT_SYMBOLS = [
 ];
 
 /**
- * Symbols that should be imported from @anvil/ports
+ * Symbols that should be imported from @eddacraft/anvil-ports
  * These are interface definitions
  */
 export const PORT_SYMBOLS = [
@@ -120,7 +120,7 @@ export const PORT_SYMBOLS = [
 ];
 
 /**
- * Symbols that should be imported from @anvil/core
+ * Symbols that should be imported from @eddacraft/anvil-core
  * These are pure domain logic functions
  */
 export const CORE_SYMBOLS = [
@@ -162,7 +162,7 @@ export const CORE_SYMBOLS = [
 ];
 
 /**
- * Symbols that should be imported from @anvil/runtime
+ * Symbols that should be imported from @eddacraft/anvil-runtime
  * These are I/O and orchestration functions
  */
 export const RUNTIME_SYMBOLS = [
@@ -196,7 +196,7 @@ export const RUNTIME_SYMBOLS = [
 ];
 
 /**
- * Symbols that should be imported from @anvil/policy
+ * Symbols that should be imported from @eddacraft/anvil-policy
  * These are OPA/Rego integration functions
  */
 export const POLICY_SYMBOLS = [
@@ -214,11 +214,11 @@ export const POLICY_SYMBOLS = [
  * Maps symbols to their target packages
  */
 export function getPackageForSymbol(symbol: string): string | undefined {
-  if (CONTRACT_SYMBOLS.includes(symbol)) return '@anvil/contracts';
-  if (PORT_SYMBOLS.includes(symbol)) return '@anvil/ports';
-  if (CORE_SYMBOLS.includes(symbol)) return '@anvil/core';
-  if (RUNTIME_SYMBOLS.includes(symbol)) return '@anvil/runtime';
-  if (POLICY_SYMBOLS.includes(symbol)) return '@anvil/policy';
+  if (CONTRACT_SYMBOLS.includes(symbol)) return '@eddacraft/anvil-contracts';
+  if (PORT_SYMBOLS.includes(symbol)) return '@eddacraft/anvil-ports';
+  if (CORE_SYMBOLS.includes(symbol)) return '@eddacraft/anvil-core';
+  if (RUNTIME_SYMBOLS.includes(symbol)) return '@eddacraft/anvil-runtime';
+  if (POLICY_SYMBOLS.includes(symbol)) return '@eddacraft/anvil-policy';
   return undefined;
 }
 
@@ -233,8 +233,8 @@ export function getRewrittenPath(sourcePath: string): string | undefined {
 
   // Check for subpath matches
   for (const [subdir, pkg] of Object.entries(CORE_SUBDIR_TO_PACKAGE)) {
-    if (sourcePath.startsWith(`@anvil/core/${subdir}`)) {
-      const remainder = sourcePath.slice(`@anvil/core/${subdir}`.length);
+    if (sourcePath.startsWith(`@eddacraft/anvil-core/${subdir}`)) {
+      const remainder = sourcePath.slice(`@eddacraft/anvil-core/${subdir}`.length);
       return `${pkg}${remainder}`;
     }
   }

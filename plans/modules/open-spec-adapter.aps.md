@@ -28,7 +28,7 @@ specifications that can be converted to APS plans for execution.
 
 **Depends on:**
 
-- `@anvil/core` — APSPlan schema, createPlan, generateHash
+- `@eddacraft/anvil-core` — APSPlan schema, createPlan, generateHash
 - `../base/types.js` — BaseFormatAdapter, AdapterMetadata
 
 **Exposes:**

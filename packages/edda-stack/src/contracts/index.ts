@@ -3,7 +3,7 @@
  *
  * Shared type definitions and schemas for the Kindling · Ember · Edda stack.
  *
- * @module @anvil/edda-stack/contracts
+ * @module @eddacraft/anvil-edda-stack/contracts
  */
 
 // =============================================================================

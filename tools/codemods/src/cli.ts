@@ -23,7 +23,7 @@ program.name('anvil-codemod').description('Codemods for Anvil monorepo migration
 
 program
   .command('imports')
-  .description('Rewrite @anvil/* import paths for monorepo migration')
+  .description('Rewrite @eddacraft/anvil-* import paths for monorepo migration')
   .option('-d, --dry-run', 'Preview changes without applying', false)
   .option('-v, --verbose', 'Show detailed output', false)
   .option('-p, --path <glob>', 'Glob pattern for files to process', '**/*.ts')

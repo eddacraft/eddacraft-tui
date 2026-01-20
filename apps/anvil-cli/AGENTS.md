@@ -1,4 +1,4 @@
-# CLI Package (@anvil/cli)
+# CLI Package (@eddacraft/anvil-cli)
 
 > Commander.js CLI with Ink-based TUI, format detection, plan loading
 
@@ -113,7 +113,7 @@ Services use interface-first design with dependency injection:
 
 ```typescript
 import type { IFormatDetectionService } from '../types/services.js';
-import { AdapterRegistry } from '@anvil/adapters';
+import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 
 export class FormatDetectionService implements IFormatDetectionService {
   private registry: AdapterRegistry;

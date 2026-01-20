@@ -86,7 +86,7 @@ Configure Anvil in your VS Code settings:
 ## Requirements
 
 - Node.js 20+
-- Anvil CLI installed (`npm install -g @anvil/cli` or available via npx)
+- Anvil CLI installed (`npm install -g @eddacraft/anvil-cli` or available via npx)
 
 ## Development
 
@@ -110,7 +110,7 @@ pnpm package
 
 If you see "anvil command not found", either:
 
-1. Install globally: `npm install -g @anvil/cli`
+1. Install globally: `npm install -g @eddacraft/anvil-cli`
 2. Set the CLI path in settings: `anvil.cli.path`
 
 ### Validation Not Running

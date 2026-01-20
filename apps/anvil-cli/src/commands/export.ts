@@ -8,13 +8,13 @@ import ora from 'ora';
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { dirname, extname, basename, join } from 'path';
 import { PlanLoader } from '../services/plan-loader.js';
-import { AdapterRegistry } from '@anvil/adapters';
+import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 import {
   collectConstraints,
   formatAsLlmsTxt,
   formatAsMcpResourceJson,
   formatAsPrompt,
-} from '@anvil/runtime';
+} from '@eddacraft/anvil-runtime';
 import type { ExportOptions } from '../types/command-options.js';
 
 export function createExportCommand(): Command {

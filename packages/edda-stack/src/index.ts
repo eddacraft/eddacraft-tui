@@ -9,7 +9,7 @@
  * - Port interfaces for layer abstractions
  * - Utilities for cross-layer operations
  *
- * @module @anvil/edda-stack
+ * @module @eddacraft/anvil-edda-stack
  */
 
 // Re-export all contracts
@@ -20,4 +20,4 @@ export * from './config.js';
 
 // Package metadata
 export const PACKAGE_VERSION = '0.1.0';
-export const PACKAGE_NAME = '@anvil/edda-stack';
+export const PACKAGE_NAME = '@eddacraft/anvil-edda-stack';

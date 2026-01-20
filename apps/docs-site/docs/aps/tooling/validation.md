@@ -196,7 +196,7 @@ fi
 ## Programmatic Validation
 
 ```typescript
-import { validatePlan } from '@anvil/aps';
+import { validatePlan } from '@eddacraft/anvil-aps';
 
 const result = await validatePlan('plans/index.aps.md');
 

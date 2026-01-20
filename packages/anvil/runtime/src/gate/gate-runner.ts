@@ -7,8 +7,8 @@ import {
   GateRunResult,
   PlanData,
 } from '../types/gate.types.js';
-import type { ArchitectureContext } from '@anvil/core/architecture';
-import { createDebugger } from '@anvil/core';
+import type { ArchitectureContext } from '@eddacraft/anvil-core/architecture';
+import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('gate');
 import { ESLintCheck } from './checks/eslint.check.js';
@@ -22,13 +22,13 @@ import { CommandSafetyCheck } from './checks/command-safety.check.js';
 import type { CacheProvider } from '../cache/types.js';
 import { NullCacheProvider } from '../cache/providers/null-cache.js';
 import { generateCacheKey, hashCheckConfig, generateInputHash } from '../cache/cache-key.js';
-import type { Warning, WarningResult } from '@anvil/core/antipattern';
-import { createWarningResult } from '@anvil/core/antipattern';
+import type { Warning, WarningResult } from '@eddacraft/anvil-core/antipattern';
+import { createWarningResult } from '@eddacraft/anvil-core/antipattern';
 import {
   SuppressionService,
   type SuppressionStats,
   SuppressionStore,
-} from '@anvil/core/suppression';
+} from '@eddacraft/anvil-core/suppression';
 
 /**
  * Internal type for checks to run

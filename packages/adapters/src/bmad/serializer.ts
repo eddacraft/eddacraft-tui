@@ -4,7 +4,7 @@
  * Serializes APS plans to BMAD format documents.
  */
 
-import type { APSPlan, Change } from '@anvil/core';
+import type { APSPlan, Change } from '@eddacraft/anvil-core';
 
 /**
  * Serialize APS plan to BMAD format

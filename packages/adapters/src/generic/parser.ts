@@ -4,7 +4,7 @@
  * Parses generic markdown documents into APS plans.
  */
 
-import type { APSPlan, Change } from '@anvil/core';
+import type { APSPlan, Change } from '@eddacraft/anvil-core';
 import type { ParseContext } from '../base/types.js';
 import type { GenericDocument } from './types.js';
 import { generateDeterministicPlanId } from '../base/utils.js';

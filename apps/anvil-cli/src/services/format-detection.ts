@@ -4,7 +4,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { AdapterRegistry } from '@anvil/adapters';
+import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 import type {
   FormatDetectionService as IFormatDetectionService,
   FormatDetectionResult,

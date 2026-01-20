@@ -4,7 +4,7 @@
  * Mock implementation of IEmberPort for testing.
  * Uses in-memory storage and vitest mock functions.
  *
- * @module @anvil/edda-stack/testing/mocks/ember
+ * @module @eddacraft/anvil-edda-stack/testing/mocks/ember
  */
 
 import { vi, type Mock } from 'vitest';

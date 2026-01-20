@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'path';
-import { validatePlanningDoc, formatValidationIssues, type ValidationResult } from '@anvil/aps';
+import { validatePlanningDoc, formatValidationIssues, type ValidationResult } from '@eddacraft/anvil-aps';
 
 export interface ValidateOptions {
   json?: boolean;

@@ -1,5 +1,5 @@
 /**
- * Gate Types for @anvil/contracts
+ * Gate Types for @eddacraft/anvil-contracts
  *
  * Pure type definitions for gate configuration and results.
  * No runtime dependencies - these are shared across packages.
@@ -184,13 +184,13 @@ export interface GateConfig {
 export type PlanData = APSPlan;
 
 /**
- * Architecture context base type - full implementation in @anvil/core
+ * Architecture context base type - full implementation in @eddacraft/anvil-core
  * Uses unknown for layers/modules since runtime has more detailed types
  */
 export interface ArchitectureContextBase {
   /** Project root path */
   root?: string;
-  /** Layer information - full type in @anvil/core */
+  /** Layer information - full type in @eddacraft/anvil-core */
   layers?: Record<string, unknown>;
   /** Module information */
   modules?: Record<string, unknown>;

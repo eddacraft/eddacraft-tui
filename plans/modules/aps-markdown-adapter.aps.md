@@ -23,16 +23,16 @@ executed by Anvil.
 
 **Out of Scope:**
 
-- APS markdown validation (handled by `@anvil/aps` validator)
-- Task state management (handled by `@anvil/aps` state module)
+- APS markdown validation (handled by `@eddacraft/anvil-aps` validator)
+- Task state management (handled by `@eddacraft/anvil-aps` state module)
 - Execution of plans (handled by core execution layer)
 
 ## Interfaces
 
 **Depends on:**
 
-- `@anvil/core` — APSPlan schema, createPlan, generateHash
-- `@anvil/aps` — parsePlanningDocument, loadPlan, Task types
+- `@eddacraft/anvil-core` — APSPlan schema, createPlan, generateHash
+- `@eddacraft/anvil-aps` — parsePlanningDocument, loadPlan, Task types
 - `../base/types.js` — BaseFormatAdapter, AdapterMetadata
 
 **Exposes:**
@@ -113,6 +113,6 @@ executed by Anvil.
 
 ## Notes
 
-- Reuses existing `@anvil/aps` parser - no need to reimplement markdown parsing
+- Reuses existing `@eddacraft/anvil-aps` parser - no need to reimplement markdown parsing
 - Consider whether task dependencies should influence change ordering
 - The `files` field can hint at change type (create vs update)

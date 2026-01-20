@@ -5,7 +5,7 @@
  */
 
 import chalk from 'chalk';
-import type { WatchStatusEvent, WatchActionResult } from '@anvil/runtime';
+import type { WatchStatusEvent, WatchActionResult } from '@eddacraft/anvil-runtime';
 
 /**
  * Format timestamp for display

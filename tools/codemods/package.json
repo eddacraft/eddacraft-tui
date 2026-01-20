@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/codemods",
+  "name": "@eddacraft/anvil-codemods",
   "version": "0.0.1",
   "description": "Codemods for Anvil monorepo migration",
   "type": "module",

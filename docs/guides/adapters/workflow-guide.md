@@ -904,8 +904,8 @@ jobs:
 
 ```typescript
 // Registration (at startup)
-import { registry } from '@anvil/adapters';
-import { SpecKitImportAdapter, BMADImportAdapter } from '@anvil/adapters';
+import { registry } from '@eddacraft/anvil-adapters';
+import { SpecKitImportAdapter, BMADImportAdapter } from '@eddacraft/anvil-adapters';
 
 registry.register(new SpecKitImportAdapter());
 registry.register(new BMADImportAdapter());
@@ -1203,8 +1203,8 @@ export class ADRExportAdapter extends BaseFormatAdapter {
 export { ADRImportAdapter, ADRExportAdapter } from './adr/index.js';
 
 // CLI or application startup
-import { registry } from '@anvil/adapters';
-import { ADRImportAdapter } from '@anvil/adapters/adr';
+import { registry } from '@eddacraft/anvil-adapters';
+import { ADRImportAdapter } from '@eddacraft/anvil-adapters/adr';
 
 registry.register(new ADRImportAdapter());
 ```

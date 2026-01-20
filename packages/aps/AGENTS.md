@@ -1,4 +1,4 @@
-# APS Package (@anvil/aps)
+# APS Package (@eddacraft/anvil-aps)
 
 > APS document parsing, validation, state management, and template generation
 
@@ -80,7 +80,7 @@ issues.push(...validateMyRule(doc));
 Task execution state stored in `.anvil/state.json`:
 
 ```typescript
-import { loadState, saveState, lockTask, unlockTask } from '@anvil/aps/state';
+import { loadState, saveState, lockTask, unlockTask } from '@eddacraft/anvil-aps/state';
 
 // Load current state
 const state = await loadState(projectRoot);
@@ -101,7 +101,7 @@ await unlockTask(state, 'TASK-001');
 ## Parser Usage
 
 ```typescript
-import { parseAPSDocument } from '@anvil/aps/parser';
+import { parseAPSDocument } from '@eddacraft/anvil-aps/parser';
 
 const doc = await parseAPSDocument(content, { path: 'plans/index.aps.md' });
 
@@ -115,7 +115,7 @@ doc.dependencies; // Module dependency graph
 ## Template Generation
 
 ```typescript
-import { generateTemplate } from '@anvil/aps/templates';
+import { generateTemplate } from '@eddacraft/anvil-aps/templates';
 
 const content = await generateTemplate('module', {
   name: 'my-feature',

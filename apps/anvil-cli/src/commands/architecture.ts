@@ -22,7 +22,7 @@ import {
   ARCHITECTURE_YAML_FILENAME,
   ARCHITECTURE_DEFINITION_VERSION,
   getDefaultOptions,
-} from '@anvil/core';
+} from '@eddacraft/anvil-core';
 
 /** Template metadata for display */
 const TEMPLATE_INFO: Record<

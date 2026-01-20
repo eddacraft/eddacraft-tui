@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/core",
+  "name": "@eddacraft/anvil-core",
   "version": "0.0.1",
   "description": "Pure domain logic depending on ports and contracts",
   "type": "module",
@@ -58,7 +58,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anvil/contracts": "workspace:*",
+    "@eddacraft/anvil-contracts": "workspace:*",
     "minimatch": "^10.1.1",
     "yaml": "^2.8.2",
     "zod": "^4.3.5"

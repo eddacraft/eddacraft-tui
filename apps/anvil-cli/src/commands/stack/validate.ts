@@ -12,13 +12,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { GateConfigManager } from '@anvil/runtime';
+import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import {
   StackConfigSchema,
   isLayerEnabled,
   getEnabledLayers,
   type StackConfig,
-} from '@anvil/edda-stack';
+} from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { success, error, warning } from '../../utils/output.js';
 

@@ -18,9 +18,9 @@ The CLI isn't in your PATH.
 **Solution (global install):**
 
 ```bash
-pnpm add -g @anvil/cli
+pnpm add -g @eddacraft/anvil-cli
 # or
-npm install -g @anvil/cli
+npm install -g @eddacraft/anvil-cli
 ```
 
 **Solution (local install):**
@@ -31,7 +31,7 @@ pnpm anvil run
 npx anvil run
 ```
 
-### "Cannot find module '@anvil/cli'"
+### "Cannot find module '@eddacraft/anvil-cli'"
 
 Dependencies not installed.
 

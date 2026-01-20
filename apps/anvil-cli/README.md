@@ -14,7 +14,7 @@ format detection and works seamlessly with your existing planning documents.
 ### For Users (Future)
 
 ```bash
-npm install -g @anvil/cli
+npm install -g @eddacraft/anvil-cli
 ```
 
 ### For Contributors (Current)
@@ -546,7 +546,7 @@ fi
 
 ## Integration with Adapters
 
-The CLI uses the `@anvil/adapters` package for format conversion:
+The CLI uses the `@eddacraft/anvil-adapters` package for format conversion:
 
 - **FormatDetectionService** - Auto-detects plan formats
 - **PlanLoader** - Loads plans in any format and converts to APS
@@ -678,7 +678,7 @@ jobs:
           node-version: '22'
 
       - name: Install Anvil
-        run: npm install -g @anvil/cli
+        run: npm install -g @eddacraft/anvil-cli
 
       - name: Run Quality Gates
         run: anvil gate spec.md

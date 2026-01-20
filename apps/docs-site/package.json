@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/docs-site",
+  "name": "@eddacraft/anvil-docs-site",
   "version": "0.0.0",
   "private": true,
   "scripts": {

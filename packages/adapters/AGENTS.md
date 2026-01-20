@@ -1,4 +1,4 @@
-# Adapters Package (@anvil/adapters)
+# Adapters Package (@eddacraft/anvil-adapters)
 
 > Format conversion framework: SpecKit, BMAD, Generic Markdown → APS
 

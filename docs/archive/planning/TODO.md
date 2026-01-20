@@ -372,8 +372,8 @@ steps
 
 ### APS Planning Docs Integration (In Progress - See docs/planning/aps-spinout-v0.3.aps.md)
 
-- [ ] Integrate `@anvil/aps` for Markdown planning doc support
-- [ ] Add `anvil plan validate` command (wraps `@anvil/aps`)
+- [ ] Integrate `@eddacraft/anvil-aps` for Markdown planning doc support
+- [ ] Add `anvil plan validate` command (wraps `@eddacraft/anvil-aps`)
 - [ ] Add `anvil plan load` command (scope-based loading)
 - [ ] Add `anvil plan lock/unlock/status` commands (task state management)
 - [ ] Rename `.anvil/plans/` to `.anvil/executions/`

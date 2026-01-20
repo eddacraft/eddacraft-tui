@@ -389,12 +389,12 @@ pub fn generate_plan_id() -> String {
 **Distribution** (platform-specific npm packages):
 
 ```
-@anvil/native                    # Base package
-@anvil/native-linux-x64-gnu      # Linux x64
-@anvil/native-linux-x64-musl     # Linux musl
-@anvil/native-darwin-x64         # macOS Intel
-@anvil/native-darwin-arm64       # macOS Apple Silicon
-@anvil/native-win32-x64-msvc     # Windows x64
+@eddacraft/anvil-native                    # Base package
+@eddacraft/anvil-native-linux-x64-gnu      # Linux x64
+@eddacraft/anvil-native-linux-x64-musl     # Linux musl
+@eddacraft/anvil-native-darwin-x64         # macOS Intel
+@eddacraft/anvil-native-darwin-arm64       # macOS Apple Silicon
+@eddacraft/anvil-native-win32-x64-msvc     # Windows x64
 ```
 
 **Deliverables**:
@@ -402,7 +402,7 @@ pub fn generate_plan_id() -> String {
 - [ ] NAPI-RS addon with core functions
 - [ ] Platform-specific npm packages
 - [ ] TypeScript definitions
-- [ ] Integration with existing `@anvil/core`
+- [ ] Integration with existing `@eddacraft/anvil-core`
 
 ---
 
@@ -497,10 +497,10 @@ jobs:
     "postinstall": "node scripts/install.js"
   },
   "optionalDependencies": {
-    "@anvil/cli-linux-x64": "0.3.0",
-    "@anvil/cli-darwin-x64": "0.3.0",
-    "@anvil/cli-darwin-arm64": "0.3.0",
-    "@anvil/cli-win32-x64": "0.3.0"
+    "@eddacraft/anvil-cli-linux-x64": "0.3.0",
+    "@eddacraft/anvil-cli-darwin-x64": "0.3.0",
+    "@eddacraft/anvil-cli-darwin-arm64": "0.3.0",
+    "@eddacraft/anvil-cli-win32-x64": "0.3.0"
   }
 }
 ```

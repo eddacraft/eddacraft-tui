@@ -4,7 +4,7 @@
  * Factory functions for creating valid CandidateProposal test fixtures.
  * All fixtures pass Zod validation.
  *
- * @module @anvil/edda-stack/testing/fixtures/proposals
+ * @module @eddacraft/anvil-edda-stack/testing/fixtures/proposals
  */
 
 import { v4 as uuidv4 } from 'uuid';

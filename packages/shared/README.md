@@ -15,7 +15,7 @@ shared/
 
 ## Guidelines
 
-- No dependencies on other @anvil/\* packages
+- No dependencies on other @eddacraft/anvil-\* packages
 - Pure functions preferred
 - Minimal external dependencies
 - Well-documented and tested

@@ -4,7 +4,7 @@
  * Defines the interface for Kindling observation storage adapters.
  * Implementations can use SQLite, PostgreSQL, or in-memory storage.
  *
- * @module @anvil/edda-stack/contracts/ports/kindling
+ * @module @eddacraft/anvil-edda-stack/contracts/ports/kindling
  */
 
 import type { ObservationId, SessionId, PlanId } from '../identifiers.js';

@@ -4,7 +4,7 @@
  * Serializes APS plans to generic markdown format.
  */
 
-import type { APSPlan } from '@anvil/core';
+import type { APSPlan } from '@eddacraft/anvil-core';
 
 /**
  * Type guard to check if value is a string

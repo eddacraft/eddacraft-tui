@@ -10,7 +10,7 @@
  * - Ember -> notification: proposal_near_expiry
  * - Edda internal: memory_promoted, memory_retired
  *
- * @module @anvil/edda-stack/contracts/events
+ * @module @eddacraft/anvil-edda-stack/contracts/events
  */
 
 import { z } from 'zod';

@@ -4,7 +4,7 @@
  * Validation utilities for provenance chains across the Edda Stack.
  * Validates references exist and temporal ordering is correct.
  *
- * @module @anvil/edda-stack/testing/validators/provenance-chain
+ * @module @eddacraft/anvil-edda-stack/testing/validators/provenance-chain
  */
 
 import type { ProvenanceChain, KindlingRef, EmberRef } from '../../contracts/provenance.js';

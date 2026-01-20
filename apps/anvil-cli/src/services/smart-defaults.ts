@@ -1,4 +1,4 @@
-import { GateConfig } from '@anvil/core';
+import { GateConfig } from '@eddacraft/anvil-core';
 import {
   ProjectContext,
   FrameworkType,

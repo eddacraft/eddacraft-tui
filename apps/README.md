@@ -6,7 +6,7 @@ Deployable applications and their E2E test suites.
 
 ```
 apps/
-├── anvil-cli/      # @anvil/cli - CLI application
+├── anvil-cli/      # @eddacraft/anvil-cli - CLI application
 ├── anvil-api/      # (future) REST/GraphQL API gateway
 ├── anvil-ui/       # (future) Web UI for plans, runs, and audits
 ├── website/        # (future) Marketing website
@@ -19,7 +19,7 @@ apps/
 
 ## Applications
 
-### anvil-cli (@anvil/cli)
+### anvil-cli (@eddacraft/anvil-cli)
 
 The Anvil command-line interface for development automation.
 
@@ -28,7 +28,7 @@ The Anvil command-line interface for development automation.
 pnpm link:cli
 
 # Run directly
-npx @anvil/cli --help
+npx @eddacraft/anvil-cli --help
 anvil check
 anvil gate
 ```

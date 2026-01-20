@@ -3,8 +3,8 @@
  * @module cli/types/command-results
  */
 
-import type { APSPlan, ValidationResult, GateRunResult, Evidence } from '@anvil/core';
-import type { AdapterError, AdapterWarning } from '@anvil/adapters';
+import type { APSPlan, ValidationResult, GateRunResult, Evidence } from '@eddacraft/anvil-core';
+import type { AdapterError, AdapterWarning } from '@eddacraft/anvil-adapters';
 import type { EvidenceInjectionResult, SourceFormatInfo } from './services.js';
 
 /**

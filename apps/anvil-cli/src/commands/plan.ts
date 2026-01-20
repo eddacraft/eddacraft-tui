@@ -13,7 +13,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { APSPlan, generatePlanId, generateHash, APS_SCHEMA_VERSION } from '@anvil/core';
+import { APSPlan, generatePlanId, generateHash, APS_SCHEMA_VERSION } from '@eddacraft/anvil-core';
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'path';
 import {

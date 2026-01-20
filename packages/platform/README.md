@@ -6,9 +6,9 @@ Cross-cutting infrastructure concerns for the Anvil monorepo.
 
 ```
 platform/
-├── config/      # @anvil/platform-config - Configuration loading
-├── storage/     # @anvil/platform-storage - File system abstractions
-├── crypto/      # @anvil/platform-crypto - Hashing, signing
+├── config/      # @eddacraft/anvil-platform-config - Configuration loading
+├── storage/     # @eddacraft/anvil-platform-storage - File system abstractions
+├── crypto/      # @eddacraft/anvil-platform-crypto - Hashing, signing
 ├── telemetry/   # (future) Logging, metrics, tracing
 ├── auth/        # (future) Authentication and authorisation
 └── http/        # (future) HTTP client abstractions
@@ -16,30 +16,30 @@ platform/
 
 ## Packages
 
-### @anvil/platform-config
+### @eddacraft/anvil-platform-config
 
 Configuration loading and validation utilities.
 
 ```typescript
-import { createConfigLoader } from '@anvil/platform-config';
+import { createConfigLoader } from '@eddacraft/anvil-platform-config';
 
 const config = createConfigLoader({ baseDir: '/path/to/project' });
 const value = config.get<string>('key');
 ```
 
-### @anvil/platform-storage
+### @eddacraft/anvil-platform-storage
 
 File system and persistence abstractions.
 
 ```typescript
-import { createFileStorage } from '@anvil/platform-storage';
+import { createFileStorage } from '@eddacraft/anvil-platform-storage';
 
 const storage = createFileStorage('/path/to/data');
 await storage.write('file.txt', 'content');
 const content = await storage.read('file.txt');
 ```
 
-### @anvil/platform-crypto
+### @eddacraft/anvil-platform-crypto
 
 Cryptographic utilities for hashing and verification.
 
@@ -48,7 +48,7 @@ import {
   generateHash,
   verifyHash,
   generatePlanId,
-} from '@anvil/platform-crypto';
+} from '@eddacraft/anvil-platform-crypto';
 
 const hash = generateHash({ key: 'value' });
 const isValid = verifyHash({ key: 'value' }, hash);

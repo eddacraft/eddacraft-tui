@@ -1,4 +1,4 @@
-# @anvil/\* Core Packages
+# @eddacraft/anvil-\* Core Packages
 
 Layered architecture packages for the Anvil core domain.
 
@@ -6,33 +6,33 @@ Layered architecture packages for the Anvil core domain.
 
 ```
 anvil/
-├── contracts/   # @anvil/contracts - Schemas, types (zero deps)
-├── ports/       # @anvil/ports - Interface definitions
-├── core/        # @anvil/core - Pure domain logic (no I/O)
-├── runtime/     # @anvil/runtime - Orchestration and I/O
-├── policy/      # @anvil/policy - OPA/Rego policy wrappers
-└── sdk/         # @anvil/sdk - Client SDK (future)
+├── contracts/   # @eddacraft/anvil-contracts - Schemas, types (zero deps)
+├── ports/       # @eddacraft/anvil-ports - Interface definitions
+├── core/        # @eddacraft/anvil-core - Pure domain logic (no I/O)
+├── runtime/     # @eddacraft/anvil-runtime - Orchestration and I/O
+├── policy/      # @eddacraft/anvil-policy - OPA/Rego policy wrappers
+└── sdk/         # @eddacraft/anvil-sdk - Client SDK (future)
 ```
 
 ## Packages
 
-### @anvil/contracts (Layer 0)
+### @eddacraft/anvil-contracts (Layer 0)
 
 Zod schemas, types, and events with zero dependencies.
 
 ```typescript
-import { APSPlanSchema, WarningSchema, type APSPlan } from '@anvil/contracts';
+import { APSPlanSchema, WarningSchema, type APSPlan } from '@eddacraft/anvil-contracts';
 ```
 
-### @anvil/ports (Layer 1)
+### @eddacraft/anvil-ports (Layer 1)
 
 Interface definitions depending only on contracts.
 
 ```typescript
-import { ICheck, ICacheProvider, IStorageProvider } from '@anvil/ports';
+import { ICheck, ICacheProvider, IStorageProvider } from '@eddacraft/anvil-ports';
 ```
 
-### @anvil/core (Layer 2)
+### @eddacraft/anvil-core (Layer 2)
 
 Pure domain logic with no I/O operations.
 
@@ -41,23 +41,23 @@ import {
   scanForAntipatterns,
   detectDrift,
   analyzeArchitecture,
-} from '@anvil/core';
+} from '@eddacraft/anvil-core';
 ```
 
-### @anvil/policy (Layer 2)
+### @eddacraft/anvil-policy (Layer 2)
 
 OPA/Rego integration for policy evaluation.
 
 ```typescript
-import { OPAExecutor, BundleManager, PolicyLoader } from '@anvil/policy';
+import { OPAExecutor, BundleManager, PolicyLoader } from '@eddacraft/anvil-policy';
 ```
 
-### @anvil/runtime (Layer 3)
+### @eddacraft/anvil-runtime (Layer 3)
 
 Orchestration and I/O operations.
 
 ```typescript
-import { GateRunner, FileCache, FileWatcher } from '@anvil/runtime';
+import { GateRunner, FileCache, FileWatcher } from '@eddacraft/anvil-runtime';
 ```
 
 ## Dependency Direction

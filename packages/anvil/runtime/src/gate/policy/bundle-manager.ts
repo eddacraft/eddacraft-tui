@@ -16,7 +16,7 @@ import http from 'http';
 import { pipeline } from 'node:stream/promises';
 import { createGunzip } from 'zlib';
 import { extract } from 'tar';
-import { createDebugger } from '@anvil/core';
+import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('policy');
 

@@ -8,8 +8,8 @@
  */
 
 import { writeFile, readFile } from 'node:fs/promises';
-import type { APSPlan, Evidence } from '@anvil/core';
-import type { GateRunResult } from '@anvil/core';
+import type { APSPlan, Evidence } from '@eddacraft/anvil-core';
+import type { GateRunResult } from '@eddacraft/anvil-core';
 
 /**
  * Options for evidence injection

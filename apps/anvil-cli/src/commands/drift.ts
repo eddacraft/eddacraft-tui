@@ -11,7 +11,7 @@ import {
   formatReportAsJson,
   type DriftSnapshot,
   type SnapshotMetadata,
-} from '@anvil/core';
+} from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { error, info } from '../utils/output.js';
 

@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
-import { APSPlan, validateAPSPlan } from '@anvil/core';
+import { APSPlan, validateAPSPlan } from '@eddacraft/anvil-core';
 import { ensureDirSync } from 'fs-extra';
 
 export async function loadPlan(path: string): Promise<APSPlan> {

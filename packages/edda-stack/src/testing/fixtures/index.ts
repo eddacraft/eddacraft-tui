@@ -3,7 +3,7 @@
  *
  * Factory functions for creating valid test data.
  *
- * @module @anvil/edda-stack/testing/fixtures
+ * @module @eddacraft/anvil-edda-stack/testing/fixtures
  */
 
 // Proposal Fixtures

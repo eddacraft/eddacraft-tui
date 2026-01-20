@@ -8,7 +8,7 @@ import { CheckContext, GateResult } from '../../types/gate.types.js';
 import { getOPABinaryManager } from '../policy/opa-binary-manager.js';
 import { PolicyLoader, type LoadedPolicy } from '../policy/policy-loader.js';
 import { OPAExecutor, type OPAInput, type PolicyViolation } from '../policy/opa-executor.js';
-import { parseSeverity, type ArchitectureContext } from '@anvil/core';
+import { parseSeverity, type ArchitectureContext } from '@eddacraft/anvil-core';
 
 /**
  * Configuration for policy check

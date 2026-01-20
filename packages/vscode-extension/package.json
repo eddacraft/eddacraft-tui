@@ -323,6 +323,9 @@
     "package": "vsce package --no-dependencies",
     "publish": "vsce publish --no-dependencies"
   },
+  "dependencies": {
+    "@eddacraft/anvil-core": "workspace:*"
+  },
   "devDependencies": {
     "@types/vscode": "^1.108.1",
     "@vscode/vsce": "^3.7.1",

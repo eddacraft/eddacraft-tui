@@ -16,7 +16,7 @@ import {
   isValidHash,
   type APSPlan,
   APS_SCHEMA_VERSION,
-} from '@anvil/core';
+} from '@eddacraft/anvil-core';
 import { loadPlan, savePlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
 
 describe('CLI + APS Integration Tests', () => {

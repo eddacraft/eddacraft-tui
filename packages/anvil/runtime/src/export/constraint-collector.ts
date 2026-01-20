@@ -10,10 +10,10 @@
  * @module export/constraint-collector
  */
 
-import { PATTERNS } from '@anvil/core/antipattern';
-import type { AntiPattern } from '@anvil/core/antipattern';
-import { loadBaseline } from '@anvil/core/architecture';
-import type { ArchitectureBaseline, Boundary, Layer } from '@anvil/core/architecture';
+import { PATTERNS } from '@eddacraft/anvil-core/antipattern';
+import type { AntiPattern } from '@eddacraft/anvil-core/antipattern';
+import { loadBaseline } from '@eddacraft/anvil-core/architecture';
+import type { ArchitectureBaseline, Boundary, Layer } from '@eddacraft/anvil-core/architecture';
 
 // =============================================================================
 // Types

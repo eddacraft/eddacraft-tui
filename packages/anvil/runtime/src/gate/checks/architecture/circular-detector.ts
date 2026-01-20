@@ -5,7 +5,7 @@
  */
 
 import type { CruiserViolation } from './dependency-analyzer.js';
-import type { ArchitectureBaseline } from '@anvil/core/architecture';
+import type { ArchitectureBaseline } from '@eddacraft/anvil-core/architecture';
 
 /**
  * Categorized violation types

@@ -130,19 +130,19 @@ importers:
 
   apps/anvil-cli:
     dependencies:
-      '@anvil/adapters':
+      '@eddacraft/anvil-adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
-      '@anvil/aps':
+      '@eddacraft/anvil-aps':
         specifier: workspace:*
         version: link:../../packages/aps
-      '@anvil/core':
+      '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../../packages/anvil/core
-      '@anvil/edda-stack':
+      '@eddacraft/anvil-edda-stack':
         specifier: workspace:*
         version: link:../../packages/edda-stack
-      '@anvil/runtime':
+      '@eddacraft/anvil-runtime':
         specifier: workspace:*
         version: link:../../packages/anvil/runtime
       chalk:
@@ -259,7 +259,7 @@ importers:
 
   packages/anvil/core:
     dependencies:
-      '@anvil/contracts':
+      '@eddacraft/anvil-contracts':
         specifier: workspace:*
         version: link:../contracts
       minimatch:
@@ -288,7 +288,7 @@ importers:
 
   packages/anvil/ports:
     dependencies:
-      '@anvil/contracts':
+      '@eddacraft/anvil-contracts':
         specifier: workspace:*
         version: link:../contracts
     devDependencies:
@@ -298,10 +298,10 @@ importers:
 
   packages/anvil/runtime:
     dependencies:
-      '@anvil/contracts':
+      '@eddacraft/anvil-contracts':
         specifier: workspace:*
         version: link:../contracts
-      '@anvil/core':
+      '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../core
       chokidar:
@@ -438,7 +438,7 @@ importers:
 
   packages/platform/storage:
     dependencies:
-      '@anvil/ports':
+      '@eddacraft/anvil-ports':
         specifier: workspace:*
         version: link:../../anvil/ports
     devDependencies:
@@ -482,6 +482,10 @@ importers:
   packages/tooling/tsconfig: {}
 
   packages/vscode-extension:
+    dependencies:
+      '@eddacraft/anvil-core':
+        specifier: workspace:*
+        version: link:../anvil/core
     devDependencies:
       '@types/vscode':
         specifier: ^1.108.1
@@ -8489,6 +8493,7 @@ packages:
   tar@7.5.3:
     resolution: {integrity: sha512-ENg5JUHUm2rDD7IvKNFGzyElLXNjachNLp6RaGf4+JOgxXHkqA+gq81ZAMCUmtMtqBsoU62lcp6S27g1LCYGGQ==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   terminal-link@4.0.0:
     resolution: {integrity: sha512-lk+vH+MccxNqgVqSnkMVKx4VLJfnLjDBGzH16JVZjKE2DoxP57s6/vt6JmXV5I3jBcfGrxNrYtC+mPtU7WJztA==}

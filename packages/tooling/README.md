@@ -6,12 +6,12 @@ Build and development tooling configurations for the Anvil monorepo.
 
 ```
 tooling/
-├── eslint-config/   # @anvil/eslint-config - Shared ESLint configurations
-├── tsconfig/        # @anvil/tsconfig - Shared TypeScript configurations
+├── eslint-config/   # @eddacraft/anvil-eslint-config - Shared ESLint configurations
+├── tsconfig/        # @eddacraft/anvil-tsconfig - Shared TypeScript configurations
 └── release/         # (future) Release and versioning utilities
 ```
 
-## @anvil/eslint-config
+## @eddacraft/anvil-eslint-config
 
 Shared ESLint configuration with base, TypeScript, and React presets.
 
@@ -23,7 +23,7 @@ import {
   baseConfig,
   typescriptConfig,
   reactConfig,
-} from '@anvil/eslint-config';
+} from '@eddacraft/anvil-eslint-config';
 import typescriptEslint from 'typescript-eslint';
 
 export default typescriptEslint.config(
@@ -35,12 +35,12 @@ export default typescriptEslint.config(
 
 ### Exports
 
-- `@anvil/eslint-config` - Default config (base + TypeScript)
-- `@anvil/eslint-config/base` - Base JavaScript + Prettier rules
-- `@anvil/eslint-config/typescript` - TypeScript-specific rules
-- `@anvil/eslint-config/react` - React-specific rules
+- `@eddacraft/anvil-eslint-config` - Default config (base + TypeScript)
+- `@eddacraft/anvil-eslint-config/base` - Base JavaScript + Prettier rules
+- `@eddacraft/anvil-eslint-config/typescript` - TypeScript-specific rules
+- `@eddacraft/anvil-eslint-config/react` - React-specific rules
 
-## @anvil/tsconfig
+## @eddacraft/anvil-tsconfig
 
 Shared TypeScript configurations for different project types.
 
@@ -48,7 +48,7 @@ Shared TypeScript configurations for different project types.
 
 ```json
 {
-  "extends": "@anvil/tsconfig/lib.json",
+  "extends": "@eddacraft/anvil-tsconfig/lib.json",
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src"
@@ -58,8 +58,8 @@ Shared TypeScript configurations for different project types.
 
 ### Exports
 
-- `@anvil/tsconfig/base.json` - Base configuration for all projects
-- `@anvil/tsconfig/lib.json` - Library projects (with declarations)
-- `@anvil/tsconfig/app.json` - Application projects (no declarations)
-- `@anvil/tsconfig/node.json` - Node.js projects
-- `@anvil/tsconfig/react.json` - React projects
+- `@eddacraft/anvil-tsconfig/base.json` - Base configuration for all projects
+- `@eddacraft/anvil-tsconfig/lib.json` - Library projects (with declarations)
+- `@eddacraft/anvil-tsconfig/app.json` - Application projects (no declarations)
+- `@eddacraft/anvil-tsconfig/node.json` - Node.js projects
+- `@eddacraft/anvil-tsconfig/react.json` - React projects

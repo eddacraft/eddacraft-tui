@@ -1,10 +1,10 @@
 /**
- * @anvil/contracts
+ * @eddacraft/anvil-contracts
  *
  * Schemas, types, and events with zero dependencies.
  * This package is the foundation of the Anvil type system.
  *
- * @module @anvil/contracts
+ * @module @eddacraft/anvil-contracts
  */
 
 // Re-export all schemas

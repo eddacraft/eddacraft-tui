@@ -1,4 +1,4 @@
-# @anvil/kindling-integration
+# @eddacraft/anvil-kindling-integration
 
 > Mechanical contracts for Kindling memory integration in Anvil v1
 
@@ -51,7 +51,7 @@ kinds:**
 **Example:**
 
 ```typescript
-import { SessionStartObservation } from '@anvil/kindling-integration/observation';
+import { SessionStartObservation } from '@eddacraft/anvil-kindling-integration/observation';
 
 const obs: SessionStartObservation = {
   kind: 'session_start',
@@ -78,7 +78,7 @@ Defines how to retrieve observations. **4 query scopes:**
 > "What happened in this run?"
 
 ```typescript
-import { SessionQuery } from '@anvil/kindling-integration/query';
+import { SessionQuery } from '@eddacraft/anvil-kindling-integration/query';
 
 const query: SessionQuery = {
   scope: 'session',
@@ -253,7 +253,7 @@ That separation is your long-term moat.
 User brings their own AI (e.g., Claude via API):
 
 ```typescript
-import { QueryRequest, QueryResponse } from '@anvil/kindling-integration';
+import { QueryRequest, QueryResponse } from '@eddacraft/anvil-kindling-integration';
 
 // AI wants to explain why gate failed
 async function explainGateFailure(gateEvalId: string): Promise<string> {
@@ -301,7 +301,7 @@ async function explainGateFailure(gateEvalId: string): Promise<string> {
 import {
   validateObservation,
   SessionStartObservation,
-} from '@anvil/kindling-integration/observation';
+} from '@eddacraft/anvil-kindling-integration/observation';
 
 const obs: SessionStartObservation = {
   /* ... */
@@ -315,7 +315,7 @@ if (result.success) {
 import {
   validateQueryRequest,
   SessionQuery,
-} from '@anvil/kindling-integration/query';
+} from '@eddacraft/anvil-kindling-integration/query';
 
 const query: SessionQuery = {
   /* ... */

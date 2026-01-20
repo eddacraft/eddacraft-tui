@@ -14,7 +14,7 @@
     "sharedGlobals": ["{workspaceRoot}/.github/workflows/ci.yml"]
   },
   "generators": {
-    "@anvil/generators": {
+    "@eddacraft/anvil-generators": {
       "package": {
         "directory": "packages"
       }

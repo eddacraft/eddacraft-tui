@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { GateRunner } from './gate-runner.js';
 import { GateConfig, PlanData, CheckContext, GateResult } from '../types/gate.types.js';
 import { BaseCheck } from './check.interface.js';
-import type { Warning, WarningResult } from '@anvil/core/antipattern';
+import type { Warning, WarningResult } from '@eddacraft/anvil-core/antipattern';
 
 class MockCheck extends BaseCheck {
   name = 'mock';

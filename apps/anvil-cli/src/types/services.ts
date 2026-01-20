@@ -9,8 +9,8 @@ import type {
   AdapterError,
   AdapterWarning,
   AdapterOptions,
-} from '@anvil/adapters';
-import type { APSPlan, ValidationResult } from '@anvil/core';
+} from '@eddacraft/anvil-adapters';
+import type { APSPlan, ValidationResult } from '@eddacraft/anvil-core';
 
 /**
  * Format detection service that identifies the format of input files

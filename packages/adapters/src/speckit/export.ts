@@ -1,4 +1,4 @@
-import type { APSPlan, Change, ValidationResult } from '@anvil/core';
+import type { APSPlan, Change, ValidationResult } from '@eddacraft/anvil-core';
 import type {
   ConversionError,
   ConversionResult,

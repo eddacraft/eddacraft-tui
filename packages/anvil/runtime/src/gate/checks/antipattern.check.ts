@@ -12,9 +12,9 @@ import { readFileSync } from 'fs';
 import * as path from 'node:path';
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
-import { scanFile, type ScanOptions, type ScanResult } from '@anvil/core/antipattern';
-import { createWarningResult, type Warning, type WarningResult } from '@anvil/core/antipattern';
-import { parseSeverity } from '@anvil/core';
+import { scanFile, type ScanOptions, type ScanResult } from '@eddacraft/anvil-core/antipattern';
+import { createWarningResult, type Warning, type WarningResult } from '@eddacraft/anvil-core/antipattern';
+import { parseSeverity } from '@eddacraft/anvil-core';
 
 export interface AntipatternCheckConfig {
   patterns?: string[];

@@ -3,7 +3,7 @@
  *
  * This package provides codemods for the Anvil monorepo migration.
  *
- * @module @anvil/codemods
+ * @module @eddacraft/anvil-codemods
  */
 
 export * from './import-mappings.js';

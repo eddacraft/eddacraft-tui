@@ -34,5 +34,5 @@ export type {
   PublicKeyConfig,
   BundleVerifierConfig,
   SignatureManifest,
-  // SignatureAlgorithm exported from @anvil/contracts via gate.types
+  // SignatureAlgorithm exported from @eddacraft/anvil-contracts via gate.types
 } from './bundle-verifier.js';

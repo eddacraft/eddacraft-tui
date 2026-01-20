@@ -428,7 +428,7 @@ spec.md
 
 **Steps**:
 
-1. Install Anvil: `npm install -g @anvil/cli`
+1. Install Anvil: `npm install -g @eddacraft/anvil-cli`
 2. Navigate to project: `cd my-project`
 3. Run validation: `anvil validate spec.md`
 4. See results immediately
@@ -1298,7 +1298,7 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Install Anvil
-        run: npm install -g @anvil/cli
+        run: npm install -g @eddacraft/anvil-cli
 
       - name: Validate Plan
         run: anvil validate spec.md

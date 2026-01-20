@@ -11,7 +11,7 @@ import {
   type GateRunOptions,
   type ProgressEvent,
   type GateRunResultWithCache,
-} from '@anvil/runtime';
+} from '@eddacraft/anvil-runtime';
 import { loadPlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';

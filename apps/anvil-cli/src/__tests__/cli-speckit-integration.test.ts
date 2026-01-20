@@ -13,8 +13,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
-import { SpecKitFormatAdapter } from '@anvil/adapters';
-import type { GateRunResult } from '@anvil/core';
+import { SpecKitFormatAdapter } from '@eddacraft/anvil-adapters';
+import type { GateRunResult } from '@eddacraft/anvil-core';
 
 describe('CLI SpecKit Integration', () => {
   let testDir: string;

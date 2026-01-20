@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/platform-storage",
+  "name": "@eddacraft/anvil-platform-storage",
   "version": "0.0.1",
   "description": "File system and persistence abstractions",
   "type": "module",
@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anvil/ports": "workspace:*"
+    "@eddacraft/anvil-ports": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.0.9",

@@ -4,7 +4,7 @@
  * Mock implementation of IEddaPort for testing.
  * Uses in-memory storage and vitest mock functions.
  *
- * @module @anvil/edda-stack/testing/mocks/edda
+ * @module @eddacraft/anvil-edda-stack/testing/mocks/edda
  */
 
 import { vi, type Mock } from 'vitest';

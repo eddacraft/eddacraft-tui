@@ -1,6 +1,6 @@
 /**
  * React ESLint configuration for Anvil monorepo
- * @module @anvil/eslint-config/react
+ * @module @eddacraft/anvil-eslint-config/react
  */
 
 import reactPlugin from 'eslint-plugin-react';

@@ -17,27 +17,27 @@ const PACKAGE_CONFIG: Record<string, { description: string; deps: string[]; laye
   },
   ports: {
     description: 'Interface definitions depending only on contracts',
-    deps: ['@anvil/contracts'],
+    deps: ['@eddacraft/anvil-contracts'],
     layer: 1,
   },
   core: {
     description: 'Pure domain logic depending on ports and contracts',
-    deps: ['@anvil/contracts', '@anvil/ports'],
+    deps: ['@eddacraft/anvil-contracts', '@eddacraft/anvil-ports'],
     layer: 2,
   },
   policy: {
     description: 'OPA/Rego wrappers depending on contracts',
-    deps: ['@anvil/contracts'],
+    deps: ['@eddacraft/anvil-contracts'],
     layer: 2,
   },
   runtime: {
     description: 'Orchestration and I/O depending on core, ports, contracts',
-    deps: ['@anvil/contracts', '@anvil/ports', '@anvil/core', '@anvil/policy'],
+    deps: ['@eddacraft/anvil-contracts', '@eddacraft/anvil-ports', '@eddacraft/anvil-core', '@eddacraft/anvil-policy'],
     layer: 3,
   },
   sdk: {
     description: 'Client SDK depending on contracts and ports',
-    deps: ['@anvil/contracts', '@anvil/ports'],
+    deps: ['@eddacraft/anvil-contracts', '@eddacraft/anvil-ports'],
     layer: 2,
   },
 };
@@ -45,7 +45,7 @@ const PACKAGE_CONFIG: Record<string, { description: string; deps: string[]; laye
 export default async function (tree: Tree, options: AnvilPackageGeneratorSchema) {
   const config = PACKAGE_CONFIG[options.name];
   const projectRoot = `packages/anvil/${options.name}`;
-  const importPath = `@anvil/${options.name}`;
+  const importPath = `@eddacraft/anvil-${options.name}`;
   const description = options.description || config.description;
 
   // Build dependencies object

@@ -4,7 +4,7 @@
  * Zod schemas for validating stack configuration within .anvilrc.
  * These provide strict runtime validation of stack settings.
  *
- * @module @anvil/edda-stack/config
+ * @module @eddacraft/anvil-edda-stack/config
  */
 
 import { z } from 'zod';

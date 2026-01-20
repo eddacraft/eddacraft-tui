@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'path';
-import { TaskLocker, formatTaskStatus, type TaskStatusInfo } from '@anvil/aps';
+import { TaskLocker, formatTaskStatus, type TaskStatusInfo } from '@eddacraft/anvil-aps';
 
 export interface StatusOptions {
   plan?: string;

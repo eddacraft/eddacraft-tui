@@ -1,9 +1,9 @@
 /**
- * @anvil/platform-config
+ * @eddacraft/anvil-platform-config
  *
  * Configuration loading and validation utilities.
  *
- * @module @anvil/platform-config
+ * @module @eddacraft/anvil-platform-config
  */
 
 export * from './loader.js';

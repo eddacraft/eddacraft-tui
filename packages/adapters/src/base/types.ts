@@ -5,7 +5,7 @@
  * external planning formats (SpecKit, BMAD, etc.) and APS.
  */
 
-import type { APSPlan, ValidationResult } from '@anvil/core';
+import type { APSPlan, ValidationResult } from '@eddacraft/anvil-core';
 
 /**
  * Result of format detection

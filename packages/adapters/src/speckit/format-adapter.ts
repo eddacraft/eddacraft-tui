@@ -14,7 +14,7 @@ import {
   type ValidationResult,
   type Change,
   createPlan,
-} from '@anvil/core';
+} from '@eddacraft/anvil-core';
 import {
   BaseFormatAdapter,
   type AdapterMetadata,

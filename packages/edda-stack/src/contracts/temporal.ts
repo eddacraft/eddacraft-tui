@@ -4,7 +4,7 @@
  * Defines shared timestamp conventions used across all Edda Stack layers.
  * All timestamps are ISO8601 strings in UTC for consistency and portability.
  *
- * @module @anvil/edda-stack/contracts/temporal
+ * @module @eddacraft/anvil-edda-stack/contracts/temporal
  */
 
 import { z } from 'zod';

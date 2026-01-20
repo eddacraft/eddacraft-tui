@@ -3,7 +3,7 @@
  * @module cli/types/command-options
  */
 
-import type { AdapterOptions } from '@anvil/adapters';
+import type { AdapterOptions } from '@eddacraft/anvil-adapters';
 
 /**
  * Available gate profiles

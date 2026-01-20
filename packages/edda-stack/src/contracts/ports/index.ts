@@ -3,7 +3,7 @@
  *
  * Defines the interfaces for storage adapters across the Edda Stack.
  *
- * @module @anvil/edda-stack/contracts/ports
+ * @module @eddacraft/anvil-edda-stack/contracts/ports
  */
 
 // =============================================================================

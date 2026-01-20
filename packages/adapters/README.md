@@ -39,8 +39,8 @@ packages/adapters/
 ### Using Adapters
 
 ```typescript
-import { registry } from '@anvil/adapters';
-import { SpecKitAdapter } from '@anvil/adapters/speckit';
+import { registry } from '@eddacraft/anvil-adapters';
+import { SpecKitAdapter } from '@eddacraft/anvil-adapters/speckit';
 
 // Register adapter
 const speckit = new SpecKitAdapter();
@@ -134,7 +134,7 @@ workflow with three document types.
 #### Usage Example
 
 ```typescript
-import { SpecKitImportAdapterV2 } from '@anvil/adapters/speckit';
+import { SpecKitImportAdapterV2 } from '@eddacraft/anvil-adapters/speckit';
 
 const adapter = new SpecKitImportAdapterV2();
 
@@ -234,7 +234,7 @@ Confidence-based algorithm with 5 weighted indicators (100-point scale):
 #### Usage Example
 
 ```typescript
-import { BMADFormatAdapter } from '@anvil/adapters/bmad';
+import { BMADFormatAdapter } from '@eddacraft/anvil-adapters/bmad';
 
 const adapter = new BMADFormatAdapter();
 
@@ -348,7 +348,7 @@ Generic adapter uses fallback detection with lower confidence (30-45%):
 #### Usage Example
 
 ```typescript
-import { GenericMarkdownAdapter } from '@anvil/adapters/generic';
+import { GenericMarkdownAdapter } from '@eddacraft/anvil-adapters/generic';
 
 const adapter = new GenericMarkdownAdapter();
 
@@ -393,7 +393,7 @@ anvil validate docs/custom-plan.md
 Automatically finds planning documents in repositories:
 
 ```typescript
-import { findPlanningDocuments } from '@anvil/adapters/utils';
+import { findPlanningDocuments } from '@eddacraft/anvil-adapters/utils';
 
 // Search for planning docs in current directory
 const docs = await findPlanningDocuments();

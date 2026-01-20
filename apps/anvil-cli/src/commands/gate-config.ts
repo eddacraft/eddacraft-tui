@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { GateConfigManager } from '@anvil/runtime';
+import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error } from '../utils/output.js';
 import inquirer from 'inquirer';

@@ -1,11 +1,11 @@
-# @anvil/aps
+# @eddacraft/anvil-aps
 
 Anvil Planning Spec (APS) library for parsing, loading, validating, and managing
 planning documents.
 
 ## Overview
 
-The `@anvil/aps` package provides a complete toolkit for working with Anvil
+The `@eddacraft/anvil-aps` package provides a complete toolkit for working with Anvil
 Planning Spec documents:
 
 - **Parser**: Parse Markdown-based planning documents using remark AST
@@ -16,7 +16,7 @@ Planning Spec documents:
 ## Installation
 
 ```bash
-pnpm add @anvil/aps
+pnpm add @eddacraft/anvil-aps
 ```
 
 ## Usage

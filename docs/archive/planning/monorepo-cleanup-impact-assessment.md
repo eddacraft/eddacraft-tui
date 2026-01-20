@@ -27,13 +27,13 @@ milestone**, not a go-live blocker.
 
 ```
 anvil-001/
-├── core (removed)           # @anvil/core (schema, validation, gates)
-├── cli (removed)            # @anvil/cli (Commander.js CLI + TUI)
+├── core (removed)           # @eddacraft/anvil-core (schema, validation, gates)
+├── cli (removed)            # @eddacraft/anvil-cli (Commander.js CLI + TUI)
 ├── ui (removed)             # Legacy UI root
 ├── packs (removed)          # Legacy packs root
 ├── packages/
-│   ├── adapters/           # @anvil/adapters
-│   ├── aps/                # @anvil/aps
+│   ├── adapters/           # @eddacraft/anvil-adapters
+│   ├── aps/                # @eddacraft/anvil-aps
 │   ├── eslint-plugin-anvil/
 │   └── vscode-extension/
 ├── e2e/                    # Playwright tests
@@ -46,20 +46,20 @@ anvil-001/
 
 | Location                        | Package             | Status     |
 | ------------------------------- | ------------------- | ---------- |
-| legacy core root (removed)      | @anvil/core         | Production |
-| legacy cli root (removed)       | @anvil/cli          | Production |
-| `packages/adapters/`            | @anvil/adapters     | Production |
-| `packages/aps/`                 | @anvil/aps          | Production |
+| legacy core root (removed)      | @eddacraft/anvil-core         | Production |
+| legacy cli root (removed)       | @eddacraft/anvil-cli          | Production |
+| `packages/adapters/`            | @eddacraft/anvil-adapters     | Production |
+| `packages/aps/`                 | @eddacraft/anvil-aps          | Production |
 | `packages/eslint-plugin-anvil/` | eslint-plugin-anvil | Production |
 | `packages/vscode-extension/`    | anvil-vscode        | Complete   |
-| legacy UI root (removed)        | @anvil/ui           | Minimal    |
-| legacy packs root (removed)     | @anvil/packs        | Minimal    |
+| legacy UI root (removed)        | @eddacraft/anvil-ui           | Minimal    |
+| legacy packs root (removed)     | @eddacraft/anvil-packs        | Minimal    |
 
 **Total: 8 workspace packages**
 
 ### 1.3 Cross-Package Dependencies
 
-- **146 import statements** using `@anvil/*` across 68 files
+- **146 import statements** using `@eddacraft/anvil-*` across 68 files
 - **Primary dependency flow:** adapters → aps → core ← cli
 - **No circular dependencies** detected
 

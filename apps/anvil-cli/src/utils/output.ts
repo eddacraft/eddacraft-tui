@@ -1,5 +1,5 @@
 import chalk from 'chalk';
-import type { GateRunResult, GateRunResultWithCache } from '@anvil/runtime';
+import type { GateRunResult, GateRunResultWithCache } from '@eddacraft/anvil-runtime';
 
 export function success(message: string): void {
   console.log(chalk.green('✓'), message);

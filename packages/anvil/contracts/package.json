@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/contracts",
+  "name": "@eddacraft/anvil-contracts",
   "version": "0.0.1",
   "description": "Schemas, types, and events with zero dependencies",
   "type": "module",

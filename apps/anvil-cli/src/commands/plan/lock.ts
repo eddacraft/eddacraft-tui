@@ -7,7 +7,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'path';
-import { TaskLocker, type LockResult } from '@anvil/aps';
+import { TaskLocker, type LockResult } from '@eddacraft/anvil-aps';
 
 export interface LockOptions {
   plan?: string;

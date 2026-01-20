@@ -370,7 +370,7 @@ disable.
 
 ```json
 {
-  "@anvil/cli": {
+  "@eddacraft/anvil-cli": {
     "dependencies": {
       "ink": "^5.0.1",
       "ink-spinner": "^5.0.0",

@@ -1,9 +1,9 @@
 /**
  * Shared ESLint configuration for Anvil monorepo
- * @module @anvil/eslint-config
+ * @module @eddacraft/anvil-eslint-config
  *
  * Usage:
- *   import { baseConfig, typescriptConfig, reactConfig } from '@anvil/eslint-config';
+ *   import { baseConfig, typescriptConfig, reactConfig } from '@eddacraft/anvil-eslint-config';
  *   import typescriptEslint from 'typescript-eslint';
  *
  *   export default typescriptEslint.config(

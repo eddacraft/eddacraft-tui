@@ -9,7 +9,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { relative, resolve } from 'path';
 import type { GitFileStatus } from './types.js';
-import { createDebugger } from '@anvil/core';
+import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('gate');
 

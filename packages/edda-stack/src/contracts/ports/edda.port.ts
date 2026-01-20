@@ -4,7 +4,7 @@
  * Defines the interface for Edda memory storage adapters.
  * Implementations can use SQLite, PostgreSQL, file-based, or in-memory storage.
  *
- * @module @anvil/edda-stack/contracts/ports/edda
+ * @module @eddacraft/anvil-edda-stack/contracts/ports/edda
  */
 
 import type { MemoryId, ProposalId } from '../identifiers.js';

@@ -10,7 +10,7 @@
 
 We want a lightweight planning artefact (APS Planning Docs) that sits between
 intent and execution for mixed human + AI delivery. Today APS exists as an
-internal JSON execution schema in `@anvil/core`, but:
+internal JSON execution schema in `@eddacraft/anvil-core`, but:
 
 1. There's no standalone, human-readable planning format teams can adopt without
    Anvil
@@ -78,7 +78,7 @@ execution. This allows:
 - No embeddings/vector search
 - No "use our agent" coupling
 - No YAML frontmatter (keep pure Markdown for human readability)
-- No extraction of Zod schema from `@anvil/core` (stays where it is)
+- No extraction of Zod schema from `@eddacraft/anvil-core` (stays where it is)
 
 ---
 
@@ -361,7 +361,7 @@ Package.json exports shape:
 
 ```json
 {
-  "name": "@anvil/aps",
+  "name": "@eddacraft/anvil-aps",
   "version": "0.0.1",
   "type": "module",
   "main": "./dist/index.js",
@@ -398,7 +398,7 @@ packages/aps/dist/
 nx g @nx/js:library aps \
   --directory=packages/aps \
   --publishable \
-  --importPath=@anvil/aps \
+  --importPath=@eddacraft/anvil-aps \
   --unitTestRunner=vitest \
   --bundler=tsc
 ```
@@ -407,7 +407,7 @@ nx g @nx/js:library aps \
 
 - Add `"type": "module"` to package.json
 - Add explicit `exports` field to package.json
-- Add `@anvil/core` as `workspace:*` runtime dependency
+- Add `@eddacraft/anvil-core` as `workspace:*` runtime dependency
 - Add remark dependencies as runtime deps: `remark-parse`, `unified`,
   `unist-util-visit`
 - Update tsconfig with `references: [{ "path": "../../core" }]`
@@ -426,7 +426,7 @@ nx g @nx/js:library aps \
 - `nx build aps` produces expected dist/ shape
 - `nx test aps` runs successfully
 - `nx lint aps` passes
-- Imports from `@anvil/aps` resolve correctly in another package
+- Imports from `@eddacraft/anvil-aps` resolve correctly in another package
 
 **Deliverables**: Scaffolded `packages/aps` with Nx integration
 
@@ -608,10 +608,10 @@ Dogfood against system example:
 - [ ] Document ESM-only stance and Definition of Done
 - [ ] Confirm `composite: true` in core tsconfig
 - [ ] Run
-      `nx g @nx/js:library aps --directory=packages/aps --publishable --importPath=@anvil/aps --unitTestRunner=vitest --bundler=tsc`
+      `nx g @nx/js:library aps --directory=packages/aps --publishable --importPath=@eddacraft/anvil-aps --unitTestRunner=vitest --bundler=tsc`
 - [ ] Add `"type": "module"` to package.json
 - [ ] Add explicit `exports` field to package.json
-- [ ] Add `@anvil/core` as `workspace:*` dependency
+- [ ] Add `@eddacraft/anvil-core` as `workspace:*` dependency
 - [ ] Add `remark-parse`, `unified`, `unist-util-visit` as dependencies
 - [ ] Update tsconfig with `references: [{ "path": "../../core" }]`
 - [ ] Ensure `composite: true` is set
@@ -780,7 +780,7 @@ This is the **library** that anyone can use without Anvil.
 
 ## Future Considerations
 
-- **Custom Nx generator**: Could create `nx g @anvil/aps:planning-doc` to
+- **Custom Nx generator**: Could create `nx g @eddacraft/anvil-aps:planning-doc` to
   scaffold new planning docs from templates
 - **Linter**: Future `anvil plan lint` for style/convention checks
 - **VS Code extension**: Syntax highlighting and task state indicators for

@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { serializeToGeneric } from '../serializer.js';
-import type { APSPlan } from '@anvil/core';
+import type { APSPlan } from '@eddacraft/anvil-core';
 
 describe('serializeToGeneric', () => {
   const basePlan: APSPlan = {

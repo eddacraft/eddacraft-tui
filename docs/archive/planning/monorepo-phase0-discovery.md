@@ -116,21 +116,21 @@ packages/
 
 | Source (core/src/) | Target Package         | Lines | Rationale                    |
 | ------------------ | ---------------------- | ----- | ---------------------------- |
-| schema/            | @anvil/contracts       | 651   | Pure Zod schemas, zero I/O   |
-| types/             | @anvil/contracts       | 278   | Type definitions only        |
-| validation/        | @anvil/contracts       | 917   | Schema validation (no I/O)   |
-| crypto/            | @anvil/platform/crypto | 405   | Hashing (crypto module I/O)  |
-| utils/             | @anvil/shared/util     | 204   | Generic utilities            |
-| provenance/        | @anvil/core            | 1,274 | Pure domain logic            |
-| warnings/          | @anvil/core            | 564   | Pure domain logic            |
-| antipattern/       | @anvil/core            | 2,010 | Pure domain logic            |
-| suppression/       | @anvil/core            | 1,595 | Pure domain logic            |
-| explain/           | @anvil/core            | 1,407 | Pure domain logic            |
-| architecture/      | @anvil/core            | 6,469 | Architecture analysis domain |
-| drift/             | @anvil/core            | 3,060 | Drift detection domain       |
-| cache/             | @anvil/runtime         | 1,744 | File system I/O              |
-| watch/             | @anvil/runtime         | 1,168 | File watching I/O            |
-| export/            | @anvil/runtime         | 2,817 | File writing I/O             |
+| schema/            | @eddacraft/anvil-contracts       | 651   | Pure Zod schemas, zero I/O   |
+| types/             | @eddacraft/anvil-contracts       | 278   | Type definitions only        |
+| validation/        | @eddacraft/anvil-contracts       | 917   | Schema validation (no I/O)   |
+| crypto/            | @eddacraft/anvil-platform/crypto | 405   | Hashing (crypto module I/O)  |
+| utils/             | @eddacraft/anvil-shared/util     | 204   | Generic utilities            |
+| provenance/        | @eddacraft/anvil-core            | 1,274 | Pure domain logic            |
+| warnings/          | @eddacraft/anvil-core            | 564   | Pure domain logic            |
+| antipattern/       | @eddacraft/anvil-core            | 2,010 | Pure domain logic            |
+| suppression/       | @eddacraft/anvil-core            | 1,595 | Pure domain logic            |
+| explain/           | @eddacraft/anvil-core            | 1,407 | Pure domain logic            |
+| architecture/      | @eddacraft/anvil-core            | 6,469 | Architecture analysis domain |
+| drift/             | @eddacraft/anvil-core            | 3,060 | Drift detection domain       |
+| cache/             | @eddacraft/anvil-runtime         | 1,744 | File system I/O              |
+| watch/             | @eddacraft/anvil-runtime         | 1,168 | File watching I/O            |
+| export/            | @eddacraft/anvil-runtime         | 2,817 | File writing I/O             |
 
 ### 2.3 gate/ Subdirectory Split (16,757 lines)
 
@@ -138,22 +138,22 @@ The gate/ subdirectory requires splitting across multiple packages:
 
 ```
 core/src/gate/
-├── check.interface.ts      → @anvil/ports (interface definition)
-├── gate-runner.ts          → @anvil/runtime (orchestration)
-├── gate-config.ts          → @anvil/runtime (configuration loading)
-├── integration.test.ts     → @anvil/runtime (tests)
-├── checks/                  → @anvil/runtime (check implementations)
+├── check.interface.ts      → @eddacraft/anvil-ports (interface definition)
+├── gate-runner.ts          → @eddacraft/anvil-runtime (orchestration)
+├── gate-config.ts          → @eddacraft/anvil-runtime (configuration loading)
+├── integration.test.ts     → @eddacraft/anvil-runtime (tests)
+├── checks/                  → @eddacraft/anvil-runtime (check implementations)
 │   ├── eslint.check.ts
 │   ├── coverage.check.ts
 │   ├── secret.check.ts
 │   ├── policy.check.ts
 │   ├── architecture.check.ts
 │   └── command-safety.check.ts
-├── config/                  → @anvil/runtime (config utilities)
-├── formatters/              → @anvil/runtime (output formatting)
-├── parsers/                 → @anvil/runtime (output parsing)
-├── rules/                   → @anvil/runtime (rule definitions)
-└── policy/                  → @anvil/policy (OPA integration)
+├── config/                  → @eddacraft/anvil-runtime (config utilities)
+├── formatters/              → @eddacraft/anvil-runtime (output formatting)
+├── parsers/                 → @eddacraft/anvil-runtime (output parsing)
+├── rules/                   → @eddacraft/anvil-runtime (rule definitions)
+└── policy/                  → @eddacraft/anvil-policy (OPA integration)
     ├── opa-binary-manager.ts
     ├── opa-executor.ts
     ├── policy-loader.ts
@@ -165,13 +165,13 @@ core/src/gate/
 
 | Target Package         | Total Lines | Percentage |
 | ---------------------- | ----------- | ---------- |
-| @anvil/contracts       | 1,846       | 4.4%       |
-| @anvil/ports           | ~200        | 0.5%       |
-| @anvil/core            | 14,379      | 34.6%      |
-| @anvil/runtime         | 12,500      | 30.1%      |
-| @anvil/policy          | 4,046       | 9.7%       |
-| @anvil/platform/crypto | 405         | 1.0%       |
-| @anvil/shared/util     | 204         | 0.5%       |
+| @eddacraft/anvil-contracts       | 1,846       | 4.4%       |
+| @eddacraft/anvil-ports           | ~200        | 0.5%       |
+| @eddacraft/anvil-core            | 14,379      | 34.6%      |
+| @eddacraft/anvil-runtime         | 12,500      | 30.1%      |
+| @eddacraft/anvil-policy          | 4,046       | 9.7%       |
+| @eddacraft/anvil-platform/crypto | 405         | 1.0%       |
+| @eddacraft/anvil-shared/util     | 204         | 0.5%       |
 | **Unassigned/Split**   | **8,000**   | **19.2%**  |
 
 ---
@@ -225,13 +225,13 @@ packages/edda-stack/
 
 | Schema               | Purpose                                | Export Path         |
 | -------------------- | -------------------------------------- | ------------------- |
-| IdentifierSchemas    | UUID, ContentHash, ObservationId, etc. | `@anvil/edda-stack` |
-| TemporalSchemas      | Timestamp, Duration, TimeRange, TTL    | `@anvil/edda-stack` |
-| ConfidenceSchemas    | EmberConfidence, EddaConfidenceLevel   | `@anvil/edda-stack` |
-| ProvenanceSchemas    | KindlingRef, EmberRef, ProvenanceChain | `@anvil/edda-stack` |
-| EmberProposalSchemas | ProposalType, CandidateProposal        | `@anvil/edda-stack` |
-| EddaMemorySchemas    | MemoryType, MemoryObject, Evolution    | `@anvil/edda-stack` |
-| EventSchemas         | StackEvent, EventType, EventHandler    | `@anvil/edda-stack` |
+| IdentifierSchemas    | UUID, ContentHash, ObservationId, etc. | `@eddacraft/anvil-edda-stack` |
+| TemporalSchemas      | Timestamp, Duration, TimeRange, TTL    | `@eddacraft/anvil-edda-stack` |
+| ConfidenceSchemas    | EmberConfidence, EddaConfidenceLevel   | `@eddacraft/anvil-edda-stack` |
+| ProvenanceSchemas    | KindlingRef, EmberRef, ProvenanceChain | `@eddacraft/anvil-edda-stack` |
+| EmberProposalSchemas | ProposalType, CandidateProposal        | `@eddacraft/anvil-edda-stack` |
+| EddaMemorySchemas    | MemoryType, MemoryObject, Evolution    | `@eddacraft/anvil-edda-stack` |
+| EventSchemas         | StackEvent, EventType, EventHandler    | `@eddacraft/anvil-edda-stack` |
 
 ### 3.4 Port Interfaces Provided
 
@@ -260,7 +260,7 @@ packages/edda-stack/
 
 ```
                     ┌─────────────────────┐
-                    │ @anvil/edda-stack   │
+                    │ @eddacraft/anvil-edda-stack   │
                     │ ├── contracts/      │
                     │ └── testing/        │
                     └──────────┬──────────┘
@@ -268,12 +268,12 @@ packages/edda-stack/
                     ┌──────────┴──────────┐
                     │                     │
            ┌────────▼────────┐   ┌────────▼────────┐
-           │ @anvil/runtime  │   │ @anvil/cli      │
+           │ @eddacraft/anvil-runtime  │   │ @eddacraft/anvil-cli      │
            │ (uses ports)    │   │ (uses testing)  │
            └────────┬────────┘   └─────────────────┘
                     │
            ┌────────▼────────┐
-           │ @anvil/ports    │
+           │ @eddacraft/anvil-ports    │
            │ (re-exports     │
            │  stack ports)   │
            └─────────────────┘
@@ -282,7 +282,7 @@ packages/edda-stack/
 **Recommended Actions:**
 
 1. Keep edda-stack as standalone package (no merge into anvil/)
-2. Re-export relevant ports from @anvil/ports for consistency
+2. Re-export relevant ports from @eddacraft/anvil-ports for consistency
 3. Use edda-stack/testing in CLI E2E tests
 
 ---
@@ -381,7 +381,7 @@ mv packages/kindling-integration/src/query-contract.ts \
 **New Export Structure:**
 
 ```typescript
-// @anvil/edda-stack
+// @eddacraft/anvil-edda-stack
 export * from './contracts/kindling/observation-contract.js';
 export * from './contracts/kindling/query-contract.js';
 export * from './contracts/ports/kindling.port.js';
@@ -422,28 +422,28 @@ export * from './contracts/ports/kindling.port.js';
             │                   │                   │
             ▼                   ▼                   ▼
     ┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-    │ @anvil/runtime│   │ @anvil/policy │   │ adapters/*    │
+    │ @eddacraft/anvil-runtime│   │ @eddacraft/anvil-policy │   │ adapters/*    │
     └───────┬───────┘   └───────┬───────┘   └───────┬───────┘
             │                   │                   │
             └─────────┬─────────┴─────────┬─────────┘
                       │                   │
                       ▼                   │
               ┌───────────────┐           │
-              │  @anvil/core  │           │
+              │  @eddacraft/anvil-core  │           │
               └───────┬───────┘           │
                       │                   │
                       ▼                   │
               ┌───────────────┐           │
-              │  @anvil/ports │◄──────────┘
+              │  @eddacraft/anvil-ports │◄──────────┘
               └───────┬───────┘
                       │
                       ▼
               ┌───────────────┐
-              │@anvil/contracts│
+              │@eddacraft/anvil-contracts│
               └───────────────┘
 
     ┌─────────────────────────────────────────────────────────┐
-    │                   @anvil/edda-stack                     │
+    │                   @eddacraft/anvil-edda-stack                     │
     │  (standalone, provides contracts + testing utilities)   │
     └─────────────────────────────────────────────────────────┘
 ```
@@ -452,12 +452,12 @@ export * from './contracts/ports/kindling.port.js';
 
 | Package           | May Depend On                  | Must Not Depend On        |
 | ----------------- | ------------------------------ | ------------------------- |
-| @anvil/contracts  | None                           | Everything                |
-| @anvil/ports      | contracts                      | core, runtime, policy     |
-| @anvil/core       | contracts, ports               | runtime, policy, adapters |
-| @anvil/policy     | contracts                      | core, runtime, adapters   |
-| @anvil/runtime    | contracts, ports, core, policy | apps                      |
-| @anvil/edda-stack | None (standalone)              | anvil/\* packages         |
+| @eddacraft/anvil-contracts  | None                           | Everything                |
+| @eddacraft/anvil-ports      | contracts                      | core, runtime, policy     |
+| @eddacraft/anvil-core       | contracts, ports               | runtime, policy, adapters |
+| @eddacraft/anvil-policy     | contracts                      | core, runtime, adapters   |
+| @eddacraft/anvil-runtime    | contracts, ports, core, policy | apps                      |
+| @eddacraft/anvil-edda-stack | None (standalone)              | anvil/\* packages         |
 | apps/\*           | Any package                    | Other apps                |
 
 ---

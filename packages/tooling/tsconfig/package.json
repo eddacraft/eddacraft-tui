@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/tsconfig",
+  "name": "@eddacraft/anvil-tsconfig",
   "version": "0.0.1",
   "description": "Shared TypeScript configurations for Anvil monorepo",
   "type": "module",

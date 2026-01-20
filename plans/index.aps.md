@@ -392,7 +392,7 @@ graph TD
 
 | Task    | Module | Description                                     | Status   | Priority |
 | ------- | ------ | ----------------------------------------------- | -------- | -------- |
-| IDE-001 | ide    | Embed @anvil/core for fast-path operations      | Complete | high     |
+| IDE-001 | ide    | Embed @eddacraft/anvil-core for fast-path operations      | Complete | high     |
 | IDE-002 | ide    | Anti-pattern detection on save with diagnostics | Complete | high     |
 | IDE-003 | ide    | Improve source location mapping from CLI output | Complete | medium   |
 | IDE-004 | ide    | Architecture gate display in tree view          | Complete | high     |

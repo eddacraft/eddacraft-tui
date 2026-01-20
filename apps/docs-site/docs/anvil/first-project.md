@@ -35,7 +35,7 @@ You want to enforce these boundaries:
 ## Step 1: Install and Initialise
 
 ```bash
-pnpm add -D @anvil/cli
+pnpm add -D @eddacraft/anvil-cli
 anvil init
 ```
 

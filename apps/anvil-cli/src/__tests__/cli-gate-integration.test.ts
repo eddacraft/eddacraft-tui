@@ -14,8 +14,8 @@ import {
   type APSPlan,
   type Evidence,
   APS_SCHEMA_VERSION,
-} from '@anvil/core';
-import { GateRunner, GateConfigManager } from '@anvil/runtime';
+} from '@eddacraft/anvil-core';
+import { GateRunner, GateConfigManager } from '@eddacraft/anvil-runtime';
 import { savePlan, loadPlan } from '../utils/file-io.js';
 
 describe('CLI + Gate Integration Tests', () => {

@@ -20,7 +20,7 @@ rather than after commit.
 
 ## In Scope
 
-- MCP server package (`@anvil/mcp-server`)
+- MCP server package (`@eddacraft/anvil-mcp-server`)
 - Tools: `anvil_check`, `anvil_gate`, `anvil_status`, `anvil_explain`
 - Resources: baseline, config, patterns, suppressions
 - Prompts: warning explanation, suppression guidance
@@ -38,13 +38,13 @@ rather than after commit.
 
 **Depends on:**
 
-- `@anvil/core` — CheckRunner, GateRunner, ArchitectureService
-- `@anvil/cli` — Configuration loading, project detection
+- `@eddacraft/anvil-core` — CheckRunner, GateRunner, ArchitectureService
+- `@eddacraft/anvil-cli` — Configuration loading, project detection
 - `@modelcontextprotocol/sdk` — MCP server implementation
 
 **Exposes:**
 
-- `@anvil/mcp-server` — Standalone MCP server binary
+- `@eddacraft/anvil-mcp-server` — Standalone MCP server binary
 - `anvil_check` tool — File validation with warnings
 - `anvil_gate` tool — Full quality gate execution
 - `anvil_status` tool — Project health summary
@@ -62,7 +62,7 @@ rather than after commit.
 ### MCP-001: Package scaffold and basic server
 
 - **Intent:** Establish MCP server package with working stdio transport
-- **Expected Outcome:** `npx @anvil/mcp-server` starts and responds to MCP
+- **Expected Outcome:** `npx @eddacraft/anvil-mcp-server` starts and responds to MCP
   handshake
 - **Validation:** `pnpm -F mcp-server test`
 - **Files:** `packages/mcp-server/src/index.ts`,

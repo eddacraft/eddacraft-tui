@@ -7,6 +7,6 @@ src/**
 tsconfig.json
 esbuild.config.mjs
 node_modules/**
-!node_modules/@anvil/core/dist/**
-!node_modules/@anvil/adapters/dist/**
+!node_modules/@eddacraft/anvil-core/dist/**
+!node_modules/@eddacraft/anvil-adapters/dist/**
 *.vsix

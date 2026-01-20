@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/eslint-config",
+  "name": "@eddacraft/anvil-eslint-config",
   "version": "0.0.1",
   "description": "Shared ESLint configuration for Anvil monorepo",
   "type": "module",

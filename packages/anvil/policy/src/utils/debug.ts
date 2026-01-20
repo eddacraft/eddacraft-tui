@@ -1,7 +1,7 @@
 /**
  * Minimal debug logging utility for policy package
  *
- * Self-contained to avoid dependency on @anvil/core
+ * Self-contained to avoid dependency on @eddacraft/anvil-core
  */
 
 type DebugNamespace = 'policy';

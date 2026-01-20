@@ -3,7 +3,7 @@
  *
  * Validation utilities for testing.
  *
- * @module @anvil/edda-stack/testing/validators
+ * @module @eddacraft/anvil-edda-stack/testing/validators
  */
 
 export {

@@ -6,7 +6,7 @@
  *
  * Key principle: Every memory can be traced back to its source observations.
  *
- * @module @anvil/edda-stack/contracts/provenance
+ * @module @eddacraft/anvil-edda-stack/contracts/provenance
  */
 
 import { z } from 'zod';

@@ -1,15 +1,15 @@
 /**
- * @anvil/runtime
+ * @eddacraft/anvil-runtime
  *
  * Orchestration and I/O for the Anvil system.
  * Contains gate runner, cache providers, file watcher, and export utilities.
  *
- * This package handles all I/O operations that @anvil/core does not.
+ * This package handles all I/O operations that @eddacraft/anvil-core does not.
  *
- * @module @anvil/runtime
+ * @module @eddacraft/anvil-runtime
  */
 
-// Gate runner and checks (includes types from @anvil/contracts)
+// Gate runner and checks (includes types from @eddacraft/anvil-contracts)
 export * from './gate/index.js';
 
 // Cache providers

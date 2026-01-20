@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/policy",
+  "name": "@eddacraft/anvil-policy",
   "version": "0.0.1",
   "description": "OPA/Rego wrappers depending on contracts",
   "type": "module",

@@ -17,7 +17,7 @@ documents.
 ### Basic Validation
 
 ```typescript
-import { validateAPSPlan } from '@anvil/core';
+import { validateAPSPlan } from '@eddacraft/anvil-core';
 
 // Validate a plan
 const result = await validateAPSPlan(plan);
@@ -32,7 +32,7 @@ if (result.valid) {
 ### Using the Validator Class
 
 ```typescript
-import { APSValidator } from '@anvil/core';
+import { APSValidator } from '@eddacraft/anvil-core';
 
 const validator = new APSValidator();
 
@@ -52,7 +52,7 @@ const isValid = validator.isSchemaValid(plan);
 When the crypto module is available, you can enable hash validation:
 
 ```typescript
-import { APSValidator } from '@anvil/core';
+import { APSValidator } from '@eddacraft/anvil-core';
 import { generateHash } from '../crypto'; // When available
 
 const validator = new APSValidator();
@@ -100,7 +100,7 @@ interface ValidationResult {
 ### CLI Integration
 
 ```typescript
-import { validateAPSPlan } from '@anvil/core';
+import { validateAPSPlan } from '@eddacraft/anvil-core';
 import { readFileSync } from 'fs';
 
 const planData = JSON.parse(readFileSync('plan.json', 'utf8'));
@@ -118,7 +118,7 @@ console.log('✅ Plan is valid!');
 ### Custom Validation Logic
 
 ```typescript
-import { APSValidator, type APSPlan } from '@anvil/core';
+import { APSValidator, type APSPlan } from '@eddacraft/anvil-core';
 
 class CustomValidator extends APSValidator {
   async validate(plan: unknown, options = {}) {

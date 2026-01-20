@@ -7,8 +7,8 @@ import {
   createCacheProvider,
   getChangedFiles,
   type AnalyzeResult,
-} from '@anvil/runtime';
-import type { Warning } from '@anvil/core/antipattern';
+} from '@eddacraft/anvil-runtime';
+import type { Warning } from '@eddacraft/anvil-core/antipattern';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
 

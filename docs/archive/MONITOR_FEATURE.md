@@ -623,7 +623,7 @@ jobs:
           node-version: '20'
 
       - name: Install Anvil
-        run: npm install -g @anvil/cli
+        run: npm install -g @eddacraft/anvil-cli
 
       - name: Run Monitor
         env:

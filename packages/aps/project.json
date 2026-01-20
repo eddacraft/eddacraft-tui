@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/aps",
+  "name": "@eddacraft/anvil-aps",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "packages/aps/src",
   "projectType": "library",

@@ -1,5 +1,5 @@
 /**
- * Type exports for @anvil/contracts
+ * Type exports for @eddacraft/anvil-contracts
  *
  * Re-exports types from schemas for convenience.
  * All types are inferred from Zod schemas.

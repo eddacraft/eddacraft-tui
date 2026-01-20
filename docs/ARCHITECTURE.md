@@ -467,7 +467,7 @@ bmad/
 - YAML ↔ JSON conversion
 
 **Implementation Location**: Native APS handling is built into core
-(`@anvil/core`) and base adapter framework (`packages/adapters/src/base/`)
+(`@eddacraft/anvil-core`) and base adapter framework (`packages/adapters/src/base/`)
 
 ### 2. Core Layer (APS)
 
@@ -1263,7 +1263,7 @@ const results = await Promise.all([
 **Registration**:
 
 ```typescript
-import { AdapterRegistry } from '@anvil/adapters';
+import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 import { MyCustomAdapter } from './my-adapter';
 
 AdapterRegistry.register(new MyCustomAdapter());
@@ -1289,7 +1289,7 @@ interface GateCheck {
 **Registration**:
 
 ```typescript
-import { GateRunner } from '@anvil/gate';
+import { GateRunner } from '@eddacraft/anvil-gate';
 import { MyCustomCheck } from './my-check';
 
 const gate = new GateRunner({

@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { QuickWinsIdentifier } from '../quick-wins.js';
-import type { Warning } from '@anvil/core';
+import type { Warning } from '@eddacraft/anvil-core';
 
 describe('QuickWinsIdentifier', () => {
   const identifier = new QuickWinsIdentifier();

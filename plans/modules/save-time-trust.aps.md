@@ -31,7 +31,7 @@ delivers warnings at file-save time.
 
 **Depends on:**
 
-- `@anvil/core` — existing gate runner infrastructure
+- `@eddacraft/anvil-core` — existing gate runner infrastructure
 - File system watcher (chokidar, already in codebase)
 
 **Exposes:**

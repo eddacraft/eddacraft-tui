@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EvidenceWriter } from '../evidence-writer.js';
-import type { GateRunResult } from '@anvil/core';
+import type { GateRunResult } from '@eddacraft/anvil-core';
 
 describe('EvidenceWriter', () => {
   let writer: EvidenceWriter;

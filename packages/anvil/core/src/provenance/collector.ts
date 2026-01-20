@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
 import type { AITool, Environment, GitContext, CheckSummary, ProvenanceRecord } from './types.js';
-import type { GateRunResult } from '@anvil/contracts';
+import type { GateRunResult } from '@eddacraft/anvil-contracts';
 import { createDebugger } from '../utils/debug.js';
 
 const debug = createDebugger('provenance');

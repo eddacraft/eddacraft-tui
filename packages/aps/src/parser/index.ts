@@ -3,7 +3,7 @@
  *
  * @example
  * ```typescript
- * import { parseDocument, parseIndex } from '@anvil/aps/parser';
+ * import { parseDocument, parseIndex } from '@eddacraft/anvil-aps/parser';
  *
  * // Parse a leaf spec (tasks)
  * const leafContent = await fs.readFile('feature.aps.md', 'utf-8');

@@ -49,11 +49,11 @@ or work item:**
 ```
 anvil/
 ├── apps/
-│   └── anvil-cli/        # @anvil/cli - Commander.js CLI with TUI (Ink)
+│   └── anvil-cli/        # @eddacraft/anvil-cli - Commander.js CLI with TUI (Ink)
 ├── packages/
 │   ├── adapters/         # Format converters (SpecKit, BMAD, Generic)
 │   ├── anvil/
-│   │   ├── core/         # @anvil/core - Schema, validation, crypto
+│   │   ├── core/         # @eddacraft/anvil-core - Schema, validation, crypto
 │   │   └── runtime/      # Gate checks, execution engine
 │   ├── aps/              # APS document parser, validator, state management
 │   └── vscode-extension/ # VS Code integration
@@ -159,7 +159,7 @@ export type Change = z.infer<typeof ChangeSchema>;
 | `as any`, `@ts-ignore`, `@ts-expect-error`     | Type safety is non-negotiable        |
 | Empty catch blocks `catch(e) {}`               | Silently swallows errors             |
 | Missing `.js` import extensions                | ESM runtime failure                  |
-| Imports without path aliases crossing packages | Use `@anvil/core`, `@anvil/adapters` |
+| Imports without path aliases crossing packages | Use `@eddacraft/anvil-core`, `@eddacraft/anvil-adapters` |
 | `cd dir && command` in bash                    | Use workdir parameter instead        |
 
 ## Anti-Pattern Catalogue (Built-in)

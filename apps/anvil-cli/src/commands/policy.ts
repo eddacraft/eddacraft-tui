@@ -21,7 +21,7 @@ import {
   type BundleConfig,
   type PolicyBundleConfig,
   type PolicyVerificationConfig,
-} from '@anvil/runtime';
+} from '@eddacraft/anvil-runtime';
 
 /**
  * Default policy directory relative to workspace root

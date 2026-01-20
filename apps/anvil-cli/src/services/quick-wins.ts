@@ -1,4 +1,4 @@
-import type { Warning } from '@anvil/core';
+import type { Warning } from '@eddacraft/anvil-core';
 
 /**
  * Quick win type categorization

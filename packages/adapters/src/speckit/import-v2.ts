@@ -9,7 +9,7 @@
  * Can import individual files or complete feature directories
  */
 
-import { createPlan, type APSPlan, type Change, type Provenance } from '@anvil/core';
+import { createPlan, type APSPlan, type Change, type Provenance } from '@eddacraft/anvil-core';
 import type {
   AdapterConfig,
   ConversionError,
@@ -90,7 +90,7 @@ export class SpecKitImportAdapterV2 extends BaseAdapter {
     } as APSPlan;
   }
 
-  async validateSpec(spec: APSPlan): Promise<import('@anvil/core').ValidationResult> {
+  async validateSpec(spec: APSPlan): Promise<import('@eddacraft/anvil-core').ValidationResult> {
     const errors: Array<{ field: string; message: string }> = [];
     const warnings: Array<{ field: string; message: string }> = [];
 

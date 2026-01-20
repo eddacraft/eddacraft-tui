@@ -39,7 +39,7 @@ Add to `.vscode/settings.json`:
 
 ```typescript
 import Ajv from 'ajv';
-import apsSchema from '@anvil/aps/schemas/aps.schema.json';
+import apsSchema from '@eddacraft/anvil-aps/schemas/aps.schema.json';
 
 const ajv = new Ajv();
 const validate = ajv.compile(apsSchema);
@@ -209,7 +209,7 @@ export interface APSStep {
 Import from the package:
 
 ```typescript
-import type { APSPlan, APSTask } from '@anvil/aps';
+import type { APSPlan, APSTask } from '@eddacraft/anvil-aps';
 ```
 
 ---

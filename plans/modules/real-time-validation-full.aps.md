@@ -45,7 +45,7 @@ Build a unified validation server with three interfaces (LSP, HTTP, stdin) that 
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│                  @anvil/validation-server                         │
+│                  @eddacraft/anvil-validation-server                         │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────────────┐    │
 │  │             Validation Core Engine                       │    │

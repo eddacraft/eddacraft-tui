@@ -9,7 +9,7 @@
     "anvil-package": {
       "factory": "./src/generators/anvil-package/generator",
       "schema": "./src/generators/anvil-package/schema.json",
-      "description": "Create a new @anvil/* package in packages/anvil/"
+      "description": "Create a new @eddacraft/anvil-* package in packages/anvil/"
     }
   }
 }

@@ -4,7 +4,7 @@
  * Defines the interface for Ember proposal storage adapters.
  * Implementations can use SQLite, PostgreSQL, or in-memory storage.
  *
- * @module @anvil/edda-stack/contracts/ports/ember
+ * @module @eddacraft/anvil-edda-stack/contracts/ports/ember
  */
 
 import type { ProposalId, MemoryId, SessionId } from '../identifiers.js';

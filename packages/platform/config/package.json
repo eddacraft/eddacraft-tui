@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/platform-config",
+  "name": "@eddacraft/anvil-platform-config",
   "version": "0.0.1",
   "description": "Configuration loading and validation",
   "type": "module",

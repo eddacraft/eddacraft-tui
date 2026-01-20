@@ -177,7 +177,7 @@ runs:
     # Step 5: Install Anvil CLI
     - name: Install Anvil CLI
       shell: bash
-      run: npm install -g @anvil/cli
+      run: npm install -g @eddacraft/anvil-cli
 
     # Step 6: Run Anvil check (skip if no files to check)
     - name: Run Anvil check

@@ -161,7 +161,7 @@ anvil session end
 Using Claude with Anvil harness:
 
 ```typescript
-import { AnvilClient } from '@anvil/client';
+import { AnvilClient } from '@eddacraft/anvil-client';
 import { Anthropic } from '@anthropic-ai/sdk';
 
 const anvil = new AnvilClient();

@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { GateRunner } from './gate-runner.js';
-import { SuppressionStore } from '@anvil/core';
+import { SuppressionStore } from '@eddacraft/anvil-core';
 
 describe('Suppression Integration', () => {
   let tempDir: string;

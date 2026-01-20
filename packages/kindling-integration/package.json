@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/kindling-integration",
+  "name": "@eddacraft/anvil-kindling-integration",
   "version": "0.1.0",
   "description": "Kindling memory integration contracts for Anvil v1",
   "type": "module",

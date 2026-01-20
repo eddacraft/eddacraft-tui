@@ -1,10 +1,10 @@
 /**
- * @anvil/ports
+ * @eddacraft/anvil-ports
  *
  * Interface definitions for the Anvil system.
- * Depends only on @anvil/contracts.
+ * Depends only on @eddacraft/anvil-contracts.
  *
- * @module @anvil/ports
+ * @module @eddacraft/anvil-ports
  */
 
 export * from './interfaces/index.js';

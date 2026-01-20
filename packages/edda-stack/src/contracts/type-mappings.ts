@@ -10,7 +10,7 @@
  * - Promotion input creation: CandidateProposal -> PromoteProposalInput
  * - Provenance expansion: ProvenanceSummary -> ProvenanceChain
  *
- * @module @anvil/edda-stack/contracts/type-mappings
+ * @module @eddacraft/anvil-edda-stack/contracts/type-mappings
  */
 
 import type { ProposalType, CandidateProposal } from './ember-proposal.js';

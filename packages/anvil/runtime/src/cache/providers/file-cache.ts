@@ -10,7 +10,7 @@ import { createHash } from 'crypto';
 import { homedir } from 'os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
-import { createDebugger } from '@anvil/core';
+import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('cache');
 

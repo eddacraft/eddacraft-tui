@@ -6,7 +6,7 @@
 
 import { promises as fs } from 'node:fs';
 import { dirname } from 'node:path';
-import type { IStorageProvider } from '@anvil/ports';
+import type { IStorageProvider } from '@eddacraft/anvil-ports';
 
 /**
  * File system storage provider

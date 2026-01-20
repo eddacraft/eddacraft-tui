@@ -11,7 +11,7 @@
  * - Ember proposes (algorithmic evaluation)
  * - Edda asserts (human judgement)
  *
- * @module @anvil/edda-stack/contracts/confidence
+ * @module @eddacraft/anvil-edda-stack/contracts/confidence
  */
 
 import { z } from 'zod';

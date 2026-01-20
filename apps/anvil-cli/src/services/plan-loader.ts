@@ -5,9 +5,9 @@
 
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { APSValidator } from '@anvil/core';
-import type { APSPlan } from '@anvil/core';
-import { AdapterRegistry } from '@anvil/adapters';
+import { APSValidator } from '@eddacraft/anvil-core';
+import type { APSPlan } from '@eddacraft/anvil-core';
+import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 import { FormatDetectionService } from './format-detection.js';
 import type {
   PlanLoaderService,

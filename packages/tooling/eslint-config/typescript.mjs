@@ -1,6 +1,6 @@
 /**
  * TypeScript ESLint configuration for Anvil monorepo
- * @module @anvil/eslint-config/typescript
+ * @module @eddacraft/anvil-eslint-config/typescript
  */
 
 import typescriptEslint from 'typescript-eslint';

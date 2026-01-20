@@ -6,7 +6,7 @@ import {
   isExplainable,
   getExplainableRules,
   type WarningExplanation,
-} from '@anvil/core';
+} from '@eddacraft/anvil-core';
 
 interface ExplainOptions {
   list?: boolean;

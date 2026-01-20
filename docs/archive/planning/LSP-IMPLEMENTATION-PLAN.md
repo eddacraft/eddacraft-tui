@@ -27,14 +27,14 @@ PlanLoader Service
     ├── Adapter.parse() → convert to APS
     └── APSValidator → validate APS
         ↓
-    @anvil/core (single source of truth)
+    @eddacraft/anvil-core (single source of truth)
         ├── APSSchema (Zod)
         ├── verifyHash()
         └── validation logic
 ```
 
 **Key insight**: The CLI doesn't contain validation logic - it imports from
-`@anvil/core`.
+`@eddacraft/anvil-core`.
 
 ---
 
@@ -44,13 +44,13 @@ PlanLoader Service
 ┌─────────────────────────────────────────────────────────────┐
 │                  Single Source of Truth                      │
 │                                                              │
-│  @anvil/core                                                 │
+│  @eddacraft/anvil-core                                                 │
 │  ├── APSSchema (Zod definitions)                            │
 │  ├── APSValidator                                           │
 │  ├── verifyHash()                                           │
 │  └── Gate runner                                            │
 │                                                              │
-│  @anvil/adapters                                             │
+│  @eddacraft/anvil-adapters                                             │
 │  ├── AdapterRegistry                                        │
 │  ├── SpecKitAdapter                                         │
 │  ├── BMADAdapter                                            │
@@ -63,7 +63,7 @@ PlanLoader Service
          │   (existing)        │  │                     │
          ├─────────────────────┤  ├─────────────────────┤
          │ PlanLoader          │  │ LSPValidator        │
-         │ ├─ uses @anvil/core │  │ ├─ uses @anvil/core │
+         │ ├─ uses @eddacraft/anvil-core │  │ ├─ uses @eddacraft/anvil-core │
          │ └─ uses adapters    │  │ └─ uses adapters    │
          │                     │  │                     │
          │ Output: CLI format  │  │ Output: LSP format  │
@@ -97,8 +97,8 @@ Create: `packages/validation-service/`
 
 ```typescript
 // packages/validation-service/src/index.ts
-import { APSValidator } from '@anvil/core';
-import { AdapterRegistry } from '@anvil/adapters';
+import { APSValidator } from '@eddacraft/anvil-core';
+import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 
 /**
  * Shared validation service used by both CLI and LSP
@@ -272,7 +272,7 @@ import {
   TextDocumentSyncKind,
 } from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { ValidationService } from '@anvil/validation-service';
+import { ValidationService } from '@eddacraft/anvil-validation-service';
 
 class AnvilLanguageServer {
   private connection = createConnection(ProposedFeatures.all);
@@ -420,7 +420,7 @@ Refactor `PlanLoader` to use shared `ValidationService`:
 
 ```typescript
 // cli/src/services/plan-loader.ts (refactored)
-import { ValidationService } from '@anvil/validation-service';
+import { ValidationService } from '@eddacraft/anvil-validation-service';
 
 export class PlanLoader {
   private validationService: ValidationService;
@@ -645,7 +645,7 @@ anvil/
 ### Extract ValidationService
 
 - [ ] Create `packages/validation-service/`
-- [ ] Implement `ValidationService` using existing `@anvil/core`
+- [ ] Implement `ValidationService` using existing `@eddacraft/anvil-core`
 - [ ] Write tests (use existing test fixtures)
 - [ ] Verify: ValidationService produces same results as current CLI
 
@@ -760,7 +760,7 @@ Users in other editors get LSP features:
 
 ```lua
 -- Install Anvil LSP globally
--- $ npm install -g @anvil/language-server
+-- $ npm install -g @eddacraft/anvil-language-server
 
 require('lspconfig').anvil_lsp.setup{}
 ```
@@ -798,7 +798,7 @@ Test: Both implementations
 ```
 Bug: Hash validation has off-by-one error
 
-Fix in: @anvil/core/crypto/hash.ts  (one place!)
+Fix in: @eddacraft/anvil-core/crypto/hash.ts  (one place!)
 Test: ValidationService
 Result: CLI and LSP both fixed automatically
 ```
@@ -808,7 +808,7 @@ Result: CLI and LSP both fixed automatically
 **Example**: Add new gate type "architecture"
 
 ```typescript
-// 1. Add to @anvil/core (one place)
+// 1. Add to @eddacraft/anvil-core (one place)
 export const GateType = z.enum([
   'lint',
   'test',
@@ -818,10 +818,10 @@ export const GateType = z.enum([
   'architecture', // ← new gate
 ]);
 
-// 2. CLI automatically supports it (uses @anvil/core)
+// 2. CLI automatically supports it (uses @eddacraft/anvil-core)
 anvil gate plan.md  // ✓ Runs architecture gate
 
-// 3. LSP automatically supports it (uses @anvil/core)
+// 3. LSP automatically supports it (uses @eddacraft/anvil-core)
 // VS Code shows diagnostic if architecture gate fails
 ```
 
@@ -868,8 +868,8 @@ anvil gate plan.md  // ✓ Runs architecture gate
 
 ### Existing Packages (no changes)
 
-- `@anvil/core` - Validation logic (single source of truth)
-- `@anvil/adapters` - Format detection and parsing
+- `@eddacraft/anvil-core` - Validation logic (single source of truth)
+- `@eddacraft/anvil-adapters` - Format detection and parsing
 - All existing CLI dependencies
 
 ---
@@ -881,7 +881,7 @@ This architecture achieves all constraints:
 ✅ **CLI-first**: CLI works standalone, LSP is enhancement ✅ **Zero
 duplication**: `ValidationService` is single source of truth ✅ **Non-VS Code
 users**: CLI fully functional, multi-editor LSP support ✅ **Minimal
-maintenance**: Fix bugs once in `@anvil/core`
+maintenance**: Fix bugs once in `@eddacraft/anvil-core`
 
 **Next Steps**:
 

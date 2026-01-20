@@ -11,7 +11,7 @@
  * - Requires human decision to create
  * - Links back to Ember proposals and Kindling observations
  *
- * @module @anvil/edda-stack/contracts/edda-memory
+ * @module @eddacraft/anvil-edda-stack/contracts/edda-memory
  */
 
 import { z } from 'zod';

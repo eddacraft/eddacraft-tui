@@ -1314,7 +1314,7 @@ export class NewFormatAdapter extends BaseFormatAdapter {
 
 ```typescript
 // ~/.anvil/plugins/my-format/adapter.ts
-import { BaseFormatAdapter } from '@anvil/adapters';
+import { BaseFormatAdapter } from '@eddacraft/anvil-adapters';
 
 export default class MyFormatAdapter extends BaseFormatAdapter {
   // Custom adapter implementation

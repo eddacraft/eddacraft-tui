@@ -11,7 +11,7 @@ import type {
   RecentResults,
   ValidationResult,
 } from '../tui/commands/status/types.js';
-import { createDebugger } from '@anvil/core';
+import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('validation');
 

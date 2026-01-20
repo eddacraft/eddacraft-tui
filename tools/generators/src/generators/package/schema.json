@@ -6,7 +6,7 @@
   "properties": {
     "name": {
       "type": "string",
-      "description": "Package name (without @anvil/ prefix)",
+      "description": "Package name (without @eddacraft/anvil- prefix)",
       "$default": {
         "$source": "argv",
         "index": 0

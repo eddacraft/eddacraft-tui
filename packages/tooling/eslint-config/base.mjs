@@ -1,6 +1,6 @@
 /**
  * Base ESLint configuration for Anvil monorepo
- * @module @anvil/eslint-config/base
+ * @module @eddacraft/anvil-eslint-config/base
  */
 
 import js from '@eslint/js';

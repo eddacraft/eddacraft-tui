@@ -30,10 +30,10 @@ Once published to npm, installation will be:
 
 ```bash
 # Using pnpm (recommended)
-pnpm add -D @anvil/cli
+pnpm add -D @eddacraft/anvil-cli
 
 # Using npm
-npm install -D @anvil/cli
+npm install -D @eddacraft/anvil-cli
 ```
 
 ## Initialise Anvil

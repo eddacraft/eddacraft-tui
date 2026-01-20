@@ -641,7 +641,7 @@ AUTH-004: ❌ cancelled
 Anvil agents consume execution plans:
 
 ```typescript
-import { executePlan } from '@anvil/execution';
+import { executePlan } from '@eddacraft/anvil-execution';
 
 const plan = await loadExecutionPlan('.anvil/executions/AUTH-001.json');
 const result = await executePlan(plan, {

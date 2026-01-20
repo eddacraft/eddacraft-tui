@@ -163,7 +163,7 @@ This stack resists that failure mode.
 ## Integration with Kindling
 
 Kindling (the external package) provides the observation layer. This package
-integrates with it via `@anvil/kindling-integration`.
+integrates with it via `@eddacraft/anvil-kindling-integration`.
 
 See: `packages/kindling-integration/` for observation contracts and query API.
 

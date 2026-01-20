@@ -20,7 +20,7 @@ integration amplifies adoption once the engine is proven.
 
 ### Phase 1: Foundation (v1.2.0)
 
-- Hybrid architecture: embed lightweight `@anvil/core` for fast-path, CLI for
+- Hybrid architecture: embed lightweight `@eddacraft/anvil-core` for fast-path, CLI for
   heavy operations
 - Anti-pattern detection on file save (< 100ms feedback)
 - Diagnostics panel integration with accurate source locations
@@ -72,7 +72,7 @@ integration amplifies adoption once the engine is proven.
 ┌─────────────────────────────────────────────────────────────────┐
 │                      VS Code Extension                          │
 ├─────────────────────────────────────────────────────────────────┤
-│  FAST PATH (Embedded @anvil/core)   │  HEAVY PATH (CLI)         │
+│  FAST PATH (Embedded @eddacraft/anvil-core)   │  HEAVY PATH (CLI)         │
 │  ────────────────────────────────   │  ─────────────────────    │
 │  • Schema validation                │  • Full gate execution    │
 │  • Anti-pattern detection           │  • OPA policy evaluation  │
@@ -127,7 +127,7 @@ integration amplifies adoption once the engine is proven.
 
 | Task    | Description                                     | Status | Priority |
 | ------- | ----------------------------------------------- | ------ | -------- |
-| IDE-001 | Embed @anvil/core for fast-path operations      | Done   | high     |
+| IDE-001 | Embed @eddacraft/anvil-core for fast-path operations      | Done   | high     |
 | IDE-002 | Anti-pattern detection on save with diagnostics | Done   | high     |
 | IDE-003 | Improve source location mapping from CLI output | Done   | medium   |
 

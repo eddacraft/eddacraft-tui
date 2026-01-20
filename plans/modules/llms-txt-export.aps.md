@@ -66,7 +66,7 @@ policies as machine-readable context that AI tools can consume via:
 
 - `src/ui/` must not import from `src/api/` directly
 - `src/core/` must not import from `src/cli/`
-- Cross-package imports must use `@anvil/*` aliases
+- Cross-package imports must use `@eddacraft/anvil-*` aliases
 
 ## Anti-patterns (Blocked)
 

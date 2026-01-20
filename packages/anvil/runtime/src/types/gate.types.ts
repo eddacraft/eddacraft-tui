@@ -1,15 +1,15 @@
 /**
- * Gate Types for @anvil/runtime
+ * Gate Types for @eddacraft/anvil-runtime
  *
- * Re-exports types from @anvil/contracts and provides runtime utility functions.
+ * Re-exports types from @eddacraft/anvil-contracts and provides runtime utility functions.
  */
 
 import { existsSync } from 'fs';
 import { join, isAbsolute } from 'path';
-import type { CheckContext, NormaliseFilesOptions } from '@anvil/contracts';
+import type { CheckContext, NormaliseFilesOptions } from '@eddacraft/anvil-contracts';
 
 // Re-export all types from contracts
-export * from '@anvil/contracts';
+export * from '@eddacraft/anvil-contracts';
 
 // =============================================================================
 // Path Normalisation Helpers (runtime-specific with fs operations)

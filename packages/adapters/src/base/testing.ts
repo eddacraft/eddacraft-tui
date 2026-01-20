@@ -12,7 +12,7 @@ import type {
   ParseContext,
   AdapterOptions,
 } from './types.js';
-import type { APSPlan } from '@anvil/core';
+import type { APSPlan } from '@eddacraft/anvil-core';
 
 /**
  * Test fixture for adapter testing

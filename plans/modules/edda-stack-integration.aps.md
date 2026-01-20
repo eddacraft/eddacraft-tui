@@ -99,9 +99,9 @@ Edda remembers — memory with restraint
 
 **Exposes:**
 
-- `@anvil/edda-stack/contracts` — Shared type definitions
-- `@anvil/edda-stack/ports` — Layer interface definitions
-- `@anvil/edda-stack/testing` — Test utilities and fixtures
+- `@eddacraft/anvil-edda-stack/contracts` — Shared type definitions
+- `@eddacraft/anvil-edda-stack/ports` — Layer interface definitions
+- `@eddacraft/anvil-edda-stack/testing` — Test utilities and fixtures
 - CLI commands: `anvil stack status`, `anvil stack validate`
 - Configuration schema in `.anvilrc` (stack section)
 

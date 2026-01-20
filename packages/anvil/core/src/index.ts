@@ -1,13 +1,13 @@
 /**
- * @anvil/core
+ * @eddacraft/anvil-core
  *
  * Pure domain logic for the Anvil system.
  * Contains antipattern detection, architecture analysis, drift detection,
  * suppression management, validation, and other core functionality.
  *
- * This package has NO I/O operations - all I/O is handled by @anvil/runtime.
+ * This package has NO I/O operations - all I/O is handled by @eddacraft/anvil-runtime.
  *
- * @module @anvil/core
+ * @module @eddacraft/anvil-core
  */
 
 // Antipattern detection
@@ -40,7 +40,7 @@ export * from './crypto/index.js';
 // General utilities
 export * from './utils/index.js';
 
-// Re-export from @anvil/contracts for backward compatibility
+// Re-export from @eddacraft/anvil-contracts for backward compatibility
 // (only types - no circular dependency)
 export {
   APSPlanSchema,
@@ -55,7 +55,7 @@ export {
   ExecutionResultSchema,
   validatePlan,
   createPlan,
-} from '@anvil/contracts';
+} from '@eddacraft/anvil-contracts';
 
 export type {
   APSPlan,
@@ -78,4 +78,4 @@ export type {
   PolicyConfig,
   StackConfig,
   ArchitectureContextBase,
-} from '@anvil/contracts';
+} from '@eddacraft/anvil-contracts';

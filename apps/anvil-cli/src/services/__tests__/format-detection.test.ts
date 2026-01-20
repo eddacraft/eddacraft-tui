@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FormatDetectionService } from '../format-detection.js';
 
 // Mock AdapterRegistry
-vi.mock('@anvil/adapters', () => ({
+vi.mock('@eddacraft/anvil-adapters', () => ({
   AdapterRegistry: {
     getInstance: vi.fn(() => ({
       detectAdapter: vi.fn(),

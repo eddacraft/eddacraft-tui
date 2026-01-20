@@ -1,7 +1,7 @@
 /**
  * Import path rewrite transform
  *
- * Uses ts-morph to analyze and rewrite @anvil/* imports
+ * Uses ts-morph to analyze and rewrite @eddacraft/anvil-* imports
  * based on the monorepo migration mapping.
  */
 
@@ -74,13 +74,13 @@ export function rewriteImportsInFile(
 function processImportDeclaration(importDecl: ImportDeclaration): ImportChange | null {
   const moduleSpecifier = importDecl.getModuleSpecifierValue();
 
-  // Only process @anvil/* imports
-  if (!moduleSpecifier.startsWith('@anvil/')) {
+  // Only process @eddacraft/anvil-* imports
+  if (!moduleSpecifier.startsWith('@eddacraft/anvil-')) {
     return null;
   }
 
   // Skip if not a core import (adapters, aps, etc. don't need rewriting yet)
-  if (!moduleSpecifier.startsWith('@anvil/core')) {
+  if (!moduleSpecifier.startsWith('@eddacraft/anvil-core')) {
     return null;
   }
 
@@ -104,12 +104,12 @@ function processImportDeclaration(importDecl: ImportDeclaration): ImportChange |
  * Handles cases where a single import needs to be split into multiple packages
  *
  * For example:
- *   import { APSPlanSchema, GateRunner, OPAExecutor } from '@anvil/core';
+ *   import { APSPlanSchema, GateRunner, OPAExecutor } from '@eddacraft/anvil-core';
  *
  * Becomes:
- *   import { APSPlanSchema } from '@anvil/contracts';
- *   import { GateRunner } from '@anvil/runtime';
- *   import { OPAExecutor } from '@anvil/policy';
+ *   import { APSPlanSchema } from '@eddacraft/anvil-contracts';
+ *   import { GateRunner } from '@eddacraft/anvil-runtime';
+ *   import { OPAExecutor } from '@eddacraft/anvil-policy';
  */
 function processSplitImports(sourceFile: SourceFile, options: TransformOptions): ImportChange[] {
   const changes: ImportChange[] = [];
@@ -118,8 +118,8 @@ function processSplitImports(sourceFile: SourceFile, options: TransformOptions):
   for (const importDecl of imports) {
     const moduleSpecifier = importDecl.getModuleSpecifierValue();
 
-    // Only handle bare @anvil/core imports that might need splitting
-    if (moduleSpecifier !== '@anvil/core') {
+    // Only handle bare @eddacraft/anvil-core imports that might need splitting
+    if (moduleSpecifier !== '@eddacraft/anvil-core') {
       continue;
     }
 
@@ -141,18 +141,18 @@ function processSplitImports(sourceFile: SourceFile, options: TransformOptions):
         }
         symbolsByPackage.get(targetPackage)!.push(symbol);
       } else {
-        // Unknown symbol, keep in @anvil/contracts as default
-        if (!symbolsByPackage.has('@anvil/contracts')) {
-          symbolsByPackage.set('@anvil/contracts', []);
+        // Unknown symbol, keep in @eddacraft/anvil-contracts as default
+        if (!symbolsByPackage.has('@eddacraft/anvil-contracts')) {
+          symbolsByPackage.set('@eddacraft/anvil-contracts', []);
         }
-        symbolsByPackage.get('@anvil/contracts')!.push(symbol);
+        symbolsByPackage.get('@eddacraft/anvil-contracts')!.push(symbol);
       }
     }
 
     // If all symbols go to the same package, simple rewrite
     if (symbolsByPackage.size === 1) {
       const [targetPackage, symbols] = [...symbolsByPackage.entries()][0];
-      if (targetPackage !== '@anvil/core') {
+      if (targetPackage !== '@eddacraft/anvil-core') {
         changes.push({
           line: importDecl.getStartLineNumber(),
           original: moduleSpecifier,

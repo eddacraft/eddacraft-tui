@@ -7,13 +7,13 @@ monorepo.
 
 ```
 tools/
-├── generators/   # @anvil/generators - Nx generators for scaffolding
-├── codemods/     # @anvil/codemods - Code transformation utilities
+├── generators/   # @eddacraft/anvil-generators - Nx generators for scaffolding
+├── codemods/     # @eddacraft/anvil-codemods - Code transformation utilities
 ├── scripts/      # Build and utility scripts (migrate from scripts/)
 └── docker/       # Docker configurations and compose files
 ```
 
-## @anvil/generators
+## @eddacraft/anvil-generators
 
 Nx generators for creating new packages in the monorepo.
 
@@ -29,11 +29,11 @@ pnpm generate:anvil-package <name>
 
 ### Available Generators
 
-- `@anvil/generators:package` - Create new package in any directory
-- `@anvil/generators:anvil-package` - Create new @anvil/\* package with proper
+- `@eddacraft/anvil-generators:package` - Create new package in any directory
+- `@eddacraft/anvil-generators:anvil-package` - Create new @eddacraft/anvil-\* package with proper
   dependencies
 
-## @anvil/codemods
+## @eddacraft/anvil-codemods
 
 Code transformation utilities for the monorepo migration.
 
@@ -49,11 +49,11 @@ pnpm codemod:imports
 
 ### Available Codemods
 
-- `imports` - Rewrite @anvil/core imports to new package structure
-  - `@anvil/core/schema` -> `@anvil/contracts`
-  - `@anvil/core/types` -> `@anvil/contracts`
-  - `@anvil/core/gate/policy` -> `@anvil/policy`
-  - `@anvil/core/cache` -> `@anvil/runtime`
+- `imports` - Rewrite @eddacraft/anvil-core imports to new package structure
+  - `@eddacraft/anvil-core/schema` -> `@eddacraft/anvil-contracts`
+  - `@eddacraft/anvil-core/types` -> `@eddacraft/anvil-contracts`
+  - `@eddacraft/anvil-core/gate/policy` -> `@eddacraft/anvil-policy`
+  - `@eddacraft/anvil-core/cache` -> `@eddacraft/anvil-runtime`
   - etc.
 
 ## Migration Status

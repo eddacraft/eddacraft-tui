@@ -13,9 +13,9 @@ import {
   countConstraints,
   type Constraints,
 } from './constraint-collector.js';
-import { ANVIL_DIR, BASELINE_FILENAME } from '@anvil/core/architecture';
-import type { ArchitectureBaseline } from '@anvil/core/architecture';
-import { PATTERNS } from '@anvil/core/antipattern';
+import { ANVIL_DIR, BASELINE_FILENAME } from '@eddacraft/anvil-core/architecture';
+import type { ArchitectureBaseline } from '@eddacraft/anvil-core/architecture';
+import { PATTERNS } from '@eddacraft/anvil-core/antipattern';
 
 describe('ConstraintCollector', () => {
   let testDir: string;

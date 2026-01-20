@@ -157,7 +157,7 @@ Unlike SpecKit adapters (which need migration), BMAD adapter:
 ### ✅ Hash Stability
 
 - Generates deterministic SHA-256 hashes
-- Uses `generateHash()` from `@anvil/core`
+- Uses `generateHash()` from `@eddacraft/anvil-core`
 - Plans are hash-stable for integrity verification
 
 ---

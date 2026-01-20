@@ -1,4 +1,4 @@
-import type { APSPlan, ValidationResult } from '@anvil/core';
+import type { APSPlan, ValidationResult } from '@eddacraft/anvil-core';
 
 export interface SpecContext {
   repositoryPath?: string;

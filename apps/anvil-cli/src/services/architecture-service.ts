@@ -15,7 +15,7 @@ import {
   type EntryPoint,
   type Layers,
   type Layer,
-} from '@anvil/core';
+} from '@eddacraft/anvil-core';
 
 /**
  * Architecture analysis summary for display

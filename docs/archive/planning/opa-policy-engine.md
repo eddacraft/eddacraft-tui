@@ -55,7 +55,7 @@ Handles automatic download, caching, and version management of the OPA binary.
 **API:**
 
 ```typescript
-import { OPABinaryManager, getOPABinaryManager } from '@anvil/core';
+import { OPABinaryManager, getOPABinaryManager } from '@eddacraft/anvil-core';
 
 const manager = getOPABinaryManager();
 
@@ -94,7 +94,7 @@ Discovers and loads `.rego` policy files from the workspace.
 **API:**
 
 ```typescript
-import { PolicyLoader } from '@anvil/core';
+import { PolicyLoader } from '@eddacraft/anvil-core';
 
 const loader = new PolicyLoader();
 
@@ -116,7 +116,7 @@ Executes OPA binary and parses results.
 **API:**
 
 ```typescript
-import { OPAExecutor } from '@anvil/core';
+import { OPAExecutor } from '@eddacraft/anvil-core';
 
 const executor = new OPAExecutor(binaryPath);
 

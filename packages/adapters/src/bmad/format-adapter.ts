@@ -5,7 +5,7 @@
  * Handles PRD, Architecture, Epic, and Story documents.
  */
 
-import { generateHash, type APSPlan, type ValidationResult } from '@anvil/core';
+import { generateHash, type APSPlan, type ValidationResult } from '@eddacraft/anvil-core';
 import {
   BaseFormatAdapter,
   type AdapterMetadata,

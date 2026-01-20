@@ -1,8 +1,8 @@
 /**
- * Warning types for @anvil/contracts
+ * Warning types for @eddacraft/anvil-contracts
  *
  * Minimal type definitions for warnings used across packages.
- * Full Zod schemas and utilities are in @anvil/core.
+ * Full Zod schemas and utilities are in @eddacraft/anvil-core.
  */
 
 import { z } from 'zod';

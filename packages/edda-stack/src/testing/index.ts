@@ -4,7 +4,7 @@
  * Provides mocks, fixtures, and validators for testing code
  * that interacts with the Edda Stack.
  *
- * @module @anvil/edda-stack/testing
+ * @module @eddacraft/anvil-edda-stack/testing
  */
 
 // =============================================================================

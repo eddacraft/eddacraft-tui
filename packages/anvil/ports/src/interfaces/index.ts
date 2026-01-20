@@ -1,5 +1,5 @@
 /**
- * Interface exports for @anvil/ports
+ * Interface exports for @eddacraft/anvil-ports
  */
 
 export * from './check.interface.js';

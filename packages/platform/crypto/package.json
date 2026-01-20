@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/platform-crypto",
+  "name": "@eddacraft/anvil-platform-crypto",
   "version": "0.0.1",
   "description": "Hashing, signing, and verification utilities",
   "type": "module",

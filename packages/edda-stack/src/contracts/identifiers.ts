@@ -4,7 +4,7 @@
  * Defines shared ID formats used across all Edda Stack layers.
  * All identifiers are UUIDs for global uniqueness and deterministic generation.
  *
- * @module @anvil/edda-stack/contracts/identifiers
+ * @module @eddacraft/anvil-edda-stack/contracts/identifiers
  */
 
 import { z } from 'zod';

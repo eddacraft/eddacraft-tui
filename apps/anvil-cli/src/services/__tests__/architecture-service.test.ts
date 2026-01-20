@@ -7,10 +7,10 @@ import {
   loadExistingBaseline,
   type ArchitectureSummary,
 } from '../architecture-service.js';
-import type { EntryPoint, Layers } from '@anvil/core';
+import type { EntryPoint, Layers } from '@eddacraft/anvil-core';
 
 // Mock core module
-vi.mock('@anvil/core', () => ({
+vi.mock('@eddacraft/anvil-core', () => ({
   createArchitectureAnalyzer: vi.fn(() => ({
     analyse: vi.fn(async () => ({
       entryPoints: [],

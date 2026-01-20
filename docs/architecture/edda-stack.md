@@ -170,7 +170,7 @@ threshold.
 
 ## Shared Contracts
 
-The `@anvil/edda-stack/contracts` package defines shared types:
+The `@eddacraft/anvil-edda-stack/contracts` package defines shared types:
 
 ### Identifiers
 
@@ -347,7 +347,7 @@ When enabling layers, enable from bottom up:
 
 ## Testing Utilities
 
-The `@anvil/edda-stack/testing` package provides:
+The `@eddacraft/anvil-edda-stack/testing` package provides:
 
 ### Mocks
 
@@ -356,7 +356,7 @@ import {
   createMockKindlingPort,
   createMockEmberPort,
   createMockEddaPort,
-} from '@anvil/edda-stack/testing';
+} from '@eddacraft/anvil-edda-stack/testing';
 
 // Create isolated mocks for testing
 const kindling = createMockKindlingPort();
@@ -371,7 +371,7 @@ import {
   createValidDecisionProposal,
   createValidPatternMemory,
   createEvolutionChain,
-} from '@anvil/edda-stack/testing';
+} from '@eddacraft/anvil-edda-stack/testing';
 
 // Create valid test data
 const proposal = createValidDecisionProposal();
@@ -382,7 +382,7 @@ const chain = createEvolutionChain(3); // 3-level chain
 ### Validators
 
 ```typescript
-import { validateProvenanceChain } from '@anvil/edda-stack/testing';
+import { validateProvenanceChain } from '@eddacraft/anvil-edda-stack/testing';
 
 // Validate provenance integrity
 const result = validateProvenanceChain(chain, { kindling, ember });

@@ -1,5 +1,5 @@
 {
-  "name": "@anvil/ports",
+  "name": "@eddacraft/anvil-ports",
   "version": "0.0.1",
   "description": "Interface definitions depending only on contracts",
   "type": "module",
@@ -18,7 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anvil/contracts": "workspace:*"
+    "@eddacraft/anvil-contracts": "workspace:*"
   },
   "devDependencies": {
     "vitest": "^4.0.17"
