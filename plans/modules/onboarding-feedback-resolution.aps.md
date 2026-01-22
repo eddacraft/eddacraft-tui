@@ -1,8 +1,8 @@
 # Onboarding Feedback Resolution
 
-| ID    | Owner    | Status |
-| ----- | -------- | ------ |
-| ONFBK | @aneki   | Ready  |
+| ID    | Owner    | Status   |
+| ----- | -------- | -------- |
+| ONFBK | @aneki   | Complete |
 
 ## Purpose
 

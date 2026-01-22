@@ -12,8 +12,8 @@ interface NewCommandOptions {
   list?: boolean;
   output?: string;
   force?: boolean;
+  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
   tui?: boolean;
-  noTui?: boolean;
   category?: string;
   var?: string[];
 }
@@ -62,7 +62,7 @@ async function runNewCommand(
     return;
   }
 
-  const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+  const useTUI = isTUIAvailable({ tui: options.tui });
 
   if (!templateId) {
     if (useTUI) {

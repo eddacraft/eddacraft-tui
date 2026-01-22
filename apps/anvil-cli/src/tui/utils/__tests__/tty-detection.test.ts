@@ -21,18 +21,10 @@ describe('TTY Detection', () => {
 
   describe('isTUIAvailable', () => {
     describe('explicit flags', () => {
-      it('should return false when --no-tui flag is set', () => {
+      it('should return false when --no-tui flag is set (tui: false)', () => {
         Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
 
-        const result = isTUIAvailable({ noTui: true });
-
-        expect(result).toBe(false);
-      });
-
-      it('should return false when tui option is explicitly false (Commander.js --no-tui behaviour)', () => {
-        Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
-
-        // Commander.js sets options.tui = false for --no-tui, not options.noTui = true
+        // Commander.js sets options.tui = false for --no-tui
         const result = isTUIAvailable({ tui: false });
 
         expect(result).toBe(false);
@@ -56,14 +48,6 @@ describe('TTY Detection', () => {
         expect(consoleSpy).toHaveBeenCalledWith('Warning: --tui requested but stdout is not a TTY');
 
         consoleSpy.mockRestore();
-      });
-
-      it('should prioritise --no-tui over --tui', () => {
-        Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
-
-        const result = isTUIAvailable({ noTui: true, tui: true });
-
-        expect(result).toBe(false);
       });
     });
 
@@ -159,17 +143,19 @@ describe('TTY Detection', () => {
     });
 
     describe('priority order', () => {
-      it('should check --no-tui before checking environment variables', () => {
+      it('should check tui: false before checking environment variables', () => {
         Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
         process.env['NO_TUI'] = '1';
 
-        expect(isTUIAvailable({ noTui: true })).toBe(false);
+        // tui: false (--no-tui) should disable TUI regardless of env vars
+        expect(isTUIAvailable({ tui: false })).toBe(false);
       });
 
       it('should check --tui before checking environment variables', () => {
         Object.defineProperty(process.stdout, 'isTTY', { value: true, configurable: true });
         process.env['CI'] = 'true';
 
+        // tui: true (--tui) should force TUI even in CI
         expect(isTUIAvailable({ tui: true })).toBe(true);
       });
 

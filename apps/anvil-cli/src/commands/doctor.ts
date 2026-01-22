@@ -27,8 +27,8 @@ import { calculateSummary } from '../tui/commands/doctor/types.js';
 interface DoctorOptions {
   fix?: boolean;
   json?: boolean;
+  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
   tui?: boolean;
-  noTui?: boolean;
   verbose?: boolean;
 }
 
@@ -194,7 +194,7 @@ export function createDoctorCommand(): Command {
         return;
       }
 
-      const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+      const useTUI = isTUIAvailable({ tui: options.tui });
 
       if (useTUI) {
         let exitCode = 0;

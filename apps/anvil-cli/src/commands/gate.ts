@@ -430,7 +430,7 @@ export function createGateCommand(): Command {
           }
         }
 
-        const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+        const useTUI = isTUIAvailable({ tui: options.tui });
         if (useTUI && options.tui && options.output !== 'json') {
           const tuiResult = convertToTUIGateResult(results, plan.id, planPath);
           await renderTUIAndWait(GateExplorer, { result: tuiResult });

@@ -252,7 +252,7 @@ graph TD
 | [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | v2.0    | kindling-integration                                      |
 | [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | v2.0    | ember                                                     |
 | [edda-stack-integration](./modules/edda-stack-integration.aps.md)       | STACK   | Draft       | v2.0    | kindling-integration, ember, edda                         |
-| [onboarding-feedback-resolution](./modules/onboarding-feedback-resolution.aps.md) | ONFBK | Ready | v1.1    | architecture-safety, tui                                  |
+| [onboarding-feedback-resolution](./modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | v1.1    | architecture-safety, tui                                  |
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTV | Draft | v2.0  | save-time-trust                                           |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
 | [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUI     | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
@@ -329,13 +329,13 @@ graph TD
 
 ### Task Status — v1.1 (Onboarding Feedback Resolution)
 
-| Task     | Module | Description                                 | Status  | Priority |
-| -------- | ------ | ------------------------------------------- | ------- | -------- |
-| ONFBK-01 | onfbk  | Fix --no-tui flag handling                  | Planned | high     |
-| ONFBK-02 | onfbk  | Fix TUI wizard early exit                   | Planned | high     |
-| ONFBK-03 | onfbk  | Improve layer detection for project variety | Planned | high     |
-| ONFBK-04 | onfbk  | Improve entry points presentation           | Planned | medium   |
-| ONFBK-05 | onfbk  | Add architecture explanation                | Planned | medium   |
+| Task     | Module | Description                                 | Status   | Priority |
+| -------- | ------ | ------------------------------------------- | -------- | -------- |
+| ONFBK-01 | onfbk  | Fix --no-tui flag handling                  | Complete | high     |
+| ONFBK-02 | onfbk  | Fix TUI wizard early exit                   | Complete | high     |
+| ONFBK-03 | onfbk  | Improve layer detection for project variety | Complete | high     |
+| ONFBK-04 | onfbk  | Improve entry points presentation           | Complete | medium   |
+| ONFBK-05 | onfbk  | Add architecture explanation                | Complete | medium   |
 
 ### Task Status — v1.1 (OPA & Architecture Integration)
 

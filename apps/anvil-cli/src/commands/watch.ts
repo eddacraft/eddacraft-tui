@@ -44,14 +44,15 @@ interface WatchOptions {
   exclude?: string;
   debounce?: string;
   includeUntracked?: boolean;
-  noGitFilter?: boolean;
+  // Commander.js --no-git-filter sets options.gitFilter = false
+  gitFilter?: boolean;
   profile?: 'dev' | 'ci' | 'production';
   verbose?: boolean;
   source?: boolean;
   plans?: boolean;
   all?: boolean;
+  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
   tui?: boolean;
-  noTui?: boolean;
 }
 
 /**
@@ -175,7 +176,7 @@ export function createWatchCommand(): Command {
             ? parseInt(options.debounce, 10)
             : (savedConfig?.debounceMs ?? defaultConfig.debounceMs),
           git: {
-            unstagedOnly: options.noGitFilter !== true,
+            unstagedOnly: options.gitFilter !== false,
             includeUntracked:
               options.includeUntracked ??
               savedConfig?.git?.includeUntracked ??
@@ -189,7 +190,7 @@ export function createWatchCommand(): Command {
           watchConfig.patterns = [file];
         }
 
-        const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+        const useTUI = isTUIAvailable({ tui: options.tui });
         if (useTUI && options.tui) {
           console.log(
             chalk.yellow(

@@ -12,8 +12,8 @@ import type { TutorialProgress } from '../tui/commands/tutorial/types.js';
 
 interface TutorialOptions {
   reset?: boolean;
+  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
   tui?: boolean;
-  noTui?: boolean;
 }
 
 function getProgressFilePath(workspaceRoot: string): string {
@@ -107,7 +107,7 @@ export function createTutorialCommand(): Command {
         return;
       }
 
-      const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+      const useTUI = isTUIAvailable({ tui: options.tui });
 
       if (!useTUI) {
         console.log(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));

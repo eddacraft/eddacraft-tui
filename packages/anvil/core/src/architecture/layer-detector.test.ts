@@ -95,14 +95,14 @@ describe('LayerDetector', () => {
       expect(result.layer).toBe('presentation');
     });
 
-    it('should use priority when multiple patterns match', () => {
+    it('should use position-aware matching when multiple patterns match', () => {
       const detector = createLayerDetector();
-      // A file in src/services/domain/ could match both services (application) and domain
-      // Application has priority 2, domain has priority 3, so application wins
+      // A file in src/services/domain/ matches both services (application) and domain
+      // With position-aware matching, domain wins because it's closer to the file
       const result = detector.detectLayer('src/services/domain/user.ts');
 
-      // services/ pattern should win due to lower priority number
-      expect(result.layer).toBe('application');
+      // domain/ is closer to the file, so it wins over services/
+      expect(result.layer).toBe('domain');
       expect(result.confidence).toBe('medium'); // Medium because multiple matched
     });
   });
@@ -314,5 +314,134 @@ describe('createLayerDetector', () => {
     const detector = createLayerDetector(customLayers);
 
     expect(detector.detectLayer('src/custom/file.ts').layer).toBe('custom');
+  });
+});
+
+describe('monorepo support', () => {
+  it('should detect layers in packages/*/src/ structure', () => {
+    const detector = createLayerDetector();
+
+    // Monorepo paths with nested packages
+    expect(detector.detectLayer('packages/web/src/controllers/user.ts').layer).toBe('presentation');
+    expect(detector.detectLayer('packages/backend/src/services/auth.ts').layer).toBe('application');
+    expect(detector.detectLayer('packages/core/src/domain/user.ts').layer).toBe('domain');
+    expect(detector.detectLayer('packages/data-layer/src/repositories/user-repo.ts').layer).toBe(
+      'infrastructure'
+    );
+    expect(detector.detectLayer('packages/shared-lib/src/utils/helpers.ts').layer).toBe('shared');
+  });
+
+  it('should detect layers in apps/*/src/ structure', () => {
+    const detector = createLayerDetector();
+
+    // apps/ style monorepo
+    expect(detector.detectLayer('apps/web/src/routes/home.ts').layer).toBe('presentation');
+    expect(detector.detectLayer('apps/backend/src/services/user-service.ts').layer).toBe(
+      'application'
+    );
+  });
+
+  it('should detect layers in libs/*/src/ structure', () => {
+    const detector = createLayerDetector();
+
+    // libs/ style monorepo (Nx convention)
+    expect(detector.detectLayer('libs/ui/src/controllers/main.ts').layer).toBe('presentation');
+    expect(detector.detectLayer('libs/shared-utils/src/utils/string.ts').layer).toBe('shared');
+  });
+
+  it('should detect layers with deeply nested monorepo paths', () => {
+    const detector = createLayerDetector();
+
+    // Deep nesting like packages/scope/package/src/layer/file
+    expect(
+      detector.detectLayer('packages/anvil/core/src/controllers/user.controller.ts').layer
+    ).toBe('presentation');
+    expect(
+      detector.detectLayer('packages/platform/backend/src/services/auth-service.ts').layer
+    ).toBe('application');
+  });
+
+  it('should return correct layer assignments for mixed project structure', () => {
+    const detector = createLayerDetector();
+    const files = [
+      // Single-app paths
+      'src/controllers/app.ts',
+      'src/services/user.ts',
+      // Monorepo paths
+      'packages/web/src/controllers/main.ts',
+      'packages/backend/src/services/api.ts',
+      // Non-matching paths (but 'core' matches domain's **/core/** pattern)
+      'packages/my-package/src/feature/handler.ts',
+    ];
+
+    const results = detector.detectLayers(files);
+
+    expect(results[0].layer).toBe('presentation'); // src/controllers
+    expect(results[1].layer).toBe('application'); // src/services
+    expect(results[2].layer).toBe('presentation'); // packages/web/src/controllers
+    expect(results[3].layer).toBe('application'); // packages/backend/src/services
+    expect(results[4].layer).toBeNull(); // truly non-matching path
+  });
+
+  it('should work with getDetectedLayers for monorepo files', () => {
+    const detector = createLayerDetector();
+    const files = [
+      'packages/web/src/controllers/a.ts',
+      'packages/web/src/controllers/b.ts',
+      'packages/backend/src/services/c.ts',
+      'packages/my-package/src/unknown/d.ts', // Truly unmatched
+    ];
+
+    const layers = detector.getDetectedLayers(files);
+
+    expect(layers.size).toBe(2);
+    expect(layers.has('presentation')).toBe(true);
+    expect(layers.has('application')).toBe(true);
+  });
+
+  it('should suggest layers correctly for monorepo structure', () => {
+    const detector = createLayerDetector();
+    const files = [
+      'packages/web/src/controllers/user.ts',
+      'packages/backend/src/services/user-service.ts',
+      'packages/shared-lib/src/utils/helpers.ts',
+    ];
+
+    const suggested = detector.suggestLayers(files);
+
+    expect(suggested).toHaveProperty('presentation');
+    expect(suggested).toHaveProperty('application');
+    expect(suggested).toHaveProperty('shared');
+    expect(suggested).not.toHaveProperty('domain');
+    expect(suggested).not.toHaveProperty('infrastructure');
+  });
+
+  it('should handle package names that match layer patterns (api, data, core, etc)', () => {
+    const detector = createLayerDetector();
+
+    // These paths have package names that could match layer patterns
+    // With position-aware matching, patterns AFTER src/ take precedence
+    // Package names before src/ are filtered out when patterns after src/ match
+
+    // "packages/api/src/services/user.ts":
+    // - "api" matches presentation's **/api/** but is BEFORE src
+    // - "services" matches application's **/services/** and is AFTER src
+    // - Result: application (services is preferred as it's after src)
+    const apiPackage = detector.detectLayer('packages/api/src/services/user.ts');
+    expect(apiPackage.layer).toBe('application'); // Matches services after src
+
+    // "packages/data/src/controllers/list.ts":
+    // - "data" matches infrastructure's **/data/** but is BEFORE src
+    // - "controllers" matches presentation and is AFTER src
+    // - Result: presentation (controllers is after src)
+    const dataPackage = detector.detectLayer('packages/data/src/controllers/list.ts');
+    expect(dataPackage.layer).toBe('presentation'); // controllers matches after src
+
+    // "packages/core/src/utils/helper.ts":
+    // - "core" matches domain's **/core/** but is BEFORE src
+    // - "utils" matches shared and is AFTER src
+    // - Result: shared (utils is after src)
+    const corePackage = detector.detectLayer('packages/core/src/utils/helper.ts');
+    expect(corePackage.layer).toBe('shared'); // utils matches after src
   });
 });

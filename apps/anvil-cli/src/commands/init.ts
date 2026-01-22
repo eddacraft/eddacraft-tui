@@ -14,6 +14,7 @@ import {
 import {
   analyseProjectArchitecture,
   formatEntryPoints,
+  formatEntryPointsSummary,
   formatLayerDiagram,
   generateArchitectureExplanation,
   formatArchitectureExplanation,
@@ -45,9 +46,10 @@ export function createInitCommand(): Command {
       async (options: {
         force?: boolean;
         nonInteractive?: boolean;
+        // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
         tui?: boolean;
-        noTui?: boolean;
-        noAnalysis?: boolean;
+        // Commander.js --no-analysis sets options.analysis = false
+        analysis?: boolean;
       }) => {
         try {
           console.log(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
@@ -94,10 +96,11 @@ export function createInitCommand(): Command {
 
             // Display architecture summary
             if (archSummary.entryPoints.length > 0) {
-              console.log(chalk.cyan('\nDetected entry points:'));
+              console.log(chalk.cyan('\n' + formatEntryPointsSummary(archSummary.entryPoints)));
               formatEntryPoints(archSummary.entryPoints).forEach((line) =>
                 console.log(chalk.dim(line))
               );
+              console.log(chalk.dim('\n  Run `anvil status --entry-points` for full details'));
             }
 
             // Display layer diagram
@@ -109,10 +112,21 @@ export function createInitCommand(): Command {
 
             // Display architecture explanation
             const explanation = generateArchitectureExplanation(archSummary);
-            console.log(chalk.cyan('Architecture summary:'));
-            formatArchitectureExplanation(explanation).forEach((line) =>
-              console.log(chalk.dim(line))
-            );
+            console.log(''); // Blank line before architecture analysis
+            formatArchitectureExplanation(explanation).forEach((line) => {
+              // Use cyan for the header line, white for section headers, dim for content
+              if (line.startsWith('Architecture Analysis:')) {
+                console.log(chalk.cyan(line));
+              } else if (
+                line.startsWith('  Recommended Template:') ||
+                line.startsWith('  Insights:') ||
+                line.startsWith('  Next Steps:')
+              ) {
+                console.log(chalk.white(line));
+              } else {
+                console.log(chalk.dim(line));
+              }
+            });
             console.log('');
 
             // Ask for confirmation (unless non-interactive)
@@ -166,7 +180,7 @@ export function createInitCommand(): Command {
               enabledChecks: detector.getRecommendedChecks(env),
               coverageThreshold: 80,
             };
-          } else if (isTUIAvailable({ tui: options.tui, noTui: options.noTui })) {
+          } else if (isTUIAvailable({ tui: options.tui })) {
             initOptions = await runTUIWizard(projectRoot, env, detector);
           } else {
             initOptions = await runInteractiveSetup(env, detector);
@@ -226,9 +240,9 @@ export function createInitCommand(): Command {
               });
             }
 
-            // Run intelligent first-run analysis (unless skipped)
+            // Run intelligent first-run analysis (unless skipped via --no-analysis)
             let dashboardShown = false;
-            if (!options.noAnalysis) {
+            if (options.analysis !== false) {
               console.log('');
               const analysisSpinner = ora('Analysing project...').start();
 
@@ -242,11 +256,11 @@ export function createInitCommand(): Command {
                 );
 
                 // Show results dashboard if TUI is available
-                if (isTUIAvailable({ tui: options.tui, noTui: options.noTui })) {
+                if (isTUIAvailable({ tui: options.tui })) {
                   console.log('');
 
                   // Prepare stdin for Ink after inquirer prompts
-                  prepareStdinForInk();
+                  await prepareStdinForInk();
 
                   await new Promise<void>((resolve, reject) => {
                     const result = renderTUI(InitResults, {
@@ -455,29 +469,31 @@ async function runInteractiveSetup(
  * Prepares stdin for Ink TUI after inquirer prompts.
  *
  * Inquirer uses readline which:
- * 1. Leaves stdin in "line" mode (not "raw" mode)
+ * 1. Pauses stdin when prompts complete
  * 2. May leave buffered keystrokes that Ink could misinterpret
  *
  * This function resets stdin to a clean state for Ink's useInput hook.
+ *
+ * IMPORTANT: Do NOT call setRawMode(true) here. Ink manages raw mode internally
+ * via its useInput hook. Pre-setting raw mode interferes with Ink's internal
+ * rawModeEnabledCount and can cause the TUI to exit immediately.
  */
-function prepareStdinForInk(): void {
+async function prepareStdinForInk(): Promise<void> {
   // Resume stdin if paused by inquirer
   if (process.stdin.isPaused()) {
     process.stdin.resume();
   }
 
-  // Drain any buffered input that might be misinterpreted by Ink
-  // This prevents leftover keystrokes from inquirer causing immediate exits
-  if (process.stdin.readable) {
+  // Drain any buffered input that might be misinterpreted by Ink.
+  // This prevents leftover keystrokes from inquirer causing immediate exits.
+  // We need to drain in a loop since there may be multiple buffered chunks.
+  while (process.stdin.readable && process.stdin.readableLength > 0) {
     process.stdin.read();
   }
 
-  // Set stdin to raw mode for Ink's useInput hook to work correctly.
-  // Without this, keystrokes are buffered until Enter is pressed, causing
-  // the TUI wizard to appear unresponsive and exit immediately.
-  if (process.stdin.isTTY && process.stdin.setRawMode) {
-    process.stdin.setRawMode(true);
-  }
+  // Give the event loop a tick to process any pending I/O operations.
+  // This ensures stdin is in a stable state before Ink starts.
+  await new Promise((resolve) => setImmediate(resolve));
 }
 
 async function runTUIWizard(
@@ -486,7 +502,7 @@ async function runTUIWizard(
   detector: EnvironmentDetector
 ): Promise<InitOptions> {
   // Prepare stdin for Ink after inquirer prompts
-  prepareStdinForInk();
+  await prepareStdinForInk();
 
   return new Promise((resolve, reject) => {
     const context: WizardContext = {

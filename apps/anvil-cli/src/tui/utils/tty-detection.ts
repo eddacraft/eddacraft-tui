@@ -12,15 +12,22 @@
  */
 
 export interface TUIDetectionOptions {
+  /**
+   * TUI mode control.
+   * - true: Force TUI mode (--tui flag)
+   * - false: Disable TUI mode (--no-tui flag)
+   * - undefined: Auto-detect based on environment
+   *
+   * Note: Commander.js --no-tui sets options.tui = false (not options.noTui = true)
+   */
   tui?: boolean;
-  noTui?: boolean;
   json?: boolean;
   quiet?: boolean;
 }
 
 export function isTUIAvailable(options: TUIDetectionOptions = {}): boolean {
-  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
-  if (options.noTui || options.tui === false) {
+  // Commander.js --no-tui sets options.tui = false
+  if (options.tui === false) {
     return false;
   }
 

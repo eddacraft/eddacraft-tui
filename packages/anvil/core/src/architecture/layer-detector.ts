@@ -2,6 +2,7 @@
  * Layer detection heuristics
  *
  * Detects architectural layers from directory structure and file patterns.
+ * Supports both single-app and monorepo project structures.
  */
 
 import { minimatch } from 'minimatch';
@@ -15,6 +16,11 @@ interface LayerPattern {
   patterns: string[];
   priority: number; // Lower = higher priority (more specific)
 }
+
+/**
+ * Common source root directories that indicate where the actual source code starts
+ */
+const SOURCE_ROOT_PATTERNS = ['src', 'lib', 'source', 'app'];
 
 /**
  * Default layer patterns with priorities
@@ -81,6 +87,71 @@ const DEFAULT_LAYER_PATTERNS: LayerPattern[] = [
 ];
 
 /**
+ * Extract the directory name that a pattern would match
+ * e.g., "**\/controllers\/**" -> "controllers"
+ */
+function getPatternDirectoryName(pattern: string): string | null {
+  // Match patterns like "**/controllers/**" or "src/controllers/**"
+  const match = pattern.match(/\*\*\/([^/*]+)\/\*\*/);
+  if (match) {
+    return match[1];
+  }
+  // Match patterns like "controllers/**"
+  const simpleMatch = pattern.match(/^([^/*]+)\/\*\*/);
+  if (simpleMatch) {
+    return simpleMatch[1];
+  }
+  return null;
+}
+
+/**
+ * Find the position of a directory in a path (index from end, 0-based)
+ * Returns -1 if not found
+ *
+ * For "packages/web/src/controllers/user.ts" and "controllers":
+ * - parts = ["packages", "web", "src", "controllers", "user.ts"]
+ * - "controllers" is at index 3, length is 5
+ * - position from end = 5 - 3 - 1 = 1 (1 directory from the file)
+ */
+function getDirectoryPositionFromEnd(filePath: string, dirName: string): number {
+  const parts = filePath.split('/');
+  const dirIndex = parts.findIndex((part) => part === dirName);
+  if (dirIndex === -1) return -1;
+  return parts.length - dirIndex - 1;
+}
+
+/**
+ * Find the source root position in a path
+ * Returns the index of the first source root directory (src, lib, etc.)
+ * Returns -1 if no source root is found
+ */
+function findSourceRootIndex(filePath: string): number {
+  const parts = filePath.split('/');
+  for (let i = 0; i < parts.length; i++) {
+    if (SOURCE_ROOT_PATTERNS.includes(parts[i])) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Check if a directory name is likely a package/app name rather than a layer directory
+ * by checking if it appears before the source root
+ */
+function isBeforeSourceRoot(filePath: string, dirName: string): boolean {
+  const parts = filePath.split('/');
+  const dirIndex = parts.findIndex((part) => part === dirName);
+  const sourceRootIndex = findSourceRootIndex(filePath);
+
+  // If no source root found, can't determine
+  if (sourceRootIndex === -1) return false;
+
+  // If the directory appears before the source root, it's likely a package name
+  return dirIndex < sourceRootIndex;
+}
+
+/**
  * Layer detector using directory heuristics
  */
 export class LayerDetector {
@@ -116,12 +187,18 @@ export class LayerDetector {
 
   /**
    * Detect layer for a single file
+   *
+   * Uses position-aware matching to handle monorepo structures where package names
+   * may match layer patterns (e.g., packages/api/src/services/user.ts should match
+   * 'services', not 'api').
    */
   detectLayer(filePath: string): LayerAssignment {
     const matches: Array<{
       layer: string;
       pattern: string;
       priority: number;
+      positionScore: number; // Lower = closer to file = better
+      isBeforeSrcRoot: boolean;
     }> = [];
 
     // Normalise path separators
@@ -130,10 +207,18 @@ export class LayerDetector {
     for (const layerPattern of this.patterns) {
       for (const pattern of layerPattern.patterns) {
         if (minimatch(normalisedPath, pattern, { matchBase: true })) {
+          const dirName = getPatternDirectoryName(pattern);
+          const positionScore = dirName
+            ? getDirectoryPositionFromEnd(normalisedPath, dirName)
+            : 999;
+          const beforeSrcRoot = dirName ? isBeforeSourceRoot(normalisedPath, dirName) : false;
+
           matches.push({
             layer: layerPattern.layer,
             pattern,
             priority: layerPattern.priority,
+            positionScore,
+            isBeforeSrcRoot: beforeSrcRoot,
           });
         }
       }
@@ -147,17 +232,36 @@ export class LayerDetector {
       };
     }
 
-    // Sort by priority (lower = higher priority)
-    matches.sort((a, b) => a.priority - b.priority);
+    // Filter out matches that are before the source root (likely package names)
+    // unless ALL matches are before the source root
+    const afterSrcRootMatches = matches.filter((m) => !m.isBeforeSrcRoot);
+    const effectiveMatches = afterSrcRootMatches.length > 0 ? afterSrcRootMatches : matches;
 
-    const bestMatch = matches[0];
+    // Sort matches by:
+    // 1. Position score (closer to file = better, i.e., lower score)
+    // 2. Layer priority as tiebreaker (lower = higher priority)
+    effectiveMatches.sort((a, b) => {
+      // First compare position score
+      if (a.positionScore !== b.positionScore) {
+        return a.positionScore - b.positionScore;
+      }
+      // Then compare layer priority
+      return a.priority - b.priority;
+    });
+
+    const bestMatch = effectiveMatches[0];
 
     // Determine confidence based on match quality
     let confidence: DetectionConfidence = 'high';
 
     // If multiple layers matched, reduce confidence
-    const uniqueLayers = new Set(matches.map((m) => m.layer));
+    const uniqueLayers = new Set(effectiveMatches.map((m) => m.layer));
     if (uniqueLayers.size > 1) {
+      confidence = 'medium';
+    }
+
+    // If the best match was before source root, reduce confidence
+    if (bestMatch.isBeforeSrcRoot) {
       confidence = 'medium';
     }
 

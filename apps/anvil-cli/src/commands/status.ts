@@ -9,8 +9,8 @@ import type { StatusData } from '../tui/commands/status/types.js';
 
 interface StatusOptions {
   json?: boolean;
+  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
   tui?: boolean;
-  noTui?: boolean;
 }
 
 function formatJsonOutput(data: StatusData): string {
@@ -138,7 +138,7 @@ export function createStatusCommand(): Command {
         return;
       }
 
-      const useTUI = isTUIAvailable({ tui: options.tui, noTui: options.noTui });
+      const useTUI = isTUIAvailable({ tui: options.tui });
 
       if (useTUI) {
         await new Promise<void>((resolve) => {

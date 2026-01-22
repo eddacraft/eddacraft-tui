@@ -60,10 +60,11 @@ export interface GateOptions {
   output?: 'human' | 'json';
   /** Show real-time progress for checks */
   progress?: boolean;
-  /** Force TUI explorer mode after gate execution */
+  /**
+   * TUI mode control.
+   * Commander.js --no-tui sets options.tui = false (not options.noTui = true)
+   */
   tui?: boolean;
-  /** Force plain text mode (no TUI) */
-  noTui?: boolean;
   /** Skip command safety check (convenience flag) */
   skipCommandSafety?: boolean;
 }
