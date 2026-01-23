@@ -1,10 +1,15 @@
 /**
  * APSMarkdownAdapter Tests
- * Tests for format detection of APS markdown documents
+ * Tests for format detection and parsing of APS markdown documents
  */
 
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
 import { APSMarkdownAdapter } from '../adapter.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe('APSMarkdownAdapter', () => {
   const adapter = new APSMarkdownAdapter();
@@ -212,6 +217,143 @@ Some tasks without proper formatting.
       const result = adapter.detect(content);
       expect(result.reason).toBeDefined();
       expect(result.reason).toContain('modules-section');
+    });
+  });
+
+  describe('parse', () => {
+    it('parses a leaf spec to APSPlan', async () => {
+      const content = readFileSync(join(__dirname, '__fixtures__/simple-leaf.aps.md'), 'utf-8');
+
+      const result = await adapter.parse(content, {
+        repositoryPath: '/test/repo',
+        author: 'test-user',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data).toBeDefined();
+      expect(result.data!.intent).toContain('Authentication Feature');
+      expect(result.data!.proposed_changes).toHaveLength(2);
+    });
+
+    it('maps task fields to change metadata', async () => {
+      const content = readFileSync(join(__dirname, '__fixtures__/simple-leaf.aps.md'), 'utf-8');
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      const change = result.data!.proposed_changes[0];
+      expect(change.description).toContain('AUTH-001');
+      expect(change.metadata?.taskId).toBe('AUTH-001');
+      expect(change.metadata?.confidence).toBe('high');
+    });
+
+    it('preserves task dependencies', async () => {
+      const content = readFileSync(join(__dirname, '__fixtures__/simple-leaf.aps.md'), 'utf-8');
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      const change2 = result.data!.proposed_changes[1];
+      expect(change2.metadata?.dependencies).toEqual(['AUTH-001']);
+    });
+
+    it('infers file_create type from create/add intent', async () => {
+      const content = `# Test Feature
+
+**Scope:** TEST
+
+## Tasks
+
+### TEST-001: Create new file
+
+**Intent:** Create a new configuration file
+**Confidence:** high
+`;
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.proposed_changes[0].type).toBe('file_create');
+    });
+
+    it('infers file_update type from update/modify intent', async () => {
+      const content = `# Test Feature
+
+**Scope:** TEST
+
+## Tasks
+
+### TEST-001: Update existing code
+
+**Intent:** Update the existing handler logic
+**Confidence:** high
+`;
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.proposed_changes[0].type).toBe('file_update');
+    });
+
+    it('infers file_delete type from delete/remove intent', async () => {
+      const content = `# Test Feature
+
+**Scope:** TEST
+
+## Tasks
+
+### TEST-001: Remove deprecated file
+
+**Intent:** Delete the legacy module
+**Confidence:** high
+`;
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.proposed_changes[0].type).toBe('file_delete');
+    });
+
+    it('generates valid plan ID and hash', async () => {
+      const content = readFileSync(join(__dirname, '__fixtures__/simple-leaf.aps.md'), 'utf-8');
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.id).toMatch(/^aps-[a-f0-9]{8}$/);
+      expect(result.data!.hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+
+    it('uses provided plan ID from context', async () => {
+      const content = readFileSync(join(__dirname, '__fixtures__/simple-leaf.aps.md'), 'utf-8');
+
+      const result = await adapter.parse(content, {
+        planId: 'aps-12345678',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data!.id).toBe('aps-12345678');
+    });
+
+    it('returns error for invalid content', async () => {
+      const content = 'Invalid content without H1 title';
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(false);
+      expect(result.errors).toBeDefined();
+      expect(result.errors!.length).toBeGreaterThan(0);
+      expect(result.errors![0].code).toBe('PARSE_ERROR');
+    });
+
+    it('uses first file from files array as change path', async () => {
+      const content = readFileSync(join(__dirname, '__fixtures__/simple-leaf.aps.md'), 'utf-8');
+
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      // AUTH-001 has Files: src/auth/login.ts, src/auth/jwt.ts
+      expect(result.data!.proposed_changes[0].path).toBe('src/auth/login.ts');
     });
   });
 });

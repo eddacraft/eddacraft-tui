@@ -6,7 +6,15 @@
  * (.aps.md with Modules section).
  */
 
-import type { APSPlan, ValidationResult } from '@eddacraft/anvil-core';
+import {
+  type APSPlan,
+  type ValidationResult,
+  type Change,
+  generatePlanId,
+  generateHash,
+  APS_SCHEMA_VERSION,
+} from '@eddacraft/anvil-core';
+import { parseDocument, type ParsedDocument, type Task } from '@eddacraft/anvil-aps';
 import {
   BaseFormatAdapter,
   type AdapterMetadata,
@@ -91,24 +99,130 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
   /**
    * Parse APS markdown content to APS plan
    *
-   * NOTE: Not yet implemented - returns NOT_IMPLEMENTED error.
+   * Converts an APS markdown document (leaf spec) to an APSPlan execution schema.
+   * Each task in the document becomes a proposed change in the plan.
    *
-   * @param _content - APS markdown content
-   * @param _context - Parse context for provenance
+   * @param content - APS markdown content
+   * @param context - Parse context for provenance
    * @param _options - Adapter options
    * @returns Parse result with APS plan
    */
   async parse(
-    _content: string,
-    _context?: ParseContext,
+    content: string,
+    context?: ParseContext,
     _options?: AdapterOptions
   ): Promise<ParseResult> {
-    return this.createParseError([
-      {
-        code: 'NOT_IMPLEMENTED',
-        message: 'APSMarkdownAdapter.parse() is not yet implemented',
+    try {
+      const doc = await parseDocument(content, context?.repositoryPath);
+      const plan = this.convertToAPSPlan(doc, context);
+      return this.createParseSuccess(plan);
+    } catch (error) {
+      return this.createParseError([
+        {
+          code: 'PARSE_ERROR',
+          message: error instanceof Error ? error.message : String(error),
+        },
+      ]);
+    }
+  }
+
+  /**
+   * Convert a parsed document to an APSPlan
+   */
+  private convertToAPSPlan(doc: ParsedDocument, context?: ParseContext): APSPlan {
+    const planId = context?.planId ?? generatePlanId();
+    const timestamp = context?.timestamp ?? new Date().toISOString();
+
+    const intent = doc.metadata?.scope ? `${doc.title} (Scope: ${doc.metadata.scope})` : doc.title;
+
+    const proposed_changes = doc.tasks.map((task) => this.taskToChange(task));
+
+    const planWithoutHash = {
+      schema_version: APS_SCHEMA_VERSION,
+      id: planId,
+      intent,
+      proposed_changes,
+      provenance: {
+        timestamp,
+        author: context?.author ?? process.env['USER'] ?? 'unknown',
+        source: 'cli' as const,
+        version: this.metadata.version,
+        repository: context?.repositoryPath ?? process.cwd(),
+        branch: context?.branch ?? 'main',
+        commit: context?.commit ?? '',
       },
-    ]);
+      validations: {
+        required_checks: ['lint', 'test'],
+        skip_checks: [],
+      },
+      evidence: [],
+      executions: [],
+    };
+
+    const hash = generateHash(planWithoutHash);
+    return { ...planWithoutHash, hash } as APSPlan;
+  }
+
+  /**
+   * Convert a task to a change object
+   */
+  private taskToChange(task: Task): Change {
+    const changeType = this.inferChangeType(task);
+
+    return {
+      type: changeType,
+      path: task.files?.[0] ?? `task/${task.id}`,
+      description: `${task.id}: ${task.title}\n\n${task.intent}`,
+      metadata: {
+        taskId: task.id,
+        confidence: task.confidence,
+        validation: task.validation,
+        expectedOutcome: task.expectedOutcome,
+        tags: task.tags,
+        files: task.files,
+        scopes: task.scopes,
+        dependencies: task.dependencies,
+        risks: task.risks,
+      },
+    };
+  }
+
+  /**
+   * Infer the change type from task intent
+   */
+  private inferChangeType(task: Task): Change['type'] {
+    const intent = task.intent.toLowerCase();
+    const title = task.title.toLowerCase();
+
+    if (
+      intent.includes('create') ||
+      intent.includes('add') ||
+      title.includes('implement') ||
+      title.includes('create')
+    ) {
+      return 'file_create';
+    }
+    if (
+      intent.includes('update') ||
+      intent.includes('modify') ||
+      intent.includes('fix') ||
+      title.includes('update') ||
+      title.includes('fix')
+    ) {
+      return 'file_update';
+    }
+    if (
+      intent.includes('delete') ||
+      intent.includes('remove') ||
+      title.includes('delete') ||
+      title.includes('remove')
+    ) {
+      return 'file_delete';
+    }
+    if (intent.includes('config') || intent.includes('setting')) {
+      return 'config_update';
+    }
+    return 'script_execute';
   }
 
   /**
@@ -156,7 +270,7 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
   /**
    * Override canImport to handle the compound extension .aps.md
    */
-  canImport(format: string): boolean {
+  override canImport(format: string): boolean {
     const normalized = format.toLowerCase().replace(/^\./, '');
     return (
       this.metadata.formats.includes(normalized) ||
