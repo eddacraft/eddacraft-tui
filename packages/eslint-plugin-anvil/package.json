@@ -27,6 +27,6 @@
     "@typescript-eslint/rule-tester": "^8.53.1",
     "@typescript-eslint/types": "^8.53.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.18"
   }
 }

@@ -21,7 +21,7 @@
     "tar": "^7.5.3"
   },
   "devDependencies": {
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.18"
   },
   "keywords": [
     "anvil",

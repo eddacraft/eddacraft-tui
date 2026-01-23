@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@types/shell-quote": "^1.7.5",
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.18"
   },
   "keywords": [
     "anvil",

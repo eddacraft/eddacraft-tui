@@ -21,7 +21,7 @@
     "@eddacraft/anvil-contracts": "workspace:*"
   },
   "devDependencies": {
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.18"
   },
   "keywords": [
     "anvil",
