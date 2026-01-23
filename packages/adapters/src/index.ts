@@ -8,6 +8,9 @@
 // Export base framework (types, registry, utils)
 export * from './base/index.js';
 
+// Export APS Markdown adapter (native format)
+export * from './aps-markdown/index.js';
+
 // Export SpecKit adapter
 export * from './speckit/index.js';
 
@@ -28,13 +31,15 @@ export type {
 
 // Auto-register adapters when module is imported
 import { registry as baseRegistry } from './base/index.js';
+import { APSMarkdownAdapter } from './aps-markdown/index.js';
 import { BMADFormatAdapter } from './bmad/index.js';
 import { SpecKitFormatAdapter } from './speckit/index.js';
 import { GenericMarkdownAdapter } from './generic/index.js';
 
 // Register adapters in priority order
-// Specific adapters (BMAD, SpecKit) should be registered first
+// APS adapter first (native format), then specific external formats
 // Generic adapter is registered last as fallback
+baseRegistry.register(new APSMarkdownAdapter());
 baseRegistry.register(new BMADFormatAdapter());
 baseRegistry.register(new SpecKitFormatAdapter());
 baseRegistry.register(new GenericMarkdownAdapter());
