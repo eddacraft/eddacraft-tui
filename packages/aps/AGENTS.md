@@ -80,7 +80,12 @@ issues.push(...validateMyRule(doc));
 Task execution state stored in `.anvil/state.json`:
 
 ```typescript
-import { loadState, saveState, lockTask, unlockTask } from '@eddacraft/anvil-aps/state';
+import {
+  loadState,
+  saveState,
+  lockTask,
+  unlockTask,
+} from '@eddacraft/anvil-aps/state';
 
 // Load current state
 const state = await loadState(projectRoot);

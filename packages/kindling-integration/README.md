@@ -253,7 +253,10 @@ That separation is your long-term moat.
 User brings their own AI (e.g., Claude via API):
 
 ```typescript
-import { QueryRequest, QueryResponse } from '@eddacraft/anvil-kindling-integration';
+import {
+  QueryRequest,
+  QueryResponse,
+} from '@eddacraft/anvil-kindling-integration';
 
 // AI wants to explain why gate failed
 async function explainGateFailure(gateEvalId: string): Promise<string> {

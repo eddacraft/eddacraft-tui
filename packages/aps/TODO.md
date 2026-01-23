@@ -77,7 +77,8 @@
       tsconfig.spec.json)
 - [x] Created vitest.config.ts with coverage exclusions for docs/examples
 - [x] Created eslint.config.mjs with docs/examples ignores
-- [x] Added dependencies: @eddacraft/anvil-core, remark-parse, unified, unist-util-visit
+- [x] Added dependencies: @eddacraft/anvil-core, remark-parse, unified,
+      unist-util-visit
 - [x] Created placeholder modules: parser, loader, validator, state, types
 - [x] Updated tsconfig.base.json with @eddacraft/anvil-aps path mapping
 - [x] Installed dependencies with pnpm

@@ -780,8 +780,8 @@ This is the **library** that anyone can use without Anvil.
 
 ## Future Considerations
 
-- **Custom Nx generator**: Could create `nx g @eddacraft/anvil-aps:planning-doc` to
-  scaffold new planning docs from templates
+- **Custom Nx generator**: Could create `nx g @eddacraft/anvil-aps:planning-doc`
+  to scaffold new planning docs from templates
 - **Linter**: Future `anvil plan lint` for style/convention checks
 - **VS Code extension**: Syntax highlighting and task state indicators for
   `.aps.md` files

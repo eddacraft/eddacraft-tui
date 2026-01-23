@@ -32,7 +32,12 @@ const PACKAGE_CONFIG: Record<string, { description: string; deps: string[]; laye
   },
   runtime: {
     description: 'Orchestration and I/O depending on core, ports, contracts',
-    deps: ['@eddacraft/anvil-contracts', '@eddacraft/anvil-ports', '@eddacraft/anvil-core', '@eddacraft/anvil-policy'],
+    deps: [
+      '@eddacraft/anvil-contracts',
+      '@eddacraft/anvil-ports',
+      '@eddacraft/anvil-core',
+      '@eddacraft/anvil-policy',
+    ],
     layer: 3,
   },
   sdk: {

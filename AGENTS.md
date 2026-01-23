@@ -154,13 +154,13 @@ export type Change = z.infer<typeof ChangeSchema>;
 
 ## Anti-Patterns (This Project)
 
-| Pattern                                        | Why Forbidden                        |
-| ---------------------------------------------- | ------------------------------------ |
-| `as any`, `@ts-ignore`, `@ts-expect-error`     | Type safety is non-negotiable        |
-| Empty catch blocks `catch(e) {}`               | Silently swallows errors             |
-| Missing `.js` import extensions                | ESM runtime failure                  |
+| Pattern                                        | Why Forbidden                                            |
+| ---------------------------------------------- | -------------------------------------------------------- |
+| `as any`, `@ts-ignore`, `@ts-expect-error`     | Type safety is non-negotiable                            |
+| Empty catch blocks `catch(e) {}`               | Silently swallows errors                                 |
+| Missing `.js` import extensions                | ESM runtime failure                                      |
 | Imports without path aliases crossing packages | Use `@eddacraft/anvil-core`, `@eddacraft/anvil-adapters` |
-| `cd dir && command` in bash                    | Use workdir parameter instead        |
+| `cd dir && command` in bash                    | Use workdir parameter instead                            |
 
 ## Anti-Pattern Catalogue (Built-in)
 

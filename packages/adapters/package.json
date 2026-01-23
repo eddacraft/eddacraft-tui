@@ -13,7 +13,9 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@eddacraft/anvil-core": "0.0.1"
+  },
   "devDependencies": {
     "vitest": "^4.0.17"
   }

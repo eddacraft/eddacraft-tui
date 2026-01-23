@@ -905,7 +905,10 @@ jobs:
 ```typescript
 // Registration (at startup)
 import { registry } from '@eddacraft/anvil-adapters';
-import { SpecKitImportAdapter, BMADImportAdapter } from '@eddacraft/anvil-adapters';
+import {
+  SpecKitImportAdapter,
+  BMADImportAdapter,
+} from '@eddacraft/anvil-adapters';
 
 registry.register(new SpecKitImportAdapter());
 registry.register(new BMADImportAdapter());

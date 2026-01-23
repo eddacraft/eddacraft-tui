@@ -30,8 +30,8 @@ pnpm generate:anvil-package <name>
 ### Available Generators
 
 - `@eddacraft/anvil-generators:package` - Create new package in any directory
-- `@eddacraft/anvil-generators:anvil-package` - Create new @eddacraft/anvil-\* package with proper
-  dependencies
+- `@eddacraft/anvil-generators:anvil-package` - Create new @eddacraft/anvil-\*
+  package with proper dependencies
 
 ## @eddacraft/anvil-codemods
 

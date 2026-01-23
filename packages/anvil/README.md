@@ -21,7 +21,11 @@ anvil/
 Zod schemas, types, and events with zero dependencies.
 
 ```typescript
-import { APSPlanSchema, WarningSchema, type APSPlan } from '@eddacraft/anvil-contracts';
+import {
+  APSPlanSchema,
+  WarningSchema,
+  type APSPlan,
+} from '@eddacraft/anvil-contracts';
 ```
 
 ### @eddacraft/anvil-ports (Layer 1)
@@ -29,7 +33,11 @@ import { APSPlanSchema, WarningSchema, type APSPlan } from '@eddacraft/anvil-con
 Interface definitions depending only on contracts.
 
 ```typescript
-import { ICheck, ICacheProvider, IStorageProvider } from '@eddacraft/anvil-ports';
+import {
+  ICheck,
+  ICacheProvider,
+  IStorageProvider,
+} from '@eddacraft/anvil-ports';
 ```
 
 ### @eddacraft/anvil-core (Layer 2)
@@ -49,7 +57,11 @@ import {
 OPA/Rego integration for policy evaluation.
 
 ```typescript
-import { OPAExecutor, BundleManager, PolicyLoader } from '@eddacraft/anvil-policy';
+import {
+  OPAExecutor,
+  BundleManager,
+  PolicyLoader,
+} from '@eddacraft/anvil-policy';
 ```
 
 ### @eddacraft/anvil-runtime (Layer 3)

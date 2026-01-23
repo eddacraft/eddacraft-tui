@@ -110,8 +110,8 @@ JavaScript file emission
 
 #### Fix 3: TypeScript Path Mappings ✅
 
-**Issue**: TypeScript couldn't resolve `@eddacraft/anvil-core` and `@eddacraft/anvil-adapters`
-imports
+**Issue**: TypeScript couldn't resolve `@eddacraft/anvil-core` and
+`@eddacraft/anvil-adapters` imports
 
 **Fix Applied**:
 
@@ -160,7 +160,8 @@ updating
 ### Packages Built Successfully: ✅ ALL PASSING
 
 - ✅ `@eddacraft/anvil-core` - Built successfully, emits to `core/dist/`
-- ✅ `@eddacraft/anvil-adapters` - Built successfully, emits to `packages/adapters/dist/`
+- ✅ `@eddacraft/anvil-adapters` - Built successfully, emits to
+  `packages/adapters/dist/`
 - ✅ `@eddacraft/anvil-cli` - Built successfully, all TypeScript errors resolved
 
 ### Tests Status:

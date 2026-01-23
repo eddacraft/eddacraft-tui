@@ -467,7 +467,8 @@ bmad/
 - YAML ↔ JSON conversion
 
 **Implementation Location**: Native APS handling is built into core
-(`@eddacraft/anvil-core`) and base adapter framework (`packages/adapters/src/base/`)
+(`@eddacraft/anvil-core`) and base adapter framework
+(`packages/adapters/src/base/`)
 
 ### 2. Core Layer (APS)
 

@@ -5,8 +5,8 @@ planning documents.
 
 ## Overview
 
-The `@eddacraft/anvil-aps` package provides a complete toolkit for working with Anvil
-Planning Spec documents:
+The `@eddacraft/anvil-aps` package provides a complete toolkit for working with
+Anvil Planning Spec documents:
 
 - **Parser**: Parse Markdown-based planning documents using remark AST
 - **Loader**: Load and resolve planning document graphs with dependency tracking

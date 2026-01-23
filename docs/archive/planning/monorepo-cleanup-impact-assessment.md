@@ -44,16 +44,16 @@ anvil-001/
 
 ### 1.2 Current Package Count
 
-| Location                        | Package             | Status     |
-| ------------------------------- | ------------------- | ---------- |
-| legacy core root (removed)      | @eddacraft/anvil-core         | Production |
-| legacy cli root (removed)       | @eddacraft/anvil-cli          | Production |
-| `packages/adapters/`            | @eddacraft/anvil-adapters     | Production |
-| `packages/aps/`                 | @eddacraft/anvil-aps          | Production |
-| `packages/eslint-plugin-anvil/` | eslint-plugin-anvil | Production |
-| `packages/vscode-extension/`    | anvil-vscode        | Complete   |
-| legacy UI root (removed)        | @eddacraft/anvil-ui           | Minimal    |
-| legacy packs root (removed)     | @eddacraft/anvil-packs        | Minimal    |
+| Location                        | Package                   | Status     |
+| ------------------------------- | ------------------------- | ---------- |
+| legacy core root (removed)      | @eddacraft/anvil-core     | Production |
+| legacy cli root (removed)       | @eddacraft/anvil-cli      | Production |
+| `packages/adapters/`            | @eddacraft/anvil-adapters | Production |
+| `packages/aps/`                 | @eddacraft/anvil-aps      | Production |
+| `packages/eslint-plugin-anvil/` | eslint-plugin-anvil       | Production |
+| `packages/vscode-extension/`    | anvil-vscode              | Complete   |
+| legacy UI root (removed)        | @eddacraft/anvil-ui       | Minimal    |
+| legacy packs root (removed)     | @eddacraft/anvil-packs    | Minimal    |
 
 **Total: 8 workspace packages**
 

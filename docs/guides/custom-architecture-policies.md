@@ -47,6 +47,7 @@ rules:
 ```
 
 That's it! Anvil will now enforce that:
+
 - `domain` has no dependencies
 - `application` can only import from `domain`
 - `infrastructure` can import from `domain` and `application`
@@ -91,7 +92,7 @@ layers:
     paths: ['src/domain/**']
     description: 'Core business logic'
     owner: '@core-team'
-    criticality: high  # high | medium | low
+    criticality: high # high | medium | low
 ```
 
 ---
@@ -103,7 +104,7 @@ layers:
 ```yaml
 rules:
   - layer: application
-    can_import: [domain]  # Only domain allowed
+    can_import: [domain] # Only domain allowed
 ```
 
 ### Deny Specific Dependencies
@@ -112,7 +113,7 @@ rules:
 rules:
   - layer: presentation
     can_import: [application]
-    cannot_import: [infrastructure, domain]  # Explicit denials
+    cannot_import: [infrastructure, domain] # Explicit denials
 ```
 
 ### Allow All Except
@@ -120,7 +121,7 @@ rules:
 ```yaml
 rules:
   - layer: infrastructure
-    cannot_import: [presentation]  # Everything else allowed
+    cannot_import: [presentation] # Everything else allowed
 ```
 
 ### Bidirectional Rules
@@ -194,7 +195,7 @@ file_rules:
     can_import:
       - 'src/types/**'
       - 'src/constants/**'
-    cannot_import: ['src/**']  # No other src imports
+    cannot_import: ['src/**'] # No other src imports
     message: 'Utils should be pure and dependency-free'
 ```
 
@@ -243,7 +244,7 @@ Start from a pre-built template:
 ```yaml
 schema_version: '1.0'
 name: 'My App'
-template: hexagonal  # layered | hexagonal | clean | ddd
+template: hexagonal # layered | hexagonal | clean | ddd
 
 # Override or extend template layers
 layers:
@@ -253,7 +254,7 @@ layers:
 
   # Override template layer paths
   domain:
-    paths: ['src/core/**']  # Instead of template default
+    paths: ['src/core/**'] # Instead of template default
 ```
 
 ### Available Templates
@@ -309,7 +310,7 @@ rules:
   # Blocking violation
   - layer: domain
     cannot_import: [infrastructure]
-    severity: error  # Blocks PR/build
+    severity: error # Blocks PR/build
 
   # Warning (allows PR but shows warning)
   - layer: application
@@ -495,7 +496,7 @@ module_rules:
     can_import: [payments, inventory]
 
   - from: payments
-    can_import: []  # Payments is independent
+    can_import: [] # Payments is independent
 
 # File-specific rules
 file_rules:
@@ -715,7 +716,7 @@ rules:
   - layer: domain
     cannot_import: [infrastructure]
     exclude:
-      - 'src/domain/**/*.test.ts'  # Tests can import anything
+      - 'src/domain/**/*.test.ts' # Tests can import anything
 ```
 
 ---
@@ -725,4 +726,3 @@ rules:
 - [OPA Enhancement Vision](../planning/opa-enhancement-vision.md) — Full roadmap
 - [Policy Library](./policy-library.md) — Pre-built policies
 - [Natural Language Policies](./natural-language-policies.md) — Coming soon
-

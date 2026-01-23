@@ -114,8 +114,8 @@ packages/
 
 ### 2.2 Mapping Table
 
-| Source (core/src/) | Target Package         | Lines | Rationale                    |
-| ------------------ | ---------------------- | ----- | ---------------------------- |
+| Source (core/src/) | Target Package                   | Lines | Rationale                    |
+| ------------------ | -------------------------------- | ----- | ---------------------------- |
 | schema/            | @eddacraft/anvil-contracts       | 651   | Pure Zod schemas, zero I/O   |
 | types/             | @eddacraft/anvil-contracts       | 278   | Type definitions only        |
 | validation/        | @eddacraft/anvil-contracts       | 917   | Schema validation (no I/O)   |
@@ -163,8 +163,8 @@ core/src/gate/
 
 ### 2.4 Line Count Summary by Target
 
-| Target Package         | Total Lines | Percentage |
-| ---------------------- | ----------- | ---------- |
+| Target Package                   | Total Lines | Percentage |
+| -------------------------------- | ----------- | ---------- |
 | @eddacraft/anvil-contracts       | 1,846       | 4.4%       |
 | @eddacraft/anvil-ports           | ~200        | 0.5%       |
 | @eddacraft/anvil-core            | 14,379      | 34.6%      |
@@ -172,7 +172,7 @@ core/src/gate/
 | @eddacraft/anvil-policy          | 4,046       | 9.7%       |
 | @eddacraft/anvil-platform/crypto | 405         | 1.0%       |
 | @eddacraft/anvil-shared/util     | 204         | 0.5%       |
-| **Unassigned/Split**   | **8,000**   | **19.2%**  |
+| **Unassigned/Split**             | **8,000**   | **19.2%**  |
 
 ---
 
@@ -223,8 +223,8 @@ packages/edda-stack/
 
 ### 3.3 Contract Schemas Provided
 
-| Schema               | Purpose                                | Export Path         |
-| -------------------- | -------------------------------------- | ------------------- |
+| Schema               | Purpose                                | Export Path                   |
+| -------------------- | -------------------------------------- | ----------------------------- |
 | IdentifierSchemas    | UUID, ContentHash, ObservationId, etc. | `@eddacraft/anvil-edda-stack` |
 | TemporalSchemas      | Timestamp, Duration, TimeRange, TTL    | `@eddacraft/anvil-edda-stack` |
 | ConfidenceSchemas    | EmberConfidence, EddaConfidenceLevel   | `@eddacraft/anvil-edda-stack` |
@@ -450,15 +450,15 @@ export * from './contracts/ports/kindling.port.js';
 
 ### 5.3 Dependency Rules
 
-| Package           | May Depend On                  | Must Not Depend On        |
-| ----------------- | ------------------------------ | ------------------------- |
+| Package                     | May Depend On                  | Must Not Depend On        |
+| --------------------------- | ------------------------------ | ------------------------- |
 | @eddacraft/anvil-contracts  | None                           | Everything                |
 | @eddacraft/anvil-ports      | contracts                      | core, runtime, policy     |
 | @eddacraft/anvil-core       | contracts, ports               | runtime, policy, adapters |
 | @eddacraft/anvil-policy     | contracts                      | core, runtime, adapters   |
 | @eddacraft/anvil-runtime    | contracts, ports, core, policy | apps                      |
 | @eddacraft/anvil-edda-stack | None (standalone)              | anvil/\* packages         |
-| apps/\*           | Any package                    | Other apps                |
+| apps/\*                     | Any package                    | Other apps                |
 
 ---
 

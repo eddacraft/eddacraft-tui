@@ -86,7 +86,8 @@ Configure Anvil in your VS Code settings:
 ## Requirements
 
 - Node.js 20+
-- Anvil CLI installed (`npm install -g @eddacraft/anvil-cli` or available via npx)
+- Anvil CLI installed (`npm install -g @eddacraft/anvil-cli` or available via
+  npx)
 
 ## Development
 
