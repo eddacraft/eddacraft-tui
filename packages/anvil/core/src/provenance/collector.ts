@@ -6,6 +6,15 @@ import { randomUUID } from 'crypto';
 import type { AITool, Environment, GitContext, CheckSummary, ProvenanceRecord } from './types.js';
 import type { GateRunResult } from '@eddacraft/anvil-contracts';
 import { createDebugger } from '../utils/debug.js';
+import {
+  generateSessionHash,
+  detectCurrentAgent,
+  writeAuthorshipNote,
+  SCHEMA_VERSION,
+  type AuthorshipLog,
+  type PromptRecord,
+  type Message,
+} from './git-ai-standard/index.js';
 
 const debug = createDebugger('provenance');
 
@@ -375,4 +384,111 @@ export function formatProvenanceRecord(record: ProvenanceRecord): string {
   }
 
   return lines.join('\n');
+}
+
+/**
+ * Create an AuthorshipLog from provenance context
+ *
+ * This bridges the Anvil provenance system with the Git AI Standard v3.0.0,
+ * enabling AI-generated code to be tracked in Git Notes.
+ *
+ * @param params - Parameters for creating the authorship log
+ * @returns AuthorshipLog if AI tool is detected, null otherwise
+ */
+export function createAuthorshipLog(params: {
+  commitSha: string;
+  fileLineMap: Record<string, string>; // file path → line ranges (e.g., "1-50,55-60")
+  messages: Array<{ type: 'user' | 'assistant'; text: string }>;
+  humanAuthor?: string;
+  totalAdditions?: number;
+  totalDeletions?: number;
+}): AuthorshipLog | null {
+  const { commitSha, fileLineMap, messages, humanAuthor, totalAdditions = 0, totalDeletions = 0 } =
+    params;
+
+  // Try to detect the current AI agent
+  const agent = detectCurrentAgent();
+  if (!agent) {
+    debug('provenance', 'No AI agent detected, skipping authorship log creation');
+    return null;
+  }
+
+  const sessionHash = generateSessionHash(agent.tool, agent.id);
+
+  // Build attestations from file→line map
+  const attestations: AuthorshipLog['attestations'] = {};
+  for (const [file, ranges] of Object.entries(fileLineMap)) {
+    attestations[file] = [{ sessionHash, lineRanges: ranges }];
+  }
+
+  // Build prompt record
+  const promptRecord: PromptRecord = {
+    agent_id: agent,
+    messages: messages.map((m) => ({
+      type: m.type,
+      text: m.text,
+      timestamp: new Date().toISOString(),
+    })) as Message[],
+    total_additions: totalAdditions,
+    total_deletions: totalDeletions,
+    accepted_lines: totalAdditions, // Assume all lines accepted initially
+    overriden_lines: 0,
+    human_author: humanAuthor,
+  };
+
+  // Ensure commit SHA is 40 characters
+  const normalizedSha = commitSha.padEnd(40, '0').slice(0, 40);
+
+  return {
+    attestations,
+    metadata: {
+      schema_version: SCHEMA_VERSION,
+      base_commit_sha: normalizedSha,
+      prompts: {
+        [sessionHash]: promptRecord,
+      },
+    },
+  };
+}
+
+/**
+ * Attach an AuthorshipLog to a commit via Git Notes
+ *
+ * @param log - The authorship log to attach
+ * @param workspaceRoot - The repository root directory
+ */
+export async function attachAuthorshipToCommit(
+  log: AuthorshipLog,
+  workspaceRoot: string
+): Promise<void> {
+  const commitSha = log.metadata.base_commit_sha;
+  await writeAuthorshipNote(commitSha, log, workspaceRoot);
+  debug('provenance', `Attached authorship log to commit ${commitSha.slice(0, 8)}`);
+}
+
+/**
+ * Create and attach an AuthorshipLog in one operation
+ *
+ * Convenience function that combines createAuthorshipLog and attachAuthorshipToCommit.
+ *
+ * @param params - Parameters for creating the authorship log
+ * @param workspaceRoot - The repository root directory
+ * @returns true if log was created and attached, false if no AI agent detected
+ */
+export async function recordAIAuthorship(
+  params: {
+    commitSha: string;
+    fileLineMap: Record<string, string>;
+    messages: Array<{ type: 'user' | 'assistant'; text: string }>;
+    humanAuthor?: string;
+    totalAdditions?: number;
+    totalDeletions?: number;
+  },
+  workspaceRoot: string
+): Promise<boolean> {
+  const log = createAuthorshipLog(params);
+  if (!log) return false;
+
+  await attachAuthorshipToCommit(log, workspaceRoot);
+  return true;
 }

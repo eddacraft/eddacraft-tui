@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import { createArchitectureCommand } from './commands/architecture.js';
+import { createAuthorshipCommand } from './commands/authorship.js';
 import { createCheckCommand } from './commands/check.js';
 import { createDoctorCommand } from './commands/doctor.js';
 import { createDriftCommand } from './commands/drift.js';
@@ -50,6 +51,7 @@ async function main(): Promise<void> {
     .version(packageJson.version);
 
   program.addCommand(createArchitectureCommand());
+  program.addCommand(createAuthorshipCommand());
   program.addCommand(createCheckCommand());
   program.addCommand(createDoctorCommand());
   program.addCommand(createDriftCommand());

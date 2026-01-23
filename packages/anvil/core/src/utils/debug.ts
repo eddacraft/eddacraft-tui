@@ -20,7 +20,8 @@ type DebugNamespace =
   | 'validation'
   | 'adapter'
   | 'architecture'
-  | 'policy';
+  | 'policy'
+  | 'git-ai-notes';
 
 /**
  * Check if debug logging is enabled
