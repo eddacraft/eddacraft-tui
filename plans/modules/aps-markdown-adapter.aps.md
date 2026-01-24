@@ -1,6 +1,6 @@
 # APS Markdown Adapter
 
-**Scope:** APSMD **Owner:** @team **Priority:** high **Status:** Draft
+**Scope:** APSMD **Owner:** @team **Priority:** high **Status:** Complete
 
 ## Purpose
 
@@ -43,8 +43,9 @@ executed by Anvil.
 
 ## Tasks
 
-### APSMD-001: Design task-to-change mapping strategy
+### APSMD-001: Design task-to-change mapping strategy ✅
 
+**Status:** Complete
 **Intent:** Define how APS Tasks map to APSPlan proposed_changes
 **Expected Outcome:** Documented mapping strategy for all task fields
 **Validation:** Review document covers all Task fields from types/index.ts
@@ -52,8 +53,9 @@ executed by Anvil.
 **Scopes:** design, documentation
 **Tags:** design
 
-### APSMD-002: Implement APS markdown detection
+### APSMD-002: Implement APS markdown detection ✅
 
+**Status:** Complete
 **Intent:** Detect APS markdown format with confidence scoring
 **Expected Outcome:** `detect()` returns high confidence for .aps.md files with Tasks section
 **Validation:** `pnpm nx run adapters:test -- --grep "APSMarkdown.*detect"`
@@ -61,8 +63,9 @@ executed by Anvil.
 **Scopes:** adapters
 **Tags:** parser
 
-### APSMD-003: Implement task-to-change conversion
+### APSMD-003: Implement task-to-change conversion ✅
 
+**Status:** Complete
 **Intent:** Convert parsed Tasks to APSPlan proposed_changes
 **Expected Outcome:** Each task produces one or more Change objects with appropriate type
 **Validation:** `pnpm nx run adapters:test -- --grep "APSMarkdown.*convert"`
@@ -71,11 +74,13 @@ executed by Anvil.
 **Dependencies:** APSMD-001, APSMD-002
 **Tags:** conversion
 **Inputs:**
+
 - Task fields: intent, expectedOutcome, validation, scopes, files
 - Change types: file_create, file_update, config_update, script_execute
 
 ### APSMD-004: Implement multi-module plan support
 
+**Status:** Descoped (leaf specs only for v1.1)
 **Intent:** Handle index files that reference multiple module specs
 **Expected Outcome:** `parse()` loads and merges all modules from index file
 **Validation:** `pnpm nx run adapters:test -- --grep "APSMarkdown.*multi"`
@@ -86,6 +91,7 @@ executed by Anvil.
 
 ### APSMD-005: Implement APSPlan to APS markdown serialisation
 
+**Status:** Descoped (parse-only for v1.1)
 **Intent:** Serialise APSPlan back to APS markdown format
 **Expected Outcome:** `serialize()` produces valid .aps.md with Tasks section
 **Validation:** `pnpm nx run adapters:test -- --grep "APSMarkdown.*serialize"`
@@ -94,8 +100,9 @@ executed by Anvil.
 **Dependencies:** APSMD-004
 **Tags:** serialization
 
-### APSMD-006: Register adapter in format registry
+### APSMD-006: Register adapter in format registry ✅
 
+**Status:** Complete
 **Intent:** Make APS markdown adapter discoverable via format registry
 **Expected Outcome:** `FormatRegistry.detect()` includes APS markdown in auto-detection
 **Validation:** `pnpm nx run adapters:test -- --grep "registry.*aps"`
@@ -106,13 +113,18 @@ executed by Anvil.
 
 ## Decisions
 
-- **D-001:** Task → Change mapping: Each task becomes a `script_execute` change
-  by default, with `file_create`/`file_update` inferred from task.files field
-- **D-002:** Intent becomes change description; validation becomes metadata.test
-- **D-003:** Multi-module plans flatten all tasks into single proposed_changes array
+- **D-001:** Task → Change mapping: Change type inferred from task intent keywords
+  (create/add → file_create, update/modify/fix → file_update, delete/remove → file_delete,
+  config/setting → config_update, default → script_execute)
+- **D-002:** Task description format: `{taskId}: {title}\n\n{intent}`
+- **D-003:** First file from task.files array used as change.path
+- **D-004:** Multi-module support descoped to v2.0 (leaf specs only for v1.1)
+- **D-005:** Serialization descoped to v2.0 (parse-only for v1.1)
 
-## Notes
+## Implementation Notes
 
-- Reuses existing `@eddacraft/anvil-aps` parser - no need to reimplement markdown parsing
-- Consider whether task dependencies should influence change ordering
-- The `files` field can hint at change type (create vs update)
+- Reuses `@eddacraft/anvil-aps` parseDocument() for markdown parsing
+- Confidence scoring based on APS indicators (Tasks section, SCOPE-NNN patterns, etc.)
+- Detection threshold: 50% confidence minimum
+- 24 tests covering detection, parsing, and type inference
+- Auto-registered in AdapterRegistry with highest priority (native format)
