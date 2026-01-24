@@ -124,7 +124,7 @@ regardless of how good the engine is. First impressions matter.
 | OPA Architecture       | DC → OPA bridge, YAML-first architecture       | Draft  |
 | Architecture Templates | Layered, Hexagonal, Clean, DDD presets         | Draft  |
 | Remote Policy Bundles  | Centralised policy distribution                | Draft  |
-| Monorepo Migration     | Restructure to apps/packages layered layout    | Ready  |
+| Monorepo Migration     | Restructure to apps/packages layered layout    | Complete |
 
 ### v1.2 — Advanced Experience
 
@@ -155,9 +155,9 @@ regardless of how good the engine is. First impressions matter.
 
 To ship fast and focused, these are explicitly deferred:
 
-- **VS Code extension** — CLI-first; IDE comes in v1.2
-- **Drift reports** — Core value doesn't require trend analysis
-- **Command safety** — Important but not blocking for initial adoption
+- ~~**VS Code extension** — CLI-first; IDE comes in v1.2~~ ✅ Complete in v1.2
+- ~~**Drift reports** — Core value doesn't require trend analysis~~ ✅ Complete in v1.1
+- **Command safety** — Important but not blocking for initial adoption (v2.0)
 - **Plan/APS execution** — Planless-first; APS is internal
 - **Multi-language support** — TypeScript/JavaScript only for v1
 - **Team dashboards** — Individual developer focus first
@@ -220,12 +220,11 @@ graph TD
 - **Includes:** suppressions, drift-reporting
 - **Delivered:** Developers can suppress with accountability; drift snapshots and reports
 
-### M4: Integration Points (Partial)
+### M4: Integration Points ✅
 
-- **Status:** CI complete; IDE draft
-- **Includes:** ci-integration ✅, ide-integration (v1.2)
-- **Delivered:** PRs show warning summaries via GitHub Action
-- **Remaining:** VS Code extension (v1.2)
+- **Status:** Complete
+- **Includes:** ci-integration ✅, ide-integration ✅
+- **Delivered:** PRs show warning summaries via GitHub Action; VS Code extension v0.1.0
 
 ## Modules
 
@@ -240,12 +239,12 @@ graph TD
 | [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Complete    | v1.0    | —                                                         |
 | [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
 | [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
-| [opa-architecture-integration](./modules/opa-architecture-integration.aps.md) | OPA | In Progress | v1.1    | architecture-safety, save-time-trust                      |
-| [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Ready       | v1.2    | save-time-trust, architecture-safety, antipattern-library |
+| [opa-architecture-integration](./modules/opa-architecture-integration.aps.md) | OPA | Complete    | v1.1    | architecture-safety, save-time-trust                      |
+| [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Complete    | v1.2    | save-time-trust, architecture-safety, antipattern-library |
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
 | [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
-| [aps-markdown-adapter](./modules/aps-markdown-adapter.aps.md)           | APSMD   | Draft       | v2.0    | —                                                         |
+| [aps-markdown-adapter](./modules/aps-markdown-adapter.aps.md)           | APSMD   | Complete    | v1.1    | —                                                         |
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md)                 | OPENSPEC| Draft       | v2.0    | —                                                         |
 | [adapter-upstream-updates](./modules/adapter-upstream-updates.aps.md)   | ADAPTUP | Draft       | v1.2    | —                                                         |
 | [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.0    | save-time-trust, drift-reporting                          |
@@ -257,7 +256,7 @@ graph TD
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
 | [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUI     | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
 | [test-quality](./modules/test-quality.aps.md)                           | TEST    | In Progress | —       | —                                                         |
-| [monorepo-migration](./modules/monorepo-migration.aps.md)               | MONO    | Ready       | v1.1    | —                                                         |
+| [monorepo-migration](./modules/monorepo-migration.aps.md)               | MONO    | Complete    | v1.1    | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -365,26 +364,37 @@ graph TD
 
 ### Task Status — v1.1 (Monorepo Migration)
 
-| Task     | Module | Description                          | Status  | Priority |
-| -------- | ------ | ------------------------------------ | ------- | -------- |
-| MONO-001 | mono   | Nx generators for package scaffolding | Ready   | high     |
-| MONO-002 | mono   | Import path codemod                  | Ready   | high     |
-| MONO-003 | mono   | Shared tooling packages              | Ready   | medium   |
-| MONO-004 | mono   | Extract contracts from core          | Ready   | high     |
-| MONO-005 | mono   | Extract ports from core              | Ready   | high     |
-| MONO-006 | mono   | Extract pure domain to core          | Ready   | high     |
-| MONO-007 | mono   | Extract runtime package              | Ready   | high     |
-| MONO-008 | mono   | Extract policy package               | Ready   | high     |
-| MONO-009 | mono   | Extract config package               | Ready   | medium   |
-| MONO-010 | mono   | Extract storage package              | Ready   | medium   |
-| MONO-011 | mono   | Extract crypto package               | Ready   | medium   |
-| MONO-012 | mono   | Split adapters per-integration       | Ready   | medium   |
-| MONO-013 | mono   | Move CLI to apps/                    | Ready   | high     |
-| MONO-014 | mono   | Reorganise E2E tests                 | Ready   | medium   |
-| MONO-015 | mono   | Move scripts to tools/               | Ready   | low      |
-| MONO-016 | mono   | Full test suite validation           | Ready   | high     |
-| MONO-017 | mono   | Dependency graph validation          | Ready   | high     |
-| MONO-018 | mono   | Documentation update                 | Ready   | medium   |
+| Task     | Module | Description                          | Status   | Priority |
+| -------- | ------ | ------------------------------------ | -------- | -------- |
+| MONO-001 | mono   | Nx generators for package scaffolding | Complete | high     |
+| MONO-002 | mono   | Import path codemod                  | Complete | high     |
+| MONO-003 | mono   | Shared tooling packages              | Complete | medium   |
+| MONO-004 | mono   | Extract contracts from core          | Complete | high     |
+| MONO-005 | mono   | Extract ports from core              | Complete | high     |
+| MONO-006 | mono   | Extract pure domain to core          | Complete | high     |
+| MONO-007 | mono   | Extract runtime package              | Complete | high     |
+| MONO-008 | mono   | Extract policy package               | Complete | high     |
+| MONO-009 | mono   | Extract config package               | Complete | medium   |
+| MONO-010 | mono   | Extract storage package              | Complete | medium   |
+| MONO-011 | mono   | Extract crypto package               | Complete | medium   |
+| MONO-012 | mono   | Split adapters per-integration       | Complete | medium   |
+| MONO-013 | mono   | Move CLI to apps/                    | Complete | high     |
+| MONO-014 | mono   | Reorganise E2E tests                 | Complete | medium   |
+| MONO-015 | mono   | Move scripts to tools/               | Complete | low      |
+| MONO-016 | mono   | Full test suite validation           | Complete | high     |
+| MONO-017 | mono   | Dependency graph validation          | Complete | high     |
+| MONO-018 | mono   | Documentation update                 | Complete | medium   |
+
+### Task Status — v1.1 (APS Markdown Adapter)
+
+| Task     | Module | Description                          | Status   | Priority |
+| -------- | ------ | ------------------------------------ | -------- | -------- |
+| APSMD-01 | apsmd  | APSMarkdownAdapter with detection    | Complete | high     |
+| APSMD-02 | apsmd  | Confidence scoring system            | Complete | high     |
+| APSMD-03 | apsmd  | Parse method implementation          | Complete | high     |
+| APSMD-04 | apsmd  | Task-to-Change conversion            | Complete | high     |
+| APSMD-05 | apsmd  | Registry integration                 | Complete | high     |
+| APSMD-06 | apsmd  | CLI PlanLoader integration           | Complete | high     |
 
 ### Task Status — v1.2 (Advanced Experience)
 
