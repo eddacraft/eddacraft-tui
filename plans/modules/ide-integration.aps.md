@@ -3,9 +3,9 @@
 
 # IDE Integration (VS Code Extension)
 
-| Scope | Owner | Priority | Status | Release |
-| ----- | ----- | -------- | ------ | ------- |
-| IDE   | —     | high     | Ready  | v1.2    |
+| Scope | Owner | Priority | Status   | Release |
+| ----- | ----- | -------- | -------- | ------- |
+| IDE   | —     | high     | Complete | v1.2    |
 
 ## Purpose
 

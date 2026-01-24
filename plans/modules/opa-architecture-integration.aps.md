@@ -3,9 +3,9 @@
 
 # OPA & Architecture Integration
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| OPA   | —     | high     | Ready  |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| OPA   | —     | high     | Complete |
 
 ## Purpose
 
