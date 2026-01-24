@@ -4,8 +4,8 @@
  * Shared utilities for resolving plan IDs to file paths.
  */
 
-import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { findPlanById, getWorkspaceRoot } from './file-io.js';
 
 /**
