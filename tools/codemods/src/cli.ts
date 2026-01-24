@@ -10,7 +10,7 @@
 import { program } from 'commander';
 import chalk from 'chalk';
 import { glob } from 'glob';
-import { resolve, relative } from 'path';
+import { resolve, relative } from 'node:path';
 import {
   createProject,
   rewriteImportsInFile,

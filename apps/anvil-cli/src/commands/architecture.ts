@@ -2,9 +2,9 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync } from 'fs';
-import { mkdir, writeFile } from 'fs/promises';
-import { dirname } from 'path';
+import { existsSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import YAML from 'yaml';
 import {
   type ArchitectureTemplate,

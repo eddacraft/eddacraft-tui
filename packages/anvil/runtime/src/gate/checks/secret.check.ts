@@ -1,6 +1,6 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { z } from 'zod';
 import { SECRET_PATTERNS, PatternMatcher } from './secret/secret-patterns.js';
 import { EntropyDetector } from './secret/entropy-detector.js';

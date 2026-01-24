@@ -4,8 +4,8 @@
  * Handles reading/writing .anvil/architecture.json
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import {
   ArchitectureBaselineSchema,
   type ArchitectureBaseline,

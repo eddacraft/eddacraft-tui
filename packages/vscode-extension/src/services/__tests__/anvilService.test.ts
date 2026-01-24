@@ -1,14 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AnvilService } from '../anvilService.js';
 import * as vscode from 'vscode';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 // Mock child_process
 vi.mock('child_process', () => ({
   spawn: vi.fn(),
 }));
 
-import * as cp from 'child_process';
+import * as cp from 'node:child_process';
 
 describe('AnvilService', () => {
   let anvilService: AnvilService;

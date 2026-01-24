@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AntipatternCheck } from './antipattern.check.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
-import { join } from 'path';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
-import { tmpdir } from 'os';
+import { join } from 'node:path';
+import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 
 const createMockPlan = (changes: Array<{ type: string; path: string }>): APSPlan => ({
   id: 'aps-12345678',

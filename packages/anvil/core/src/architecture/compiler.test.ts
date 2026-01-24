@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { compileArchitecture, needsCompilation } from './compiler.js';
-import { mkdir, writeFile, rm, readFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
+import { mkdir, writeFile, rm, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import YAML from 'yaml';
 import type { ArchitectureDefinition } from './definition-schema.js';
 

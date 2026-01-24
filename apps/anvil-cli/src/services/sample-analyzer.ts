@@ -1,7 +1,7 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { existsSync, readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 const execAsync = promisify(exec);
 

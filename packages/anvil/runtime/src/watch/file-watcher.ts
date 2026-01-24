@@ -5,7 +5,7 @@
  * Provides a clean interface for watching file changes.
  */
 
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 import type { WatchChangeEvent } from './types.js';
 
 // Chokidar types (dynamically imported)

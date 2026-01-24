@@ -1,7 +1,7 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 
 interface CoverageMetric {
   total: number;

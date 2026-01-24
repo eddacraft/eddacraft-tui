@@ -2,8 +2,8 @@ import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { EnvironmentDetector } from '../services/environment-detector.js';
 import {
   TemplateGenerator,

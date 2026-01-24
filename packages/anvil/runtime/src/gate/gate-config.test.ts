@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GateConfigManager } from './gate-config.js';
-import { writeFileSync, rmSync, existsSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { writeFileSync, rmSync, existsSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 describe('GateConfigManager', () => {
   let configManager: GateConfigManager;

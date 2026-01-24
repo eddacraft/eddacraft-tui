@@ -3,11 +3,11 @@
  * Stores cache entries as JSON files in .anvil/cache/
  */
 
-import { existsSync, unlinkSync } from 'fs';
-import { readFile, writeFile, rm, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { createHash } from 'crypto';
-import { homedir } from 'os';
+import { existsSync, unlinkSync } from 'node:fs';
+import { readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
 import { createDebugger } from '@eddacraft/anvil-core';

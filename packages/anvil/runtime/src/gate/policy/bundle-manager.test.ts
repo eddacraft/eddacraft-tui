@@ -6,11 +6,11 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { BundleManager, type BundleConfig } from './bundle-manager.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'http';
-import { gzipSync } from 'zlib';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
+import { gzipSync } from 'node:zlib';
 // tar module is a dependency of bundle-manager, tested implicitly through extraction
 
 // Pre-create a minimal gzipped tarball for testing

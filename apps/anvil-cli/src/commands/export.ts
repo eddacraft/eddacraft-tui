@@ -5,8 +5,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync, mkdirSync, writeFileSync } from 'fs';
-import { dirname, extname, basename, join } from 'path';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { dirname, extname, basename, join } from 'node:path';
 import { PlanLoader } from '../services/plan-loader.js';
 import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 import {

@@ -5,8 +5,8 @@
  * entry point detection, and dependency analysis.
  */
 
-import { readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 import { minimatch } from 'minimatch';
 import { LayerDetector, createLayerDetector } from './layer-detector.js';
 import { EntryPointDetector, createEntryPointDetector } from './entry-detector.js';

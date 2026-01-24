@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { execSync } from 'child_process';
-import { tmpdir } from 'os';
+import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { execSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 
 // Create a unique temp directory for each test
 function createTempDir(): string {

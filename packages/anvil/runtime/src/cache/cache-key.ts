@@ -2,7 +2,7 @@
  * Cache key generation utilities
  */
 
-import { createHash } from 'crypto';
+import { createHash } from 'node:crypto';
 import type { GateCacheKeyInput } from './types.js';
 import type { GateCheck } from '../types/gate.types.js';
 

@@ -2,12 +2,12 @@
  * OPA Executor - Execute OPA binary and parse results
  */
 
-import { spawn } from 'child_process';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { randomUUID, createHash } from 'crypto';
+import { spawn } from 'node:child_process';
+import { writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { randomUUID, createHash } from 'node:crypto';
 import type { LoadedPolicy } from './policy-loader.js';
 
 /**
@@ -424,7 +424,7 @@ export class OPAExecutor {
 
     // Write test files if provided
     if (testFiles) {
-      const { readFile } = await import('fs/promises');
+      const { readFile } = await import('node:fs/promises');
       for (const testFile of testFiles) {
         const content = await readFile(testFile, 'utf-8');
         const testPath = join(tempDir, `${randomUUID()}_test.rego`);
@@ -663,7 +663,7 @@ export class OPAExecutor {
   private async cleanupTempDirectory(tempDir: string): Promise<void> {
     try {
       if (existsSync(tempDir)) {
-        const { rm } = await import('fs/promises');
+        const { rm } = await import('node:fs/promises');
         await rm(tempDir, { recursive: true, force: true });
       }
     } catch {

@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
-import { join, resolve } from 'path';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { APSPlan, validateAPSPlan } from '@eddacraft/anvil-core';
 import { ensureDirSync } from 'fs-extra';
 

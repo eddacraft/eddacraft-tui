@@ -7,9 +7,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ESLintCheck } from './eslint.check.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 describe('ESLintCheck', () => {
   let eslintCheck: ESLintCheck;

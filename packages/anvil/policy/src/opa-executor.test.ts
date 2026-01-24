@@ -7,9 +7,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { OPAExecutor, type OPAInput } from './opa-executor.js';
 import { type LoadedPolicy } from './policy-loader.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'fs';
-import { join } from 'path';
-import { tmpdir, platform } from 'os';
+import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir, platform } from 'node:os';
 
 describe('OPAExecutor', () => {
   let executor: OPAExecutor;

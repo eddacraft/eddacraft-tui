@@ -9,8 +9,8 @@
 
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { minimatch } from 'minimatch';
 import { loadBaseline } from '@eddacraft/anvil-core/architecture';
 import type { ArchitectureBaseline } from '@eddacraft/anvil-core/architecture';

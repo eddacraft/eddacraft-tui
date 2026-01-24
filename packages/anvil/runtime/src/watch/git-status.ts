@@ -5,9 +5,9 @@
  * to only unstaged changes.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { relative, resolve } from 'path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { relative, resolve } from 'node:path';
 import type { GitFileStatus } from './types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
 

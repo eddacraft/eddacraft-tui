@@ -1,7 +1,7 @@
-import { writeFile, mkdir, readFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { createHash } from 'crypto';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { createHash } from 'node:crypto';
 import type { ArchitectureDefinition } from './definition-schema.js';
 
 export const GENERATED_POLICIES_DIR = '.anvil/policies/.generated';

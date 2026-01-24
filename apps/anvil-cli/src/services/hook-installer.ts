@@ -4,9 +4,9 @@
  * Handles installation, uninstallation, and verification of Git hooks.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /** Marker comment to identify Anvil-managed hooks */
 export const ANVIL_MARKER = '# Anvil-managed hook';

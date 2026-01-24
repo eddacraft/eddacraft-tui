@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ProvenanceRecordSchema, ProvenanceIndexSchema } from './types.js';
 import type { ProvenanceRecord, ProvenanceIndex } from './types.js';
 import { createDebugger } from '../utils/debug.js';

@@ -1,8 +1,8 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { AITool, Environment, GitContext, CheckSummary, ProvenanceRecord } from './types.js';
 import type { GateRunResult } from '@eddacraft/anvil-contracts';
 import { createDebugger } from '../utils/debug.js';

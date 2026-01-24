@@ -4,10 +4,10 @@
  * Shared utilities for setting up and tearing down test workspaces
  */
 
-import { execSync } from 'child_process';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { execSync } from 'node:child_process';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import type { APSPlan } from '@eddacraft/anvil-core';
 import { APS_SCHEMA_VERSION, generatePlanId, generateHash } from '@eddacraft/anvil-core';
 

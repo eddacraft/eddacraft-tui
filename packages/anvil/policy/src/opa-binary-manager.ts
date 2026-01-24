@@ -2,13 +2,20 @@
  * OPA Binary Manager - Download, cache, and manage OPA binary
  */
 
-import { existsSync, mkdirSync, chmodSync, createWriteStream, unlinkSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { homedir, platform, arch } from 'os';
-import { execSync, exec } from 'child_process';
-import { promisify } from 'util';
-import { createHash } from 'crypto';
-import https from 'https';
+import {
+  existsSync,
+  mkdirSync,
+  chmodSync,
+  createWriteStream,
+  unlinkSync,
+  readFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { homedir, platform, arch } from 'node:os';
+import { execSync, exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
+import https from 'node:https';
 
 const execAsync = promisify(exec);
 

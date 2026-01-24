@@ -5,9 +5,9 @@
  * the OPA signature format specification.
  */
 
-import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { createHash, createVerify, timingSafeEqual } from 'node:crypto';
 
 /**
