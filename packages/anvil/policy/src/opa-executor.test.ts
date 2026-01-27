@@ -152,49 +152,614 @@ violation[msg] {
   });
 
   describe('violation detection', () => {
-    it('should parse string violations', async () => {
-      // Mock executor that would return violations
-      // In practice, this would require a real OPA binary with policy violations
-      const result = await executor.evaluate(mockPolicies, mockInput);
+    it('should parse string violations from violation field', async () => {
+      // Create a mock binary that returns string violations
+      const violationBinary = join(tempDir, platform() === 'win32' ? 'opa-viol.exe' : 'opa-viol');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: ['Simple string violation', 'Another violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
 
-      // With mock that returns empty violations
-      expect(Array.isArray(result.violations)).toBe(true);
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(violationBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(violationBinary, 0o755);
+      }
+
+      const violationExecutor = new OPAExecutor(violationBinary);
+      const result = await violationExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(true);
+      expect(result.violations).toHaveLength(2);
+      expect(result.violations[0].message).toBe('Simple string violation');
+      expect(result.violations[1].message).toBe('Another violation');
+      expect(result.violations[0].severity).toBe('error');
+    });
+
+    it('should parse string violations from violations field', async () => {
+      const violationsBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-viols.exe' : 'opa-viols'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violations: ['Violation from violations field'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(violationsBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(violationsBinary, 0o755);
+      }
+
+      const violationsExecutor = new OPAExecutor(violationsBinary);
+      const result = await violationsExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(true);
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].message).toBe('Violation from violations field');
     });
 
     it('should parse structured violation objects', async () => {
-      const result = await executor.evaluate(mockPolicies, mockInput);
-
-      // Verify violation structure when present
-      result.violations.forEach((violation) => {
-        expect(violation).toHaveProperty('rule');
-        expect(violation).toHaveProperty('severity');
-        expect(violation).toHaveProperty('message');
+      const violationBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-struct.exe' : 'opa-struct'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [
+                      {
+                        rule: 'test-rule',
+                        severity: 'warning',
+                        message: 'Structured violation',
+                        path: 'src/test.ts',
+                        category: 'quality',
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
       });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(violationBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(violationBinary, 0o755);
+      }
+
+      const violationExecutor = new OPAExecutor(violationBinary);
+      const result = await violationExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      const violation = result.violations[0];
+      expect(violation.rule).toBe('test-rule');
+      expect(violation.severity).toBe('warning');
+      expect(violation.message).toBe('Structured violation');
+      expect(violation.path).toBe('src/test.ts');
+      expect(violation.category).toBe('quality');
+    });
+
+    it('should parse deny arrays', async () => {
+      const denyBinary = join(tempDir, platform() === 'win32' ? 'opa-deny.exe' : 'opa-deny');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    deny: ['Denied action', 'Another denied action'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(denyBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(denyBinary, 0o755);
+      }
+
+      const denyExecutor = new OPAExecutor(denyBinary);
+      const result = await denyExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations).toHaveLength(2);
+      expect(result.violations[0].severity).toBe('error');
+      expect(result.violations[1].severity).toBe('error');
+    });
+
+    it('should parse denies arrays', async () => {
+      const deniesBinary = join(tempDir, platform() === 'win32' ? 'opa-denies.exe' : 'opa-denies');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    denies: ['Denied via denies field'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(deniesBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(deniesBinary, 0o755);
+      }
+
+      const deniesExecutor = new OPAExecutor(deniesBinary);
+      const result = await deniesExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].severity).toBe('error');
+    });
+
+    it('should parse warn arrays', async () => {
+      const warnBinary = join(tempDir, platform() === 'win32' ? 'opa-warn.exe' : 'opa-warn');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    warn: ['Warning message', 'Another warning'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(warnBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(warnBinary, 0o755);
+      }
+
+      const warnExecutor = new OPAExecutor(warnBinary);
+      const result = await warnExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations).toHaveLength(2);
+      expect(result.violations[0].severity).toBe('warning');
+      expect(result.violations[1].severity).toBe('warning');
+    });
+
+    it('should parse warnings arrays', async () => {
+      const warningsBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-warnings.exe' : 'opa-warnings'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    warnings: ['Warning via warnings field'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(warningsBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(warningsBinary, 0o755);
+      }
+
+      const warningsExecutor = new OPAExecutor(warningsBinary);
+      const result = await warningsExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].severity).toBe('warning');
     });
 
     it('should include violation fingerprints', async () => {
-      const result = await executor.evaluate(mockPolicies, mockInput);
-
-      // Fingerprints should be included when violations exist
-      result.violations.forEach((violation) => {
-        if (violation.fingerprint) {
-          expect(typeof violation.fingerprint).toBe('string');
-          expect(violation.fingerprint.length).toBeGreaterThan(0);
-        }
+      const violationBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-finger.exe' : 'opa-finger'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: ['Test violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
       });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(violationBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(violationBinary, 0o755);
+      }
+
+      const fingerprintExecutor = new OPAExecutor(violationBinary);
+      const result = await fingerprintExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations[0].fingerprint).toBeDefined();
+      expect(typeof result.violations[0].fingerprint).toBe('string');
+      expect(result.violations[0].fingerprint?.length).toBe(16);
     });
 
-    it('should infer categories from policy names', async () => {
-      const result = await executor.evaluate(mockPolicies, mockInput);
-
-      // Categories should be inferred for violations
-      result.violations.forEach((violation) => {
-        if (violation.category) {
-          expect(violation.category).toMatch(
-            /^(security|architecture|coverage|scope|quality|compliance|custom)$/
-          );
-        }
+    it('should generate consistent fingerprints', async () => {
+      const violationBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-consist.exe' : 'opa-consist'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [
+                      {
+                        rule: 'same-rule',
+                        message: 'Same message',
+                        path: 'same/path.ts',
+                      },
+                      {
+                        rule: 'same-rule',
+                        message: 'Same message',
+                        path: 'same/path.ts',
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
       });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(violationBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(violationBinary, 0o755);
+      }
+
+      const consistentExecutor = new OPAExecutor(violationBinary);
+      const result = await consistentExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations).toHaveLength(2);
+      expect(result.violations[0].fingerprint).toBe(result.violations[1].fingerprint);
+    });
+
+    it('should infer security category from policy names', async () => {
+      const securityBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-security.exe' : 'opa-security'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  security_check: {
+                    violation: ['Security issue found'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(securityBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(securityBinary, 0o755);
+      }
+
+      const securityPolicy: LoadedPolicy = {
+        name: 'security_check',
+        path: join(tempDir, 'security_check.rego'),
+        content: 'package anvil.policies.security_check',
+        package: 'anvil.policies.security_check',
+        hasTests: false,
+      };
+
+      const securityExecutor = new OPAExecutor(securityBinary);
+      const result = await securityExecutor.evaluate([securityPolicy], mockInput);
+
+      expect(result.violations[0].category).toBe('security');
+    });
+
+    it('should infer architecture category from policy names', async () => {
+      const archBinary = join(tempDir, platform() === 'win32' ? 'opa-arch.exe' : 'opa-arch');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  architecture_boundary: {
+                    violation: ['Architecture violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(archBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(archBinary, 0o755);
+      }
+
+      const archPolicy: LoadedPolicy = {
+        name: 'architecture_boundary',
+        path: join(tempDir, 'architecture_boundary.rego'),
+        content: 'package anvil.policies.architecture_boundary',
+        package: 'anvil.policies.architecture_boundary',
+        hasTests: false,
+      };
+
+      const archExecutor = new OPAExecutor(archBinary);
+      const result = await archExecutor.evaluate([archPolicy], mockInput);
+
+      expect(result.violations[0].category).toBe('architecture');
+    });
+
+    it('should infer coverage category from policy names', async () => {
+      const coverageBinary = join(tempDir, platform() === 'win32' ? 'opa-cov.exe' : 'opa-cov');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  coverage_min: {
+                    violation: ['Coverage too low'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(coverageBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(coverageBinary, 0o755);
+      }
+
+      const coveragePolicy: LoadedPolicy = {
+        name: 'coverage_min',
+        path: join(tempDir, 'coverage_min.rego'),
+        content: 'package anvil.policies.coverage_min',
+        package: 'anvil.policies.coverage_min',
+        hasTests: false,
+      };
+
+      const coverageExecutor = new OPAExecutor(coverageBinary);
+      const result = await coverageExecutor.evaluate([coveragePolicy], mockInput);
+
+      expect(result.violations[0].category).toBe('coverage');
+    });
+
+    it('should default to custom category for unknown types', async () => {
+      const customBinary = join(tempDir, platform() === 'win32' ? 'opa-custom.exe' : 'opa-custom');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  my_custom_policy: {
+                    violation: ['Custom violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(customBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(customBinary, 0o755);
+      }
+
+      const customPolicy: LoadedPolicy = {
+        name: 'my_custom_policy',
+        path: join(tempDir, 'my_custom_policy.rego'),
+        content: 'package anvil.policies.my_custom_policy',
+        package: 'anvil.policies.my_custom_policy',
+        hasTests: false,
+      };
+
+      const customExecutor = new OPAExecutor(customBinary);
+      const result = await customExecutor.evaluate([customPolicy], mockInput);
+
+      expect(result.violations[0].category).toBe('custom');
+    });
+
+    it('should parse msg field as message', async () => {
+      const msgBinary = join(tempDir, platform() === 'win32' ? 'opa-msg.exe' : 'opa-msg');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [
+                      {
+                        msg: 'Message from msg field',
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(msgBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(msgBinary, 0o755);
+      }
+
+      const msgExecutor = new OPAExecutor(msgBinary);
+      const result = await msgExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations[0].message).toBe('Message from msg field');
+    });
+
+    it('should include documentation_url in violations', async () => {
+      const docBinary = join(tempDir, platform() === 'win32' ? 'opa-doc.exe' : 'opa-doc');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [
+                      {
+                        message: 'Test violation',
+                        documentation_url: 'https://example.com/docs/violation',
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(docBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(docBinary, 0o755);
+      }
+
+      const docExecutor = new OPAExecutor(docBinary);
+      const result = await docExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations[0].documentation_url).toBe('https://example.com/docs/violation');
     });
   });
 
@@ -225,14 +790,25 @@ violation[msg] {
     });
 
     it('should handle timeout errors', async () => {
-      // Create executor with very short timeout
-      const timeoutExecutor = new OPAExecutor(mockBinaryPath, { timeout: 1 });
+      // Create a binary that sleeps longer than timeout
+      const slowBinary = join(tempDir, platform() === 'win32' ? 'opa-slow.exe' : 'opa-slow');
+      const script =
+        platform() === 'win32'
+          ? '@timeout /t 10 >nul\n@echo {"result":[]}'
+          : '#!/bin/sh\nsleep 10\necho \'{"result":[]}\'';
+
+      writeFileSync(slowBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(slowBinary, 0o755);
+      }
+
+      const timeoutExecutor = new OPAExecutor(slowBinary, { timeout: 100 });
 
       const result = await timeoutExecutor.evaluate(mockPolicies, mockInput);
 
-      // May timeout depending on system performance
-      expect(result).toBeDefined();
-      expect(typeof result.success).toBe('boolean');
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+      expect(result.error).toContain('timed out');
     });
 
     it('should return error details on failure', async () => {
@@ -243,6 +819,276 @@ violation[msg] {
       expect(result.success).toBe(false);
       expect(result.error).toBeDefined();
       expect(typeof result.error).toBe('string');
+    });
+
+    it('should handle OPA binary that returns non-zero exit code', async () => {
+      const errorBinary = join(tempDir, platform() === 'win32' ? 'opa-error.exe' : 'opa-error');
+      const script = platform() === 'win32' ? '@exit 1' : '#!/bin/sh\nexit 1';
+
+      writeFileSync(errorBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(errorBinary, 0o755);
+      }
+
+      const errorExecutor = new OPAExecutor(errorBinary);
+      const result = await errorExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+
+    it('should handle OPA binary that outputs invalid JSON', async () => {
+      const badJsonBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-badjson.exe' : 'opa-badjson'
+      );
+      const script =
+        platform() === 'win32' ? '@echo {invalid json}' : '#!/bin/sh\necho "{invalid json}"';
+
+      writeFileSync(badJsonBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(badJsonBinary, 0o755);
+      }
+
+      const badJsonExecutor = new OPAExecutor(badJsonBinary);
+      const result = await badJsonExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+
+    it('should handle stderr output', async () => {
+      const stderrBinary = join(tempDir, platform() === 'win32' ? 'opa-stderr.exe' : 'opa-stderr');
+      const script =
+        platform() === 'win32'
+          ? '@echo Error message 1>&2\n@exit 1'
+          : '#!/bin/sh\necho "Error message" >&2\nexit 1';
+
+      writeFileSync(stderrBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(stderrBinary, 0o755);
+      }
+
+      const stderrExecutor = new OPAExecutor(stderrBinary);
+      const result = await stderrExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Error message');
+    });
+
+    it('should handle empty OPA output', async () => {
+      const emptyBinary = join(tempDir, platform() === 'win32' ? 'opa-empty.exe' : 'opa-empty');
+      const script = platform() === 'win32' ? '@echo.' : '#!/bin/sh\necho ""';
+
+      writeFileSync(emptyBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(emptyBinary, 0o755);
+      }
+
+      const emptyExecutor = new OPAExecutor(emptyBinary);
+      const result = await emptyExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+
+    it('should handle malformed OPA output structure', async () => {
+      const malformedBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-malformed.exe' : 'opa-malformed'
+      );
+      const script =
+        platform() === 'win32'
+          ? '@echo {"unexpected":"structure"}'
+          : '#!/bin/sh\necho \'{"unexpected":"structure"}\'';
+
+      writeFileSync(malformedBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(malformedBinary, 0o755);
+      }
+
+      const malformedExecutor = new OPAExecutor(malformedBinary);
+      const result = await malformedExecutor.evaluate(mockPolicies, mockInput);
+
+      // Should succeed but with no violations since output doesn't match expected format
+      expect(result.success).toBe(true);
+      expect(result.violations).toEqual([]);
+    });
+
+    it('should handle empty expressions array', async () => {
+      const emptyExprBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-emptyexpr.exe' : 'opa-emptyexpr'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(emptyExprBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(emptyExprBinary, 0o755);
+      }
+
+      const emptyExprExecutor = new OPAExecutor(emptyExprBinary);
+      const result = await emptyExprExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(true);
+      expect(result.violations).toEqual([]);
+    });
+
+    it('should handle expressions with non-object value', async () => {
+      const nonObjValBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-nonobjval.exe' : 'opa-nonobjval'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: null,
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(nonObjValBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(nonObjValBinary, 0o755);
+      }
+
+      const nonObjValExecutor = new OPAExecutor(nonObjValBinary);
+      const result = await nonObjValExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(true);
+      expect(result.violations).toEqual([]);
+    });
+
+    it('should handle non-object policy result', async () => {
+      const nonObjBinary = join(tempDir, platform() === 'win32' ? 'opa-nonobj.exe' : 'opa-nonobj');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: 'not an object',
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(nonObjBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(nonObjBinary, 0o755);
+      }
+
+      const nonObjExecutor = new OPAExecutor(nonObjBinary);
+      const result = await nonObjExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(true);
+      expect(result.violations).toEqual([]);
+    });
+
+    it('should handle non-string, non-object violations gracefully', async () => {
+      const badViolBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-badviol.exe' : 'opa-badviol'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [123, true, null],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(badViolBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(badViolBinary, 0o755);
+      }
+
+      const badViolExecutor = new OPAExecutor(badViolBinary);
+      const result = await badViolExecutor.evaluate(mockPolicies, mockInput);
+
+      // Should ignore invalid violation types (numbers, booleans, null)
+      // Arrays are converted to objects and stringified
+      expect(result.success).toBe(true);
+      expect(result.violations).toEqual([]);
+    });
+
+    it('should convert array violations to JSON strings', async () => {
+      const arrayViolBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-arrayviol.exe' : 'opa-arrayviol'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [['item1', 'item2']],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(arrayViolBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(arrayViolBinary, 0o755);
+      }
+
+      const arrayViolExecutor = new OPAExecutor(arrayViolBinary);
+      const result = await arrayViolExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(true);
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].message).toBe('["item1","item2"]');
     });
   });
 
@@ -258,14 +1104,99 @@ violation[msg] {
       expect(Array.isArray(result.errors)).toBe(true);
     });
 
-    it('should detect invalid Rego syntax', async () => {
-      const invalidPolicy = 'package test\ninvalid rego syntax here\n';
+    it('should validate with warnings in stderr', async () => {
+      // Create binary that returns 0 but has stderr
+      const warnBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-checkwarn.exe' : 'opa-checkwarn'
+      );
+      const script =
+        platform() === 'win32'
+          ? '@echo Warning: unused variable 1>&2\n@exit 0'
+          : '#!/bin/sh\necho "Warning: unused variable" >&2\nexit 0';
 
-      const result = await executor.validateSyntax(invalidPolicy);
+      writeFileSync(warnBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(warnBinary, 0o755);
+      }
 
-      expect(result).toBeDefined();
-      expect(typeof result.valid).toBe('boolean');
-      expect(Array.isArray(result.errors)).toBe(true);
+      const warnExecutor = new OPAExecutor(warnBinary);
+      const result = await warnExecutor.validateSyntax('package test\nallow = true');
+
+      expect(result.valid).toBe(true);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain('Warning');
+    });
+
+    it('should detect invalid Rego syntax with error regex', async () => {
+      // Create binary that returns syntax error
+      const errorBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-checkerr.exe' : 'opa-checkerr'
+      );
+      const script =
+        platform() === 'win32'
+          ? '@echo policy.rego:2: error: syntax error 1>&2\n@exit 1'
+          : '#!/bin/sh\necho "policy.rego:2: error: syntax error" >&2\nexit 1';
+
+      writeFileSync(errorBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(errorBinary, 0o755);
+      }
+
+      const errorExecutor = new OPAExecutor(errorBinary);
+      const result = await errorExecutor.validateSyntax('package test\ninvalid syntax');
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain('error:');
+    });
+
+    it('should handle validation failure without error regex match', async () => {
+      // Create binary that returns non-zero without matching error format
+      const failBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-checkfail.exe' : 'opa-checkfail'
+      );
+      const script =
+        platform() === 'win32'
+          ? '@echo Something went wrong 1>&2\n@exit 1'
+          : '#!/bin/sh\necho "Something went wrong" >&2\nexit 1';
+
+      writeFileSync(failBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(failBinary, 0o755);
+      }
+
+      const failExecutor = new OPAExecutor(failBinary);
+      const result = await failExecutor.validateSyntax('package test');
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      // Should use fallback error message
+      expect(result.errors[0]).toBeTruthy();
+    });
+
+    it('should handle validation timeout', async () => {
+      // Create binary that sleeps
+      const slowBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-checkslow.exe' : 'opa-checkslow'
+      );
+      const script =
+        platform() === 'win32' ? '@timeout /t 10 >nul\n@exit 0' : '#!/bin/sh\nsleep 10\nexit 0';
+
+      writeFileSync(slowBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(slowBinary, 0o755);
+      }
+
+      const slowExecutor = new OPAExecutor(slowBinary, { timeout: 100 });
+      const result = await slowExecutor.validateSyntax('package test');
+
+      expect(result.valid).toBe(false);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain('timed out');
     });
 
     it('should return error messages for invalid syntax', async () => {
@@ -297,6 +1228,50 @@ test_example {
       expect(typeof result.failed).toBe('number');
       expect(Array.isArray(result.errors)).toBe(true);
       expect(Array.isArray(result.details)).toBe(true);
+    });
+
+    it('should handle failed tests', async () => {
+      // Create a mock binary that returns test failures
+      const testBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-testfail.exe' : 'opa-testfail'
+      );
+      const outputJson = JSON.stringify([
+        {
+          name: 'test_passes',
+          fail: false,
+        },
+        {
+          name: 'test_fails',
+          fail: true,
+          error: {
+            message: 'Test assertion failed',
+          },
+        },
+      ]);
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(testBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(testBinary, 0o755);
+      }
+
+      const testExecutor = new OPAExecutor(testBinary);
+      const testFiles = [join(tempDir, 'test.rego')];
+      writeFileSync(testFiles[0], 'package test\ntest_example { true }');
+
+      const result = await testExecutor.runTests(mockPolicies, testFiles);
+
+      expect(result.passed).toBe(1);
+      expect(result.failed).toBe(1);
+      expect(result.details).toHaveLength(2);
+      expect(result.details[0].passed).toBe(true);
+      expect(result.details[1].passed).toBe(false);
+      expect(result.details[1].message).toBe('Test assertion failed');
     });
 
     it('should return empty results for no test files', async () => {
@@ -351,42 +1326,400 @@ test_example {
   });
 
   describe('category inference', () => {
-    it('should infer security category from policy name', () => {
-      const securityPolicy: LoadedPolicy = {
-        name: 'security_check',
-        path: join(tempDir, 'security_check.rego'),
-        content: 'package anvil.policies.security_check',
-        package: 'anvil.policies.security_check',
+    it('should infer scope category from policy name', async () => {
+      const scopeBinary = join(tempDir, platform() === 'win32' ? 'opa-scope.exe' : 'opa-scope');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  scope_check: {
+                    violation: ['Scope violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(scopeBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(scopeBinary, 0o755);
+      }
+
+      const scopePolicy: LoadedPolicy = {
+        name: 'scope_check',
+        path: join(tempDir, 'scope_check.rego'),
+        content: 'package anvil.policies.scope_check',
+        package: 'anvil.policies.scope_check',
         hasTests: false,
       };
 
-      // Category inference happens during violation parsing
-      expect(securityPolicy.name).toContain('security');
+      const scopeExecutor = new OPAExecutor(scopeBinary);
+      const result = await scopeExecutor.evaluate([scopePolicy], mockInput);
+
+      expect(result.violations[0].category).toBe('scope');
     });
 
-    it('should infer architecture category from policy name', () => {
-      const archPolicy: LoadedPolicy = {
-        name: 'architecture_boundary',
-        path: join(tempDir, 'architecture_boundary.rego'),
-        content: 'package anvil.policies.architecture_boundary',
-        package: 'anvil.policies.architecture_boundary',
+    it('should infer quality category from policy name', async () => {
+      const qualityBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-quality.exe' : 'opa-quality'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  lint_rules: {
+                    violation: ['Quality issue'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(qualityBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(qualityBinary, 0o755);
+      }
+
+      const qualityPolicy: LoadedPolicy = {
+        name: 'lint_rules',
+        path: join(tempDir, 'lint_rules.rego'),
+        content: 'package anvil.policies.lint_rules',
+        package: 'anvil.policies.lint_rules',
         hasTests: false,
       };
 
-      expect(archPolicy.name).toContain('architecture');
+      const qualityExecutor = new OPAExecutor(qualityBinary);
+      const result = await qualityExecutor.evaluate([qualityPolicy], mockInput);
+
+      expect(result.violations[0].category).toBe('quality');
     });
 
-    it('should default to custom category for unknown types', () => {
-      const customPolicy: LoadedPolicy = {
-        name: 'my_custom_policy',
-        path: join(tempDir, 'my_custom_policy.rego'),
-        content: 'package anvil.policies.my_custom_policy',
-        package: 'anvil.policies.my_custom_policy',
+    it('should infer compliance category from policy name', async () => {
+      const complianceBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-compliance.exe' : 'opa-compliance'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  compliance_check: {
+                    violation: ['Compliance issue'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(complianceBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(complianceBinary, 0o755);
+      }
+
+      const compliancePolicy: LoadedPolicy = {
+        name: 'compliance_check',
+        path: join(tempDir, 'compliance_check.rego'),
+        content: 'package anvil.policies.compliance_check',
+        package: 'anvil.policies.compliance_check',
         hasTests: false,
       };
 
-      // Custom category is inferred for non-standard names
-      expect(customPolicy.name).toBe('my_custom_policy');
+      const complianceExecutor = new OPAExecutor(complianceBinary);
+      const result = await complianceExecutor.evaluate([compliancePolicy], mockInput);
+
+      expect(result.violations[0].category).toBe('compliance');
+    });
+  });
+
+  describe('severity parsing', () => {
+    it('should parse error severity', async () => {
+      const errorBinary = join(tempDir, platform() === 'win32' ? 'opa-err.exe' : 'opa-err');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [
+                      { severity: 'error', message: 'Error 1' },
+                      { severity: 'err', message: 'Error 2' },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(errorBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(errorBinary, 0o755);
+      }
+
+      const errorExecutor = new OPAExecutor(errorBinary);
+      const result = await errorExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations[0].severity).toBe('error');
+      expect(result.violations[1].severity).toBe('error');
+    });
+
+    it('should parse warning severity', async () => {
+      const warnBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-warnparse.exe' : 'opa-warnparse'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [
+                      { severity: 'warning', message: 'Warning 1' },
+                      { severity: 'warn', message: 'Warning 2' },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(warnBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(warnBinary, 0o755);
+      }
+
+      const warnExecutor = new OPAExecutor(warnBinary);
+      const result = await warnExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations[0].severity).toBe('warning');
+      expect(result.violations[1].severity).toBe('warning');
+    });
+
+    it('should parse info severity', async () => {
+      const infoBinary = join(tempDir, platform() === 'win32' ? 'opa-info.exe' : 'opa-info');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [{ severity: 'info', message: 'Info message' }],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(infoBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(infoBinary, 0o755);
+      }
+
+      const infoExecutor = new OPAExecutor(infoBinary);
+      const result = await infoExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations[0].severity).toBe('info');
+    });
+
+    it('should use default severity for invalid values', async () => {
+      const invalidBinary = join(
+        tempDir,
+        platform() === 'win32' ? 'opa-invalidsev.exe' : 'opa-invalidsev'
+      );
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: [{ severity: 'invalid', message: 'Test' }],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(invalidBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(invalidBinary, 0o755);
+      }
+
+      const invalidExecutor = new OPAExecutor(invalidBinary);
+      const result = await invalidExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.violations[0].severity).toBe('error');
+    });
+  });
+
+  describe('input handling', () => {
+    it('should accept input with git context', async () => {
+      const gitInput: OPAInput = {
+        ...mockInput,
+        context: {
+          ...mockInput.context,
+          git: {
+            branch: 'main',
+            commit_sha: 'abc123',
+            author: 'Test User',
+            files_changed: ['src/test.ts'],
+          },
+        },
+      };
+
+      const result = await executor.evaluate(mockPolicies, gitInput);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept input with CI context', async () => {
+      const ciInput: OPAInput = {
+        ...mockInput,
+        context: {
+          ...mockInput.context,
+          ci: {
+            provider: 'github',
+            build_id: 'build-123',
+            pr_number: '42',
+          },
+        },
+      };
+
+      const result = await executor.evaluate(mockPolicies, ciInput);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept input with coverage context', async () => {
+      const coverageInput: OPAInput = {
+        ...mockInput,
+        context: {
+          ...mockInput.context,
+          coverage: {
+            lines: 85,
+            functions: 90,
+            branches: 75,
+            statements: 85,
+          },
+        },
+      };
+
+      const result = await executor.evaluate(mockPolicies, coverageInput);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept input with architecture context', async () => {
+      const archInput: OPAInput = {
+        ...mockInput,
+        architecture: {
+          layers: {
+            ui: ['src/components'],
+            business: ['src/services'],
+          },
+          boundaries: [{ from: 'ui', to: 'business' }],
+          summary: {
+            total_modules: 10,
+            total_violations: 2,
+            new_violations: 1,
+            circular_count: 0,
+            orphan_count: 0,
+            layer_violation_count: 2,
+            error_count: 2,
+            warn_count: 0,
+            baseline_loaded: true,
+          },
+        },
+      };
+
+      const result = await executor.evaluate(mockPolicies, archInput);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept input with config', async () => {
+      const configInput: OPAInput = {
+        ...mockInput,
+        config: {
+          customOption: true,
+          threshold: 80,
+        },
+      };
+
+      const result = await executor.evaluate(mockPolicies, configInput);
+
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('custom query', () => {
+    it('should use custom query when specified', async () => {
+      const customExecutor = new OPAExecutor(mockBinaryPath, {
+        query: 'data.custom.query',
+      });
+
+      const result = await customExecutor.evaluate(mockPolicies, mockInput);
+
+      expect(result.success).toBe(true);
     });
   });
 });
