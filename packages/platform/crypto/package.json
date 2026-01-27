@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-platform-crypto",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Hashing, signing, and verification utilities",
   "type": "module",
   "main": "./dist/index.js",

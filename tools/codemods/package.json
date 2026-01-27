@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-codemods",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Codemods for Anvil monorepo migration",
   "type": "module",
   "main": "./dist/index.js",

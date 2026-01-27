@@ -238,7 +238,7 @@ importers:
   packages/adapters:
     dependencies:
       '@eddacraft/anvil-core':
-        specifier: 0.0.1
+        specifier: workspace:*
         version: link:../anvil/core
     devDependencies:
       vitest:

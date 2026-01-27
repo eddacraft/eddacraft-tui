@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-adapters",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@eddacraft/anvil-core": "0.0.1"
+    "@eddacraft/anvil-core": "workspace:*",
+    "@eddacraft/anvil-aps": "0.1.0"
   },
   "devDependencies": {
     "vitest": "^4.0.18"

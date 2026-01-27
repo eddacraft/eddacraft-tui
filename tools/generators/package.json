@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-generators",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Nx generators for Anvil monorepo",
   "type": "module",
   "generators": "./generators.json",

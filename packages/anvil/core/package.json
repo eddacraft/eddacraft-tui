@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-core",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Pure domain logic depending on ports and contracts",
   "type": "module",
   "main": "./dist/index.js",
