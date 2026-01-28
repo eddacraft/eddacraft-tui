@@ -71,9 +71,8 @@ export function parseAuthorshipLog(content: string): AuthorshipLog {
     }
   }
 
-  const actualSeparatorIndex = content.indexOf('\n---\n') !== -1
-    ? content.indexOf('\n---\n')
-    : content.indexOf('\n---');
+  const actualSeparatorIndex =
+    content.indexOf('\n---\n') !== -1 ? content.indexOf('\n---\n') : content.indexOf('\n---');
 
   const attestationSection = content.slice(0, actualSeparatorIndex);
   const metadataSection = content.slice(actualSeparatorIndex).replace(/^\n---\n?/, '');

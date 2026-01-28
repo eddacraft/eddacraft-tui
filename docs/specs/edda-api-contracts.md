@@ -1,14 +1,14 @@
 # Edda API Contracts & Integration Points
 
-**Version:** 1.0.0
-**Status:** Draft
-**Related:** `/docs/architecture/edda-system-architecture.md` (Section 8)
+**Version:** 1.0.0 **Status:** Draft **Related:**
+`/docs/architecture/edda-system-architecture.md` (Section 8)
 
 ---
 
 ## Overview
 
 This document specifies all API contracts for Edda, including:
+
 1. REST API (HTTP/JSON)
 2. CLI Commands (anvil edda)
 3. Port Interfaces (TypeScript)
@@ -33,6 +33,7 @@ Authorization: Bearer <jwt-token>
 ```
 
 **JWT Claims:**
+
 ```json
 {
   "sub": "user:alice",
@@ -46,6 +47,7 @@ Authorization: Bearer <jwt-token>
 ### 1.3 Error Responses
 
 **Standard Error Format:**
+
 ```json
 {
   "error": {
@@ -60,6 +62,7 @@ Authorization: Bearer <jwt-token>
 ```
 
 **Error Codes:**
+
 - `UNAUTHORIZED` (401)
 - `PERMISSION_DENIED` (403)
 - `NOT_FOUND` (404)
@@ -79,6 +82,7 @@ Authorization: Bearer <jwt-token>
 Query memories with filters.
 
 **Query Parameters:**
+
 ```typescript
 {
   types?: string[]                 // decision,pattern,warning
@@ -99,6 +103,7 @@ Query memories with filters.
 ```
 
 **Response:**
+
 ```json
 {
   "memories": [
@@ -156,6 +161,7 @@ Query memories with filters.
 ```
 
 **Example:**
+
 ```bash
 curl -H "Authorization: Bearer $TOKEN" \
   "https://edda.example.com/api/v1/memories?types=decision&tags=security&limit=20"
@@ -170,6 +176,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 Retrieve a single memory.
 
 **Response:**
+
 ```json
 {
   "memory": {
@@ -223,6 +230,7 @@ Retrieve a single memory.
 ```
 
 **Errors:**
+
 - `404 NOT_FOUND` - Memory does not exist
 - `403 PERMISSION_DENIED` - No access to this memory
 
@@ -235,6 +243,7 @@ Retrieve a single memory.
 Semantic search across memories.
 
 **Request:**
+
 ```json
 {
   "query": "how should we handle database migrations?",
@@ -251,6 +260,7 @@ Semantic search across memories.
 ```
 
 **Response:**
+
 ```json
 {
   "memories": [
@@ -273,6 +283,7 @@ Semantic search across memories.
 Create a memory directly (requires `create_memory_direct` permission).
 
 **Request:**
+
 ```json
 {
   "type": "decision",
@@ -316,6 +327,7 @@ Create a memory directly (requires `create_memory_direct` permission).
 ```
 
 **Response:**
+
 ```json
 {
   "memory": { ... },
@@ -324,6 +336,7 @@ Create a memory directly (requires `create_memory_direct` permission).
 ```
 
 **Errors:**
+
 - `403 PERMISSION_DENIED` - Lacks `create_memory_direct`
 - `400 VALIDATION_ERROR` - Invalid memory structure
 
@@ -336,6 +349,7 @@ Create a memory directly (requires `create_memory_direct` permission).
 Update an existing memory (creates new version).
 
 **Request:**
+
 ```json
 {
   "statement": "Updated statement...",
@@ -347,6 +361,7 @@ Update an existing memory (creates new version).
 ```
 
 **Response:**
+
 ```json
 {
   "memory": { ... },
@@ -356,6 +371,7 @@ Update an existing memory (creates new version).
 ```
 
 **Errors:**
+
 - `403 PERMISSION_DENIED` - Not owner or reviewer
 - `404 NOT_FOUND` - Memory does not exist
 - `409 CONFLICT` - Memory was updated concurrently
@@ -369,6 +385,7 @@ Update an existing memory (creates new version).
 Mark memory as retired.
 
 **Request:**
+
 ```json
 {
   "reason": "Replaced by new migration system",
@@ -377,6 +394,7 @@ Mark memory as retired.
 ```
 
 **Response:**
+
 ```json
 {
   "memory": {
@@ -402,6 +420,7 @@ Mark memory as retired.
 Get version history of a memory.
 
 **Response:**
+
 ```json
 {
   "memory_id": "EDDA-M-decision-01h2...",
@@ -441,6 +460,7 @@ Get version history of a memory.
 Trace the full provenance chain.
 
 **Query Parameters:**
+
 ```typescript
 {
   include_kindling?: boolean   // Include source observations
@@ -449,6 +469,7 @@ Trace the full provenance chain.
 ```
 
 **Response:**
+
 ```json
 {
   "memory": { ... },
@@ -510,6 +531,7 @@ Trace the full provenance chain.
 List promotion requests awaiting review.
 
 **Query Parameters:**
+
 ```typescript
 {
   status?: string[]            // awaiting_review,under_review,approved,rejected
@@ -520,6 +542,7 @@ List promotion requests awaiting review.
 ```
 
 **Response:**
+
 ```json
 {
   "promotions": [
@@ -546,6 +569,7 @@ List promotion requests awaiting review.
 Get transformation diff for review.
 
 **Response:**
+
 ```json
 {
   "proposal": {
@@ -582,6 +606,7 @@ Get transformation diff for review.
 Approve, reject, or request revisions.
 
 **Request:**
+
 ```json
 {
   "decision": "approve",
@@ -600,6 +625,7 @@ Approve, reject, or request revisions.
 ```
 
 **Response:**
+
 ```json
 {
   "promotion": {
@@ -620,6 +646,7 @@ Approve, reject, or request revisions.
 **POST /promotions/:id/reject**
 
 **Request:**
+
 ```json
 {
   "reason_category": "insufficient_evidence",
@@ -630,6 +657,7 @@ Approve, reject, or request revisions.
 ```
 
 **Response:**
+
 ```json
 {
   "promotion": {
@@ -661,6 +689,7 @@ Approve, reject, or request revisions.
 List enforcement hooks.
 
 **Query Parameters:**
+
 ```typescript
 {
   types?: string[]             // pre_execution,validation,guidance
@@ -671,6 +700,7 @@ List enforcement hooks.
 ```
 
 **Response:**
+
 ```json
 {
   "hooks": [
@@ -715,6 +745,7 @@ List enforcement hooks.
 Register a new enforcement hook.
 
 **Request:**
+
 ```json
 {
   "type": "pre_execution",
@@ -745,6 +776,7 @@ Register a new enforcement hook.
 ```
 
 **Response:**
+
 ```json
 {
   "hook": { ... },
@@ -761,6 +793,7 @@ Register a new enforcement hook.
 Test what would happen if an action executes.
 
 **Request:**
+
 ```json
 {
   "event": "action_about_to_execute",
@@ -781,6 +814,7 @@ Test what would happen if an action executes.
 ```
 
 **Response:**
+
 ```json
 {
   "allowed": false,
@@ -809,6 +843,7 @@ Test what would happen if an action executes.
 Get contextual guidance during planning.
 
 **Request:**
+
 ```json
 {
   "context": {
@@ -825,6 +860,7 @@ Get contextual guidance during planning.
 ```
 
 **Response:**
+
 ```json
 {
   "relevant_memories": [
@@ -854,6 +890,7 @@ Get contextual guidance during planning.
 **GET /roles**
 
 **Response:**
+
 ```json
 {
   "roles": [
@@ -868,9 +905,7 @@ Get contextual guidance during planning.
         "update_memory",
         "retire_memory"
       ],
-      "principals": [
-        { "type": "human", "identifier": "user:alice" }
-      ]
+      "principals": [{ "type": "human", "identifier": "user:alice" }]
     }
   ]
 }
@@ -883,6 +918,7 @@ Get contextual guidance during planning.
 **POST /roles/:role_id/principals**
 
 **Request:**
+
 ```json
 {
   "principal": {
@@ -894,6 +930,7 @@ Get contextual guidance during planning.
 ```
 
 **Response:**
+
 ```json
 {
   "assignment": {
@@ -915,6 +952,7 @@ Get contextual guidance during planning.
 **GET /agents/:agent_id/trust**
 
 **Response:**
+
 ```json
 {
   "trust_profile": {
@@ -954,6 +992,7 @@ Get contextual guidance during planning.
 **GET /audit**
 
 **Query Parameters:**
+
 ```typescript
 {
   principal?: string           // user:alice
@@ -968,6 +1007,7 @@ Get contextual guidance during planning.
 ```
 
 **Response:**
+
 ```json
 {
   "entries": [
@@ -996,6 +1036,7 @@ Get contextual guidance during planning.
 **GET /export**
 
 **Query Parameters:**
+
 ```typescript
 {
   format?: string              // json,yaml,markdown (default: json)
@@ -1005,6 +1046,7 @@ Get contextual guidance during planning.
 ```
 
 **Response (JSON):**
+
 ```json
 {
   "export_id": "EXPORT-01hd...",
@@ -1018,19 +1060,17 @@ Get contextual guidance during planning.
 ```
 
 **Response (Markdown):**
+
 ```markdown
 # Edda Memory Export
 
-**Exported:** 2025-01-16T12:00:00Z
-**Exported by:** user:alice
+**Exported:** 2025-01-16T12:00:00Z **Exported by:** user:alice
 
 ---
 
 ## Decision: Use TypeScript for backend
 
-**Status:** Active
-**Confidence:** High
-...
+**Status:** Active **Confidence:** High ...
 ```
 
 ---
@@ -1040,6 +1080,7 @@ Get contextual guidance during planning.
 **POST /import**
 
 **Request:**
+
 ```json
 {
   "memories": [ ... ],
@@ -1049,6 +1090,7 @@ Get contextual guidance during planning.
 ```
 
 **Response:**
+
 ```json
 {
   "imported_count": 42,
@@ -1072,6 +1114,7 @@ Get contextual guidance during planning.
 **GET /stats**
 
 **Response:**
+
 ```json
 {
   "memories": {
@@ -1286,36 +1329,36 @@ interface IEddaPortExtended extends IEddaPort {
   createMemory(
     input: MemoryObjectInput,
     principal: Principal
-  ): Promise<MemoryObjectExtended>
+  ): Promise<MemoryObjectExtended>;
 
   updateMemory(
     id: MemoryId,
     patch: MemoryObjectPatch,
     principal: Principal,
     reason: string
-  ): Promise<MemoryObjectExtended>
+  ): Promise<MemoryObjectExtended>;
 
   retireMemory(
     id: MemoryId,
     reason: string,
     supersededBy: MemoryId | undefined,
     principal: Principal
-  ): Promise<MemoryObjectExtended>
+  ): Promise<MemoryObjectExtended>;
 
   // Query
-  queryMemories(query: EddaQuery): Promise<EddaQueryResult>
-  searchMemories(query: SemanticQuery): Promise<SemanticResult>
-  getEvolutionChain(id: MemoryId): Promise<EvolutionChain>
+  queryMemories(query: EddaQuery): Promise<EddaQueryResult>;
+  searchMemories(query: SemanticQuery): Promise<SemanticResult>;
+  getEvolutionChain(id: MemoryId): Promise<EvolutionChain>;
 
   // Provenance
-  getProvenance(query: ProvenanceQuery): Promise<ProvenanceResult>
+  getProvenance(query: ProvenanceQuery): Promise<ProvenanceResult>;
 
   // Stats
-  getStats(): Promise<EddaStats>
+  getStats(): Promise<EddaStats>;
 
   // Export/Import
-  exportMemories(query?: EddaQuery): Promise<MemoryExport>
-  importMemories(data: MemoryExport): Promise<ImportResult>
+  exportMemories(query?: EddaQuery): Promise<MemoryExport>;
+  importMemories(data: MemoryExport): Promise<ImportResult>;
 }
 ```
 
@@ -1329,34 +1372,31 @@ interface IPromotionPort {
   createPromotionRequest(
     proposalId: ProposalId,
     requestedBy: Principal
-  ): Promise<PromotionRequest>
+  ): Promise<PromotionRequest>;
 
-  getPromotionRequest(id: PromotionRequestId): Promise<PromotionRequest>
+  getPromotionRequest(id: PromotionRequestId): Promise<PromotionRequest>;
 
-  listPendingReviews(filter?: PromotionFilter): Promise<PromotionRequest[]>
+  listPendingReviews(filter?: PromotionFilter): Promise<PromotionRequest[]>;
 
   // Review workflow
-  startReview(
-    id: PromotionRequestId,
-    reviewer: Principal
-  ): Promise<void>
+  startReview(id: PromotionRequestId, reviewer: Principal): Promise<void>;
 
   submitReview(
     id: PromotionRequestId,
     review: PromotionReview
-  ): Promise<PromotionResult>
+  ): Promise<PromotionResult>;
 
   // Diff generation
-  getPromotionDiff(id: PromotionRequestId): Promise<PromotionDiff>
+  getPromotionDiff(id: PromotionRequestId): Promise<PromotionDiff>;
 
   // Rejection
   recordRejection(
     proposalId: ProposalId,
     rejection: RejectionRecord
-  ): Promise<void>
+  ): Promise<void>;
 
   // Stats
-  getStats(): Promise<PromotionStats>
+  getStats(): Promise<PromotionStats>;
 }
 ```
 
@@ -1367,26 +1407,26 @@ interface IPromotionPort {
 ```typescript
 interface IEnforcementPort {
   // Hook management
-  registerHook(hook: EnforcementHook): Promise<void>
-  getHook(id: HookId): Promise<EnforcementHook>
-  updateHook(id: HookId, updates: Partial<EnforcementHook>): Promise<void>
-  deleteHook(id: HookId): Promise<void>
-  listHooks(filter?: HookFilter): Promise<EnforcementHook[]>
+  registerHook(hook: EnforcementHook): Promise<void>;
+  getHook(id: HookId): Promise<EnforcementHook>;
+  updateHook(id: HookId, updates: Partial<EnforcementHook>): Promise<void>;
+  deleteHook(id: HookId): Promise<void>;
+  listHooks(filter?: HookFilter): Promise<EnforcementHook[]>;
 
   // Execution
   executeHooks(
     event: HookEvent,
     context: ExecutionContext
-  ): Promise<HookExecutionResult>
+  ): Promise<HookExecutionResult>;
 
   // Override
-  requestOverride(request: OverrideRequest): Promise<OverrideDecision>
+  requestOverride(request: OverrideRequest): Promise<OverrideDecision>;
 
   // Guidance
-  getGuidance(context: PlanningContext): Promise<GuidanceResponse>
+  getGuidance(context: PlanningContext): Promise<GuidanceResponse>;
 
   // Stats
-  getStats(): Promise<EnforcementStats>
+  getStats(): Promise<EnforcementStats>;
 }
 ```
 
@@ -1397,50 +1437,47 @@ interface IEnforcementPort {
 ```typescript
 interface IAuthorityPort {
   // Principals
-  resolvePrincipal(identifier: string): Promise<Principal>
-  registerPrincipal(principal: Principal): Promise<void>
-  getPrincipalInfo(principal: Principal): Promise<PrincipalInfo>
+  resolvePrincipal(identifier: string): Promise<Principal>;
+  registerPrincipal(principal: Principal): Promise<void>;
+  getPrincipalInfo(principal: Principal): Promise<PrincipalInfo>;
 
   // Roles
   assignRole(
     principal: Principal,
     role: Role,
     assignedBy: Principal
-  ): Promise<RoleAssignment>
+  ): Promise<RoleAssignment>;
 
   revokeRole(
     principal: Principal,
     roleId: string,
     revokedBy: Principal
-  ): Promise<void>
+  ): Promise<void>;
 
-  getRolesForPrincipal(principal: Principal): Promise<Role[]>
+  getRolesForPrincipal(principal: Principal): Promise<Role[]>;
 
   // Permissions
   hasPermission(
     principal: Principal,
     permission: Permission,
     context?: PermissionContext
-  ): boolean
+  ): boolean;
 
-  canAccessMemory(
-    principal: Principal,
-    memory: MemoryObjectExtended
-  ): boolean
+  canAccessMemory(principal: Principal, memory: MemoryObjectExtended): boolean;
 
-  getAuthorityLevel(principal: Principal): AuthorityLevel
+  getAuthorityLevel(principal: Principal): AuthorityLevel;
 
   // Trust
-  getTrustProfile(agentId: string): Promise<AgentTrustProfile>
+  getTrustProfile(agentId: string): Promise<AgentTrustProfile>;
 
   updateTrustProfile(
     agentId: string,
     event: TrustEvent
-  ): Promise<AgentTrustProfile>
+  ): Promise<AgentTrustProfile>;
 
   // Audit
-  audit(entry: AuditEntry): Promise<void>
-  queryAudit(query: AuditQuery): Promise<AuditQueryResult>
+  audit(entry: AuditEntry): Promise<void>;
+  queryAudit(query: AuditQuery): Promise<AuditQueryResult>;
 }
 ```
 
@@ -1456,46 +1493,38 @@ interface IAnvilGateSystem {
   /**
    * Register a pre-execution hook
    */
-  registerPreExecutionHook(
-    name: string,
-    hook: PreExecutionHook
-  ): void
+  registerPreExecutionHook(name: string, hook: PreExecutionHook): void;
 
   /**
    * Register a file change hook
    */
-  registerFileChangeHook(
-    name: string,
-    hook: FileChangeHook
-  ): void
+  registerFileChangeHook(name: string, hook: FileChangeHook): void;
 
   /**
    * Register a planning hook
    */
-  registerPlanningHook(
-    name: string,
-    hook: PlanningHook
-  ): void
+  registerPlanningHook(name: string, hook: PlanningHook): void;
 }
 
 // Edda implements these
 type PreExecutionHook = (
   action: Action,
   context: ActionContext
-) => Promise<HookExecutionResult>
+) => Promise<HookExecutionResult>;
 
 type FileChangeHook = (
   file: FileChange,
   context: FileContext
-) => Promise<HookExecutionResult>
+) => Promise<HookExecutionResult>;
 
 type PlanningHook = (
   plan: PlanDraft,
   context: PlanningContext
-) => Promise<GuidanceResponse>
+) => Promise<GuidanceResponse>;
 ```
 
 **Usage (in Anvil):**
+
 ```typescript
 // Anvil registers Edda hooks on startup
 const eddaHooks = new EddaEnforcementService(...)
@@ -1522,34 +1551,35 @@ interface IIdentityProvider {
   /**
    * Authenticate user from token
    */
-  authenticate(token: string): Promise<Principal>
+  authenticate(token: string): Promise<Principal>;
 
   /**
    * Get principal information
    */
-  getPrincipalInfo(identifier: string): Promise<PrincipalInfo>
+  getPrincipalInfo(identifier: string): Promise<PrincipalInfo>;
 
   /**
    * List team members
    */
-  getTeamMembers(teamId: string): Promise<Principal[]>
+  getTeamMembers(teamId: string): Promise<Principal[]>;
 
   /**
    * Check if principal is in team
    */
-  isMemberOfTeam(principal: Principal, teamId: string): Promise<boolean>
+  isMemberOfTeam(principal: Principal, teamId: string): Promise<boolean>;
 }
 
 interface PrincipalInfo {
-  identifier: string
-  name: string
-  email?: string
-  teams: string[]
-  metadata: Record<string, unknown>
+  identifier: string;
+  name: string;
+  email?: string;
+  teams: string[];
+  metadata: Record<string, unknown>;
 }
 ```
 
 **Implementations:**
+
 - GitHub OAuth provider
 - LDAP/Active Directory provider
 - Custom JWT provider
@@ -1564,7 +1594,7 @@ interface IEmbeddingService {
   /**
    * Generate embedding for text
    */
-  embed(text: string): Promise<number[]>  // Vector
+  embed(text: string): Promise<number[]>; // Vector
 
   /**
    * Find similar texts
@@ -1573,16 +1603,17 @@ interface IEmbeddingService {
     query: string,
     candidates: string[],
     limit: number
-  ): Promise<SimilarityResult[]>
+  ): Promise<SimilarityResult[]>;
 }
 
 interface SimilarityResult {
-  text: string
-  similarity: number  // 0.0 - 1.0
+  text: string;
+  similarity: number; // 0.0 - 1.0
 }
 ```
 
 **Implementations:**
+
 - Ollama provider (local)
 - OpenAI provider (API)
 - HuggingFace provider (API)
@@ -1602,7 +1633,7 @@ type WebhookEvent =
   | 'promotion.approved'
   | 'promotion.rejected'
   | 'enforcement.violated'
-  | 'enforcement.overridden'
+  | 'enforcement.overridden';
 ```
 
 ### 10.2 Webhook Payload
@@ -1624,12 +1655,14 @@ type WebhookEvent =
 ## Summary
 
 This document defines all public APIs for Edda:
+
 - **REST API** for programmatic access (Phase 6)
 - **CLI** for human interaction (Phases 1-6)
 - **Port Interfaces** for TypeScript integration (All phases)
 - **External Integrations** for Anvil, Identity, and optional services
 
 All APIs follow consistent patterns:
+
 - Authentication via Bearer tokens
 - Standard error responses
 - Audit logging for mutations

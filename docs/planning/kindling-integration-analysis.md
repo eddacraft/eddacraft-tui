@@ -1,14 +1,19 @@
 # Kindling Integration Analysis
 
-**Date**: 2026-01-01
-**Status**: Research & Recommendation
-**Author**: Claude Code
+**Date**: 2026-01-01 **Status**: Research & Recommendation **Author**: Claude
+Code
 
 ## Executive Summary
 
-Kindling is a lightweight, local-first memory system for AI workflows that captures observations (tool calls, diffs, commands, errors) and organizes them into "capsules" with deterministic, provenance-aware retrieval. It aligns exceptionally well with Anvil's core principles and could enhance three critical areas: **evidence & provenance**, **cross-session continuity**, and **audit transparency**.
+Kindling is a lightweight, local-first memory system for AI workflows that
+captures observations (tool calls, diffs, commands, errors) and organizes them
+into "capsules" with deterministic, provenance-aware retrieval. It aligns
+exceptionally well with Anvil's core principles and could enhance three critical
+areas: **evidence & provenance**, **cross-session continuity**, and **audit
+transparency**.
 
 **Recommendation**: Integrate Kindling as Anvil's memory layer, focusing on:
+
 1. Evidence bundle enhancement (immediate value)
 2. Plan evolution tracking (high strategic value)
 3. Gate check history and learning (medium-term value)
@@ -16,12 +21,17 @@ Kindling is a lightweight, local-first memory system for AI workflows that captu
 ## What is Kindling?
 
 ### Core Purpose
-Kindling provides "durable memory and contextual continuity to agentic and AI-assisted workflows" by capturing observations without enforcing governance or organizational truth.
+
+Kindling provides "durable memory and contextual continuity to agentic and
+AI-assisted workflows" by capturing observations without enforcing governance or
+organizational truth.
 
 ### Key Capabilities
 
-1. **Observation Capture** — Records tool calls, diffs, commands, errors, and messages
-2. **Capsule Organization** — Groups observations into bounded units (sessions, workflow nodes)
+1. **Observation Capture** — Records tool calls, diffs, commands, errors, and
+   messages
+2. **Capsule Organization** — Groups observations into bounded units (sessions,
+   workflow nodes)
 3. **Provenance-Aware Retrieval** — Deterministic, scoped, explainable results
 4. **Local-First Operation** — Embedded SQLite, no external services required
 
@@ -42,11 +52,14 @@ kindling-cli               → Inspection, debugging, export/import
 - **Explainability**: Transparent provenance for all retrieved data
 - **Local-first**: No cloud dependencies, embedded SQLite
 - **Conservative summarization**: Retain raw observations
-- **Scope boundaries**: Explicitly excludes governance, access control, and cloud deployment
+- **Scope boundaries**: Explicitly excludes governance, access control, and
+  cloud deployment
 
 ### Current Status
 
-**Work in Progress** — Early-stage repository (10 commits, 1 star) with primarily planning documentation. Has a `plans/index.aps.md` file suggesting potential APS format usage.
+**Work in Progress** — Early-stage repository (10 commits, 1 star) with
+primarily planning documentation. Has a `plans/index.aps.md` file suggesting
+potential APS format usage.
 
 ---
 
@@ -54,17 +67,19 @@ kindling-cli               → Inspection, debugging, export/import
 
 ### Shared Principles
 
-| Principle | Anvil | Kindling | Alignment |
-|-----------|-------|----------|-----------|
-| **Determinism** | Hash-stable APS, reproducible gates | Deterministic retrieval, SQLite system of record | ✅ Perfect |
-| **Transparency** | Evidence bundles, provenance tracking | Observation capture with provenance | ✅ Perfect |
-| **Local-first** | CLI-based, no cloud requirement | Embedded SQLite, no external services | ✅ Perfect |
-| **Safety** | Snapshot before apply, rollback capability | Conservative observation retention | ✅ Strong |
-| **Interoperability** | Multi-format adapters (SpecKit, BMAD) | Adapter architecture (OpenCode, PocketFlow) | ✅ Strong |
+| Principle            | Anvil                                      | Kindling                                         | Alignment  |
+| -------------------- | ------------------------------------------ | ------------------------------------------------ | ---------- |
+| **Determinism**      | Hash-stable APS, reproducible gates        | Deterministic retrieval, SQLite system of record | ✅ Perfect |
+| **Transparency**     | Evidence bundles, provenance tracking      | Observation capture with provenance              | ✅ Perfect |
+| **Local-first**      | CLI-based, no cloud requirement            | Embedded SQLite, no external services            | ✅ Perfect |
+| **Safety**           | Snapshot before apply, rollback capability | Conservative observation retention               | ✅ Strong  |
+| **Interoperability** | Multi-format adapters (SpecKit, BMAD)      | Adapter architecture (OpenCode, PocketFlow)      | ✅ Strong  |
 
 ### Strategic Fit
 
-Kindling addresses a gap Anvil doesn't currently solve: **cross-session memory and context continuity**. Anvil is stateless—each validation, gate check, or export is independent. Kindling could provide:
+Kindling addresses a gap Anvil doesn't currently solve: **cross-session memory
+and context continuity**. Anvil is stateless—each validation, gate check, or
+export is independent. Kindling could provide:
 
 1. **Historical context** for plan evolution
 2. **Learning** from previous gate failures
@@ -77,15 +92,20 @@ Kindling addresses a gap Anvil doesn't currently solve: **cross-session memory a
 
 ### 1. Evidence Bundle Enhancement ⭐ **Immediate Value**
 
-**Problem**: Anvil's evidence bundles capture snapshots but don't maintain historical context across multiple plan iterations.
+**Problem**: Anvil's evidence bundles capture snapshots but don't maintain
+historical context across multiple plan iterations.
 
 **Solution**: Use Kindling to:
-- Capture all `anvil validate`, `anvil gate`, and `anvil export` operations as observations
+
+- Capture all `anvil validate`, `anvil gate`, and `anvil export` operations as
+  observations
 - Store tool calls (ESLint, Vitest, coverage checks) with full provenance
 - Link plan versions to gate results over time
-- Enable queries like "When did this test start failing?" or "What changed between passing and failing gates?"
+- Enable queries like "When did this test start failing?" or "What changed
+  between passing and failing gates?"
 
 **Implementation**:
+
 ```typescript
 // In core/src/provenance/evidence-bundle.ts
 import { Kindling } from 'kindling-core';
@@ -115,6 +135,7 @@ export async function captureGateEvidence(
 ```
 
 **Benefits**:
+
 - Richer evidence bundles with full historical context
 - Answers questions like "Has this plan ever passed gates?"
 - Supports compliance and audit requirements
@@ -123,15 +144,19 @@ export async function captureGateEvidence(
 
 ### 2. Plan Evolution Tracking ⭐⭐ **High Strategic Value**
 
-**Problem**: Anvil sees plans as immutable snapshots (hash-based). It doesn't track how plans evolve or why changes were made.
+**Problem**: Anvil sees plans as immutable snapshots (hash-based). It doesn't
+track how plans evolve or why changes were made.
 
 **Solution**: Use Kindling to:
+
 - Capture every plan modification as an observation
 - Link plan hashes to git commits, AI conversations, or manual edits
 - Track adapter conversions (SpecKit → APS → BMAD)
-- Enable queries like "What was the plan state when tests were passing?" or "Why was this step added?"
+- Enable queries like "What was the plan state when tests were passing?" or "Why
+  was this step added?"
 
 **Implementation**:
+
 ```typescript
 // In cli/src/services/plan-loader.ts
 import { Kindling } from 'kindling-core';
@@ -157,24 +182,29 @@ export async function trackPlanModification(
 ```
 
 **Benefits**:
+
 - Understand plan evolution over time
 - Link plan changes to outcomes (gate results, deployments)
-- Support "time-travel" debugging ("What did the plan look like when it worked?")
+- Support "time-travel" debugging ("What did the plan look like when it
+  worked?")
 - Enable AI assistants to learn from plan history
 
 ---
 
 ### 3. Gate Check History & Learning ⭐ **Medium-Term Value**
 
-**Problem**: Anvil's gates are stateless—each run is independent. Developers must remember previous failures and fixes.
+**Problem**: Anvil's gates are stateless—each run is independent. Developers
+must remember previous failures and fixes.
 
 **Solution**: Use Kindling to:
+
 - Store all gate check results with full context
 - Track recurring failures (e.g., "ESLint always fails on this pattern")
 - Suggest fixes based on historical solutions
 - Enable queries like "What fixed this coverage failure last time?"
 
 **Implementation**:
+
 ```typescript
 // In core/src/gate/gate-runner.ts
 import { Kindling } from 'kindling-core';
@@ -201,8 +231,8 @@ export async function runGateWithHistory(
       planHash: plan.hash,
       status: result.status,
       output: result.output,
-      previousFailures: history.filter(h =>
-        h.check === check.name && h.status === 'failed'
+      previousFailures: history.filter(
+        (h) => h.check === check.name && h.status === 'failed'
       ),
     });
 
@@ -214,6 +244,7 @@ export async function runGateWithHistory(
 ```
 
 **Benefits**:
+
 - Avoid repeating the same fixes
 - Surface patterns in gate failures
 - Enable AI assistants to suggest contextual fixes
@@ -223,15 +254,18 @@ export async function runGateWithHistory(
 
 ### 4. Cross-Session Continuity ⭐ **Strategic Enabler**
 
-**Problem**: AI assistants working with Anvil lose context between sessions (e.g., "Why did we choose this architecture?").
+**Problem**: AI assistants working with Anvil lose context between sessions
+(e.g., "Why did we choose this architecture?").
 
 **Solution**: Use Kindling to:
+
 - Capture AI conversation context alongside plan modifications
 - Store architectural decisions and rationale
 - Enable resume workflows ("Continue working on authentication plan")
 - Link plan changes to issue trackers, PRs, or design docs
 
 **Implementation**:
+
 ```typescript
 // In cli/src/services/ai-context.ts
 import { Kindling } from 'kindling-core';
@@ -262,14 +296,15 @@ export async function retrievePlanContext(
   });
 
   return {
-    decisions: observations.filter(o => o.type === 'ai-decision'),
-    modifications: observations.filter(o => o.type === 'plan-modified'),
-    gateResults: observations.filter(o => o.type === 'gate-check-result'),
+    decisions: observations.filter((o) => o.type === 'ai-decision'),
+    modifications: observations.filter((o) => o.type === 'plan-modified'),
+    gateResults: observations.filter((o) => o.type === 'gate-check-result'),
   };
 }
 ```
 
 **Benefits**:
+
 - AI assistants can resume work with full context
 - Developers can understand "why" decisions were made
 - Supports knowledge transfer and onboarding
@@ -284,6 +319,7 @@ export async function retrievePlanContext(
 **Goal**: Validate Kindling integration with minimal changes
 
 **Tasks**:
+
 1. Add `kindling-core` and `kindling-store-sqlite` as dependencies
 2. Create `core/src/memory/kindling-integration.ts` with basic capture
 3. Integrate observation capture in `gate-runner.ts`
@@ -291,6 +327,7 @@ export async function retrievePlanContext(
 5. Write integration tests
 
 **Success Criteria**:
+
 - Gate results are captured to Kindling
 - Can retrieve previous gate results for the same plan
 - No performance degradation
@@ -302,6 +339,7 @@ export async function retrievePlanContext(
 **Goal**: Enhance evidence bundles with Kindling observations
 
 **Tasks**:
+
 1. Extend evidence bundle format to include Kindling capsule IDs
 2. Capture all validation, gate, and export operations
 3. Add `anvil evidence show <capsule-id>` command
@@ -309,6 +347,7 @@ export async function retrievePlanContext(
 5. Add documentation and examples
 
 **Success Criteria**:
+
 - Evidence bundles include links to Kindling observations
 - Can retrieve full audit trail for any plan version
 - CLI supports evidence inspection
@@ -320,6 +359,7 @@ export async function retrievePlanContext(
 **Goal**: Track plan modifications and link to outcomes
 
 **Tasks**:
+
 1. Add plan modification hooks in `plan-loader.ts`
 2. Capture plan diffs and change rationale
 3. Implement `anvil plan history <plan-path>` command
@@ -327,6 +367,7 @@ export async function retrievePlanContext(
 5. Integrate with git history
 
 **Success Criteria**:
+
 - All plan modifications are tracked
 - Can query plan history and evolution
 - Links plan changes to gate results
@@ -338,6 +379,7 @@ export async function retrievePlanContext(
 **Goal**: Use historical data to improve gate feedback
 
 **Tasks**:
+
 1. Build gate history analysis
 2. Detect recurring failure patterns
 3. Implement suggestion engine
@@ -345,6 +387,7 @@ export async function retrievePlanContext(
 5. Train on historical gate results
 
 **Success Criteria**:
+
 - Suggests fixes based on historical solutions
 - Identifies recurring failure patterns
 - Improves developer productivity
@@ -358,6 +401,7 @@ export async function retrievePlanContext(
 **Concern**: Kindling adds I/O overhead (SQLite writes)
 
 **Mitigation**:
+
 - Use async observation capture (non-blocking)
 - Batch observations before commit
 - Configure SQLite for performance (WAL mode, tuned cache)
@@ -368,6 +412,7 @@ export async function retrievePlanContext(
 **Concern**: SQLite database growth over time
 
 **Mitigation**:
+
 - Implement retention policies (configurable)
 - Add `anvil memory prune` command
 - Support export/archive for long-term storage
@@ -378,6 +423,7 @@ export async function retrievePlanContext(
 **Concern**: Observations might contain sensitive data
 
 **Mitigation**:
+
 - Implement redaction for secrets (reuse Anvil's secret detection)
 - Allow users to disable observation capture
 - Document what data is captured
@@ -388,6 +434,7 @@ export async function retrievePlanContext(
 **Concern**: Adding Kindling as a dependency
 
 **Mitigation**:
+
 - Kindling is local-first (no external services)
 - Small footprint (embedded SQLite)
 - Apache 2.0 licence (compatible with Anvil)
@@ -397,13 +444,13 @@ export async function retrievePlanContext(
 
 ## Risks & Mitigations
 
-| Risk | Impact | Probability | Mitigation |
-|------|--------|-------------|------------|
-| Kindling is early-stage, may lack features | High | Medium | Contribute features upstream, fork if needed |
-| Performance overhead from observations | Medium | Low | Async capture, feature flag, performance testing |
-| Storage growth over time | Low | High | Retention policies, pruning, export/archive |
-| Kindling development stalls | Medium | Medium | Fork and maintain if needed, small codebase |
-| User privacy concerns | High | Low | Redaction, clear documentation, opt-in model |
+| Risk                                       | Impact | Probability | Mitigation                                       |
+| ------------------------------------------ | ------ | ----------- | ------------------------------------------------ |
+| Kindling is early-stage, may lack features | High   | Medium      | Contribute features upstream, fork if needed     |
+| Performance overhead from observations     | Medium | Low         | Async capture, feature flag, performance testing |
+| Storage growth over time                   | Low    | High        | Retention policies, pruning, export/archive      |
+| Kindling development stalls                | Medium | Medium      | Fork and maintain if needed, small codebase      |
+| User privacy concerns                      | High   | Low         | Redaction, clear documentation, opt-in model     |
 
 ---
 
@@ -411,39 +458,41 @@ export async function retrievePlanContext(
 
 ### 1. Build Custom Memory System
 
-**Pros**: Full control, Anvil-specific optimizations
-**Cons**: Duplicates effort, distracts from core value, longer timeline
-**Verdict**: ❌ Avoid—Kindling aligns well with needs
+**Pros**: Full control, Anvil-specific optimizations **Cons**: Duplicates
+effort, distracts from core value, longer timeline **Verdict**: ❌
+Avoid—Kindling aligns well with needs
 
 ### 2. Use Existing Memory Systems (mem0, basic-memory)
 
-**Pros**: More mature, larger communities
-**Cons**: Cloud-first, not deterministic, governance-heavy
-**Verdict**: ❌ Misaligned with Anvil's local-first, deterministic principles
+**Pros**: More mature, larger communities **Cons**: Cloud-first, not
+deterministic, governance-heavy **Verdict**: ❌ Misaligned with Anvil's
+local-first, deterministic principles
 
 ### 3. SQLite Direct (No Abstraction)
 
-**Pros**: Minimal dependencies, full control
-**Cons**: No capsule abstraction, manual provenance tracking
-**Verdict**: ⚠️ Possible fallback if Kindling doesn't mature
+**Pros**: Minimal dependencies, full control **Cons**: No capsule abstraction,
+manual provenance tracking **Verdict**: ⚠️ Possible fallback if Kindling doesn't
+mature
 
 ### 4. Kindling Integration (Recommended)
 
-**Pros**: Aligns with principles, active development, good abstraction
-**Cons**: Early-stage, dependency risk
-**Verdict**: ✅ **Recommended**—Best fit for Anvil's needs
+**Pros**: Aligns with principles, active development, good abstraction **Cons**:
+Early-stage, dependency risk **Verdict**: ✅ **Recommended**—Best fit for
+Anvil's needs
 
 ---
 
 ## Success Metrics
 
 ### Technical Metrics
+
 - Evidence bundle completeness score (% of operations captured)
 - Query response time (< 100ms for typical history queries)
 - Storage growth rate (< 10MB per 1000 operations)
 - Integration test coverage (> 80%)
 
 ### User Metrics
+
 - Developer time saved (estimate from surveys)
 - Adoption rate (% of projects using memory features)
 - Gate fix success rate (% of suggestions that resolve issues)
@@ -485,17 +534,22 @@ export async function retrievePlanContext(
 
 ## Conclusion
 
-Kindling is a **strong strategic fit** for Anvil. It aligns with core principles (determinism, transparency, local-first) and addresses a genuine gap (cross-session memory and context continuity).
+Kindling is a **strong strategic fit** for Anvil. It aligns with core principles
+(determinism, transparency, local-first) and addresses a genuine gap
+(cross-session memory and context continuity).
 
 **Primary value areas**:
+
 1. Enhanced evidence bundles with full audit trails
 2. Plan evolution tracking and time-travel debugging
 3. Gate check history and learning
 4. Cross-session continuity for AI assistants
 
-**Recommended approach**: Phased integration starting with proof-of-concept, then evidence bundles, plan tracking, and finally learning/suggestions.
+**Recommended approach**: Phased integration starting with proof-of-concept,
+then evidence bundles, plan tracking, and finally learning/suggestions.
 
 **Key success factors**:
+
 - Async observation capture (performance)
 - Retention policies (storage)
 - Redaction for secrets (privacy)
@@ -507,12 +561,12 @@ Kindling is a **strong strategic fit** for Anvil. It aligns with core principles
 
 ## Appendix: Kindling Repository Details
 
-**Repository**: https://github.com/EddaCraft/kindling
-**Licence**: Apache 2.0
-**Status**: Work in Progress (10 commits, 1 star)
-**Language**: Likely TypeScript (based on ecosystem)
+**Repository**: https://github.com/EddaCraft/kindling **Licence**: Apache 2.0
+**Status**: Work in Progress (10 commits, 1 star) **Language**: Likely
+TypeScript (based on ecosystem)
 
 **Planned Packages**:
+
 - kindling-core
 - kindling-store-sqlite
 - kindling-provider-local
@@ -521,22 +575,26 @@ Kindling is a **strong strategic fit** for Anvil. It aligns with core principles
 - kindling-cli
 
 **Key Files**:
+
 - `plans/index.aps.md` — Planning document (possibly APS format)
 - `docs/architecture.md` — Architecture specification
 - `docs/data-model.md` — Data model definitions
 - `docs/retrieval-contract.md` — Retrieval behaviour contract
 
 **Boundary Conditions** (Explicitly Out of Scope):
+
 - Governance workflows
 - Multi-user access control
 - Cloud deployment
 - Truth assertion or memory curation
 
-These boundaries align well with Anvil's focus on deterministic, local-first tooling.
+These boundaries align well with Anvil's focus on deterministic, local-first
+tooling.
 
 ---
 
 **Sources**:
+
 - [GitHub - EddaCraft/kindling](https://github.com/EddaCraft/kindling)
 - [GitHub - basicmachines-co/basic-memory](https://github.com/basicmachines-co/basic-memory)
 - [GitHub - mem0ai/mem0](https://github.com/mem0ai/mem0)

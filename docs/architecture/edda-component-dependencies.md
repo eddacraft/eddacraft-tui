@@ -1,8 +1,9 @@
 # Edda Component Dependency Map
 
-**Version:** 1.0.0
-**Purpose:** Visual and structural dependency mapping for implementation planning
-**Related:** `/docs/architecture/edda-system-architecture.md`, `/plans/edda-phase-breakdown.md`
+**Version:** 1.0.0 **Purpose:** Visual and structural dependency mapping for
+implementation planning **Related:**
+`/docs/architecture/edda-system-architecture.md`,
+`/plans/edda-phase-breakdown.md`
 
 ---
 
@@ -73,32 +74,36 @@ External Dependencies:
 ### 1. Storage Layer (Phase 0)
 
 **Components:**
+
 - Git Storage Adapter
 - SQLite Index
 - Storage Port Implementation
 
 **Dependencies:**
+
 - Git CLI
 - SQLite library
 - File system access
 
 **Dependents:**
+
 - Memory Manager
 - All higher layers
 
 **Interfaces:**
+
 ```typescript
 interface IStorageAdapter {
-  write(path: string, content: string): Promise<void>
-  read(path: string): Promise<string>
-  delete(path: string): Promise<void>
-  commit(message: string): Promise<string>
+  write(path: string, content: string): Promise<void>;
+  read(path: string): Promise<string>;
+  delete(path: string): Promise<void>;
+  commit(message: string): Promise<string>;
 }
 
 interface IIndexAdapter {
-  index(memory: MemoryObjectExtended): Promise<void>
-  query(query: EddaQuery): Promise<MemoryId[]>
-  search(text: string): Promise<MemoryId[]>
+  index(memory: MemoryObjectExtended): Promise<void>;
+  query(query: EddaQuery): Promise<MemoryId[]>;
+  search(text: string): Promise<MemoryId[]>;
 }
 ```
 
@@ -107,29 +112,33 @@ interface IIndexAdapter {
 ### 2. Memory Manager (Phase 0)
 
 **Components:**
+
 - Memory Object Model
 - CRUD Operations
 - Validation Logic
 - Version Management
 
 **Dependencies:**
+
 - Storage Layer
 - Zod (validation)
 
 **Dependents:**
+
 - Query Service
 - Promotion Pipeline
 - Lifecycle Manager
 - All higher layers
 
 **Interfaces:**
+
 ```typescript
 interface IMemoryManager {
-  create(input: MemoryObjectInput): Promise<MemoryObjectExtended>
-  get(id: MemoryId): Promise<MemoryObjectExtended>
-  update(id: MemoryId, patch: MemoryObjectPatch): Promise<MemoryObjectExtended>
-  delete(id: MemoryId): Promise<void>
-  list(filter?: MemoryFilter): Promise<MemoryObjectExtended[]>
+  create(input: MemoryObjectInput): Promise<MemoryObjectExtended>;
+  get(id: MemoryId): Promise<MemoryObjectExtended>;
+  update(id: MemoryId, patch: MemoryObjectPatch): Promise<MemoryObjectExtended>;
+  delete(id: MemoryId): Promise<void>;
+  list(filter?: MemoryFilter): Promise<MemoryObjectExtended[]>;
 }
 ```
 
@@ -138,6 +147,7 @@ interface IMemoryManager {
 ### 3. Authority & Trust Service (Phase 2)
 
 **Components:**
+
 - Principal Registry
 - Role Manager
 - Permission Checker
@@ -145,37 +155,40 @@ interface IMemoryManager {
 - Audit Logger
 
 **Dependencies:**
+
 - Storage Layer (for principals, roles, audit logs)
 - Memory Manager
 - Identity Provider (external)
 
 **Dependents:**
+
 - All write operations (permission checks)
 - Promotion Pipeline (trust scoring)
 - Enforcement Hooks (authority checks)
 
 **Interfaces:**
+
 ```typescript
 interface IAuthorityService {
   // Principals
-  resolvePrincipal(identifier: string): Promise<Principal>
-  registerPrincipal(principal: Principal): Promise<void>
+  resolvePrincipal(identifier: string): Promise<Principal>;
+  registerPrincipal(principal: Principal): Promise<void>;
 
   // Roles
-  assignRole(principal: Principal, role: Role): Promise<void>
-  revokeRole(principal: Principal, roleId: string): Promise<void>
+  assignRole(principal: Principal, role: Role): Promise<void>;
+  revokeRole(principal: Principal, roleId: string): Promise<void>;
 
   // Permissions
-  hasPermission(principal: Principal, permission: Permission): boolean
-  canAccessMemory(principal: Principal, memory: MemoryObjectExtended): boolean
+  hasPermission(principal: Principal, permission: Permission): boolean;
+  canAccessMemory(principal: Principal, memory: MemoryObjectExtended): boolean;
 
   // Trust
-  getTrustProfile(agentId: string): Promise<AgentTrustProfile>
-  updateTrustProfile(agentId: string, event: TrustEvent): Promise<void>
+  getTrustProfile(agentId: string): Promise<AgentTrustProfile>;
+  updateTrustProfile(agentId: string, event: TrustEvent): Promise<void>;
 
   // Audit
-  audit(entry: AuditEntry): Promise<void>
-  queryAudit(query: AuditQuery): Promise<AuditEntry[]>
+  audit(entry: AuditEntry): Promise<void>;
+  queryAudit(query: AuditQuery): Promise<AuditEntry[]>;
 }
 ```
 
@@ -184,6 +197,7 @@ interface IAuthorityService {
 ### 4. Query & Retrieval Service (Phase 3)
 
 **Components:**
+
 - Query Builder
 - Full-Text Search
 - Semantic Search (optional)
@@ -191,6 +205,7 @@ interface IAuthorityService {
 - Provenance Tracer
 
 **Dependencies:**
+
 - Memory Manager
 - SQLite Index (for FTS)
 - Embedding Service (optional, for semantic search)
@@ -198,26 +213,28 @@ interface IAuthorityService {
 - Kindling Port (for provenance)
 
 **Dependents:**
+
 - CLI commands
 - REST API
 - Enforcement Hooks (memory matching)
 - Promotion Pipeline (conflict detection)
 
 **Interfaces:**
+
 ```typescript
 interface IQueryService {
   // Basic queries
-  query(query: EddaQuery): Promise<EddaQueryResult>
-  search(text: string): Promise<SemanticResult>
+  query(query: EddaQuery): Promise<EddaQueryResult>;
+  search(text: string): Promise<SemanticResult>;
 
   // Conflict detection
-  detectConflicts(query: ConflictQuery): Promise<ConflictResult>
+  detectConflicts(query: ConflictQuery): Promise<ConflictResult>;
 
   // Temporal
-  queryTemporal(query: TemporalQuery): Promise<TemporalResult>
+  queryTemporal(query: TemporalQuery): Promise<TemporalResult>;
 
   // Provenance
-  traceProvenance(query: ProvenanceQuery): Promise<ProvenanceResult>
+  traceProvenance(query: ProvenanceQuery): Promise<ProvenanceResult>;
 }
 ```
 
@@ -226,6 +243,7 @@ interface IQueryService {
 ### 5. Promotion Pipeline (Phase 1)
 
 **Components:**
+
 - Promotion Request Manager
 - Type Mapper (Ember → Edda)
 - Diff Generator
@@ -233,6 +251,7 @@ interface IQueryService {
 - Rejection Tracker
 
 **Dependencies:**
+
 - Memory Manager
 - Authority Service (permissions)
 - Query Service (conflict detection)
@@ -240,34 +259,39 @@ interface IQueryService {
 - Kindling Port (provenance validation)
 
 **Dependents:**
+
 - CLI review commands
 - Agent proposal submissions
 
 **Interfaces:**
+
 ```typescript
 interface IPromotionService {
   // Requests
   createPromotionRequest(
     proposalId: ProposalId,
     requestedBy: Principal
-  ): Promise<PromotionRequest>
+  ): Promise<PromotionRequest>;
 
   // Review
-  startReview(requestId: PromotionRequestId, reviewer: Principal): Promise<void>
+  startReview(
+    requestId: PromotionRequestId,
+    reviewer: Principal
+  ): Promise<void>;
   submitReview(
     requestId: PromotionRequestId,
     review: PromotionReview
-  ): Promise<PromotionResult>
+  ): Promise<PromotionResult>;
 
   // Queries
-  listPendingReviews(): Promise<PromotionRequest[]>
-  getPromotionDiff(requestId: PromotionRequestId): Promise<PromotionDiff>
+  listPendingReviews(): Promise<PromotionRequest[]>;
+  getPromotionDiff(requestId: PromotionRequestId): Promise<PromotionDiff>;
 
   // Rejection
   recordRejection(
     proposalId: ProposalId,
     rejection: RejectionRecord
-  ): Promise<void>
+  ): Promise<void>;
 }
 ```
 
@@ -276,6 +300,7 @@ interface IPromotionService {
 ### 6. Enforcement Hooks (Phase 4)
 
 **Components:**
+
 - Hook Registry
 - Hook Execution Engine
 - Trigger Evaluator
@@ -283,34 +308,37 @@ interface IPromotionService {
 - Override Manager
 
 **Dependencies:**
+
 - Memory Manager
 - Query Service (memory matching)
 - Authority Service (override permissions)
 - Anvil Gate System (integration)
 
 **Dependents:**
+
 - Anvil execution pipeline
 
 **Interfaces:**
+
 ```typescript
 interface IEnforcementService {
   // Hook management
-  registerHook(hook: EnforcementHook): Promise<void>
-  updateHook(hookId: HookId, updates: Partial<EnforcementHook>): Promise<void>
-  deleteHook(hookId: HookId): Promise<void>
-  listHooks(filter?: HookFilter): Promise<EnforcementHook[]>
+  registerHook(hook: EnforcementHook): Promise<void>;
+  updateHook(hookId: HookId, updates: Partial<EnforcementHook>): Promise<void>;
+  deleteHook(hookId: HookId): Promise<void>;
+  listHooks(filter?: HookFilter): Promise<EnforcementHook[]>;
 
   // Execution
   executeHooks(
     event: HookEvent,
     context: ExecutionContext
-  ): Promise<HookExecutionResult>
+  ): Promise<HookExecutionResult>;
 
   // Override
-  requestOverride(request: OverrideRequest): Promise<OverrideDecision>
+  requestOverride(request: OverrideRequest): Promise<OverrideDecision>;
 
   // Guidance
-  getGuidance(context: PlanningContext): Promise<GuidanceResponse>
+  getGuidance(context: PlanningContext): Promise<GuidanceResponse>;
 }
 ```
 
@@ -319,6 +347,7 @@ interface IEnforcementService {
 ### 7. Lifecycle Manager (Phase 5)
 
 **Components:**
+
 - Deprecation Workflow
 - Review Scheduler
 - Supersession Handler
@@ -326,32 +355,35 @@ interface IEnforcementService {
 - Forgetting Engine
 
 **Dependencies:**
+
 - Memory Manager
 - Authority Service (permissions)
 - Query Service (impact analysis)
 - Enforcement Hooks (hook migration)
 
 **Dependents:**
+
 - CLI lifecycle commands
 - Automated review triggers
 
 **Interfaces:**
+
 ```typescript
 interface ILifecycleService {
   // Deprecation
-  proposeDeprecation(request: DeprecationRequest): Promise<void>
-  retireMemory(id: MemoryId, reason: string, by: Principal): Promise<void>
+  proposeDeprecation(request: DeprecationRequest): Promise<void>;
+  retireMemory(id: MemoryId, reason: string, by: Principal): Promise<void>;
 
   // Supersession
-  supersedeMemory(request: SupersessionRequest): Promise<SupersessionResult>
+  supersedeMemory(request: SupersessionRequest): Promise<SupersessionResult>;
 
   // Review
-  scheduleReview(id: MemoryId, policy: ReviewPolicy): Promise<void>
-  getReviewsDue(): Promise<ReviewSchedule[]>
+  scheduleReview(id: MemoryId, policy: ReviewPolicy): Promise<void>;
+  getReviewsDue(): Promise<ReviewSchedule[]>;
 
   // Staleness
-  detectStaleness(): Promise<StalenessFactor[]>
-  getRetirementCandidates(): Promise<ForgettingReport>
+  detectStaleness(): Promise<StalenessFactor[]>;
+  getRetirementCandidates(): Promise<ForgettingReport>;
 }
 ```
 
@@ -359,18 +391,18 @@ interface ILifecycleService {
 
 ## Dependency Matrix
 
-| Component | Depends On | Used By |
-|-----------|------------|---------|
-| **Git Storage** | Git CLI, FS | Memory Manager |
-| **SQLite Index** | SQLite library | Memory Manager, Query Service |
-| **Memory Manager** | Storage Layer | All higher layers |
-| **Authority Service** | Storage, Memory Manager, Identity Provider | All write ops, Promotion, Enforcement |
-| **Query Service** | Memory Manager, SQLite, Ember/Kindling Ports | CLI, API, Enforcement, Promotion |
-| **Promotion Pipeline** | Memory Manager, Authority, Query, Ember/Kindling | CLI, Agents |
-| **Enforcement Hooks** | Memory Manager, Query, Authority, Anvil | Anvil execution |
-| **Lifecycle Manager** | Memory Manager, Authority, Query, Enforcement | CLI, Scheduled jobs |
-| **CLI** | All services | Users |
-| **REST API** | All services | External clients |
+| Component              | Depends On                                       | Used By                               |
+| ---------------------- | ------------------------------------------------ | ------------------------------------- |
+| **Git Storage**        | Git CLI, FS                                      | Memory Manager                        |
+| **SQLite Index**       | SQLite library                                   | Memory Manager, Query Service         |
+| **Memory Manager**     | Storage Layer                                    | All higher layers                     |
+| **Authority Service**  | Storage, Memory Manager, Identity Provider       | All write ops, Promotion, Enforcement |
+| **Query Service**      | Memory Manager, SQLite, Ember/Kindling Ports     | CLI, API, Enforcement, Promotion      |
+| **Promotion Pipeline** | Memory Manager, Authority, Query, Ember/Kindling | CLI, Agents                           |
+| **Enforcement Hooks**  | Memory Manager, Query, Authority, Anvil          | Anvil execution                       |
+| **Lifecycle Manager**  | Memory Manager, Authority, Query, Enforcement    | CLI, Scheduled jobs                   |
+| **CLI**                | All services                                     | Users                                 |
+| **REST API**           | All services                                     | External clients                      |
 
 ---
 
@@ -390,8 +422,8 @@ Phase 4: Enforcement Hooks
 Phase 6: Export/Import
 ```
 
-**Duration:** ~12 weeks
-**Deliverable:** Working Edda with promotion, enforcement, and basic governance
+**Duration:** ~12 weeks **Deliverable:** Working Edda with promotion,
+enforcement, and basic governance
 
 ### Full Feature Set
 
@@ -409,8 +441,8 @@ Phase 0: Storage + Memory Manager
                           Phase 7: Meta (optional)
 ```
 
-**Duration:** ~19 weeks (excluding Phase 7)
-**Deliverable:** Complete Edda system with all planned features
+**Duration:** ~19 weeks (excluding Phase 7) **Deliverable:** Complete Edda
+system with all planned features
 
 ---
 
@@ -421,16 +453,18 @@ Phase 0: Storage + Memory Manager
 **Purpose:** Source of promotion proposals
 
 **Contract:**
+
 ```typescript
 interface IEmberPort {
-  getProposal(id: ProposalId): Promise<CandidateProposal>
-  getActiveProposals(): Promise<CandidateProposal[]>
-  markPromoted(id: ProposalId, memoryId: MemoryId): Promise<void>
-  markDismissed(id: ProposalId, reason: string): Promise<void>
+  getProposal(id: ProposalId): Promise<CandidateProposal>;
+  getActiveProposals(): Promise<CandidateProposal[]>;
+  markPromoted(id: ProposalId, memoryId: MemoryId): Promise<void>;
+  markDismissed(id: ProposalId, reason: string): Promise<void>;
 }
 ```
 
 **Integration Points:**
+
 - Promotion Pipeline: fetch proposals
 - Promotion Pipeline: update proposal status
 - Trust Service: track agent performance
@@ -442,14 +476,16 @@ interface IEmberPort {
 **Purpose:** Provenance validation
 
 **Contract:**
+
 ```typescript
 interface IKindlingPort {
-  getObservation(id: ObservationId): Promise<Observation>
-  queryObservations(query: ObservationQuery): Promise<Observation[]>
+  getObservation(id: ObservationId): Promise<Observation>;
+  queryObservations(query: ObservationQuery): Promise<Observation[]>;
 }
 ```
 
 **Integration Points:**
+
 - Promotion Pipeline: validate provenance chain
 - Provenance Tracing: fetch source observations
 
@@ -460,20 +496,22 @@ interface IKindlingPort {
 **Purpose:** Enforcement integration
 
 **Contract:**
+
 ```typescript
 interface IAnvilGateSystem {
-  registerPreExecutionHook(hook: PreExecutionHook): void
-  registerFileChangeHook(hook: FileChangeHook): void
-  registerPlanningHook(hook: PlanningHook): void
+  registerPreExecutionHook(hook: PreExecutionHook): void;
+  registerFileChangeHook(hook: FileChangeHook): void;
+  registerPlanningHook(hook: PlanningHook): void;
 }
 
 type PreExecutionHook = (
   action: Action,
   context: ActionContext
-) => Promise<HookExecutionResult>
+) => Promise<HookExecutionResult>;
 ```
 
 **Integration Points:**
+
 - Enforcement Hooks: pre-action checks
 - Enforcement Hooks: file change checks
 - Enforcement Hooks: planning guidance
@@ -485,15 +523,17 @@ type PreExecutionHook = (
 **Purpose:** Authentication and principal resolution
 
 **Contract:**
+
 ```typescript
 interface IIdentityProvider {
-  authenticate(token: string): Promise<Principal>
-  resolvePrincipal(identifier: string): Promise<PrincipalInfo>
-  listTeamMembers(teamId: string): Promise<Principal[]>
+  authenticate(token: string): Promise<Principal>;
+  resolvePrincipal(identifier: string): Promise<PrincipalInfo>;
+  listTeamMembers(teamId: string): Promise<Principal[]>;
 }
 ```
 
 **Integration Points:**
+
 - Authority Service: principal resolution
 - Authority Service: team membership
 - API: authentication
@@ -712,18 +752,19 @@ packages/
 ```
 
 **Usage:**
+
 ```typescript
-import { createTestMemory, createTestPrincipal } from '@anvil/edda-testing'
-import { MockStorageAdapter } from '@anvil/edda-testing/mocks'
+import { createTestMemory, createTestPrincipal } from '@anvil/edda-testing';
+import { MockStorageAdapter } from '@anvil/edda-testing/mocks';
 
 test('memory creation', async () => {
-  const storage = new MockStorageAdapter()
-  const manager = new MemoryManager(storage)
+  const storage = new MockStorageAdapter();
+  const manager = new MemoryManager(storage);
 
-  const memory = await manager.create(createTestMemory())
+  const memory = await manager.create(createTestMemory());
 
-  expect(memory.id).toMatch(/^EDDA-M-/)
-})
+  expect(memory.id).toMatch(/^EDDA-M-/);
+});
 ```
 
 ---
@@ -733,11 +774,13 @@ test('memory creation', async () => {
 ### Runtime Dependencies
 
 **Required:**
+
 - Node.js ≥18
 - Git CLI
 - SQLite3
 
 **Optional:**
+
 - Embedding service (Ollama or OpenAI API) for semantic search
 - Redis (for distributed caching, future)
 - PostgreSQL (alternative to SQLite for large deployments, future)
@@ -745,11 +788,13 @@ test('memory creation', async () => {
 ### Configuration Dependencies
 
 **Required:**
+
 - `.edda/` directory (git repository)
 - Identity provider configuration
 - Anvil integration enabled
 
 **Optional:**
+
 - Embedding service credentials
 - Custom role definitions
 - Custom enforcement hooks
@@ -809,20 +854,21 @@ test('memory creation', async () => {
 
 ## Success Criteria by Component
 
-| Component | Success Metric | Target |
-|-----------|---------------|--------|
-| Storage | Write latency | <100ms p95 |
-| Memory Manager | CRUD latency | <50ms p95 |
-| Authority | Permission check | <10ms p95 |
-| Query | Search latency | <200ms p95 |
-| Promotion | Review UX | <5min per review |
-| Enforcement | Hook overhead | <50ms p95 |
-| Lifecycle | Staleness detection | >90% accuracy |
-| API | Response time | <500ms p95 |
+| Component      | Success Metric      | Target           |
+| -------------- | ------------------- | ---------------- |
+| Storage        | Write latency       | <100ms p95       |
+| Memory Manager | CRUD latency        | <50ms p95        |
+| Authority      | Permission check    | <10ms p95        |
+| Query          | Search latency      | <200ms p95       |
+| Promotion      | Review UX           | <5min per review |
+| Enforcement    | Hook overhead       | <50ms p95        |
+| Lifecycle      | Staleness detection | >90% accuracy    |
+| API            | Response time       | <500ms p95       |
 
 ---
 
 **Next Steps:**
+
 1. Review this dependency map with team
 2. Identify resource allocation per component
 3. Establish component ownership
@@ -830,5 +876,4 @@ test('memory creation', async () => {
 
 ---
 
-**Document Owner:** Architecture Team
-**Last Updated:** 2026-01-19
+**Document Owner:** Architecture Team **Last Updated:** 2026-01-19
