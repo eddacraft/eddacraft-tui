@@ -776,7 +776,7 @@ For initial release, focus on highest-impact, most-unique capabilities:
 
 ## References
 
-- **[ClawdHub Supply Chain Attack - Jamieson O'Reilly](https://x.com/theonejvo/status/2015892980851474595)** - Primary inspiration for supply chain defense features
+- **[ClawdHub Supply Chain Attack - Jamieson O'Reilly](https://x.com/theonejvo/status/2015892980851474595)** - Primary inspiration for supply chain defence features
 - [OpenAI: Hardening Atlas Against Prompt Injection](https://openai.com/index/hardening-atlas-against-prompt-injection/)
 - [OpenAI: Understanding Prompt Injections](https://openai.com/index/prompt-injections/)
 - [MCP Security Vulnerabilities](https://www.practical-devsecops.com/mcp-security-vulnerabilities/)
