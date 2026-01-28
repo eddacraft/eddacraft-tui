@@ -197,3 +197,67 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
+
+  # TUI E2E tests using tuistory
+  tui-tests:
+    name: TUI E2E Tests
+    runs-on: ubuntu-latest
+    needs: [detect-changes, lint-and-test]
+    if: needs.detect-changes.outputs.code-changed == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install system dependencies for node-pty
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Rebuild node-pty for tuistory
+        run: |
+          cd node_modules/tuistory/node_modules/node-pty && npm rebuild
+
+      - name: Build CLI
+        run: |
+          cd packages/eslint-plugin-anvil && pnpm build
+          cd ../anvil/contracts && tsc -b tsconfig.lib.json
+          cd ../core && tsc -b tsconfig.lib.json
+          cd ../ports && tsc -b tsconfig.lib.json
+          cd ../policy && tsc -b tsconfig.lib.json
+          cd ../runtime && tsc -b tsconfig.lib.json
+          cd ../../../adapters && tsc -b tsconfig.lib.json
+          cd ../aps && tsc -b tsconfig.lib.json
+          cd ../edda-stack && tsc -b
+          cd ../../apps/anvil-cli && tsc
+
+      - name: Run TUI E2E tests
+        run: |
+          pnpm vitest run apps/anvil-cli/src/__tests__/e2e/tuistory.e2e.test.ts \
+            apps/anvil-cli/src/__tests__/e2e/tui-commands.tuistory.e2e.test.ts
+        timeout-minutes: 10
+        continue-on-error: true
+
+      - name: Run Gate Explorer TUI tests
+        run: |
+          pnpm vitest run apps/anvil-cli/src/__tests__/e2e/gate-explorer.tuistory.e2e.test.ts
+        timeout-minutes: 10
+        continue-on-error: true
+
+      - name: Run Init Wizard TUI tests
+        run: |
+          pnpm vitest run apps/anvil-cli/src/__tests__/e2e/init-wizard.tuistory.e2e.test.ts
+        timeout-minutes: 10
+        continue-on-error: true
