@@ -48,6 +48,7 @@ Thumbs.db
 .opencode
 docs/analysis/claude-code-safety-net-review.md
 .anvil/tutorial-progress.json
+.anvil/cache/
 
 # Claude (local)
 .claude/settings.local.json
