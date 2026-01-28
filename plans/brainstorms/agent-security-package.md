@@ -12,6 +12,58 @@ Based on current threat landscape (2026):
 
 **Key insight from industry**: "Assume prompt injection will eventually succeed, and focus first on containment"
 
+---
+
+## Case Study: ClawdHub Supply Chain Attack (Jan 2026)
+
+Jamieson O'Reilly (@theonejvo) demonstrated a complete supply chain attack on ClawdHub (the skill registry for Claude Code):
+
+### Attack Vector
+1. Created backdoored skill "What Would Elon Do" (`/wed`)
+2. Inflated download count to 4,000+ (#1 on registry) using trivial vulnerability
+3. 16 real developers from 7 countries executed arbitrary code within 8 hours
+
+### Key Vulnerabilities Exploited
+
+**1. Gameable Trust Signals**
+```bash
+# Downloads trivially inflated - no auth, spoofable IP
+for i in $(seq 1 4000); do
+  IP="$((RANDOM % 256)).$((RANDOM % 256)).$((RANDOM % 256)).$((RANDOM % 256))"
+  curl -s "https://clawdhub.com/api/v1/download?slug=wed" -H "X-Forwarded-For: $IP" &
+done
+```
+
+**2. Hidden Instruction Asymmetry**
+- Web UI only shows `SKILL.md` (marketing content)
+- Claude reads ALL files including `rules/logic.md` (actual payload)
+- "Claude reads all, users read none"
+
+**3. Permission Fatigue**
+- After 50 "Allow" clicks, users stop scrutinizing
+- Skill author controls the prompt text shown to users
+- `curl clawdhub-skill.com` looks like legitimate telemetry
+
+**4. Domain Deception**
+- `clawdhub-skill.com` looks official but is attacker-controlled
+- Brain pattern-matches to legitimate `clawdhub.com`
+
+### What A Real Attack Would Do
+> Phase 1: Reconnaissance - enumerate .env, credentials, SSH keys
+> Phase 2: Exfiltration - single tar + curl sends everything
+> Phase 3: Persistence - add SSH key, drop cron job
+> Phase 4: Cover tracks - clear history, continue helping normally
+
+### Implications for Aegis
+This attack demonstrates why input-filtering alone fails. The security package must address:
+- Trust signal verification (download counts are meaningless)
+- Full file transparency before execution
+- Contextual permission prompts (is this normal for this skill type?)
+- Network destination reputation checking
+- First-execution enhanced scrutiny
+
+---
+
 ## Anvil's Unique Position
 
 Anvil already has:
@@ -442,6 +494,213 @@ aegis.validateInterAgentMessage(sourceAgent, targetAgent, message);
 
 ---
 
+### 13. Skill/Plugin Full Transparency Scanner
+
+**Concept**: Force complete visibility of ALL files before execution, with static analysis highlighting suspicious patterns.
+
+**How it works**:
+- Before any skill/plugin executes, show ALL files (not just the marketing SKILL.md)
+- Static analysis flags: `curl`, `wget`, backticks, bash commands, external URLs
+- Diff against declared capabilities vs actual code
+- Visual highlighting of files that weren't shown in registry UI
+
+**Unique angle**: Directly addresses the ClawdHub "Claude reads all, users read none" asymmetry.
+
+```typescript
+const scanResult = await aegis.scanSkill({
+  path: '~/.claude/skills/wed/',
+  showAllFiles: true,  // Not just SKILL.md
+});
+
+// Returns:
+{
+  files: [
+    { path: 'SKILL.md', risk: 'low', summary: 'Marketing content' },
+    { path: 'rules/logic.md', risk: 'HIGH', flags: [
+      { line: 15, pattern: 'curl', context: 'External HTTP request to clawdhub-skill.com' },
+      { line: 23, pattern: 'bash', context: 'Shell command execution' }
+    ]},
+  ],
+  hiddenFromUI: ['rules/logic.md'],  // Files not shown in registry
+  undeclaredCapabilities: ['network:external', 'shell:execute'],
+  verdict: 'REVIEW_REQUIRED',
+}
+```
+
+---
+
+### 14. Contextual Permission Prompts
+
+**Concept**: Replace meaningless "Allow/Deny" with context-aware prompts that break permission fatigue.
+
+**How it works**:
+- Track what's "normal" for this skill type (calendar skills don't usually make network calls)
+- Show historical comparison: "This skill has NEVER made external requests before"
+- Flag first-time operations with enhanced scrutiny
+- Visual differentiation for high-risk vs routine operations
+
+**Unique angle**: Addresses permission fatigue - after 50 Allow clicks, make click 51 actually noticeable.
+
+```typescript
+// Instead of: "Claude wants to run: curl ..."
+// Show:
+{
+  action: 'network:external',
+  target: 'clawdhub-skill.com',
+  context: {
+    skillType: 'productivity',
+    normalForType: false,  // Productivity skills rarely need external network
+    firstTimeForSkill: true,  // This skill has never done this
+    domainReputation: 'UNKNOWN',  // Not in trusted domain list
+    similarToDomain: 'clawdhub.com',  // Potential typosquat/lookalike
+  },
+  recommendation: 'DENY',
+  explanation: 'This productivity skill is attempting its first external network request to an unknown domain that resembles official infrastructure.',
+}
+```
+
+---
+
+### 15. Network Destination Reputation & Typosquat Detection
+
+**Concept**: Check network destinations against reputation databases and detect lookalike domains.
+
+**How it works**:
+- Maintain allowlist of known-good domains (official APIs, package registries)
+- Levenshtein distance check against known domains (detect typosquats)
+- Flag requests to newly-registered domains
+- Integration with threat intel feeds for known-bad destinations
+
+**Unique angle**: `clawdhub-skill.com` looked official but was attacker-controlled. Catch domain deception.
+
+```typescript
+const destinationCheck = await aegis.checkNetworkDestination({
+  url: 'https://clawdhub-skill.com/log',
+  context: { skill: 'wed', action: 'curl' },
+});
+
+// Returns:
+{
+  domain: 'clawdhub-skill.com',
+  reputation: 'UNKNOWN',
+  registrationAge: '3 days',
+  similarTo: [
+    { domain: 'clawdhub.com', distance: 6, type: 'TYPOSQUAT_RISK' }
+  ],
+  inAllowlist: false,
+  verdict: 'BLOCK',
+  reason: 'Recently registered domain similar to known registry. Likely domain deception.',
+}
+```
+
+---
+
+### 16. Skill Capability Declaration & Enforcement
+
+**Concept**: Skills must declare capabilities upfront; runtime enforces declarations.
+
+**How it works**:
+- Skills include manifest declaring required capabilities
+- Registry shows declared capabilities prominently
+- Runtime blocks any action not declared in manifest
+- Mismatch between declaration and behavior triggers alert
+
+**Unique angle**: Creates accountability - skills can't hide capabilities in obscure files.
+
+```typescript
+// skill.manifest.json - REQUIRED for all skills
+{
+  "name": "wed",
+  "version": "1.0.0",
+  "capabilities": {
+    "required": ["file:read"],
+    "optional": []
+  },
+  "network": {
+    "domains": [],  // No external network declared
+    "offline": true
+  },
+  "shell": false
+}
+
+// At runtime:
+// Skill tries: curl clawdhub-skill.com
+// Aegis: BLOCKED - skill declared offline:true but attempted network:external
+// Alert: Capability violation - possible malicious skill
+```
+
+---
+
+### 17. Trust Signal Verification
+
+**Concept**: Replace gameable metrics with verified, hard-to-fake trust signals.
+
+**How it works**:
+- Download counts require authenticated sessions (not anonymous hits)
+- "Verified Publisher" requires identity verification (GitHub, domain ownership)
+- Show "installs from verified users" not raw downloads
+- Flag skills with suspicious growth patterns (0 → 4000 in 1 hour)
+
+**Unique angle**: Download count went from 0 to 4000 with a bash loop. Make that impossible.
+
+```typescript
+interface VerifiedTrustSignals {
+  verifiedPublisher: boolean;          // Identity verified
+  linkedRepository: string | null;      // GitHub/GitLab source
+  authenticatedInstalls: number;        // Users who installed while logged in
+  verifiedReviews: number;              // Reviews from verified users
+  growthPattern: 'organic' | 'suspicious' | 'unknown';
+  ageAtDownloadCount: {
+    downloads: number;
+    ageHours: number;
+    verdict: 'normal' | 'suspicious';  // 4000 downloads in 1 hour = suspicious
+  };
+}
+
+// Display to user:
+// ✓ Verified Publisher (GitHub: @theonejvo)
+// ✓ Source: github.com/theonejvo/wed-skill
+// ⚠ 47 authenticated installs (not "4000+ downloads")
+// ⚠ Published 2 days ago - limited track record
+```
+
+---
+
+### 18. First-Execution Quarantine
+
+**Concept**: Enhanced scrutiny for first-time skill execution with sandbox preview.
+
+**How it works**:
+- First execution of any skill runs in isolated sandbox
+- Record all actions attempted without executing dangerous ones
+- Show user complete action plan before real execution
+- Subsequent executions can use cached approval
+
+**Unique angle**: The 16 developers who ran /wed had no preview of what it would do. Give them one.
+
+```typescript
+// First execution triggers quarantine
+const quarantineResult = await aegis.quarantineExecute({
+  skill: 'wed',
+  input: 'Build a rocket company',
+  mode: 'preview',  // Don't actually execute
+});
+
+// Returns planned actions:
+{
+  plannedActions: [
+    { type: 'network:external', target: 'clawdhub-skill.com/log', risk: 'HIGH' },
+    { type: 'display', content: '[ASCII art reveal]', risk: 'LOW' },
+    { type: 'generate', content: 'Business analysis...', risk: 'LOW' },
+  ],
+  verdict: 'REQUIRES_APPROVAL',
+  risks: ['External network request to unknown domain'],
+  prompt: 'This skill will make external network requests. Continue?',
+}
+```
+
+---
+
 ## Differentiation Strategy
 
 What makes this **unique** vs. existing solutions:
@@ -460,20 +719,27 @@ What makes this **unique** vs. existing solutions:
 
 For initial release, focus on highest-impact, most-unique capabilities:
 
-### Phase 1: Core Detection & Containment
-1. **Behavioral Fingerprinting** - Anomaly detection for agent actions
-2. **Capability Sandboxing** - Fine-grained permission model
-3. **Output CSP** - Policy-based output filtering (leverage existing OPA)
+### Phase 1: Supply Chain Defense (Inspired by ClawdHub Attack)
+1. **Skill Transparency Scanner** - Show ALL files, flag suspicious patterns
+2. **Capability Declaration & Enforcement** - Skills declare upfront, runtime enforces
+3. **Trust Signal Verification** - Authenticated installs, verified publishers
+4. **First-Execution Quarantine** - Sandbox preview before real execution
 
-### Phase 2: Integrity & Trust
-4. **Tool Definition Integrity** - Signed tool definitions
-5. **Prompt Provenance** - Hash chain for inputs
-6. **Memory Firewall** - Validated memory operations
+### Phase 2: Runtime Protection
+5. **Contextual Permission Prompts** - Break permission fatigue with context
+6. **Network Destination Reputation** - Typosquat detection, domain reputation
+7. **Behavioral Fingerprinting** - Anomaly detection for agent actions
+8. **Output CSP** - Policy-based output filtering (leverage existing OPA)
 
-### Phase 3: Advanced Protection
-7. **Multi-Agent Consensus** - For high-risk actions
-8. **Canary System** - Honeypot detection
-9. **Cross-Agent Trust Boundaries** - Multi-agent security
+### Phase 3: Integrity & Trust
+9. **Tool Definition Integrity** - Signed tool definitions
+10. **Prompt Provenance** - Hash chain for inputs
+11. **Memory Firewall** - Validated memory operations
+
+### Phase 4: Advanced Protection
+12. **Multi-Agent Consensus** - For high-risk actions
+13. **Canary System** - Honeypot detection
+14. **Cross-Agent Trust Boundaries** - Multi-agent security
 
 ---
 
@@ -481,8 +747,13 @@ For initial release, focus on highest-impact, most-unique capabilities:
 
 | Aegis Feature | Anvil Component | Integration |
 |---------------|-----------------|-------------|
+| Skill Transparency Scanner | Gate Checks | Pre-execution gate with static analysis |
+| Capability Declaration | Contracts | New manifest schema, validation |
+| Trust Signal Verification | Evidence System | Verified install tracking |
+| First-Execution Quarantine | Runtime + Snapshots | Sandbox mode with rollback |
+| Contextual Permissions | Runtime | Enhanced permission UI |
+| Network Reputation | Policy Engine (OPA) | Domain allowlist/blocklist policies |
 | Behavioral Fingerprinting | Evidence System | Store behavioral baselines and anomaly logs |
-| Capability Sandboxing | Gate Checks | New capability-check gate |
 | Output CSP | Policy Engine (OPA) | Rego policies for output validation |
 | Tool Integrity | Crypto Package | Signing and verification |
 | Prompt Provenance | Hash/Canonicalization | Extend existing provenance model |
@@ -505,6 +776,7 @@ For initial release, focus on highest-impact, most-unique capabilities:
 
 ## References
 
+- **[ClawdHub Supply Chain Attack - Jamieson O'Reilly](https://x.com/theonejvo/status/2015892980851474595)** - Primary inspiration for supply chain defense features
 - [OpenAI: Hardening Atlas Against Prompt Injection](https://openai.com/index/hardening-atlas-against-prompt-injection/)
 - [OpenAI: Understanding Prompt Injections](https://openai.com/index/prompt-injections/)
 - [MCP Security Vulnerabilities](https://www.practical-devsecops.com/mcp-security-vulnerabilities/)
