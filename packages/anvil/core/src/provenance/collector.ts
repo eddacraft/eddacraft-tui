@@ -393,7 +393,9 @@ export function formatProvenanceRecord(record: ProvenanceRecord): string {
  * enabling AI-generated code to be tracked in Git Notes.
  *
  * @param params - Parameters for creating the authorship log
+ * @param params.commitSha - Full 40-character commit SHA (use `git rev-parse` to resolve short refs)
  * @returns AuthorshipLog if AI tool is detected, null otherwise
+ * @throws Error if commitSha is not a valid 40-character hex SHA
  */
 export function createAuthorshipLog(params: {
   commitSha: string;
@@ -403,13 +405,27 @@ export function createAuthorshipLog(params: {
   totalAdditions?: number;
   totalDeletions?: number;
 }): AuthorshipLog | null {
-  const { commitSha, fileLineMap, messages, humanAuthor, totalAdditions = 0, totalDeletions = 0 } =
-    params;
+  const {
+    commitSha,
+    fileLineMap,
+    messages,
+    humanAuthor,
+    totalAdditions = 0,
+    totalDeletions = 0,
+  } = params;
+
+  // Validate commit SHA is a full 40-character hex string
+  if (!/^[a-f0-9]{40}$/.test(commitSha)) {
+    throw new Error(
+      `commitSha must be a full 40-character hex SHA, got: "${commitSha}". ` +
+        'Use `git rev-parse <ref>` to resolve short refs or branch names.'
+    );
+  }
 
   // Try to detect the current AI agent
   const agent = detectCurrentAgent();
   if (!agent) {
-    debug('provenance', 'No AI agent detected, skipping authorship log creation');
+    debug('No AI agent detected, skipping authorship log creation');
     return null;
   }
 
@@ -432,18 +448,15 @@ export function createAuthorshipLog(params: {
     total_additions: totalAdditions,
     total_deletions: totalDeletions,
     accepted_lines: totalAdditions, // Assume all lines accepted initially
-    overriden_lines: 0,
+    overridden_lines: 0,
     human_author: humanAuthor,
   };
-
-  // Ensure commit SHA is 40 characters
-  const normalizedSha = commitSha.padEnd(40, '0').slice(0, 40);
 
   return {
     attestations,
     metadata: {
       schema_version: SCHEMA_VERSION,
-      base_commit_sha: normalizedSha,
+      base_commit_sha: commitSha,
       prompts: {
         [sessionHash]: promptRecord,
       },
@@ -463,7 +476,7 @@ export async function attachAuthorshipToCommit(
 ): Promise<void> {
   const commitSha = log.metadata.base_commit_sha;
   await writeAuthorshipNote(commitSha, log, workspaceRoot);
-  debug('provenance', `Attached authorship log to commit ${commitSha.slice(0, 8)}`);
+  debug(`Attached authorship log to commit ${commitSha.slice(0, 8)}`);
 }
 
 /**

@@ -84,7 +84,7 @@ export const PromptRecordSchema = z.object({
   total_additions: z.number().int().min(0).describe('Total lines added by AI'),
   total_deletions: z.number().int().min(0).describe('Total lines deleted by AI'),
   accepted_lines: z.number().int().min(0).describe('Lines accepted as-is from AI'),
-  overriden_lines: z.number().int().min(0).describe('Lines human-modified after AI generation'),
+  overridden_lines: z.number().int().min(0).describe('Lines human-modified after AI generation'),
   human_author: z.string().optional().describe('Human author in "Name <email>" format'),
 });
 

@@ -3,13 +3,16 @@
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to
 > implement this plan task-by-task.
 
-**Goal:** Adopt the Git AI Standard v3.0.0 to track AI-generated code contributions
-using Git Notes under `refs/notes/ai`, supplementing our existing provenance system.
+**Goal:** Adopt the Git AI Standard v3.0.0 to track AI-generated code
+contributions using Git Notes under `refs/notes/ai`, supplementing our existing
+provenance system.
 
-**Reference:** [Git AI Standard v3.0.0](https://github.com/git-ai-project/git-ai/blob/main/specs/git_ai_standard_v3.0.0.md)
+**Reference:**
+[Git AI Standard v3.0.0](https://github.com/git-ai-project/git-ai/blob/main/specs/git_ai_standard_v3.0.0.md)
 
-**Architecture:** The standard uses Git Notes to attach authorship logs to commits.
-Each log has two sections:
+**Architecture:** The standard uses Git Notes to attach authorship logs to
+commits. Each log has two sections:
+
 1. **Attestation Section** - Maps files to AI session hashes and line ranges
 2. **Metadata Section** - JSON with prompt records, agent details, and metrics
 
@@ -21,12 +24,12 @@ Each log has two sections:
 
 ### Why Adopt This Standard?
 
-| Current State | With Git AI Standard |
-|---------------|---------------------|
-| Provenance stored in `.anvil/history/` JSON | Provenance also in Git Notes (portable) |
-| AI tool detected but not per-line | Per-line AI attribution with session tracking |
-| No cross-repo portability | Standard format works across tools |
-| Manual audit trail | Native `git log --notes=ai` support |
+| Current State                               | With Git AI Standard                          |
+| ------------------------------------------- | --------------------------------------------- |
+| Provenance stored in `.anvil/history/` JSON | Provenance also in Git Notes (portable)       |
+| AI tool detected but not per-line           | Per-line AI attribution with session tracking |
+| No cross-repo portability                   | Standard format works across tools            |
+| Manual audit trail                          | Native `git log --notes=ai` support           |
 
 ### Integration Points
 
@@ -57,6 +60,7 @@ Each log has two sections:
 ## Task 1: Define Git AI Standard TypeScript Schemas
 
 **Files:**
+
 - Create: `packages/anvil/core/src/provenance/git-ai-standard/types.ts`
 - Create: `packages/anvil/core/src/provenance/git-ai-standard/index.ts`
 
@@ -83,7 +87,8 @@ export const SCHEMA_VERSION = 'authorship/3.0.0';
 /**
  * Session hash - 16-character hex prefix of SHA-256({tool}:{conversation_id})
  */
-export const SessionHashSchema = z.string()
+export const SessionHashSchema = z
+  .string()
   .regex(/^[a-f0-9]{16}$/, 'Session hash must be 16 hex characters')
   .describe('16-character session identifier');
 
@@ -91,7 +96,8 @@ export const SessionHashSchema = z.string()
  * Line range specification (1-indexed)
  * Examples: "42", "19-222", "1,2,19-222,300"
  */
-export const LineRangeSchema = z.string()
+export const LineRangeSchema = z
+  .string()
   .regex(/^(\d+(-\d+)?)(,\d+(-\d+)?)*$/, 'Invalid line range format')
   .describe('Line range specification (e.g., "1-10,15-20")');
 
@@ -130,8 +136,11 @@ export const PromptRecordSchema = z.object({
   total_additions: z.number().int().min(0).describe('Total lines added'),
   total_deletions: z.number().int().min(0).describe('Total lines deleted'),
   accepted_lines: z.number().int().min(0).describe('Lines accepted as-is'),
-  overriden_lines: z.number().int().min(0).describe('Lines human-modified'),
-  human_author: z.string().optional().describe('Author in "Name <email>" format'),
+  overridden_lines: z.number().int().min(0).describe('Lines human-modified'),
+  human_author: z
+    .string()
+    .optional()
+    .describe('Author in "Name <email>" format'),
 });
 
 /**
@@ -139,7 +148,9 @@ export const PromptRecordSchema = z.object({
  */
 export const AuthorshipMetadataSchema = z.object({
   schema_version: z.literal(SCHEMA_VERSION),
-  base_commit_sha: z.string().regex(/^[a-f0-9]{40}$/, 'Must be full 40-char SHA'),
+  base_commit_sha: z
+    .string()
+    .regex(/^[a-f0-9]{40}$/, 'Must be full 40-char SHA'),
   prompts: z.record(SessionHashSchema, PromptRecordSchema),
 });
 
@@ -147,7 +158,8 @@ export const AuthorshipMetadataSchema = z.object({
  * Complete authorship log (attestation + metadata)
  */
 export const AuthorshipLogSchema = z.object({
-  attestations: z.record(z.string(), z.array(FileAttestationSchema))
+  attestations: z
+    .record(z.string(), z.array(FileAttestationSchema))
     .describe('Map of file paths to attestation entries'),
   metadata: AuthorshipMetadataSchema,
 });
@@ -191,12 +203,15 @@ Ref: https://github.com/git-ai-project/git-ai/blob/main/specs/git_ai_standard_v3
 ## Task 2: Implement Authorship Log Serialization
 
 **Files:**
+
 - Create: `packages/anvil/core/src/provenance/git-ai-standard/serializer.ts`
-- Create: `packages/anvil/core/src/provenance/git-ai-standard/__tests__/serializer.test.ts`
+- Create:
+  `packages/anvil/core/src/provenance/git-ai-standard/__tests__/serializer.test.ts`
 
 **Step 1: Write failing serialization test**
 
-Create `packages/anvil/core/src/provenance/git-ai-standard/__tests__/serializer.test.ts`:
+Create
+`packages/anvil/core/src/provenance/git-ai-standard/__tests__/serializer.test.ts`:
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -217,7 +232,7 @@ describe('AuthorshipLog Serializer', () => {
       schema_version: 'authorship/3.0.0',
       base_commit_sha: 'abc123def456789012345678901234567890abcd',
       prompts: {
-        'a1b2c3d4e5f67890': {
+        a1b2c3d4e5f67890: {
           agent_id: {
             tool: 'claude-code',
             id: 'session-123',
@@ -230,7 +245,7 @@ describe('AuthorshipLog Serializer', () => {
           total_additions: 80,
           total_deletions: 0,
           accepted_lines: 75,
-          overriden_lines: 5,
+          overridden_lines: 5,
           human_author: 'Alice <alice@example.com>',
         },
       },
@@ -274,7 +289,9 @@ describe('AuthorshipLog Serializer', () => {
 
       expect(parsed.attestations).toEqual(sampleLog.attestations);
       expect(parsed.metadata.schema_version).toBe('authorship/3.0.0');
-      expect(parsed.metadata.prompts['a1b2c3d4e5f67890'].agent_id.tool).toBe('claude-code');
+      expect(parsed.metadata.prompts['a1b2c3d4e5f67890'].agent_id.tool).toBe(
+        'claude-code'
+      );
     });
   });
 });
@@ -284,7 +301,7 @@ describe('AuthorshipLog Serializer', () => {
 
 Create `packages/anvil/core/src/provenance/git-ai-standard/serializer.ts`:
 
-```typescript
+````typescript
 import type { AuthorshipLog, FileAttestation } from './types.js';
 import { AuthorshipLogSchema, SCHEMA_VERSION } from './types.js';
 
@@ -370,10 +387,12 @@ export function parseAuthorshipLog(content: string): AuthorshipLog {
  * Check if content looks like an authorship log
  */
 export function isAuthorshipLog(content: string): boolean {
-  return content.includes('---\n') &&
-         content.includes(`"schema_version": "${SCHEMA_VERSION}"`);
+  return (
+    content.includes('---\n') &&
+    content.includes(`"schema_version": "${SCHEMA_VERSION}"`)
+  );
 }
-```
+````
 
 **Step 3: Update index exports**
 
@@ -405,8 +424,10 @@ git commit -m "feat(provenance): implement Git AI Standard serialization
 ## Task 3: Implement Git Notes Integration
 
 **Files:**
+
 - Create: `packages/anvil/core/src/provenance/git-ai-standard/git-notes.ts`
-- Create: `packages/anvil/core/src/provenance/git-ai-standard/__tests__/git-notes.test.ts`
+- Create:
+  `packages/anvil/core/src/provenance/git-ai-standard/__tests__/git-notes.test.ts`
 
 **Step 1: Implement Git Notes operations**
 
@@ -477,15 +498,16 @@ export async function listAuthorshipNotes(
   workspaceRoot: string
 ): Promise<string[]> {
   try {
-    const { stdout } = await execAsync(
-      `git notes --ref=${NOTES_REF} list`,
-      { cwd: workspaceRoot }
-    );
+    const { stdout } = await execAsync(`git notes --ref=${NOTES_REF} list`, {
+      cwd: workspaceRoot,
+    });
 
     // Format: <note-sha> <commit-sha>
-    return stdout.trim().split('\n')
-      .filter(line => line)
-      .map(line => line.split(' ')[1]);
+    return stdout
+      .trim()
+      .split('\n')
+      .filter((line) => line)
+      .map((line) => line.split(' ')[1]);
   } catch (error) {
     debug('Failed to list authorship notes', error);
     return [];
@@ -500,10 +522,9 @@ export async function removeAuthorshipNote(
   workspaceRoot: string
 ): Promise<boolean> {
   try {
-    await execAsync(
-      `git notes --ref=${NOTES_REF} remove ${commitSha}`,
-      { cwd: workspaceRoot }
-    );
+    await execAsync(`git notes --ref=${NOTES_REF} remove ${commitSha}`, {
+      cwd: workspaceRoot,
+    });
     return true;
   } catch (error) {
     debug('Failed to remove authorship note', error);
@@ -548,10 +569,7 @@ export async function pushAuthorshipNotes(
   workspaceRoot: string
 ): Promise<void> {
   try {
-    await execAsync(
-      `git push ${remote} ${NOTES_REF}`,
-      { cwd: workspaceRoot }
-    );
+    await execAsync(`git push ${remote} ${NOTES_REF}`, { cwd: workspaceRoot });
     debug('Pushed authorship notes to %s', remote);
   } catch (error) {
     debug('Failed to push authorship notes', error);
@@ -567,10 +585,9 @@ export async function fetchAuthorshipNotes(
   workspaceRoot: string
 ): Promise<void> {
   try {
-    await execAsync(
-      `git fetch ${remote} ${NOTES_REF}:${NOTES_REF}`,
-      { cwd: workspaceRoot }
-    );
+    await execAsync(`git fetch ${remote} ${NOTES_REF}:${NOTES_REF}`, {
+      cwd: workspaceRoot,
+    });
     debug('Fetched authorship notes from %s', remote);
   } catch (error) {
     debug('Failed to fetch authorship notes', error);
@@ -606,6 +623,7 @@ Uses refs/notes/ai namespace per Git AI Standard v3.0.0"
 ## Task 4: Create Session Hash Generator
 
 **Files:**
+
 - Create: `packages/anvil/core/src/provenance/git-ai-standard/session.ts`
 
 **Step 1: Implement session hash generation**
@@ -621,7 +639,10 @@ import type { SessionHash, AgentId } from './types.js';
  *
  * Per Git AI Standard: 16-character SHA-256 prefix of {tool}:{conversation_id}
  */
-export function generateSessionHash(tool: string, conversationId: string): SessionHash {
+export function generateSessionHash(
+  tool: string,
+  conversationId: string
+): SessionHash {
   const input = `${tool}:${conversationId}`;
   const fullHash = createHash('sha256').update(input).digest('hex');
   return fullHash.slice(0, 16) as SessionHash;
@@ -645,7 +666,8 @@ export function createAgentId(options: {
   const { tool, model } = options;
 
   // Generate conversation ID if not provided
-  const conversationId = options.conversationId ??
+  const conversationId =
+    options.conversationId ??
     `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
   return {
@@ -703,6 +725,7 @@ git commit -m "feat(provenance): add session hash generation
 ## Task 5: Integrate with ProvenanceCollector
 
 **Files:**
+
 - Modify: `packages/anvil/core/src/provenance/collector.ts`
 - Modify: `packages/anvil/core/src/provenance/index.ts`
 
@@ -733,18 +756,24 @@ export function createAuthorshipLogFromProvenance(
 
   const sessionHash = generateSessionHash(agent.tool, agent.id);
 
-  const attestations: Record<string, Array<{ sessionHash: string; lineRanges: string }>> = {};
+  const attestations: Record<
+    string,
+    Array<{ sessionHash: string; lineRanges: string }>
+  > = {};
   for (const [file, ranges] of Object.entries(fileLineMap)) {
     attestations[file] = [{ sessionHash, lineRanges: ranges }];
   }
 
   const promptRecord: PromptRecord = {
     agent_id: agent,
-    messages: messages.map(m => ({ ...m, timestamp: new Date().toISOString() })),
+    messages: messages.map((m) => ({
+      ...m,
+      timestamp: new Date().toISOString(),
+    })),
     total_additions: record.files_count,
     total_deletions: 0,
     accepted_lines: record.files_count,
-    overriden_lines: 0,
+    overridden_lines: 0,
     human_author: record.git.author,
   };
 
@@ -799,6 +828,7 @@ git commit -m "feat(provenance): integrate Git AI Standard with ProvenanceCollec
 ## Task 6: Add CLI Command for Viewing AI Authorship
 
 **Files:**
+
 - Create: `apps/anvil-cli/src/commands/authorship.ts`
 - Modify: `apps/anvil-cli/src/index.ts`
 
@@ -809,14 +839,12 @@ Create `apps/anvil-cli/src/commands/authorship.ts`:
 ```typescript
 import { Command } from 'commander';
 import chalk from 'chalk';
-import {
-  readAuthorshipNote,
-  listAuthorshipNotes,
-} from '@eddacraft/anvil-core';
+import { readAuthorshipNote, listAuthorshipNotes } from '@eddacraft/anvil-core';
 
 export function createAuthorshipCommand(): Command {
-  const cmd = new Command('authorship')
-    .description('View AI authorship information for commits');
+  const cmd = new Command('authorship').description(
+    'View AI authorship information for commits'
+  );
 
   cmd
     .command('show')
@@ -826,7 +854,9 @@ export function createAuthorshipCommand(): Command {
       const log = await readAuthorshipNote(commit, process.cwd());
 
       if (!log) {
-        console.log(chalk.yellow('No AI authorship information found for this commit.'));
+        console.log(
+          chalk.yellow('No AI authorship information found for this commit.')
+        );
         return;
       }
 
@@ -838,7 +868,9 @@ export function createAuthorshipCommand(): Command {
       for (const [file, attestations] of Object.entries(log.attestations)) {
         console.log(`  ${chalk.cyan(file)}`);
         for (const a of attestations) {
-          console.log(`    ${chalk.dim(a.sessionHash)} → lines ${a.lineRanges}`);
+          console.log(
+            `    ${chalk.dim(a.sessionHash)} → lines ${a.lineRanges}`
+          );
         }
       }
       console.log();
@@ -850,8 +882,12 @@ export function createAuthorshipCommand(): Command {
         if (prompt.agent_id.model) {
           console.log(`    Model: ${prompt.agent_id.model}`);
         }
-        console.log(`    Lines: +${prompt.total_additions} -${prompt.total_deletions}`);
-        console.log(`    Accepted: ${prompt.accepted_lines}, Modified: ${prompt.overriden_lines}`);
+        console.log(
+          `    Lines: +${prompt.total_additions} -${prompt.total_deletions}`
+        );
+        console.log(
+          `    Accepted: ${prompt.accepted_lines}, Modified: ${prompt.overridden_lines}`
+        );
       }
     });
 
@@ -868,7 +904,9 @@ export function createAuthorshipCommand(): Command {
         return;
       }
 
-      console.log(chalk.bold(`Commits with AI authorship (${commits.length} total):`));
+      console.log(
+        chalk.bold(`Commits with AI authorship (${commits.length} total):`)
+      );
       for (const sha of commits.slice(0, limit)) {
         console.log(`  ${chalk.cyan(sha.slice(0, 8))}`);
       }
@@ -905,14 +943,14 @@ git commit -m "feat(cli): add anvil authorship command
 
 ## Summary
 
-| Task | Description | Status |
-|------|-------------|--------|
-| 1 | Define Git AI Standard TypeScript schemas | Ready |
-| 2 | Implement authorship log serialization | Ready |
-| 3 | Implement Git Notes integration | Ready |
-| 4 | Create session hash generator | Ready |
-| 5 | Integrate with ProvenanceCollector | Ready |
-| 6 | Add CLI command for viewing authorship | Ready |
+| Task | Description                               | Status |
+| ---- | ----------------------------------------- | ------ |
+| 1    | Define Git AI Standard TypeScript schemas | Ready  |
+| 2    | Implement authorship log serialization    | Ready  |
+| 3    | Implement Git Notes integration           | Ready  |
+| 4    | Create session hash generator             | Ready  |
+| 5    | Integrate with ProvenanceCollector        | Ready  |
+| 6    | Add CLI command for viewing authorship    | Ready  |
 
 **Total: 6 tasks**
 

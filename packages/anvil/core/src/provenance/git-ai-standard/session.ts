@@ -1,4 +1,4 @@
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import type { SessionHash, AgentId } from './types.js';
 
 /**
@@ -36,9 +36,8 @@ export function createAgentId(options: {
 }): AgentId {
   const { tool, model } = options;
 
-  // Generate conversation ID if not provided
-  const conversationId =
-    options.conversationId ?? `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+  // Generate conversation ID if not provided (using crypto for robust randomness)
+  const conversationId = options.conversationId ?? `${Date.now()}-${randomUUID().slice(0, 8)}`;
 
   return {
     tool,

@@ -4,7 +4,6 @@ import {
   readAuthorshipNote,
   listAuthorshipNotes,
   getAuthorshipStats,
-  formatAgentId,
   type AuthorshipLog,
 } from '@eddacraft/anvil-core';
 import { theme } from '../tui/utils/theme.js';
@@ -31,7 +30,9 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
   console.log();
 
   // Files with AI attribution
-  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} FILES WITH AI ATTRIBUTION`));
+  console.log(
+    chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} FILES WITH AI ATTRIBUTION`)
+  );
 
   const files = Object.keys(log.attestations).sort();
   if (files.length === 0) {
@@ -67,7 +68,7 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
     );
     console.log(
       chalk.hex(theme.colours.smoke)(
-        `    Accepted: ${prompt.accepted_lines}, Human-modified: ${prompt.overriden_lines}`
+        `    Accepted: ${prompt.accepted_lines}, Human-modified: ${prompt.overridden_lines}`
       )
     );
     if (prompt.human_author) {
@@ -79,7 +80,9 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
       const userMsgs = prompt.messages.filter((m) => m.type === 'user').length;
       const assistantMsgs = prompt.messages.filter((m) => m.type === 'assistant').length;
       console.log(
-        chalk.hex(theme.colours.smoke)(`    Conversation: ${userMsgs} user, ${assistantMsgs} assistant messages`)
+        chalk.hex(theme.colours.smoke)(
+          `    Conversation: ${userMsgs} user, ${assistantMsgs} assistant messages`
+        )
       );
     }
   }
@@ -88,7 +91,9 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
   // Metadata
   console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} METADATA`));
   console.log(chalk.hex(theme.colours.smoke)(`  Schema: ${log.metadata.schema_version}`));
-  console.log(chalk.hex(theme.colours.smoke)(`  Commit: ${log.metadata.base_commit_sha.slice(0, 8)}...`));
+  console.log(
+    chalk.hex(theme.colours.smoke)(`  Commit: ${log.metadata.base_commit_sha.slice(0, 8)}...`)
+  );
   console.log();
 }
 
@@ -98,7 +103,9 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
 export function createAuthorshipCommand(): Command {
   const command = new Command('authorship');
 
-  command.description('View AI authorship information tracked via Git Notes (Git AI Standard v3.0.0)');
+  command.description(
+    'View AI authorship information tracked via Git Notes (Git AI Standard v3.0.0)'
+  );
 
   // Show subcommand
   command
@@ -115,7 +122,11 @@ export function createAuthorshipCommand(): Command {
         if (options.json) {
           console.log(JSON.stringify({ found: false, commit }));
         } else {
-          console.log(chalk.hex(theme.colours.molten)(`\n${theme.icons.info} No AI authorship information found for ${commit}\n`));
+          console.log(
+            chalk.hex(theme.colours.molten)(
+              `\n${theme.icons.info} No AI authorship information found for ${commit}\n`
+            )
+          );
         }
         return;
       }
@@ -145,9 +156,17 @@ export function createAuthorshipCommand(): Command {
       }
 
       if (commits.length === 0) {
-        console.log(chalk.hex(theme.colours.molten)(`\n${theme.icons.info} No commits with AI authorship found\n`));
+        console.log(
+          chalk.hex(theme.colours.molten)(
+            `\n${theme.icons.info} No commits with AI authorship found\n`
+          )
+        );
         console.log(chalk.hex(theme.colours.smoke)('AI authorship is stored in refs/notes/ai'));
-        console.log(chalk.hex(theme.colours.smoke)('Use `git fetch origin refs/notes/ai:refs/notes/ai` to fetch from remote\n'));
+        console.log(
+          chalk.hex(theme.colours.smoke)(
+            'Use `git fetch origin refs/notes/ai:refs/notes/ai` to fetch from remote\n'
+          )
+        );
         return;
       }
 
@@ -186,9 +205,7 @@ export function createAuthorshipCommand(): Command {
 
       console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} COVERAGE`));
       const percentage =
-        stats.totalCommits > 0
-          ? Math.round((stats.commitsWithAI / stats.totalCommits) * 100)
-          : 0;
+        stats.totalCommits > 0 ? Math.round((stats.commitsWithAI / stats.totalCommits) * 100) : 0;
       console.log(
         chalk.hex(theme.colours.smoke)(
           `  ${stats.commitsWithAI}/${stats.totalCommits} commits have AI authorship (${percentage}%)`
@@ -198,14 +215,10 @@ export function createAuthorshipCommand(): Command {
 
       console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} LINE CHANGES`));
       console.log(
-        chalk.hex(theme.colours.smoke)(
-          `  Additions: ${chalk.green(`+${stats.totalAdditions}`)}`
-        )
+        chalk.hex(theme.colours.smoke)(`  Additions: ${chalk.green(`+${stats.totalAdditions}`)}`)
       );
       console.log(
-        chalk.hex(theme.colours.smoke)(
-          `  Deletions: ${chalk.red(`-${stats.totalDeletions}`)}`
-        )
+        chalk.hex(theme.colours.smoke)(`  Deletions: ${chalk.red(`-${stats.totalDeletions}`)}`)
       );
       console.log();
 

@@ -31,7 +31,7 @@ describe('AuthorshipLog Serializer', () => {
           total_additions: 80,
           total_deletions: 0,
           accepted_lines: 75,
-          overriden_lines: 5,
+          overridden_lines: 5,
           human_author: 'Alice <alice@example.com>',
         },
       },

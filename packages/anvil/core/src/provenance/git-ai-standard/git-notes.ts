@@ -1,11 +1,36 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { tmpdir } from 'os';
 import { serializeAuthorshipLog, parseAuthorshipLog } from './serializer.js';
 import type { AuthorshipLog } from './types.js';
 import { createDebugger } from '../../utils/debug.js';
 
 const debug = createDebugger('git-ai-notes');
 const execAsync = promisify(exec);
+
+/**
+ * Validate a git commit SHA or ref to prevent shell injection
+ * Allows: hex characters (SHA), alphanumeric, dash, underscore, slash, tilde, caret, @, dot
+ */
+function isValidGitRef(ref: string): boolean {
+  return /^[a-zA-Z0-9_.~^@/-]+$/.test(ref) && ref.length > 0 && ref.length <= 256;
+}
+
+/**
+ * Validate a git remote name to prevent shell injection
+ * Allows: alphanumeric, dash, underscore, dot
+ */
+function isValidRemoteName(remote: string): boolean {
+  return /^[a-zA-Z0-9_.-]+$/.test(remote) && remote.length > 0 && remote.length <= 128;
+}
+
+/**
+ * Validate a git revision range to prevent shell injection
+ * Allows: hex characters, alphanumeric, dash, underscore, dot, tilde, caret, @, colon
+ */
+function isValidRevisionRange(range: string): boolean {
+  return /^[a-zA-Z0-9_.~^@:-]+$/.test(range) && range.length > 0 && range.length <= 512;
+}
 
 /**
  * Git Notes namespace for AI authorship logs
@@ -25,19 +50,24 @@ export async function writeAuthorshipNote(
   log: AuthorshipLog,
   workspaceRoot: string
 ): Promise<void> {
+  if (!isValidGitRef(commitSha)) {
+    throw new Error(`Invalid commit SHA: ${commitSha}`);
+  }
+
   const content = serializeAuthorshipLog(log);
 
-  // Write content to a temp file to avoid shell escaping issues
+  // Write content to a temp file in OS temp directory to avoid issues with
+  // worktrees/submodules where .git may be a file, not a directory
   const { writeFile, unlink } = await import('fs/promises');
   const { join } = await import('path');
   const { randomUUID } = await import('crypto');
 
-  const tempFile = join(workspaceRoot, `.git/anvil-note-${randomUUID()}.tmp`);
+  const tempFile = join(tmpdir(), `anvil-note-${randomUUID()}.tmp`);
 
   try {
     await writeFile(tempFile, content, 'utf-8');
 
-    await execAsync(`git notes --ref=${NOTES_REF} add -f -F "${tempFile}" ${commitSha}`, {
+    await execAsync(`git notes --ref=${NOTES_REF} add -f -F "${tempFile}" -- ${commitSha}`, {
       cwd: workspaceRoot,
     });
 
@@ -49,8 +79,8 @@ export async function writeAuthorshipNote(
     // Clean up temp file
     try {
       await unlink(tempFile);
-    } catch {
-      // Ignore cleanup errors
+    } catch (cleanupError) {
+      debug('Failed to clean up temp file', { tempFile, error: cleanupError });
     }
   }
 }
@@ -66,8 +96,12 @@ export async function readAuthorshipNote(
   commitSha: string,
   workspaceRoot: string
 ): Promise<AuthorshipLog | null> {
+  if (!isValidGitRef(commitSha)) {
+    throw new Error(`Invalid commit SHA: ${commitSha}`);
+  }
+
   try {
-    const { stdout } = await execAsync(`git notes --ref=${NOTES_REF} show ${commitSha}`, {
+    const { stdout } = await execAsync(`git notes --ref=${NOTES_REF} show -- ${commitSha}`, {
       cwd: workspaceRoot,
     });
 
@@ -115,8 +149,12 @@ export async function removeAuthorshipNote(
   commitSha: string,
   workspaceRoot: string
 ): Promise<boolean> {
+  if (!isValidGitRef(commitSha)) {
+    throw new Error(`Invalid commit SHA: ${commitSha}`);
+  }
+
   try {
-    await execAsync(`git notes --ref=${NOTES_REF} remove ${commitSha}`, {
+    await execAsync(`git notes --ref=${NOTES_REF} remove -- ${commitSha}`, {
       cwd: workspaceRoot,
     });
     debug(`Removed authorship note for commit ${commitSha.slice(0, 8)}`);
@@ -142,16 +180,24 @@ export async function copyAuthorshipNote(
   toSha: string,
   workspaceRoot: string
 ): Promise<boolean> {
+  if (!isValidGitRef(fromSha) || !isValidGitRef(toSha)) {
+    throw new Error(`Invalid commit SHA: fromSha=${fromSha}, toSha=${toSha}`);
+  }
+
   try {
     const existingLog = await readAuthorshipNote(fromSha, workspaceRoot);
     if (!existingLog) return false;
+
+    // Resolve toSha to full 40-character SHA
+    const { stdout } = await execAsync(`git rev-parse -- ${toSha}`, { cwd: workspaceRoot });
+    const resolvedSha = stdout.trim();
 
     // Update base_commit_sha in metadata to point to new commit
     const updatedLog: AuthorshipLog = {
       ...existingLog,
       metadata: {
         ...existingLog.metadata,
-        base_commit_sha: toSha.padEnd(40, '0').slice(0, 40),
+        base_commit_sha: resolvedSha,
       },
     };
 
@@ -171,6 +217,10 @@ export async function copyAuthorshipNote(
  * @param workspaceRoot - The repository root directory
  */
 export async function pushAuthorshipNotes(remote: string, workspaceRoot: string): Promise<void> {
+  if (!isValidRemoteName(remote)) {
+    throw new Error(`Invalid remote name: ${remote}`);
+  }
+
   try {
     await execAsync(`git push ${remote} ${NOTES_REF}`, {
       cwd: workspaceRoot,
@@ -189,6 +239,10 @@ export async function pushAuthorshipNotes(remote: string, workspaceRoot: string)
  * @param workspaceRoot - The repository root directory
  */
 export async function fetchAuthorshipNotes(remote: string, workspaceRoot: string): Promise<void> {
+  if (!isValidRemoteName(remote)) {
+    throw new Error(`Invalid remote name: ${remote}`);
+  }
+
   try {
     await execAsync(`git fetch ${remote} ${NOTES_REF}:${NOTES_REF}`, {
       cwd: workspaceRoot,
@@ -211,8 +265,12 @@ export async function hasAuthorshipNote(
   commitSha: string,
   workspaceRoot: string
 ): Promise<boolean> {
+  if (!isValidGitRef(commitSha)) {
+    throw new Error(`Invalid commit SHA: ${commitSha}`);
+  }
+
   try {
-    await execAsync(`git notes --ref=${NOTES_REF} show ${commitSha}`, {
+    await execAsync(`git notes --ref=${NOTES_REF} show -- ${commitSha}`, {
       cwd: workspaceRoot,
     });
     return true;
@@ -238,6 +296,10 @@ export async function getAuthorshipStats(
   totalDeletions: number;
   tools: Record<string, number>;
 }> {
+  if (!isValidRevisionRange(range)) {
+    throw new Error(`Invalid revision range: ${range}`);
+  }
+
   const stats = {
     totalCommits: 0,
     commitsWithAI: 0,
@@ -248,7 +310,7 @@ export async function getAuthorshipStats(
 
   try {
     // Get list of commits in range
-    const { stdout } = await execAsync(`git rev-list ${range}`, {
+    const { stdout } = await execAsync(`git rev-list -- ${range}`, {
       cwd: workspaceRoot,
     });
 
