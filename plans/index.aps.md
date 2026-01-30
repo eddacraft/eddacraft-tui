@@ -151,6 +151,23 @@ regardless of how good the engine is. First impressions matter.
 | Command Safety  | Validate AI tool commands (CMDSAF)         | Ready   |
 | MCP Server      | Real-time validation during AI generation  | Planned |
 
+### v2.0 — Web Dashboard
+
+| Feature                  | Description                                         | Status |
+| ------------------------ | --------------------------------------------------- | ------ |
+| Dashboard Foundation     | App scaffold, routing, theme, components, API       | Draft  |
+| Dashboard Core Views     | Overview, gates history/detail, warnings            | Draft  |
+| Dashboard Arch/Drift     | Architecture graphs, drift comparison, suppressions | Draft  |
+| Dashboard AI Builder     | json-render prompt interface, templates, persistence| Draft  |
+| Dashboard Operations     | Audit trail, plans, config, diagnostics, roles      | Draft  |
+
+**Why this is v2.0:** The web dashboard builds on top of all v1.x domain logic
+(gates, warnings, architecture, drift, suppressions, plans). It is a new
+surface — a read-heavy browser interface — not a replacement for the CLI. The
+CLI remains the primary developer interface; the dashboard serves team leads,
+platform engineers, and compliance roles who need persistent views, historical
+trends, and graphical visualizations that a terminal cannot provide.
+
 ### What's NOT in v1
 
 To ship fast and focused, these are explicitly deferred:
@@ -260,6 +277,11 @@ graph TD
 | [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUI     | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
 | [test-quality](./modules/test-quality.aps.md)                           | TEST    | In Progress | —       | —                                                         |
 | [monorepo-migration](./modules/monorepo-migration.aps.md)               | MONO    | Complete    | v1.1    | —                                                         |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md)           | DASH     | Draft       | v2.0    | monorepo-migration, contracts                             |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md)           | DASHCORE | Draft       | v2.0    | dashboard-foundation                                      |
+| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | v2.0   | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
+| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | v2.0    | dashboard-foundation                                      |
+| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | v2.0    | dashboard-foundation                                      |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -424,6 +446,77 @@ graph TD
 | TUI-010 | tui    | `anvil gate` interactive explorer | Planned | medium   |
 | TUI-011 | tui    | Parallel progress visualisation   | Planned | low      |
 | TUI-012 | tui    | Log panel with filtering          | Planned | low      |
+
+### Task Status — v2.0 (Web Dashboard)
+
+The web dashboard provides a browser-based interface for exploring Anvil data.
+See [brainstorm](./brainstorms/dashboard-web-ui.md) and
+[json-render approach](./brainstorms/json-render-dashboard.md) for background.
+
+#### Dashboard Foundation
+
+| Task     | Module | Description                             | Status | Priority |
+| -------- | ------ | --------------------------------------- | ------ | -------- |
+| DASH-001 | dash   | Application scaffold and build config   | Draft  | high     |
+| DASH-002 | dash   | Routing and navigation shell            | Draft  | high     |
+| DASH-003 | dash   | Theme system and design tokens          | Draft  | high     |
+| DASH-004 | dash   | Shared component catalog                | Draft  | high     |
+| DASH-005 | dash   | API data layer                          | Draft  | high     |
+| DASH-006 | dash   | Data fetching hooks and cache mgmt      | Draft  | high     |
+| DASH-007 | dash   | Global search infrastructure            | Draft  | medium   |
+| DASH-008 | dash   | URL deep linking and filter persistence | Draft  | medium   |
+
+#### Dashboard Core Views (Overview, Gates, Warnings)
+
+| Task         | Module   | Description                          | Status | Priority |
+| ------------ | -------- | ------------------------------------ | ------ | -------- |
+| DASHCORE-001 | dashcore | Overview — metric cards row          | Draft  | high     |
+| DASHCORE-002 | dashcore | Overview — trend charts              | Draft  | high     |
+| DASHCORE-003 | dashcore | Overview — activity feed & actions   | Draft  | medium   |
+| DASHCORE-004 | dashcore | Gate history list with filtering     | Draft  | high     |
+| DASHCORE-005 | dashcore | Gate detail view with check tree     | Draft  | high     |
+| DASHCORE-006 | dashcore | Gate trend analysis charts           | Draft  | medium   |
+| DASHCORE-007 | dashcore | Warning list with grouping/filtering | Draft  | high     |
+| DASHCORE-008 | dashcore | Warning detail panel with code ctx   | Draft  | high     |
+| DASHCORE-009 | dashcore | Warning breakdown visualisations     | Draft  | medium   |
+| DASHCORE-010 | dashcore | Anti-pattern registry reference      | Draft  | medium   |
+
+#### Dashboard Architecture, Drift & Suppressions
+
+| Task         | Module   | Description                          | Status | Priority |
+| ------------ | -------- | ------------------------------------ | ------ | -------- |
+| DASHARCH-001 | dasharch | Architecture overview & layer diagram| Draft  | high     |
+| DASHARCH-002 | dasharch | Boundary violation explorer          | Draft  | high     |
+| DASHARCH-003 | dasharch | Interactive dependency graph         | Draft  | medium   |
+| DASHARCH-004 | dasharch | Drift timeline and snapshot list     | Draft  | high     |
+| DASHARCH-005 | dasharch | Snapshot detail view                 | Draft  | medium   |
+| DASHARCH-006 | dasharch | Snapshot comparison view             | Draft  | high     |
+| DASHARCH-007 | dasharch | Suppression list with lifecycle views| Draft  | high     |
+| DASHARCH-008 | dasharch | Suppression trend analysis           | Draft  | medium   |
+
+#### Dashboard AI Builder
+
+| Task       | Module | Description                          | Status | Priority |
+| ---------- | ------ | ------------------------------------ | ------ | -------- |
+| DASHAI-001 | dashai | json-render runtime integration      | Draft  | high     |
+| DASHAI-002 | dashai | Component catalog registration       | Draft  | high     |
+| DASHAI-003 | dashai | Prompt interface with live preview   | Draft  | high     |
+| DASHAI-004 | dashai | Dashboard template gallery           | Draft  | medium   |
+| DASHAI-005 | dashai | Dashboard persistence                | Draft  | medium   |
+| DASHAI-006 | dashai | Dashboard versioning & iteration     | Draft  | low      |
+
+#### Dashboard Operations & Administration
+
+| Task        | Module  | Description                          | Status | Priority |
+| ----------- | ------- | ------------------------------------ | ------ | -------- |
+| DASHOPS-001 | dashops | Audit log viewer with filtering      | Draft  | high     |
+| DASHOPS-002 | dashops | User activity breakdown              | Draft  | medium   |
+| DASHOPS-003 | dashops | AI tool tracking analysis            | Draft  | medium   |
+| DASHOPS-004 | dashops | Plan list and detail views           | Draft  | high     |
+| DASHOPS-005 | dashops | Configuration viewer                 | Draft  | medium   |
+| DASHOPS-006 | dashops | Diagnostics page                     | Draft  | medium   |
+| DASHOPS-007 | dashops | Role-based view filtering            | Draft  | low      |
+| DASHOPS-008 | dashops | Real-time update infrastructure      | Draft  | low      |
 
 ### Task Status — v2.0 (AI Tool Integration)
 
