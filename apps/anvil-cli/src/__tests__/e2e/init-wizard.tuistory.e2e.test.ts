@@ -1,15 +1,10 @@
 /**
  * Init Wizard TUI E2E Tests
  *
- * Comprehensive tests for the interactive init wizard component.
- * Tests cover step navigation, selections, and keyboard interactions.
- *
- * The wizard has 5 steps:
- * 1. Configuration Mode (Standard/Strict/CI-optimised)
- * 2. Planning Format (APS/SpecKit/BMAD/Generic/Skip)
- * 3. Directory Setup (text input)
- * 4. Quality Checks (checkbox toggles)
- * 5. Review & Confirm (summary)
+ * End-to-end tests for the interactive init wizard component.
+ * These tests focus on launching the wizard, validating initial output,
+ * handling early termination (e.g. via Ctrl+C), and running in
+ * non-interactive mode.
  *
  * @see https://github.com/remorses/tuistory
  */
@@ -81,11 +76,7 @@ describe('Init Wizard TUI Tests', () => {
         waitForDataTimeout: 15000,
       });
 
-      await waitForTextWithContext(
-        session,
-        /Initialising|Anvil|Detected/i,
-        'Init starting'
-      );
+      await waitForTextWithContext(session, /Initialising|Anvil|Detected/i, 'Init starting');
 
       await session.press(['ctrl', 'c']);
       await new Promise((resolve) => setTimeout(resolve, 500));

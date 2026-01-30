@@ -19,7 +19,7 @@ import { resolve } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 
 const CLI_PATH = resolve(__dirname, '../../..', 'dist', 'index.js');
-const PROJECT_ROOT = resolve(__dirname, '../../../..');
+const PROJECT_ROOT = resolve(__dirname, '../../../../..');
 const PACKAGE_JSON_PATH = resolve(__dirname, '../../..', 'package.json');
 
 export interface AnvilSessionOptions {

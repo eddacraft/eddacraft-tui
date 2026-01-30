@@ -62,7 +62,7 @@ jobs:
                 DOCS_ONLY=false
                 CODE_CHANGED=true
               fi
-              
+
               # E2E-related patterns
               if [[ "$file" =~ ^e2e/ ]] || \
                  [[ "$file" == "playwright.config.ts" ]]; then
@@ -228,36 +228,19 @@ jobs:
 
       - name: Rebuild node-pty for tuistory
         run: |
-          cd node_modules/tuistory/node_modules/node-pty && npm rebuild
+          if [ -d "node_modules/tuistory/node_modules/node-pty" ]; then
+            cd node_modules/tuistory/node_modules/node-pty && npm rebuild
+          else
+            echo "node-pty directory not found at node_modules/tuistory/node_modules/node-pty, skipping rebuild."
+          fi
 
       - name: Build CLI
-        run: |
-          cd packages/eslint-plugin-anvil && pnpm build
-          cd ../anvil/contracts && tsc -b tsconfig.lib.json
-          cd ../core && tsc -b tsconfig.lib.json
-          cd ../ports && tsc -b tsconfig.lib.json
-          cd ../policy && tsc -b tsconfig.lib.json
-          cd ../runtime && tsc -b tsconfig.lib.json
-          cd ../../../adapters && tsc -b tsconfig.lib.json
-          cd ../aps && tsc -b tsconfig.lib.json
-          cd ../edda-stack && tsc -b
-          cd ../../apps/anvil-cli && tsc
+        run: pnpm build
 
+      # continue-on-error: this is a PoC integration of tuistory;
+      # failures should not block CI until the tests are stabilised.
       - name: Run TUI E2E tests
         run: |
-          pnpm vitest run apps/anvil-cli/src/__tests__/e2e/tuistory.e2e.test.ts \
-            apps/anvil-cli/src/__tests__/e2e/tui-commands.tuistory.e2e.test.ts
-        timeout-minutes: 10
-        continue-on-error: true
-
-      - name: Run Gate Explorer TUI tests
-        run: |
-          pnpm vitest run apps/anvil-cli/src/__tests__/e2e/gate-explorer.tuistory.e2e.test.ts
-        timeout-minutes: 10
-        continue-on-error: true
-
-      - name: Run Init Wizard TUI tests
-        run: |
-          pnpm vitest run apps/anvil-cli/src/__tests__/e2e/init-wizard.tuistory.e2e.test.ts
+          pnpm vitest run "apps/anvil-cli/src/__tests__/e2e/**/*.tuistory.e2e.test.ts"
         timeout-minutes: 10
         continue-on-error: true
