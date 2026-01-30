@@ -9,7 +9,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "^25.0.10",
+    "@types/node": "^25.1.0",
     "typescript": "^5.9.3"
   },
   "keywords": [
