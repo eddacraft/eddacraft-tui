@@ -1,27 +1,32 @@
 # Edda Storage Architecture: Comparative Analysis
 
-**Purpose:** Evaluate storage strategies before APS planning
-**Date:** 2026-01-19
-**Decision Required:** Choose storage approach for Edda implementation
+**Purpose:** Evaluate storage strategies before APS planning **Date:**
+2026-01-19 **Decision Required:** Choose storage approach for Edda
+implementation
 
 ---
 
 ## Executive Summary
 
 This document compares three storage approaches for Edda:
+
 1. **Git-backed YAML + SQLite Index** (our proposed approach)
 2. **Git-backed JSONL + SQLite Cache** (Beads-inspired approach)
 3. **PostgreSQL + Git Snapshots** (enterprise alternative)
 
-**Recommendation:** Proceed with **Git-backed YAML + SQLite Index** for Phase 0-1, with abstraction layer enabling future PostgreSQL migration if needed.
+**Recommendation:** Proceed with **Git-backed YAML + SQLite Index** for Phase
+0-1, with abstraction layer enabling future PostgreSQL migration if needed.
 
-**Context:** Edda is the top layer of a three-layer memory stack (Kindling → Ember → Edda). Each layer has different storage requirements based on its role and data characteristics.
+**Context:** Edda is the top layer of a three-layer memory stack (Kindling →
+Ember → Edda). Each layer has different storage requirements based on its role
+and data characteristics.
 
 ---
 
 ## Three-Layer Stack Architecture
 
-Before diving into Edda's storage options, it's important to understand how Edda fits into the broader memory stack:
+Before diving into Edda's storage options, it's important to understand how Edda
+fits into the broader memory stack:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -67,11 +72,11 @@ Before diving into Edda's storage options, it's important to understand how Edda
 
 ### Why Different Storage for Each Layer?
 
-| Layer | Storage | Why This Choice |
-|-------|---------|----------------|
-| **Kindling** | SQLite + FTS5 | • High-volume writes (1000s/session)<br>• Local-first, no external deps<br>• Bounded queries (session-scoped)<br>• Fast text search (FTS5)<br>• Disposable (old sessions pruned) |
-| **Ember** | SQLite + TTL | • Ephemeral by design (30d TTL)<br>• Medium volume (candidates)<br>• Fast queries for review<br>• Disposable (expired proposals deleted)<br>• Same tech as Kindling (simplicity) |
-| **Edda** | Git+YAML + Index | • **Durable** (never auto-deleted)<br>• **Auditable** (Git history)<br>• **Human-readable** (YAML for reviews)<br>• **Versioned** (Git commits)<br>• Low volume (infrequent writes)<br>• High trust (institutional truth) |
+| Layer        | Storage          | Why This Choice                                                                                                                                                                                                           |
+| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Kindling** | SQLite + FTS5    | • High-volume writes (1000s/session)<br>• Local-first, no external deps<br>• Bounded queries (session-scoped)<br>• Fast text search (FTS5)<br>• Disposable (old sessions pruned)                                          |
+| **Ember**    | SQLite + TTL     | • Ephemeral by design (30d TTL)<br>• Medium volume (candidates)<br>• Fast queries for review<br>• Disposable (expired proposals deleted)<br>• Same tech as Kindling (simplicity)                                          |
+| **Edda**     | Git+YAML + Index | • **Durable** (never auto-deleted)<br>• **Auditable** (Git history)<br>• **Human-readable** (YAML for reviews)<br>• **Versioned** (Git commits)<br>• Low volume (infrequent writes)<br>• High trust (institutional truth) |
 
 ### Key Insight: Storage Strategy Reflects Trust Level
 
@@ -85,7 +90,9 @@ Ember (SQLite+TTL)    → Disposable candidates (can regenerate)
 Edda (Git+YAML)       → Permanent truth (cannot lose!)
 ```
 
-**Edda is the only layer where data loss is unacceptable.** This is why Git-backed storage (with its inherent versioning, backup, and audit trail) is critical for Edda but not necessary for Kindling or Ember.
+**Edda is the only layer where data loss is unacceptable.** This is why
+Git-backed storage (with its inherent versioning, backup, and audit trail) is
+critical for Edda but not necessary for Kindling or Ember.
 
 ---
 
@@ -120,6 +127,7 @@ Edda (Git+YAML)       → Permanent truth (cannot lose!)
 ### Data Flow
 
 **Write Path:**
+
 ```
 Memory Object Created
     ↓
@@ -135,6 +143,7 @@ Index in SQLite (async)
 ```
 
 **Read Path:**
+
 ```
 Query Request
     ↓
@@ -222,7 +231,7 @@ provenance:
     proposal_id: EMBER-P-decision-01h1...
     proposal_type: decision
     confidence: 0.85
-    created_at: "2025-01-14T15:00:00Z"
+    created_at: '2025-01-14T15:00:00Z'
   kindling_sources:
     - observation_id: KINDLING-OBS-01h0...
       kind: error_recorded
@@ -233,7 +242,7 @@ provenance:
 
 attribution:
   promoted_by: user:alice
-  promoted_at: "2025-01-15T10:00:00Z"
+  promoted_at: '2025-01-15T10:00:00Z'
   reason: Post-incident policy after INC-2025-001
 
 evolution:
@@ -243,10 +252,10 @@ evolution:
 review_policy:
   strategy: time_based
   interval_days: 180
-  last_reviewed_at: "2025-01-15T10:00:00Z"
+  last_reviewed_at: '2025-01-15T10:00:00Z'
 
-created_at: "2025-01-15T10:00:00Z"
-updated_at: "2025-01-15T10:00:00Z"
+created_at: '2025-01-15T10:00:00Z'
+updated_at: '2025-01-15T10:00:00Z'
 
 metadata:
   incident_id: INC-2025-001
@@ -267,31 +276,31 @@ metadata:
 
 ✅ **Human-Readable:** YAML is easy to read/edit for debugging and manual fixes
 ✅ **Schema-Friendly:** YAML's structure matches our complex nested objects well
-✅ **Git-Native:** Each memory is a file, clean diffs, easy to review in PRs
-✅ **Type-Safe:** Zod validation ensures data integrity before write
-✅ **Comments:** YAML supports comments (useful for internal notes)
-✅ **Multi-Line:** Natural support for long text fields (statement, rationale)
-✅ **Tooling:** Excellent editor support (syntax highlighting, validation)
-✅ **Simplicity:** No complex synchronization logic needed
+✅ **Git-Native:** Each memory is a file, clean diffs, easy to review in PRs ✅
+**Type-Safe:** Zod validation ensures data integrity before write ✅
+**Comments:** YAML supports comments (useful for internal notes) ✅
+**Multi-Line:** Natural support for long text fields (statement, rationale) ✅
+**Tooling:** Excellent editor support (syntax highlighting, validation) ✅
+**Simplicity:** No complex synchronization logic needed
 
 ### Cons
 
-❌ **Write Performance:** YAML serialization slower than JSON (~2x)
-❌ **Parse Overhead:** YAML parsing more complex than JSON
-❌ **File Size:** YAML is slightly more verbose than JSON
-❌ **Merge Conflicts:** Complex nested YAML can have harder merge conflicts
-❌ **No Atomic Append:** Must rewrite entire file for updates
-❌ **Query Performance:** Must parse YAML to query (hence SQLite index needed)
+❌ **Write Performance:** YAML serialization slower than JSON (~2x) ❌ **Parse
+Overhead:** YAML parsing more complex than JSON ❌ **File Size:** YAML is
+slightly more verbose than JSON ❌ **Merge Conflicts:** Complex nested YAML can
+have harder merge conflicts ❌ **No Atomic Append:** Must rewrite entire file
+for updates ❌ **Query Performance:** Must parse YAML to query (hence SQLite
+index needed)
 
 ### Performance Characteristics
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Write (single) | ~80ms | Serialize + Git commit |
-| Read (single) | ~20ms | Direct file read + parse |
-| Query (10 results) | ~150ms | SQLite index + 10 YAML parses |
-| Full-text search | ~200ms | SQLite FTS5 |
-| Bulk write (100) | ~5s | Batched git commits |
+| Operation          | Latency | Notes                         |
+| ------------------ | ------- | ----------------------------- |
+| Write (single)     | ~80ms   | Serialize + Git commit        |
+| Read (single)      | ~20ms   | Direct file read + parse      |
+| Query (10 results) | ~150ms  | SQLite index + 10 YAML parses |
+| Full-text search   | ~200ms  | SQLite FTS5                   |
+| Bulk write (100)   | ~5s     | Batched git commits           |
 
 ### Scalability Limits
 
@@ -329,6 +338,7 @@ metadata:
 ### Data Flow (Beads-Style)
 
 **Write Path:**
+
 ```
 Memory Object Created
     ↓
@@ -344,6 +354,7 @@ Background daemon commits to Git
 ```
 
 **Read Path:**
+
 ```
 Query Request
     ↓
@@ -368,40 +379,59 @@ Return cached objects
 ### Example Memory Line (JSONL)
 
 ```json
-{"id":"EDDA-M-decision-01h2...","type":"decision","status":"active","statement":"All database schema changes must use Prisma migrations","context":{"when":"For all database modifications","why":"Direct changes caused incidents","conditions":["Use: npx prisma migrate dev"],"tags":["database","schema"]},"confidence":"high","scope":{"type":"project","identifier":"anvil"},"authority":{"owner":{"type":"team","identifier":"team:platform"},"visibility":"public"},"enforcement":{"mode":"blocking","hooks":["pre_execution"]},"created_at":"2025-01-15T10:00:00Z"}
+{
+  "id": "EDDA-M-decision-01h2...",
+  "type": "decision",
+  "status": "active",
+  "statement": "All database schema changes must use Prisma migrations",
+  "context": {
+    "when": "For all database modifications",
+    "why": "Direct changes caused incidents",
+    "conditions": ["Use: npx prisma migrate dev"],
+    "tags": ["database", "schema"]
+  },
+  "confidence": "high",
+  "scope": { "type": "project", "identifier": "anvil" },
+  "authority": {
+    "owner": { "type": "team", "identifier": "team:platform" },
+    "visibility": "public"
+  },
+  "enforcement": { "mode": "blocking", "hooks": ["pre_execution"] },
+  "created_at": "2025-01-15T10:00:00Z"
+}
 ```
 
 ### Pros
 
-✅ **Append-Only:** JSONL supports atomic appends (no file rewrites)
-✅ **Fast Writes:** JSON serialization faster than YAML (~50ms vs ~80ms)
-✅ **Fast Queries:** SQLite cache eliminates file I/O for reads
-✅ **Merge-Friendly:** Line-based format has better merge semantics
-✅ **Incremental Sync:** Can sync only new lines (efficient)
-✅ **Proven:** Beads demonstrates this works for agent systems
-✅ **Cache Rebuild:** Can always rebuild SQLite from JSONL (idempotent)
+✅ **Append-Only:** JSONL supports atomic appends (no file rewrites) ✅ **Fast
+Writes:** JSON serialization faster than YAML (~50ms vs ~80ms) ✅ **Fast
+Queries:** SQLite cache eliminates file I/O for reads ✅ **Merge-Friendly:**
+Line-based format has better merge semantics ✅ **Incremental Sync:** Can sync
+only new lines (efficient) ✅ **Proven:** Beads demonstrates this works for
+agent systems ✅ **Cache Rebuild:** Can always rebuild SQLite from JSONL
+(idempotent)
 
 ### Cons
 
-❌ **Not Human-Readable:** Dense JSON lines hard to read/debug
-❌ **No Comments:** JSON doesn't support comments
-❌ **Line Length:** Complex objects create very long lines (>1KB)
-❌ **No Diff Clarity:** Git diffs show entire line changes, lose granularity
-❌ **Update Complexity:** Updates require append of new version + mark old as deleted
-❌ **Sync Complexity:** Background daemon adds failure modes (Beads has issues)
-❌ **Eventual Consistency:** SQLite cache can diverge from JSONL during sync
-❌ **Compaction Needed:** Deleted/updated entries accumulate, need periodic compaction
+❌ **Not Human-Readable:** Dense JSON lines hard to read/debug ❌ **No
+Comments:** JSON doesn't support comments ❌ **Line Length:** Complex objects
+create very long lines (>1KB) ❌ **No Diff Clarity:** Git diffs show entire line
+changes, lose granularity ❌ **Update Complexity:** Updates require append of
+new version + mark old as deleted ❌ **Sync Complexity:** Background daemon adds
+failure modes (Beads has issues) ❌ **Eventual Consistency:** SQLite cache can
+diverge from JSONL during sync ❌ **Compaction Needed:** Deleted/updated entries
+accumulate, need periodic compaction
 
 ### Performance Characteristics
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Write (single) | ~50ms | Append + cache update |
-| Read (single) | ~5ms | Cache only (no disk I/O) |
-| Query (10 results) | ~20ms | Pure SQLite query |
-| Full-text search | ~150ms | SQLite FTS5 |
-| Bulk write (100) | ~2s | 100 appends + cache updates |
-| Cache rebuild | ~30s | Parse all JSONL into SQLite |
+| Operation          | Latency | Notes                       |
+| ------------------ | ------- | --------------------------- |
+| Write (single)     | ~50ms   | Append + cache update       |
+| Read (single)      | ~5ms    | Cache only (no disk I/O)    |
+| Query (10 results) | ~20ms   | Pure SQLite query           |
+| Full-text search   | ~150ms  | SQLite FTS5                 |
+| Bulk write (100)   | ~2s     | 100 appends + cache updates |
+| Cache rebuild      | ~30s    | Parse all JSONL into SQLite |
 
 ### Scalability Limits
 
@@ -411,9 +441,12 @@ Return cached objects
 
 ### Known Issues (from Beads)
 
-> "The system uses git hooks, daemons, and intelligent multidirectional syncing... which has led to broken edge cases, such as issues getting resurrected after deletion, or even issues getting deleted or overwritten."
+> "The system uses git hooks, daemons, and intelligent multidirectional
+> syncing... which has led to broken edge cases, such as issues getting
+> resurrected after deletion, or even issues getting deleted or overwritten."
 
-> "Under extreme concurrent load (100+ simultaneous operations), you may see 'database is locked' errors."
+> "Under extreme concurrent load (100+ simultaneous operations), you may see
+> 'database is locked' errors."
 
 ---
 
@@ -444,6 +477,7 @@ Return cached objects
 ### Data Model
 
 **PostgreSQL Tables:**
+
 ```sql
 CREATE TABLE memories (
   id VARCHAR(50) PRIMARY KEY,
@@ -488,35 +522,32 @@ CREATE INDEX idx_memory_fts ON memories
 
 ### Pros
 
-✅ **Scalability:** Handles millions of records easily
-✅ **Performance:** <10ms queries, <50ms writes
-✅ **ACID:** Full transactions, no sync issues
-✅ **Powerful Queries:** Complex JOINs, aggregations, CTEs
-✅ **Built-in FTS:** PostgreSQL has excellent full-text search
-✅ **JSON Support:** Native JSONB for flexible schemas
-✅ **Mature:** Battle-tested, extensive tooling
-✅ **Replication:** Built-in replication for HA
-✅ **Backup:** Point-in-time recovery
+✅ **Scalability:** Handles millions of records easily ✅ **Performance:** <10ms
+queries, <50ms writes ✅ **ACID:** Full transactions, no sync issues ✅
+**Powerful Queries:** Complex JOINs, aggregations, CTEs ✅ **Built-in FTS:**
+PostgreSQL has excellent full-text search ✅ **JSON Support:** Native JSONB for
+flexible schemas ✅ **Mature:** Battle-tested, extensive tooling ✅
+**Replication:** Built-in replication for HA ✅ **Backup:** Point-in-time
+recovery
 
 ### Cons
 
-❌ **Infrastructure:** Requires PostgreSQL server (not local)
-❌ **Complexity:** More moving parts (connection pooling, migrations)
-❌ **Not Git-Native:** Git snapshots are secondary, not primary
-❌ **Deployment:** Need to manage DB servers, credentials, migrations
-❌ **Cost:** Server costs for hosting (vs free local SQLite)
-❌ **Latency:** Network round-trips (10-50ms) vs local disk (1-5ms)
-❌ **Dev Experience:** Requires running PostgreSQL locally
+❌ **Infrastructure:** Requires PostgreSQL server (not local) ❌ **Complexity:**
+More moving parts (connection pooling, migrations) ❌ **Not Git-Native:** Git
+snapshots are secondary, not primary ❌ **Deployment:** Need to manage DB
+servers, credentials, migrations ❌ **Cost:** Server costs for hosting (vs free
+local SQLite) ❌ **Latency:** Network round-trips (10-50ms) vs local disk
+(1-5ms) ❌ **Dev Experience:** Requires running PostgreSQL locally
 
 ### Performance Characteristics
 
-| Operation | Latency | Notes |
-|-----------|---------|-------|
-| Write (single) | ~30ms | Network + DB write |
-| Read (single) | ~10ms | Network + index lookup |
-| Query (10 results) | ~50ms | Network + query execution |
-| Full-text search | ~100ms | Network + FTS |
-| Bulk write (100) | ~500ms | Batched INSERT |
+| Operation          | Latency | Notes                     |
+| ------------------ | ------- | ------------------------- |
+| Write (single)     | ~30ms   | Network + DB write        |
+| Read (single)      | ~10ms   | Network + index lookup    |
+| Query (10 results) | ~50ms   | Network + query execution |
+| Full-text search   | ~100ms  | Network + FTS             |
+| Bulk write (100)   | ~500ms  | Batched INSERT            |
 
 ### Scalability Limits
 
@@ -530,19 +561,19 @@ CREATE INDEX idx_memory_fts ON memories
 
 ### Feature Comparison
 
-| Feature | Git+YAML | Git+JSONL | PostgreSQL |
-|---------|----------|-----------|------------|
-| **Human Readability** | ⭐⭐⭐⭐⭐ | ⭐⭐ | ⭐⭐⭐ (with tools) |
-| **Write Performance** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Read Performance** | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Query Performance** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Scalability** | ⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Git Integration** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐ |
-| **Simplicity** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐ |
-| **Reliability** | ⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Merge Safety** | ⭐⭐⭐ | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| **Zero Infrastructure** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐ |
-| **Dev Experience** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+| Feature                 | Git+YAML   | Git+JSONL  | PostgreSQL          |
+| ----------------------- | ---------- | ---------- | ------------------- |
+| **Human Readability**   | ⭐⭐⭐⭐⭐ | ⭐⭐       | ⭐⭐⭐ (with tools) |
+| **Write Performance**   | ⭐⭐⭐     | ⭐⭐⭐⭐   | ⭐⭐⭐⭐⭐          |
+| **Read Performance**    | ⭐⭐⭐     | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐          |
+| **Query Performance**   | ⭐⭐⭐     | ⭐⭐⭐⭐   | ⭐⭐⭐⭐⭐          |
+| **Scalability**         | ⭐⭐       | ⭐⭐⭐     | ⭐⭐⭐⭐⭐          |
+| **Git Integration**     | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐   | ⭐⭐                |
+| **Simplicity**          | ⭐⭐⭐⭐⭐ | ⭐⭐⭐     | ⭐⭐                |
+| **Reliability**         | ⭐⭐⭐⭐   | ⭐⭐⭐     | ⭐⭐⭐⭐⭐          |
+| **Merge Safety**        | ⭐⭐⭐     | ⭐⭐⭐⭐   | ⭐⭐⭐⭐⭐          |
+| **Zero Infrastructure** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐                  |
+| **Dev Experience**      | ⭐⭐⭐⭐⭐ | ⭐⭐⭐     | ⭐⭐⭐              |
 
 ### Use Case Alignment
 
@@ -559,6 +590,7 @@ CREATE INDEX idx_memory_fts ON memories
 ### Beads vs Edda Context
 
 **Beads (Issue Tracking):**
+
 - Many small objects (1000s of issues)
 - Frequent writes (agents create issues constantly)
 - Agent-primary (speed over readability)
@@ -566,13 +598,16 @@ CREATE INDEX idx_memory_fts ON memories
 - Multi-agent concurrency (high)
 
 **Edda (Institutional Memory):**
+
 - Fewer large objects (100s-1000s of memories)
 - Infrequent writes (human-approved only)
 - Human-primary (readability critical for review)
 - Update workflow (memories evolve, get retired)
 - Single-writer mostly (one human reviewing at a time)
 
-**Conclusion:** Beads' JSONL approach is optimized for problems Edda doesn't have (high-frequency agent writes, extreme concurrency). Edda prioritizes readability and clarity for human reviewers.
+**Conclusion:** Beads' JSONL approach is optimized for problems Edda doesn't
+have (high-frequency agent writes, extreme concurrency). Edda prioritizes
+readability and clarity for human reviewers.
 
 ---
 
@@ -581,8 +616,11 @@ CREATE INDEX idx_memory_fts ON memories
 ### Phase 0-1: Git-backed YAML + SQLite Index
 
 **Rationale:**
-1. **Human Review UX:** YAML's readability is critical for promotion pipeline (humans must review proposals and understand context)
-2. **Simplicity:** No background daemon, no sync issues, straightforward implementation
+
+1. **Human Review UX:** YAML's readability is critical for promotion pipeline
+   (humans must review proposals and understand context)
+2. **Simplicity:** No background daemon, no sync issues, straightforward
+   implementation
 3. **Git-Native:** Clean diffs for PR reviews, easy rollback, natural versioning
 4. **Sufficient Performance:** <10K memories will perform well (<200ms queries)
 5. **Low Risk:** Proven pattern, no novel synchronization logic
@@ -605,6 +643,7 @@ class PostgreSQLBackend implements IStorageBackend { ... }
 ```
 
 This allows migration to PostgreSQL if:
+
 - Memory count exceeds 10,000
 - Query performance degrades below acceptable levels
 - Multi-tenancy requires database isolation
@@ -633,16 +672,19 @@ If we're concerned about future scalability, consider:
 ### Hybrid Git+YAML + PostgreSQL (Optional)
 
 **Architecture:**
+
 - Primary: Git+YAML (human-readable, auditable)
 - Secondary: PostgreSQL replica (fast queries, analytics)
 - Sync: Background job exports YAML to PostgreSQL nightly
 
 **Benefits:**
+
 - Best of both worlds: readability + performance
 - PostgreSQL used only for queries (not source of truth)
 - Can delay PostgreSQL until actually needed
 
 **Drawbacks:**
+
 - More complexity (two storage systems)
 - Eventual consistency (PostgreSQL lags Git)
 - Higher operational burden
@@ -656,21 +698,25 @@ If we're concerned about future scalability, consider:
 ### Similar Systems
 
 **Git-backed Configuration:**
+
 - Kubernetes: YAML configs in Git (similar to our approach)
 - Terraform: HCL configs in Git (similar philosophy)
 - GitOps: All config in Git (Argo, Flux)
 
 **Agent Memory Systems:**
+
 - Beads: JSONL + SQLite (optimized for agents)
 - LangChain Memory: Vector stores + SQLite
 - AutoGPT: JSON files (simple but not scalable)
 
 **Knowledge Management:**
+
 - Confluence: PostgreSQL + Elasticsearch
 - Notion: PostgreSQL + custom storage
 - GitHub Issues: PostgreSQL (not Git-backed)
 
 **Multi-Layer Memory Architectures:**
+
 - **Kindling + Ember + Edda:** Three layers with different storage strategies
   - Layer 1 (Kindling): SQLite for high-volume capture
   - Layer 2 (Ember): SQLite+TTL for ephemeral candidates
@@ -679,7 +725,9 @@ If we're concerned about future scalability, consider:
 - **Beads:** Two-layer (JSONL + SQLite cache, no human review)
 
 **Edda's Position:**
-- Closer to **GitOps/IaC** than issue trackers (prioritizes human readability and auditability)
+
+- Closer to **GitOps/IaC** than issue trackers (prioritizes human readability
+  and auditability)
 - Unique three-layer approach with **intentional storage heterogeneity**
 - Each layer optimized for its trust level and data characteristics
 
@@ -690,16 +738,19 @@ If we're concerned about future scalability, consider:
 ### Git+YAML Risks
 
 **Medium Risk: Git Performance**
+
 - Symptom: Slow commits/pushes with >5,000 memories
 - Mitigation: Abstraction layer for PostgreSQL migration
 - Monitoring: Track git operation latency
 
 **Low Risk: YAML Parsing Performance**
+
 - Symptom: Query latency >500ms
 - Mitigation: SQLite index handles most queries
 - Monitoring: Track p95 query latency
 
 **Low Risk: Merge Conflicts**
+
 - Symptom: Conflicts during concurrent edits
 - Mitigation: Mostly single-writer (human reviews), rare concurrency
 - Monitoring: Track conflict rate
@@ -707,16 +758,19 @@ If we're concerned about future scalability, consider:
 ### Git+JSONL Risks
 
 **High Risk: Sync Reliability**
+
 - Symptom: Cache divergence, data loss (Beads experienced this)
 - Mitigation: Complex daemon logic, extensive testing
 - Monitoring: Cache consistency checks
 
 **Medium Risk: Human Review UX**
+
 - Symptom: Reviewers struggle with dense JSON
 - Mitigation: Build rich UI for viewing (more dev work)
 - Monitoring: User feedback
 
 **Low Risk: JSONL Compaction**
+
 - Symptom: File grows indefinitely
 - Mitigation: Periodic compaction job
 - Monitoring: File size alerts
@@ -724,16 +778,19 @@ If we're concerned about future scalability, consider:
 ### PostgreSQL Risks
 
 **High Risk: Operational Complexity**
+
 - Symptom: Outages, connection issues, credential leaks
 - Mitigation: Managed service (RDS, Cloud SQL), good ops practices
 - Monitoring: Database health metrics
 
 **Medium Risk: Dev Experience**
+
 - Symptom: Devs must run PostgreSQL locally
 - Mitigation: Docker Compose setup, seed data scripts
 - Monitoring: Developer feedback
 
 **Low Risk: Lock-In**
+
 - Symptom: Hard to migrate away from PostgreSQL
 - Mitigation: Abstraction layer, export utilities
 - Monitoring: N/A
@@ -744,25 +801,26 @@ If we're concerned about future scalability, consider:
 
 ### Scenario: 1,000 Memories
 
-| Operation | Git+YAML | Git+JSONL | PostgreSQL |
-|-----------|----------|-----------|------------|
-| Single write | 80ms | 50ms | 30ms |
-| Single read | 20ms | 5ms | 10ms |
-| Query (10 results) | 150ms | 20ms | 50ms |
-| Full-text search | 200ms | 150ms | 100ms |
-| Bulk write (100) | 5s | 2s | 500ms |
+| Operation          | Git+YAML | Git+JSONL | PostgreSQL |
+| ------------------ | -------- | --------- | ---------- |
+| Single write       | 80ms     | 50ms      | 30ms       |
+| Single read        | 20ms     | 5ms       | 10ms       |
+| Query (10 results) | 150ms    | 20ms      | 50ms       |
+| Full-text search   | 200ms    | 150ms     | 100ms      |
+| Bulk write (100)   | 5s       | 2s        | 500ms      |
 
 ### Scenario: 10,000 Memories
 
-| Operation | Git+YAML | Git+JSONL | PostgreSQL |
-|-----------|----------|-----------|------------|
-| Single write | 150ms | 80ms | 35ms |
-| Single read | 25ms | 5ms | 12ms |
-| Query (10 results) | 300ms | 30ms | 60ms |
-| Full-text search | 500ms | 250ms | 120ms |
-| Bulk write (100) | 12s | 4s | 600ms |
+| Operation          | Git+YAML | Git+JSONL | PostgreSQL |
+| ------------------ | -------- | --------- | ---------- |
+| Single write       | 150ms    | 80ms      | 35ms       |
+| Single read        | 25ms     | 5ms       | 12ms       |
+| Query (10 results) | 300ms    | 30ms      | 60ms       |
+| Full-text search   | 500ms    | 250ms     | 120ms      |
+| Bulk write (100)   | 12s      | 4s        | 600ms      |
 
-**Observation:** Git+YAML degrades at 10K scale, Git+JSONL remains acceptable, PostgreSQL scales linearly.
+**Observation:** Git+YAML degrades at 10K scale, Git+JSONL remains acceptable,
+PostgreSQL scales linearly.
 
 ---
 
@@ -770,27 +828,27 @@ If we're concerned about future scalability, consider:
 
 ### Development Cost
 
-| Approach | Initial Dev | Maintenance | Migration Effort |
-|----------|-------------|-------------|------------------|
-| Git+YAML | 2 weeks | Low | Medium (to PostgreSQL) |
-| Git+JSONL | 3 weeks | Medium (daemon) | Medium (to PostgreSQL) |
-| PostgreSQL | 3 weeks | Medium (ops) | Low (already there) |
+| Approach   | Initial Dev | Maintenance     | Migration Effort       |
+| ---------- | ----------- | --------------- | ---------------------- |
+| Git+YAML   | 2 weeks     | Low             | Medium (to PostgreSQL) |
+| Git+JSONL  | 3 weeks     | Medium (daemon) | Medium (to PostgreSQL) |
+| PostgreSQL | 3 weeks     | Medium (ops)    | Low (already there)    |
 
 ### Operational Cost
 
-| Approach | Infrastructure | Personnel | Monitoring |
-|----------|----------------|-----------|------------|
-| Git+YAML | $0 (local) | Minimal | Basic |
-| Git+JSONL | $0 (local) | Low | Medium (daemon) |
-| PostgreSQL | $50-500/mo | Medium | High (DB ops) |
+| Approach   | Infrastructure | Personnel | Monitoring      |
+| ---------- | -------------- | --------- | --------------- |
+| Git+YAML   | $0 (local)     | Minimal   | Basic           |
+| Git+JSONL  | $0 (local)     | Low       | Medium (daemon) |
+| PostgreSQL | $50-500/mo     | Medium    | High (DB ops)   |
 
 ### Risk Cost
 
-| Approach | Data Loss Risk | Downtime Risk | Migration Risk |
-|----------|----------------|---------------|----------------|
-| Git+YAML | Very Low | Very Low | Medium |
-| Git+JSONL | Low | Low | Medium |
-| PostgreSQL | Very Low | Medium | Low |
+| Approach   | Data Loss Risk | Downtime Risk | Migration Risk |
+| ---------- | -------------- | ------------- | -------------- |
+| Git+YAML   | Very Low       | Very Low      | Medium         |
+| Git+JSONL  | Low            | Low           | Medium         |
+| PostgreSQL | Very Low       | Medium        | Low            |
 
 ---
 
@@ -828,6 +886,7 @@ If we're concerned about future scalability, consider:
 ### Success Criteria
 
 Track these metrics to validate the decision:
+
 - Git operation latency (target: <100ms p95)
 - Query performance (target: <200ms p95)
 - Memory count (alert: >5,000)
@@ -846,6 +905,5 @@ If metrics degrade beyond thresholds, initiate PostgreSQL migration.
 
 ---
 
-**Decision:** Approved for Phase 0 implementation
-**Reviewers:** [Pending]
+**Decision:** Approved for Phase 0 implementation **Reviewers:** [Pending]
 **Date:** 2026-01-19
