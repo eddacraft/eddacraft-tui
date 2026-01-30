@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import * as cp from 'child_process';
-import * as path from 'path';
+import * as cp from 'node:child_process';
+import * as path from 'node:path';
 
 export interface ValidationResult {
   success: boolean;
@@ -262,9 +262,9 @@ export class AnvilService {
   private isValidCliPath(cliPath: string): boolean {
     // Use dynamic imports to avoid bundling issues in VS Code extension
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const fs = require('fs') as typeof import('fs');
+    const fs = require('node:fs') as typeof import('fs');
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const nodePath = require('path') as typeof import('path');
+    const nodePath = require('node:path') as typeof import('path');
 
     if (!fs.existsSync(cliPath)) {
       return false;

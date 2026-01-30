@@ -4,10 +4,10 @@
  * Scans git commit diffs to find secrets that may have been committed in the past.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { existsSync } from 'fs';
-import { join } from 'path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { SECRET_PATTERNS, PatternMatcher } from './secret-patterns.js';
 
 const execAsync = promisify(exec);

@@ -12,10 +12,10 @@ import {
   type PublicKeyConfig,
   type SignatureManifest,
 } from './bundle-verifier.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { createHash, generateKeyPairSync, createSign } from 'crypto';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createHash, generateKeyPairSync, createSign } from 'node:crypto';
 
 describe('BundleVerifier', () => {
   let tempDir: string;

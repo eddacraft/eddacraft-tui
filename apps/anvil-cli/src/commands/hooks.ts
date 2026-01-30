@@ -5,8 +5,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'fs';
-import { join } from 'path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'node:fs';
+import { join } from 'node:path';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
 

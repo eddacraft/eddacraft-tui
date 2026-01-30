@@ -10,9 +10,9 @@
  * - For accurate detection, use TypeScript compiler API in production.
  */
 
-import { readFileSync } from 'fs';
-import { join, dirname, normalize } from 'path';
-import { createHash } from 'crypto';
+import { readFileSync } from 'node:fs';
+import { join, dirname, normalize } from 'node:path';
+import { createHash } from 'node:crypto';
 import type { DependencyEdge, BaselineViolation } from './types.js';
 import { createViolationId } from './types.js';
 

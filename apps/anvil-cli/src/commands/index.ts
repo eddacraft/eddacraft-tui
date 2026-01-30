@@ -1,4 +1,5 @@
 export { createArchitectureCommand } from './architecture.js';
+export { createAuthorshipCommand } from './authorship.js';
 export { createCheckCommand } from './check.js';
 export { createDoctorCommand } from './doctor.js';
 export { createDriftCommand } from './drift.js';

@@ -1,11 +1,20 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { existsSync, readFileSync } from 'fs';
-import { join } from 'path';
-import { randomUUID } from 'crypto';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import type { AITool, Environment, GitContext, CheckSummary, ProvenanceRecord } from './types.js';
 import type { GateRunResult } from '@eddacraft/anvil-contracts';
 import { createDebugger } from '../utils/debug.js';
+import {
+  generateSessionHash,
+  detectCurrentAgent,
+  writeAuthorshipNote,
+  SCHEMA_VERSION,
+  type AuthorshipLog,
+  type PromptRecord,
+  type Message,
+} from './git-ai-standard/index.js';
 
 const debug = createDebugger('provenance');
 
@@ -375,4 +384,124 @@ export function formatProvenanceRecord(record: ProvenanceRecord): string {
   }
 
   return lines.join('\n');
+}
+
+/**
+ * Create an AuthorshipLog from provenance context
+ *
+ * This bridges the Anvil provenance system with the Git AI Standard v3.0.0,
+ * enabling AI-generated code to be tracked in Git Notes.
+ *
+ * @param params - Parameters for creating the authorship log
+ * @param params.commitSha - Full 40-character commit SHA (use `git rev-parse` to resolve short refs)
+ * @returns AuthorshipLog if AI tool is detected, null otherwise
+ * @throws Error if commitSha is not a valid 40-character hex SHA
+ */
+export function createAuthorshipLog(params: {
+  commitSha: string;
+  fileLineMap: Record<string, string>; // file path → line ranges (e.g., "1-50,55-60")
+  messages: Array<{ type: 'user' | 'assistant'; text: string }>;
+  humanAuthor?: string;
+  totalAdditions?: number;
+  totalDeletions?: number;
+}): AuthorshipLog | null {
+  const {
+    commitSha,
+    fileLineMap,
+    messages,
+    humanAuthor,
+    totalAdditions = 0,
+    totalDeletions = 0,
+  } = params;
+
+  // Validate commit SHA is a full 40-character hex string
+  if (!/^[a-f0-9]{40}$/.test(commitSha)) {
+    throw new Error(
+      `commitSha must be a full 40-character hex SHA, got: "${commitSha}". ` +
+        'Use `git rev-parse <ref>` to resolve short refs or branch names.'
+    );
+  }
+
+  // Try to detect the current AI agent
+  const agent = detectCurrentAgent();
+  if (!agent) {
+    debug('No AI agent detected, skipping authorship log creation');
+    return null;
+  }
+
+  const sessionHash = generateSessionHash(agent.tool, agent.id);
+
+  // Build attestations from file→line map
+  const attestations: AuthorshipLog['attestations'] = {};
+  for (const [file, ranges] of Object.entries(fileLineMap)) {
+    attestations[file] = [{ sessionHash, lineRanges: ranges }];
+  }
+
+  // Build prompt record
+  const promptRecord: PromptRecord = {
+    agent_id: agent,
+    messages: messages.map((m) => ({
+      type: m.type,
+      text: m.text,
+      timestamp: new Date().toISOString(),
+    })) as Message[],
+    total_additions: totalAdditions,
+    total_deletions: totalDeletions,
+    accepted_lines: totalAdditions, // Assume all lines accepted initially
+    overridden_lines: 0,
+    human_author: humanAuthor,
+  };
+
+  return {
+    attestations,
+    metadata: {
+      schema_version: SCHEMA_VERSION,
+      base_commit_sha: commitSha,
+      prompts: {
+        [sessionHash]: promptRecord,
+      },
+    },
+  };
+}
+
+/**
+ * Attach an AuthorshipLog to a commit via Git Notes
+ *
+ * @param log - The authorship log to attach
+ * @param workspaceRoot - The repository root directory
+ */
+export async function attachAuthorshipToCommit(
+  log: AuthorshipLog,
+  workspaceRoot: string
+): Promise<void> {
+  const commitSha = log.metadata.base_commit_sha;
+  await writeAuthorshipNote(commitSha, log, workspaceRoot);
+  debug(`Attached authorship log to commit ${commitSha.slice(0, 8)}`);
+}
+
+/**
+ * Create and attach an AuthorshipLog in one operation
+ *
+ * Convenience function that combines createAuthorshipLog and attachAuthorshipToCommit.
+ *
+ * @param params - Parameters for creating the authorship log
+ * @param workspaceRoot - The repository root directory
+ * @returns true if log was created and attached, false if no AI agent detected
+ */
+export async function recordAIAuthorship(
+  params: {
+    commitSha: string;
+    fileLineMap: Record<string, string>;
+    messages: Array<{ type: 'user' | 'assistant'; text: string }>;
+    humanAuthor?: string;
+    totalAdditions?: number;
+    totalDeletions?: number;
+  },
+  workspaceRoot: string
+): Promise<boolean> {
+  const log = createAuthorshipLog(params);
+  if (!log) return false;
+
+  await attachAuthorshipToCommit(log, workspaceRoot);
+  return true;
 }

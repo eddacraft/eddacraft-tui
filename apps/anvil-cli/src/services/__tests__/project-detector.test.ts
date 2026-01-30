@@ -17,8 +17,8 @@ import {
   createEslintConfig,
   type TestWorkspace,
 } from '../../__tests__/helpers/test-workspace.js';
-import { writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 describe('ProjectDetector', () => {
   let workspace: TestWorkspace;

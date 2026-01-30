@@ -1,5 +1,5 @@
-import { writeFileSync, mkdirSync, existsSync, readFileSync, appendFileSync } from 'fs';
-import { join } from 'path';
+import { writeFileSync, mkdirSync, existsSync, readFileSync, appendFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { EnvironmentInfo } from './environment-detector.js';
 
 export type PlanningFormat = 'aps' | 'speckit' | 'bmad' | 'generic' | 'skip';

@@ -5,8 +5,8 @@
  * Wraps core architecture module with CLI-friendly formatting.
  */
 
-import { readdirSync } from 'fs';
-import { join, relative } from 'path';
+import { readdirSync } from 'node:fs';
+import { join, relative } from 'node:path';
 import {
   createArchitectureAnalyzer,
   createBaselineManager,

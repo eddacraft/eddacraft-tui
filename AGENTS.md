@@ -134,6 +134,22 @@ import { CheckContext } from '../types/gate.types.js';
 import { foo } from './utils';
 ```
 
+### Node.js Built-in Imports with `node:` Protocol
+
+Always use the `node:` protocol prefix for Node.js built-in modules. This is
+enforced by ESLint (`unicorn/prefer-node-protocol`).
+
+```typescript
+// ✅ Correct - use node: protocol
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
+
+// ❌ Wrong - missing node: prefix
+import { readFileSync } from 'fs';
+import { join } from 'path';
+```
+
 ### Zod-First Schemas (ADR-0001)
 
 ```typescript

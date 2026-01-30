@@ -4,8 +4,8 @@
  * Re-exports types from @eddacraft/anvil-contracts and provides runtime utility functions.
  */
 
-import { existsSync } from 'fs';
-import { join, isAbsolute } from 'path';
+import { existsSync } from 'node:fs';
+import { join, isAbsolute } from 'node:path';
 import type { CheckContext, NormaliseFilesOptions } from '@eddacraft/anvil-contracts';
 
 // Re-export all types from contracts

@@ -4,8 +4,8 @@
  * Detects application entry points from file patterns and exports.
  */
 
-import { existsSync, readFileSync } from 'fs';
-import { join, basename, dirname } from 'path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, basename, dirname } from 'node:path';
 import type { EntryPoint, EntryPointType, DetectionConfidence } from './types.js';
 
 /**

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { execSync } from 'child_process';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execSync } from 'node:child_process';
 import {
   collectEnvironment,
   collectGitContext,

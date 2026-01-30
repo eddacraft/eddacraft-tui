@@ -8,7 +8,7 @@
  * - Console statements in production code
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';

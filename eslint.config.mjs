@@ -5,6 +5,7 @@ import nxPlugin from '@nx/eslint-plugin';
 import globals from 'globals';
 import typescriptEslint from 'typescript-eslint';
 import anvilPlugin from 'eslint-plugin-anvil';
+import unicornPlugin from 'eslint-plugin-unicorn';
 // import jsonPlugin from '@eslint/json'; // TODO: Re-enable once compatible with ESLint 9
 
 export default typescriptEslint.config(
@@ -70,6 +71,9 @@ export default typescriptEslint.config(
   },
   {
     files: ['**/*.{ts,tsx,mts,cts}'],
+    plugins: {
+      unicorn: unicornPlugin,
+    },
     languageOptions: {
       parserOptions: {
         project: false,
@@ -88,6 +92,8 @@ export default typescriptEslint.config(
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // Prefer node: protocol for Node.js built-in imports (e.g., 'node:fs' instead of 'fs')
+      'unicorn/prefer-node-protocol': 'error',
     },
   },
   {

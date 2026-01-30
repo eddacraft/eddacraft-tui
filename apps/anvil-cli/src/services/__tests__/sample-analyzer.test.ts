@@ -15,10 +15,10 @@ import {
   type TestWorkspace,
   initGitRepo,
 } from '../../__tests__/helpers/test-workspace.js';
-import { writeFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 

@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SecretCheck, SecretFinding } from './secret.check.js';
 import { EntropyDetector } from './secret/entropy-detector.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
-import { writeFileSync, mkdirSync, rmSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
-import { execSync } from 'child_process';
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execSync } from 'node:child_process';
 
 describe('SecretCheck', () => {
   let secretCheck: SecretCheck;

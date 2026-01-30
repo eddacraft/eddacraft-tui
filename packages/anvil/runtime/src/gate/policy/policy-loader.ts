@@ -2,9 +2,9 @@
  * Policy Loader - Discover and load Rego policy files
  */
 
-import { existsSync, readdirSync, statSync } from 'fs';
-import { readFile } from 'fs/promises';
-import { join, basename, extname, sep } from 'path';
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { join, basename, extname, sep } from 'node:path';
 
 /**
  * Default policy directory relative to workspace root

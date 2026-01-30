@@ -6,7 +6,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 import {
   validatePlanningDoc,
   formatValidationIssues,

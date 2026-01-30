@@ -7,9 +7,7 @@
   "scripts": {
     "build": "tsc"
   },
-  "dependencies": {
-    "@nx/devkit": "^22.3.3"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^25.0.10",
     "typescript": "^5.9.3"

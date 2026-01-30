@@ -2,7 +2,7 @@
  * Policy Check - Evaluate OPA/Rego policies against plans
  */
 
-import { execSync } from 'child_process';
+import { execSync } from 'node:child_process';
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
 import { getOPABinaryManager } from '../policy/opa-binary-manager.js';

@@ -1,6 +1,6 @@
 import { GateConfig, GateCheck, PolicyConfig, StackConfig } from '../types/gate.types.js';
-import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
 import { WatchConfigSchema, type WatchConfig } from '../watch/types.js';
 
 /**

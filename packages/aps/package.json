@@ -25,8 +25,8 @@
     "@types/mdast": "^4.0.4",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5",
-    "unist-util-visit": "^5.0.0",
-    "zod": "^4.3.5"
+    "unist-util-visit": "^5.1.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "vitest": "^4.0.18"

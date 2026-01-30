@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+import * as path from 'node:path';
 import type { ValidationResult, GateResults, GateDetail } from './anvilService.js';
 import type { AnalysisResult, AnalysisWarning } from './embeddedAnalysis.js';
 

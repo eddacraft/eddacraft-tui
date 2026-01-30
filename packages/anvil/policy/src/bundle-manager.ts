@@ -6,15 +6,22 @@
  * data.json files.
  */
 
-import { existsSync, mkdirSync, unlinkSync, readFileSync, createWriteStream, rmSync } from 'fs';
-import { readFile, writeFile, rm, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { homedir } from 'os';
-import { createHash, createVerify } from 'crypto';
-import https from 'https';
-import http from 'http';
-import { pipeline } from 'stream/promises';
-import { createGunzip } from 'zlib';
+import {
+  existsSync,
+  mkdirSync,
+  unlinkSync,
+  readFileSync,
+  createWriteStream,
+  rmSync,
+} from 'node:fs';
+import { readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { createHash, createVerify } from 'node:crypto';
+import https from 'node:https';
+import http from 'node:http';
+import { pipeline } from 'node:stream/promises';
+import { createGunzip } from 'node:zlib';
 import { extract } from 'tar';
 import { createDebugger } from './utils/debug.js';
 
@@ -669,7 +676,7 @@ export class BundleManager {
 }
 
 // Import createReadStream for extraction
-import { createReadStream } from 'fs';
+import { createReadStream } from 'node:fs';
 
 /**
  * Create a singleton bundle manager

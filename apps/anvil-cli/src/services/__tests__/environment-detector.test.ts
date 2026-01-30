@@ -19,8 +19,8 @@ import {
   createLockfile,
   type TestWorkspace,
 } from '../../__tests__/helpers/test-workspace.js';
-import { writeFileSync } from 'fs';
-import { join } from 'path';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 describe('EnvironmentDetector', () => {
   let workspace: TestWorkspace;

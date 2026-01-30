@@ -6,9 +6,9 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OPABinaryManager } from './opa-binary-manager.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 describe('OPABinaryManager', () => {
   let manager: OPABinaryManager;

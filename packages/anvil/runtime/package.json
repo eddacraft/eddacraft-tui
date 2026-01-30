@@ -42,7 +42,7 @@
     "minimatch": "^10.1.1",
     "shell-quote": "^1.8.3",
     "tar": "^7.5.3",
-    "zod": "^4.3.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/shell-quote": "^1.7.5",

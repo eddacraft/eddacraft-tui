@@ -5,9 +5,16 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync, readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  copyFileSync,
+  writeFileSync,
+  readFileSync,
+} from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info, warning } from '../utils/output.js';
 import {
@@ -366,7 +373,7 @@ export function createPolicyCommand(): Command {
         const binaryManager = getOPABinaryManager();
         const binaryPath = await binaryManager.ensureBinary();
 
-        const { readFile } = await import('fs/promises');
+        const { readFile } = await import('node:fs/promises');
         const content = await readFile(file, 'utf-8');
 
         const executor = new OPAExecutor(binaryPath);
