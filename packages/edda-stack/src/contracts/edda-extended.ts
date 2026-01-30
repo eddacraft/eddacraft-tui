@@ -15,7 +15,7 @@ import type {
   ProposalId,
   Timestamp,
   ProvenanceChain,
-} from './index';
+} from './index.js';
 
 // ============================================================================
 // CORE EXTENSIONS
@@ -502,7 +502,7 @@ export interface SemanticQuery {
   filters?: Partial<EddaQuery>;
 }
 
-export interface SemanticResult extends EddaQueryResult {
+export interface SemanticResult extends Omit<EddaQueryResult, 'memories'> {
   memories: MemoryObjectWithRelevance[];
 }
 

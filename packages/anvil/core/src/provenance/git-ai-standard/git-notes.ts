@@ -1,6 +1,6 @@
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { tmpdir } from 'os';
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import { tmpdir } from 'node:os';
 import { serializeAuthorshipLog, parseAuthorshipLog } from './serializer.js';
 import type { AuthorshipLog } from './types.js';
 import { createDebugger } from '../../utils/debug.js';
@@ -58,9 +58,9 @@ export async function writeAuthorshipNote(
 
   // Write content to a temp file in OS temp directory to avoid issues with
   // worktrees/submodules where .git may be a file, not a directory
-  const { writeFile, unlink } = await import('fs/promises');
-  const { join } = await import('path');
-  const { randomUUID } = await import('crypto');
+  const { writeFile, unlink } = await import('node:fs/promises');
+  const { join } = await import('node:path');
+  const { randomUUID } = await import('node:crypto');
 
   const tempFile = join(tmpdir(), `anvil-note-${randomUUID()}.tmp`);
 
