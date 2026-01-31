@@ -115,7 +115,7 @@ The repository has several GitHub Actions workflows:
 
 - **ci.yml** — Lint, typecheck, test, and build on every push and PR. Runs
   against Node.js 20.x and 22.x with smart change detection (docs-only changes
-  skip code tests; E2E tests run only when relevant files change).
+  skip code tests).
 - **publish.yml** — Publishes to npm on version tags (`v*`). Validates tag
   matches package.json version, runs the full test suite, and creates a GitHub
   release.
