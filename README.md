@@ -1,259 +1,95 @@
-# Anvil
+# @eddacraft/anvil-source
 
-[![CI](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml)
+[![CI](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml/badge.svg)](https://github.com/EddaCraft/anvil-001/actions/workflows/ci.yml)
+[![NX](https://img.shields.io/badge/managed%20with-Nx-143055.svg?style=flat-square)](https://nx.dev/)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js->=20.0.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
-> **Catch architecture drift and AI anti-patterns at file save — before they
-> reach code review**
+Monorepo for **Anvil** — a deterministic development automation platform that
+catches architecture drift and AI anti-patterns at file save, before they reach
+code review.
 
-## What is Anvil?
+## Repository Structure
 
-Anvil makes AI-generated code safe for production by catching architecture
-boundary violations and common anti-patterns **at the moment of creation** —
-when fixing is cheap.
+This is an NX-managed pnpm workspace containing the following apps, packages,
+and tooling.
+
+### Apps
+
+| Directory | Package | Description |
+| --- | --- | --- |
+| `apps/anvil-cli` | `@eddacraft/anvil-cli` | CLI application (Commander.js + Ink TUI) |
+| `apps/docs-site` | `@eddacraft/anvil-docs-site` | Docusaurus documentation site |
+| `apps/anvil-api` | — | API service |
+| `apps/anvil-ui` | — | Web UI |
+| `apps/website` | — | Marketing website |
+| `apps/e2e` | — | End-to-end test suites (Playwright) |
+
+### Packages — Anvil Core
+
+| Directory | Package | Description |
+| --- | --- | --- |
+| `packages/anvil/contracts` | `@eddacraft/anvil-contracts` | Schemas, types, and events with zero dependencies |
+| `packages/anvil/ports` | `@eddacraft/anvil-ports` | Interface definitions depending only on contracts |
+| `packages/anvil/core` | `@eddacraft/anvil-core` | Pure domain logic depending on ports and contracts |
+| `packages/anvil/runtime` | `@eddacraft/anvil-runtime` | Orchestration and I/O depending on core, ports, contracts |
+| `packages/anvil/policy` | `@eddacraft/anvil-policy` | OPA/Rego wrappers depending on contracts |
+
+### Packages — Platform
+
+| Directory | Package | Description |
+| --- | --- | --- |
+| `packages/platform/config` | `@eddacraft/anvil-platform-config` | Configuration loading and validation |
+| `packages/platform/storage` | `@eddacraft/anvil-platform-storage` | File system and persistence abstractions |
+| `packages/platform/crypto` | `@eddacraft/anvil-platform-crypto` | Hashing, signing, and verification utilities |
+
+### Packages — Ecosystem
+
+| Directory | Package | Description |
+| --- | --- | --- |
+| `packages/adapters` | `@eddacraft/anvil-adapters` | Format converters (SpecKit, BMAD) |
+| `packages/aps` | `@eddacraft/anvil-aps` | APS document parser |
+| `packages/eslint-plugin-anvil` | `eslint-plugin-anvil` | ESLint rules for test quality enforcement |
+| `packages/vscode-extension` | `anvil-vscode` | VS Code integration |
+| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts |
+| `packages/edda-stack` | `@eddacraft/anvil-edda-stack` | Kindling · Ember · Edda memory stack |
+| `packages/shared` | — | Shared utilities |
+
+### Packages — Tooling
+
+| Directory | Description |
+| --- | --- |
+| `packages/tooling/tsconfig` | Shared TypeScript configurations |
+| `packages/tooling/eslint-config` | Shared ESLint configurations |
+
+### Tools
+
+| Directory | Description |
+| --- | --- |
+| `tools/scripts` | Build and utility scripts |
+| `tools/generators` | NX code generators |
+| `tools/codemods` | Codemod transformations |
+
+## Getting Started
+
+### Prerequisites
+
+- **Node.js** >= 20.0.0
+- **pnpm** >= 10.20.0
+
+### Setup
 
 ```bash
-# Check changed files for issues
-anvil check --changed
-
-# Watch source files in real-time
-anvil watch --source
-
-# Get actionable warnings, not hard blocks
-⚠ [AP-003] Explicit any type detected
-  src/api/handler.ts:42
-  Using 'any' defeats type safety
-  Fix: Define a proper type or use 'unknown'
-```
-
-### Why Anvil?
-
-AI coding tools produce code that compiles and passes tests, but **drifts from
-your intended architecture**. By the time drift is noticed in review, it's
-already merged or too expensive to fix.
-
-Anvil catches it at file save:
-
-- **Architecture violations** — New dependencies crossing boundaries you defined
-- **AI escape hatches** — `any`, `@ts-ignore`, empty catch blocks
-- **With accountability** — Suppress with `@anvil-ignore`, but explain why
-
-### What It Doesn't Do
-
-Anvil **warns**, it doesn't block. Your CI can enforce if you want, but the
-default is informational. We trust developers to make informed decisions.
-
-## Quick Start
-
-```bash
-# Clone and build (pre-release)
 git clone https://github.com/EddaCraft/anvil-001.git
-cd anvil-001 && pnpm install && pnpm build
-
-# Link CLI globally
-pnpm link:cli
-
-# Set up in your project
-cd /path/to/your/project
-anvil init
-
-# Run your first check
-anvil check --changed
-```
-
-See the [Quick Start Guide](./docs/QUICK_START.md) for detailed instructions.
-
-## Core Commands
-
-### `anvil check` — Analyse files for issues
-
-```bash
-# Check specific files
-anvil check src/api/*.ts
-
-# Check git-changed files only
-anvil check --changed
-
-# Check staged files (pre-commit)
-anvil check --changed --staged
-
-# Check against a branch
-anvil check --changed --since main
-
-# Verbose output with fix suggestions
-anvil check --changed --verbose
-```
-
-### `anvil watch` — Real-time feedback
-
-```bash
-# Watch source files and check on save
-anvil watch --source
-
-# Custom patterns
-anvil watch --patterns "src/**/*.ts,lib/**/*.ts"
-
-# With gate profile for fast iteration
-anvil watch --source --profile dev
-```
-
-### `anvil status` — Quick health check
-
-```bash
-anvil status
-
-# Shows:
-# • HOOKS - pre-commit/pre-push status
-# • CONFIGURATION - current settings
-# • RECENT RESULTS - validation history
-```
-
-### `anvil doctor` — Diagnose setup
-
-```bash
-anvil doctor        # Check environment
-anvil doctor --fix  # Auto-fix issues
-```
-
-## What Anvil Catches
-
-### Anti-Patterns (7 high-signal patterns)
-
-| ID     | Pattern                      | Why It Matters                     |
-| ------ | ---------------------------- | ---------------------------------- |
-| AP-001 | Broad `/* eslint-disable */` | Silences all linting for file      |
-| AP-003 | Explicit `any` type          | Defeats TypeScript's purpose       |
-| AP-004 | `@ts-ignore` directive       | Ignores type errors without fixing |
-| AP-006 | Empty catch block            | Silently swallows errors           |
-| AP-007 | Console in production code   | Should use proper logging (opt-in) |
-
-### Architecture Boundaries
-
-Anvil detects **new dependency edges** that cross architectural contexts:
-
-```
-⚠ [ARCH-001] New cross-boundary dependency
-  src/api/handler.ts → src/database/queries.ts
-  API layer should not directly access database layer
-  Consider: Use the service layer as intermediary
-```
-
-### Suppression with Accountability
-
-When you need to bypass a warning, explain why:
-
-```typescript
-// @anvil-ignore AP-003: Third-party SDK requires any for callback
-const handler = sdk.createHandler(callback as any);
-```
-
-Suppressions are tracked. You'll see them in `anvil status` and drift reports.
-
-## CI/CD Integration
-
-### GitHub Action
-
-```yaml
-name: Anvil Check
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
-permissions:
-  contents: read
-  pull-requests: write
-  checks: write
-
-jobs:
-  anvil:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/anvil-check
-```
-
-This provides:
-
-- Automatic changed-file detection
-- PR comment summaries
-- Inline annotations
-- Non-blocking by default (use `fail-on-warnings: true` for blocking)
-
-See [GitHub Action docs](./.github/actions/anvil-check/README.md) for options.
-
-## Configuration
-
-### `.anvilrc`
-
-```json
-{
-  "checks": {
-    "architecture": {
-      "enabled": true,
-      "baseline": ".anvil/baseline.json"
-    },
-    "antipattern": {
-      "enabled": true,
-      "patterns": ["AP-001", "AP-003", "AP-004", "AP-006"]
-    }
-  },
-  "watch": {
-    "patterns": ["src/**/*.ts"],
-    "debounceMs": 300
-  }
-}
-```
-
-### Gate Profiles
-
-```bash
-# Fast iteration (skip slow checks)
-anvil check --changed --profile dev
-
-# Full CI checks
-anvil check --changed --profile ci
-
-# Production release
-anvil check --changed --profile production
-```
-
-## Project Status
-
-| Component            | Status      |
-| -------------------- | ----------- |
-| Analysis Engine      | ✅ Complete |
-| Architecture Safety  | ✅ Complete |
-| Anti-pattern Library | ✅ Complete |
-| Suppression System   | ✅ Complete |
-| Git Integration      | ✅ Complete |
-| Watch Mode           | ✅ Complete |
-| TUI (init, status)   | ✅ Complete |
-| GitHub Action        | ✅ Complete |
-| OPA Policy Engine    | ✅ Complete |
-| VS Code Extension    | ✅ Complete |
-
-See [plans/index.aps.md](./plans/index.aps.md) for detailed roadmap.
-
-## Documentation
-
-| Document                                                                     | Description                 |
-| ---------------------------------------------------------------------------- | --------------------------- |
-| [Quick Start](./apps/docs-site/docs/anvil/quickstart.md)                     | Get running in 5 minutes    |
-| [CLI Reference](./apps/anvil-cli/README.md)                                  | Complete command reference  |
-| [First Project](./apps/docs-site/docs/anvil/first-project.md)                | Real-world setup example    |
-| [Troubleshooting](./apps/docs-site/docs/anvil/operations/troubleshooting.md) | Common issues and solutions |
-| [Configuration](./apps/docs-site/docs/anvil/operations/config.md)            | Configuration options       |
-| [Architecture](./docs/ARCHITECTURE.md)                                       | System design               |
-
-## Development
-
-```bash
-# Install dependencies
+cd anvil-001
 pnpm install
+pnpm build
+```
 
+### Common Commands
+
+```bash
 # Build all packages
 pnpm build
 
@@ -265,42 +101,32 @@ pnpm typecheck
 
 # Linting
 pnpm lint
+
+# Link Anvil CLI globally
+pnpm link:cli
 ```
 
-### Project Structure
+NX is used under the hood — you can also use `npx nx` commands directly for
+targeted builds, affected-only runs, and task graph visualisation.
 
-```
-anvil/
-├── apps/
-│   ├── anvil-cli/        # CLI application (Commander.js + Ink TUI)
-│   └── e2e/              # E2E test suites
-├── core/                 # Legacy core (being migrated)
-├── packages/
-│   ├── adapters/         # Format converters (SpecKit, BMAD)
-│   ├── aps/              # APS document parser
-│   ├── anvil/            # New modular core packages
-│   │   ├── contracts/    # Shared interfaces & types
-│   │   ├── ports/        # Adapter interfaces
-│   │   ├── core/         # Pure domain logic
-│   │   ├── runtime/      # Execution environment
-│   │   └── policy/       # Policy evaluation
-│   ├── platform/         # Platform services
-│   │   ├── config/       # Configuration management
-│   │   ├── storage/      # Storage abstractions
-│   │   └── crypto/       # Cryptographic utilities
-│   ├── tooling/          # Build & dev tooling
-│   │   ├── tsconfig/     # Shared TypeScript configs
-│   │   └── eslint-config/# Shared ESLint configs
-│   └── vscode-extension/ # VS Code integration
-├── tools/
-│   ├── scripts/          # Build & utility scripts
-│   ├── generators/       # Code generators
-│   └── codemods/         # Codemod transformations
-├── plans/                # Project planning (.aps.md specs)
-└── docs/                 # Documentation
-```
+## CI/CD
 
-### Code Conventions
+The repository has several GitHub Actions workflows:
+
+- **ci.yml** — Lint, typecheck, test, and build on every push and PR. Runs
+  against Node.js 20.x and 22.x with smart change detection (docs-only changes
+  skip code tests; E2E tests run only when relevant files change).
+- **publish.yml** — Publishes to npm on version tags (`v*`). Validates tag
+  matches package.json version, runs the full test suite, and creates a GitHub
+  release.
+- **claude.yml** — Claude Code integration for AI-assisted issue triage and PR
+  review.
+
+A reusable **Anvil Check** GitHub Action is also provided at
+`.github/actions/anvil-check/` for running Anvil analysis in your own
+workflows.
+
+## Code Conventions
 
 - **UK English** — organise, colour, behaviour
 - **ESM with .js extensions** — `import { foo } from './bar.js'`
@@ -316,12 +142,18 @@ anvil/
 
 See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 
+## Documentation
+
+| Document | Description |
+| --- | --- |
+| [Quick Start](./apps/docs-site/docs/anvil/quickstart.md) | Get running in 5 minutes |
+| [CLI Reference](./apps/anvil-cli/README.md) | Complete command reference |
+| [First Project](./apps/docs-site/docs/anvil/first-project.md) | Real-world setup example |
+| [Troubleshooting](./apps/docs-site/docs/anvil/operations/troubleshooting.md) | Common issues and solutions |
+| [Configuration](./apps/docs-site/docs/anvil/operations/config.md) | Configuration options |
+| [Architecture](./docs/ARCHITECTURE.md) | System design |
+| [Plans](./plans/index.aps.md) | Detailed roadmap |
+
 ## License
 
 [MIT](./LICENSE)
-
----
-
-**Questions?** Open an
-[issue](https://github.com/EddaCraft/anvil-001/issues/new) or see the
-[troubleshooting guide](./docs/TROUBLESHOOTING.md).
