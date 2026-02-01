@@ -5,14 +5,14 @@
 
 :root {
   /* Nordic Terminal Theme */
-  --void: #0D0D0F;
-  --structure: #2A2A2E;
+  --void: #0d0d0f;
+  --structure: #2a2a2e;
   --surface: #141416;
-  --text-primary: #EBEBEB;
-  --text-muted: #85858A;
-  --anvil: #CC5500;
-  --edda: #2E8B57;
-  
+  --text-primary: #ebebeb;
+  --text-muted: #85858a;
+  --anvil: #cc5500;
+  --edda: #2e8b57;
+
   /* Map to design tokens */
   --background: var(--void); /* Preserving user's specific background */
   --foreground: var(--text-primary); /* Preserving user's specific foreground */
@@ -29,7 +29,9 @@
   --accent: var(--edda); /* Preserving user's specific accent */
   --accent-foreground: var(--text-primary); /* Preserving user's specific accent-foreground */
   --destructive: var(--anvil); /* Preserving user's specific destructive */
-  --destructive-foreground: var(--text-primary); /* Preserving user's specific destructive-foreground */
+  --destructive-foreground: var(
+    --text-primary
+  ); /* Preserving user's specific destructive-foreground */
   --border: var(--structure); /* Preserving user's specific border */
   --input: var(--structure); /* Preserving user's specific input */
   --ring: var(--anvil); /* Preserving user's specific ring */
@@ -90,7 +92,7 @@
 @theme inline {
   --font-sans: 'Inter', sans-serif;
   --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
-  
+
   /* Nordic Terminal Colors (preserved) */
   --color-void: var(--void);
   --color-structure: var(--structure);
@@ -99,7 +101,7 @@
   --color-text-muted: var(--text-muted);
   --color-anvil: var(--anvil);
   --color-edda: var(--edda);
-  
+
   /* Map to semantic tokens (preserved user's mappings) */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -147,14 +149,20 @@
   }
   body {
     /* Updated to use shadcn-compatible variables, but based on user's theme */
-    @apply bg-background text-foreground; 
+    @apply bg-background text-foreground;
   }
 }
 
 /* Blinking cursor animation */
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 
 .cursor-blink {
@@ -163,12 +171,20 @@
 
 /* Typing animation */
 @keyframes typing {
-  from { width: 0; }
-  to { width: 100%; }
+  from {
+    width: 0;
+  }
+  to {
+    width: 100%;
+  }
 }
 
 /* Terminal scan line effect */
 @keyframes scanline {
-  0% { transform: translateY(-100%); }
-  100% { transform: translateY(100vh); }
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(100vh);
+  }
 }

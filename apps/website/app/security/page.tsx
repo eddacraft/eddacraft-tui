@@ -1,9 +1,10 @@
-import Link from "next/link"
+import Link from 'next/link';
 
 export const metadata = {
-  title: "Security — Anvil by eddacraft",
-  description: "Security practices and product security features for Anvil, the AI governance tool by eddacraft.",
-}
+  title: 'Security — Anvil by eddacraft',
+  description:
+    'Security practices and product security features for Anvil, the AI governance tool by eddacraft.',
+};
 
 export default function SecurityPage() {
   return (
@@ -11,8 +12,11 @@ export default function SecurityPage() {
       {/* Header */}
       <header className="border-b border-structure">
         <div className="mx-auto max-w-4xl px-6 py-4">
-          <Link href="/" className="text-text-muted hover:text-text-primary transition-colors text-sm">
-            {"<-"} back to anvil
+          <Link
+            href="/"
+            className="text-text-muted hover:text-text-primary transition-colors text-sm"
+          >
+            {'<-'} back to anvil
           </Link>
         </div>
       </header>
@@ -39,7 +43,8 @@ export default function SecurityPage() {
           <section>
             <h2 className="text-anvil font-bold mb-2">SYNOPSIS</h2>
             <p className="text-text-muted pl-6">
-              This document describes how Anvil secures your code, how we secure Anvil itself, and how to report security vulnerabilities.
+              This document describes how Anvil secures your code, how we secure Anvil itself, and
+              how to report security vulnerabilities.
             </p>
           </section>
 
@@ -47,33 +52,39 @@ export default function SecurityPage() {
           <section>
             <h2 className="text-anvil font-bold mb-2">PRODUCT SECURITY FEATURES</h2>
             <div className="text-text-muted pl-6 space-y-4">
-              <p>Anvil provides the following security capabilities for your development workflow:</p>
-              
+              <p>
+                Anvil provides the following security capabilities for your development workflow:
+              </p>
+
               <div>
                 <p className="text-text-primary mb-1">Secret Detection</p>
                 <p className="pl-4">
-                  Scans generated code for exposed credentials, API keys, tokens, and other secrets before they reach your codebase. Patterns are updated regularly.
+                  Scans generated code for exposed credentials, API keys, tokens, and other secrets
+                  before they reach your codebase. Patterns are updated regularly.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Static Analysis (SAST)</p>
                 <p className="pl-4">
-                  Identifies common security vulnerabilities in generated code including injection flaws, insecure configurations, and unsafe patterns.
+                  Identifies common security vulnerabilities in generated code including injection
+                  flaws, insecure configurations, and unsafe patterns.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Dependency Auditing</p>
                 <p className="pl-4">
-                  Validates dependencies against known vulnerability databases before they are added to your project.
+                  Validates dependencies against known vulnerability databases before they are added
+                  to your project.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Policy Enforcement</p>
                 <p className="pl-4">
-                  Define custom security policies in Rego. Block patterns, require reviews, or flag violations based on your organisation's standards.
+                  Define custom security policies in Rego. Block patterns, require reviews, or flag
+                  violations based on your organisation&apos;s standards.
                 </p>
               </div>
             </div>
@@ -86,35 +97,40 @@ export default function SecurityPage() {
               <div>
                 <p className="text-text-primary mb-1">Local-First Architecture</p>
                 <p className="pl-4">
-                  Anvil runs entirely on your machine. Your source code, policies, and AI outputs never leave your infrastructure unless you explicitly configure remote features.
+                  Anvil runs entirely on your machine. Your source code, policies, and AI outputs
+                  never leave your infrastructure unless you explicitly configure remote features.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Deterministic Core</p>
                 <p className="pl-4">
-                  The governance engine is deterministic and contains no AI components. Policy evaluation produces the same result every time for the same input.
+                  The governance engine is deterministic and contains no AI components. Policy
+                  evaluation produces the same result every time for the same input.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Signed Releases</p>
                 <p className="pl-4">
-                  All CLI releases are cryptographically signed. Verify signatures with <span className="text-anvil">anvil verify</span> or check against our public key.
+                  All CLI releases are cryptographically signed. Verify signatures with{' '}
+                  <span className="text-anvil">anvil verify</span> or check against our public key.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Dependency Minimisation</p>
                 <p className="pl-4">
-                  The core CLI has minimal dependencies. We audit the full dependency tree and pin versions to prevent supply chain attacks.
+                  The core CLI has minimal dependencies. We audit the full dependency tree and pin
+                  versions to prevent supply chain attacks.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">No Telemetry by Default</p>
                 <p className="pl-4">
-                  Anonymous telemetry is opt-in. When enabled, it collects only aggregate performance metrics, never code or content.
+                  Anonymous telemetry is opt-in. When enabled, it collects only aggregate
+                  performance metrics, never code or content.
                 </p>
               </div>
             </div>
@@ -127,21 +143,23 @@ export default function SecurityPage() {
               <div>
                 <p className="text-text-primary mb-1">Hosting</p>
                 <p className="pl-4">
-                  Web services are hosted on Vercel with automatic DDoS protection and edge caching. Backend services run on isolated infrastructure in the EU and US.
+                  Web services are hosted on Vercel with automatic DDoS protection and edge caching.
+                  Backend services run on isolated infrastructure in the EU and US.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Encryption</p>
                 <p className="pl-4">
                   All data in transit uses TLS 1.3. Data at rest is encrypted using AES-256.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Access Control</p>
                 <p className="pl-4">
-                  Internal access follows principle of least privilege. All access is logged and regularly audited.
+                  Internal access follows principle of least privilege. All access is logged and
+                  regularly audited.
                 </p>
               </div>
             </div>
@@ -152,37 +170,50 @@ export default function SecurityPage() {
             <h2 className="text-anvil font-bold mb-2">RESPONSIBLE DISCLOSURE</h2>
             <div className="text-text-muted pl-6 space-y-4">
               <p>
-                We take security vulnerabilities seriously. If you discover a security issue, please report it responsibly.
+                We take security vulnerabilities seriously. If you discover a security issue, please
+                report it responsibly.
               </p>
-              
+
               <div>
                 <p className="text-text-primary mb-1">How to Report</p>
                 <p className="pl-4">
-                  Email <span className="text-anvil">security@eddacraft.com</span> with details of the vulnerability. Include steps to reproduce if possible.
+                  Email <span className="text-anvil">security@eddacraft.com</span> with details of
+                  the vulnerability. Include steps to reproduce if possible.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">What to Expect</p>
                 <ul className="pl-4 space-y-1">
-                  <li><span className="text-edda">-</span> Acknowledgement within 48 hours</li>
-                  <li><span className="text-edda">-</span> Initial assessment within 5 business days</li>
-                  <li><span className="text-edda">-</span> Regular updates on remediation progress</li>
-                  <li><span className="text-edda">-</span> Credit in our security advisories (if desired)</li>
+                  <li>
+                    <span className="text-edda">-</span> Acknowledgement within 48 hours
+                  </li>
+                  <li>
+                    <span className="text-edda">-</span> Initial assessment within 5 business days
+                  </li>
+                  <li>
+                    <span className="text-edda">-</span> Regular updates on remediation progress
+                  </li>
+                  <li>
+                    <span className="text-edda">-</span> Credit in our security advisories (if
+                    desired)
+                  </li>
                 </ul>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Scope</p>
                 <p className="pl-4">
-                  In scope: anvil CLI, web properties (*.eddacraft.com), API endpoints. Out of scope: third-party services, social engineering, physical attacks.
+                  In scope: anvil CLI, web properties (*.eddacraft.com), API endpoints. Out of
+                  scope: third-party services, social engineering, physical attacks.
                 </p>
               </div>
-              
+
               <div>
                 <p className="text-text-primary mb-1">Safe Harbour</p>
                 <p className="pl-4">
-                  We will not pursue legal action against researchers who act in good faith and follow responsible disclosure practices.
+                  We will not pursue legal action against researchers who act in good faith and
+                  follow responsible disclosure practices.
                 </p>
               </div>
             </div>
@@ -194,10 +225,11 @@ export default function SecurityPage() {
             <div className="text-text-muted pl-6 space-y-2">
               <p>For encrypted communications, use our PGP key:</p>
               <pre className="bg-surface border border-structure p-3 mt-2 text-xs overflow-x-auto">
-                <code>Fingerprint: XXXX XXXX XXXX XXXX XXXX  XXXX XXXX XXXX XXXX XXXX</code>
+                <code>Fingerprint: XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX</code>
               </pre>
               <p className="text-xs">
-                Full key available at <span className="text-anvil">https://eddacraft.com/.well-known/pgp-key.txt</span>
+                Full key available at{' '}
+                <span className="text-anvil">https://eddacraft.com/.well-known/pgp-key.txt</span>
               </p>
             </div>
           </section>
@@ -207,9 +239,17 @@ export default function SecurityPage() {
             <h2 className="text-anvil font-bold mb-2">SEE ALSO</h2>
             <div className="text-text-muted pl-6">
               <p>
-                <Link href="/" className="text-anvil hover:underline">anvil(1)</Link>,{" "}
-                <Link href="/privacy" className="text-anvil hover:underline">anvil-privacy(7)</Link>,{" "}
-                <a href="#" className="text-anvil hover:underline">anvil-terms(7)</a>
+                <Link href="/" className="text-anvil hover:underline">
+                  anvil(1)
+                </Link>
+                ,{' '}
+                <Link href="/privacy" className="text-anvil hover:underline">
+                  anvil-privacy(7)
+                </Link>
+                ,{' '}
+                <a href="#" className="text-anvil hover:underline">
+                  anvil-terms(7)
+                </a>
               </p>
             </div>
           </section>
@@ -231,5 +271,5 @@ export default function SecurityPage() {
         </div>
       </div>
     </main>
-  )
+  );
 }

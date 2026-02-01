@@ -68,6 +68,11 @@ export default typescriptEslint.config(
         version: 'detect',
       },
     },
+    rules: {
+      ...reactPlugin.configs.flat.recommended.rules,
+      // Not needed with React 17+ automatic JSX runtime (Next.js, Vite, etc.)
+      'react/react-in-jsx-scope': 'off',
+    },
   },
   {
     files: ['**/*.{ts,tsx,mts,cts}'],

@@ -17,59 +17,59 @@ and tooling.
 
 ### Apps
 
-| Directory | Package | Description |
-| --- | --- | --- |
-| `apps/anvil-cli` | `@eddacraft/anvil-cli` | CLI application (Commander.js + Ink TUI) |
-| `apps/docs-site` | `@eddacraft/anvil-docs-site` | Docusaurus documentation site |
-| `apps/anvil-api` | — | API service |
-| `apps/anvil-ui` | — | Web UI |
-| `apps/website` | — | Marketing website |
-| `apps/e2e` | — | End-to-end test suites (Playwright) |
+| Directory        | Package                      | Description                              |
+| ---------------- | ---------------------------- | ---------------------------------------- |
+| `apps/anvil-cli` | `@eddacraft/anvil-cli`       | CLI application (Commander.js + Ink TUI) |
+| `apps/docs-site` | `@eddacraft/anvil-docs-site` | Docusaurus documentation site            |
+| `apps/anvil-api` | —                            | API service                              |
+| `apps/anvil-ui`  | —                            | Web UI                                   |
+| `apps/website`   | —                            | Marketing website                        |
+| `apps/e2e`       | —                            | End-to-end test suites (Playwright)      |
 
 ### Packages — Anvil Core
 
-| Directory | Package | Description |
-| --- | --- | --- |
-| `packages/anvil/contracts` | `@eddacraft/anvil-contracts` | Schemas, types, and events with zero dependencies |
-| `packages/anvil/ports` | `@eddacraft/anvil-ports` | Interface definitions depending only on contracts |
-| `packages/anvil/core` | `@eddacraft/anvil-core` | Pure domain logic depending on ports and contracts |
-| `packages/anvil/runtime` | `@eddacraft/anvil-runtime` | Orchestration and I/O depending on core, ports, contracts |
-| `packages/anvil/policy` | `@eddacraft/anvil-policy` | OPA/Rego wrappers depending on contracts |
+| Directory                  | Package                      | Description                                               |
+| -------------------------- | ---------------------------- | --------------------------------------------------------- |
+| `packages/anvil/contracts` | `@eddacraft/anvil-contracts` | Schemas, types, and events with zero dependencies         |
+| `packages/anvil/ports`     | `@eddacraft/anvil-ports`     | Interface definitions depending only on contracts         |
+| `packages/anvil/core`      | `@eddacraft/anvil-core`      | Pure domain logic depending on ports and contracts        |
+| `packages/anvil/runtime`   | `@eddacraft/anvil-runtime`   | Orchestration and I/O depending on core, ports, contracts |
+| `packages/anvil/policy`    | `@eddacraft/anvil-policy`    | OPA/Rego wrappers depending on contracts                  |
 
 ### Packages — Platform
 
-| Directory | Package | Description |
-| --- | --- | --- |
-| `packages/platform/config` | `@eddacraft/anvil-platform-config` | Configuration loading and validation |
-| `packages/platform/storage` | `@eddacraft/anvil-platform-storage` | File system and persistence abstractions |
-| `packages/platform/crypto` | `@eddacraft/anvil-platform-crypto` | Hashing, signing, and verification utilities |
+| Directory                   | Package                             | Description                                  |
+| --------------------------- | ----------------------------------- | -------------------------------------------- |
+| `packages/platform/config`  | `@eddacraft/anvil-platform-config`  | Configuration loading and validation         |
+| `packages/platform/storage` | `@eddacraft/anvil-platform-storage` | File system and persistence abstractions     |
+| `packages/platform/crypto`  | `@eddacraft/anvil-platform-crypto`  | Hashing, signing, and verification utilities |
 
 ### Packages — Ecosystem
 
-| Directory | Package | Description |
-| --- | --- | --- |
-| `packages/adapters` | `@eddacraft/anvil-adapters` | Format converters (SpecKit, BMAD) |
-| `packages/aps` | `@eddacraft/anvil-aps` | APS document parser |
-| `packages/eslint-plugin-anvil` | `eslint-plugin-anvil` | ESLint rules for test quality enforcement |
-| `packages/vscode-extension` | `anvil-vscode` | VS Code integration |
-| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts |
-| `packages/edda-stack` | `@eddacraft/anvil-edda-stack` | Kindling · Ember · Edda memory stack |
-| `packages/shared` | — | Shared utilities |
+| Directory                       | Package                                 | Description                               |
+| ------------------------------- | --------------------------------------- | ----------------------------------------- |
+| `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)         |
+| `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                       |
+| `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement |
+| `packages/vscode-extension`     | `anvil-vscode`                          | VS Code integration                       |
+| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts     |
+| `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Kindling · Ember · Edda memory stack      |
+| `packages/shared`               | —                                       | Shared utilities                          |
 
 ### Packages — Tooling
 
-| Directory | Description |
-| --- | --- |
-| `packages/tooling/tsconfig` | Shared TypeScript configurations |
-| `packages/tooling/eslint-config` | Shared ESLint configurations |
+| Directory                        | Description                      |
+| -------------------------------- | -------------------------------- |
+| `packages/tooling/tsconfig`      | Shared TypeScript configurations |
+| `packages/tooling/eslint-config` | Shared ESLint configurations     |
 
 ### Tools
 
-| Directory | Description |
-| --- | --- |
-| `tools/scripts` | Build and utility scripts |
-| `tools/generators` | NX code generators |
-| `tools/codemods` | Codemod transformations |
+| Directory          | Description               |
+| ------------------ | ------------------------- |
+| `tools/scripts`    | Build and utility scripts |
+| `tools/generators` | NX code generators        |
+| `tools/codemods`   | Codemod transformations   |
 
 ## Getting Started
 
@@ -123,8 +123,7 @@ The repository has several GitHub Actions workflows:
   review.
 
 A reusable **Anvil Check** GitHub Action is also provided at
-`.github/actions/anvil-check/` for running Anvil analysis in your own
-workflows.
+`.github/actions/anvil-check/` for running Anvil analysis in your own workflows.
 
 ## Code Conventions
 
@@ -144,15 +143,15 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 
 ## Documentation
 
-| Document | Description |
-| --- | --- |
-| [Quick Start](./apps/docs-site/docs/anvil/quickstart.md) | Get running in 5 minutes |
-| [CLI Reference](./apps/anvil-cli/README.md) | Complete command reference |
-| [First Project](./apps/docs-site/docs/anvil/first-project.md) | Real-world setup example |
+| Document                                                                     | Description                 |
+| ---------------------------------------------------------------------------- | --------------------------- |
+| [Quick Start](./apps/docs-site/docs/anvil/quickstart.md)                     | Get running in 5 minutes    |
+| [CLI Reference](./apps/anvil-cli/README.md)                                  | Complete command reference  |
+| [First Project](./apps/docs-site/docs/anvil/first-project.md)                | Real-world setup example    |
 | [Troubleshooting](./apps/docs-site/docs/anvil/operations/troubleshooting.md) | Common issues and solutions |
-| [Configuration](./apps/docs-site/docs/anvil/operations/config.md) | Configuration options |
-| [Architecture](./docs/ARCHITECTURE.md) | System design |
-| [Plans](./plans/index.aps.md) | Detailed roadmap |
+| [Configuration](./apps/docs-site/docs/anvil/operations/config.md)            | Configuration options       |
+| [Architecture](./docs/ARCHITECTURE.md)                                       | System design               |
+| [Plans](./plans/index.aps.md)                                                | Detailed roadmap            |
 
 ## License
 

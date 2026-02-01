@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { FileWatcher, createFileWatcher } from './file-watcher.js';
 import type { WatchChangeEvent } from './types.js';
-import { EventEmitter } from 'events';
+import { EventEmitter } from 'node:events';
 
 // Mock chokidar
 const mockChokidarWatcher = {

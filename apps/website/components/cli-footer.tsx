@@ -1,102 +1,105 @@
-"use client"
+'use client';
 
-import React, { useState, useRef, useEffect } from "react"
+import React, { useState, useRef, useEffect } from 'react';
 
 interface ResponseLine {
-  text: string
-  colorClass: string
-  delay: number
+  text: string;
+  colorClass: string;
+  delay: number;
 }
 
 export function CLIFooter() {
-  const [email, setEmail] = useState("")
-  const [submitted, setSubmitted] = useState(false)
-  const [displayedLines, setDisplayedLines] = useState<{ text: string; colorClass: string }[]>([])
-  const [currentLineIndex, setCurrentLineIndex] = useState(0)
-  const [currentCharIndex, setCurrentCharIndex] = useState(0)
-  const [showFinalCursor, setShowFinalCursor] = useState(false)
-  const [showPreReleaseModal, setShowPreReleaseModal] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [email, setEmail] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [displayedLines, setDisplayedLines] = useState<{ text: string; colorClass: string }[]>([]);
+  const [currentLineIndex, setCurrentLineIndex] = useState(0);
+  const [currentCharIndex, setCurrentCharIndex] = useState(0);
+  const [showFinalCursor, setShowFinalCursor] = useState(false);
+  const [showPreReleaseModal, setShowPreReleaseModal] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const getResponseLines = (userEmail: string): ResponseLine[] => [
-    { text: "Verifying...", colorClass: "text-text-muted", delay: 600 },
-    { text: "[ OK ] Access request received", colorClass: "text-edda", delay: 400 },
-    { text: `Welcome aboard. We'll be in touch at ${userEmail}`, colorClass: "text-text-muted", delay: 0 },
-  ]
+    { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
+    { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
+    {
+      text: `Welcome aboard. We'll be in touch at ${userEmail}`,
+      colorClass: 'text-text-muted',
+      delay: 0,
+    },
+  ];
 
   // Typewriter effect
   useEffect(() => {
-    if (!submitted) return
-    
-    const responseLines = getResponseLines(email)
-    
+    if (!submitted) return;
+
+    const responseLines = getResponseLines(email);
+
     if (currentLineIndex >= responseLines.length) {
-      setShowFinalCursor(true)
-      return
+      setShowFinalCursor(true);
+      return;
     }
 
-    const currentLine = responseLines[currentLineIndex]
-    const fullText = currentLine.text
+    const currentLine = responseLines[currentLineIndex];
+    const fullText = currentLine.text;
 
     if (currentCharIndex < fullText.length) {
       const timeout = setTimeout(() => {
-        setDisplayedLines(prev => {
-          const newLines = [...prev]
+        setDisplayedLines((prev) => {
+          const newLines = [...prev];
           if (!newLines[currentLineIndex]) {
-            newLines[currentLineIndex] = { text: "", colorClass: currentLine.colorClass }
+            newLines[currentLineIndex] = { text: '', colorClass: currentLine.colorClass };
           }
           newLines[currentLineIndex] = {
             ...newLines[currentLineIndex],
-            text: fullText.slice(0, currentCharIndex + 1)
-          }
-          return newLines
-        })
-        setCurrentCharIndex(prev => prev + 1)
-      }, 25)
-      return () => clearTimeout(timeout)
+            text: fullText.slice(0, currentCharIndex + 1),
+          };
+          return newLines;
+        });
+        setCurrentCharIndex((prev) => prev + 1);
+      }, 25);
+      return () => clearTimeout(timeout);
     } else {
       const timeout = setTimeout(() => {
-        setCurrentLineIndex(prev => prev + 1)
-        setCurrentCharIndex(0)
-      }, currentLine.delay)
-      return () => clearTimeout(timeout)
+        setCurrentLineIndex((prev) => prev + 1);
+        setCurrentCharIndex(0);
+      }, currentLine.delay);
+      return () => clearTimeout(timeout);
     }
-  }, [submitted, currentLineIndex, currentCharIndex, email])
+  }, [submitted, currentLineIndex, currentCharIndex, email]);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (email.trim() && email.includes("@")) {
-      setSubmitted(true)
+    e.preventDefault();
+    if (email.trim() && email.includes('@')) {
+      setSubmitted(true);
     }
-  }
+  };
 
   const handleTerminalClick = () => {
     if (!submitted && inputRef.current) {
-      inputRef.current.focus()
+      inputRef.current.focus();
     }
-  }
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape" && !submitted) {
-      setEmail("")
-      inputRef.current?.focus()
+    if (e.key === 'Escape' && !submitted) {
+      setEmail('');
+      inputRef.current?.focus();
     }
-  }
+  };
 
   const reset = () => {
-    setEmail("")
-    setSubmitted(false)
-    setDisplayedLines([])
-    setCurrentLineIndex(0)
-    setCurrentCharIndex(0)
-    setShowFinalCursor(false)
-  }
+    setEmail('');
+    setSubmitted(false);
+    setDisplayedLines([]);
+    setCurrentLineIndex(0);
+    setCurrentCharIndex(0);
+    setShowFinalCursor(false);
+  };
 
   return (
     <footer id="waitlist" className="border-t border-structure bg-void font-mono">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24">
         <div className="flex flex-col items-center justify-center space-y-6 sm:space-y-8">
-          
           {/* Terminal Section */}
           <div className="w-full max-w-xl space-y-4">
             {/* Header Messages */}
@@ -104,7 +107,7 @@ export function CLIFooter() {
               <p className="text-text-muted">Engineering team onboarding in progress.</p>
               <p className="text-text-primary">Cohort capacity is limited.</p>
             </div>
-            
+
             {/* Interactive Terminal Box */}
             <div
               onClick={handleTerminalClick}
@@ -119,7 +122,11 @@ export function CLIFooter() {
               </div>
 
               {/* Input Line */}
-              <form onSubmit={handleSubmit} onKeyDown={handleKeyDown} className="flex items-center gap-3">
+              <form
+                onSubmit={handleSubmit}
+                onKeyDown={handleKeyDown}
+                className="flex items-center gap-3"
+              >
                 <span className="text-text-muted">$</span>
                 <span className="text-text-primary">request access</span>
                 {!submitted ? (
@@ -145,9 +152,10 @@ export function CLIFooter() {
                 <div key={index} className="flex items-center gap-3">
                   <span className="text-text-muted opacity-0">$</span>
                   <span className={line.colorClass}>{line.text}</span>
-                  {index === currentLineIndex && currentCharIndex < getResponseLines(email)[index]?.text.length && (
-                    <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
-                  )}
+                  {index === currentLineIndex &&
+                    currentCharIndex < getResponseLines(email)[index]?.text.length && (
+                      <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
+                    )}
                 </div>
               ))}
 
@@ -159,7 +167,7 @@ export function CLIFooter() {
                 </div>
               )}
             </div>
-            
+
             {/* Instructions / Reset */}
             <div className="text-center text-[10px] sm:text-xs text-text-muted">
               {!submitted ? (
@@ -178,25 +186,37 @@ export function CLIFooter() {
               ) : null}
             </div>
           </div>
-          
+
           {/* System Bar - Build Artifact Style */}
           <div className="flex items-center gap-4 sm:gap-6 pt-6 sm:pt-8 border-t border-structure w-full justify-center flex-wrap text-[10px] sm:text-xs uppercase tracking-wide">
-            <button 
+            <button
               onClick={() => setShowPreReleaseModal(true)}
               className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors"
             >
               <span>LATEST:</span>
-              <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">v0.9.2</span>
+              <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">
+                v0.9.2
+              </span>
               <span className="text-structure">::</span>
-              <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">7f3a91</span>
+              <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">
+                7f3a91
+              </span>
             </button>
 
-            <a href="/security" className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors">
+            <a
+              href="/security"
+              className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors"
+            >
               <span>ADVISORIES:</span>
               <span className="text-edda">NONE</span>
             </a>
 
-            <a href="https://github.com/eddacraft" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors">
+            <a
+              href="https://github.com/eddacraft"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-text-muted hover:text-edda transition-colors"
+            >
               <span>GITHUB:</span>
               <span className="text-text-primary">eddacraft</span>
             </a>
@@ -205,45 +225,45 @@ export function CLIFooter() {
               PRIVACY
             </a>
 
-            <span className="text-text-muted/30">// (c) 2026 EddaCraft Inc.</span>
+            <span className="text-text-muted/30">{'// (c) 2026 EddaCraft Inc.'}</span>
           </div>
         </div>
       </div>
 
       {/* Pre-Release Modal */}
       {showPreReleaseModal && (
-        <div 
+        <div
           className="fixed inset-0 bg-void/90 flex items-center justify-center z-50 p-4"
           onClick={() => setShowPreReleaseModal(false)}
         >
-          <div 
+          <div
             className="bg-surface border border-structure max-w-md w-full p-6 space-y-6"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
             <div className="text-xs text-text-muted uppercase tracking-wide">
-              // PRE-RELEASE_NOTICE
+              {'// PRE-RELEASE_NOTICE'}
             </div>
-            
+
             {/* Modal Content */}
             <div className="space-y-4">
               <h3 className="text-lg sm:text-xl text-anvil uppercase tracking-tight">
                 Anvil is in pre-release
               </h3>
               <p className="text-sm text-text-muted leading-relaxed">
-                We are onboarding engineering teams in controlled cohorts. 
-                Request access below to join the next available slot.
+                We are onboarding engineering teams in controlled cohorts. Request access below to
+                join the next available slot.
               </p>
             </div>
-            
+
             {/* Modal Actions */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <button
                 onClick={() => {
-                  setShowPreReleaseModal(false)
+                  setShowPreReleaseModal(false);
                   setTimeout(() => {
-                    inputRef.current?.focus()
-                  }, 100)
+                    inputRef.current?.focus();
+                  }, 100);
                 }}
                 className="flex-1 border border-anvil bg-anvil/5 px-4 py-3 text-xs sm:text-sm text-anvil hover:bg-anvil/10 transition-colors uppercase tracking-wide"
               >
@@ -256,7 +276,7 @@ export function CLIFooter() {
                 Close
               </button>
             </div>
-            
+
             {/* Version Info */}
             <div className="text-[10px] text-text-muted/50 pt-2 border-t border-structure">
               build: v0.9.2 :: 7f3a91 :: pre-release
@@ -265,5 +285,5 @@ export function CLIFooter() {
         </div>
       )}
     </footer>
-  )
+  );
 }

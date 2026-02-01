@@ -1,7 +1,7 @@
-import { Navbar } from "@/components/navbar"
-import { HeroSection } from "@/components/hero-section"
-import { FeatureGrid } from "@/components/feature-grid"
-import { CLIFooter } from "@/components/cli-footer"
+import { Navbar } from '@/components/navbar';
+import { HeroSection } from '@/components/hero-section';
+import { FeatureGrid } from '@/components/feature-grid';
+import { CLIFooter } from '@/components/cli-footer';
 
 export default function Home() {
   return (
@@ -11,5 +11,5 @@ export default function Home() {
       <FeatureGrid />
       <CLIFooter />
     </main>
-  )
+  );
 }

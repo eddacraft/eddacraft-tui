@@ -1,9 +1,9 @@
-import Link from "next/link"
+import Link from 'next/link';
 
 export const metadata = {
-  title: "Privacy Policy — Anvil by eddacraft",
-  description: "Privacy policy for Anvil, the AI governance tool by eddacraft.",
-}
+  title: 'Privacy Policy — Anvil by eddacraft',
+  description: 'Privacy policy for Anvil, the AI governance tool by eddacraft.',
+};
 
 export default function PrivacyPage() {
   return (
@@ -11,8 +11,11 @@ export default function PrivacyPage() {
       {/* Header */}
       <header className="border-b border-structure">
         <div className="mx-auto max-w-4xl px-6 py-4">
-          <Link href="/" className="text-text-muted hover:text-text-primary transition-colors text-sm">
-            {"<-"} back to anvil
+          <Link
+            href="/"
+            className="text-text-muted hover:text-text-primary transition-colors text-sm"
+          >
+            {'<-'} back to anvil
           </Link>
         </div>
       </header>
@@ -39,7 +42,8 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-anvil font-bold mb-2">SYNOPSIS</h2>
             <p className="text-text-muted pl-6">
-              This document describes what data eddacraft collects, how we use it, and your rights regarding that data when using Anvil.
+              This document describes what data eddacraft collects, how we use it, and your rights
+              regarding that data when using Anvil.
             </p>
           </section>
 
@@ -48,10 +52,13 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">DESCRIPTION</h2>
             <div className="text-text-muted pl-6 space-y-4">
               <p>
-                Anvil is a developer tool for AI governance. We are committed to protecting your privacy and being transparent about the data we handle.
+                Anvil is a developer tool for AI governance. We are committed to protecting your
+                privacy and being transparent about the data we handle.
               </p>
               <p>
-                We operate under a principle of <span className="text-text-primary">data minimisation</span>: we only collect what is necessary to provide the service.
+                We operate under a principle of{' '}
+                <span className="text-text-primary">data minimisation</span>: we only collect what
+                is necessary to provide the service.
               </p>
             </div>
           </section>
@@ -63,19 +70,22 @@ export default function PrivacyPage() {
               <div>
                 <p className="text-text-primary mb-1">Waitlist Registration</p>
                 <p className="pl-4">
-                  When you request access, we collect your email address. This is stored securely and used solely to communicate about your access status and product updates.
+                  When you request access, we collect your email address. This is stored securely
+                  and used solely to communicate about your access status and product updates.
                 </p>
               </div>
               <div>
                 <p className="text-text-primary mb-1">Usage Analytics</p>
                 <p className="pl-4">
-                  We collect anonymised, aggregated usage data to improve the product. This does not include your source code, prompts, or any content you process through Anvil.
+                  We collect anonymised, aggregated usage data to improve the product. This does not
+                  include your source code, prompts, or any content you process through Anvil.
                 </p>
               </div>
               <div>
                 <p className="text-text-primary mb-1">CLI Telemetry</p>
                 <p className="pl-4">
-                  The Anvil CLI may collect anonymous performance metrics. Telemetry can be disabled via <span className="text-anvil">anvil config set telemetry false</span>.
+                  The Anvil CLI may collect anonymous performance metrics. Telemetry can be disabled
+                  via <span className="text-anvil">anvil config set telemetry false</span>.
                 </p>
               </div>
             </div>
@@ -86,11 +96,22 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">WHAT WE DO NOT COLLECT</h2>
             <div className="text-text-muted pl-6">
               <ul className="space-y-2">
-                <li><span className="text-edda">-</span> Your source code or generated code</li>
-                <li><span className="text-edda">-</span> AI prompts or responses</li>
-                <li><span className="text-edda">-</span> Policy rule definitions</li>
-                <li><span className="text-edda">-</span> Repository contents or git history</li>
-                <li><span className="text-edda">-</span> Personal information beyond email for waitlist</li>
+                <li>
+                  <span className="text-edda">-</span> Your source code or generated code
+                </li>
+                <li>
+                  <span className="text-edda">-</span> AI prompts or responses
+                </li>
+                <li>
+                  <span className="text-edda">-</span> Policy rule definitions
+                </li>
+                <li>
+                  <span className="text-edda">-</span> Repository contents or git history
+                </li>
+                <li>
+                  <span className="text-edda">-</span> Personal information beyond email for
+                  waitlist
+                </li>
               </ul>
             </div>
           </section>
@@ -100,7 +121,8 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">DATA STORAGE</h2>
             <div className="text-text-muted pl-6 space-y-4">
               <p>
-                Data is stored on servers located in the European Union and the United States. We use industry-standard encryption for data at rest and in transit.
+                Data is stored on servers located in the European Union and the United States. We
+                use industry-standard encryption for data at rest and in transit.
               </p>
             </div>
           </section>
@@ -111,13 +133,23 @@ export default function PrivacyPage() {
             <div className="text-text-muted pl-6 space-y-2">
               <p>You have the right to:</p>
               <ul className="space-y-2 pl-4">
-                <li><span className="text-edda">-</span> Request access to your personal data</li>
-                <li><span className="text-edda">-</span> Request deletion of your data</li>
-                <li><span className="text-edda">-</span> Withdraw consent at any time</li>
-                <li><span className="text-edda">-</span> Lodge a complaint with a supervisory authority</li>
+                <li>
+                  <span className="text-edda">-</span> Request access to your personal data
+                </li>
+                <li>
+                  <span className="text-edda">-</span> Request deletion of your data
+                </li>
+                <li>
+                  <span className="text-edda">-</span> Withdraw consent at any time
+                </li>
+                <li>
+                  <span className="text-edda">-</span> Lodge a complaint with a supervisory
+                  authority
+                </li>
               </ul>
               <p className="mt-4">
-                To exercise these rights, contact us at <span className="text-anvil">privacy@eddacraft.com</span>.
+                To exercise these rights, contact us at{' '}
+                <span className="text-anvil">privacy@eddacraft.com</span>.
               </p>
             </div>
           </section>
@@ -127,7 +159,8 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">COOKIES</h2>
             <div className="text-text-muted pl-6">
               <p>
-                We use essential cookies only. No third-party tracking or advertising cookies are used on this site.
+                We use essential cookies only. No third-party tracking or advertising cookies are
+                used on this site.
               </p>
             </div>
           </section>
@@ -137,7 +170,8 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">CHANGES</h2>
             <div className="text-text-muted pl-6">
               <p>
-                We may update this policy from time to time. Significant changes will be communicated via email to registered users.
+                We may update this policy from time to time. Significant changes will be
+                communicated via email to registered users.
               </p>
             </div>
           </section>
@@ -147,9 +181,17 @@ export default function PrivacyPage() {
             <h2 className="text-anvil font-bold mb-2">SEE ALSO</h2>
             <div className="text-text-muted pl-6">
               <p>
-                <Link href="/" className="text-anvil hover:underline">anvil(1)</Link>,{" "}
-                <Link href="/security" className="text-anvil hover:underline">anvil-security(7)</Link>,{" "}
-                <a href="#" className="text-anvil hover:underline">anvil-terms(7)</a>
+                <Link href="/" className="text-anvil hover:underline">
+                  anvil(1)
+                </Link>
+                ,{' '}
+                <Link href="/security" className="text-anvil hover:underline">
+                  anvil-security(7)
+                </Link>
+                ,{' '}
+                <a href="#" className="text-anvil hover:underline">
+                  anvil-terms(7)
+                </a>
               </p>
             </div>
           </section>
@@ -171,5 +213,5 @@ export default function PrivacyPage() {
         </div>
       </div>
     </main>
-  )
+  );
 }

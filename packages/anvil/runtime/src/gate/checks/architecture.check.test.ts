@@ -5,9 +5,9 @@ import { LayerValidator } from './architecture/layer-validator.js';
 import { DependencyAnalyzer, type CruiserViolation } from './architecture/dependency-analyzer.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'fs';
-import { join } from 'path';
-import { tmpdir } from 'os';
+import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 const createMockPlan = (changes: Array<{ type: string; path: string }>): APSPlan => ({
   id: 'aps-12345678',
