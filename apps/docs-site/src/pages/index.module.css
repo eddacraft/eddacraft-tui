@@ -76,7 +76,9 @@
   border: 1px solid var(--ec-structure);
   border-radius: 0;
   background-color: var(--ec-void);
-  transition: border-color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
 }
 
 .productTile:hover {

@@ -17,28 +17,28 @@
 
 :root {
   /* Nordic Terminal Core Palette */
-  --ec-void: #0D0D0F;
-  --ec-structure: #2A2A2E;
+  --ec-void: #0d0d0f;
+  --ec-structure: #2a2a2e;
   --ec-surface: #141416;
-  --ec-text-primary: #EBEBEB;
-  --ec-text-muted: #85858A;
-  
+  --ec-text-primary: #ebebeb;
+  --ec-text-muted: #85858a;
+
   /* Product accent colours - aligned with apps/website */
-  --ec-anvil-accent: #CC5500; /* Anvil orange */
-  --ec-anvil-accent-dim: #A34400;
-  --ec-aps-accent: #64748B; /* Cool steel */
+  --ec-anvil-accent: #cc5500; /* Anvil orange */
+  --ec-anvil-accent-dim: #a34400;
+  --ec-aps-accent: #64748b; /* Cool steel */
   --ec-aps-accent-dim: #475569;
-  --ec-kindling-accent: #C2410C; /* Ember/rust */
-  --ec-kindling-accent-dim: #9A3412;
-  --ec-edda-accent: #2E8B57; /* Edda green */
-  --ec-edda-accent-dim: #236B43;
+  --ec-kindling-accent: #c2410c; /* Ember/rust */
+  --ec-kindling-accent-dim: #9a3412;
+  --ec-edda-accent: #2e8b57; /* Edda green */
+  --ec-edda-accent-dim: #236b43;
 
   /* Typography */
   --ifm-font-family-base: 'Inter', system-ui, -apple-system, sans-serif;
   --ifm-font-family-monospace: 'JetBrains Mono', 'IBM Plex Mono', monospace;
   --ifm-code-font-size: 0.875rem;
   --ifm-heading-font-weight: 600;
-  
+
   /* Sharp corners */
   --ifm-border-radius: 0px;
   --ifm-button-border-radius: 0px;
@@ -47,23 +47,23 @@
   --ifm-global-radius: 0px;
 
   /* Light mode (secondary - invert the theme) */
-  --ifm-color-primary: #0D0D0F;
+  --ifm-color-primary: #0d0d0f;
   --ifm-color-primary-dark: #000000;
   --ifm-color-primary-darker: #000000;
   --ifm-color-primary-darkest: #000000;
   --ifm-color-primary-light: #141416;
-  --ifm-color-primary-lighter: #2A2A2E;
-  --ifm-color-primary-lightest: #3A3A40;
+  --ifm-color-primary-lighter: #2a2a2e;
+  --ifm-color-primary-lightest: #3a3a40;
 
-  --ifm-background-color: #FAFAFA;
-  --ifm-background-surface-color: #F0F0F2;
-  --ifm-navbar-background-color: #FAFAFA;
+  --ifm-background-color: #fafafa;
+  --ifm-background-surface-color: #f0f0f2;
+  --ifm-navbar-background-color: #fafafa;
   --ifm-footer-background-color: var(--ec-void);
 
   --ifm-link-color: var(--ec-anvil-accent);
   --ifm-link-hover-color: var(--ec-anvil-accent-dim);
-  
-  --ifm-toc-border-color: #E0E0E4;
+
+  --ifm-toc-border-color: #e0e0e4;
 
   --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
 }
@@ -71,12 +71,12 @@
 /* Dark mode (primary - Nordic Terminal) */
 [data-theme='dark'] {
   --ifm-color-primary: var(--ec-text-primary);
-  --ifm-color-primary-dark: #D0D0D0;
-  --ifm-color-primary-darker: #B0B0B0;
+  --ifm-color-primary-dark: #d0d0d0;
+  --ifm-color-primary-darker: #b0b0b0;
   --ifm-color-primary-darkest: var(--ec-text-muted);
-  --ifm-color-primary-light: #FFFFFF;
-  --ifm-color-primary-lighter: #FFFFFF;
-  --ifm-color-primary-lightest: #FFFFFF;
+  --ifm-color-primary-light: #ffffff;
+  --ifm-color-primary-lighter: #ffffff;
+  --ifm-color-primary-lightest: #ffffff;
 
   --ifm-background-color: var(--ec-void);
   --ifm-background-surface-color: var(--ec-surface);
@@ -339,7 +339,9 @@ th {
   border: 1px solid var(--ec-structure);
   border-radius: 0;
   background-color: var(--ec-surface);
-  transition: border-color 0.2s, background-color 0.2s;
+  transition:
+    border-color 0.2s,
+    background-color 0.2s;
 }
 
 .product-tile:hover {
