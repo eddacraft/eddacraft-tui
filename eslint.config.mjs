@@ -4,7 +4,13 @@ import reactPlugin from 'eslint-plugin-react';
 import nxPlugin from '@nx/eslint-plugin';
 import globals from 'globals';
 import typescriptEslint from 'typescript-eslint';
-import anvilPlugin from 'eslint-plugin-anvil';
+let anvilPlugin;
+try {
+  anvilPlugin = (await import('eslint-plugin-anvil')).default;
+} catch {
+  // eslint-plugin-anvil not built yet (fresh clone / CI) — skip anvil rules
+  anvilPlugin = null;
+}
 import unicornPlugin from 'eslint-plugin-unicorn';
 // import jsonPlugin from '@eslint/json'; // TODO: Re-enable once compatible with ESLint 9
 
@@ -101,26 +107,38 @@ export default typescriptEslint.config(
       'unicorn/prefer-node-protocol': 'error',
     },
   },
-  {
-    files: ['**/*.test.ts', '**/*.spec.ts', '**/vitest.config.ts', '**/jest.config.ts'],
-    plugins: {
-      anvil: anvilPlugin,
-    },
-    languageOptions: {
-      parserOptions: {
-        project: false,
-        tsconfigRootDir: import.meta.dirname,
-      },
-    },
-    rules: {
-      '@typescript-eslint/no-explicit-any': 'off',
-      'no-console': 'off',
-      // Anvil test quality rules (warn initially, promote to error once clean)
-      'anvil/no-any-in-tests': 'warn',
-      'anvil/require-mock-cleanup': 'warn',
-      'anvil/require-cwd-restoration': 'warn',
-    },
-  },
+  ...(anvilPlugin
+    ? [
+        {
+          files: ['**/*.test.ts', '**/*.spec.ts', '**/vitest.config.ts', '**/jest.config.ts'],
+          plugins: {
+            anvil: anvilPlugin,
+          },
+          languageOptions: {
+            parserOptions: {
+              project: false,
+              tsconfigRootDir: import.meta.dirname,
+            },
+          },
+          rules: {
+            '@typescript-eslint/no-explicit-any': 'off',
+            'no-console': 'off',
+            // Anvil test quality rules (warn initially, promote to error once clean)
+            'anvil/no-any-in-tests': 'warn',
+            'anvil/require-mock-cleanup': 'warn',
+            'anvil/require-cwd-restoration': 'warn',
+          },
+        },
+      ]
+    : [
+        {
+          files: ['**/*.test.ts', '**/*.spec.ts', '**/vitest.config.ts', '**/jest.config.ts'],
+          rules: {
+            '@typescript-eslint/no-explicit-any': 'off',
+            'no-console': 'off',
+          },
+        },
+      ]),
   {
     files: ['apps/anvil-cli/**/*.ts', 'cli/**/*.ts'],
     rules: {
