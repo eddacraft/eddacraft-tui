@@ -17,14 +17,14 @@ and tooling.
 
 ### Apps
 
-| Directory        | Package                      | Description                              |
-| ---------------- | ---------------------------- | ---------------------------------------- |
-| `apps/anvil-cli` | `@eddacraft/anvil-cli`       | CLI application (Commander.js + Ink TUI) |
-| `apps/docs-site` | `@eddacraft/anvil-docs-site` | Docusaurus documentation site            |
-| `apps/anvil-api` | —                            | API service                              |
-| `apps/anvil-ui`  | —                            | Web UI                                   |
-| `apps/website`   | —                            | Marketing website                        |
-| `apps/e2e`       | —                            | End-to-end test suites (Playwright)      |
+| Directory        | Package                      | Description                              | Deployment          |
+| ---------------- | ---------------------------- | ---------------------------------------- | ------------------- |
+| `apps/anvil-cli` | `@eddacraft/anvil-cli`       | CLI application (Commander.js + Ink TUI) | npm (`publish.yml`) |
+| `apps/docs-site` | `@eddacraft/anvil-docs-site` | Docusaurus documentation site            | Vercel              |
+| `apps/website`   | `@eddacraft/anvil-website`   | Marketing website (Next.js)              | Vercel              |
+| `apps/anvil-api` | —                            | API service                              | —                   |
+| `apps/anvil-ui`  | —                            | Web UI                                   | —                   |
+| `apps/e2e`       | —                            | End-to-end test suites (Playwright)      | —                   |
 
 ### Packages — Anvil Core
 
@@ -108,6 +108,16 @@ pnpm link:cli
 
 NX is used under the hood — you can also use `npx nx` commands directly for
 targeted builds, affected-only runs, and task graph visualisation.
+
+## Deployment
+
+| App         | Platform | Trigger                                               |
+| ----------- | -------- | ----------------------------------------------------- |
+| `anvil-cli` | npm      | Git tag (`v*`) via `publish.yml` GitHub Action        |
+| `docs-site` | Vercel   | Push to `main` (automatic via Vercel Git integration) |
+| `website`   | Vercel   | Push to `main` (automatic via Vercel Git integration) |
+| `anvil-api` | —        | Not yet deployed                                      |
+| `anvil-ui`  | —        | Not yet deployed                                      |
 
 ## CI/CD
 
