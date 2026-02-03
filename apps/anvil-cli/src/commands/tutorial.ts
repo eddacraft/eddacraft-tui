@@ -122,6 +122,46 @@ export function createTutorialCommand(): Command {
       }
 
       if (topic) {
+        if (topic === 'policies') {
+          const useTUI = isTUIAvailable({ tui: options.tui });
+
+          if (!useTUI) {
+            console.log(
+              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
+            );
+            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
+            process.exit(1);
+          }
+
+          const { PolicyTutorial } =
+            await import('../tui/commands/tutorial/features/PolicyTutorial.js');
+
+          let policyCleanedUp = false;
+
+          await renderTUIAndWait(PolicyTutorial, {
+            onComplete: () => {},
+            onCleanup: () => {
+              // Clean up the policy file created by the tutorial
+              const workspaceRoot = getWorkspaceRoot();
+              const policyFile = join(workspaceRoot, '.anvil', 'policies', 'max_file_length.rego');
+
+              if (existsSync(policyFile)) {
+                rmSync(policyFile);
+              }
+              policyCleanedUp = true;
+            },
+          });
+
+          if (policyCleanedUp) {
+            console.log(
+              chalk.hex(theme.colours.steel)(
+                `\n${theme.icons.success} Tutorial policy file cleaned up`
+              )
+            );
+          }
+          return;
+        }
+
         const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
         if (known) {
           console.log(
