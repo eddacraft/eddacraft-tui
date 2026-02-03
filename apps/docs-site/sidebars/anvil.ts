@@ -19,7 +19,7 @@ const sidebars: SidebarsConfig = {
       label: 'Tutorials',
       collapsed: false,
       items: [
-        'tutorials/index',
+        'tutorials/tutorials',
         'tutorials/policies',
         'tutorials/architecture',
         'tutorials/drift',
