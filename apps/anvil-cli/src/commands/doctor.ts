@@ -15,6 +15,10 @@ import {
   PreCommitHookCheck,
   AnvilDirWritableCheck,
   PlansDirReadableCheck,
+  PolicyConfigCheck,
+  PolicyDirectoryCheck,
+  PolicyDocumentationCheck,
+  PolicyOrgVersionCheck,
 } from '../tui/commands/doctor/checks/index.js';
 import type {
   DiagnosticCheck,
@@ -44,6 +48,11 @@ function getAllChecks(): DiagnosticCheck[] {
     new PreCommitHookCheck(),
     new AnvilDirWritableCheck(),
     new PlansDirReadableCheck(),
+    // Policy health checks
+    new PolicyConfigCheck(),
+    new PolicyDirectoryCheck(),
+    new PolicyDocumentationCheck(),
+    new PolicyOrgVersionCheck(),
   ];
 }
 

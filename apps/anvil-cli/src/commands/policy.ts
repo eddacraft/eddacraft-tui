@@ -1,5 +1,8 @@
 /**
  * Policy Command - Manage OPA/Rego policies for Anvil
+ *
+ * Supports org/team/local policy layering with rich metadata,
+ * graduated enforcement, and human-readable explanations.
  */
 
 import { Command } from 'commander';
@@ -29,6 +32,11 @@ import {
   type PolicyBundleConfig,
   type PolicyVerificationConfig,
 } from '@eddacraft/anvil-runtime';
+import {
+  PolicyConfigManager,
+  type ResolvedPolicy,
+  type EnforcementLevel,
+} from '../services/policy-config.js';
 
 /**
  * Default policy directory relative to workspace root
@@ -297,62 +305,162 @@ test_nonsensitive_passes if {
 `,
 };
 
+// ---------------------------------------------------------------------------
+// Enforcement level formatting
+// ---------------------------------------------------------------------------
+
+function formatEnforcement(level: EnforcementLevel): string {
+  switch (level) {
+    case 'block':
+      return chalk.red('block');
+    case 'warn':
+      return chalk.yellow('warn');
+    case 'info':
+      return chalk.blue('info');
+    case 'off':
+      return chalk.dim('off');
+  }
+}
+
+function formatSource(source: ResolvedPolicy['source']): string {
+  switch (source) {
+    case 'org':
+      return chalk.magenta('org');
+    case 'team':
+      return chalk.cyan('team');
+    case 'local':
+      return chalk.green('local');
+    case 'starter':
+      return chalk.dim('starter');
+    case 'bundle':
+      return chalk.blue('bundle');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Main command
+// ---------------------------------------------------------------------------
+
 export function createPolicyCommand(): Command {
   const command = new Command('policy');
 
   command.description('Manage OPA/Rego policies');
 
-  // List subcommand
+  // -----------------------------------------------------------------------
+  // list — enhanced with source, enforcement, owner, reason
+  // -----------------------------------------------------------------------
   command
     .command('list')
-    .description('List active policies')
+    .description('List active policies with source, enforcement level, and ownership')
     .option('-d, --dir <directory>', 'Policy directory', DEFAULT_POLICY_DIR)
-    .action(async (options: { dir: string }) => {
+    .option('-a, --all', 'Include disabled and pending policies')
+    .option('--json', 'Output as JSON')
+    .action(async (options: { dir: string; all?: boolean; json?: boolean }) => {
       try {
         const workspaceRoot = getWorkspaceRoot();
         const policyDir = options.dir;
 
-        const loader = new PolicyLoader();
-        const result = await loader.loadPolicies(workspaceRoot, { policyDir });
+        // Load from YAML config (layered policies)
+        const configMgr = new PolicyConfigManager(workspaceRoot);
+        const resolved = configMgr.resolvePolicies();
 
-        if (result.policies.length === 0) {
-          info(`No policies found in ${result.directory}`);
+        // Also load rego-level policies for package info
+        const loader = new PolicyLoader();
+        const regoResult = await loader.loadPolicies(workspaceRoot, { policyDir });
+        const regoByName = new Map(regoResult.policies.map((p) => [p.name, p]));
+
+        // Merge: resolved config policies + any rego-only policies not in config
+        const allPolicies = [...resolved];
+        for (const rego of regoResult.policies) {
+          if (!allPolicies.some((p) => p.name === rego.name)) {
+            allPolicies.push({
+              name: rego.name,
+              source: 'starter',
+              enforcement: 'block',
+              active: true,
+              hasRegoFile: true,
+              regoPath: rego.path,
+            });
+          }
+        }
+
+        const displayPolicies = options.all ? allPolicies : allPolicies.filter((p) => p.active);
+
+        if (displayPolicies.length === 0) {
+          info('No policies found');
           console.log(chalk.dim('\nRun `anvil policy init` to create example policies'));
           return;
         }
 
-        console.log(chalk.bold('\nActive Policies:\n'));
+        if (options.json) {
+          console.log(JSON.stringify(displayPolicies, null, 2));
+          return;
+        }
 
-        // Create table
-        const table = result.policies.map((p) => ({
-          name: p.name,
-          package: p.package,
-          tests: p.hasTests ? chalk.green('✓') : chalk.dim('-'),
-        }));
+        console.log(chalk.bold('\nPolicies:\n'));
 
         // Print table header
         console.log(
           chalk.dim('  ') +
-            chalk.bold('Name'.padEnd(25)) +
-            chalk.bold('Package'.padEnd(35)) +
-            chalk.bold('Tests')
+            chalk.bold('Name'.padEnd(22)) +
+            chalk.bold('Source'.padEnd(10)) +
+            chalk.bold('Enforce'.padEnd(10)) +
+            chalk.bold('Owner'.padEnd(18)) +
+            chalk.bold('Reason')
         );
-        console.log(chalk.dim('  ' + '─'.repeat(70)));
+        console.log(chalk.dim('  ' + '─'.repeat(90)));
 
-        // Print rows
-        for (const row of table) {
+        for (const p of displayPolicies) {
+          const rego = regoByName.get(p.name);
+          const tests = rego?.hasTests ? chalk.green(' ✓') : '';
+
+          // Pad manually for ANSI-colored strings
           console.log(
-            '  ' + chalk.cyan(row.name.padEnd(25)) + chalk.dim(row.package.padEnd(35)) + row.tests
+            '  ' +
+              p.name.padEnd(22).replace(p.name, p.active ? chalk.cyan(p.name) : chalk.dim(p.name)) +
+              (p.source as string).padEnd(10).replace(p.source, formatSource(p.source)) +
+              (p.enforcement as string)
+                .padEnd(10)
+                .replace(p.enforcement, formatEnforcement(p.enforcement)) +
+              chalk.dim((p.owner ?? '-').padEnd(18)) +
+              chalk.dim(truncate(p.reason ?? '', 40)) +
+              tests
           );
+
+          // Show effective date for pending policies
+          if (p.effective && !p.active) {
+            console.log(chalk.dim(`                      effective: ${p.effective}`));
+          }
         }
 
         console.log('');
-        success(`Found ${result.policies.length} policies`);
 
-        if (result.errors.length > 0) {
+        const activeCount = allPolicies.filter((p) => p.active).length;
+        const totalCount = allPolicies.length;
+        if (options.all) {
+          success(
+            `${activeCount} active, ${totalCount - activeCount} inactive (${totalCount} total)`
+          );
+        } else {
+          success(`${activeCount} active policies`);
+          if (totalCount > activeCount) {
+            console.log(chalk.dim(`  ${totalCount - activeCount} more hidden. Use --all to show.`));
+          }
+        }
+
+        // Show org source if configured
+        const config = configMgr.load();
+        if (config.policies?.org) {
           console.log('');
-          warning(`${result.errors.length} policies failed to load:`);
-          for (const err of result.errors) {
+          info(
+            `Org source: ${chalk.cyan(config.policies.org.source)}${config.policies.org.ref ? ` @ ${config.policies.org.ref}` : ''}`
+          );
+        }
+
+        if (regoResult.errors.length > 0) {
+          console.log('');
+          warning(`${regoResult.errors.length} policies failed to load:`);
+          for (const err of regoResult.errors) {
             console.log(chalk.red(`  • ${err.path}: ${err.error}`));
           }
         }
@@ -362,7 +470,428 @@ export function createPolicyCommand(): Command {
       }
     });
 
-  // Validate subcommand
+  // -----------------------------------------------------------------------
+  // explain <name> — human-readable rationale and ownership
+  // -----------------------------------------------------------------------
+  command
+    .command('explain <name>')
+    .description('Show detailed explanation for a policy')
+    .action(async (name: string) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configMgr = new PolicyConfigManager(workspaceRoot);
+        const resolved = configMgr.resolvePolicies();
+        const policy = resolved.find((p) => p.name === name);
+
+        if (!policy) {
+          error(`Policy '${name}' not found`);
+          console.log(chalk.dim('\nRun `anvil policy list --all` to see available policies'));
+          process.exit(1);
+        }
+
+        console.log('');
+        console.log(chalk.bold(`Policy: ${policy.name}`));
+        console.log(chalk.dim('─'.repeat(50)));
+        console.log('');
+
+        console.log(`  ${chalk.bold('Source:')}        ${formatSource(policy.source)}`);
+        console.log(`  ${chalk.bold('Enforcement:')}   ${formatEnforcement(policy.enforcement)}`);
+        console.log(
+          `  ${chalk.bold('Status:')}        ${policy.active ? chalk.green('active') : chalk.yellow('inactive')}`
+        );
+
+        if (policy.owner) {
+          console.log(`  ${chalk.bold('Owner:')}         ${policy.owner}`);
+        }
+
+        if (policy.effective) {
+          const effectiveDate = new Date(policy.effective);
+          const isEffective = effectiveDate <= new Date();
+          console.log(
+            `  ${chalk.bold('Effective:')}     ${policy.effective} ${isEffective ? chalk.green('(in effect)') : chalk.yellow('(pending)')}`
+          );
+        }
+
+        if (policy.tags && policy.tags.length > 0) {
+          console.log(`  ${chalk.bold('Tags:')}          ${policy.tags.join(', ')}`);
+        }
+
+        if (policy.reason) {
+          console.log('');
+          console.log(chalk.bold('  Why this policy exists:'));
+          console.log(`  ${policy.reason}`);
+        }
+
+        if (policy.hasRegoFile && policy.regoPath) {
+          console.log('');
+          console.log(chalk.bold('  Rego file:'));
+          console.log(chalk.dim(`  ${policy.regoPath}`));
+
+          // Show first few comment lines from the rego file as documentation
+          try {
+            const content = readFileSync(policy.regoPath, 'utf-8');
+            const commentLines = content
+              .split('\n')
+              .filter((line) => line.startsWith('#'))
+              .slice(0, 5)
+              .map((line) => line.replace(/^#\s?/, ''));
+
+            if (commentLines.length > 0) {
+              console.log('');
+              console.log(chalk.bold('  Description (from source):'));
+              for (const line of commentLines) {
+                console.log(chalk.dim(`  ${line}`));
+              }
+            }
+          } catch {
+            // Ignore read errors
+          }
+        }
+
+        console.log('');
+        console.log(chalk.dim('  Commands:'));
+        console.log(chalk.dim(`    anvil policy disable ${name}    # turn it off`));
+        console.log(chalk.dim(`    anvil gate --skip ${name}       # skip just this once`));
+        console.log('');
+      } catch (err) {
+        error(`Failed to explain policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        process.exit(1);
+      }
+    });
+
+  // -----------------------------------------------------------------------
+  // why <violation> — business reason for a violation
+  // -----------------------------------------------------------------------
+  command
+    .command('why <violation>')
+    .description('Explain the business reason behind a policy violation')
+    .action(async (violation: string) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configMgr = new PolicyConfigManager(workspaceRoot);
+        const resolved = configMgr.resolvePolicies();
+
+        // Try to match the violation to a policy name (fuzzy)
+        const match = resolved.find(
+          (p) => p.name === violation || p.name.includes(violation) || violation.includes(p.name)
+        );
+
+        if (!match) {
+          // If no exact match, try broader search
+          const partial = resolved.filter(
+            (p) =>
+              violation.toLowerCase().includes(p.name.toLowerCase().replace(/_/g, '-')) ||
+              violation.toLowerCase().includes(p.name.toLowerCase().replace(/-/g, '_'))
+          );
+
+          if (partial.length === 0) {
+            error(`Could not match '${violation}' to any known policy`);
+            console.log(chalk.dim('\nAvailable policies:'));
+            for (const p of resolved) {
+              console.log(chalk.dim(`  • ${p.name}`));
+            }
+            process.exit(1);
+          }
+
+          // Show all matches
+          for (const p of partial) {
+            printWhyBlock(p);
+          }
+          return;
+        }
+
+        printWhyBlock(match);
+      } catch (err) {
+        error(
+          `Failed to explain violation: ${err instanceof Error ? err.message : 'Unknown error'}`
+        );
+        process.exit(1);
+      }
+    });
+
+  // -----------------------------------------------------------------------
+  // diff — what changed since last sync
+  // -----------------------------------------------------------------------
+  command
+    .command('diff')
+    .description('Show policy changes since last sync or commit')
+    .option('-d, --dir <directory>', 'Policy directory', DEFAULT_POLICY_DIR)
+    .action(async (options: { dir: string }) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const { execSync } = await import('node:child_process');
+
+        // Check git status of policy files
+        const policyDir = options.dir;
+        const configPath = join('.anvil', 'config.yml');
+
+        console.log(chalk.bold('\nPolicy Changes:\n'));
+
+        let hasChanges = false;
+
+        // Check for config.yml changes
+        try {
+          const configDiff = execSync(`git diff --name-status HEAD -- "${configPath}"`, {
+            cwd: workspaceRoot,
+            encoding: 'utf-8',
+          }).trim();
+
+          if (configDiff) {
+            hasChanges = true;
+            console.log(chalk.bold('  Config changes:'));
+            for (const line of configDiff.split('\n')) {
+              const [status, ...pathParts] = line.split('\t');
+              const filePath = pathParts.join('\t');
+              const statusLabel =
+                status === 'M'
+                  ? chalk.yellow('modified')
+                  : status === 'A'
+                    ? chalk.green('added')
+                    : status === 'D'
+                      ? chalk.red('deleted')
+                      : chalk.dim(status ?? '');
+              console.log(`    ${statusLabel} ${filePath}`);
+            }
+            console.log('');
+          }
+        } catch {
+          // Not a git repo or no changes
+        }
+
+        // Check for policy file changes
+        try {
+          const policyDiff = execSync(`git diff --name-status HEAD -- "${policyDir}"`, {
+            cwd: workspaceRoot,
+            encoding: 'utf-8',
+          }).trim();
+
+          if (policyDiff) {
+            hasChanges = true;
+            console.log(chalk.bold('  Policy file changes:'));
+            for (const line of policyDiff.split('\n')) {
+              const [status, ...pathParts] = line.split('\t');
+              const filePath = pathParts.join('\t');
+              const statusLabel =
+                status === 'M'
+                  ? chalk.yellow('modified')
+                  : status === 'A'
+                    ? chalk.green('added')
+                    : status === 'D'
+                      ? chalk.red('deleted')
+                      : chalk.dim(status ?? '');
+              console.log(`    ${statusLabel} ${filePath}`);
+            }
+            console.log('');
+          }
+        } catch {
+          // Not a git repo or no changes
+        }
+
+        // Check for untracked policy files
+        try {
+          const untracked = execSync(
+            `git ls-files --others --exclude-standard -- "${policyDir}" "${configPath}"`,
+            { cwd: workspaceRoot, encoding: 'utf-8' }
+          ).trim();
+
+          if (untracked) {
+            hasChanges = true;
+            console.log(chalk.bold('  New (untracked):'));
+            for (const file of untracked.split('\n')) {
+              console.log(`    ${chalk.green('new')} ${file}`);
+            }
+            console.log('');
+          }
+        } catch {
+          // Ignore
+        }
+
+        if (!hasChanges) {
+          info('No policy changes detected');
+        }
+      } catch (err) {
+        error(`Failed to diff policies: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        process.exit(1);
+      }
+    });
+
+  // -----------------------------------------------------------------------
+  // disable <name>
+  // -----------------------------------------------------------------------
+  command
+    .command('disable <name>')
+    .description('Disable a policy (adds local override)')
+    .action(async (name: string) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configMgr = new PolicyConfigManager(workspaceRoot);
+
+        // Verify policy exists
+        const resolved = configMgr.resolvePolicies();
+        const policy = resolved.find((p) => p.name === name);
+
+        if (!policy) {
+          error(`Policy '${name}' not found`);
+          process.exit(1);
+        }
+
+        if (!policy.active) {
+          info(`Policy '${name}' is already inactive`);
+          return;
+        }
+
+        configMgr.disablePolicy(name);
+        success(`Disabled policy '${name}'`);
+        console.log(chalk.dim(`  To re-enable: anvil policy enable ${name}`));
+      } catch (err) {
+        error(`Failed to disable policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        process.exit(1);
+      }
+    });
+
+  // -----------------------------------------------------------------------
+  // enable <name>
+  // -----------------------------------------------------------------------
+  command
+    .command('enable <name>')
+    .description('Re-enable a disabled policy')
+    .option('-e, --enforcement <level>', 'Enforcement level (block, warn, info)', 'block')
+    .action(async (name: string, options: { enforcement: string }) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configMgr = new PolicyConfigManager(workspaceRoot);
+
+        const enforcement = options.enforcement as EnforcementLevel;
+        if (!['block', 'warn', 'info', 'off'].includes(enforcement)) {
+          error(`Invalid enforcement level: ${options.enforcement}`);
+          process.exit(1);
+        }
+
+        configMgr.enablePolicy(name, enforcement);
+        success(`Enabled policy '${name}' with enforcement: ${formatEnforcement(enforcement)}`);
+      } catch (err) {
+        error(`Failed to enable policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        process.exit(1);
+      }
+    });
+
+  // -----------------------------------------------------------------------
+  // doc — generate POLICIES.md
+  // -----------------------------------------------------------------------
+  command
+    .command('doc')
+    .description('Generate .anvil/POLICIES.md from current policy configuration')
+    .option('-o, --output <path>', 'Output file path', '.anvil/POLICIES.md')
+    .action(async (options: { output: string }) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configMgr = new PolicyConfigManager(workspaceRoot);
+        const markdown = configMgr.generatePoliciesDoc();
+
+        const outputPath = join(workspaceRoot, options.output);
+        const outputDir = dirname(outputPath);
+        if (!existsSync(outputDir)) {
+          mkdirSync(outputDir, { recursive: true });
+        }
+
+        writeFileSync(outputPath, markdown, 'utf-8');
+        success(`Generated ${options.output}`);
+        console.log(chalk.dim('  Commit this file so the team can read it in any editor.'));
+      } catch (err) {
+        error(`Failed to generate docs: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        process.exit(1);
+      }
+    });
+
+  // -----------------------------------------------------------------------
+  // scaffold --org <name> — extract local policies to org repo
+  // -----------------------------------------------------------------------
+  command
+    .command('scaffold')
+    .description('Scaffold policy structure for org-wide sharing')
+    .requiredOption('--org <name>', 'Organisation name')
+    .option('--out <dir>', 'Output directory for org policy repo', './anvil-policies')
+    .action(async (options: { org: string; out: string }) => {
+      try {
+        const workspaceRoot = getWorkspaceRoot();
+        const configMgr = new PolicyConfigManager(workspaceRoot);
+        const spinner = ora(`Scaffolding org policies for ${options.org}...`).start();
+
+        const outDir = join(workspaceRoot, options.out);
+
+        // Create org directory structure
+        mkdirSync(join(outDir, '.anvil', 'policies'), { recursive: true });
+
+        // Copy existing local policies
+        const localPolicyDir = join(workspaceRoot, DEFAULT_POLICY_DIR);
+        let copiedCount = 0;
+        if (existsSync(localPolicyDir)) {
+          const files = readdirSync(localPolicyDir).filter((f) => f.endsWith('.rego'));
+          for (const file of files) {
+            copyFileSync(join(localPolicyDir, file), join(outDir, '.anvil', 'policies', file));
+            copiedCount++;
+          }
+        }
+
+        // Generate org config.yml
+        const orgConfigYaml = configMgr.generateOrgScaffold(options.org);
+        writeFileSync(join(outDir, '.anvil', 'config.yml'), orgConfigYaml, 'utf-8');
+
+        // Generate a README
+        const readme = [
+          `# ${options.org} Anvil Policies`,
+          '',
+          'Shared policy repository for org-wide Anvil policies.',
+          '',
+          '## Usage',
+          '',
+          "In your project's `.anvil/config.yml`:",
+          '',
+          '```yaml',
+          'policies:',
+          '  org:',
+          `    source: "git@github.com:${options.org}/anvil-policies.git"`,
+          '    ref: "v1.0.0"',
+          '```',
+          '',
+          'Then run:',
+          '',
+          '```sh',
+          `anvil init --org ${options.org}`,
+          '```',
+          '',
+          '## Policies',
+          '',
+          'Run `anvil policy list` to see all active policies.',
+          'Run `anvil policy doc` to regenerate POLICIES.md.',
+          '',
+        ].join('\n');
+        writeFileSync(join(outDir, 'README.md'), readme, 'utf-8');
+
+        spinner.succeed(`Scaffolded org policy repo at ${options.out}`);
+
+        console.log('');
+        console.log(chalk.bold('Created:'));
+        console.log(chalk.dim(`  ${options.out}/.anvil/config.yml`));
+        console.log(chalk.dim(`  ${options.out}/.anvil/policies/ (${copiedCount} policies)`));
+        console.log(chalk.dim(`  ${options.out}/README.md`));
+
+        console.log('');
+        console.log(chalk.bold('Next steps:'));
+        console.log(chalk.dim(`  1. cd ${options.out}`));
+        console.log(chalk.dim('  2. git init && git add . && git commit -m "Initial policy repo"'));
+        console.log(chalk.dim(`  3. Push to git@github.com:${options.org}/anvil-policies.git`));
+        console.log(chalk.dim('  4. In your project, add the org source to .anvil/config.yml'));
+        console.log('');
+      } catch (err) {
+        error(`Failed to scaffold: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        process.exit(1);
+      }
+    });
+
+  // -----------------------------------------------------------------------
+  // validate <file> (existing)
+  // -----------------------------------------------------------------------
   command
     .command('validate <file>')
     .description('Validate Rego syntax for a policy file')
@@ -395,7 +924,9 @@ export function createPolicyCommand(): Command {
       }
     });
 
-  // Test subcommand
+  // -----------------------------------------------------------------------
+  // test [policy] (existing)
+  // -----------------------------------------------------------------------
   command
     .command('test [policy]')
     .description('Run policy unit tests')
@@ -487,7 +1018,9 @@ export function createPolicyCommand(): Command {
       }
     });
 
-  // Init subcommand
+  // -----------------------------------------------------------------------
+  // init (existing)
+  // -----------------------------------------------------------------------
   command
     .command('init')
     .description('Initialise policy directory with example policies')
@@ -577,7 +1110,9 @@ export function createPolicyCommand(): Command {
       }
     });
 
-  // Add bundle command group
+  // -----------------------------------------------------------------------
+  // bundle (existing group)
+  // -----------------------------------------------------------------------
   command
     .command('bundle')
     .description('Manage remote policy bundles')
@@ -587,6 +1122,42 @@ export function createPolicyCommand(): Command {
     .addCommand(createBundleSyncCommand());
 
   return command;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function truncate(str: string, maxLen: number): string {
+  if (str.length <= maxLen) return str;
+  return str.slice(0, maxLen - 1) + '…';
+}
+
+function printWhyBlock(policy: ResolvedPolicy): void {
+  console.log('');
+  console.log(
+    `  ${chalk.red('✗')} ${chalk.bold(policy.name)}: ${formatEnforcement(policy.enforcement)}`
+  );
+  console.log('');
+
+  if (policy.reason) {
+    console.log(`  ${chalk.bold('Why:')} ${policy.reason}`);
+  } else {
+    console.log(chalk.dim(`  No business reason documented for this policy.`));
+    console.log(chalk.dim(`  Add a "reason" field in .anvil/config.yml to document it.`));
+  }
+
+  if (policy.owner) {
+    console.log(`  ${chalk.bold('Owner:')} ${policy.owner}`);
+  }
+
+  console.log(`  ${chalk.bold('Source:')} ${formatSource(policy.source)} policy`);
+
+  console.log('');
+  console.log(chalk.dim(`  anvil policy explain ${policy.name}    # full details`));
+  console.log(chalk.dim(`  anvil policy disable ${policy.name}    # turn it off`));
+  console.log(chalk.dim(`  anvil gate --skip ${policy.name}       # skip just this once`));
+  console.log('');
 }
 
 /**
