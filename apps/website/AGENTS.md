@@ -56,16 +56,16 @@ pnpm start
 
 ## Tech Stack
 
-| Layer      | Technology                                              |
-| ---------- | ------------------------------------------------------- |
-| Framework  | Next.js 16 (App Router, React 19)                       |
-| Styling    | Tailwind CSS 4 (`@tailwindcss/postcss`), CSS variables   |
-| Components | Radix UI primitives, shadcn/ui configured (new-york)     |
-| Icons      | Lucide React                                             |
-| Forms      | React Hook Form + Zod 4                                  |
-| Analytics  | Vercel Analytics                                         |
-| Fonts      | Inter (sans), JetBrains Mono (mono) via Google Fonts     |
-| Deployment | Vercel (static-friendly, edge OG images)                 |
+| Layer      | Technology                                             |
+| ---------- | ------------------------------------------------------ |
+| Framework  | Next.js 16 (App Router, React 19)                      |
+| Styling    | Tailwind CSS 4 (`@tailwindcss/postcss`), CSS variables |
+| Components | Radix UI primitives, shadcn/ui configured (new-york)   |
+| Icons      | Lucide React                                           |
+| Forms      | React Hook Form + Zod 4                                |
+| Analytics  | Vercel Analytics                                       |
+| Fonts      | Inter (sans), JetBrains Mono (mono) via Google Fonts   |
+| Deployment | Vercel (static-friendly, edge OG images)               |
 
 ## Design System — Nordic Terminal Theme
 
@@ -74,15 +74,15 @@ no separate `tailwind.config` file — Tailwind v4 uses the CSS file directly.
 
 **Core colours:**
 
-| Token             | Value     | Usage                |
-| ----------------- | --------- | -------------------- |
-| `--void`          | `#0d0d0f` | Page background      |
-| `--surface`       | `#141416` | Card/container bg    |
-| `--structure`     | `#2a2a2e` | Borders, dividers    |
-| `--text-primary`  | `#ebebeb` | Primary text         |
-| `--text-muted`    | `#85858a` | Secondary text       |
-| `--anvil`         | `#cc5500` | Accent orange        |
-| `--edda`          | `#2e8b57` | Accent green         |
+| Token            | Value     | Usage             |
+| ---------------- | --------- | ----------------- |
+| `--void`         | `#0d0d0f` | Page background   |
+| `--surface`      | `#141416` | Card/container bg |
+| `--structure`    | `#2a2a2e` | Borders, dividers |
+| `--text-primary` | `#ebebeb` | Primary text      |
+| `--text-muted`   | `#85858a` | Secondary text    |
+| `--anvil`        | `#cc5500` | Accent orange     |
+| `--edda`         | `#2e8b57` | Accent green      |
 
 **Design rules:**
 
@@ -96,8 +96,8 @@ no separate `tailwind.config` file — Tailwind v4 uses the CSS file directly.
 
 All interactive components use `'use client'` directive. Key patterns:
 
-- **Typewriter effects** — terminal-window and cli-footer use character-by-character
-  animation via `setTimeout` chains
+- **Typewriter effects** — terminal-window and cli-footer use
+  character-by-character animation via `setTimeout` chains
 - **Smooth scroll anchors** — hero CTA scrolls to `#waitlist` in the footer
 - **Modal dialogs** — docs modal and pre-release notice use state toggles
 - **Man page format** — privacy and security pages use Unix manual page styling
@@ -109,7 +109,8 @@ All interactive components use `'use client'` directive. Key patterns:
 - **shadcn/ui ready**: `components.json` is configured but components live in
   `components/` directly (not `components/ui/` yet)
 - **Server Components by default**: only add `'use client'` when needed
-- **Static-friendly**: `images.unoptimized: true` in next.config for static export
+- **Static-friendly**: `images.unoptimized: true` in next.config for static
+  export
 - **TypeScript build errors ignored**: `typescript.ignoreBuildErrors: true` in
   next.config (Nx handles type checking separately)
 

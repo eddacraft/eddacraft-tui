@@ -8,8 +8,8 @@ anti-patterns at file save — before they reach code review.
 
 The core idea: probabilistic tools (LLMs, AI code agents) generate code, but
 Anvil enforces **deterministic rules** over that output. Every change is
-validated through quality gates, every decision is recorded in an immutable audit
-trail, and every mutation is reversible.
+validated through quality gates, every decision is recorded in an immutable
+audit trail, and every mutation is reversible.
 
 Anvil works with the planning formats teams already use (SpecKit, BMAD) by
 translating them into its own hash-stable internal format — **APS (Anvil Plan

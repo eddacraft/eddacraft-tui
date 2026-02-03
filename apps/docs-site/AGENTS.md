@@ -6,8 +6,8 @@
 
 This is the documentation site at `eddacraft.dev`, built with **Docusaurus
 3.9**. It hosts documentation for multiple products using **multi-instance
-docs** — each product (Anvil, APS, Kindling, Edda Stack) has its own docs
-plugin instance with independent routing and sidebars.
+docs** — each product (Anvil, APS, Kindling, Edda Stack) has its own docs plugin
+instance with independent routing and sidebars.
 
 This is _not_ the marketing site (that lives in `apps/website`).
 
@@ -63,13 +63,13 @@ pnpm typecheck                   # TypeScript validation
 Each product has its own `@docusaurus/plugin-content-docs` instance. This gives
 each section independent routing, sidebars, and (future) versioning.
 
-| Instance     | Content path       | URL route            | Sidebar config         |
-| ------------ | ------------------ | -------------------- | ---------------------- |
-| start-here   | `docs/start-here`  | `/docs/start-here`   | `sidebars/start-here.ts` |
-| anvil        | `docs/anvil`       | `/docs/anvil`        | `sidebars/anvil.ts`    |
-| aps          | `docs/aps`         | `/docs/aps`          | `sidebars/aps.ts`      |
-| kindling     | `docs/kindling`    | `/docs/kindling`     | `sidebars/kindling.ts` |
-| edda-stack   | `docs/edda-stack`  | `/docs/edda-stack`   | `sidebars/edda-stack.ts` |
+| Instance   | Content path      | URL route          | Sidebar config           |
+| ---------- | ----------------- | ------------------ | ------------------------ |
+| start-here | `docs/start-here` | `/docs/start-here` | `sidebars/start-here.ts` |
+| anvil      | `docs/anvil`      | `/docs/anvil`      | `sidebars/anvil.ts`      |
+| aps        | `docs/aps`        | `/docs/aps`        | `sidebars/aps.ts`        |
+| kindling   | `docs/kindling`   | `/docs/kindling`   | `sidebars/kindling.ts`   |
+| edda-stack | `docs/edda-stack` | `/docs/edda-stack` | `sidebars/edda-stack.ts` |
 
 **To add a new doc section**, see `TOGGLING-DOCS.md` or:
 
@@ -98,8 +98,8 @@ sidebar_position: 1
 ```
 
 - Content lives in `docs/<product>/` directories
-- Sidebar ordering is controlled by `sidebar_position` in front-matter and
-  the sidebar config files in `sidebars/`
+- Sidebar ordering is controlled by `sidebar_position` in front-matter and the
+  sidebar config files in `sidebars/`
 - Cross-product links use full paths: `/docs/anvil/overview`
 - Broken links will **fail the build** (configured to `throw`)
 
@@ -110,22 +110,22 @@ All styling is in `src/css/custom.css` using CSS custom properties. There is
 
 **Core colours (same palette as website):**
 
-| Token              | Value     | Usage             |
-| ------------------ | --------- | ----------------- |
-| `--ec-void`        | `#0d0d0f` | Page background   |
-| `--ec-surface`     | `#141416` | Card/container bg |
-| `--ec-structure`   | `#2a2a2e` | Borders, dividers |
-| `--ec-text-primary`| `#ebebeb` | Primary text      |
-| `--ec-text-muted`  | `#85858a` | Secondary text    |
+| Token               | Value     | Usage             |
+| ------------------- | --------- | ----------------- |
+| `--ec-void`         | `#0d0d0f` | Page background   |
+| `--ec-surface`      | `#141416` | Card/container bg |
+| `--ec-structure`    | `#2a2a2e` | Borders, dividers |
+| `--ec-text-primary` | `#ebebeb` | Primary text      |
+| `--ec-text-muted`   | `#85858a` | Secondary text    |
 
 **Product accent colours:**
 
-| Product  | Colour    | Token            |
-| -------- | --------- | ---------------- |
-| Anvil    | `#cc5500` | `--ec-anvil`     |
-| APS      | `#64748b` | `--ec-aps`       |
-| Kindling | `#c2410c` | `--ec-kindling`  |
-| Edda     | `#2e8b57` | `--ec-edda`      |
+| Product  | Colour    | Token           |
+| -------- | --------- | --------------- |
+| Anvil    | `#cc5500` | `--ec-anvil`    |
+| APS      | `#64748b` | `--ec-aps`      |
+| Kindling | `#c2410c` | `--ec-kindling` |
+| Edda     | `#2e8b57` | `--ec-edda`     |
 
 **Design rules:**
 
@@ -150,21 +150,21 @@ Styles are in `src/pages/index.module.css`.
 
 ## Configuration Reference
 
-| File                    | Purpose                                       |
-| ----------------------- | --------------------------------------------- |
-| `docusaurus.config.ts`  | Site metadata, plugins, navbar, footer, themes |
-| `sidebars/*.ts`         | Sidebar structure per product                  |
-| `src/css/custom.css`    | All global styling and theme tokens            |
-| `src/data/changelog.json` | Structured release notes and roadmap         |
-| `project.json`          | Nx project config (name: `docs-site`)          |
-| `TOGGLING-DOCS.md`      | Guide for enabling/disabling doc sections      |
+| File                      | Purpose                                        |
+| ------------------------- | ---------------------------------------------- |
+| `docusaurus.config.ts`    | Site metadata, plugins, navbar, footer, themes |
+| `sidebars/*.ts`           | Sidebar structure per product                  |
+| `src/css/custom.css`      | All global styling and theme tokens            |
+| `src/data/changelog.json` | Structured release notes and roadmap           |
+| `project.json`            | Nx project config (name: `docs-site`)          |
+| `TOGGLING-DOCS.md`        | Guide for enabling/disabling doc sections      |
 
 ## Key Differences from apps/website
 
-| Aspect     | docs-site                  | website                      |
-| ---------- | -------------------------- | ---------------------------- |
-| Framework  | Docusaurus 3.9             | Next.js 16                   |
-| Content    | Markdown docs              | React components             |
-| Styling    | Pure CSS custom properties | Tailwind CSS 4 + shadcn/ui  |
-| Output     | Static HTML                | SSR/SSG hybrid               |
-| Purpose    | Product documentation      | Marketing landing page        |
+| Aspect    | docs-site                  | website                    |
+| --------- | -------------------------- | -------------------------- |
+| Framework | Docusaurus 3.9             | Next.js 16                 |
+| Content   | Markdown docs              | React components           |
+| Styling   | Pure CSS custom properties | Tailwind CSS 4 + shadcn/ui |
+| Output    | Static HTML                | SSR/SSG hybrid             |
+| Purpose   | Product documentation      | Marketing landing page     |
