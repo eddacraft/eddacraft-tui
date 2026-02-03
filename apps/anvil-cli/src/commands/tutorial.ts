@@ -184,6 +184,28 @@ export function createTutorialCommand(): Command {
           return;
         }
 
+        if (topic === 'drift') {
+          const useTUI = isTUIAvailable({ tui: options.tui });
+
+          if (!useTUI) {
+            console.log(
+              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
+            );
+            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
+            process.exit(1);
+          }
+
+          const { DriftTutorial } =
+            await import('../tui/commands/tutorial/features/DriftTutorial.js');
+
+          await renderTUIAndWait(DriftTutorial, {
+            onComplete: () => {},
+            onCleanup: () => {},
+          });
+
+          return;
+        }
+
         const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
         if (known) {
           console.log(
