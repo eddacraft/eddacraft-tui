@@ -168,6 +168,23 @@ CLI remains the primary developer interface; the dashboard serves team leads,
 platform engineers, and compliance roles who need persistent views, historical
 trends, and graphical visualizations that a terminal cannot provide.
 
+### v2.0 — Organisational Policy Governance
+
+| Feature                  | Description                                                  | Status |
+| ------------------------ | ------------------------------------------------------------ | ------ |
+| OPA Enhancements         | YAML-first rules, policy library, debugger, watch mode       | Draft  |
+| Org Policy Hierarchy     | Multi-level governance: org → team → project inheritance     | Draft  |
+| Policy Lifecycle         | Versioning, canary rollout, deprecation, grace periods       | Draft  |
+| Compliance Reporting     | Framework mapping (SOC 2, ISO 27001), audit-ready reports    | Draft  |
+| Policy Federation        | Central registry, channels, fleet sync, publish approvals    | Draft  |
+
+**Why this is v2.0:** Organisational policy governance builds on top of the
+single-repo OPA infrastructure delivered in v1.1. It requires multi-repo
+awareness, hierarchy resolution, and fleet-level aggregation that only make
+sense after the core policy engine is battle-tested. Individual developers
+benefit from v1.x; platform teams and compliance roles benefit from these
+modules.
+
 ### What's NOT in v1
 
 To ship fast and focused, these are explicitly deferred:
@@ -271,6 +288,11 @@ graph TD
 | [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | v2.0    | kindling-integration                                      |
 | [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | v2.0    | ember                                                     |
 | [edda-stack-integration](./modules/edda-stack-integration.aps.md)       | STACK   | Draft       | v2.0    | kindling-integration, ember, edda                         |
+| [opa-enhancements](./modules/opa-enhancements.aps.md)                   | OPAE    | Draft       | v2.0    | opa-architecture-integration, architecture-safety, tui    |
+| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md)           | ORGHIER | Draft       | v2.0    | opa-architecture-integration, policy-pack-validation, opa-enhancements |
+| [policy-lifecycle](./modules/policy-lifecycle.aps.md)                   | POLLC   | Draft       | v2.0    | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
+| [compliance-reporting](./modules/compliance-reporting.aps.md)           | COMPLY  | Draft       | v2.0    | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
+| [policy-federation](./modules/policy-federation.aps.md)                 | POLFED  | Draft       | v2.0    | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
 | [onboarding-feedback-resolution](./modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | v1.1    | architecture-safety, tui                                  |
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTV | Draft | v2.0  | save-time-trust                                           |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
@@ -636,6 +658,98 @@ Ember (interpretation), and Edda (canonical memory).
 | STACK-015 | stack  | Stack architecture documentation  | Draft  | medium   |
 | STACK-016 | stack  | Migration guide                   | Draft  | medium   |
 
+### Task Status — v2.0 (Organisational Policy Governance)
+
+#### OPA Enhancements
+
+| Task     | Module | Description                             | Status | Priority |
+| -------- | ------ | --------------------------------------- | ------ | -------- |
+| OPAE-001 | opae   | Enhanced architecture YAML schema       | Draft  | high     |
+| OPAE-002 | opae   | Module boundary definitions             | Draft  | high     |
+| OPAE-003 | opae   | File-level import rules                 | Draft  | high     |
+| OPAE-004 | opae   | Package import restrictions             | Draft  | high     |
+| OPAE-005 | opae   | Interactive architecture wizard         | Draft  | medium   |
+| OPAE-006 | opae   | Policy library infrastructure           | Draft  | high     |
+| OPAE-007 | opae   | Security policy pack (8 policies)       | Draft  | high     |
+| OPAE-008 | opae   | Quality policy pack (6 policies)        | Draft  | high     |
+| OPAE-009 | opae   | Scope policy pack (4 policies)          | Draft  | high     |
+| OPAE-010 | opae   | Compliance policy pack (5 policies)     | Draft  | medium   |
+| OPAE-011 | opae   | Policy browse command                   | Draft  | high     |
+| OPAE-012 | opae   | Enhanced violation messages             | Draft  | high     |
+| OPAE-013 | opae   | Policy debugger foundation              | Draft  | medium   |
+| OPAE-014 | opae   | Interactive debugger TUI                | Draft  | medium   |
+| OPAE-015 | opae   | Policy watch mode                       | Draft  | medium   |
+| OPAE-016 | opae   | Architecture watch mode                 | Draft  | medium   |
+| OPAE-017 | opae   | Watch mode performance optimisation     | Draft  | medium   |
+| OPAE-018 | opae   | Historical PR analysis                  | Draft  | medium   |
+| OPAE-019 | opae   | Impact visualisation                    | Draft  | medium   |
+| OPAE-020 | opae   | Impact simulation                       | Draft  | medium   |
+| OPAE-021 | opae   | Policy description parser (NLP)         | Draft  | low      |
+| OPAE-022 | opae   | YAML generation from NLP                | Draft  | low      |
+| OPAE-023 | opae   | Policy creation wizard                  | Draft  | low      |
+| OPAE-024 | opae   | Exception request system                | Draft  | high     |
+| OPAE-025 | opae   | Exception approval workflow             | Draft  | high     |
+| OPAE-026 | opae   | Audit trail                             | Draft  | high     |
+| OPAE-027 | opae   | Exception CLI commands                  | Draft  | high     |
+| OPAE-028 | opae   | GitHub PR comments                      | Draft  | high     |
+| OPAE-029 | opae   | GitLab MR comments                      | Draft  | high     |
+| OPAE-030 | opae   | Inline annotations                      | Draft  | medium   |
+| OPAE-031 | opae   | Compliance metrics collection           | Draft  | high     |
+| OPAE-032 | opae   | Metrics dashboard TUI                   | Draft  | medium   |
+| OPAE-033 | opae   | Team leaderboards                       | Draft  | medium   |
+| OPAE-034 | opae   | Organisation policy bundles             | Draft  | high     |
+| OPAE-035 | opae   | Bundle versioning                       | Draft  | high     |
+| OPAE-036 | opae   | Bundle inheritance                      | Draft  | medium   |
+
+#### Organisational Policy Hierarchy
+
+| Task        | Module  | Description                            | Status | Priority |
+| ----------- | ------- | -------------------------------------- | ------ | -------- |
+| ORGHIER-001 | orghier | Hierarchy configuration schema         | Draft  | high     |
+| ORGHIER-002 | orghier | Scope selector engine                  | Draft  | high     |
+| ORGHIER-003 | orghier | Policy hierarchy resolver              | Draft  | high     |
+| ORGHIER-004 | orghier | Override permission enforcement        | Draft  | high     |
+| ORGHIER-005 | orghier | Conflict diagnostics                   | Draft  | medium   |
+| ORGHIER-006 | orghier | CLI hierarchy commands                 | Draft  | high     |
+| ORGHIER-007 | orghier | Gate runner hierarchy integration      | Draft  | medium   |
+
+#### Policy Lifecycle Management
+
+| Task      | Module | Description                            | Status | Priority |
+| --------- | ------ | -------------------------------------- | ------ | -------- |
+| POLLC-001 | pollc  | Policy version schema                  | Draft  | high     |
+| POLLC-002 | pollc  | Lifecycle state machine                | Draft  | high     |
+| POLLC-003 | pollc  | Canary rollout selector                | Draft  | medium   |
+| POLLC-004 | pollc  | Grace period enforcer                  | Draft  | high     |
+| POLLC-005 | pollc  | Policy changelog generator             | Draft  | high     |
+| POLLC-006 | pollc  | CLI lifecycle commands                 | Draft  | high     |
+| POLLC-007 | pollc  | Gate runner lifecycle integration      | Draft  | medium   |
+
+#### Compliance Reporting
+
+| Task       | Module | Description                            | Status | Priority |
+| ---------- | ------ | -------------------------------------- | ------ | -------- |
+| COMPLY-001 | comply | Compliance framework registry          | Draft  | high     |
+| COMPLY-002 | comply | SOC 2 and ISO 27001 definitions        | Draft  | medium   |
+| COMPLY-003 | comply | Policy-to-control mapper               | Draft  | high     |
+| COMPLY-004 | comply | Evidence collector                     | Draft  | medium   |
+| COMPLY-005 | comply | Compliance posture scoring             | Draft  | high     |
+| COMPLY-006 | comply | Report generator                       | Draft  | medium   |
+| COMPLY-007 | comply | Historical posture tracking            | Draft  | high     |
+| COMPLY-008 | comply | CLI compliance commands                | Draft  | high     |
+
+#### Policy Federation
+
+| Task       | Module | Description                            | Status | Priority |
+| ---------- | ------ | -------------------------------------- | ------ | -------- |
+| POLFED-001 | polfed | Policy channel schema                  | Draft  | high     |
+| POLFED-002 | polfed | Central repository conventions         | Draft  | high     |
+| POLFED-003 | polfed | Policy publisher                       | Draft  | high     |
+| POLFED-004 | polfed | Publish approval gate                  | Draft  | medium   |
+| POLFED-005 | polfed | Policy subscriber                      | Draft  | high     |
+| POLFED-006 | polfed | Subscription version pinning           | Draft  | high     |
+| POLFED-007 | polfed | Fleet compliance aggregator            | Draft  | medium   |
+| POLFED-008 | polfed | CLI federation commands                | Draft  | high     |
 ### Task Status — v2.0 (Pulumi Infrastructure as Code)
 
 | Task    | Module | Description                              | Status  | Priority |
