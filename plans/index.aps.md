@@ -185,6 +185,35 @@ sense after the core policy engine is battle-tested. Individual developers
 benefit from v1.x; platform teams and compliance roles benefit from these
 modules.
 
+### v1.3 — HTML/CSS Support & Multi-Language Foundation
+
+| Feature                  | Description                                         | Status |
+| ------------------------ | --------------------------------------------------- | ------ |
+| Configurable Extensions  | Make analysable file extensions configurable         | Ready  |
+| HTML Anti-patterns       | Inline styles, scripts, event handlers, deprecated  | Ready  |
+| CSS Anti-patterns        | `!important` abuse, CSS `@import` performance       | Ready  |
+| HTML/CSS Edge Detection  | `<script src>`, `<link href>`, `@import url()`      | Ready  |
+| HTML Suppression Syntax  | `<!-- @anvil-ignore ... -->` comment support         | Ready  |
+| VS Code HTML/CSS Trigger | Analysis on HTML/CSS file saves                     | Ready  |
+
+**Why v1.3:** HTML/CSS is the simplest non-JS language to support — no module
+resolution, no type system, all regex-based. It establishes the configurable
+extensions infrastructure (HTMLCSS-001) that all future language modules depend
+on.
+
+### v2.1+ — Multi-Language Support (Placeholders)
+
+| Feature         | Description                                    | Status      |
+| --------------- | ---------------------------------------------- | ----------- |
+| Python Support  | `import`/`from` extraction, `# type: ignore`  | Placeholder |
+| Rust Support    | `use`/`mod` extraction, `unsafe` detection     | Placeholder |
+| .NET Support    | `using` extraction, `dynamic` type detection   | Placeholder |
+
+**Why these three:** Python is the second most common AI-assisted language. Rust
+and .NET represent compiled-language ecosystems with strong architecture
+conventions. Each depends on the configurable extensions infrastructure from
+v1.3. Language modules will be promoted to Ready as demand and resources allow.
+
 ### What's NOT in v1
 
 To ship fast and focused, these are explicitly deferred:
@@ -193,7 +222,8 @@ To ship fast and focused, these are explicitly deferred:
 - ~~**Drift reports** — Core value doesn't require trend analysis~~ ✅ Complete in v1.1
 - **Command safety** — Important but not blocking for initial adoption (v2.0)
 - **Plan/APS execution** — Planless-first; APS is internal
-- **Multi-language support** — TypeScript/JavaScript only for v1
+- ~~**Multi-language support** — TypeScript/JavaScript only for v1~~ HTML/CSS in
+  v1.3; Python/Rust/.NET in v2.1+
 - **Team dashboards** — Individual developer focus first
 - **Auto-fix** — Warnings only; don't be too clever
 
@@ -305,6 +335,10 @@ graph TD
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | v2.0    | dashboard-foundation                                      |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | v2.0    | dashboard-foundation                                      |
 | [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Ready       | v2.0    | —                                                         |
+| [html-css-support](./modules/html-css-support.aps.md)                   | HTMLCSS  | Ready       | v1.3    | antipattern-library, architecture-safety, suppressions    |
+| [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
+| [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
+| [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -562,8 +596,35 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | MCP-001    | mcp-server     | Package scaffold and basic server | Planned | high     |
 | MCP-002    | mcp-server     | anvil_check tool implementation   | Planned | high     |
 | MCP-003    | mcp-server     | anvil_gate and anvil_status tools | Planned | high     |
-| MCP-004    | mcp-server     | Resources and prompts             | Planned | medium   |
-| MCP-005    | mcp-server     | HTTP transport and config gen     | Planned | medium   |
+| MCP-004    | mcp-server     | anvil_fix and anvil_suppress tools| Planned | high     |
+| MCP-005    | mcp-server     | anvil_query_boundary tool         | Planned | high     |
+| MCP-006    | mcp-server     | Resources with subscriptions      | Planned | medium   |
+| MCP-007    | mcp-server     | Prompt templates                  | Planned | medium   |
+| MCP-008    | mcp-server     | Streamable HTTP transport         | Planned | medium   |
+| MCP-009    | mcp-server     | Config generators and CLI         | Planned | high     |
+| MCP-010    | mcp-server     | Error handling and JSON-RPC       | Planned | high     |
+
+### Task Status — v1.3 (HTML/CSS Support)
+
+| Task        | Module  | Description                                 | Status  | Priority |
+| ----------- | ------- | ------------------------------------------- | ------- | -------- |
+| HTMLCSS-001 | htmlcss | Make analysable extensions configurable      | Planned | high     |
+| HTMLCSS-002 | htmlcss | HTML anti-pattern detectors (AP-008–011)     | Planned | high     |
+| HTMLCSS-003 | htmlcss | CSS anti-pattern detectors (AP-012–013)      | Planned | high     |
+| HTMLCSS-004 | htmlcss | HTML/CSS edge detection                      | Planned | high     |
+| HTMLCSS-005 | htmlcss | HTML suppression comment syntax              | Planned | high     |
+| HTMLCSS-006 | htmlcss | VS Code extension HTML/CSS trigger           | Planned | medium   |
+| HTMLCSS-007 | htmlcss | Documentation and tests                      | Planned | medium   |
+
+### Task Status — v2.1+ (Multi-Language Placeholders)
+
+Tasks will be defined when each module moves from Placeholder to Ready status.
+
+| Module  | Language | Estimated Tasks | Prerequisite       | Status      |
+| ------- | -------- | --------------- | ------------------ | ----------- |
+| PYLAN   | Python   | 6               | HTMLCSS-001        | Placeholder |
+| RSTLAN  | Rust     | 5               | HTMLCSS-001        | Placeholder |
+| DNLAN   | .NET/C#  | 5               | HTMLCSS-001        | Placeholder |
 
 ### Task Status — v2.0 (Edda Stack — Memory System)
 
