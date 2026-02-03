@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import React from 'react';
+import { render } from 'ink-testing-library';
 import {
   TUTORIAL_STEPS,
   STEP_DEFINITIONS,
@@ -13,8 +15,24 @@ import {
   formatElapsedTime,
 } from '../types.js';
 
-// Component tests (Tutorial, ScanStep, WatchStep, FixStep, NextStepsStep)
-// will be added in later tasks once the step components are implemented.
+// Mock scan-project to prevent real filesystem access
+vi.mock('../steps/scan-project.js', () => ({
+  scanProject: vi.fn(() => new Promise(() => {})), // never resolves by default
+}));
+
+// Mock watch-project to prevent real filesystem watchers
+vi.mock('../steps/watch-project.js', () => ({
+  createTutorialWatcher: vi.fn(() => ({ close: vi.fn() })),
+  WATCHED_PATTERNS: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
+}));
+
+// Mock getWorkspaceRoot
+vi.mock('../../../../utils/file-io.js', () => ({
+  getWorkspaceRoot: () => '/mock/workspace',
+}));
+
+// Import after mocks
+import { Tutorial } from '../Tutorial.js';
 
 describe('Type utilities', () => {
   describe('TUTORIAL_STEPS', () => {
@@ -168,5 +186,43 @@ describe('Type utilities', () => {
       const startedAt = new Date(Date.now() - 90000);
       expect(formatElapsedTime(startedAt)).toBe('1m 30s');
     });
+  });
+});
+
+describe('Tutorial component', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders and starts on scan step', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    const frame = lastFrame();
+    expect(frame).toContain('Scan Your Project');
+  });
+
+  it('shows progress indicator with step count', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    expect(lastFrame()).toContain('Step 1 of 4');
+  });
+
+  it('shows step description', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    expect(lastFrame()).toContain('Analyse your codebase for issues');
+  });
+
+  it('shows keyboard shortcuts', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    const frame = lastFrame();
+    expect(frame).toContain('q quit');
+  });
+
+  it('shows the header title', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    expect(lastFrame()).toContain('ANVIL TUTORIAL');
   });
 });

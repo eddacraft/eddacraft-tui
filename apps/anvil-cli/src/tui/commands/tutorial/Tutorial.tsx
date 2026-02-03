@@ -3,7 +3,7 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { Header } from '../../components/Header.js';
 import { ProgressBar } from '../../components/ProgressBar.js';
 import { theme } from '../../utils/theme.js';
-import type { TutorialState, TutorialStepId } from './types.js';
+import type { TutorialState, TutorialStepId, ScanResults } from './types.js';
 import {
   createInitialTutorialState,
   getNextStep,
@@ -14,14 +14,15 @@ import {
   canGoBack,
   isLastStep,
 } from './types.js';
+import { ScanStep } from './steps/ScanStep.js';
+import { WatchStep } from './steps/WatchStep.js';
+import { FixStep } from './steps/FixStep.js';
+import { NextStepsStep } from './steps/NextStepsStep.js';
 
 interface TutorialProps {
   onComplete?: () => void;
   onCleanup?: () => void;
 }
-
-// TODO: Step components (ScanStep, WatchStep, FixStep, NextStepsStep) will be
-// implemented in subsequent tasks. For now the Tutorial renders placeholder text.
 
 export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactElement {
   const { exit } = useApp();
@@ -48,6 +49,18 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
       goToStep(prev);
     }
   }, [state.currentStep, goToStep]);
+
+  const handleScanComplete = useCallback((results: ScanResults) => {
+    setState((prev) => ({ ...prev, scanResults: results }));
+  }, []);
+
+  const handleWatchComplete = useCallback(() => {
+    setState((prev) => ({ ...prev, watchTriggered: true }));
+  }, []);
+
+  const handleFixComplete = useCallback(() => {
+    setState((prev) => ({ ...prev, fixConfirmed: true }));
+  }, []);
 
   const handleCleanup = useCallback(() => {
     setState((prev) => ({ ...prev, cleanupRequested: true }));
@@ -101,9 +114,27 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
       </Box>
 
       <Box flexDirection="column" marginY={1}>
-        {/* Step components will be added in later tasks */}
-        <Text color={theme.colours.steel}>{currentStepDef.title}</Text>
-        <Text color={theme.colours.smoke}>{currentStepDef.description}</Text>
+        {state.currentStep === 'scan' && (
+          <ScanStep onComplete={handleScanComplete} scanResults={state.scanResults} />
+        )}
+        {state.currentStep === 'watch' && (
+          <WatchStep onComplete={handleWatchComplete} watchTriggered={state.watchTriggered} />
+        )}
+        {state.currentStep === 'fix' && (
+          <FixStep
+            scanResults={state.scanResults}
+            fixConfirmed={state.fixConfirmed}
+            onComplete={handleFixComplete}
+          />
+        )}
+        {state.currentStep === 'next-steps' && (
+          <NextStepsStep
+            startedAt={state.startedAt}
+            scanResults={state.scanResults}
+            onCleanup={handleCleanup}
+            onFinish={handleFinish}
+          />
+        )}
       </Box>
 
       <Box marginTop={1}>

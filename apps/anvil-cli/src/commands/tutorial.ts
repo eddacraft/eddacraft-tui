@@ -87,15 +87,57 @@ function ensureTutorialDir(workspaceRoot: string): string {
   return tutorialDir;
 }
 
+const AVAILABLE_TUTORIALS = [
+  { topic: 'policies', description: 'Write custom OPA/Rego rules' },
+  { topic: 'architecture', description: 'Define architecture boundaries' },
+  { topic: 'drift', description: 'Track architecture drift over time' },
+  { topic: 'ci', description: 'Set up CI integration' },
+];
+
 export function createTutorialCommand(): Command {
   const command = new Command('tutorial');
 
   command
     .description('Interactive tutorial to learn Anvil basics (< 5 minutes)')
+    .argument('[topic]', 'Tutorial topic (policies, architecture, drift, ci)')
+    .option('--list', 'Show available tutorials')
     .option('--reset', 'Clear previous progress and start fresh')
     .option('--tui', 'Force TUI mode')
     .option('--no-tui', 'Force plain text mode (not recommended)')
-    .action(async (options: TutorialOptions) => {
+    .action(async (topic: string | undefined, options: TutorialOptions & { list?: boolean }) => {
+      if (options.list) {
+        console.log(chalk.hex(theme.colours.ember)('\nAvailable tutorials:\n'));
+        console.log(
+          chalk.hex(theme.colours.text)('  anvil tutorial') +
+            chalk.hex(theme.colours.smoke)('              Core tutorial (scan, watch, fix)')
+        );
+        for (const t of AVAILABLE_TUTORIALS) {
+          console.log(
+            chalk.hex(theme.colours.text)(`  anvil tutorial ${t.topic}`) +
+              chalk.hex(theme.colours.smoke)(`${' '.repeat(14 - t.topic.length)}${t.description}`)
+          );
+        }
+        console.log();
+        return;
+      }
+
+      if (topic) {
+        const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
+        if (known) {
+          console.log(
+            chalk.hex(theme.colours.molten)(
+              `\nTutorial '${topic}' coming soon. Run ${chalk.hex(theme.colours.text)('anvil tutorial')} for the core tutorial.\n`
+            )
+          );
+        } else {
+          console.log(
+            chalk.hex(theme.colours.slag)(
+              `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
+            )
+          );
+        }
+        return;
+      }
       const workspaceRoot = getWorkspaceRoot();
 
       if (options.reset) {
