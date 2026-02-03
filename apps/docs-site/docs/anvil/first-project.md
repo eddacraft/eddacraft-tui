@@ -170,3 +170,13 @@ codes.
 ---
 
 **Next:** [Experience your first gate moment →](/docs/anvil/first-gate)
+
+**Learn more:**
+
+- [Custom policies](/docs/anvil/tutorials/policies) -- write OPA/Rego rules for
+  your standards
+- [Architecture boundaries](/docs/anvil/tutorials/architecture) -- templates and
+  enforcement
+- [Drift detection](/docs/anvil/tutorials/drift) -- track architectural changes
+- [CI integration](/docs/anvil/tutorials/ci) -- add Anvil to your pipeline
+- [Suppressions](/docs/anvil/tutorials/suppressions) -- manage legacy warnings
