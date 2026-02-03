@@ -282,6 +282,7 @@ graph TD
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | v2.0   | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | v2.0    | dashboard-foundation                                      |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | v2.0    | dashboard-foundation                                      |
+| [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Ready       | v2.0    | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -635,6 +636,23 @@ Ember (interpretation), and Edda (canonical memory).
 | STACK-015 | stack  | Stack architecture documentation  | Draft  | medium   |
 | STACK-016 | stack  | Migration guide                   | Draft  | medium   |
 
+### Task Status — v2.0 (Pulumi Infrastructure as Code)
+
+| Task    | Module | Description                              | Status  | Priority |
+| ------- | ------ | ---------------------------------------- | ------- | -------- |
+| IAC-001 | iac    | Scaffold Pulumi project in monorepo      | Planned | high     |
+| IAC-002 | iac    | Configure Pulumi state backend           | Planned | high     |
+| IAC-003 | iac    | Manage website Vercel project config     | Planned | high     |
+| IAC-004 | iac    | Manage docs-site Vercel project config   | Planned | high     |
+| IAC-005 | iac    | Create VercelApp ComponentResource       | Planned | medium   |
+| IAC-006 | iac    | Manage GitHub repository configuration   | Planned | high     |
+| IAC-007 | iac    | Manage Azure DNS zones and records       | Planned | high     |
+| IAC-008 | iac    | Add Pulumi CI/CD pipeline integration    | Planned | high     |
+| IAC-009 | iac    | Write unit tests for infrastructure code | Planned | medium   |
+| IAC-010 | iac    | Import existing Vercel resources         | Planned | high     |
+| IAC-011 | iac    | Document IaC setup and contributor guide | Planned | medium   |
+| IAC-012 | iac    | Document rollback procedures             | Planned | medium   |
+
 ## Risks & Mitigations
 
 | Risk                            | Impact | Likelihood | Mitigation                                               |
@@ -659,6 +677,9 @@ Ember (interpretation), and Edda (canonical memory).
   ([ADR](./decisions/005-ink-over-opentui.md))
 - **D-006:** Hybrid DC + OPA — DC for analysis, OPA for policies, bridge between
   ([ADR](./decisions/006-hybrid-dc-opa.md))
+- **D-007:** Pulumi for IaC — open-source Pulumi with TypeScript over Terraform
+  for consistency with the monorepo's TypeScript-first toolchain
+  ([ADR](./decisions/007-pulumi-iac.md))
 
 ## Open Questions
 
