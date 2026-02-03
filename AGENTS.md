@@ -1,18 +1,47 @@
 # Anvil - AI Agent Instructions
 
-> **Deterministic development automation platform that makes AI-generated code
-> changes safe for production**
+## What is Anvil?
 
-## Overview
+Anvil is a **deterministic development automation platform** built by
+[EddaCraft](https://eddacraft.dev). It catches architecture drift and AI
+anti-patterns at file save — before they reach code review.
+
+The core idea: probabilistic tools (LLMs, AI code agents) generate code, but
+Anvil enforces **deterministic rules** over that output. Every change is
+validated through quality gates, every decision is recorded in an immutable audit
+trail, and every mutation is reversible.
+
+Anvil works with the planning formats teams already use (SpecKit, BMAD) by
+translating them into its own hash-stable internal format — **APS (Anvil Plan
+Specification)** — which enables deterministic validation, drift detection, and
+provenance tracking.
+
+```
+External Format → Adapter → APS (internal) → Gate → Execute → Evidence
+```
+
+**Key capabilities:**
+
+- **Quality gates** — lint, test coverage, secret detection, dependency audit,
+  architecture checks — run automatically before changes land
+- **Plan validation** — specs describe intent, tasks authorise execution, steps
+  are observable checkpoints
+- **Audit trail** — SHA-256 hashed provenance for every change, immutable
+  evidence chain
+- **Rollback** — snapshots before execution, so every mutation is reversible
+- **Format adapters** — SpecKit, BMAD, and generic formats convert to APS
+  transparently
+
+This is an **Nx monorepo** using **pnpm** workspaces, **TypeScript** throughout,
+and **Vitest** for testing. The product ships as a CLI (`@eddacraft/anvil-cli`),
+with a marketing website and documentation site deployed on Vercel.
+
+## Technical Overview
 
 Anvil validates AI-generated code changes through **APS (Anvil Plan
 Specification)** – a hash-stable internal format enabling deterministic
 validation. Users work in external formats (SpecKit, BMAD); Anvil translates
 internally.
-
-```
-External Format → Adapter → APS (internal) → Gate → Execute → Evidence
-```
 
 ## Planning Work
 
@@ -49,17 +78,37 @@ or work item:**
 ```
 anvil/
 ├── apps/
-│   └── anvil-cli/        # @eddacraft/anvil-cli - Commander.js CLI with TUI (Ink)
+│   ├── anvil-cli/          # @eddacraft/anvil-cli - Commander.js CLI with TUI (Ink)
+│   ├── website/            # Next.js 16 marketing site (Vercel)
+│   ├── docs-site/          # Docusaurus 3.9 documentation hub (Vercel)
+│   ├── anvil-api/          # API service (placeholder)
+│   ├── anvil-ui/           # Web UI (placeholder)
+│   └── e2e/                # Playwright E2E tests
 ├── packages/
-│   ├── adapters/         # Format converters (SpecKit, BMAD, Generic)
+│   ├── adapters/           # Format converters (SpecKit, BMAD, Generic)
 │   ├── anvil/
-│   │   ├── core/         # @eddacraft/anvil-core - Schema, validation, crypto
-│   │   └── runtime/      # Gate checks, execution engine
-│   ├── aps/              # APS document parser, validator, state management
-│   └── vscode-extension/ # VS Code integration
-├── plans/                # .aps.md specs, execution/*.steps.md, decisions/
-├── docs/                 # Architecture, guides
-└── e2e/                  # Playwright E2E tests
+│   │   ├── contracts/      # Schemas, types, events (zero deps)
+│   │   ├── ports/          # Interface definitions
+│   │   ├── core/           # @eddacraft/anvil-core - Schema, validation, crypto
+│   │   ├── runtime/        # Gate checks, execution engine
+│   │   └── policy/         # OPA/Rego policy wrappers
+│   ├── aps/                # APS document parser, validator, state management
+│   ├── platform/
+│   │   ├── config/         # Configuration loading & validation
+│   │   ├── storage/        # File system abstractions
+│   │   └── crypto/         # Hashing, signing, verification
+│   ├── edda-stack/         # Memory stack (Kindling · Ember · Edda)
+│   ├── kindling-integration/ # Kindling memory contracts
+│   ├── eslint-plugin-anvil/  # ESLint test quality rules
+│   ├── vscode-extension/   # VS Code integration
+│   └── tooling/
+│       ├── tsconfig/       # Shared TypeScript configs
+│       └── eslint-config/  # Shared ESLint configs
+├── tools/
+│   ├── scripts/            # Build & utility scripts
+│   └── generators/         # Nx code generators
+├── plans/                  # .aps.md specs, execution/*.steps.md, decisions/
+└── docs/                   # Architecture, guides
 ```
 
 ## Commands
@@ -276,5 +325,7 @@ class MyCheck extends BaseCheck {
 See AGENTS.md in each package:
 
 - `apps/anvil-cli/AGENTS.md` - Commands, services, TUI
+- `apps/website/AGENTS.md` - Next.js marketing site
+- `apps/docs-site/AGENTS.md` - Docusaurus documentation hub
 - `packages/adapters/AGENTS.md` - Format adapter framework
 - `packages/aps/AGENTS.md` - APS document management
