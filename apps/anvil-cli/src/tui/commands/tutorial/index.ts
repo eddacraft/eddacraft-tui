@@ -1,5 +1,12 @@
 export { Tutorial } from './Tutorial.js';
-export type { TutorialState, TutorialStepId, TutorialStep, TutorialProgress } from './types.js';
+export type {
+  TutorialState,
+  TutorialStepId,
+  TutorialStep,
+  TutorialProgress,
+  ScanResults,
+  ScanWarning,
+} from './types.js';
 export {
   TUTORIAL_STEPS,
   STEP_DEFINITIONS,

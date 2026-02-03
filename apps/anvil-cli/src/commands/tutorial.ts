@@ -121,9 +121,9 @@ export function createTutorialCommand(): Command {
 
       const handleComplete = () => {
         const progress: TutorialProgress = {
-          currentStep: 5,
-          totalSteps: 5,
-          completedSteps: ['intro', 'plan', 'validate', 'gate', 'completion'],
+          currentStep: 4,
+          totalSteps: 4,
+          completedSteps: ['scan', 'watch', 'fix', 'next-steps'],
           startedAt: new Date().toISOString(),
         };
         saveProgress(workspaceRoot, progress);
