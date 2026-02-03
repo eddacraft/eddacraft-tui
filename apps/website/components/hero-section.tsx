@@ -7,7 +7,7 @@ export function HeroSection() {
   const [showDocsModal, setShowDocsModal] = useState(false);
 
   return (
-    <section className="min-h-screen pt-14">
+    <section className="lg:min-h-screen pt-14">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24 font-mono">
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-12 items-center">
           {/* Text Content - Left */}
