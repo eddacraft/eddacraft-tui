@@ -44,9 +44,12 @@ vi.mock('ora', () => ({
 vi.mock('chalk', () => ({
   default: {
     bold: (str: string) => str,
+    blue: (str: string) => str,
     cyan: (str: string) => str,
     dim: (str: string) => str,
+    gray: (str: string) => str,
     green: (str: string) => str,
+    magenta: (str: string) => str,
     red: (str: string) => str,
     white: (str: string) => str,
     yellow: (str: string) => str,
@@ -414,6 +417,93 @@ describe('init command', () => {
 
       const output = consoleOutput.join('\n');
       expect(output).not.toContain('Example files:');
+    });
+  });
+
+  describe('--org flag', () => {
+    it('should have --org option on init command', () => {
+      const command = createInitCommand();
+      const orgOpt = command.options.find((opt) => opt.long === '--org');
+
+      expect(orgOpt).toBeDefined();
+    });
+
+    it('should create .anvil/config.yml with org source', async () => {
+      const command = createInitCommand();
+      await command.parseAsync(['--org', 'acme-corp'], { from: 'user' });
+
+      const configPath = join(workspace.root, '.anvil', 'config.yml');
+      expect(existsSync(configPath)).toBe(true);
+
+      const content = readFileSync(configPath, 'utf-8');
+      expect(content).toContain('git@github.com:acme-corp/anvil-policies.git');
+    });
+
+    it('should apply a starter profile based on detection', async () => {
+      const command = createInitCommand();
+      await command.parseAsync(['--org', 'acme-corp'], { from: 'user' });
+
+      const configPath = join(workspace.root, '.anvil', 'config.yml');
+      const content = readFileSync(configPath, 'utf-8');
+      expect(content).toContain('starter_profile');
+    });
+
+    it('should create .anvilrc alongside config.yml', async () => {
+      const command = createInitCommand();
+      await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+
+      expect(existsSync(join(workspace.root, '.anvilrc'))).toBe(true);
+    });
+
+    it('should exit with error if .anvilrc exists without force', async () => {
+      createAnvilrc(workspace.root);
+      const command = createInitCommand();
+
+      await expect(async () => {
+        await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+      }).rejects.toThrow('process.exit(1)');
+
+      expect(exitCode).toBe(1);
+    });
+
+    it('should overwrite if --force is used with --org', async () => {
+      createAnvilrc(workspace.root);
+      const command = createInitCommand();
+
+      await command.parseAsync(['--org', 'my-org', '--force'], { from: 'user' });
+
+      expect(existsSync(join(workspace.root, '.anvilrc'))).toBe(true);
+      expect(existsSync(join(workspace.root, '.anvil', 'config.yml'))).toBe(true);
+    });
+
+    it('should display success output with detected info', async () => {
+      createPackageJson(workspace.root, { name: 'test-project' });
+
+      const command = createInitCommand();
+      await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+
+      const output = consoleOutput.join('\n');
+      expect(output).toContain('Detected:');
+      expect(output).toContain('starter profile');
+      expect(output).toContain('policies active');
+    });
+
+    it('should display policy list suggestion', async () => {
+      const command = createInitCommand();
+      await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+
+      const output = consoleOutput.join('\n');
+      expect(output).toContain('anvil policy list');
+    });
+
+    it('should include team policies from starter profile in config', async () => {
+      const command = createInitCommand();
+      await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+
+      const configPath = join(workspace.root, '.anvil', 'config.yml');
+      const content = readFileSync(configPath, 'utf-8');
+      // All starter profiles include secret-scan
+      expect(content).toContain('secret-scan');
     });
   });
 
