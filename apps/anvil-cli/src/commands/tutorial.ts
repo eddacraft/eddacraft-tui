@@ -206,6 +206,27 @@ export function createTutorialCommand(): Command {
           return;
         }
 
+        if (topic === 'ci') {
+          const useTUI = isTUIAvailable({ tui: options.tui });
+
+          if (!useTUI) {
+            console.log(
+              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
+            );
+            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
+            process.exit(1);
+          }
+
+          const { CITutorial } = await import('../tui/commands/tutorial/features/CITutorial.js');
+
+          await renderTUIAndWait(CITutorial, {
+            onComplete: () => {},
+            onCleanup: () => {},
+          });
+
+          return;
+        }
+
         const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
         if (known) {
           console.log(
