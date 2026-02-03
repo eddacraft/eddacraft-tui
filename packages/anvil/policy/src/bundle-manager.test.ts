@@ -164,15 +164,15 @@ describe('BundleManager', { timeout: 30000 }, () => {
   }, 15000);
 
   describe('initialization', () => {
-    it('should create manager with default config', () => {
+    it('should create manager with default config and no bundles', () => {
       const defaultManager = new BundleManager();
-      expect(defaultManager).toBeDefined();
+      expect(defaultManager.getBundleNames()).toEqual([]);
     });
 
     it('should accept custom cache directory', () => {
       const customDir = join(tempCacheDir, 'custom');
       const customManager = new BundleManager({ cacheDir: customDir });
-      expect(customManager).toBeDefined();
+      expect(customManager.getBundleNames()).toEqual([]);
     });
 
     it('should accept bundle configurations', () => {

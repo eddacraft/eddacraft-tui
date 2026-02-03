@@ -43,49 +43,43 @@ describe('Provenance System', () => {
     });
 
     it('should collect git context for git repository', async () => {
-      try {
-        // Initialize a git repo
-        execSync('git init', { cwd: tempDir, stdio: 'pipe' });
-        execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
-        execSync('git config user.name "Test User"', { cwd: tempDir, stdio: 'pipe' });
+      // Initialize a git repo with signing disabled for test environment
+      execSync('git init', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.name "Test User"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config commit.gpgsign false', { cwd: tempDir, stdio: 'pipe' });
 
-        // Create initial commit
-        writeFileSync(join(tempDir, 'test.txt'), 'hello');
-        execSync('git add .', { cwd: tempDir, stdio: 'pipe' });
-        execSync('git commit -m "Initial commit"', { cwd: tempDir, stdio: 'pipe' });
+      // Create initial commit
+      writeFileSync(join(tempDir, 'test.txt'), 'hello');
+      execSync('git add .', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git commit -m "Initial commit"', { cwd: tempDir, stdio: 'pipe' });
 
-        const git = await collectGitContext(tempDir);
+      const git = await collectGitContext(tempDir);
 
-        expect(git).toBeDefined();
-        expect(git?.branch).toBeDefined();
-        expect(git?.commit).toMatch(/^[a-f0-9]{40}$/);
-        expect(git?.commit_message).toBe('Initial commit');
-        expect(git?.dirty).toBe(false);
-      } catch {
-        console.warn('Git not available, skipping test');
-      }
+      expect(git).toBeDefined();
+      expect(git?.branch).toBeDefined();
+      expect(git?.commit).toMatch(/^[a-f0-9]{40}$/);
+      expect(git?.commit_message).toBe('Initial commit');
+      expect(git?.dirty).toBe(false);
     });
 
     it('should detect dirty state', async () => {
-      try {
-        execSync('git init', { cwd: tempDir, stdio: 'pipe' });
-        execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
-        execSync('git config user.name "Test User"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git init', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config user.name "Test User"', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git config commit.gpgsign false', { cwd: tempDir, stdio: 'pipe' });
 
-        writeFileSync(join(tempDir, 'test.txt'), 'hello');
-        execSync('git add .', { cwd: tempDir, stdio: 'pipe' });
-        execSync('git commit -m "Initial commit"', { cwd: tempDir, stdio: 'pipe' });
+      writeFileSync(join(tempDir, 'test.txt'), 'hello');
+      execSync('git add .', { cwd: tempDir, stdio: 'pipe' });
+      execSync('git commit -m "Initial commit"', { cwd: tempDir, stdio: 'pipe' });
 
-        // Make uncommitted change
-        writeFileSync(join(tempDir, 'test.txt'), 'hello world');
+      // Make uncommitted change
+      writeFileSync(join(tempDir, 'test.txt'), 'hello world');
 
-        const git = await collectGitContext(tempDir);
+      const git = await collectGitContext(tempDir);
 
-        expect(git?.dirty).toBe(true);
-        expect(git?.modified_files).toContain('test.txt');
-      } catch {
-        console.warn('Git not available, skipping test');
-      }
+      expect(git?.dirty).toBe(true);
+      expect(git?.modified_files).toContain('test.txt');
     });
   });
 

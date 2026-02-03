@@ -253,8 +253,10 @@ describe('LayerDetector', () => {
 
       const ambiguous = detector.findAmbiguousAssignments(files);
 
-      // Should be flagged as ambiguous due to multiple layer matches
-      expect(ambiguous.length).toBeGreaterThanOrEqual(0);
+      // The file matches multiple layer patterns, so it should be flagged as ambiguous
+      expect(ambiguous).toHaveLength(1);
+      expect(ambiguous[0].file).toBe('src/services/domain/entity.ts');
+      expect(ambiguous[0].confidence).toBe('medium');
     });
   });
 

@@ -84,25 +84,22 @@ violation[msg] {
   });
 
   describe('initialization', () => {
-    it('should create executor with binary path', () => {
-      expect(executor).toBeDefined();
+    it('should create executor that can evaluate policies', async () => {
+      const result = await executor.evaluate(mockPolicies, mockInput);
+      expect(result).toBeDefined();
+      expect(result.success).toBe(true);
+      expect(Array.isArray(result.violations)).toBe(true);
     });
 
-    it('should accept custom timeout', () => {
-      const customExecutor = new OPAExecutor(mockBinaryPath, { timeout: 10000 });
-      expect(customExecutor).toBeDefined();
-    });
+    it('should include raw output only when enabled', async () => {
+      const withRaw = new OPAExecutor(mockBinaryPath, { includeRawOutput: true });
+      const withoutRaw = new OPAExecutor(mockBinaryPath, { includeRawOutput: false });
 
-    it('should accept custom query', () => {
-      const customExecutor = new OPAExecutor(mockBinaryPath, {
-        query: 'data.custom.policies',
-      });
-      expect(customExecutor).toBeDefined();
-    });
+      const resultWith = await withRaw.evaluate(mockPolicies, mockInput);
+      const resultWithout = await withoutRaw.evaluate(mockPolicies, mockInput);
 
-    it('should accept includeRawOutput option', () => {
-      const customExecutor = new OPAExecutor(mockBinaryPath, { includeRawOutput: true });
-      expect(customExecutor).toBeDefined();
+      expect(resultWith.raw_output).toBeDefined();
+      expect(resultWithout.raw_output).toBeUndefined();
     });
   });
 
@@ -152,49 +149,51 @@ violation[msg] {
   });
 
   describe('violation detection', () => {
-    it('should parse string violations', async () => {
-      // Mock executor that would return violations
-      // In practice, this would require a real OPA binary with policy violations
+    it('should return empty violations for clean policy evaluation', async () => {
       const result = await executor.evaluate(mockPolicies, mockInput);
 
-      // With mock that returns empty violations
       expect(Array.isArray(result.violations)).toBe(true);
+      expect(result.violations).toHaveLength(0);
     });
 
-    it('should parse structured violation objects', async () => {
-      const result = await executor.evaluate(mockPolicies, mockInput);
-
-      // Verify violation structure when present
-      result.violations.forEach((violation) => {
-        expect(violation).toHaveProperty('rule');
-        expect(violation).toHaveProperty('severity');
-        expect(violation).toHaveProperty('message');
+    it('should parse string violations from mock binary', async () => {
+      // Create a mock binary that returns actual violations
+      const violationBinary = join(tempDir, platform() === 'win32' ? 'opa-viol.exe' : 'opa-viol');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  test_policy: {
+                    violation: ['Test violation message'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
       });
-    });
 
-    it('should include violation fingerprints', async () => {
-      const result = await executor.evaluate(mockPolicies, mockInput);
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
 
-      // Fingerprints should be included when violations exist
-      result.violations.forEach((violation) => {
-        if (violation.fingerprint) {
-          expect(typeof violation.fingerprint).toBe('string');
-          expect(violation.fingerprint.length).toBeGreaterThan(0);
-        }
-      });
-    });
+      writeFileSync(violationBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(violationBinary, 0o755);
+      }
 
-    it('should infer categories from policy names', async () => {
-      const result = await executor.evaluate(mockPolicies, mockInput);
+      const violationExecutor = new OPAExecutor(violationBinary);
+      const result = await violationExecutor.evaluate(mockPolicies, mockInput);
 
-      // Categories should be inferred for violations
-      result.violations.forEach((violation) => {
-        if (violation.category) {
-          expect(violation.category).toMatch(
-            /^(security|architecture|coverage|scope|quality|compliance|custom)$/
-          );
-        }
-      });
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0]).toHaveProperty('rule');
+      expect(result.violations[0]).toHaveProperty('severity');
+      expect(result.violations[0]).toHaveProperty('message');
+      expect(result.violations[0].message).toBe('Test violation message');
+      expect(result.violations[0].severity).toBe('error');
     });
   });
 
@@ -325,9 +324,8 @@ test_example {
 
       const result = await verboseExecutor.evaluate(mockPolicies, mockInput);
 
-      if (result.success) {
-        expect(result.raw_output).toBeDefined();
-      }
+      expect(result.success).toBe(true);
+      expect(result.raw_output).toBeDefined();
     });
 
     it('should exclude raw output when disabled', async () => {
@@ -338,20 +336,122 @@ test_example {
   });
 
   describe('severity parsing', () => {
-    it('should default severity to error for deny rules', () => {
-      // This tests internal logic through evaluation
-      // Severity parsing is tested indirectly
-      expect(executor).toBeDefined();
+    it('should default severity to error for deny/violation rules', async () => {
+      const denyBinary = join(tempDir, platform() === 'win32' ? 'opa-deny.exe' : 'opa-deny');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  deny_policy: {
+                    deny: ['Denied action'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(denyBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(denyBinary, 0o755);
+      }
+
+      const denyPolicy: LoadedPolicy = {
+        name: 'deny_policy',
+        path: join(tempDir, 'deny_policy.rego'),
+        content: 'package anvil.policies.deny_policy',
+        package: 'anvil.policies.deny_policy',
+        hasTests: false,
+      };
+
+      const denyExecutor = new OPAExecutor(denyBinary);
+      const result = await denyExecutor.evaluate([denyPolicy], mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].severity).toBe('error');
     });
 
-    it('should default severity to warning for warn rules', () => {
-      // This tests internal logic through evaluation
-      expect(executor).toBeDefined();
+    it('should default severity to warning for warn rules', async () => {
+      const warnBinary = join(tempDir, platform() === 'win32' ? 'opa-warn.exe' : 'opa-warn');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  warn_policy: {
+                    warn: ['Warning message'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(warnBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(warnBinary, 0o755);
+      }
+
+      const warnPolicy: LoadedPolicy = {
+        name: 'warn_policy',
+        path: join(tempDir, 'warn_policy.rego'),
+        content: 'package anvil.policies.warn_policy',
+        package: 'anvil.policies.warn_policy',
+        hasTests: false,
+      };
+
+      const warnExecutor = new OPAExecutor(warnBinary);
+      const result = await warnExecutor.evaluate([warnPolicy], mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].severity).toBe('warning');
     });
   });
 
   describe('category inference', () => {
-    it('should infer security category from policy name', () => {
+    it('should infer security category from policy name', async () => {
+      const secBinary = join(tempDir, platform() === 'win32' ? 'opa-sec.exe' : 'opa-sec');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  security_check: {
+                    violation: ['Security violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(secBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(secBinary, 0o755);
+      }
+
       const securityPolicy: LoadedPolicy = {
         name: 'security_check',
         path: join(tempDir, 'security_check.rego'),
@@ -360,11 +460,41 @@ test_example {
         hasTests: false,
       };
 
-      // Category inference happens during violation parsing
-      expect(securityPolicy.name).toContain('security');
+      const secExecutor = new OPAExecutor(secBinary);
+      const result = await secExecutor.evaluate([securityPolicy], mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].category).toBe('security');
     });
 
-    it('should infer architecture category from policy name', () => {
+    it('should infer architecture category from policy name', async () => {
+      const archBinary = join(tempDir, platform() === 'win32' ? 'opa-arch.exe' : 'opa-arch');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  architecture_boundary: {
+                    violation: ['Architecture violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(archBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(archBinary, 0o755);
+      }
+
       const archPolicy: LoadedPolicy = {
         name: 'architecture_boundary',
         path: join(tempDir, 'architecture_boundary.rego'),
@@ -373,10 +503,41 @@ test_example {
         hasTests: false,
       };
 
-      expect(archPolicy.name).toContain('architecture');
+      const archExecutor = new OPAExecutor(archBinary);
+      const result = await archExecutor.evaluate([archPolicy], mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].category).toBe('architecture');
     });
 
-    it('should default to custom category for unknown types', () => {
+    it('should default to custom category for unknown policy names', async () => {
+      const customBinary = join(tempDir, platform() === 'win32' ? 'opa-custom.exe' : 'opa-custom');
+      const outputJson = JSON.stringify({
+        result: [
+          {
+            expressions: [
+              {
+                value: {
+                  my_custom_policy: {
+                    violation: ['Custom violation'],
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      });
+
+      const script =
+        platform() === 'win32'
+          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          : `#!/bin/sh\necho '${outputJson}'`;
+
+      writeFileSync(customBinary, script);
+      if (platform() !== 'win32') {
+        chmodSync(customBinary, 0o755);
+      }
+
       const customPolicy: LoadedPolicy = {
         name: 'my_custom_policy',
         path: join(tempDir, 'my_custom_policy.rego'),
@@ -385,8 +546,11 @@ test_example {
         hasTests: false,
       };
 
-      // Custom category is inferred for non-standard names
-      expect(customPolicy.name).toBe('my_custom_policy');
+      const customExecutor = new OPAExecutor(customBinary);
+      const result = await customExecutor.evaluate([customPolicy], mockInput);
+
+      expect(result.violations).toHaveLength(1);
+      expect(result.violations[0].category).toBe('custom');
     });
   });
 });

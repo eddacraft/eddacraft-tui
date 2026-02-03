@@ -324,9 +324,13 @@ describe('EntryPointDetector', () => {
 });
 
 describe('createEntryPointDetector', () => {
-  it('should create detector with workspace root', () => {
+  it('should create functional detector with workspace root', () => {
     const detector = createEntryPointDetector('/test/workspace');
 
     expect(detector).toBeInstanceOf(EntryPointDetector);
+    // Verify the detector is functional by detecting a known entry point
+    const result = detector.detectEntryPoint('/test/workspace/src/index.ts');
+    expect(result).not.toBeNull();
+    expect(result?.type).toBe('package');
   });
 });

@@ -27,16 +27,24 @@ describe('Pattern Catalogue', () => {
       }
     });
 
-    it('should have all required fields', () => {
+    it('should have all required fields with valid values', () => {
+      const validCategories = ['escape-hatch', 'error-handling', 'code-quality', 'type-safety'];
+      const validSeverities = ['error', 'warning', 'info'];
+      const validConfidences = ['high', 'medium', 'low'];
+
       for (const pattern of PATTERNS) {
-        expect(pattern.name).toBeTruthy();
-        expect(pattern.category).toBeTruthy();
-        expect(pattern.severity).toBeTruthy();
-        expect(pattern.confidence).toBeTruthy();
-        expect(pattern.detection).toBeTruthy();
-        expect(pattern.title).toBeTruthy();
-        expect(pattern.explanation).toBeTruthy();
-        expect(pattern.suggestion).toBeTruthy();
+        expect(typeof pattern.name).toBe('string');
+        expect(pattern.name.length).toBeGreaterThan(0);
+        expect(validCategories).toContain(pattern.category);
+        expect(validSeverities).toContain(pattern.severity);
+        expect(validConfidences).toContain(pattern.confidence);
+        expect(pattern.detection).toHaveProperty('type');
+        expect(typeof pattern.title).toBe('string');
+        expect(pattern.title.length).toBeGreaterThan(0);
+        expect(typeof pattern.explanation).toBe('string');
+        expect(pattern.explanation.length).toBeGreaterThan(0);
+        expect(typeof pattern.suggestion).toBe('string');
+        expect(pattern.suggestion.length).toBeGreaterThan(0);
       }
     });
   });

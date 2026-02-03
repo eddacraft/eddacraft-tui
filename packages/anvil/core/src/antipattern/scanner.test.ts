@@ -258,20 +258,23 @@ describe('Scanner', () => {
     });
 
     describe('warning structure', () => {
-      it('should include all required fields', () => {
+      it('should include all required fields with correct values', () => {
         const content = `const x: any = 1;`;
         const result = scanFile('src/file.ts', content);
         const warning = result.warnings[0];
 
         expect(warning.id).toBe('AP-003');
         expect(warning.category).toBe('anti-pattern');
-        expect(warning.severity).toBeDefined();
-        expect(warning.confidence).toBeDefined();
-        expect(warning.title).toBeDefined();
-        expect(warning.message).toBeDefined();
-        expect(warning.explanation).toBeDefined();
-        expect(warning.suggestion).toBeDefined();
-        expect(warning.location).toBeDefined();
+        expect(warning.severity).toBe('warning');
+        expect(warning.confidence).toBe('high');
+        expect(warning.title).toContain('any');
+        expect(typeof warning.message).toBe('string');
+        expect(warning.message.length).toBeGreaterThan(0);
+        expect(typeof warning.explanation).toBe('string');
+        expect(warning.explanation.length).toBeGreaterThan(0);
+        expect(typeof warning.suggestion).toBe('string');
+        expect(warning.suggestion.length).toBeGreaterThan(0);
+        expect(warning.location).toEqual(expect.objectContaining({ file: 'src/file.ts', line: 1 }));
         expect(warning.pattern).toBe('AP-003');
       });
     });
