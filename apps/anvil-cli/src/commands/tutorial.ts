@@ -162,6 +162,28 @@ export function createTutorialCommand(): Command {
           return;
         }
 
+        if (topic === 'architecture') {
+          const useTUI = isTUIAvailable({ tui: options.tui });
+
+          if (!useTUI) {
+            console.log(
+              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
+            );
+            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
+            process.exit(1);
+          }
+
+          const { ArchitectureTutorial } =
+            await import('../tui/commands/tutorial/features/ArchitectureTutorial.js');
+
+          await renderTUIAndWait(ArchitectureTutorial, {
+            onComplete: () => {},
+            onCleanup: () => {},
+          });
+
+          return;
+        }
+
         const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
         if (known) {
           console.log(
