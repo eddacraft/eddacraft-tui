@@ -1,13 +1,14 @@
 ---
 id: quickstart
 title: Quickstart
-description: Get Anvil running in your project in under 5 minutes.
+description: Scan your project and see what Anvil finds in under 5 minutes.
 sidebar_position: 3
 ---
 
 # Quickstart
 
-Get Anvil running in your project in under 5 minutes.
+Install Anvil, scan your project, and fix your first issue -- all in under 5
+minutes.
 
 ## Prerequisites
 
@@ -15,18 +16,7 @@ Get Anvil running in your project in under 5 minutes.
 - **pnpm**, **npm**, or **yarn**
 - A TypeScript or JavaScript project
 
-## Installation
-
-```bash
-# Clone and build (pre-release)
-git clone https://github.com/EddaCraft/anvil-001.git
-cd anvil-001 && pnpm install && pnpm build
-
-# Link CLI globally
-pnpm link:cli
-```
-
-Once published to npm, installation will be:
+## Install
 
 ```bash
 # Using pnpm (recommended)
@@ -36,121 +26,142 @@ pnpm add -D @eddacraft/anvil-cli
 npm install -D @eddacraft/anvil-cli
 ```
 
-## Initialise Anvil
+## Initialise
 
-Run the interactive setup wizard:
+Run the setup wizard in your project root:
 
 ```bash
-cd /path/to/your/project
 anvil init
 ```
 
-This will:
-
-1. Detect your project type
-2. Create an `.anvilrc` configuration file
-3. Set up default gate checks
-4. Create the `.anvil/` directory
-
-**Expected output:**
+Anvil detects your project type, creates an `.anvilrc` configuration file, and
+sets up the `.anvil/` directory:
 
 ```
-🔨 Initialising Anvil in current project...
+Initialising Anvil in current project...
 
 Detected environment:
   Project: my-app
   Package Manager: pnpm
-  Git: ✓
-  TypeScript: ✓
+  Git: yes
+  TypeScript: yes
 
-✓ Anvil initialised successfully!
+Anvil initialised successfully!
 
 Created files:
-  ✓ .anvilrc
-  ✓ .anvil/
-
-Next steps:
-  anvil status    View current configuration
-  anvil check     Run checks on changed files
-  anvil watch     Start watching for changes
+  .anvilrc
+  .anvil/
 ```
 
-## Your First Check
+## Scan Your Project
 
-Run Anvil once to see current issues:
+This is the moment you see what Anvil catches. Run a full scan:
 
 ```bash
-anvil check --changed
+anvil check --all
 ```
 
-**Expected output (clean project):**
+Most projects have something. Here is typical output:
 
 ```
-Checking architecture... ✓
-Checking anti-patterns... ✓
-Checking secrets... ✓
-
-All gates passed.
-```
-
-**Expected output (issues found):**
-
-```
-Checking architecture... ✓
+Checking architecture... done
 Checking anti-patterns...
-  ⚠ [AP-003] Explicit any type detected
+  [AP-003] Explicit any type detected
     src/utils/parser.ts:42
     Using 'any' defeats type safety
     Fix: Define a proper type or use 'unknown'
 
-1 warning found.
+  [AP-006] Empty catch block
+    src/services/auth.ts:87
+    Empty catch blocks hide errors
+    Fix: Log the error or re-throw
+
+2 warnings found.
 ```
 
-## Start Watch Mode
+If everything passes, you will see:
 
-For the best experience, run Anvil in watch mode:
+```
+Checking architecture... done
+Checking anti-patterns... done
+Checking secrets... done
+
+All gates passed.
+```
+
+## Turn On Watch Mode
+
+Start Anvil in the background so it validates on every save:
 
 ```bash
 anvil watch --source
 ```
 
-Anvil will now validate your code every time you save a file.
+```
+Anvil Watch
 
-**Tip:** Run this in a dedicated terminal pane or use the VS Code extension.
+Watching for changes...
+Press Ctrl+C to stop.
+```
 
-## Configuration
+Save a file and see Anvil catch it. Every change is validated in milliseconds,
+not minutes.
 
-Your `.anvilrc` controls which checks run:
+:::tip Run watch mode in a dedicated terminal pane or use the VS Code extension
+for in-editor diagnostics. :::
 
-```json
-{
-  "checks": {
-    "architecture": {
-      "enabled": true,
-      "baseline": ".anvil/baseline.json"
-    },
-    "antipattern": {
-      "enabled": true,
-      "patterns": ["AP-001", "AP-003", "AP-004", "AP-006"]
-    },
-    "secrets": {
-      "enabled": true
-    }
-  },
-  "watch": {
-    "patterns": ["src/**/*.ts"],
-    "debounceMs": 300
-  }
+## Fix Your First Issue
+
+Take one of the warnings from the scan -- say AP-003, the explicit `any` in
+`src/utils/parser.ts`:
+
+**Before:**
+
+```typescript
+export function parse(input: any): Record<string, unknown> {
+  // ...
 }
 ```
 
-See [Configuration](/docs/anvil/operations/config) for full options.
+**After:**
+
+```typescript
+export function parse(input: string): Record<string, unknown> {
+  // ...
+}
+```
+
+Save the file. If watch mode is running you will see immediate confirmation:
+
+```
+Change detected: src/utils/parser.ts
+
+Checking anti-patterns... done
+
+All gates passed.
+```
+
+One warning down. Repeat for the rest at your own pace.
 
 ## Next Steps
 
-- [Set up your first project →](/docs/anvil/first-project)
-- [Understand gates →](/docs/anvil/concepts/gates)
-- [Configure architecture boundaries →](/docs/anvil/concepts/plans)
+- **Interactive tutorial** -- run `anvil tutorial` for a guided walk-through
+  inside your terminal
+- [Set up your first project](/docs/anvil/first-project) -- architecture
+  boundaries, suppressions, and CI
+- [Understand gates](/docs/anvil/concepts/gates) -- what Anvil validates and why
+- [Configuration reference](/docs/anvil/operations/config) -- customise checks,
+  patterns, and watch behaviour
+
+**Feature tutorials:**
+
+- [Custom policies](/docs/anvil/tutorials/policies) -- write OPA/Rego rules for
+  your team's standards
+- [Architecture boundaries](/docs/anvil/tutorials/architecture) -- define and
+  enforce module boundaries
+- [Drift detection](/docs/anvil/tutorials/drift) -- capture snapshots and track
+  architectural drift
+- [CI integration](/docs/anvil/tutorials/ci) -- add Anvil to your pipeline
 
 ---
 
