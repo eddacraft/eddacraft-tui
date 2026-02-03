@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { SpecKitExportAdapter } from '../speckit/export.js';
 import type { APSPlan } from '@eddacraft/anvil-core';
 
+interface SpecKitContent {
+  specContent: string;
+  planContent: string;
+  tasksContent: string;
+}
+
 describe('SpecKitExportAdapter', () => {
   let adapter: SpecKitExportAdapter;
   let sampleAPSPlan: APSPlan;
@@ -74,7 +80,7 @@ describe('SpecKitExportAdapter', () => {
         expect(result.data.format).toBe('speckit');
         expect(result.data.version).toBe('1.0.0');
 
-        const content = result.data.content as any;
+        const content = result.data.content as SpecKitContent;
         expect(content.specContent).toBeDefined();
         expect(content.planContent).toBeDefined();
         expect(content.tasksContent).toBeDefined();
@@ -98,7 +104,7 @@ describe('SpecKitExportAdapter', () => {
       const result = await adapter.convertFromAPS(sampleAPSPlan);
 
       expect(result.success).toBe(true);
-      const content = result.data?.content as any;
+      const content = result.data?.content as SpecKitContent;
       const specMarkdown = content.specContent;
 
       // Check markdown structure
@@ -116,7 +122,7 @@ describe('SpecKitExportAdapter', () => {
       const result = await adapter.convertFromAPS(sampleAPSPlan);
 
       expect(result.success).toBe(true);
-      const content = result.data?.content as any;
+      const content = result.data?.content as SpecKitContent;
       const planMarkdown = content.planContent;
 
       // Check plan structure
@@ -134,7 +140,7 @@ describe('SpecKitExportAdapter', () => {
       const result = await adapter.convertFromAPS(sampleAPSPlan);
 
       expect(result.success).toBe(true);
-      const content = result.data?.content as any;
+      const content = result.data?.content as SpecKitContent;
       const tasksMarkdown = content.tasksContent;
 
       // Check tasks structure
@@ -175,7 +181,7 @@ describe('SpecKitExportAdapter', () => {
       const result = await adapter.convertFromAPS(planWithExecutions);
 
       expect(result.success).toBe(true);
-      const content = result.data?.content as any;
+      const content = result.data?.content as SpecKitContent;
       const tasksMarkdown = content.tasksContent;
 
       expect(tasksMarkdown).toContain('## Execution History');

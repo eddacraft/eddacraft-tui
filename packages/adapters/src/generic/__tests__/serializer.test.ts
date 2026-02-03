@@ -52,7 +52,7 @@ describe('serializeToGeneric', () => {
     const plan = {
       ...basePlan,
       metadata: {
-        title: 123 as any, // Invalid type
+        title: 123 as unknown as string, // Invalid type
       },
     };
 
@@ -80,7 +80,7 @@ describe('serializeToGeneric', () => {
     const plan = {
       ...basePlan,
       metadata: {
-        overview: { text: 'overview' } as any, // Invalid type
+        overview: { text: 'overview' } as unknown as string, // Invalid type
       },
     };
 
@@ -111,7 +111,7 @@ describe('serializeToGeneric', () => {
     const plan = {
       ...basePlan,
       metadata: {
-        goals: [1, 2, 3] as any, // Invalid type
+        goals: [1, 2, 3] as unknown as string[], // Invalid type
       },
     };
 
@@ -125,7 +125,7 @@ describe('serializeToGeneric', () => {
     const plan = {
       ...basePlan,
       metadata: {
-        goals: ['Goal 1', 123, 'Goal 2'] as any, // Mixed types
+        goals: ['Goal 1', 123, 'Goal 2'] as unknown as string[], // Mixed types
       },
     };
 

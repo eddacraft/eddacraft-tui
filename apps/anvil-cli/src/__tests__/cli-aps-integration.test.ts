@@ -20,6 +20,7 @@ import {
 import { loadPlan, savePlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
 
 describe('CLI + APS Integration Tests', () => {
+  const originalCwd = process.cwd();
   let tempDir: string;
   let plansDir: string;
 
@@ -41,6 +42,9 @@ describe('CLI + APS Integration Tests', () => {
   });
 
   afterEach(() => {
+    // Restore original working directory
+    process.chdir(originalCwd);
+
     // Clean up
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });

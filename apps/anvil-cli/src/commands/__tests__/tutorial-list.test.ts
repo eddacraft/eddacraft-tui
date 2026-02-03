@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 // Mock TUI/renderer dependencies to avoid Ink import issues in non-TTY test env
 vi.mock('../../tui/utils/tty-detection.js', () => ({
@@ -14,6 +14,10 @@ vi.mock('../../utils/file-io.js', () => ({
 }));
 
 import { createTutorialCommand } from '../tutorial.js';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('tutorial --list', () => {
   it('exports createTutorialCommand', () => {

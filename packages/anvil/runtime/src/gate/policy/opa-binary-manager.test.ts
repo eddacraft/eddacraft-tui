@@ -140,7 +140,11 @@ describe('OPABinaryManager', () => {
       expect(existsSync(binaryPath)).toBe(true);
 
       // Mock downloadBinary to prevent actual network call
-      vi.spyOn(manager as any, 'downloadBinary').mockResolvedValue(undefined);
+
+      vi.spyOn(
+        manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+        'downloadBinary'
+      ).mockResolvedValue(undefined);
 
       const verifiedPath = await manager.forceDownload();
 
@@ -171,7 +175,7 @@ describe('OPABinaryManager', () => {
   describe('download URL generation', () => {
     it('should generate correct download URL format', () => {
       // Access private method to verify URL generation
-      const url = (manager as any).getDownloadUrl();
+      const url = (manager as unknown as { getDownloadUrl(): string }).getDownloadUrl();
 
       expect(url).toMatch(/^https:\/\/openpolicyagent\.org\/downloads\/v\d+\.\d+\.\d+\/opa_/);
       expect(url).toContain('0.60.0');
@@ -184,7 +188,7 @@ describe('OPABinaryManager', () => {
         version: '0.55.0',
         cacheDir: tempCacheDir,
       });
-      const url = (customManager as any).getDownloadUrl();
+      const url = (customManager as unknown as { getDownloadUrl(): string }).getDownloadUrl();
 
       expect(url).toContain('0.55.0');
       expect(url).not.toContain('0.60.0');

@@ -123,10 +123,10 @@ export default typescriptEslint.config(
           rules: {
             '@typescript-eslint/no-explicit-any': 'off',
             'no-console': 'off',
-            // Anvil test quality rules (warn initially, promote to error once clean)
-            'anvil/no-any-in-tests': 'warn',
-            'anvil/require-mock-cleanup': 'warn',
-            'anvil/require-cwd-restoration': 'warn',
+            // Anvil test quality rules
+            'anvil/no-any-in-tests': 'error',
+            'anvil/require-mock-cleanup': 'error',
+            'anvil/require-cwd-restoration': 'error',
           },
         },
       ]

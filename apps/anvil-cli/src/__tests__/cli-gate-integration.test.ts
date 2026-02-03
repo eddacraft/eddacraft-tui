@@ -19,6 +19,7 @@ import { GateRunner, GateConfigManager } from '@eddacraft/anvil-runtime';
 import { savePlan, loadPlan } from '../utils/file-io.js';
 
 describe('CLI + Gate Integration Tests', () => {
+  const originalCwd = process.cwd();
   let tempDir: string;
   let plansDir: string;
   let gateRunner: GateRunner;
@@ -45,6 +46,9 @@ describe('CLI + Gate Integration Tests', () => {
   });
 
   afterEach(() => {
+    // Restore original working directory
+    process.chdir(originalCwd);
+
     if (existsSync(tempDir)) {
       rmSync(tempDir, { recursive: true, force: true });
     }

@@ -196,7 +196,10 @@ describe('APSValidator', () => {
       });
 
       // Generate the correct hash
-      const { hash: _unused, ...dataToHash } = planWithoutHash as any;
+      const { hash: _unused, ...dataToHash } = planWithoutHash as unknown as Record<
+        string,
+        unknown
+      >;
       const correctHash = generateHash(dataToHash);
 
       // Add the hash to the plan
@@ -256,7 +259,10 @@ describe('APSValidator', () => {
       });
 
       // Generate the correct hash
-      const { hash: _unused, ...dataToHash } = planWithoutHash as any;
+      const { hash: _unused, ...dataToHash } = planWithoutHash as unknown as Record<
+        string,
+        unknown
+      >;
       const correctHash = generateHash(dataToHash);
 
       // Add the hash to the plan
