@@ -143,13 +143,29 @@ regardless of how good the engine is. First impressions matter.
 | v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 | Complete |
 | v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 | Complete |
 
+### v1.3 — HTML/CSS Support & Multi-Language Foundation
+
+| Feature                  | Description                                         | Status |
+| ------------------------ | --------------------------------------------------- | ------ |
+| Configurable Extensions  | Make analysable file extensions configurable         | Ready  |
+| HTML Anti-patterns       | Inline styles, scripts, event handlers, deprecated  | Ready  |
+| CSS Anti-patterns        | `!important` abuse, CSS `@import` performance       | Ready  |
+| HTML/CSS Edge Detection  | `<script src>`, `<link href>`, `@import url()`      | Ready  |
+| HTML Suppression Syntax  | `<!-- @anvil-ignore ... -->` comment support         | Ready  |
+| VS Code HTML/CSS Trigger | Analysis on HTML/CSS file saves                     | Ready  |
+
+**Why v1.3:** HTML/CSS is the simplest non-JS language to support — no module
+resolution, no type system, all regex-based. It establishes the configurable
+extensions infrastructure (HTMLCSS-001) that all future language modules depend
+on.
+
 ### v2.0 — AI Tool Integration
 
-| Feature         | Description                                | Status  |
-| --------------- | ------------------------------------------ | ------- |
-| llms.txt Export | Export constraints for AI tool consumption | Ready   |
-| Command Safety  | Validate AI tool commands (CMDSAF)         | Ready   |
-| MCP Server      | Real-time validation during AI generation  | Planned |
+| Feature         | Description                                | Status |
+| --------------- | ------------------------------------------ | ------ |
+| llms.txt Export | Export constraints for AI tool consumption | Ready  |
+| Command Safety  | Validate AI tool commands (CMDSAF)         | Ready  |
+| MCP Server      | Real-time validation during AI generation  | Ready  |
 
 ### v2.0 — Web Dashboard
 
@@ -184,22 +200,6 @@ awareness, hierarchy resolution, and fleet-level aggregation that only make
 sense after the core policy engine is battle-tested. Individual developers
 benefit from v1.x; platform teams and compliance roles benefit from these
 modules.
-
-### v1.3 — HTML/CSS Support & Multi-Language Foundation
-
-| Feature                  | Description                                         | Status |
-| ------------------------ | --------------------------------------------------- | ------ |
-| Configurable Extensions  | Make analysable file extensions configurable         | Ready  |
-| HTML Anti-patterns       | Inline styles, scripts, event handlers, deprecated  | Ready  |
-| CSS Anti-patterns        | `!important` abuse, CSS `@import` performance       | Ready  |
-| HTML/CSS Edge Detection  | `<script src>`, `<link href>`, `@import url()`      | Ready  |
-| HTML Suppression Syntax  | `<!-- @anvil-ignore ... -->` comment support         | Ready  |
-| VS Code HTML/CSS Trigger | Analysis on HTML/CSS file saves                     | Ready  |
-
-**Why v1.3:** HTML/CSS is the simplest non-JS language to support — no module
-resolution, no type system, all regex-based. It establishes the configurable
-extensions infrastructure (HTMLCSS-001) that all future language modules depend
-on.
 
 ### v2.1+ — Multi-Language Support (Placeholders)
 
@@ -575,6 +575,18 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | DASHOPS-007 | dashops | Role-based view filtering            | Draft  | low      |
 | DASHOPS-008 | dashops | Real-time update infrastructure      | Draft  | low      |
 
+### Task Status — v1.3 (HTML/CSS Support)
+
+| Task        | Module  | Description                                 | Status  | Priority |
+| ----------- | ------- | ------------------------------------------- | ------- | -------- |
+| HTMLCSS-001 | htmlcss | Make analysable extensions configurable      | Planned | high     |
+| HTMLCSS-002 | htmlcss | HTML anti-pattern detectors (AP-008–011)     | Planned | high     |
+| HTMLCSS-003 | htmlcss | CSS anti-pattern detectors (AP-012–013)      | Planned | high     |
+| HTMLCSS-004 | htmlcss | HTML/CSS edge detection                      | Planned | high     |
+| HTMLCSS-005 | htmlcss | HTML suppression comment syntax              | Planned | high     |
+| HTMLCSS-006 | htmlcss | VS Code extension HTML/CSS trigger           | Planned | medium   |
+| HTMLCSS-007 | htmlcss | Documentation and tests                      | Planned | medium   |
+
 ### Task Status — v2.0 (AI Tool Integration)
 
 | Task       | Module         | Description                       | Status  | Priority |
@@ -603,28 +615,6 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | MCP-008    | mcp-server     | Streamable HTTP transport         | Planned | medium   |
 | MCP-009    | mcp-server     | Config generators and CLI         | Planned | high     |
 | MCP-010    | mcp-server     | Error handling and JSON-RPC       | Planned | high     |
-
-### Task Status — v1.3 (HTML/CSS Support)
-
-| Task        | Module  | Description                                 | Status  | Priority |
-| ----------- | ------- | ------------------------------------------- | ------- | -------- |
-| HTMLCSS-001 | htmlcss | Make analysable extensions configurable      | Planned | high     |
-| HTMLCSS-002 | htmlcss | HTML anti-pattern detectors (AP-008–011)     | Planned | high     |
-| HTMLCSS-003 | htmlcss | CSS anti-pattern detectors (AP-012–013)      | Planned | high     |
-| HTMLCSS-004 | htmlcss | HTML/CSS edge detection                      | Planned | high     |
-| HTMLCSS-005 | htmlcss | HTML suppression comment syntax              | Planned | high     |
-| HTMLCSS-006 | htmlcss | VS Code extension HTML/CSS trigger           | Planned | medium   |
-| HTMLCSS-007 | htmlcss | Documentation and tests                      | Planned | medium   |
-
-### Task Status — v2.1+ (Multi-Language Placeholders)
-
-Tasks will be defined when each module moves from Placeholder to Ready status.
-
-| Module  | Language | Estimated Tasks | Prerequisite       | Status      |
-| ------- | -------- | --------------- | ------------------ | ----------- |
-| PYLAN   | Python   | 6               | HTMLCSS-001        | Placeholder |
-| RSTLAN  | Rust     | 5               | HTMLCSS-001        | Placeholder |
-| DNLAN   | .NET/C#  | 5               | HTMLCSS-001        | Placeholder |
 
 ### Task Status — v2.0 (Edda Stack — Memory System)
 
@@ -828,6 +818,16 @@ Ember (interpretation), and Edda (canonical memory).
 | IAC-010 | iac    | Import existing Vercel resources         | Planned | high     |
 | IAC-011 | iac    | Document IaC setup and contributor guide | Planned | medium   |
 | IAC-012 | iac    | Document rollback procedures             | Planned | medium   |
+
+### Task Status — v2.1+ (Multi-Language Placeholders)
+
+Tasks will be defined when each module moves from Placeholder to Ready status.
+
+| Module  | Language | Estimated Tasks | Prerequisite       | Status      |
+| ------- | -------- | --------------- | ------------------ | ----------- |
+| PYLAN   | Python   | 6               | HTMLCSS-001        | Placeholder |
+| RSTLAN  | Rust     | 5               | HTMLCSS-001        | Placeholder |
+| DNLAN   | .NET/C#  | 5               | HTMLCSS-001        | Placeholder |
 
 ## Risks & Mitigations
 

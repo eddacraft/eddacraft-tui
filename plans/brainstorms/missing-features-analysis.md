@@ -324,3 +324,11 @@ is the new work.
 
 **Enterprise (v2.1+):** #1 Multi-language, #8 Auth/RBAC, #12 Config inheritance
 - These are large investments that make sense once the platform layer exists.
+
+> **Note:** The actual roadmap in `plans/index.aps.md` diverges from these
+> recommendations. v1.3 focuses on HTML/CSS support (multi-language foundation)
+> rather than auto-fix and SARIF, because HTML/CSS establishes the configurable
+> extensions infrastructure that all future language modules depend on. The MCP
+> server was assigned to v2.0 (not v1.4) since its spec stabilised after this
+> analysis was written. Auto-fix, SARIF output, and incremental adoption remain
+> valid priorities and may be slotted into v1.4 or later once v1.3 ships.

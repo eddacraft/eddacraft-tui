@@ -73,7 +73,7 @@ suppressions.
   `anvil check` respects configured extensions; CLI `--extensions` flag overrides
 - **Files:** `apps/anvil-cli/src/commands/check.ts`,
   `packages/anvil/runtime/src/gate/checks/antipattern.check.ts`,
-  `packages/platform/config/src/schema.ts`
+  `packages/platform/config/src/types.ts`
 - **Dependencies:** None (foundational)
 - **Validation:** `pnpm -F anvil-cli test -- --testNamePattern="extension"`
 - **Confidence:** high

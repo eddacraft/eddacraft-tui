@@ -22,7 +22,7 @@ See: plans/aps-rules.md
 
 ### 1. Add `extensions` field to Anvil config schema
 
-- **Checkpoint:** `packages/platform/config/src/schema.ts` has `extensions`
+- **Checkpoint:** `packages/platform/config/src/types.ts` has `extensions`
   field with default `['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']`
 - **Validate:** `pnpm -F config test`
 - **Pattern:** Existing config fields in same file
