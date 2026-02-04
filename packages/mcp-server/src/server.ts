@@ -1,4 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  registerCheckTool,
+  registerFixTool,
+  registerGateTool,
+  registerQueryBoundaryTool,
+  registerStatusTool,
+  registerSuppressTool,
+} from './tools/index.js';
 
 export interface AnvilMcpServerOptions {
   /** Project root directory (overridden by client roots) */
@@ -11,9 +19,6 @@ export interface AnvilMcpServerOptions {
 
 /**
  * Creates and configures the Anvil MCP server with all tools, resources, and prompts.
- *
- * Currently registers placeholder handlers. Real tool implementations will be added
- * in MCP-002 through MCP-007.
  */
 export function createAnvilMcpServer(options: AnvilMcpServerOptions = {}): McpServer {
   const { name = 'anvil-mcp-server', version = '0.1.0' } = options;
@@ -23,43 +28,15 @@ export function createAnvilMcpServer(options: AnvilMcpServerOptions = {}): McpSe
     version,
   });
 
-  // Register placeholder tools
-  // Real implementations will be added in:
-  // - MCP-002: anvil_check
-  // - MCP-003: anvil_gate, anvil_status
-  // - MCP-004: anvil_fix, anvil_suppress
-  // - MCP-005: anvil_query_boundary
-
-  registerPlaceholderTools(server);
+  // Register tools
+  registerCheckTool(server);
+  registerGateTool(server);
+  registerStatusTool(server);
+  registerFixTool(server);
+  registerSuppressTool(server);
+  registerQueryBoundaryTool(server);
 
   return server;
-}
-
-function registerPlaceholderTools(server: McpServer): void {
-  // Register a minimal anvil_status tool so the server has at least one tool
-  // for handshake validation. Full implementations come in later tasks.
-  server.registerTool(
-    'anvil_status',
-    {
-      title: 'Anvil Status',
-      description: 'Returns current Anvil project health summary. Full implementation pending.',
-      inputSchema: {},
-    },
-    async () => {
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: JSON.stringify({
-              status: 'ok',
-              message: 'Anvil MCP server is running. Tool implementations pending.',
-              version: '0.1.0',
-            }),
-          },
-        ],
-      };
-    }
-  );
 }
 
 export { McpServer };

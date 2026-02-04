@@ -1,8 +1,51 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { createAnvilMcpServer } from './server.js';
+
+// Mock runtime dependencies used by tool callbacks via dynamic import().
+vi.mock('@eddacraft/anvil-runtime', () => {
+  return {
+    GateRunner: class MockGateRunner {
+      getAvailableChecks = vi.fn().mockReturnValue(['eslint', 'coverage', 'secret']);
+      runGate = vi.fn().mockResolvedValue({
+        overall: true,
+        score: 100,
+        checks: [],
+        summary: { total: 0, passed: 0, failed: 0, skipped: 0 },
+        timing: { totalMs: 1, checks: {} },
+      });
+      analyzeFiles = vi.fn().mockResolvedValue({
+        warnings: { warnings: [], count: 0 },
+        executionTimeMs: 1,
+        checksRun: [],
+        hasBlockingWarnings: false,
+      });
+    },
+    GateConfigManager: class MockGateConfigManager {
+      loadConfig = vi.fn().mockReturnValue({
+        version: 1,
+        checks: [{ name: 'eslint', enabled: true, config: {} }],
+        thresholds: { overall_score: 80 },
+      });
+      loadConfigWithDetails = vi.fn().mockReturnValue({
+        config: {
+          version: 1,
+          checks: [{ name: 'eslint', enabled: true, config: {} }],
+          thresholds: { overall_score: 80 },
+        },
+        path: null,
+        isDefault: true,
+        errors: [],
+      });
+    },
+  };
+});
+
+vi.mock('@eddacraft/anvil-core', () => ({
+  baselineExists: vi.fn().mockReturnValue(false),
+}));
 
 describe('AnvilMcpServer', () => {
   // Track connections for cleanup so transports are closed even if a test fails.
@@ -13,6 +56,7 @@ describe('AnvilMcpServer', () => {
       await fn();
     }
     cleanupFns.length = 0;
+    vi.restoreAllMocks();
   });
 
   /**
@@ -137,8 +181,7 @@ describe('AnvilMcpServer', () => {
 
       expect(statusTool).toBeDefined();
       expect(statusTool!.name).toBe('anvil_status');
-      expect(statusTool!.description).toEqual(expect.stringContaining('Anvil'));
-      // The tool should have an input schema (even if it accepts no params)
+      expect(statusTool!.description).toEqual(expect.stringContaining('health summary'));
       expect(statusTool!.inputSchema).toBeDefined();
       expect(statusTool!.inputSchema.type).toBe('object');
     });
@@ -153,7 +196,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: {},
+        arguments: { workspaceRoot: '/tmp/test-project' },
       });
 
       expect(result).toBeDefined();
@@ -167,7 +210,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: {},
+        arguments: { workspaceRoot: '/tmp/test-project' },
       });
       const firstItem = (result.content as Array<{ type: string }>)[0];
 
@@ -175,12 +218,12 @@ describe('AnvilMcpServer', () => {
       expect(firstItem.type).toBe('text');
     });
 
-    it('returns valid JSON with status, message, and version fields', async () => {
+    it('returns valid JSON with status, version, and config fields', async () => {
       const { client } = await createConnectedPair();
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: {},
+        arguments: { workspaceRoot: '/tmp/test-project' },
       });
       const textItem = (result.content as Array<{ type: string; text: string }>)[0];
 
@@ -189,8 +232,9 @@ describe('AnvilMcpServer', () => {
       // The text should be parseable JSON
       const parsed = JSON.parse(textItem.text) as Record<string, unknown>;
       expect(parsed).toHaveProperty('status');
-      expect(parsed).toHaveProperty('message');
       expect(parsed).toHaveProperty('version');
+      expect(parsed).toHaveProperty('config');
+      expect(parsed).toHaveProperty('availableChecks');
     });
 
     it('returns status "ok"', async () => {
@@ -198,7 +242,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: {},
+        arguments: { workspaceRoot: '/tmp/test-project' },
       });
       const textItem = (result.content as Array<{ type: string; text: string }>)[0];
       const parsed = JSON.parse(textItem.text) as Record<string, unknown>;
@@ -211,7 +255,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: {},
+        arguments: { workspaceRoot: '/tmp/test-project' },
       });
       const textItem = (result.content as Array<{ type: string; text: string }>)[0];
       const parsed = JSON.parse(textItem.text) as Record<string, unknown>;
@@ -225,7 +269,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: {},
+        arguments: { workspaceRoot: '/tmp/test-project' },
       });
 
       // isError should be undefined or false for a successful invocation

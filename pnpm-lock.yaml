@@ -612,9 +612,6 @@ importers:
       '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../anvil/core
-      '@eddacraft/anvil-runtime':
-        specifier: workspace:*
-        version: link:../anvil/runtime
       '@modelcontextprotocol/sdk':
         specifier: ^1.12.1
         version: 1.25.3(hono@4.11.7)(zod@4.3.6)
