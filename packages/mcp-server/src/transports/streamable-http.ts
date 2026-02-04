@@ -1,0 +1,130 @@
+import express from 'express';
+import { randomUUID } from 'node:crypto';
+import type { Server } from 'node:http';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
+import { createAnvilMcpServer } from '../server.js';
+import type { AnvilMcpServerOptions } from '../server.js';
+
+export interface HttpTransportOptions extends AnvilMcpServerOptions {
+  /** Port to listen on (default: 3000) */
+  port?: number;
+  /** Host to bind to (default: 'localhost') */
+  host?: string;
+}
+
+export interface HttpServerHandle {
+  /** Gracefully shut down the HTTP server and all active sessions. */
+  close: () => Promise<void>;
+  /** The underlying Node.js HTTP server (useful for tests). */
+  httpServer: Server;
+}
+
+/**
+ * Starts an Express-based HTTP server with the MCP Streamable HTTP transport.
+ *
+ * Each MCP session gets its own `StreamableHTTPServerTransport` instance and a
+ * fresh `McpServer` wired up via `createAnvilMcpServer`.
+ */
+export async function startHttpServer(
+  options: HttpTransportOptions = {}
+): Promise<HttpServerHandle> {
+  const { port = 3000, host = 'localhost', ...serverOptions } = options;
+
+  const app = express();
+  app.use(express.json());
+
+  // Active sessions keyed by their session ID.
+  const transports: Record<string, StreamableHTTPServerTransport> = {};
+
+  // --- POST /mcp ---------------------------------------------------------
+  app.post('/mcp', async (req, res) => {
+    const sessionId = req.headers['mcp-session-id'] as string | undefined;
+    let transport: StreamableHTTPServerTransport;
+
+    if (sessionId && transports[sessionId]) {
+      // Existing session -- reuse the transport.
+      transport = transports[sessionId];
+    } else if (!sessionId && isInitializeRequest(req.body)) {
+      // New session -- create transport + wire up a fresh MCP server.
+      transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => randomUUID(),
+        onsessioninitialized: (id) => {
+          transports[id] = transport;
+        },
+        onsessionclosed: (id) => {
+          delete transports[id];
+        },
+      });
+
+      transport.onclose = () => {
+        const id = transport.sessionId;
+        if (id) delete transports[id];
+      };
+
+      const server = createAnvilMcpServer(serverOptions);
+      await server.connect(transport);
+    } else {
+      // Invalid: no session and not an initialize request.
+      res.status(400).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32000,
+          message: 'Invalid session. Send initialize request without session ID.',
+        },
+        id: null,
+      });
+      return;
+    }
+
+    await transport.handleRequest(req, res, req.body);
+  });
+
+  // --- GET /mcp (SSE stream) ---------------------------------------------
+  app.get('/mcp', async (req, res) => {
+    const sessionId = req.headers['mcp-session-id'] as string;
+    const transport = transports[sessionId];
+
+    if (transport) {
+      await transport.handleRequest(req, res);
+    } else {
+      res.status(400).json({ error: 'Invalid session' });
+    }
+  });
+
+  // --- DELETE /mcp (session termination) ----------------------------------
+  app.delete('/mcp', async (req, res) => {
+    const sessionId = req.headers['mcp-session-id'] as string;
+    const transport = transports[sessionId];
+
+    if (transport) {
+      await transport.handleRequest(req, res);
+    } else {
+      res.status(400).json({ error: 'Invalid session' });
+    }
+  });
+
+  // --- Health check -------------------------------------------------------
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok', sessions: Object.keys(transports).length });
+  });
+
+  // Start the HTTP server.
+  const httpServer: Server = await new Promise((resolve) => {
+    const srv = app.listen(port, host, () => {
+      resolve(srv);
+    });
+  });
+
+  return {
+    httpServer,
+    close: () =>
+      new Promise<void>((resolve, reject) => {
+        // Tear down every active session transport first.
+        const closePromises = Object.values(transports).map((t) => t.close());
+        void Promise.all(closePromises).then(() => {
+          httpServer.close((err) => (err ? reject(err) : resolve()));
+        });
+      }),
+  };
+}

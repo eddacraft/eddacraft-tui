@@ -20,6 +20,7 @@ import { createStackCommand } from './commands/stack.js';
 import { createWatchCommand } from './commands/watch.js';
 import { createStatusCommand } from './commands/status.js';
 import { createTutorialCommand } from './commands/tutorial.js';
+import { createMcpConfigCommand } from './commands/mcp-config.js';
 import { isFirstRun } from './services/first-run-detector.js';
 import { showWelcome, createStartCommand } from './commands/welcome.js';
 import { readFileSync } from 'node:fs';
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   program.addCommand(createStartCommand());
   program.addCommand(createStatusCommand());
   program.addCommand(createTutorialCommand());
+  program.addCommand(createMcpConfigCommand());
 
   program.parse();
 }
