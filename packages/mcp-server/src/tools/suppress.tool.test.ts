@@ -17,7 +17,7 @@ describe('anvil_suppress tool', () => {
     mkdirSync(join(tmpDir, 'src'), { recursive: true });
 
     server = new McpServer({ name: 'test-suppress', version: '0.0.1' });
-    registerSuppressTool(server);
+    registerSuppressTool(server, () => tmpDir);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
@@ -56,7 +56,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 1,
           reason: 'Legacy code, will refactor later',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -89,7 +88,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-004',
           line: 1,
           reason: 'Tech debt',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -116,7 +114,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 2,
           reason: 'Needs refactor',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -149,7 +146,7 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-001',
           line: 1,
           reason: 'Short-term workaround',
-          workspaceRoot: tmpDir,
+
           expiryDays: 7,
         },
       });
@@ -173,7 +170,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 1,
           reason: 'Default expiry test',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -198,7 +194,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 999,
           reason: 'Out of range',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -215,7 +210,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 1,
           reason: 'Traversal attempt',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -232,7 +226,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 1,
           reason: 'Does not exist',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -259,7 +252,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 1,
           reason: 'First suppression',
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -271,7 +263,6 @@ describe('anvil_suppress tool', () => {
           warningId: 'AP-003',
           line: 2,
           reason: 'Second suppression',
-          workspaceRoot: tmpDir,
         },
       });
 

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
 
-export function registerSuppressTool(server: McpServer): void {
+export function registerSuppressTool(server: McpServer, getWorkspaceRoot: () => string): void {
   server.registerTool(
     'anvil_suppress',
     {
@@ -15,7 +15,6 @@ export function registerSuppressTool(server: McpServer): void {
         warningId: z.string().describe('Warning ID to suppress (e.g., AP-003)'),
         line: z.number().describe('Line number to suppress (1-based)'),
         reason: z.string().min(1).describe('Reason for suppression (mandatory)'),
-        workspaceRoot: z.string().describe('Workspace root directory'),
         expiryDays: z.number().optional().describe('Days until suppression expires (default: 30)'),
       },
       annotations: {
@@ -24,8 +23,9 @@ export function registerSuppressTool(server: McpServer): void {
         idempotentHint: false,
       },
     },
-    async ({ filePath, warningId, line, reason, workspaceRoot, expiryDays }) => {
+    async ({ filePath, warningId, line, reason, expiryDays }) => {
       try {
+        const workspaceRoot = getWorkspaceRoot();
         // Validate path stays within workspace
         const absPath = resolve(workspaceRoot, filePath);
         const rel = relative(workspaceRoot, absPath);

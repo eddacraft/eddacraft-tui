@@ -54,8 +54,8 @@ export function createAnvilMcpServer(options: AnvilMcpServerOptions = {}): McpSe
   registerCheckTool(server);
   registerGateTool(server);
   registerStatusTool(server);
-  registerFixTool(server);
-  registerSuppressTool(server);
+  registerFixTool(server, getWorkspaceRoot);
+  registerSuppressTool(server, getWorkspaceRoot);
   registerQueryBoundaryTool(server);
 
   // Register prompts

@@ -33,7 +33,12 @@ export function createMcpConfigCommand(): Command {
           if (options.write) {
             const { writeFileSync, mkdirSync } = await import('node:fs');
             const { dirname, resolve } = await import('node:path');
-            const fullPath = resolve(process.cwd(), config.configPath);
+            const { homedir } = await import('node:os');
+            // Expand ~ to the user's home directory
+            const expandedPath = config.configPath.startsWith('~/')
+              ? config.configPath.replace('~', homedir())
+              : config.configPath;
+            const fullPath = resolve(process.cwd(), expandedPath);
             mkdirSync(dirname(fullPath), { recursive: true });
             writeFileSync(fullPath, JSON.stringify(config.content, null, 2) + '\n', 'utf-8');
             console.log(`Wrote ${config.configPath}`);

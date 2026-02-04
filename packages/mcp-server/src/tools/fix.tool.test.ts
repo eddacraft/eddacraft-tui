@@ -20,7 +20,7 @@ describe('anvil_fix tool', () => {
 
     // Create MCP server with just the fix tool
     server = new McpServer({ name: 'test-fix', version: '0.0.1' });
-    registerFixTool(server);
+    registerFixTool(server, () => tmpDir);
 
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
@@ -53,7 +53,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-003', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
       });
 
       const parsed = parseResult(result);
@@ -74,7 +74,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-003', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
       });
 
       const parsed = parseResult(result);
@@ -92,7 +92,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-003', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
       });
 
       const parsed = parseResult(result);
@@ -114,7 +114,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-004', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-004', line: 1 },
       });
 
       const parsed = parseResult(result);
@@ -138,7 +138,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-001', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-001', line: 1 },
       });
 
       const parsed = parseResult(result);
@@ -161,7 +161,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-999', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-999', line: 1 },
       });
 
       const parsed = parseResult(result);
@@ -176,7 +176,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-003', line: 100, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-003', line: 100 },
       });
 
       const parsed = parseResult(result);
@@ -190,7 +190,7 @@ describe('anvil_fix tool', () => {
 
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-003', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
       });
 
       const parsed = parseResult(result);
@@ -205,7 +205,6 @@ describe('anvil_fix tool', () => {
           filePath: '../../../etc/passwd',
           warningId: 'AP-003',
           line: 1,
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -221,7 +220,6 @@ describe('anvil_fix tool', () => {
           filePath: 'nonexistent/file.ts',
           warningId: 'AP-003',
           line: 1,
-          workspaceRoot: tmpDir,
         },
       });
 
@@ -243,7 +241,7 @@ describe('anvil_fix tool', () => {
       // First fix
       await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-003', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
       });
 
       const afterFirst = readFileSync(absPath, 'utf-8');
@@ -252,7 +250,7 @@ describe('anvil_fix tool', () => {
       // Second fix -- pattern no longer on line, should return fixed: false
       const result = await client.callTool({
         name: 'anvil_fix',
-        arguments: { filePath, warningId: 'AP-003', line: 1, workspaceRoot: tmpDir },
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
       });
 
       const parsed = parseResult(result);

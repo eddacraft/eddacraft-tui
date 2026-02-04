@@ -45,7 +45,7 @@ const FIXABLE_PATTERNS: Record<
   },
 };
 
-export function registerFixTool(server: McpServer): void {
+export function registerFixTool(server: McpServer, getWorkspaceRoot: () => string): void {
   server.registerTool(
     'anvil_fix',
     {
@@ -57,7 +57,6 @@ export function registerFixTool(server: McpServer): void {
         filePath: z.string().describe('File path relative to workspace root'),
         warningId: z.string().describe('Warning/pattern ID (e.g., AP-003, AP-004)'),
         line: z.number().describe('Line number of the warning (1-based)'),
-        workspaceRoot: z.string().describe('Workspace root directory'),
       },
       annotations: {
         readOnlyHint: false,
@@ -65,8 +64,9 @@ export function registerFixTool(server: McpServer): void {
         idempotentHint: true,
       },
     },
-    async ({ filePath, warningId, line, workspaceRoot }) => {
+    async ({ filePath, warningId, line }) => {
       try {
+        const workspaceRoot = getWorkspaceRoot();
         const fixer = FIXABLE_PATTERNS[warningId];
         if (!fixer) {
           return {
