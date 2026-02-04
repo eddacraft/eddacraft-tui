@@ -7,9 +7,14 @@ import typescriptEslint from 'typescript-eslint';
 let anvilPlugin;
 try {
   anvilPlugin = (await import('eslint-plugin-anvil')).default;
-} catch {
+} catch (error) {
   // eslint-plugin-anvil not built yet (fresh clone / CI) — skip anvil rules
-  anvilPlugin = null;
+  const errorCode = /** @type {{ code?: unknown }} */ (error)?.code;
+  if (errorCode === 'ERR_MODULE_NOT_FOUND' || errorCode === 'MODULE_NOT_FOUND') {
+    anvilPlugin = null;
+  } else {
+    throw error;
+  }
 }
 import unicornPlugin from 'eslint-plugin-unicorn';
 // import jsonPlugin from '@eslint/json'; // TODO: Re-enable once compatible with ESLint 9
@@ -60,7 +65,7 @@ export default typescriptEslint.config(
             '{projectRoot}/**/__tests__/**',
             '{projectRoot}/**/__mocks__/**',
           ],
-          ignoredDependencies: ['vscode', '@types/vscode', 'vitest', 'react-dom'],
+          ignoredDependencies: ['vscode', '@types/vscode', 'vitest'],
         },
       ],
     },

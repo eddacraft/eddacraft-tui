@@ -185,7 +185,7 @@ function QuickLinks() {
                 <Link to="/docs/aps/schemas/json-schema">APS Schema</Link>
               </li>
               <li>
-                <Link to="/docs/aps/schemas/json-schema">APS JSON Schema</Link>
+                <Link to="/docs/aps/examples/minimal-plan">APS Examples</Link>
               </li>
             </ul>
           </div>
