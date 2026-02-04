@@ -56,3 +56,5 @@ docs/analysis/claude-code-safety-net-review.md
 
 .gemini/
 gha-creds-*.json
+
+.serena
