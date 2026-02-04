@@ -1,11 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { TerminalWindow } from './terminal-window';
 
 export function HeroSection() {
-  const [showDocsModal, setShowDocsModal] = useState(false);
-
   return (
     <section className="min-h-screen pt-14">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24 font-mono">
@@ -59,12 +56,12 @@ export function HeroSection() {
               </button>
 
               {/* Secondary - Docs */}
-              <button
-                onClick={() => setShowDocsModal(true)}
-                className="w-full max-w-[450px] border border-structure bg-transparent px-4 sm:px-6 py-3 font-mono text-xs sm:text-sm text-text-muted transition-colors hover:border-text-muted hover:text-text-primary text-left"
+              <a
+                href="https://docs.eddacraft.ai/docs/anvil/overview"
+                className="w-full max-w-[450px] border border-structure bg-transparent px-4 sm:px-6 py-3 font-mono text-xs sm:text-sm text-text-muted transition-colors hover:border-text-muted hover:text-text-primary text-left inline-block"
               >
                 READ THE DOCS
-              </button>
+              </a>
             </div>
 
             {/* Stats */}
@@ -96,62 +93,6 @@ export function HeroSection() {
           </div>
         </div>
       </div>
-
-      {/* Docs Coming Soon Modal */}
-      {showDocsModal && (
-        <div
-          className="fixed inset-0 bg-void/90 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowDocsModal(false)}
-        >
-          <div
-            className="bg-surface border border-structure max-w-md w-full p-6 space-y-6 font-mono"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="text-xs text-text-muted uppercase tracking-wide">
-              {'// DOCUMENTATION_STATUS'}
-            </div>
-
-            {/* Modal Content */}
-            <div className="space-y-4">
-              <div className="text-sm text-text-muted">
-                <span className="text-anvil">$</span> man anvil
-              </div>
-              <div className="border-l-2 border-anvil pl-4 py-2">
-                <p className="text-sm text-text-primary">No manual entry for anvil</p>
-                <p className="text-xs text-text-muted mt-2">
-                  Documentation is being compiled. <br />
-                  Expected availability: pre-release cohort.
-                </p>
-              </div>
-            </div>
-
-            {/* Modal Actions */}
-            <div className="flex flex-col sm:flex-row gap-3 pt-2">
-              <button
-                onClick={() => {
-                  setShowDocsModal(false);
-                  const waitlistSection = document.getElementById('waitlist');
-                  if (waitlistSection) {
-                    waitlistSection.scrollIntoView({ behavior: 'smooth' });
-                    const input = waitlistSection.querySelector('input');
-                    if (input) setTimeout(() => input.focus(), 500);
-                  }
-                }}
-                className="flex-1 border border-anvil bg-anvil/5 px-4 py-3 text-xs sm:text-sm text-anvil hover:bg-anvil/10 transition-colors uppercase tracking-wide"
-              >
-                Request Access
-              </button>
-              <button
-                onClick={() => setShowDocsModal(false)}
-                className="flex-1 border border-structure px-4 py-3 text-xs sm:text-sm text-text-muted hover:text-text-primary hover:border-text-muted transition-colors uppercase tracking-wide"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }
