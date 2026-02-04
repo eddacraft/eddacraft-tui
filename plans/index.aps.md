@@ -750,6 +750,7 @@ Ember (interpretation), and Edda (canonical memory).
 | POLFED-006 | polfed | Subscription version pinning           | Draft  | high     |
 | POLFED-007 | polfed | Fleet compliance aggregator            | Draft  | medium   |
 | POLFED-008 | polfed | CLI federation commands                | Draft  | high     |
+
 ### Task Status — v2.0 (Pulumi Infrastructure as Code)
 
 | Task    | Module | Description                              | Status  | Priority |
