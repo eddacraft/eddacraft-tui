@@ -35,31 +35,31 @@ export async function startHttpServer(
   app.use(express.json());
 
   // Active sessions keyed by their session ID.
-  const transports: Record<string, StreamableHTTPServerTransport> = {};
+  const transports = new Map<string, StreamableHTTPServerTransport>();
 
   // --- POST /mcp ---------------------------------------------------------
   app.post('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
     let transport: StreamableHTTPServerTransport;
 
-    if (sessionId && transports[sessionId]) {
+    if (sessionId && transports.has(sessionId)) {
       // Existing session -- reuse the transport.
-      transport = transports[sessionId];
+      transport = transports.get(sessionId)!;
     } else if (!sessionId && isInitializeRequest(req.body)) {
       // New session -- create transport + wire up a fresh MCP server.
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id) => {
-          transports[id] = transport;
+          transports.set(id, transport);
         },
         onsessionclosed: (id) => {
-          delete transports[id];
+          transports.delete(id);
         },
       });
 
       transport.onclose = () => {
         const id = transport.sessionId;
-        if (id) delete transports[id];
+        if (id) transports.delete(id);
       };
 
       const server = createAnvilMcpServer(serverOptions);
@@ -83,7 +83,7 @@ export async function startHttpServer(
   // --- GET /mcp (SSE stream) ---------------------------------------------
   app.get('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'] as string;
-    const transport = transports[sessionId];
+    const transport = sessionId ? transports.get(sessionId) : undefined;
 
     if (transport) {
       await transport.handleRequest(req, res);
@@ -95,7 +95,7 @@ export async function startHttpServer(
   // --- DELETE /mcp (session termination) ----------------------------------
   app.delete('/mcp', async (req, res) => {
     const sessionId = req.headers['mcp-session-id'] as string;
-    const transport = transports[sessionId];
+    const transport = sessionId ? transports.get(sessionId) : undefined;
 
     if (transport) {
       await transport.handleRequest(req, res);
@@ -106,7 +106,7 @@ export async function startHttpServer(
 
   // --- Health check -------------------------------------------------------
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', sessions: Object.keys(transports).length });
+    res.json({ status: 'ok', sessions: transports.size });
   });
 
   // Start the HTTP server.
@@ -118,13 +118,16 @@ export async function startHttpServer(
 
   return {
     httpServer,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        // Tear down every active session transport first.
-        const closePromises = Object.values(transports).map((t) => t.close());
-        void Promise.all(closePromises).then(() => {
+    close: async () => {
+      // Tear down every active session transport first.
+      const closePromises = [...transports.values()].map((t) => t.close());
+      try {
+        await Promise.all(closePromises);
+      } finally {
+        await new Promise<void>((resolve, reject) => {
           httpServer.close((err) => (err ? reject(err) : resolve()));
         });
-      }),
+      }
+    },
   };
 }

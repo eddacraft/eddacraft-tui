@@ -25,10 +25,19 @@ export function createMcpConfigCommand(): Command {
             process.exit(1);
           }
 
-          const config = generateMcpConfig(target as McpConfigTarget, {
-            transport: options.transport as 'stdio' | 'http',
-            port: parseInt(options.port, 10),
-          });
+          const transport = options.transport;
+          if (transport !== 'stdio' && transport !== 'http') {
+            console.error(`Unknown transport: ${transport}. Supported: stdio, http`);
+            process.exit(1);
+          }
+
+          const port = parseInt(options.port, 10);
+          if (!Number.isFinite(port) || port < 1 || port > 65535) {
+            console.error(`Invalid port: ${options.port}. Must be an integer between 1 and 65535.`);
+            process.exit(1);
+          }
+
+          const config = generateMcpConfig(target as McpConfigTarget, { transport, port });
 
           if (options.write) {
             const { writeFileSync, mkdirSync } = await import('node:fs');

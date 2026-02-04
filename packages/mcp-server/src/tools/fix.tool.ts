@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
 
 /**
@@ -82,7 +82,7 @@ export function registerFixTool(server: McpServer, getWorkspaceRoot: () => strin
           };
         }
 
-        // Validate path stays within workspace
+        // Validate path stays within workspace (logical + symlink check)
         const absPath = resolve(workspaceRoot, filePath);
         const rel = relative(workspaceRoot, absPath);
         if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== absPath) {
@@ -98,6 +98,24 @@ export function registerFixTool(server: McpServer, getWorkspaceRoot: () => strin
             ],
           };
         }
+
+        // Resolve symlinks to prevent escaping via symlink targets
+        const realRoot = realpathSync(workspaceRoot);
+        const realAbs = realpathSync(absPath);
+        if (!realAbs.startsWith(realRoot + '/') && realAbs !== realRoot) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  fixed: false,
+                  reason: `Path "${filePath}" resolves outside workspace root (symlink)`,
+                }),
+              },
+            ],
+          };
+        }
+
         const content = readFileSync(absPath, 'utf-8');
         const lines = content.split('\n');
         const lineIndex = line - 1;

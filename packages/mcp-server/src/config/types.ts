@@ -3,8 +3,6 @@ export interface McpConfigOptions {
   transport?: 'stdio' | 'http';
   /** Port for HTTP transport (default: 3000) */
   port?: number;
-  /** Project root directory (default: current directory) */
-  projectRoot?: string;
 }
 
 export interface McpConfig {

@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { resolve, relative } from 'node:path';
+import { realpathSync } from 'node:fs';
 
 /**
  * Registers the `anvil://file/{path}/warnings` resource template on the given MCP server.
@@ -27,7 +28,7 @@ export function registerFileWarningsResource(
         // Decode URI-encoded path segments (e.g., %2F -> /)
         const filePath = decodeURIComponent(rawPath);
 
-        // Reject paths that escape the workspace root
+        // Reject paths that escape the workspace root (logical + symlink check)
         const absPath = resolve(workspaceRoot, filePath);
         const rel = relative(workspaceRoot, absPath);
         if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== absPath) {
@@ -44,6 +45,30 @@ export function registerFileWarningsResource(
               },
             ],
           };
+        }
+
+        // Resolve symlinks to prevent escaping via symlink targets
+        try {
+          const realRoot = realpathSync(workspaceRoot);
+          const realAbs = realpathSync(absPath);
+          if (!realAbs.startsWith(realRoot + '/') && realAbs !== realRoot) {
+            return {
+              contents: [
+                {
+                  uri: uri.href,
+                  mimeType: 'application/json',
+                  text: JSON.stringify(
+                    { error: `Path "${filePath}" resolves outside workspace root (symlink)` },
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+          }
+        } catch {
+          // realpathSync throws if the file doesn't exist — allow the
+          // GateRunner to handle that case with its own error message.
         }
 
         const { GateRunner } = await import('@eddacraft/anvil-runtime');
