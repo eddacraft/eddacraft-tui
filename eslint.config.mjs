@@ -7,14 +7,9 @@ import typescriptEslint from 'typescript-eslint';
 let anvilPlugin;
 try {
   anvilPlugin = (await import('eslint-plugin-anvil')).default;
-} catch (error) {
+} catch {
   // eslint-plugin-anvil not built yet (fresh clone / CI) — skip anvil rules
-  const errorCode = /** @type {{ code?: unknown }} */ (error)?.code;
-  if (errorCode === 'ERR_MODULE_NOT_FOUND' || errorCode === 'MODULE_NOT_FOUND') {
-    anvilPlugin = null;
-  } else {
-    throw error;
-  }
+  anvilPlugin = null;
 }
 import unicornPlugin from 'eslint-plugin-unicorn';
 // import jsonPlugin from '@eslint/json'; // TODO: Re-enable once compatible with ESLint 9

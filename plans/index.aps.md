@@ -112,14 +112,6 @@ regardless of how good the engine is. First impressions matter.
 | Demo/Tutorial     | Show Anvil catching real issues | Complete |
 | Error Messages    | Actionable, not cryptic         | Complete |
 
-#### Beta Access (In Progress)
-
-| Feature           | Description                                         | Status      |
-| ----------------- | --------------------------------------------------- | ----------- |
-| Beta API          | Hono on Vercel with Neon Postgres (token auth)      | In Progress |
-| CLI Auth Gate     | `anvil login/logout/whoami`, preAction auth check   | In Progress |
-| Admin CLI         | `anvil beta invite/revoke` for token management     | In Progress |
-
 ### v1.1 — Drift Visibility & Developer Trust
 
 | Feature                | Description                                    | Status |
@@ -347,25 +339,6 @@ graph TD
 | [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 | [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 | [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
-| [beta-access](./modules/beta-access.aps.md)                             | BETA     | In Progress | v1.0    | —                                                         |
-
-### Task Status — v1.0 (Beta Access)
-
-| Task      | Module      | Description                          | Status      |
-| --------- | ----------- | ------------------------------------ | ----------- |
-| BETA-001  | beta-access | Scaffold anvil-api as Hono app       | Not Started |
-| BETA-002  | beta-access | Database schema + query layer        | Not Started |
-| BETA-003  | beta-access | Token generation + hashing utilities | Not Started |
-| BETA-004  | beta-access | Admin auth middleware                | Not Started |
-| BETA-005  | beta-access | POST /api/v1/auth/verify endpoint    | Not Started |
-| BETA-006  | beta-access | Admin endpoints (invite, revoke)     | Not Started |
-| BETA-007  | beta-access | Wire routes into app entry           | Not Started |
-| BETA-008  | beta-access | Auth store + API client (CLI)        | Not Started |
-| BETA-009  | beta-access | login, logout, whoami commands        | Not Started |
-| BETA-010  | beta-access | Auth gate (preAction hook)           | Not Started |
-| BETA-011  | beta-access | Admin CLI commands (beta invite/revoke) | Not Started |
-| BETA-012  | beta-access | CI + root config updates             | Not Started |
-| BETA-013  | beta-access | Neon DB setup + Vercel deployment    | Not Started |
 
 ### Task Status — v1.0 (Core Engine)
 

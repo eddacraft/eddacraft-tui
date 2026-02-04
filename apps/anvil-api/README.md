@@ -1,48 +1,20 @@
 # Anvil API
 
-> **Status:** Beta access system (v1.0)
+> **Status:** Placeholder for v1.1+
 
-REST API for Anvil beta access management. Hono on Vercel with Neon Postgres.
+REST/GraphQL API gateway for Anvil services.
 
-## Endpoints
+## Planned Features
 
-| Method | Path                        | Auth  | Description          |
-| ------ | --------------------------- | ----- | -------------------- |
-| GET    | `/api/v1/health`            | None  | Health check         |
-| POST   | `/api/v1/auth/verify`       | None  | Validate beta token  |
-| POST   | `/api/v1/admin/invite`      | Admin | Create user + token  |
-| POST   | `/api/v1/admin/revoke`      | Admin | Revoke token(s)      |
-| GET    | `/api/v1/admin/user/:email` | Admin | Lookup user + tokens |
+- Plan execution endpoints
+- Validation API
+- Gate status queries
+- Evidence retrieval
+- Webhook integrations
 
-## Environment Variables
+## Tech Stack (Planned)
 
-| Variable       | Required | Description                           |
-| -------------- | -------- | ------------------------------------- |
-| `DATABASE_URL` | Yes      | Neon Postgres connection string       |
-| `ADMIN_KEY`    | Yes      | Bearer token for admin endpoints      |
-| `TOKEN_PEPPER` | No       | Extra secret mixed into token hashing |
-
-## Development
-
-```bash
-# Install dependencies
-pnpm install
-
-# Run tests
-pnpm -F @eddacraft/anvil-api test
-
-# Build
-pnpm -F @eddacraft/anvil-api build
-
-# Type check
-pnpm -F @eddacraft/anvil-api typecheck
-```
-
-## Database Setup
-
-Run `src/db/schema.sql` against your Neon Postgres database to create the
-required tables (`beta_users`, `access_tokens`, `audit_log`).
-
-## Deployment
-
-Deploy to Vercel with the required environment variables configured.
+- Hono or Fastify
+- OpenAPI/Swagger documentation
+- JWT authentication
+- Rate limiting
