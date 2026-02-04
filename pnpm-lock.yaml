@@ -168,18 +168,12 @@ importers:
       '@eddacraft/anvil-edda-stack':
         specifier: workspace:*
         version: link:../../packages/edda-stack
-      '@eddacraft/anvil-mcp-server':
-        specifier: workspace:*
-        version: link:../../packages/mcp-server
       '@eddacraft/anvil-runtime':
         specifier: workspace:*
         version: link:../../packages/anvil/runtime
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
-      chokidar:
-        specifier: 3.6.0
-        version: 3.6.0
       commander:
         specifier: ^14.0.2
         version: 14.0.2
