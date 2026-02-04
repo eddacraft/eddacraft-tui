@@ -369,7 +369,7 @@ describe('PolicyConfigManager', () => {
       expect(result.policies?.local?.[0].enforcement).toBe('warn');
     });
 
-    it('should do nothing when no local override exists', () => {
+    it('should not add local entry when enforcement is block and no local override exists', () => {
       configMgr.save({
         policies: {
           team: [{ name: 'secret-scan', enforcement: 'block' }],
@@ -377,7 +377,20 @@ describe('PolicyConfigManager', () => {
       });
 
       const result = configMgr.enablePolicy('secret-scan');
-      expect(result.policies?.local).toBeUndefined();
+      expect(result.policies?.local).toHaveLength(0);
+    });
+
+    it('should create local entry when enforcement is non-default and no local section exists', () => {
+      configMgr.save({
+        policies: {
+          team: [{ name: 'secret-scan', enforcement: 'block' }],
+        },
+      });
+
+      const result = configMgr.enablePolicy('secret-scan', 'warn');
+      expect(result.policies?.local).toHaveLength(1);
+      expect(result.policies?.local?.[0].name).toBe('secret-scan');
+      expect(result.policies?.local?.[0].enforcement).toBe('warn');
     });
 
     it('should persist to disk', () => {

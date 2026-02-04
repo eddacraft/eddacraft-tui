@@ -240,11 +240,14 @@ export class PolicyConfigManager {
     return config;
   }
 
-  /** Enable a policy by removing the local 'off' override or setting to 'block' */
+  /** Enable a policy by removing the local 'off' override or setting enforcement level */
   enablePolicy(policyName: string, enforcement: EnforcementLevel = 'block'): AnvilConfig {
     const config = this.load();
-    if (!config.policies?.local) {
-      return config;
+    if (!config.policies) {
+      config.policies = {};
+    }
+    if (!config.policies.local) {
+      config.policies.local = [];
     }
 
     const idx = config.policies.local.findIndex((p) => p.name === policyName);
@@ -255,6 +258,13 @@ export class PolicyConfigManager {
       } else {
         config.policies.local[idx].enforcement = enforcement;
       }
+    } else if (enforcement !== 'block') {
+      // No existing local entry — create one to persist the requested enforcement level
+      config.policies.local.push({
+        name: policyName,
+        enforcement,
+        reason: 'Enabled via `anvil policy enable`',
+      });
     }
 
     this.save(config);

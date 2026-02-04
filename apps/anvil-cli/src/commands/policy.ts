@@ -619,7 +619,7 @@ export function createPolicyCommand(): Command {
     .action(async (options: { dir: string }) => {
       try {
         const workspaceRoot = getWorkspaceRoot();
-        const { execSync } = await import('node:child_process');
+        const { execFileSync } = await import('node:child_process');
 
         // Check git status of policy files
         const policyDir = options.dir;
@@ -631,10 +631,11 @@ export function createPolicyCommand(): Command {
 
         // Check for config.yml changes
         try {
-          const configDiff = execSync(`git diff --name-status HEAD -- "${configPath}"`, {
-            cwd: workspaceRoot,
-            encoding: 'utf-8',
-          }).trim();
+          const configDiff = execFileSync(
+            'git',
+            ['diff', '--name-status', 'HEAD', '--', configPath],
+            { cwd: workspaceRoot, encoding: 'utf-8' }
+          ).trim();
 
           if (configDiff) {
             hasChanges = true;
@@ -660,10 +661,11 @@ export function createPolicyCommand(): Command {
 
         // Check for policy file changes
         try {
-          const policyDiff = execSync(`git diff --name-status HEAD -- "${policyDir}"`, {
-            cwd: workspaceRoot,
-            encoding: 'utf-8',
-          }).trim();
+          const policyDiff = execFileSync(
+            'git',
+            ['diff', '--name-status', 'HEAD', '--', policyDir],
+            { cwd: workspaceRoot, encoding: 'utf-8' }
+          ).trim();
 
           if (policyDiff) {
             hasChanges = true;
@@ -689,8 +691,9 @@ export function createPolicyCommand(): Command {
 
         // Check for untracked policy files
         try {
-          const untracked = execSync(
-            `git ls-files --others --exclude-standard -- "${policyDir}" "${configPath}"`,
+          const untracked = execFileSync(
+            'git',
+            ['ls-files', '--others', '--exclude-standard', '--', policyDir, configPath],
             { cwd: workspaceRoot, encoding: 'utf-8' }
           ).trim();
 
