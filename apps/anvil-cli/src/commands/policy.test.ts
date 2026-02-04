@@ -127,6 +127,202 @@ describe('policy command', () => {
     });
   });
 
+  describe('explain subcommand', () => {
+    it('should have explain subcommand', () => {
+      const command = createPolicyCommand();
+      const explainCmd = command.commands.find((c) => c.name() === 'explain');
+
+      expect(explainCmd).toBeDefined();
+      expect(explainCmd?.description()).toContain('explanation');
+    });
+
+    it('should require name argument', () => {
+      const command = createPolicyCommand();
+      const explainCmd = command.commands.find((c) => c.name() === 'explain');
+      const args = explainCmd?.registeredArguments;
+
+      expect(args).toHaveLength(1);
+      expect(args?.[0].name()).toBe('name');
+      expect(args?.[0].required).toBe(true);
+    });
+  });
+
+  describe('why subcommand', () => {
+    it('should have why subcommand', () => {
+      const command = createPolicyCommand();
+      const whyCmd = command.commands.find((c) => c.name() === 'why');
+
+      expect(whyCmd).toBeDefined();
+      expect(whyCmd?.description()).toContain('business reason');
+    });
+
+    it('should require violation argument', () => {
+      const command = createPolicyCommand();
+      const whyCmd = command.commands.find((c) => c.name() === 'why');
+      const args = whyCmd?.registeredArguments;
+
+      expect(args).toHaveLength(1);
+      expect(args?.[0].name()).toBe('violation');
+      expect(args?.[0].required).toBe(true);
+    });
+  });
+
+  describe('diff subcommand', () => {
+    it('should have diff subcommand', () => {
+      const command = createPolicyCommand();
+      const diffCmd = command.commands.find((c) => c.name() === 'diff');
+
+      expect(diffCmd).toBeDefined();
+      expect(diffCmd?.description()).toContain('changes');
+    });
+
+    it('should have --dir option', () => {
+      const command = createPolicyCommand();
+      const diffCmd = command.commands.find((c) => c.name() === 'diff');
+      const dirOpt = diffCmd?.options.find((o) => o.long === '--dir');
+
+      expect(dirOpt).toBeDefined();
+      expect(dirOpt?.defaultValue).toBe('.anvil/policies');
+    });
+  });
+
+  describe('disable subcommand', () => {
+    it('should have disable subcommand', () => {
+      const command = createPolicyCommand();
+      const disableCmd = command.commands.find((c) => c.name() === 'disable');
+
+      expect(disableCmd).toBeDefined();
+      expect(disableCmd?.description()).toContain('Disable');
+    });
+
+    it('should require name argument', () => {
+      const command = createPolicyCommand();
+      const disableCmd = command.commands.find((c) => c.name() === 'disable');
+      const args = disableCmd?.registeredArguments;
+
+      expect(args).toHaveLength(1);
+      expect(args?.[0].name()).toBe('name');
+      expect(args?.[0].required).toBe(true);
+    });
+  });
+
+  describe('enable subcommand', () => {
+    it('should have enable subcommand', () => {
+      const command = createPolicyCommand();
+      const enableCmd = command.commands.find((c) => c.name() === 'enable');
+
+      expect(enableCmd).toBeDefined();
+      expect(enableCmd?.description()).toContain('enable');
+    });
+
+    it('should require name argument', () => {
+      const command = createPolicyCommand();
+      const enableCmd = command.commands.find((c) => c.name() === 'enable');
+      const args = enableCmd?.registeredArguments;
+
+      expect(args).toHaveLength(1);
+      expect(args?.[0].name()).toBe('name');
+      expect(args?.[0].required).toBe(true);
+    });
+
+    it('should have --enforcement option with default', () => {
+      const command = createPolicyCommand();
+      const enableCmd = command.commands.find((c) => c.name() === 'enable');
+      const enforcementOpt = enableCmd?.options.find((o) => o.long === '--enforcement');
+
+      expect(enforcementOpt).toBeDefined();
+      expect(enforcementOpt?.short).toBe('-e');
+      expect(enforcementOpt?.defaultValue).toBe('block');
+    });
+  });
+
+  describe('doc subcommand', () => {
+    it('should have doc subcommand', () => {
+      const command = createPolicyCommand();
+      const docCmd = command.commands.find((c) => c.name() === 'doc');
+
+      expect(docCmd).toBeDefined();
+      expect(docCmd?.description()).toContain('POLICIES.md');
+    });
+
+    it('should have --output option with default', () => {
+      const command = createPolicyCommand();
+      const docCmd = command.commands.find((c) => c.name() === 'doc');
+      const outputOpt = docCmd?.options.find((o) => o.long === '--output');
+
+      expect(outputOpt).toBeDefined();
+      expect(outputOpt?.short).toBe('-o');
+      expect(outputOpt?.defaultValue).toBe('.anvil/POLICIES.md');
+    });
+  });
+
+  describe('scaffold subcommand', () => {
+    it('should have scaffold subcommand', () => {
+      const command = createPolicyCommand();
+      const scaffoldCmd = command.commands.find((c) => c.name() === 'scaffold');
+
+      expect(scaffoldCmd).toBeDefined();
+      expect(scaffoldCmd?.description()).toContain('Scaffold');
+    });
+
+    it('should require --org option', () => {
+      const command = createPolicyCommand();
+      const scaffoldCmd = command.commands.find((c) => c.name() === 'scaffold');
+      const orgOpt = scaffoldCmd?.options.find((o) => o.long === '--org');
+
+      expect(orgOpt).toBeDefined();
+      expect(orgOpt?.required).toBe(true);
+    });
+
+    it('should have --out option with default', () => {
+      const command = createPolicyCommand();
+      const scaffoldCmd = command.commands.find((c) => c.name() === 'scaffold');
+      const outOpt = scaffoldCmd?.options.find((o) => o.long === '--out');
+
+      expect(outOpt).toBeDefined();
+      expect(outOpt?.defaultValue).toBe('./anvil-policies');
+    });
+  });
+
+  describe('list subcommand options', () => {
+    it('should have --all option', () => {
+      const command = createPolicyCommand();
+      const listCmd = command.commands.find((c) => c.name() === 'list');
+      const allOpt = listCmd?.options.find((o) => o.long === '--all');
+
+      expect(allOpt).toBeDefined();
+      expect(allOpt?.short).toBe('-a');
+    });
+
+    it('should have --json option', () => {
+      const command = createPolicyCommand();
+      const listCmd = command.commands.find((c) => c.name() === 'list');
+      const jsonOpt = listCmd?.options.find((o) => o.long === '--json');
+
+      expect(jsonOpt).toBeDefined();
+    });
+  });
+
+  describe('all subcommands present', () => {
+    it('should have all expected subcommands', () => {
+      const command = createPolicyCommand();
+      const subcommandNames = command.commands.map((c) => c.name());
+
+      expect(subcommandNames).toContain('list');
+      expect(subcommandNames).toContain('explain');
+      expect(subcommandNames).toContain('why');
+      expect(subcommandNames).toContain('diff');
+      expect(subcommandNames).toContain('disable');
+      expect(subcommandNames).toContain('enable');
+      expect(subcommandNames).toContain('doc');
+      expect(subcommandNames).toContain('scaffold');
+      expect(subcommandNames).toContain('validate');
+      expect(subcommandNames).toContain('test');
+      expect(subcommandNames).toContain('init');
+      expect(subcommandNames).toContain('bundle');
+    });
+  });
+
   describe('bundle subcommand', () => {
     it('should have bundle subcommand', () => {
       const command = createPolicyCommand();

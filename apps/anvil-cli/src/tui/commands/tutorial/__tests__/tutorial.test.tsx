@@ -1,12 +1,6 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
-import { describe, it, expect, vi } from 'vitest';
 import { render } from 'ink-testing-library';
-import { Tutorial } from '../Tutorial.js';
-import { IntroStep } from '../steps/IntroStep.js';
-import { PlanStep } from '../steps/PlanStep.js';
-import { ValidateStep } from '../steps/ValidateStep.js';
-import { GateStep } from '../steps/GateStep.js';
-import { CompletionStep } from '../steps/CompletionStep.js';
 import {
   TUTORIAL_STEPS,
   STEP_DEFINITIONS,
@@ -21,202 +15,33 @@ import {
   formatElapsedTime,
 } from '../types.js';
 
-describe('Tutorial', () => {
-  it('renders header with title', () => {
-    const { lastFrame } = render(<Tutorial />);
-    expect(lastFrame()).toContain('ANVIL TUTORIAL');
-  });
+// Mock scan-project to prevent real filesystem access
+vi.mock('../steps/scan-project.js', () => ({
+  scanProject: vi.fn(() => new Promise(() => {})), // never resolves by default
+}));
 
-  it('starts on intro step', () => {
-    const { lastFrame } = render(<Tutorial />);
-    expect(lastFrame()).toContain('Welcome to Anvil');
-  });
+// Mock watch-project to prevent real filesystem watchers
+vi.mock('../steps/watch-project.js', () => ({
+  createTutorialWatcher: vi.fn(() => ({ close: vi.fn() })),
+  WATCHED_PATTERNS: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
+}));
 
-  it('shows progress indicator', () => {
-    const { lastFrame } = render(<Tutorial />);
-    expect(lastFrame()).toContain('Step');
-    expect(lastFrame()).toContain('of 5');
-  });
+// Mock getWorkspaceRoot
+vi.mock('../../../../utils/file-io.js', () => ({
+  getWorkspaceRoot: () => '/mock/workspace',
+}));
 
-  it('shows keyboard shortcuts', () => {
-    const { lastFrame } = render(<Tutorial />);
-    expect(lastFrame()).toContain('q quit');
-  });
-});
-
-describe('IntroStep', () => {
-  it('renders intro content', () => {
-    const onNext = vi.fn();
-    const { lastFrame } = render(<IntroStep onNext={onNext} />);
-
-    expect(lastFrame()).toContain('What is Anvil?');
-    expect(lastFrame()).toContain('safe for production');
-  });
-
-  it('lists key features', () => {
-    const onNext = vi.fn();
-    const { lastFrame } = render(<IntroStep onNext={onNext} />);
-
-    expect(lastFrame()).toContain('Validation');
-    expect(lastFrame()).toContain('Quality Gates');
-    expect(lastFrame()).toContain('Audit Trail');
-    expect(lastFrame()).toContain('Rollback');
-  });
-
-  it('shows continue prompt', () => {
-    const onNext = vi.fn();
-    const { lastFrame } = render(<IntroStep onNext={onNext} />);
-
-    expect(lastFrame()).toContain('Press Enter to continue');
-  });
-});
-
-describe('PlanStep', () => {
-  it('shows creating message initially', async () => {
-    const onComplete = vi.fn();
-    const { lastFrame } = render(<PlanStep onComplete={onComplete} />);
-
-    expect(lastFrame()).toContain('Creating a Sample Plan');
-  });
-
-  it('shows sample plan content', () => {
-    const onComplete = vi.fn();
-    const { lastFrame } = render(<PlanStep onComplete={onComplete} />);
-
-    expect(lastFrame()).toContain('Sample Feature Plan');
-    expect(lastFrame()).toContain('Intent');
-  });
-
-  it('uses provided path when given', () => {
-    const onComplete = vi.fn();
-    const { lastFrame } = render(
-      <PlanStep onComplete={onComplete} samplePlanPath="/custom/path.md" />
-    );
-
-    expect(lastFrame()).toContain('/custom/path.md');
-  });
-});
-
-describe('ValidateStep', () => {
-  it('shows validation command', () => {
-    const onComplete = vi.fn();
-    const { lastFrame } = render(
-      <ValidateStep planPath=".anvil/tutorial/sample.md" onComplete={onComplete} />
-    );
-
-    expect(lastFrame()).toContain('anvil validate');
-    expect(lastFrame()).toContain('.anvil/tutorial/sample.md');
-  });
-
-  it('shows explanation text', () => {
-    const onComplete = vi.fn();
-    const { lastFrame } = render(<ValidateStep planPath="test.md" onComplete={onComplete} />);
-
-    expect(lastFrame()).toContain('Validating Your Plan');
-    expect(lastFrame()).toContain('well-formed');
-  });
-
-  it('shows result when provided', () => {
-    const onComplete = vi.fn();
-    const result = { success: true, message: 'All checks passed' };
-    const { lastFrame } = render(
-      <ValidateStep planPath="test.md" onComplete={onComplete} validationResult={result} />
-    );
-
-    expect(lastFrame()).toContain('Validation passed');
-    expect(lastFrame()).toContain('All checks passed');
-  });
-});
-
-describe('GateStep', () => {
-  it('shows gate command', () => {
-    const onComplete = vi.fn();
-    const { lastFrame } = render(
-      <GateStep planPath=".anvil/tutorial/sample.md" onComplete={onComplete} />
-    );
-
-    expect(lastFrame()).toContain('anvil gate');
-    expect(lastFrame()).toContain('.anvil/tutorial/sample.md');
-  });
-
-  it('shows explanation text', () => {
-    const onComplete = vi.fn();
-    const { lastFrame } = render(<GateStep planPath="test.md" onComplete={onComplete} />);
-
-    expect(lastFrame()).toContain('Running Quality Gates');
-    expect(lastFrame()).toContain('verify your code');
-  });
-
-  it('shows gate checks', () => {
-    const onComplete = vi.fn();
-    const result = {
-      success: true,
-      checks: [
-        { name: 'lint', passed: true, message: 'OK' },
-        { name: 'test', passed: true, message: 'OK' },
-      ],
-    };
-    const { lastFrame } = render(
-      <GateStep planPath="test.md" onComplete={onComplete} gateResult={result} />
-    );
-
-    expect(lastFrame()).toContain('lint');
-    expect(lastFrame()).toContain('test');
-  });
-});
-
-describe('CompletionStep', () => {
-  it('shows completion message', () => {
-    const startedAt = new Date();
-    const { lastFrame } = render(
-      <CompletionStep startedAt={startedAt} onCleanup={vi.fn()} onFinish={vi.fn()} />
-    );
-
-    expect(lastFrame()).toContain('Tutorial Complete');
-  });
-
-  it('shows what user learned', () => {
-    const startedAt = new Date();
-    const { lastFrame } = render(
-      <CompletionStep startedAt={startedAt} onCleanup={vi.fn()} onFinish={vi.fn()} />
-    );
-
-    expect(lastFrame()).toContain('Creating plans');
-    expect(lastFrame()).toContain('Validating plans');
-    expect(lastFrame()).toContain('quality gates');
-  });
-
-  it('shows next steps', () => {
-    const startedAt = new Date();
-    const { lastFrame } = render(
-      <CompletionStep startedAt={startedAt} onCleanup={vi.fn()} onFinish={vi.fn()} />
-    );
-
-    expect(lastFrame()).toContain('anvil init');
-    expect(lastFrame()).toContain('anvil doctor');
-    expect(lastFrame()).toContain('anvil new');
-  });
-
-  it('shows cleanup instructions', () => {
-    const startedAt = new Date();
-    const { lastFrame } = render(
-      <CompletionStep startedAt={startedAt} onCleanup={vi.fn()} onFinish={vi.fn()} />
-    );
-
-    expect(lastFrame()).toContain('c');
-    expect(lastFrame()).toContain('clean up');
-    expect(lastFrame()).toContain('q');
-  });
-});
+// Import after mocks
+import { Tutorial } from '../Tutorial.js';
 
 describe('Type utilities', () => {
   describe('TUTORIAL_STEPS', () => {
     it('has correct step order', () => {
-      expect(TUTORIAL_STEPS).toEqual(['intro', 'plan', 'validate', 'gate', 'completion']);
+      expect(TUTORIAL_STEPS).toEqual(['scan', 'watch', 'fix', 'next-steps']);
     });
 
-    it('has 5 steps', () => {
-      expect(TUTORIAL_STEPS.length).toBe(5);
+    it('has 4 steps', () => {
+      expect(TUTORIAL_STEPS.length).toBe(4);
     });
   });
 
@@ -228,12 +53,26 @@ describe('Type utilities', () => {
         expect(STEP_DEFINITIONS[step].description).toBeDefined();
       }
     });
+
+    it('has correct titles', () => {
+      expect(STEP_DEFINITIONS['scan'].title).toBe('Scan Your Project');
+      expect(STEP_DEFINITIONS['watch'].title).toBe('Watch Mode');
+      expect(STEP_DEFINITIONS['fix'].title).toBe('Fix an Issue');
+      expect(STEP_DEFINITIONS['next-steps'].title).toBe("What's Next");
+    });
+
+    it('has correct descriptions', () => {
+      expect(STEP_DEFINITIONS['scan'].description).toBe('Analyse your codebase for issues');
+      expect(STEP_DEFINITIONS['watch'].description).toBe('See real-time validation as you edit');
+      expect(STEP_DEFINITIONS['fix'].description).toBe('Resolve a warning and see it clear');
+      expect(STEP_DEFINITIONS['next-steps'].description).toBe('Explore more Anvil features');
+    });
   });
 
   describe('createInitialTutorialState', () => {
-    it('starts on intro step', () => {
+    it('starts on scan step', () => {
       const state = createInitialTutorialState();
-      expect(state.currentStep).toBe('intro');
+      expect(state.currentStep).toBe('scan');
     });
 
     it('has empty completed steps', () => {
@@ -245,78 +84,95 @@ describe('Type utilities', () => {
       const state = createInitialTutorialState();
       expect(state.startedAt).toBeInstanceOf(Date);
     });
+
+    it('initialises watchTriggered to false', () => {
+      const state = createInitialTutorialState();
+      expect(state.watchTriggered).toBe(false);
+    });
+
+    it('initialises fixConfirmed to false', () => {
+      const state = createInitialTutorialState();
+      expect(state.fixConfirmed).toBe(false);
+    });
+
+    it('has no scanResults initially', () => {
+      const state = createInitialTutorialState();
+      expect(state.scanResults).toBeUndefined();
+    });
   });
 
   describe('getStepIndex', () => {
     it('returns correct index', () => {
-      expect(getStepIndex('intro')).toBe(0);
-      expect(getStepIndex('plan')).toBe(1);
-      expect(getStepIndex('validate')).toBe(2);
-      expect(getStepIndex('gate')).toBe(3);
-      expect(getStepIndex('completion')).toBe(4);
+      expect(getStepIndex('scan')).toBe(0);
+      expect(getStepIndex('watch')).toBe(1);
+      expect(getStepIndex('fix')).toBe(2);
+      expect(getStepIndex('next-steps')).toBe(3);
     });
   });
 
   describe('getNextStep', () => {
     it('returns next step', () => {
-      expect(getNextStep('intro')).toBe('plan');
-      expect(getNextStep('plan')).toBe('validate');
-      expect(getNextStep('gate')).toBe('completion');
+      expect(getNextStep('scan')).toBe('watch');
+      expect(getNextStep('watch')).toBe('fix');
+      expect(getNextStep('fix')).toBe('next-steps');
     });
 
     it('returns null at last step', () => {
-      expect(getNextStep('completion')).toBeNull();
+      expect(getNextStep('next-steps')).toBeNull();
     });
   });
 
   describe('getPreviousStep', () => {
     it('returns previous step', () => {
-      expect(getPreviousStep('plan')).toBe('intro');
-      expect(getPreviousStep('completion')).toBe('gate');
+      expect(getPreviousStep('watch')).toBe('scan');
+      expect(getPreviousStep('fix')).toBe('watch');
+      expect(getPreviousStep('next-steps')).toBe('fix');
     });
 
     it('returns null at first step', () => {
-      expect(getPreviousStep('intro')).toBeNull();
+      expect(getPreviousStep('scan')).toBeNull();
     });
   });
 
   describe('canGoBack', () => {
     it('returns false at first step', () => {
-      expect(canGoBack('intro')).toBe(false);
+      expect(canGoBack('scan')).toBe(false);
     });
 
     it('returns true at other steps', () => {
-      expect(canGoBack('plan')).toBe(true);
-      expect(canGoBack('completion')).toBe(true);
+      expect(canGoBack('watch')).toBe(true);
+      expect(canGoBack('fix')).toBe(true);
+      expect(canGoBack('next-steps')).toBe(true);
     });
   });
 
   describe('canGoNext', () => {
     it('returns true at non-final steps', () => {
-      expect(canGoNext('intro')).toBe(true);
-      expect(canGoNext('gate')).toBe(true);
+      expect(canGoNext('scan')).toBe(true);
+      expect(canGoNext('watch')).toBe(true);
+      expect(canGoNext('fix')).toBe(true);
     });
 
     it('returns false at last step', () => {
-      expect(canGoNext('completion')).toBe(false);
+      expect(canGoNext('next-steps')).toBe(false);
     });
   });
 
   describe('isLastStep', () => {
-    it('returns true only for completion', () => {
-      expect(isLastStep('completion')).toBe(true);
-      expect(isLastStep('intro')).toBe(false);
-      expect(isLastStep('gate')).toBe(false);
+    it('returns true only for next-steps', () => {
+      expect(isLastStep('next-steps')).toBe(true);
+      expect(isLastStep('scan')).toBe(false);
+      expect(isLastStep('watch')).toBe(false);
+      expect(isLastStep('fix')).toBe(false);
     });
   });
 
   describe('getProgressPercentage', () => {
     it('returns correct percentages', () => {
-      expect(getProgressPercentage('intro')).toBe(20);
-      expect(getProgressPercentage('plan')).toBe(40);
-      expect(getProgressPercentage('validate')).toBe(60);
-      expect(getProgressPercentage('gate')).toBe(80);
-      expect(getProgressPercentage('completion')).toBe(100);
+      expect(getProgressPercentage('scan')).toBe(25);
+      expect(getProgressPercentage('watch')).toBe(50);
+      expect(getProgressPercentage('fix')).toBe(75);
+      expect(getProgressPercentage('next-steps')).toBe(100);
     });
   });
 
@@ -330,5 +186,43 @@ describe('Type utilities', () => {
       const startedAt = new Date(Date.now() - 90000);
       expect(formatElapsedTime(startedAt)).toBe('1m 30s');
     });
+  });
+});
+
+describe('Tutorial component', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('renders and starts on scan step', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    const frame = lastFrame();
+    expect(frame).toContain('Scan Your Project');
+  });
+
+  it('shows progress indicator with step count', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    expect(lastFrame()).toContain('Step 1 of 4');
+  });
+
+  it('shows step description', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    expect(lastFrame()).toContain('Analyse your codebase for issues');
+  });
+
+  it('shows keyboard shortcuts', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    const frame = lastFrame();
+    expect(frame).toContain('q quit');
+  });
+
+  it('shows the header title', () => {
+    const { lastFrame } = render(<Tutorial />);
+
+    expect(lastFrame()).toContain('ANVIL TUTORIAL');
   });
 });

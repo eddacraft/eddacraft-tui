@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-export type TutorialStepId = 'intro' | 'plan' | 'validate' | 'gate' | 'completion';
+export type TutorialStepId = 'scan' | 'watch' | 'fix' | 'next-steps';
 
-export const TUTORIAL_STEPS: TutorialStepId[] = ['intro', 'plan', 'validate', 'gate', 'completion'];
+export const TUTORIAL_STEPS: TutorialStepId[] = ['scan', 'watch', 'fix', 'next-steps'];
 
 export interface TutorialStep {
   id: TutorialStepId;
@@ -12,50 +12,54 @@ export interface TutorialStep {
 }
 
 export const STEP_DEFINITIONS: Record<TutorialStepId, TutorialStep> = {
-  intro: {
-    id: 'intro',
-    title: 'Welcome to Anvil',
-    description: 'Learn what Anvil does and why it matters',
-    duration: '~30s',
-  },
-  plan: {
-    id: 'plan',
-    title: 'Create a Plan',
-    description: 'Generate a sample plan from a template',
+  scan: {
+    id: 'scan',
+    title: 'Scan Your Project',
+    description: 'Analyse your codebase for issues',
     duration: '~1min',
   },
-  validate: {
-    id: 'validate',
-    title: 'Validate',
-    description: 'Check your plan for correctness',
-    duration: '~30s',
-  },
-  gate: {
-    id: 'gate',
-    title: 'Quality Gates',
-    description: 'Run quality checks on your code',
+  watch: {
+    id: 'watch',
+    title: 'Watch Mode',
+    description: 'See real-time validation as you edit',
     duration: '~1min',
   },
-  completion: {
-    id: 'completion',
-    title: 'Complete!',
-    description: 'Next steps and resources',
+  fix: {
+    id: 'fix',
+    title: 'Fix an Issue',
+    description: 'Resolve a warning and see it clear',
+    duration: '~1min',
+  },
+  'next-steps': {
+    id: 'next-steps',
+    title: "What's Next",
+    description: 'Explore more Anvil features',
     duration: '~30s',
   },
 };
 
+export interface ScanWarning {
+  id: string;
+  title: string;
+  file: string;
+  line: number;
+  message: string;
+  suggestion: string;
+}
+
+export interface ScanResults {
+  warningCount: number;
+  fileCount: number;
+  executionTimeMs: number;
+  topWarnings: ScanWarning[];
+}
+
 export interface TutorialState {
   currentStep: TutorialStepId;
   completedSteps: Set<TutorialStepId>;
-  samplePlanPath?: string;
-  validationResult?: {
-    success: boolean;
-    message: string;
-  };
-  gateResult?: {
-    success: boolean;
-    checks: Array<{ name: string; passed: boolean; message: string }>;
-  };
+  scanResults?: ScanResults;
+  watchTriggered: boolean;
+  fixConfirmed: boolean;
   startedAt: Date;
   cleanupRequested: boolean;
 }
@@ -76,8 +80,10 @@ export const TutorialProgressSchema = z.object({
 
 export function createInitialTutorialState(): TutorialState {
   return {
-    currentStep: 'intro',
+    currentStep: 'scan',
     completedSteps: new Set(),
+    watchTriggered: false,
+    fixConfirmed: false,
     startedAt: new Date(),
     cleanupRequested: false,
   };
@@ -108,7 +114,7 @@ export function canGoNext(current: TutorialStepId): boolean {
 }
 
 export function isLastStep(current: TutorialStepId): boolean {
-  return current === 'completion';
+  return current === 'next-steps';
 }
 
 export function getProgressPercentage(current: TutorialStepId): number {

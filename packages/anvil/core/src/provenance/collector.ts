@@ -118,11 +118,13 @@ export async function collectGitContext(workspaceRoot: string): Promise<GitConte
         .catch(() => []),
     ]);
 
-    // Parse modified files from git status
+    // Parse modified files from git status --porcelain
+    // Format is "XY filename" where X and Y are status chars (may be spaces)
+    // Use regex to extract filename after the 2-char status + space
     const modifiedFiles = status
       .split('\n')
       .filter((line) => line.trim())
-      .map((line) => line.substring(3).trim())
+      .map((line) => line.replace(/^.{0,2}\s/, '').trim())
       .filter((f) => f);
 
     // Try to get repository URL

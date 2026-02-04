@@ -22,7 +22,7 @@ import {
   hasExistingBaseline,
   type ArchitectureSummary,
 } from '../services/architecture-service.js';
-import { success, error } from '../utils/output.js';
+import { success, error, info } from '../utils/output.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { InitWizard, type WizardState, type WizardContext } from '../tui/commands/init/index.js';
@@ -31,6 +31,12 @@ import { SampleAnalyzer } from '../services/sample-analyzer.js';
 import { HistoricalAnalyzer } from '../services/historical-analyser.js';
 import { InitResults } from '../tui/commands/init/InitResults.js';
 import type { InitAnalysisResults } from '../tui/components/ResultsDashboard.js';
+import {
+  PolicyConfigManager,
+  selectStarterProfile,
+  type PolicyEntry,
+} from '../services/policy-config.js';
+import { HookInstaller } from '../services/hook-installer.js';
 
 export function createInitCommand(): Command {
   const command = new Command('init');
@@ -42,6 +48,7 @@ export function createInitCommand(): Command {
     .option('--no-tui', 'Use classic CLI prompts instead of TUI wizard')
     .option('--tui', 'Force TUI wizard mode')
     .option('--no-analysis', 'Skip automatic project analysis')
+    .option('--org <name>', 'Link to an org policy source (implies --non-interactive)')
     .action(
       async (options: {
         force?: boolean;
@@ -50,11 +57,18 @@ export function createInitCommand(): Command {
         tui?: boolean;
         // Commander.js --no-analysis sets options.analysis = false
         analysis?: boolean;
+        org?: string;
       }) => {
         try {
-          console.log(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
-
           const projectRoot = process.cwd();
+
+          // --org implies non-interactive detect-don't-ask flow
+          if (options.org) {
+            await runDetectAndApplyInit(projectRoot, options.org, options.force);
+            return;
+          }
+
+          console.log(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
 
           // Check if .anvilrc already exists
           const anvilrcPath = join(projectRoot, '.anvilrc');
@@ -586,4 +600,100 @@ async function runIntelligentAnalysis(
   };
 
   return results;
+}
+
+// ---------------------------------------------------------------------------
+// Detect-don't-ask init flow (--org or future default)
+// ---------------------------------------------------------------------------
+
+/**
+ * Opinionated, silent init — detects project, applies starter profile,
+ * writes .anvil/config.yml with org source, installs hooks. No questions.
+ */
+async function runDetectAndApplyInit(
+  projectRoot: string,
+  orgName: string,
+  force?: boolean
+): Promise<void> {
+  const anvilrcPath = join(projectRoot, '.anvilrc');
+  const configMgr = new PolicyConfigManager(projectRoot);
+
+  if (existsSync(anvilrcPath) && !force) {
+    error('.anvilrc already exists. Use --force to overwrite.');
+    process.exit(1);
+  }
+
+  // Step 1: Detect project
+  const detector = new EnvironmentDetector(projectRoot);
+  const env = detector.detect();
+
+  const projectDetector = new ProjectDetector(projectRoot);
+  const projectContext = projectDetector.detect();
+
+  const framework = projectContext.framework ?? 'unknown';
+  const monorepo = projectContext.monorepo ?? 'none';
+
+  // Step 2: Select starter profile based on detection
+  const profile = selectStarterProfile(framework, monorepo);
+
+  // Step 3: Build config.yml
+  const orgSource = `git@github.com:${orgName}/anvil-policies.git`;
+  const teamPolicies: PolicyEntry[] = profile.policies;
+
+  configMgr.save({
+    policies: {
+      org: { source: orgSource },
+      team: teamPolicies,
+      starter_profile: profile.name,
+    },
+  });
+
+  // Step 4: Generate .anvilrc with recommended checks
+  const enabledChecks = detector.getRecommendedChecks(env);
+  const initOptions: InitOptions = {
+    projectRoot,
+    planningDir: 'docs/plans',
+    format: 'generic',
+    createExample: false,
+    configTemplate: 'basic',
+    enabledChecks,
+    coverageThreshold: 80,
+  };
+
+  const generator = new TemplateGenerator(initOptions);
+  generator.createAnvilDirectory();
+  generator.createPlanningDirectory();
+  generator.generateAnvilrc();
+
+  if (env.hasGit) {
+    generator.updateGitignore();
+  }
+
+  // Step 5: Install hooks
+  if (env.hasGit) {
+    try {
+      const hookInstaller = new HookInstaller();
+      hookInstaller.installHook(projectRoot, 'pre-commit', '.git/hooks');
+      hookInstaller.installHook(projectRoot, 'pre-push', '.git/hooks');
+    } catch {
+      // Non-fatal: hooks are nice-to-have
+    }
+  }
+
+  // Output — concise, opinionated, done
+  console.log('');
+  success(
+    `Detected: ${env.hasTypeScript ? 'TypeScript' : 'JavaScript'}${framework !== 'unknown' ? `, ${framework}` : ''}${env.hasVitest ? ', Vitest' : env.hasJest ? ', Jest' : ''}${env.hasEslint ? ', ESLint' : ''}`
+  );
+  success(`Applied starter profile: ${profile.name}`);
+  success(`${teamPolicies.length} policies active (${teamPolicies.map((p) => p.name).join(', ')})`);
+  if (env.hasGit) {
+    success('Hooks installed');
+  }
+  info(`Org source: ${orgSource}`);
+
+  console.log('');
+  console.log(chalk.dim("Run `anvil policy list` to see what's active."));
+  console.log(chalk.dim("Run `anvil policy tune` when you're ready to customise."));
+  console.log('');
 }

@@ -1,6 +1,6 @@
 # Anvil Architecture
 
-**Version**: 2.1.0 **Last Updated**: 18 January 2026 **Status**: Living Document
+**Version**: 2.2.0 **Last Updated**: 2 February 2026 **Status**: Living Document
 
 ---
 
@@ -261,21 +261,33 @@ packages/
 │   ├── core/                 # Layer 2: Pure domain logic
 │   ├── runtime/              # Layer 3: Orchestration, gate, watch
 │   └── policy/               # OPA/Rego wrappers
-├── adapters/                 # Format adapters (SpecKit, BMAD, etc.)
+├── adapters/                 # Format adapters (SpecKit, BMAD, APS-Markdown, Generic)
 ├── aps/                      # APS parser and tooling
 ├── edda-stack/               # Memory system (Kindling/Ember/Edda)
+├── eslint-plugin-anvil/      # ESLint rules for test quality enforcement
+├── kindling-integration/     # Kindling memory integration contracts
 ├── platform/                 # Cross-cutting utilities
 │   ├── config/
 │   ├── crypto/
 │   └── storage/
+├── shared/                   # Shared utilities
+├── vscode-extension/         # VS Code integration
 └── tooling/                  # Shared configuration
     ├── eslint-config/
     └── tsconfig/
 
 apps/
 ├── anvil-cli/                # CLI application
-├── docs-site/                # Docusaurus documentation
-└── vscode-extension/         # VS Code extension
+├── docs-site/                # Docusaurus documentation (deployed via Vercel)
+├── website/                  # Marketing website — Next.js (deployed via Vercel)
+├── anvil-api/                # API service (planned)
+├── anvil-ui/                 # Web UI (planned)
+└── e2e/                      # End-to-end test suites (Playwright)
+
+tools/
+├── generators/               # NX code generators
+├── codemods/                 # Codemod transformations
+└── scripts/                  # Build and utility scripts
 ```
 
 **Dependency Rules**:
@@ -397,14 +409,14 @@ speckit/
     └── tasks-parser.ts   # Tasks.md parser (246 LOC)
 ```
 
-#### BMAD Adapter ⏳ PLANNED
+#### BMAD Adapter ✅ COMPLETE
 
 **Responsibility**: Parse and serialize BMAD format (Business Model and
 Architecture Documents, PRDs).
 
-**Status**: Not yet implemented (Planned for Week 5-6, November 2025)
+**Status**: Fully implemented
 
-**Expected BMAD Format Structure**:
+**BMAD Format Structure**:
 
 ```markdown
 # Product Requirements Document
@@ -434,7 +446,7 @@ Architecture Documents, PRDs).
 [Testing and validation criteria]
 ```
 
-**Planned Mapping to APS**:
+**Mapping to APS**:
 
 - `Problem Statement` → `intent`
 - Functional Requirements (REQ-XXX) → `proposed_changes[]`
@@ -443,17 +455,42 @@ Architecture Documents, PRDs).
 - `Acceptance Criteria` → `metadata.acceptance_criteria[]`
 - Requirement IDs → `metadata.requirement_ids[]`
 
-**Planned Implementation Location**: `packages/adapters/src/bmad/`
+**Implementation Structure**: `packages/adapters/src/bmad/`
 
 ```
 bmad/
 ├── index.ts              # Exports
+├── format-adapter.ts     # BMAD format adapter (FormatAdapter interface)
 ├── parser.ts             # Markdown parser with REQ-ID extraction
-├── import.ts             # BMAD → APS adapter
-└── export.ts             # APS → BMAD adapter
+├── serializer.ts         # APS → BMAD serialization
+├── types.ts              # BMAD-specific types
+└── utils.ts              # Parsing and formatting utilities
 ```
 
-**Target Completion**: Week 5-6
+#### APS-Markdown Adapter ✅ COMPLETE
+
+**Responsibility**: Handle native APS documents in Markdown format.
+
+**Features**:
+
+- Direct parsing of APS-flavoured Markdown
+- Highest-priority adapter (matched first)
+- Round-trip preservation
+
+**Implementation Location**: `packages/adapters/src/aps-markdown/`
+
+#### Generic Markdown Adapter ✅ COMPLETE
+
+**Responsibility**: Fallback adapter for generic Markdown documents that don't
+match any specific format.
+
+**Features**:
+
+- Lowest-priority adapter (matched last)
+- Best-effort extraction of intent and structure
+- Handles arbitrary Markdown files
+
+**Implementation Location**: `packages/adapters/src/generic/`
 
 #### Native APS Adapter
 
@@ -469,6 +506,16 @@ bmad/
 **Implementation Location**: Native APS handling is built into core
 (`@eddacraft/anvil-core`) and base adapter framework
 (`packages/adapters/src/base/`)
+
+#### Adapter Priority
+
+All adapters are registered in priority order:
+
+1. **APSMarkdownAdapter** — native APS-flavoured Markdown (highest priority)
+2. **BMADFormatAdapter** — BMAD PRD format
+3. **SpecKitFormatAdapter** — GitHub SpecKit format
+4. **GenericMarkdownAdapter** — fallback for unrecognised Markdown (lowest
+   priority)
 
 ### 2. Core Layer (APS)
 
@@ -1020,13 +1067,13 @@ Plan ID or Hash
 
 #### Schema & Validation
 
-- **Zod** (^3.x): Runtime validation, TypeScript types
+- **Zod** (^4.x): Runtime validation, TypeScript types
 - **zod-to-json-schema** (^3.x): JSON Schema export
 - **Ajv** (^8.17): JSON Schema validation (compatibility)
 
 #### CLI
 
-- **Commander.js** (^11.x): Command-line interface
+- **Commander.js** (^14.x): Command-line interface
 - **Enquirer** (^2.x): Interactive prompts
 - **Chalk** (^5.x): Terminal colors
 - **Ora** (^7.x): Spinners and progress
@@ -1605,5 +1652,5 @@ This architecture is a living document. As we build and learn, it will evolve.
 
 ---
 
-**Document Version**: 2.1 **Last Updated**: 18 January 2026 **Next Review**: As
+**Document Version**: 2.2 **Last Updated**: 2 February 2026 **Next Review**: As
 needed during development

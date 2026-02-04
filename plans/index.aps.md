@@ -143,13 +143,29 @@ regardless of how good the engine is. First impressions matter.
 | v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 | Complete |
 | v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 | Complete |
 
+### v1.3 — HTML/CSS Support & Multi-Language Foundation
+
+| Feature                  | Description                                         | Status |
+| ------------------------ | --------------------------------------------------- | ------ |
+| Configurable Extensions  | Make analysable file extensions configurable         | Ready  |
+| HTML Anti-patterns       | Inline styles, scripts, event handlers, deprecated  | Ready  |
+| CSS Anti-patterns        | `!important` abuse, CSS `@import` performance       | Ready  |
+| HTML/CSS Edge Detection  | `<script src>`, `<link href>`, `@import url()`      | Ready  |
+| HTML Suppression Syntax  | `<!-- @anvil-ignore ... -->` comment support         | Ready  |
+| VS Code HTML/CSS Trigger | Analysis on HTML/CSS file saves                     | Ready  |
+
+**Why v1.3:** HTML/CSS is the simplest non-JS language to support — no module
+resolution, no type system, all regex-based. It establishes the configurable
+extensions infrastructure (HTMLCSS-001) that all future language modules depend
+on.
+
 ### v2.0 — AI Tool Integration
 
-| Feature         | Description                                | Status  |
-| --------------- | ------------------------------------------ | ------- |
-| llms.txt Export | Export constraints for AI tool consumption | Ready   |
-| Command Safety  | Validate AI tool commands (CMDSAF)         | Ready   |
-| MCP Server      | Real-time validation during AI generation  | Planned |
+| Feature         | Description                                | Status |
+| --------------- | ------------------------------------------ | ------ |
+| llms.txt Export | Export constraints for AI tool consumption | Ready  |
+| Command Safety  | Validate AI tool commands (CMDSAF)         | Ready  |
+| MCP Server      | Real-time validation during AI generation  | Ready  |
 
 ### v2.0 — Web Dashboard
 
@@ -168,6 +184,36 @@ CLI remains the primary developer interface; the dashboard serves team leads,
 platform engineers, and compliance roles who need persistent views, historical
 trends, and graphical visualizations that a terminal cannot provide.
 
+### v2.0 — Organisational Policy Governance
+
+| Feature                  | Description                                                  | Status |
+| ------------------------ | ------------------------------------------------------------ | ------ |
+| OPA Enhancements         | YAML-first rules, policy library, debugger, watch mode       | Draft  |
+| Org Policy Hierarchy     | Multi-level governance: org → team → project inheritance     | Draft  |
+| Policy Lifecycle         | Versioning, canary rollout, deprecation, grace periods       | Draft  |
+| Compliance Reporting     | Framework mapping (SOC 2, ISO 27001), audit-ready reports    | Draft  |
+| Policy Federation        | Central registry, channels, fleet sync, publish approvals    | Draft  |
+
+**Why this is v2.0:** Organisational policy governance builds on top of the
+single-repo OPA infrastructure delivered in v1.1. It requires multi-repo
+awareness, hierarchy resolution, and fleet-level aggregation that only make
+sense after the core policy engine is battle-tested. Individual developers
+benefit from v1.x; platform teams and compliance roles benefit from these
+modules.
+
+### v2.1+ — Multi-Language Support (Placeholders)
+
+| Feature         | Description                                    | Status      |
+| --------------- | ---------------------------------------------- | ----------- |
+| Python Support  | `import`/`from` extraction, `# type: ignore`  | Placeholder |
+| Rust Support    | `use`/`mod` extraction, `unsafe` detection     | Placeholder |
+| .NET Support    | `using` extraction, `dynamic` type detection   | Placeholder |
+
+**Why these three:** Python is the second most common AI-assisted language. Rust
+and .NET represent compiled-language ecosystems with strong architecture
+conventions. Each depends on the configurable extensions infrastructure from
+v1.3. Language modules will be promoted to Ready as demand and resources allow.
+
 ### What's NOT in v1
 
 To ship fast and focused, these are explicitly deferred:
@@ -176,7 +222,8 @@ To ship fast and focused, these are explicitly deferred:
 - ~~**Drift reports** — Core value doesn't require trend analysis~~ ✅ Complete in v1.1
 - **Command safety** — Important but not blocking for initial adoption (v2.0)
 - **Plan/APS execution** — Planless-first; APS is internal
-- **Multi-language support** — TypeScript/JavaScript only for v1
+- ~~**Multi-language support** — TypeScript/JavaScript only for v1~~ HTML/CSS in
+  v1.3; Python/Rust/.NET in v2.1+
 - **Team dashboards** — Individual developer focus first
 - **Auto-fix** — Warnings only; don't be too clever
 
@@ -271,6 +318,11 @@ graph TD
 | [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | v2.0    | kindling-integration                                      |
 | [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | v2.0    | ember                                                     |
 | [edda-stack-integration](./modules/edda-stack-integration.aps.md)       | STACK   | Draft       | v2.0    | kindling-integration, ember, edda                         |
+| [opa-enhancements](./modules/opa-enhancements.aps.md)                   | OPAE    | Draft       | v2.0    | opa-architecture-integration, architecture-safety, tui    |
+| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md)           | ORGHIER | Draft       | v2.0    | opa-architecture-integration, policy-pack-validation, opa-enhancements |
+| [policy-lifecycle](./modules/policy-lifecycle.aps.md)                   | POLLC   | Draft       | v2.0    | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
+| [compliance-reporting](./modules/compliance-reporting.aps.md)           | COMPLY  | Draft       | v2.0    | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
+| [policy-federation](./modules/policy-federation.aps.md)                 | POLFED  | Draft       | v2.0    | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
 | [onboarding-feedback-resolution](./modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | v1.1    | architecture-safety, tui                                  |
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTV | Draft | v2.0  | save-time-trust                                           |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
@@ -282,6 +334,11 @@ graph TD
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | v2.0   | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | v2.0    | dashboard-foundation                                      |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | v2.0    | dashboard-foundation                                      |
+| [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Ready       | v2.0    | —                                                         |
+| [html-css-support](./modules/html-css-support.aps.md)                   | HTMLCSS  | Ready       | v1.3    | antipattern-library, architecture-safety, suppressions    |
+| [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
+| [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
+| [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -518,6 +575,18 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | DASHOPS-007 | dashops | Role-based view filtering            | Draft  | low      |
 | DASHOPS-008 | dashops | Real-time update infrastructure      | Draft  | low      |
 
+### Task Status — v1.3 (HTML/CSS Support)
+
+| Task        | Module  | Description                                 | Status  | Priority |
+| ----------- | ------- | ------------------------------------------- | ------- | -------- |
+| HTMLCSS-001 | htmlcss | Make analysable extensions configurable      | Planned | high     |
+| HTMLCSS-002 | htmlcss | HTML anti-pattern detectors (AP-008–011)     | Planned | high     |
+| HTMLCSS-003 | htmlcss | CSS anti-pattern detectors (AP-012–013)      | Planned | high     |
+| HTMLCSS-004 | htmlcss | HTML/CSS edge detection                      | Planned | high     |
+| HTMLCSS-005 | htmlcss | HTML suppression comment syntax              | Planned | high     |
+| HTMLCSS-006 | htmlcss | VS Code extension HTML/CSS trigger           | Planned | medium   |
+| HTMLCSS-007 | htmlcss | Documentation and tests                      | Planned | medium   |
+
 ### Task Status — v2.0 (AI Tool Integration)
 
 | Task       | Module         | Description                       | Status  | Priority |
@@ -539,8 +608,13 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | MCP-001    | mcp-server     | Package scaffold and basic server | Planned | high     |
 | MCP-002    | mcp-server     | anvil_check tool implementation   | Planned | high     |
 | MCP-003    | mcp-server     | anvil_gate and anvil_status tools | Planned | high     |
-| MCP-004    | mcp-server     | Resources and prompts             | Planned | medium   |
-| MCP-005    | mcp-server     | HTTP transport and config gen     | Planned | medium   |
+| MCP-004    | mcp-server     | anvil_fix and anvil_suppress tools| Planned | high     |
+| MCP-005    | mcp-server     | anvil_query_boundary tool         | Planned | high     |
+| MCP-006    | mcp-server     | Resources with subscriptions      | Planned | medium   |
+| MCP-007    | mcp-server     | Prompt templates                  | Planned | medium   |
+| MCP-008    | mcp-server     | Streamable HTTP transport         | Planned | medium   |
+| MCP-009    | mcp-server     | Config generators and CLI         | Planned | high     |
+| MCP-010    | mcp-server     | Error handling and JSON-RPC       | Planned | high     |
 
 ### Task Status — v2.0 (Edda Stack — Memory System)
 
@@ -635,6 +709,126 @@ Ember (interpretation), and Edda (canonical memory).
 | STACK-015 | stack  | Stack architecture documentation  | Draft  | medium   |
 | STACK-016 | stack  | Migration guide                   | Draft  | medium   |
 
+### Task Status — v2.0 (Organisational Policy Governance)
+
+#### OPA Enhancements
+
+| Task     | Module | Description                             | Status | Priority |
+| -------- | ------ | --------------------------------------- | ------ | -------- |
+| OPAE-001 | opae   | Enhanced architecture YAML schema       | Draft  | high     |
+| OPAE-002 | opae   | Module boundary definitions             | Draft  | high     |
+| OPAE-003 | opae   | File-level import rules                 | Draft  | high     |
+| OPAE-004 | opae   | Package import restrictions             | Draft  | high     |
+| OPAE-005 | opae   | Interactive architecture wizard         | Draft  | medium   |
+| OPAE-006 | opae   | Policy library infrastructure           | Draft  | high     |
+| OPAE-007 | opae   | Security policy pack (8 policies)       | Draft  | high     |
+| OPAE-008 | opae   | Quality policy pack (6 policies)        | Draft  | high     |
+| OPAE-009 | opae   | Scope policy pack (4 policies)          | Draft  | high     |
+| OPAE-010 | opae   | Compliance policy pack (5 policies)     | Draft  | medium   |
+| OPAE-011 | opae   | Policy browse command                   | Draft  | high     |
+| OPAE-012 | opae   | Enhanced violation messages             | Draft  | high     |
+| OPAE-013 | opae   | Policy debugger foundation              | Draft  | medium   |
+| OPAE-014 | opae   | Interactive debugger TUI                | Draft  | medium   |
+| OPAE-015 | opae   | Policy watch mode                       | Draft  | medium   |
+| OPAE-016 | opae   | Architecture watch mode                 | Draft  | medium   |
+| OPAE-017 | opae   | Watch mode performance optimisation     | Draft  | medium   |
+| OPAE-018 | opae   | Historical PR analysis                  | Draft  | medium   |
+| OPAE-019 | opae   | Impact visualisation                    | Draft  | medium   |
+| OPAE-020 | opae   | Impact simulation                       | Draft  | medium   |
+| OPAE-021 | opae   | Policy description parser (NLP)         | Draft  | low      |
+| OPAE-022 | opae   | YAML generation from NLP                | Draft  | low      |
+| OPAE-023 | opae   | Policy creation wizard                  | Draft  | low      |
+| OPAE-024 | opae   | Exception request system                | Draft  | high     |
+| OPAE-025 | opae   | Exception approval workflow             | Draft  | high     |
+| OPAE-026 | opae   | Audit trail                             | Draft  | high     |
+| OPAE-027 | opae   | Exception CLI commands                  | Draft  | high     |
+| OPAE-028 | opae   | GitHub PR comments                      | Draft  | high     |
+| OPAE-029 | opae   | GitLab MR comments                      | Draft  | high     |
+| OPAE-030 | opae   | Inline annotations                      | Draft  | medium   |
+| OPAE-031 | opae   | Compliance metrics collection           | Draft  | high     |
+| OPAE-032 | opae   | Metrics dashboard TUI                   | Draft  | medium   |
+| OPAE-033 | opae   | Team leaderboards                       | Draft  | medium   |
+| OPAE-034 | opae   | Organisation policy bundles             | Draft  | high     |
+| OPAE-035 | opae   | Bundle versioning                       | Draft  | high     |
+| OPAE-036 | opae   | Bundle inheritance                      | Draft  | medium   |
+
+#### Organisational Policy Hierarchy
+
+| Task        | Module  | Description                            | Status | Priority |
+| ----------- | ------- | -------------------------------------- | ------ | -------- |
+| ORGHIER-001 | orghier | Hierarchy configuration schema         | Draft  | high     |
+| ORGHIER-002 | orghier | Scope selector engine                  | Draft  | high     |
+| ORGHIER-003 | orghier | Policy hierarchy resolver              | Draft  | high     |
+| ORGHIER-004 | orghier | Override permission enforcement        | Draft  | high     |
+| ORGHIER-005 | orghier | Conflict diagnostics                   | Draft  | medium   |
+| ORGHIER-006 | orghier | CLI hierarchy commands                 | Draft  | high     |
+| ORGHIER-007 | orghier | Gate runner hierarchy integration      | Draft  | medium   |
+
+#### Policy Lifecycle Management
+
+| Task      | Module | Description                            | Status | Priority |
+| --------- | ------ | -------------------------------------- | ------ | -------- |
+| POLLC-001 | pollc  | Policy version schema                  | Draft  | high     |
+| POLLC-002 | pollc  | Lifecycle state machine                | Draft  | high     |
+| POLLC-003 | pollc  | Canary rollout selector                | Draft  | medium   |
+| POLLC-004 | pollc  | Grace period enforcer                  | Draft  | high     |
+| POLLC-005 | pollc  | Policy changelog generator             | Draft  | high     |
+| POLLC-006 | pollc  | CLI lifecycle commands                 | Draft  | high     |
+| POLLC-007 | pollc  | Gate runner lifecycle integration      | Draft  | medium   |
+
+#### Compliance Reporting
+
+| Task       | Module | Description                            | Status | Priority |
+| ---------- | ------ | -------------------------------------- | ------ | -------- |
+| COMPLY-001 | comply | Compliance framework registry          | Draft  | high     |
+| COMPLY-002 | comply | SOC 2 and ISO 27001 definitions        | Draft  | medium   |
+| COMPLY-003 | comply | Policy-to-control mapper               | Draft  | high     |
+| COMPLY-004 | comply | Evidence collector                     | Draft  | medium   |
+| COMPLY-005 | comply | Compliance posture scoring             | Draft  | high     |
+| COMPLY-006 | comply | Report generator                       | Draft  | medium   |
+| COMPLY-007 | comply | Historical posture tracking            | Draft  | high     |
+| COMPLY-008 | comply | CLI compliance commands                | Draft  | high     |
+
+#### Policy Federation
+
+| Task       | Module | Description                            | Status | Priority |
+| ---------- | ------ | -------------------------------------- | ------ | -------- |
+| POLFED-001 | polfed | Policy channel schema                  | Draft  | high     |
+| POLFED-002 | polfed | Central repository conventions         | Draft  | high     |
+| POLFED-003 | polfed | Policy publisher                       | Draft  | high     |
+| POLFED-004 | polfed | Publish approval gate                  | Draft  | medium   |
+| POLFED-005 | polfed | Policy subscriber                      | Draft  | high     |
+| POLFED-006 | polfed | Subscription version pinning           | Draft  | high     |
+| POLFED-007 | polfed | Fleet compliance aggregator            | Draft  | medium   |
+| POLFED-008 | polfed | CLI federation commands                | Draft  | high     |
+
+### Task Status — v2.0 (Pulumi Infrastructure as Code)
+
+| Task    | Module | Description                              | Status  | Priority |
+| ------- | ------ | ---------------------------------------- | ------- | -------- |
+| IAC-001 | iac    | Scaffold Pulumi project in monorepo      | Planned | high     |
+| IAC-002 | iac    | Configure Pulumi state backend           | Planned | high     |
+| IAC-003 | iac    | Manage website Vercel project config     | Planned | high     |
+| IAC-004 | iac    | Manage docs-site Vercel project config   | Planned | high     |
+| IAC-005 | iac    | Create VercelApp ComponentResource       | Planned | medium   |
+| IAC-006 | iac    | Manage GitHub repository configuration   | Planned | high     |
+| IAC-007 | iac    | Manage Azure DNS zones and records       | Planned | high     |
+| IAC-008 | iac    | Add Pulumi CI/CD pipeline integration    | Planned | high     |
+| IAC-009 | iac    | Write unit tests for infrastructure code | Planned | medium   |
+| IAC-010 | iac    | Import existing Vercel resources         | Planned | high     |
+| IAC-011 | iac    | Document IaC setup and contributor guide | Planned | medium   |
+| IAC-012 | iac    | Document rollback procedures             | Planned | medium   |
+
+### Task Status — v2.1+ (Multi-Language Placeholders)
+
+Tasks will be defined when each module moves from Placeholder to Ready status.
+
+| Module  | Language | Estimated Tasks | Prerequisite       | Status      |
+| ------- | -------- | --------------- | ------------------ | ----------- |
+| PYLAN   | Python   | 6               | HTMLCSS-001        | Placeholder |
+| RSTLAN  | Rust     | 5               | HTMLCSS-001        | Placeholder |
+| DNLAN   | .NET/C#  | 5               | HTMLCSS-001        | Placeholder |
+
 ## Risks & Mitigations
 
 | Risk                            | Impact | Likelihood | Mitigation                                               |
@@ -659,6 +853,9 @@ Ember (interpretation), and Edda (canonical memory).
   ([ADR](./decisions/005-ink-over-opentui.md))
 - **D-006:** Hybrid DC + OPA — DC for analysis, OPA for policies, bridge between
   ([ADR](./decisions/006-hybrid-dc-opa.md))
+- **D-007:** Pulumi for IaC — open-source Pulumi with TypeScript over Terraform
+  for consistency with the monorepo's TypeScript-first toolchain
+  ([ADR](./decisions/007-pulumi-iac.md))
 
 ## Open Questions
 

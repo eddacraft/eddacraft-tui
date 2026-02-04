@@ -16,6 +16,19 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Tutorials',
+      collapsed: false,
+      items: [
+        'tutorials/tutorials',
+        'tutorials/policies',
+        'tutorials/architecture',
+        'tutorials/drift',
+        'tutorials/ci',
+        'tutorials/suppressions',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Core Concepts',
       collapsed: false,
       items: ['concepts/plans', 'concepts/gates', 'concepts/sessions', 'concepts/audit-trail'],

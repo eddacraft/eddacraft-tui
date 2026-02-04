@@ -381,12 +381,13 @@ describe('CoverageCheck', () => {
       const result = await coverageCheck.run(context);
 
       expect(result.details).toBeDefined();
-      const details = result.details as any;
-      expect(details.details).toBeDefined();
-      expect(details.details.lines).toBeDefined();
-      expect(details.details.functions).toBeDefined();
-      expect(details.details.branches).toBeDefined();
-      expect(details.details.statements).toBeDefined();
+      const details = result.details as Record<string, unknown>;
+      const innerDetails = details.details as Record<string, unknown>;
+      expect(innerDetails).toBeDefined();
+      expect(innerDetails.lines).toBeDefined();
+      expect(innerDetails.functions).toBeDefined();
+      expect(innerDetails.branches).toBeDefined();
+      expect(innerDetails.statements).toBeDefined();
     });
   });
 

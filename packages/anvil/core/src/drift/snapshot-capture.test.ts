@@ -325,6 +325,8 @@ describe('SnapshotCapture', () => {
     it('should create service with workspace root', () => {
       const service = new SnapshotCaptureService('/test/project');
       expect(service).toBeDefined();
+      expect(typeof service.capture).toBe('function');
+      expect(typeof service.captureWithContext).toBe('function');
     });
 
     it('should capture with context', async () => {

@@ -242,7 +242,7 @@ describe('SpecKitImportAdapterV2 - Official Format', () => {
 
     expect(result.success).toBe(true);
     if (result.success && result.data) {
-      const successCriteria = result.data.metadata?.successCriteria as any;
+      const successCriteria = result.data.metadata?.successCriteria as Record<string, unknown>;
       expect(successCriteria).toBeDefined();
       expect(successCriteria.quantitative).toBeDefined();
       expect(successCriteria.qualitative).toBeDefined();

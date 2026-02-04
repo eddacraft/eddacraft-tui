@@ -185,8 +185,8 @@ const config: Config = {
     },
     prism: {
       theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
-      additionalLanguages: ['bash', 'json', 'yaml', 'typescript'],
+      darkTheme: prismThemes.vsDark,
+      additionalLanguages: ['bash', 'json', 'yaml', 'typescript', 'toml', 'rust'],
     },
     tableOfContents: {
       minHeadingLevel: 2,

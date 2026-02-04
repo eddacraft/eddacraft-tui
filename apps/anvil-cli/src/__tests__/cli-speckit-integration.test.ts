@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
 import { SpecKitFormatAdapter } from '@eddacraft/anvil-adapters';
-import type { GateRunResult } from '@eddacraft/anvil-core';
+import type { GateRunResult, APSPlan } from '@eddacraft/anvil-core';
 
 describe('CLI SpecKit Integration', () => {
   let testDir: string;
@@ -458,7 +458,7 @@ Incomplete change description
         format: 'unsupported-format',
         filePath: '/tmp/test.txt',
         gateResults,
-        plan: {} as any,
+        plan: {} as unknown as APSPlan,
       });
 
       expect(writeResult.success).toBe(false);

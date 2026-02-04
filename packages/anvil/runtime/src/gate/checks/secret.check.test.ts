@@ -80,7 +80,7 @@ describe('SecretCheck', () => {
 
     expect(result.passed).toBe(false);
     expect(result.details?.findings).toHaveLength(1);
-    expect((result.details as any).findings[0].type).toBe('API Key');
+    expect((result.details?.findings as SecretFinding[])[0].type).toBe('API Key');
   });
 
   it('should detect JWT tokens', async () => {
@@ -93,7 +93,7 @@ describe('SecretCheck', () => {
 
     expect(result.passed).toBe(false);
     expect(result.details?.findings).toHaveLength(1);
-    expect((result.details as any).findings[0].type).toBe('JWT Token');
+    expect((result.details?.findings as SecretFinding[])[0].type).toBe('JWT Token');
   });
 
   it('should detect AWS keys', async () => {
@@ -104,7 +104,7 @@ describe('SecretCheck', () => {
 
     expect(result.passed).toBe(false);
     expect(result.details?.findings).toHaveLength(1);
-    expect((result.details as any).findings[0].type).toBe('AWS Key');
+    expect((result.details?.findings as SecretFinding[])[0].type).toBe('AWS Key');
   });
 
   it('should detect private keys', async () => {
@@ -117,7 +117,7 @@ describe('SecretCheck', () => {
 
     expect(result.passed).toBe(false);
     expect(result.details?.findings).toHaveLength(1);
-    expect((result.details as any).findings[0].type).toBe('Private Key');
+    expect((result.details?.findings as SecretFinding[])[0].type).toBe('Private Key');
   });
 
   it('should detect database URLs', async () => {
@@ -130,7 +130,7 @@ describe('SecretCheck', () => {
 
     expect(result.passed).toBe(false);
     expect(result.details?.findings).toHaveLength(1);
-    expect((result.details as any).findings[0].type).toBe('Database URL');
+    expect((result.details?.findings as SecretFinding[])[0].type).toBe('Database URL');
   });
 
   it('should detect generic secrets', async () => {
@@ -140,7 +140,7 @@ describe('SecretCheck', () => {
 
     expect(result.passed).toBe(false);
     expect(result.details?.findings).toHaveLength(1);
-    expect((result.details as any).findings[0].type).toBe('Generic Secret');
+    expect((result.details?.findings as SecretFinding[])[0].type).toBe('Generic Secret');
   });
 
   it('should provide file and line information', async () => {
@@ -151,8 +151,8 @@ describe('SecretCheck', () => {
 
     const result = await secretCheck.run(context);
 
-    expect((result.details as any).findings[0].line).toBe(2);
-    expect((result.details as any).findings[0].file).toBe('/test.js');
+    expect((result.details?.findings as SecretFinding[])[0].line).toBe(2);
+    expect((result.details?.findings as SecretFinding[])[0].file).toBe('/test.js');
   });
 
   it('should handle multiple secrets in one file', async () => {
@@ -437,7 +437,8 @@ describe('SecretCheck', () => {
 
       const result = await secretCheck.run(context);
 
-      const summary = (result.details as any)?.summary;
+      const details = result.details as Record<string, unknown>;
+      const summary = details?.summary as { total: number; by_pattern: number; by_entropy: number };
 
       expect(summary).toBeDefined();
       expect(summary.total).toBeGreaterThan(0);

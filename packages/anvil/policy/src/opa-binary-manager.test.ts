@@ -46,44 +46,49 @@ describe('OPABinaryManager', () => {
   });
 
   describe('initialization', () => {
-    it('should create manager with default config', () => {
-      const defaultManager = new OPABinaryManager();
-      expect(defaultManager).toBeDefined();
-    });
-
-    it('should accept custom version', () => {
-      const customManager = new OPABinaryManager({ version: '0.55.0' });
-      expect(customManager).toBeDefined();
-    });
-
-    it('should accept custom cache directory', () => {
-      const customDir = join(tempCacheDir, 'custom');
-      const customManager = new OPABinaryManager({ cacheDir: customDir });
-      expect(customManager).toBeDefined();
-    });
-
-    it('should respect ANVIL_OPA_VERSION environment variable', () => {
+    it('should use ANVIL_OPA_VERSION from environment when provided', async () => {
       process.env.ANVIL_OPA_VERSION = '0.50.0';
-      const envManager = new OPABinaryManager({ cacheDir: tempCacheDir });
-      expect(envManager).toBeDefined();
+      const envManager = new OPABinaryManager({ cacheDir: tempCacheDir, autoDownload: false });
+
+      // getBinaryInfo returns null when no binary exists, but the version
+      // is embedded in the expected binary path name. Verify via error message.
+      const error = await envManager.ensureBinary().catch((e: Error) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('0.50.0');
+    });
+
+    it('should use custom version from config', async () => {
+      const customManager = new OPABinaryManager({
+        version: '0.55.0',
+        cacheDir: tempCacheDir,
+        autoDownload: false,
+      });
+
+      const error = await customManager.ensureBinary().catch((e: Error) => e);
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain('0.55.0');
     });
   });
 
   describe('binary path detection', () => {
-    it('should use ANVIL_OPA_PATH when set', async () => {
-      // Create a mock binary
+    it('should use ANVIL_OPA_PATH when set and file exists', async () => {
+      // Create a mock binary - verifyVersion will fail but the path check happens first
       const mockPath = join(tempCacheDir, 'mock-opa');
       writeFileSync(mockPath, '#!/bin/sh\necho "Version: 0.60.0"');
       chmodSync(mockPath, 0o755);
 
       process.env.ANVIL_OPA_PATH = mockPath;
 
-      try {
-        const path = await manager.ensureBinary();
-        expect(path).toBe(mockPath);
-      } catch (error) {
-        // Version verification might fail, but path should be checked
-        expect(error).toBeDefined();
+      // The binary exists but version verification may fail since this is a shell
+      // script not a real OPA binary. Either way, the path should be checked first.
+      const result = await manager.ensureBinary().catch((e: Error) => e);
+
+      // It either returns the path (if verification passes) or throws
+      // (if verification fails). Either way, it should NOT throw "file not found".
+      if (typeof result === 'string') {
+        expect(result).toBe(mockPath);
+      } else {
+        expect((result as Error).message).not.toContain('file not found');
       }
     });
 
@@ -91,112 +96,6 @@ describe('OPABinaryManager', () => {
       process.env.ANVIL_OPA_PATH = '/nonexistent/opa';
 
       await expect(manager.ensureBinary()).rejects.toThrow('file not found');
-    });
-  });
-
-  describe('platform detection', () => {
-    it('should detect current platform', async () => {
-      const info = await manager.getBinaryInfo();
-
-      // If binary is available or can be downloaded
-      if (info) {
-        expect(info.platform).toMatch(/^(darwin|linux|windows)$/);
-      } else {
-        // No binary available - expected in test environment
-        expect(info).toBeNull();
-      }
-    });
-
-    it('should detect current architecture', async () => {
-      const info = await manager.getBinaryInfo();
-
-      if (info) {
-        expect(info.arch).toMatch(/^(amd64|arm64)$/);
-      } else {
-        expect(info).toBeNull();
-      }
-    });
-  });
-
-  describe('version management', () => {
-    it('should return correct version from config', async () => {
-      const versionManager = new OPABinaryManager({
-        version: '0.55.0',
-        cacheDir: tempCacheDir,
-        autoDownload: false,
-      });
-
-      const info = await versionManager.getBinaryInfo();
-
-      if (info) {
-        expect(info.version).toBe('0.55.0');
-      }
-    });
-
-    it('should handle version verification', async () => {
-      // This test verifies the version checking logic doesn't crash
-      try {
-        await manager.ensureBinary();
-      } catch (error) {
-        // Expected to fail without OPA installed or auto-download disabled
-        expect(error).toBeDefined();
-      }
-    });
-  });
-
-  describe('caching behaviour', () => {
-    it('should create cache directory when needed', async () => {
-      const newCacheDir = join(tempCacheDir, 'new-cache');
-      const cachingManager = new OPABinaryManager({
-        cacheDir: newCacheDir,
-        autoDownload: false,
-      });
-
-      try {
-        await cachingManager.ensureBinary();
-      } catch {
-        // Expected to fail, but cache dir might be created
-      }
-
-      // Cache directory creation is handled internally
-      expect(cachingManager).toBeDefined();
-    });
-
-    it('should reuse cached binary if valid', async () => {
-      // Create a mock cached binary with version info
-      const binaryPath = join(tempCacheDir, 'opa-0.60.0-linux-amd64');
-      writeFileSync(binaryPath, '#!/bin/sh\necho "Version: 0.60.0"');
-      chmodSync(binaryPath, 0o755);
-
-      try {
-        const path = await manager.ensureBinary();
-        // If successful, should return cached path
-        expect(existsSync(path)).toBe(true);
-      } catch {
-        // Version verification or execution might fail in test environment
-        expect(true).toBe(true);
-      }
-    });
-  });
-
-  describe('fallback behaviour', () => {
-    it('should check system PATH for OPA', async () => {
-      // This test verifies the fallback logic doesn't crash
-      try {
-        await manager.ensureBinary();
-      } catch (error) {
-        // Expected when OPA is not in PATH and auto-download is disabled
-        expect(error).toBeDefined();
-      }
-    });
-
-    it('should throw error when autoDownload is false and no binary exists', async () => {
-      const noDownloadManager = new OPABinaryManager({
-        cacheDir: tempCacheDir,
-        autoDownload: false,
-      });
-
-      await expect(noDownloadManager.ensureBinary()).rejects.toThrow();
     });
   });
 
@@ -208,57 +107,48 @@ describe('OPABinaryManager', () => {
       expect(info).toBeNull();
     });
 
-    it('should include all required fields when available', async () => {
-      // Create a mock binary
-      const mockPath = join(tempCacheDir, 'opa-0.60.0-linux-amd64');
-      writeFileSync(mockPath, '#!/bin/sh\necho "Version: 0.60.0"');
-      chmodSync(mockPath, 0o755);
+    it('should return null rather than throwing when no binary exists', async () => {
+      // getBinaryInfo wraps ensureBinary in try/catch, returning null on failure
+      const info = await manager.getBinaryInfo();
+      expect(info).toBeNull();
 
-      try {
-        const info = await manager.getBinaryInfo();
-
-        if (info) {
-          expect(info.path).toBeDefined();
-          expect(info.version).toBeDefined();
-          expect(info.platform).toBeDefined();
-          expect(info.arch).toBeDefined();
-        }
-      } catch {
-        // Version verification might fail in test environment
-        expect(true).toBe(true);
-      }
+      // Verify that ensureBinary itself DOES throw
+      await expect(manager.ensureBinary()).rejects.toThrow();
     });
   });
 
-  describe('forceDownload', () => {
-    it('should attempt to re-download binary', async () => {
-      const downloadManager = new OPABinaryManager({
+  describe('fallback behaviour', () => {
+    it('should throw descriptive error when autoDownload is false and no binary exists', async () => {
+      const noDownloadManager = new OPABinaryManager({
         cacheDir: tempCacheDir,
         autoDownload: false,
       });
 
-      const downloadSpy = vi
-
-        .spyOn(downloadManager as any, 'downloadBinary')
-        .mockResolvedValue(undefined);
-
-      const verifiedPath = await downloadManager.forceDownload();
-
-      expect(downloadSpy).toHaveBeenCalledTimes(1);
-      expect(existsSync(verifiedPath)).toBe(false);
+      await expect(noDownloadManager.ensureBinary()).rejects.toThrow(/OPA binary not found/);
     });
 
-    it('should remove existing cached binary', async () => {
+    it('should include install instructions in error message', async () => {
+      await expect(manager.ensureBinary()).rejects.toThrow(/ANVIL_OPA_PATH/);
+    });
+  });
+
+  describe('forceDownload', () => {
+    it('should remove existing cached binary before re-downloading', async () => {
       const binaryPath = join(tempCacheDir, 'opa-0.60.0-linux-amd64');
       writeFileSync(binaryPath, 'mock binary');
 
       expect(existsSync(binaryPath)).toBe(true);
 
-      const downloadSpy = vi.spyOn(manager as any, 'downloadBinary').mockResolvedValue(undefined);
+      // Mock downloadBinary to prevent actual network call
+
+      vi.spyOn(
+        manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+        'downloadBinary'
+      ).mockResolvedValue(undefined);
 
       const verifiedPath = await manager.forceDownload();
 
-      expect(downloadSpy).toHaveBeenCalledTimes(1);
+      // The old binary should have been deleted before download was attempted
       expect(existsSync(binaryPath)).toBe(false);
       expect(verifiedPath).toBe(binaryPath);
     });
@@ -266,8 +156,6 @@ describe('OPABinaryManager', () => {
 
   describe('error handling', () => {
     it('should handle invalid cache directory gracefully', async () => {
-      // Use a path that cannot be created (permission denied scenario)
-      // In test environment, we just verify error handling exists
       const invalidManager = new OPABinaryManager({
         cacheDir: '/invalid/path/that/does/not/exist',
         autoDownload: false,
@@ -276,29 +164,34 @@ describe('OPABinaryManager', () => {
       await expect(invalidManager.ensureBinary()).rejects.toThrow();
     });
 
-    it('should provide helpful error messages', async () => {
-      try {
-        await manager.ensureBinary();
-        // Should not reach here
-        expect(false).toBe(true);
-      } catch (error) {
-        const err = error as Error;
-        expect(err.message).toBeDefined();
-        expect(err.message.length).toBeGreaterThan(0);
-      }
+    it('should provide helpful error messages with version info', async () => {
+      const error = await manager.ensureBinary().catch((e: Error) => e);
+      const err = error as Error;
+      expect(err.message).toContain('OPA');
+      expect(err.message.length).toBeGreaterThan(10);
     });
   });
 
   describe('download URL generation', () => {
     it('should generate correct download URL format', () => {
-      // This is tested indirectly through the download logic
-      // We verify the manager can be created with different configs
-      const configs = [{ version: '0.60.0' }, { version: '0.55.0' }, { version: '0.50.0' }];
+      // Access private method to verify URL generation
+      const url = (manager as unknown as { getDownloadUrl(): string }).getDownloadUrl();
 
-      configs.forEach((config) => {
-        const m = new OPABinaryManager({ ...config, cacheDir: tempCacheDir });
-        expect(m).toBeDefined();
+      expect(url).toMatch(/^https:\/\/openpolicyagent\.org\/downloads\/v\d+\.\d+\.\d+\/opa_/);
+      expect(url).toContain('0.60.0');
+      // Should contain platform and architecture
+      expect(url).toMatch(/opa_(darwin|linux|windows)_(amd64|arm64)/);
+    });
+
+    it('should use correct version in download URL', () => {
+      const customManager = new OPABinaryManager({
+        version: '0.55.0',
+        cacheDir: tempCacheDir,
       });
+      const url = (customManager as unknown as { getDownloadUrl(): string }).getDownloadUrl();
+
+      expect(url).toContain('0.55.0');
+      expect(url).not.toContain('0.60.0');
     });
   });
 });

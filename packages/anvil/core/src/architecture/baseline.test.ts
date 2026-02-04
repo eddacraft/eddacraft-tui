@@ -34,8 +34,8 @@ describe('Baseline Path Utilities', () => {
     it('should handle trailing slash', () => {
       const path = getBaselinePath('/workspace/');
 
-      expect(path).toContain(ANVIL_DIR);
-      expect(path).toContain(BASELINE_FILENAME);
+      expect(path).toBe(`/workspace/${ANVIL_DIR}/${BASELINE_FILENAME}`);
+      expect(path).not.toContain('//');
     });
   });
 
@@ -173,7 +173,11 @@ describe('Baseline Creation and Update', () => {
 
       expect(baseline.schema_version).toBe('0.1.0');
       expect(baseline.entry_points).toEqual([]);
-      expect(baseline.layers).toBeDefined();
+      expect(baseline.layers).toHaveProperty('presentation');
+      expect(baseline.layers).toHaveProperty('application');
+      expect(baseline.layers).toHaveProperty('domain');
+      expect(baseline.layers).toHaveProperty('infrastructure');
+      expect(baseline.layers).toHaveProperty('shared');
       expect(baseline.boundaries.length).toBeGreaterThan(0);
       expect(baseline.baseline_snapshot.violations).toEqual([]);
     });
@@ -664,9 +668,10 @@ describe('BaselineManager', () => {
 });
 
 describe('createBaselineManager', () => {
-  it('should create manager with workspace root', () => {
+  it('should create manager with workspace root and correct path', () => {
     const manager = createBaselineManager('/test/workspace');
 
     expect(manager).toBeInstanceOf(BaselineManager);
+    expect(manager.getPath()).toBe(getBaselinePath('/test/workspace'));
   });
 });

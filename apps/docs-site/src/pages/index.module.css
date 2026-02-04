@@ -1,5 +1,6 @@
 /**
  * EddaCraft Homepage Styles
+ * Nordic Terminal Theme
  */
 
 /* Hero Section */
@@ -8,6 +9,8 @@
   text-align: center;
   position: relative;
   overflow: hidden;
+  background-color: var(--ec-void);
+  border-bottom: 1px solid var(--ec-structure);
 }
 
 .heroTitle {
@@ -15,27 +18,23 @@
   font-weight: 700;
   letter-spacing: -0.03em;
   margin-bottom: 0.5rem;
+  font-family: var(--ifm-font-family-monospace);
+  color: var(--ec-text-primary);
 }
 
 .heroSubtitle {
   font-size: 1.5rem;
-  color: var(--ec-gray-500);
+  color: var(--ec-text-muted);
   margin-bottom: 1rem;
-}
-
-[data-theme='dark'] .heroSubtitle {
-  color: var(--ec-gray-400);
+  font-family: var(--ifm-font-family-monospace);
 }
 
 .heroDescription {
   font-size: 1.125rem;
-  color: var(--ec-gray-600);
+  color: var(--ec-text-muted);
   max-width: 600px;
   margin: 0 auto 2rem;
-}
-
-[data-theme='dark'] .heroDescription {
-  color: var(--ec-gray-400);
+  line-height: 1.6;
 }
 
 .buttons {
@@ -63,7 +62,7 @@
 /* Products Section */
 .products {
   padding: 4rem 0;
-  background-color: var(--ifm-background-surface-color);
+  background-color: var(--ec-surface);
 }
 
 .productGrid {
@@ -74,16 +73,16 @@
 
 .productTile {
   padding: 1.5rem;
-  border: 1px solid var(--ifm-toc-border-color);
-  border-radius: 8px;
-  background-color: var(--ifm-background-color);
+  border: 1px solid var(--ec-structure);
+  border-radius: 0;
+  background-color: var(--ec-void);
   transition:
     border-color 0.2s,
-    transform 0.2s;
+    background-color 0.2s;
 }
 
 .productTile:hover {
-  transform: translateY(-2px);
+  border-color: var(--ec-text-muted);
 }
 
 .productTileAnvil {
@@ -92,6 +91,7 @@
 
 .productTileAnvil:hover {
   border-color: var(--ec-anvil-accent);
+  background-color: rgba(204, 85, 0, 0.05);
 }
 
 .productTileAps {
@@ -100,6 +100,7 @@
 
 .productTileAps:hover {
   border-color: var(--ec-aps-accent);
+  background-color: rgba(100, 116, 139, 0.05);
 }
 
 .productTileKindling {
@@ -108,6 +109,7 @@
 
 .productTileKindling:hover {
   border-color: var(--ec-kindling-accent);
+  background-color: rgba(194, 65, 12, 0.05);
 }
 
 .productTileEddastack {
@@ -117,6 +119,7 @@
 
 .productTileEddastack:hover {
   border-color: var(--ec-edda-accent);
+  background-color: rgba(46, 139, 87, 0.05);
 }
 
 .productTileHeader {
@@ -130,6 +133,8 @@
   font-size: 1.25rem;
   font-weight: 600;
   margin: 0;
+  font-family: var(--ifm-font-family-monospace);
+  color: var(--ec-text-primary);
 }
 
 .badge {
@@ -137,48 +142,46 @@
   padding: 0.25em 0.5em;
   font-size: 0.65rem;
   font-weight: 500;
-  border-radius: 4px;
+  border-radius: 0;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  background-color: var(--ec-gray-200);
-  color: var(--ec-gray-600);
-}
-
-[data-theme='dark'] .badge {
-  background-color: var(--ec-gray-700);
-  color: var(--ec-gray-300);
+  background-color: var(--ec-structure);
+  color: var(--ec-text-muted);
+  border: 1px solid var(--ec-text-muted);
+  font-family: var(--ifm-font-family-monospace);
 }
 
 .productTileTagline {
   font-size: 0.95rem;
   font-weight: 500;
-  color: var(--ec-gray-600);
+  color: var(--ec-text-muted);
   margin-bottom: 0.75rem;
-}
-
-[data-theme='dark'] .productTileTagline {
-  color: var(--ec-gray-400);
 }
 
 .productTileDescription {
   font-size: 0.9rem;
-  color: var(--ec-gray-500);
+  color: var(--ec-text-muted);
   margin-bottom: 1rem;
   line-height: 1.5;
-}
-
-[data-theme='dark'] .productTileDescription {
-  color: var(--ec-gray-400);
 }
 
 .productTileLink {
   font-size: 0.875rem;
   font-weight: 500;
+  color: var(--ec-anvil-accent);
+  font-family: var(--ifm-font-family-monospace);
+}
+
+.productTileLink:hover {
+  color: var(--ec-anvil-accent-dim);
 }
 
 /* Value Props Section */
 .valueProps {
   padding: 4rem 0;
+  background-color: var(--ec-void);
+  border-top: 1px solid var(--ec-structure);
+  border-bottom: 1px solid var(--ec-structure);
 }
 
 .valueGrid {
@@ -191,28 +194,27 @@
   font-size: 1.125rem;
   font-weight: 600;
   margin-bottom: 0.5rem;
+  font-family: var(--ifm-font-family-monospace);
+  color: var(--ec-anvil-accent);
 }
 
 .valueProp p {
   font-size: 0.9rem;
-  color: var(--ec-gray-500);
+  color: var(--ec-text-muted);
   line-height: 1.6;
-}
-
-[data-theme='dark'] .valueProp p {
-  color: var(--ec-gray-400);
 }
 
 /* Quick Links Section */
 .quickLinks {
   padding: 4rem 0;
-  background-color: var(--ifm-background-surface-color);
-  border-top: 1px solid var(--ifm-toc-border-color);
+  background-color: var(--ec-surface);
 }
 
 .quickLinks h2 {
   text-align: center;
   margin-bottom: 2rem;
+  font-family: var(--ifm-font-family-monospace);
+  color: var(--ec-text-primary);
 }
 
 .linkGrid {
@@ -226,12 +228,9 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--ec-gray-500);
+  color: var(--ec-text-muted);
   margin-bottom: 0.75rem;
-}
-
-[data-theme='dark'] .linkGroup h4 {
-  color: var(--ec-gray-400);
+  font-family: var(--ifm-font-family-monospace);
 }
 
 .linkGroup ul {
@@ -246,10 +245,12 @@
 
 .linkGroup a {
   font-size: 0.9rem;
-  color: var(--ifm-color-primary);
+  color: var(--ec-text-muted);
   text-decoration: none;
+  transition: color 0.2s;
 }
 
 .linkGroup a:hover {
-  text-decoration: underline;
+  color: var(--ec-anvil-accent);
+  text-decoration: none;
 }

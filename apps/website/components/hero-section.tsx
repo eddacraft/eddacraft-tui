@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { TerminalWindow } from './terminal-window';
 
 export function HeroSection() {
   return (
-    <section className="min-h-screen pt-14">
+    <section className="lg:min-h-screen pt-14">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24 font-mono">
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-12 items-center">
           {/* Text Content - Left */}
@@ -56,12 +57,12 @@ export function HeroSection() {
               </button>
 
               {/* Secondary - Docs */}
-              <a
+              <Link
                 href="https://docs.eddacraft.ai/docs/anvil/overview"
-                className="w-full max-w-[450px] border border-structure bg-transparent px-4 sm:px-6 py-3 font-mono text-xs sm:text-sm text-text-muted transition-colors hover:border-text-muted hover:text-text-primary text-left inline-block"
+                className="block w-full max-w-[450px] border border-structure bg-transparent px-4 sm:px-6 py-3 font-mono text-xs sm:text-sm text-text-muted transition-colors hover:border-text-muted hover:text-text-primary text-left"
               >
                 READ THE DOCS
-              </a>
+              </Link>
             </div>
 
             {/* Stats */}

@@ -3,21 +3,21 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { Header } from '../../components/Header.js';
 import { ProgressBar } from '../../components/ProgressBar.js';
 import { theme } from '../../utils/theme.js';
-import { IntroStep } from './steps/IntroStep.js';
-import { PlanStep } from './steps/PlanStep.js';
-import { ValidateStep } from './steps/ValidateStep.js';
-import { GateStep } from './steps/GateStep.js';
-import { CompletionStep } from './steps/CompletionStep.js';
-import type { TutorialState, TutorialStepId } from './types.js';
+import type { TutorialState, TutorialStepId, ScanResults } from './types.js';
 import {
   createInitialTutorialState,
   getNextStep,
   getPreviousStep,
   getProgressPercentage,
   STEP_DEFINITIONS,
+  TUTORIAL_STEPS,
   canGoBack,
   isLastStep,
 } from './types.js';
+import { ScanStep } from './steps/ScanStep.js';
+import { WatchStep } from './steps/WatchStep.js';
+import { FixStep } from './steps/FixStep.js';
+import { NextStepsStep } from './steps/NextStepsStep.js';
 
 interface TutorialProps {
   onComplete?: () => void;
@@ -50,23 +50,17 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
     }
   }, [state.currentStep, goToStep]);
 
-  const handlePlanComplete = useCallback((planPath: string) => {
-    setState((prev) => ({ ...prev, samplePlanPath: planPath }));
+  const handleScanComplete = useCallback((results: ScanResults) => {
+    setState((prev) => ({ ...prev, scanResults: results }));
   }, []);
 
-  const handleValidationComplete = useCallback((result: { success: boolean; message: string }) => {
-    setState((prev) => ({ ...prev, validationResult: result }));
+  const handleWatchComplete = useCallback(() => {
+    setState((prev) => ({ ...prev, watchTriggered: true }));
   }, []);
 
-  const handleGateComplete = useCallback(
-    (result: {
-      success: boolean;
-      checks: Array<{ name: string; passed: boolean; message: string }>;
-    }) => {
-      setState((prev) => ({ ...prev, gateResult: result }));
-    },
-    []
-  );
+  const handleFixComplete = useCallback(() => {
+    setState((prev) => ({ ...prev, fixConfirmed: true }));
+  }, []);
 
   const handleCleanup = useCallback(() => {
     setState((prev) => ({ ...prev, cleanupRequested: true }));
@@ -102,6 +96,8 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
   });
 
   const currentStepDef = STEP_DEFINITIONS[state.currentStep];
+  const stepNumber = TUTORIAL_STEPS.indexOf(state.currentStep) + 1;
+  const totalSteps = TUTORIAL_STEPS.length;
   const progress = getProgressPercentage(state.currentStep);
 
   return (
@@ -111,34 +107,30 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
       <Box marginY={1} flexDirection="column">
         <Box marginBottom={1}>
           <Text color={theme.colours.smoke}>
-            Step {progress / 20} of 5: {currentStepDef.description}
+            Step {stepNumber} of {totalSteps}: {currentStepDef.description}
           </Text>
         </Box>
         <ProgressBar percent={progress} width={40} showPercent={false} />
       </Box>
 
       <Box flexDirection="column" marginY={1}>
-        {state.currentStep === 'intro' && <IntroStep onNext={handleNext} />}
-        {state.currentStep === 'plan' && (
-          <PlanStep onComplete={handlePlanComplete} samplePlanPath={state.samplePlanPath} />
+        {state.currentStep === 'scan' && (
+          <ScanStep onComplete={handleScanComplete} scanResults={state.scanResults} />
         )}
-        {state.currentStep === 'validate' && state.samplePlanPath && (
-          <ValidateStep
-            planPath={state.samplePlanPath}
-            onComplete={handleValidationComplete}
-            validationResult={state.validationResult}
+        {state.currentStep === 'watch' && (
+          <WatchStep onComplete={handleWatchComplete} watchTriggered={state.watchTriggered} />
+        )}
+        {state.currentStep === 'fix' && (
+          <FixStep
+            scanResults={state.scanResults}
+            fixConfirmed={state.fixConfirmed}
+            onComplete={handleFixComplete}
           />
         )}
-        {state.currentStep === 'gate' && state.samplePlanPath && (
-          <GateStep
-            planPath={state.samplePlanPath}
-            onComplete={handleGateComplete}
-            gateResult={state.gateResult}
-          />
-        )}
-        {state.currentStep === 'completion' && (
-          <CompletionStep
+        {state.currentStep === 'next-steps' && (
+          <NextStepsStep
             startedAt={state.startedAt}
+            scanResults={state.scanResults}
             onCleanup={handleCleanup}
             onFinish={handleFinish}
           />
