@@ -163,6 +163,3 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 | [Architecture](./docs/ARCHITECTURE.md)                                       | System design               |
 | [Plans](./plans/index.aps.md)                                                | Detailed roadmap            |
 
-## License
-
-[MIT](./LICENSE)
