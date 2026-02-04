@@ -1,4 +1,5 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { resolve, relative } from 'node:path';
 
 /**
  * Registers the `anvil://file/{path}/warnings` resource template on the given MCP server.
@@ -25,6 +26,25 @@ export function registerFileWarningsResource(
         const rawPath = Array.isArray(path) ? path.join('/') : String(path);
         // Decode URI-encoded path segments (e.g., %2F -> /)
         const filePath = decodeURIComponent(rawPath);
+
+        // Reject paths that escape the workspace root
+        const absPath = resolve(workspaceRoot, filePath);
+        const rel = relative(workspaceRoot, absPath);
+        if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== absPath) {
+          return {
+            contents: [
+              {
+                uri: uri.href,
+                mimeType: 'application/json',
+                text: JSON.stringify(
+                  { error: `Path "${filePath}" resolves outside workspace root` },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
 
         const { GateRunner } = await import('@eddacraft/anvil-runtime');
         const runner = new GateRunner();

@@ -717,6 +717,16 @@ describe('MCP Resources', () => {
       const parsed = parseResourceText(result) as { error: string };
       expect(parsed.error).toBe('File not found');
     });
+
+    it('rejects path traversal with ../ segments', async () => {
+      const { client } = await createServerWithResource(registerFileWarningsResource);
+      const result = await client.readResource({
+        uri: 'anvil://file/..%2F..%2F..%2Fetc%2Fpasswd/warnings',
+      });
+
+      const parsed = parseResourceText(result) as { error: string };
+      expect(parsed.error).toContain('outside workspace root');
+    });
   });
 
   // =========================================================================
