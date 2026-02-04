@@ -1,0 +1,65 @@
+import { Command } from 'commander';
+import chalk from 'chalk';
+import { adminInvite, adminRevoke } from '../services/admin-client.js';
+import { success, error, info } from '../utils/output.js';
+
+export function createBetaCommand(): Command {
+  const command = new Command('beta');
+
+  command.description('Beta access management (requires ANVIL_ADMIN_KEY)');
+
+  command
+    .command('invite')
+    .description('Invite a user and generate a beta access token')
+    .requiredOption('--email <email>', 'User email address')
+    .option('--days <days>', 'Token validity in days', '90')
+    .option('--name <name>', 'User display name')
+    .option('--notes <notes>', 'Internal notes about this user')
+    .action(async (options: { email: string; days: string; name?: string; notes?: string }) => {
+      try {
+        const result = await adminInvite({
+          email: options.email,
+          days: parseInt(options.days, 10),
+          name: options.name,
+          notes: options.notes,
+        });
+
+        success('Beta access token created');
+        console.log('');
+        console.log(`  ${chalk.bold('User:')}     ${result.user.email}`);
+        console.log(`  ${chalk.bold('Scopes:')}   ${result.scopes.join(', ')}`);
+        console.log(
+          `  ${chalk.bold('Expires:')}  ${new Date(result.expiresAt).toLocaleDateString()}`
+        );
+        console.log('');
+        console.log(chalk.yellow('  Token (share with user — shown only once):'));
+        console.log('');
+        console.log(`  ${chalk.cyan(result.token)}`);
+        console.log('');
+      } catch (err) {
+        error(err instanceof Error ? err.message : 'Failed to create invite');
+        process.exit(1);
+      }
+    });
+
+  command
+    .command('revoke')
+    .description('Revoke all beta access tokens for a user')
+    .requiredOption('--email <email>', 'User email address')
+    .action(async (options: { email: string }) => {
+      try {
+        const result = await adminRevoke(options.email);
+
+        if (result.revoked > 0) {
+          success(`Revoked ${result.revoked} token(s) for ${options.email}`);
+        } else {
+          info(`No active tokens found for ${options.email}`);
+        }
+      } catch (err) {
+        error(err instanceof Error ? err.message : 'Failed to revoke tokens');
+        process.exit(1);
+      }
+    });
+
+  return command;
+}

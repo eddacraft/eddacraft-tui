@@ -1,0 +1,7 @@
+{
+  "name": "anvil-api",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/anvil-api/src",
+  "projectType": "application",
+  "tags": ["scope:api"]
+}
