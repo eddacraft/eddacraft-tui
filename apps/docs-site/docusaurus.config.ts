@@ -55,10 +55,10 @@ const config: Config = {
     //   '@docusaurus/plugin-content-docs',
     //   {
     //     id: 'start-here',
-    //     path: 'docs/start-here',
+    //     path: '../../docs/public/start-here',
     //     routeBasePath: 'docs/start-here',
     //     sidebarPath: './sidebars/start-here.ts',
-    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/website/',
+    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/start-here/',
     //   },
     // ],
     // Anvil - primary product
@@ -66,10 +66,10 @@ const config: Config = {
       '@docusaurus/plugin-content-docs',
       {
         id: 'anvil',
-        path: 'docs/anvil',
+        path: '../../docs/public/anvil',
         routeBasePath: 'docs/anvil',
         sidebarPath: './sidebars/anvil.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/website/',
+        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/anvil/',
       },
     ],
     // APS - OSS spec
@@ -77,10 +77,10 @@ const config: Config = {
       '@docusaurus/plugin-content-docs',
       {
         id: 'aps',
-        path: 'docs/aps',
+        path: '../../docs/public/aps',
         routeBasePath: 'docs/aps',
         sidebarPath: './sidebars/aps.ts',
-        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/website/',
+        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/aps/',
       },
     ],
     // DISABLED for go-live: Kindling - OSS memory capture
@@ -88,10 +88,10 @@ const config: Config = {
     //   '@docusaurus/plugin-content-docs',
     //   {
     //     id: 'kindling',
-    //     path: 'docs/kindling',
+    //     path: '../../docs/public/kindling',
     //     routeBasePath: 'docs/kindling',
     //     sidebarPath: './sidebars/kindling.ts',
-    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/website/',
+    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/kindling/',
     //   },
     // ],
     // DISABLED for go-live: Edda Stack - placeholder/roadmap
@@ -99,10 +99,10 @@ const config: Config = {
     //   '@docusaurus/plugin-content-docs',
     //   {
     //     id: 'edda-stack',
-    //     path: 'docs/edda-stack',
+    //     path: '../../docs/public/edda-stack',
     //     routeBasePath: 'docs/edda-stack',
     //     sidebarPath: './sidebars/edda-stack.ts',
-    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/website/',
+    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/edda-stack/',
     //   },
     // ],
   ],
