@@ -623,6 +623,11 @@ async function runDetectAndApplyInit(
     process.exit(1);
   }
 
+  if (configMgr.exists() && !force) {
+    error('.anvil/config.yml already exists. Use --force to overwrite.');
+    process.exit(1);
+  }
+
   // Step 1: Detect project
   const detector = new EnvironmentDetector(projectRoot);
   const env = detector.detect();

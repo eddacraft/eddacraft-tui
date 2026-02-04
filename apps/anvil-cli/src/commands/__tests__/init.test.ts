@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInitCommand } from '../init.js';
 import {
@@ -464,6 +464,35 @@ describe('init command', () => {
       }).rejects.toThrow('process.exit(1)');
 
       expect(exitCode).toBe(1);
+    });
+
+    it('should exit with error if .anvil/config.yml exists without force', async () => {
+      const configDir = join(workspace.root, '.anvil');
+      mkdirSync(configDir, { recursive: true });
+      writeFileSync(join(configDir, 'config.yml'), 'policies:\n  team: []\n', 'utf-8');
+
+      const command = createInitCommand();
+
+      await expect(async () => {
+        await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+      }).rejects.toThrow('process.exit(1)');
+
+      expect(exitCode).toBe(1);
+    });
+
+    it('should overwrite config.yml if --force is used with --org', async () => {
+      const configDir = join(workspace.root, '.anvil');
+      mkdirSync(configDir, { recursive: true });
+      writeFileSync(join(configDir, 'config.yml'), 'policies:\n  team: []\n', 'utf-8');
+
+      const command = createInitCommand();
+      await command.parseAsync(['--org', 'my-org', '--force'], { from: 'user' });
+
+      const configPath = join(workspace.root, '.anvil', 'config.yml');
+      expect(existsSync(configPath)).toBe(true);
+
+      const content = readFileSync(configPath, 'utf-8');
+      expect(content).toContain('git@github.com:my-org/anvil-policies.git');
     });
 
     it('should overwrite if --force is used with --org', async () => {
