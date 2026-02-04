@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { resolve, relative } from 'node:path';
 
 /**
  * Deterministic mechanical transforms for known antipattern warnings.
@@ -61,7 +61,7 @@ export function registerFixTool(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
+        destructiveHint: true,
         idempotentHint: true,
       },
     },
@@ -82,7 +82,22 @@ export function registerFixTool(server: McpServer): void {
           };
         }
 
-        const absPath = join(workspaceRoot, filePath);
+        // Validate path stays within workspace
+        const absPath = resolve(workspaceRoot, filePath);
+        const rel = relative(workspaceRoot, absPath);
+        if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== absPath) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  fixed: false,
+                  reason: `Path "${filePath}" resolves outside workspace root`,
+                }),
+              },
+            ],
+          };
+        }
         const content = readFileSync(absPath, 'utf-8');
         const lines = content.split('\n');
         const lineIndex = line - 1;

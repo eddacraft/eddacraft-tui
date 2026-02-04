@@ -198,6 +198,22 @@ describe('anvil_fix tool', () => {
       expect(parsed['reason']).toContain('not found on line 1');
     });
 
+    it('rejects path traversal with ../', async () => {
+      const result = await client.callTool({
+        name: 'anvil_fix',
+        arguments: {
+          filePath: '../../../etc/passwd',
+          warningId: 'AP-003',
+          line: 1,
+          workspaceRoot: tmpDir,
+        },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['fixed']).toBe(false);
+      expect(parsed['reason']).toContain('outside workspace root');
+    });
+
     it('returns isError when file does not exist', async () => {
       const result = await client.callTool({
         name: 'anvil_fix',

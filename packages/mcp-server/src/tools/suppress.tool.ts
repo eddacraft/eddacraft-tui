@@ -1,7 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { resolve, relative } from 'node:path';
 
 export function registerSuppressTool(server: McpServer): void {
   server.registerTool(
@@ -20,18 +20,33 @@ export function registerSuppressTool(server: McpServer): void {
       },
       annotations: {
         readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
+        destructiveHint: true,
+        idempotentHint: false,
       },
     },
     async ({ filePath, warningId, line, reason, workspaceRoot, expiryDays }) => {
       try {
+        // Validate path stays within workspace
+        const absPath = resolve(workspaceRoot, filePath);
+        const rel = relative(workspaceRoot, absPath);
+        if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== absPath) {
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify({
+                  suppressed: false,
+                  reason: `Path "${filePath}" resolves outside workspace root`,
+                }),
+              },
+            ],
+          };
+        }
+
         const days = expiryDays ?? 30;
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + days);
         const expiryStr = expiry.toISOString().split('T')[0];
-
-        const absPath = join(workspaceRoot, filePath);
         const content = readFileSync(absPath, 'utf-8');
         const lines = content.split('\n');
         const lineIndex = line - 1;
@@ -52,7 +67,7 @@ export function registerSuppressTool(server: McpServer): void {
 
         // Detect indentation of the target line
         const indent = lines[lineIndex].match(/^(\s*)/)?.[1] ?? '';
-        const comment = `${indent}// @anvil-ignore ${warningId}: ${reason} [expires: ${expiryStr}]`;
+        const comment = `${indent}// @anvil-ignore-until ${expiryStr} ${warningId}: ${reason}`;
 
         // Insert suppression comment above the target line
         lines.splice(lineIndex, 0, comment);

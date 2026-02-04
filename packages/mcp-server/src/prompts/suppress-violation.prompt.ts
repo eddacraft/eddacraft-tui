@@ -52,7 +52,7 @@ Use the \`anvil_suppress\` tool with these parameters:
 
 This will insert a comment above the target line:
 \`\`\`
-// @anvil-ignore ${warningId}: <reason> [expires: YYYY-MM-DD]
+// @anvil-ignore-until YYYY-MM-DD ${warningId}: <reason>
 \`\`\`
 
 ## Important reminders:

@@ -24,7 +24,7 @@
     "@modelcontextprotocol/sdk": "^1.12.1",
     "express": "^5.1.0",
     "zod": "^4.3.6",
-    "@eddacraft/anvil-runtime": "0.1.0"
+    "@eddacraft/anvil-runtime": "workspace:*"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

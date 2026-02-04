@@ -68,14 +68,14 @@ describe('anvil_suppress tool', () => {
       // Verify file content
       const content = readFileSync(absPath, 'utf-8');
       const lines = content.split('\n');
-      expect(lines[0]).toContain('// @anvil-ignore AP-003:');
+      expect(lines[0]).toContain('// @anvil-ignore-until');
+      expect(lines[0]).toContain('AP-003:');
       expect(lines[0]).toContain('Legacy code, will refactor later');
-      expect(lines[0]).toContain('[expires:');
       // Original line should now be on line 2
       expect(lines[1]).toBe('const x: any = 1;');
     });
 
-    it('comment has the correct format: // @anvil-ignore ID: reason [expires: YYYY-MM-DD]', async () => {
+    it('comment has the correct format: // @anvil-ignore-until YYYY-MM-DD ID: reason', async () => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date('2026-01-15T00:00:00Z'));
 
@@ -95,7 +95,7 @@ describe('anvil_suppress tool', () => {
 
       const parsed = parseResult(result);
       expect(parsed['suppressed']).toBe(true);
-      expect(parsed['comment']).toBe('// @anvil-ignore AP-004: Tech debt [expires: 2026-02-14]');
+      expect(parsed['comment']).toBe('// @anvil-ignore-until 2026-02-14 AP-004: Tech debt');
       expect(parsed['expiryDate']).toBe('2026-02-14');
     });
   });
@@ -126,7 +126,7 @@ describe('anvil_suppress tool', () => {
       const content = readFileSync(absPath, 'utf-8');
       const lines = content.split('\n');
       // The suppression comment should have the same indentation as the target line
-      expect(lines[1]).toMatch(/^ {4}\/\/ @anvil-ignore AP-003:/);
+      expect(lines[1]).toMatch(/^ {4}\/\/ @anvil-ignore-until \d{4}-\d{2}-\d{2} AP-003:/);
       expect(lines[2]).toBe('    const x: any = 1;');
     });
   });
@@ -205,6 +205,23 @@ describe('anvil_suppress tool', () => {
       const parsed = parseResult(result);
       expect(parsed['suppressed']).toBe(false);
       expect(parsed['reason']).toContain('out of range');
+    });
+
+    it('rejects path traversal with ../', async () => {
+      const result = await client.callTool({
+        name: 'anvil_suppress',
+        arguments: {
+          filePath: '../../../etc/passwd',
+          warningId: 'AP-003',
+          line: 1,
+          reason: 'Traversal attempt',
+          workspaceRoot: tmpDir,
+        },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['suppressed']).toBe(false);
+      expect(parsed['reason']).toContain('outside workspace root');
     });
 
     it('returns isError when file does not exist', async () => {

@@ -45,8 +45,13 @@ export function registerStatusTool(server: McpServer): void {
             source: result.path,
             checks: result.config.checks.filter((c) => c.enabled).map((c) => c.name),
           };
-        } catch {
-          // Config not found or invalid -- keep defaults
+        } catch (configError) {
+          configInfo = {
+            loaded: false,
+            source: null,
+            checks: [],
+            error: configError instanceof Error ? configError.message : String(configError),
+          } as typeof configInfo & { error: string };
         }
 
         const hasBaseline = baselineExists(workspaceRoot);
