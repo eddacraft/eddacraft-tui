@@ -9,6 +9,7 @@ packages:
   - packages/edda-stack
   - packages/eslint-plugin-anvil
   - packages/kindling-integration
+  - packages/mcp-server
   - packages/vscode-extension
   # Platform packages
   - packages/platform/*
