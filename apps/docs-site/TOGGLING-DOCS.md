@@ -151,13 +151,13 @@ pnpm start
 
 ## Current Section Status
 
-| Section    | Status  | Notes                   |
-| ---------- | ------- | ----------------------- |
-| start-here | Enabled | Always on - entry point |
-| anvil      | Enabled | Primary product         |
-| aps        | Enabled | OSS spec                |
-| kindling   | Enabled | OSS memory capture      |
-| edda-stack | Enabled | Placeholder/roadmap     |
+| Section    | Status   | Notes                            |
+| ---------- | -------- | -------------------------------- |
+| start-here | Disabled | Folded into homepage for go-live |
+| anvil      | Enabled  | Primary product                  |
+| aps        | Enabled  | OSS spec                         |
+| kindling   | Disabled | Hidden until post-launch         |
+| edda-stack | Disabled | Hidden until post-launch         |
 
 ## Checklist for Disabling a Section
 

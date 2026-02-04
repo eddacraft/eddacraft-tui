@@ -17,13 +17,10 @@ function HomepageHeader() {
         </Heading>
         <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
         <p className={styles.heroDescription}>
-          Anvil enforces plans and gates. APS defines the plan. Kindling captures what happened.
+          Anvil enforces plans and gates. APS defines the plan.
         </p>
         <div className={styles.buttons}>
-          <Link
-            className="button button--primary button--lg"
-            to="/docs/start-here/what-is-eddacraft"
-          >
+          <Link className="button button--primary button--lg" to="/docs/anvil/overview">
             Get Started
           </Link>
           <Link className="button button--secondary button--lg" to="/docs/anvil/quickstart">
@@ -40,7 +37,7 @@ interface ProductTileProps {
   tagline: string;
   description: string;
   href: string;
-  variant: 'anvil' | 'aps' | 'kindling' | 'edda-stack';
+  variant: 'anvil' | 'aps';
   status?: 'available' | 'coming-soon';
 }
 
@@ -91,21 +88,6 @@ function ProductTiles() {
             href="/docs/aps/overview"
             variant="aps"
           />
-          <ProductTile
-            title="Kindling"
-            tagline="Capture sessions as memory"
-            description="Store structured observations from development sessions. Build knowledge that persists and transfers."
-            href="/docs/kindling/overview"
-            variant="kindling"
-          />
-          <ProductTile
-            title="Edda Stack"
-            tagline="The complete architecture"
-            description="Capture, promote, and curate development knowledge. From raw observations to verified team wisdom."
-            href="/docs/edda-stack/overview"
-            variant="edda-stack"
-            status="coming-soon"
-          />
         </div>
       </div>
     </section>
@@ -155,10 +137,10 @@ function QuickLinks() {
             <h4>Getting Started</h4>
             <ul>
               <li>
-                <Link to="/docs/start-here/what-is-eddacraft">What is EddaCraft?</Link>
+                <Link to="/docs/anvil/overview">Anvil Overview</Link>
               </li>
               <li>
-                <Link to="/docs/start-here/choose-your-path">Choose Your Path</Link>
+                <Link to="/docs/aps/overview">APS Overview</Link>
               </li>
               <li>
                 <Link to="/docs/anvil/quickstart">Anvil Quickstart</Link>
@@ -175,7 +157,7 @@ function QuickLinks() {
                 <Link to="/docs/aps/spec/taxonomy">APS Taxonomy</Link>
               </li>
               <li>
-                <Link to="/docs/kindling/concepts/capsules">Capsules</Link>
+                <Link to="/docs/anvil/concepts/plans">Plans</Link>
               </li>
             </ul>
           </div>
@@ -203,7 +185,7 @@ function QuickLinks() {
                 <Link to="/docs/aps/schemas/json-schema">APS Schema</Link>
               </li>
               <li>
-                <Link to="/docs/kindling/reference/cli">Kindling CLI</Link>
+                <Link to="/docs/aps/examples/minimal-plan">APS Examples</Link>
               </li>
             </ul>
           </div>
@@ -217,7 +199,7 @@ export default function Home(): ReactNode {
   return (
     <Layout
       title="The forge for governed AI-assisted work"
-      description="EddaCraft builds tools that make AI-generated code changes safe for production. Anvil validates. APS plans. Kindling captures."
+      description="EddaCraft builds tools that make AI-generated code changes safe for production. Anvil validates. APS plans."
     >
       <HomepageHeader />
       <main>
