@@ -162,4 +162,3 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 | [Configuration](./apps/docs-site/docs/anvil/operations/config.md)            | Configuration options       |
 | [Architecture](./docs/ARCHITECTURE.md)                                       | System design               |
 | [Plans](./plans/index.aps.md)                                                | Detailed roadmap            |
-
