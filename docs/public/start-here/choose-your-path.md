@@ -46,7 +46,7 @@ You need to capture session context and observations for later retrieval.
 | ------------------------- | ------------------------------------------------------------ |
 | Get Kindling running      | [Install Kindling](/docs/kindling/quickstart/install)        |
 | Create your first capsule | [Create a Capsule](/docs/kindling/quickstart/create-capsule) |
-| Connect to your workflow  | [Adapters Overview](/docs/kindling/adapters/opencode)        |
+| Connect to your workflow  | [Custom Adapters](/docs/kindling/adapters/custom)            |
 | Understand the data model | [Observations](/docs/kindling/concepts/observations)         |
 
 ---

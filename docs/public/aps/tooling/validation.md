@@ -64,7 +64,7 @@ anvil plan validate --level semantic plans/index.aps.md
 Checks:
 
 - No circular dependencies
-- All tasks have outcomes
+- All tasks have intents
 - Validation commands present
 
 ### Full Validation
@@ -102,7 +102,7 @@ hyphen
 ```markdown
 ## Task: AUTH-001 — Title
 
-**Outcome:** Required
+**Intent:** Required
 
 **Validation:** Required
 ```
@@ -150,14 +150,14 @@ Error: Invalid task ID format
   Location: plans/modules/auth.aps.md line 23
 ```
 
-### Missing Outcome
+### Missing Intent
 
 ```
-Error: Task missing outcome
+Error: Task missing intent
   Task: AUTH-002
   Location: plans/modules/auth.aps.md line 45
 
-  Add an **Outcome:** section to define success criteria.
+  Add an **Intent:** section to define what the task aims to achieve.
 ```
 
 ### Circular Dependency
@@ -229,4 +229,4 @@ interface ValidationError {
 
 ---
 
-**Next:** [Design rationale →](/docs/aps/design/rationale)
+**Back to:** [APS Overview →](/docs/aps/overview)

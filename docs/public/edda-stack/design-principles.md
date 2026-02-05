@@ -188,4 +188,4 @@ Org verifies → Edda (org-wide)
 
 ---
 
-**Next:** [Roadmap →](/docs/edda-stack/roadmap)
+**Back to:** [Edda Stack Overview →](/docs/edda-stack/overview)

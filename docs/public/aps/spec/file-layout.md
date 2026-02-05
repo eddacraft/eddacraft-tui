@@ -117,7 +117,7 @@ version: 1.0
 
 ### Task: CORE-001 — Initial setup
 
-**Outcome:** Project builds successfully
+**Intent:** Project builds successfully
 
 **Validation:** `pnpm build`
 ```

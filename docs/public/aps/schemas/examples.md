@@ -23,7 +23,7 @@ version: 1.0
 
 ## Task: TASK-001 — Setup
 
-**Outcome:** Project initialised
+**Intent:** Project initialised
 
 **Validation:** `echo "done"`
 ```
@@ -42,7 +42,7 @@ version: 1.0
         {
           "id": "TASK-001",
           "title": "Setup",
-          "outcome": "Project initialised",
+          "intent": "Project initialised",
           "validation": "echo \"done\""
         }
       ]
@@ -90,9 +90,9 @@ User authentication and session management.
 
 ## Task: AUTH-001 — Login endpoint
 
-**Status:** complete
+**Status:** completed
 
-**Outcome:** Users can authenticate with email and password. The system returns
+**Intent:** Users can authenticate with email and password. The system returns
 a JWT valid for 24 hours. Invalid credentials return a 401 response.
 
 **Validation:**
@@ -116,9 +116,9 @@ pnpm test src/auth/login.test.ts
 
 ## Task: AUTH-002 — Registration
 
-**Status:** in_progress
+**Status:** locked
 
-**Outcome:** New users can create accounts with email and password. Email
+**Intent:** New users can create accounts with email and password. Email
 uniqueness is enforced. Password strength requirements applied.
 
 **Validation:**

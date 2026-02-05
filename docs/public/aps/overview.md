@@ -30,7 +30,7 @@ version: 1.0
 
 ## Task: AUTH-001 — Login Endpoint
 
-**Outcome:** Users authenticate with email/password, receiving a JWT.
+**Intent:** Users authenticate with email/password, receiving a JWT.
 
 **Validation:** `pnpm test src/auth/login.test.ts`
 ```
@@ -114,7 +114,7 @@ A unit of authorised work:
 ```markdown
 ## Task: AUTH-001 — Login endpoint
 
-**Outcome:** Users authenticate with credentials
+**Intent:** Users authenticate with credentials
 
 **Validation:** `pnpm test src/auth/login.test.ts`
 
@@ -212,7 +212,7 @@ module: core
 
 ## Task: CORE-001 — Initial setup
 
-**Outcome:** Project builds and tests pass
+**Intent:** Project builds and tests pass
 
 **Validation:** `pnpm build && pnpm test`
 ```

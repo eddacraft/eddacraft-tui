@@ -43,11 +43,11 @@ The hash is computed from the **semantic content**, not the raw text.
 ```markdown
 # Before
 
-Outcome: Users can log in
+Intent: Users can log in
 
 # After (hash changes)
 
-Outcome: Users can log in with SSO
+Intent: Users can log in with SSO
 ```
 
 ### What Doesn't Change the Hash
@@ -57,11 +57,11 @@ Outcome: Users can log in with SSO
 ```markdown
 # These produce the same hash:
 
-Outcome: Users can log in
+Intent: Users can log in
 
-Outcome: Users can log in
+Intent: Users can log in
 
-Outcome: Users can log in
+Intent: Users can log in
 ```
 
 **Comment changes:**
@@ -69,11 +69,11 @@ Outcome: Users can log in
 ```markdown
 # These produce the same hash:
 
-Outcome: Users can log in
+Intent: Users can log in
 
 <!-- This is a comment -->
 
-Outcome: Users can log in
+Intent: Users can log in
 
 <!-- Different comment -->
 ```
@@ -107,7 +107,7 @@ anvil plan hash plans/index.aps.md
 
 - Heading text and level
 - Task IDs and titles
-- Outcome text
+- Intent text
 - Validation commands
 - Step text and order
 - Dependencies
@@ -195,7 +195,7 @@ The canonical form is JSON:
         {
           "id": "AUTH-001",
           "title": "Login endpoint",
-          "outcome": "Users can log in"
+          "intent": "Users can log in"
         }
       ]
     }

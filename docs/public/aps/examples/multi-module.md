@@ -64,7 +64,7 @@ User registration, login, and session management.
 
 **Status:** complete
 
-**Outcome:** New users can create accounts with email and password. Passwords
+**Intent:** New users can create accounts with email and password. Passwords
 are hashed. Email uniqueness enforced.
 
 **Validation:** `pnpm test src/auth/register.test.ts`
@@ -82,7 +82,7 @@ are hashed. Email uniqueness enforced.
 
 **Status:** complete
 
-**Outcome:** Users authenticate with email/password and receive JWT.
+**Intent:** Users authenticate with email/password and receive JWT.
 
 **Validation:** `pnpm test src/auth/login.test.ts`
 
@@ -99,7 +99,7 @@ are hashed. Email uniqueness enforced.
 
 **Status:** complete
 
-**Outcome:** Protected routes require valid JWT. Invalid tokens return 401.
+**Intent:** Protected routes require valid JWT. Invalid tokens return 401.
 
 **Validation:** `pnpm test src/middleware/auth.test.ts`
 ```
@@ -122,7 +122,7 @@ Product catalog management.
 
 **Status:** complete
 
-**Outcome:** GET /products returns paginated product list with filtering.
+**Intent:** GET /products returns paginated product list with filtering.
 
 **Validation:** `pnpm test src/products/list.test.ts`
 
@@ -139,7 +139,7 @@ Product catalog management.
 
 **Status:** complete
 
-**Outcome:** GET /products/:id returns full product details.
+**Intent:** GET /products/:id returns full product details.
 
 **Validation:** `pnpm test src/products/details.test.ts`
 
@@ -149,7 +149,7 @@ Product catalog management.
 
 **Status:** pending
 
-**Outcome:** Admins can create, update, and delete products.
+**Intent:** Admins can create, update, and delete products.
 
 **Validation:** `pnpm test src/products/admin.test.ts`
 
@@ -179,7 +179,7 @@ Shopping cart functionality.
 
 **Status:** in_progress
 
-**Outcome:** Authenticated users can add products to their cart. Cart persists
+**Intent:** Authenticated users can add products to their cart. Cart persists
 across sessions.
 
 **Validation:** `pnpm test src/cart/add.test.ts`
@@ -202,7 +202,7 @@ across sessions.
 
 **Status:** pending
 
-**Outcome:** Users see their cart with items, quantities, and totals.
+**Intent:** Users see their cart with items, quantities, and totals.
 
 **Validation:** `pnpm test src/cart/view.test.ts`
 
@@ -216,7 +216,7 @@ across sessions.
 
 **Status:** pending
 
-**Outcome:** Users can update quantities or remove items.
+**Intent:** Users can update quantities or remove items.
 
 **Validation:** `pnpm test src/cart/update.test.ts`
 
@@ -246,7 +246,7 @@ Payment processing and order creation.
 
 **Status:** pending
 
-**Outcome:** System can process payments via Stripe. Supports card payments. PCI
+**Intent:** System can process payments via Stripe. Supports card payments. PCI
 compliant.
 
 **Validation:** `pnpm test src/payments/stripe.test.ts`
@@ -264,7 +264,7 @@ compliant.
 
 **Status:** pending
 
-**Outcome:** Users complete checkout: review → payment → confirmation. Cart
+**Intent:** Users complete checkout: review → payment → confirmation. Cart
 cleared on success. Order created.
 
 **Validation:** `pnpm test src/payments/checkout.test.ts`
@@ -330,4 +330,4 @@ PROD-002 ───────────────────────�
 
 ---
 
-**Next:** [CLI tooling →](/docs/aps/tooling/cli)
+**Next:** [Validation tooling →](/docs/aps/tooling/validation)

@@ -25,7 +25,7 @@ A simple todo list application.
 
 ## Task: TODO-001 — Initial setup
 
-**Outcome:** Project structure created with working build
+**Intent:** Project structure created with working build
 
 **Validation:** `pnpm build`
 
@@ -39,7 +39,7 @@ A simple todo list application.
 
 ## Task: TODO-002 — Add todo endpoint
 
-**Outcome:** POST /todos creates a new todo item
+**Intent:** POST /todos creates a new todo item
 
 **Validation:** `pnpm test src/todos/create.test.ts`
 
@@ -54,7 +54,7 @@ A simple todo list application.
 
 ## Task: TODO-003 — List todos endpoint
 
-**Outcome:** GET /todos returns all todos for user
+**Intent:** GET /todos returns all todos for user
 
 **Validation:** `pnpm test src/todos/list.test.ts`
 
@@ -107,7 +107,7 @@ version: 1.0
 
 ## Task: {PREFIX}-001 — {Title}
 
-**Outcome:** {What success looks like}
+**Intent:** {What success looks like}
 
 **Validation:** `{command}`
 

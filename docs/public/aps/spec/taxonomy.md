@@ -139,9 +139,9 @@ A unit of authorised work.
 ````markdown
 ### Task: AUTH-001 — Login endpoint
 
-**Status:** pending | in_progress | complete | blocked
+**Status:** open | locked | completed | cancelled
 
-**Outcome:** Users can authenticate with email and password, receiving a JWT
+**Intent:** Users can authenticate with email and password, receiving a JWT
 that can be used for subsequent authenticated requests.
 
 **Validation:**
@@ -170,11 +170,13 @@ pnpm test src/auth/login.test.ts
 |-------|----------|-------------|
 | ID | Yes | Unique identifier (e.g., `AUTH-001`) |
 | Title | Yes | Short description |
-| Status | No | Current state |
-| Outcome | Yes | What success looks like |
-| Validation | Yes | Command to verify completion |
+| Intent | Yes | What the task aims to achieve |
+| Status | No | Current state (`open`, `locked`, `completed`, `cancelled`) |
+| Expected Outcome | No | Success criteria |
+| Validation | No | Command to verify completion |
+| Confidence | No | `low`, `medium` (default), `high` |
 | Dependencies | No | Other tasks that must complete first |
-| Steps | No | Observable checkpoints |
+| Scopes | No | File access constraints |
 
 ### Task IDs
 

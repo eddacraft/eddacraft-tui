@@ -144,4 +144,4 @@ kindling observe "..." --tag bug --tag performance
 
 ---
 
-**Next:** [Ember (Candidate Layer) →](/docs/edda-stack/components/ember)
+**Next:** [Design Principles →](/docs/edda-stack/design-principles)

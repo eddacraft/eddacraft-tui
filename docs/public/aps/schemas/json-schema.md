@@ -1,135 +1,106 @@
 ---
 id: json-schema
-title: JSON Schema
-description: Machine-readable schema for APS validation.
+title: Schemas and Types
+description: APS type definitions and validation schemas.
 sidebar_position: 1
 ---
 
-# JSON Schema
+# Schemas and Types
 
-APS provides a JSON Schema for machine validation of plans.
+APS uses [Zod](https://zod.dev) schemas for runtime validation and TypeScript
+type generation.
 
-## Schema Location
+## TypeScript Types
 
-```
-https://eddacraft.dev/schemas/aps/v1.0/aps.schema.json
-```
-
-Or in the repository:
-
-```
-packages/aps/schemas/aps.schema.json
-```
-
-## Using the Schema
-
-### In VS Code
-
-Add to `.vscode/settings.json`:
-
-```json
-{
-  "yaml.schemas": {
-    "https://eddacraft.dev/schemas/aps/v1.0/aps.schema.json": "plans/**/*.aps.md"
-  }
-}
-```
-
-### Programmatic Validation
+The core types are exported from `@eddacraft/anvil-aps`:
 
 ```typescript
-import Ajv from 'ajv';
-import apsSchema from '@eddacraft/anvil-aps/schemas/aps.schema.json';
+import type { Task, ModuleMetadata, ParsedDocument } from '@eddacraft/anvil-aps';
+```
 
-const ajv = new Ajv();
-const validate = ajv.compile(apsSchema);
+### Task
 
-const plan = parsePlan('plans/index.aps.md');
-const valid = validate(plan);
+A unit of authorised work:
 
-if (!valid) {
-  console.error(validate.errors);
+```typescript
+interface Task {
+  id: string; // Pattern: SCOPE-NNN (e.g., AUTH-001)
+  title: string;
+  intent: string; // What the task aims to achieve (required)
+  expectedOutcome?: string; // Success criteria
+  validation?: string; // Command to verify completion
+  confidence?: 'low' | 'medium' | 'high'; // Defaults to 'medium'
+  scopes?: string[]; // File access constraints
+  nonScope?: string[]; // What will NOT be changed
+  files?: string[]; // Files that may be affected
+  tags?: string[]; // Labels for filtering
+  dependencies?: string[]; // Tasks that must complete first
+  inputs?: string[]; // Required inputs or context
+  risks?: string[]; // Potential risks
+  link?: string; // External link (e.g., Jira ticket)
+  status?: 'open' | 'locked' | 'completed' | 'cancelled';
+  sourcePath?: string; // Source file path
+  sourceLineNumber?: number; // Line number in source
 }
 ```
 
-## Schema Structure
+### Task ID Format
 
-### Root Object
+Task IDs follow the pattern `{SCOPE}-{NNN}`:
 
-```json
-{
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "format": { "const": "aps" },
-    "version": { "type": "string", "pattern": "^\\d+\\.\\d+$" },
-    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-    "title": { "type": "string" },
-    "modules": { "type": "array", "items": { "$ref": "#/$defs/Module" } }
-  },
-  "required": ["format", "version"]
+- 1-10 uppercase alphanumeric characters for the scope
+- Hyphen separator
+- 3-digit zero-padded number
+
+```
+AUTH-001   ✓
+PAY-042   ✓
+CORE-001  ✓
+LLM2-007  ✓
+auth-001  ✗  (must be uppercase)
+AUTH-1    ✗  (must be 3 digits)
+```
+
+### Module Metadata
+
+```typescript
+interface ModuleMetadata {
+  id?: string; // Module identifier
+  title?: string; // From H1 heading
+  path?: string; // Path to spec file
+  scope?: string; // Scope prefix for task IDs
+  owner?: string; // Person/team responsible
+  status?: 'Draft' | 'Ready' | 'In Progress' | 'Complete' | 'Blocked';
+  priority?: 'low' | 'medium' | 'high';
+  tags?: string[];
+  dependencies?: string[]; // Other modules this depends on
 }
 ```
 
-### Module Definition
+### Parsed Document
 
-```json
-{
-  "$defs": {
-    "Module": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
-        "title": { "type": "string" },
-        "depends_on": { "type": "array", "items": { "type": "string" } },
-        "files": { "type": "array", "items": { "type": "string" } },
-        "tasks": { "type": "array", "items": { "$ref": "#/$defs/Task" } }
-      },
-      "required": ["id"]
-    }
-  }
+Result of parsing a leaf spec file:
+
+```typescript
+interface ParsedDocument {
+  title: string; // From H1 heading
+  metadata?: ModuleMetadata;
+  tasks: Task[];
+  sourcePath?: string;
 }
 ```
 
-### Task Definition
+## Programmatic Validation
 
-```json
-{
-  "$defs": {
-    "Task": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string", "pattern": "^[A-Z]+-\\d{3}$" },
-        "title": { "type": "string" },
-        "status": {
-          "type": "string",
-          "enum": ["pending", "in_progress", "complete", "blocked"]
-        },
-        "outcome": { "type": "string" },
-        "validation": { "type": "string" },
-        "dependencies": { "type": "array", "items": { "type": "string" } },
-        "steps": { "type": "array", "items": { "$ref": "#/$defs/Step" } }
-      },
-      "required": ["id", "outcome", "validation"]
-    }
-  }
-}
-```
+Use the Zod schemas directly for runtime validation:
 
-### Step Definition
+```typescript
+import { TaskSchema, ModuleMetadataSchema } from '@eddacraft/anvil-aps';
 
-```json
-{
-  "$defs": {
-    "Step": {
-      "type": "object",
-      "properties": {
-        "text": { "type": "string", "maxLength": 100 },
-        "complete": { "type": "boolean" }
-      },
-      "required": ["text"]
-    }
-  }
+const result = TaskSchema.safeParse(data);
+
+if (!result.success) {
+  console.error(result.error.issues);
 }
 ```
 
@@ -139,77 +110,24 @@ Common validation errors:
 
 ### Missing Required Field
 
-```json
-{
-  "keyword": "required",
-  "message": "must have required property 'outcome'",
-  "params": { "missingProperty": "outcome" }
-}
 ```
+ZodError: Required at "intent"
+```
+
+The `intent` field is required for all tasks.
 
 ### Invalid Task ID
 
-```json
-{
-  "keyword": "pattern",
-  "message": "must match pattern \"^[A-Z]+-\\d{3}$\"",
-  "instancePath": "/modules/0/tasks/0/id"
-}
+```
+ZodError: Invalid at "id" — must match pattern ^[A-Z0-9]{1,10}-\d{3}$
 ```
 
 ### Invalid Status
 
-```json
-{
-  "keyword": "enum",
-  "message": "must be equal to one of the allowed values",
-  "params": {
-    "allowedValues": ["pending", "in_progress", "complete", "blocked"]
-  }
-}
 ```
-
-## TypeScript Types
-
-Generated from the schema:
-
-```typescript
-export interface APSPlan {
-  format: 'aps';
-  version: string;
-  hash?: string;
-  title?: string;
-  modules?: APSModule[];
-}
-
-export interface APSModule {
-  id: string;
-  title?: string;
-  depends_on?: string[];
-  files?: string[];
-  tasks?: APSTask[];
-}
-
-export interface APSTask {
-  id: string;
-  title?: string;
-  status?: 'pending' | 'in_progress' | 'complete' | 'blocked';
-  outcome: string;
-  validation: string;
-  dependencies?: string[];
-  steps?: APSStep[];
-}
-
-export interface APSStep {
-  text: string;
-  complete?: boolean;
-}
-```
-
-Import from the package:
-
-```typescript
-import type { APSPlan, APSTask } from '@eddacraft/anvil-aps';
+ZodError: Invalid enum value at "status"
+  Expected: 'open' | 'locked' | 'completed' | 'cancelled'
+  Received: 'done'
 ```
 
 ---
