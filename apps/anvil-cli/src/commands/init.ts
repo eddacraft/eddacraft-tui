@@ -29,6 +29,7 @@ import { InitWizard, type WizardState, type WizardContext } from '../tui/command
 import { ProjectDetector } from '../services/project-detector.js';
 import { SampleAnalyzer } from '../services/sample-analyzer.js';
 import { HistoricalAnalyzer } from '../services/historical-analyser.js';
+import { RepoScanner } from '../services/repo-scanner.js';
 import { InitResults } from '../tui/commands/init/InitResults.js';
 import type { InitAnalysisResults } from '../tui/components/ResultsDashboard.js';
 import {
@@ -48,6 +49,7 @@ export function createInitCommand(): Command {
     .option('--no-tui', 'Use classic CLI prompts instead of TUI wizard')
     .option('--tui', 'Force TUI wizard mode')
     .option('--no-analysis', 'Skip automatic project analysis')
+    .option('--quick', 'Use quick analysis (skip full codebase scan)')
     .option('--org <name>', 'Link to an org policy source (implies --non-interactive)')
     .action(
       async (options: {
@@ -57,6 +59,7 @@ export function createInitCommand(): Command {
         tui?: boolean;
         // Commander.js --no-analysis sets options.analysis = false
         analysis?: boolean;
+        quick?: boolean;
         org?: string;
       }) => {
         try {
@@ -258,10 +261,14 @@ export function createInitCommand(): Command {
             let dashboardShown = false;
             if (options.analysis !== false) {
               console.log('');
-              const analysisSpinner = ora('Analysing project...').start();
+              const analysisSpinner = ora(
+                options.quick ? 'Analysing project...' : 'Scanning repository...'
+              ).start();
 
               try {
-                const analysisResults = await runIntelligentAnalysis(projectRoot, anvilrcPath);
+                const analysisResults = await runIntelligentAnalysis(projectRoot, anvilrcPath, {
+                  fullScan: !options.quick,
+                });
 
                 analysisSpinner.succeed(
                   chalk.green(
@@ -563,32 +570,64 @@ async function runTUIWizard(
  *
  * Orchestrates:
  * 1. Project context detection
- * 2. Sample file selection
- * 3. Quick wins identification
- * 4. Historical git analysis
+ * 2. Full codebase analysis (architecture + anti-pattern checks)
+ * 3. Historical git analysis
+ *
+ * Uses RepoScanner for comprehensive first-run analysis.
  */
 async function runIntelligentAnalysis(
   projectRoot: string,
-  configPath: string
+  configPath: string,
+  options: { fullScan?: boolean } = {}
 ): Promise<InitAnalysisResults> {
-  // Step 1: Detect project context
+  const { fullScan = true } = options;
+
+  if (fullScan) {
+    // Use RepoScanner for comprehensive analysis
+    const scanner = new RepoScanner(projectRoot);
+    const scanResult = await scanner.scan({
+      historicalDaysBack: 30,
+      historicalMaxCommits: 100,
+      useCache: true,
+      maxFiles: 500, // Limit for init to keep it reasonable
+    });
+
+    // Convert scan result to InitAnalysisResults format
+    const results: InitAnalysisResults = {
+      project: scanResult.project,
+      configPath,
+      sampleFiles: {
+        analyzed: scanResult.currentIssues.filesScanned,
+        total: scanResult.project.fileCount,
+      },
+      analysis: {
+        totalChecks: scanResult.currentIssues.checksRun.length,
+        passedChecks: scanResult.currentIssues.hasBlockingWarnings
+          ? 0
+          : scanResult.currentIssues.checksRun.length,
+        warnings: scanResult.currentIssues.bySeverity.warnings,
+        errors: scanResult.currentIssues.bySeverity.errors,
+        suppressions: scanResult.currentIssues.rawResult.warnings.summary.suppressed,
+      },
+      historical: scanResult.historical,
+    };
+
+    return results;
+  }
+
+  // Fallback to lightweight analysis (project detection + history only)
   const projectDetector = new ProjectDetector(projectRoot);
   const projectContext = projectDetector.detect();
 
-  // Step 2: Select sample files for analysis
   const sampleAnalyzer = new SampleAnalyzer(projectRoot);
   const sampleSelection = await sampleAnalyzer.selectFiles({ maxFiles: 50 });
 
-  // Step 3: Analyse git history (async, don't wait)
   const historicalAnalyzer = new HistoricalAnalyzer(projectRoot);
   const historicalAnalysis = await historicalAnalyzer.analyse({
     daysBack: 30,
     maxCommits: 100,
   });
 
-  // Build results structure
-  // Note: Full gate check integration is not included in this initial version
-  // This provides the foundation for future integration
   const results: InitAnalysisResults = {
     project: projectContext,
     configPath,
