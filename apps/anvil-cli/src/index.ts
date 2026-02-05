@@ -17,7 +17,7 @@ import { createExportCommand } from './commands/export.js';
 import { createInitCommand } from './commands/init.js';
 import { createHooksCommand } from './commands/hooks.js';
 import { createPolicyCommand } from './commands/policy.js';
-import { createScanCommand } from './commands/scan.js';
+import { createAuditCommand } from './commands/audit.js';
 import { createStackCommand } from './commands/stack.js';
 import { createWatchCommand } from './commands/watch.js';
 import { createStatusCommand } from './commands/status.js';
@@ -100,7 +100,7 @@ async function main(): Promise<void> {
   program.addCommand(createExportCommand());
   program.addCommand(createHooksCommand());
   program.addCommand(createPolicyCommand());
-  program.addCommand(createScanCommand());
+  program.addCommand(createAuditCommand());
   program.addCommand(createStackCommand());
   program.addCommand(createWatchCommand());
   program.addCommand(createStartCommand());

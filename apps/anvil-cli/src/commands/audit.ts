@@ -6,12 +6,12 @@ import { success, error, info } from '../utils/output.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
-import { ScanResults } from '../tui/commands/scan/ScanResults.js';
+import { AuditResults } from '../tui/commands/audit/AuditResults.js';
 
 /**
- * JSON output format for scan results
+ * JSON output format for audit results
  */
-interface JSONScanOutput {
+interface JSONAuditOutput {
   version: '1.0.0';
   timestamp: string;
   project: {
@@ -68,7 +68,7 @@ interface ScanOptions {
 }
 
 function formatResultsJSON(result: RepoScanResult): void {
-  const output: JSONScanOutput = {
+  const output: JSONAuditOutput = {
     version: '1.0.0',
     timestamp: result.timestamp.toISOString(),
     project: {
@@ -229,11 +229,13 @@ function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
   }
 }
 
-export function createScanCommand(): Command {
-  const command = new Command('scan');
+export function createAuditCommand(): Command {
+  const command = new Command('audit');
 
   command
-    .description('Perform a full repository scan showing current issues and historical analysis')
+    .description(
+      'Audit repository health: current issues, project overview, and historical analysis'
+    )
     .option('--json', 'Output results as JSON')
     .option('--tui', 'Force TUI mode')
     .option('--no-tui', 'Disable TUI mode')
@@ -243,7 +245,7 @@ export function createScanCommand(): Command {
     .option('--days-back <days>', 'Days to look back for historical analysis', '30')
     .option('--max-commits <count>', 'Maximum commits to analyse', '100')
     .action(async (options: ScanOptions) => {
-      const spinner = options.json ? null : ora('Starting repository scan...').start();
+      const spinner = options.json ? null : ora('Starting repository audit...').start();
 
       try {
         const workspaceRoot = getWorkspaceRoot();
@@ -270,7 +272,7 @@ export function createScanCommand(): Command {
         } else if (isTUIAvailable({ tui: options.tui })) {
           // Show TUI results dashboard
           await new Promise<void>((resolve, reject) => {
-            const tuiResult = renderTUI(ScanResults, {
+            const tuiResult = renderTUI(AuditResults, {
               result,
               onComplete: () => resolve(),
               onQuit: () => resolve(),
@@ -302,7 +304,7 @@ export function createScanCommand(): Command {
           process.exit(0);
         } else {
           if (!options.json) {
-            success('Repository scan complete - no issues found!');
+            success('Repository audit complete - no issues found!');
           }
           process.exit(0);
         }

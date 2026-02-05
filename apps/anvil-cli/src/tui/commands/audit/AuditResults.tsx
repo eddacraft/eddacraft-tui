@@ -4,7 +4,7 @@ import { Header } from '../../components/Header.js';
 import { theme } from '../../utils/theme.js';
 import type { RepoScanResult } from '../../../services/repo-scanner.js';
 
-interface ScanResultsProps {
+interface AuditResultsProps {
   result: RepoScanResult;
   onComplete?: () => void;
   onQuit?: () => void;
@@ -310,7 +310,7 @@ function NextStepsPanel({ result }: { result: RepoScanResult }): React.ReactElem
 }
 
 /**
- * ScanResults command - displays comprehensive repository scan results
+ * AuditResults command - displays comprehensive repository audit results
  *
  * Shows:
  * - Project overview (framework, size, etc.)
@@ -322,7 +322,11 @@ function NextStepsPanel({ result }: { result: RepoScanResult }): React.ReactElem
  * - Enter: Continue/complete
  * - q/Ctrl+C: Quit
  */
-export function ScanResults({ result, onComplete, onQuit }: ScanResultsProps): React.ReactElement {
+export function AuditResults({
+  result,
+  onComplete,
+  onQuit,
+}: AuditResultsProps): React.ReactElement {
   const { exit } = useApp();
 
   useInput((input, key) => {
