@@ -62,7 +62,8 @@ export function registerSuppressTool(server: McpServer, getWorkspaceRoot: () => 
 
         const days = expiryDays ?? 30;
         const expiry = new Date();
-        expiry.setDate(expiry.getDate() + days);
+        // Use UTC methods to avoid timezone edge cases near midnight
+        expiry.setUTCDate(expiry.getUTCDate() + days);
         const expiryStr = expiry.toISOString().split('T')[0];
         const content = readFileSync(absPath, 'utf-8');
         const lines = content.split('\n');
