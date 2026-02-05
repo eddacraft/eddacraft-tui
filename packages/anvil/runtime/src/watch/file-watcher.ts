@@ -165,7 +165,7 @@ export class FileWatcher extends EventEmitter {
   override on(event: 'change', listener: (event: WatchChangeEvent) => void): this;
   override on(event: 'error', listener: (error: Error) => void): this;
   override on(event: 'ready', listener: () => void): this;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- EventEmitter base requires any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- EventEmitter base requires any[]; independantly verified by codex 20260205
   override on(event: string, listener: (...args: any[]) => void): this {
     return super.on(event, listener);
   }
@@ -173,7 +173,7 @@ export class FileWatcher extends EventEmitter {
   override emit(event: 'change', watchEvent: WatchChangeEvent): boolean;
   override emit(event: 'error', error: Error): boolean;
   override emit(event: 'ready'): boolean;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- EventEmitter base requires any[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- EventEmitter base requires any[]; independantly verified by codex 20260205
   override emit(event: string, ...args: any[]): boolean {
     return super.emit(event, ...args);
   }

@@ -66,6 +66,19 @@ ruleTester.run('require-cwd-restoration', rule, {
         process.chdir(originalCwd);
       `,
     },
+    // Assignment expression capturing cwd
+    {
+      code: `
+        let originalCwd: string;
+        beforeEach(() => {
+          originalCwd = process.cwd();
+          process.chdir('/tmp/test');
+        });
+        afterEach(() => {
+          process.chdir(originalCwd);
+        });
+      `,
+    },
   ],
   invalid: [
     // chdir without saving original cwd

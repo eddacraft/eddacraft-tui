@@ -29,6 +29,18 @@ const rule: Rule.RuleModule = {
     // Track if any cwd variable is used in chdir
     let hasCwdRestoration = false;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ESLint AST node types
+    const isProcessCwdCall = (node: any): boolean => {
+      return (
+        node?.type === 'CallExpression' &&
+        node.callee?.type === 'MemberExpression' &&
+        node.callee.object?.type === 'Identifier' &&
+        node.callee.object.name === 'process' &&
+        node.callee.property?.type === 'Identifier' &&
+        node.callee.property.name === 'cwd'
+      );
+    };
+
     return {
       Program() {
         // Reset state for each file
@@ -39,17 +51,15 @@ const rule: Rule.RuleModule = {
 
       // Track: const originalCwd = process.cwd()
       VariableDeclarator(node) {
-        if (
-          node.id.type === 'Identifier' &&
-          node.init &&
-          node.init.type === 'CallExpression' &&
-          node.init.callee.type === 'MemberExpression' &&
-          node.init.callee.object.type === 'Identifier' &&
-          node.init.callee.object.name === 'process' &&
-          node.init.callee.property.type === 'Identifier' &&
-          node.init.callee.property.name === 'cwd'
-        ) {
+        if (node.id.type === 'Identifier' && node.init && isProcessCwdCall(node.init)) {
           cwdVariables.add(node.id.name);
+        }
+      },
+
+      // Track: originalCwd = process.cwd()
+      AssignmentExpression(node) {
+        if (node.left.type === 'Identifier' && isProcessCwdCall(node.right)) {
+          cwdVariables.add(node.left.name);
         }
       },
 

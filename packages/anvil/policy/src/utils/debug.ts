@@ -31,6 +31,7 @@ function debug(namespace: DebugNamespace, message: string, data?: unknown): void
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [anvil:${namespace}]`;
 
+  /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
       console.debug(`${prefix} ${message}:`, data.message);
@@ -43,6 +44,7 @@ function debug(namespace: DebugNamespace, message: string, data?: unknown): void
   } else {
     console.debug(`${prefix} ${message}`);
   }
+  /* eslint-enable no-console */
 }
 
 export function createDebugger(

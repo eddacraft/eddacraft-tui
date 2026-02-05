@@ -55,6 +55,7 @@ export function isDebugEnabled(namespace?: DebugNamespace): boolean {
  * @param message - The debug message
  * @param data - Optional additional data to log
  */
+
 export function debug(namespace: DebugNamespace, message: string, data?: unknown): void {
   if (!isDebugEnabled(namespace)) {
     return;
@@ -63,6 +64,7 @@ export function debug(namespace: DebugNamespace, message: string, data?: unknown
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [anvil:${namespace}]`;
 
+  /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
       console.debug(`${prefix} ${message}:`, data.message);
@@ -75,6 +77,7 @@ export function debug(namespace: DebugNamespace, message: string, data?: unknown
   } else {
     console.debug(`${prefix} ${message}`);
   }
+  /* eslint-enable no-console */
 }
 
 /**

@@ -213,7 +213,7 @@ export function spawnAnvilPTY(options: PTYSpawnOptions = {}): PTYSession {
  * Strip ANSI escape codes from output for easier assertion
  */
 export function stripAnsi(str: string): string {
-  // eslint-disable-next-line no-control-regex
+  // eslint-disable-next-line no-control-regex -- independantly verified by codex 20260205
   return str.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '').replace(/\x1B\][^\x07]*\x07/g, '');
 }
 

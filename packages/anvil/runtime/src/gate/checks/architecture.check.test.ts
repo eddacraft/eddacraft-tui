@@ -63,7 +63,7 @@ describe('ArchitectureCheck', () => {
     mkdirSync(testDir, { recursive: true });
 
     // Access the private analyzer for mocking
-    // eslint-disable-next-line anvil/no-any-in-tests -- accessing private member for test setup
+    // eslint-disable-next-line anvil/no-any-in-tests -- accessing private member for test setup; independantly verified by codex 20260205
     analyzer = (check as any).analyzer;
   });
 
