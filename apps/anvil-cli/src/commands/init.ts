@@ -593,6 +593,14 @@ async function runIntelligentAnalysis(
     });
 
     // Convert scan result to InitAnalysisResults format
+    // Calculate per-check pass/fail based on which checks produced blocking warnings
+    const blockingWarnings = scanResult.currentIssues.rawResult.warnings.warnings.filter(
+      (w) => w.severity === 'error' && !w.suppressed
+    );
+    const checksWithBlockingWarnings = new Set(blockingWarnings.map((w) => w.category));
+    const totalChecks = scanResult.currentIssues.checksRun.length;
+    const passedChecks = totalChecks - checksWithBlockingWarnings.size;
+
     const results: InitAnalysisResults = {
       project: scanResult.project,
       configPath,
@@ -601,10 +609,8 @@ async function runIntelligentAnalysis(
         total: scanResult.project.fileCount,
       },
       analysis: {
-        totalChecks: scanResult.currentIssues.checksRun.length,
-        passedChecks: scanResult.currentIssues.hasBlockingWarnings
-          ? 0
-          : scanResult.currentIssues.checksRun.length,
+        totalChecks,
+        passedChecks,
         warnings: scanResult.currentIssues.bySeverity.warnings,
         errors: scanResult.currentIssues.bySeverity.errors,
         suppressions: scanResult.currentIssues.rawResult.warnings.summary.suppressed,
