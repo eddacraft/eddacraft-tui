@@ -53,10 +53,11 @@ docs/analysis/claude-code-safety-net-review.md
 
 # Claude (local)
 .claude/settings.local.json
+apps/anvil-api/.claude/settings.local.json
 
 .gemini/
 gha-creds-*.json
 
-.serena
+/.serena
 .vercel
 .env*.local
