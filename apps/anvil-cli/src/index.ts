@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { Command } from 'commander';
+import { createAgentCommand } from './commands/agent/index.js';
 import { createArchitectureCommand } from './commands/architecture.js';
 import { createAuthorshipCommand } from './commands/authorship.js';
 import { createBetaCommand } from './commands/beta.js';
@@ -84,6 +85,7 @@ async function main(): Promise<void> {
   program.addCommand(createBetaCommand());
 
   // Feature commands
+  program.addCommand(createAgentCommand());
   program.addCommand(createArchitectureCommand());
   program.addCommand(createAuthorshipCommand());
   program.addCommand(createCheckCommand());

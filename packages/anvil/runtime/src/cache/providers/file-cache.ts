@@ -4,13 +4,14 @@
  */
 
 import { existsSync, unlinkSync } from 'node:fs';
-import { readFile, writeFile, rm, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { readFile, rm, mkdir } from 'node:fs/promises';
+import { join, basename, dirname } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { promises as fs } from 'node:fs';
 
 const debug = createDebugger('cache');
 
@@ -186,9 +187,9 @@ export class FileCacheProvider implements CacheProvider {
     const fileName = `${fileHash}.json`;
     const filePath = join(this.entriesDir, fileName);
 
-    // Write entry file
+    // Write entry file atomically to prevent corruption in multi-agent scenarios
     const content = JSON.stringify(entry, null, 2);
-    await writeFile(filePath, content, 'utf-8');
+    await this.atomicWrite(filePath, content);
 
     // Update index
     index.entries[key] = {
@@ -341,8 +342,39 @@ export class FileCacheProvider implements CacheProvider {
     }
 
     await this.ensureCacheDir();
-    await writeFile(this.indexPath, JSON.stringify(this.index, null, 2), 'utf-8');
+    // Use atomic write to prevent corruption in multi-agent scenarios
+    await this.atomicWrite(this.indexPath, JSON.stringify(this.index, null, 2));
     this.indexDirty = false;
+  }
+
+  /**
+   * Atomic write using temp file + rename pattern
+   * This prevents partial writes that can corrupt files in multi-process scenarios
+   */
+  private async atomicWrite(filePath: string, content: string, retries = 3): Promise<void> {
+    const dir = dirname(filePath);
+    const tempPath = join(dir, `.${basename(filePath)}.${randomUUID().slice(0, 8)}.tmp`);
+
+    for (let attempt = 0; attempt < retries; attempt++) {
+      try {
+        await fs.writeFile(tempPath, content, 'utf-8');
+        await fs.rename(tempPath, filePath);
+        return;
+      } catch (error) {
+        debug('Atomic write attempt failed:', error);
+        // Clean up temp file
+        try {
+          await fs.unlink(tempPath);
+        } catch {
+          // Ignore cleanup errors
+        }
+        if (attempt === retries - 1) {
+          throw error;
+        }
+        // Brief delay before retry
+        await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+      }
+    }
   }
 
   private hashKey(key: string): string {

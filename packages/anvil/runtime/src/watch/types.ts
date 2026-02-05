@@ -91,6 +91,10 @@ export type WatchStatusEventType =
   | 'action:start'
   | 'action:complete'
   | 'action:error'
+  | 'action:queued'
+  | 'lock:acquired'
+  | 'lock:waiting'
+  | 'lock:denied'
   | 'stopped';
 
 /**
@@ -115,12 +119,44 @@ export interface WatchActionResult {
  * Status events emitted by watch orchestrator
  */
 export type WatchStatusEvent =
-  | { type: 'ready'; patterns: string[]; gitFilter: boolean }
+  | { type: 'ready'; patterns: string[]; gitFilter: boolean; agentId?: string }
   | { type: 'change'; files: string[]; filtered: string[] }
   | { type: 'action:start'; action: 'validate' | 'gate' | 'check'; files: string[] }
   | { type: 'action:complete'; result: WatchActionResult }
   | { type: 'action:error'; error: Error; files: string[] }
+  | {
+      type: 'action:queued';
+      action: 'validate' | 'gate' | 'check';
+      position: number;
+      files: string[];
+    }
+  | { type: 'lock:acquired'; resource: string; agentId: string }
+  | { type: 'lock:waiting'; resource: string; heldBy: string; queuePosition?: number }
+  | { type: 'lock:denied'; resource: string; heldBy: string; reason: string }
   | { type: 'stopped' };
+
+/**
+ * Multi-agent mode configuration
+ */
+export interface MultiAgentConfig {
+  /** Enable multi-agent coordination (default: true) */
+  enabled?: boolean;
+
+  /** Acquire exclusive watch lock (only one watcher per workspace) */
+  exclusiveWatch?: boolean;
+
+  /** Use coordinated action execution (queue + lock) */
+  coordinatedActions?: boolean;
+
+  /** Agent ID (auto-detected if not provided) */
+  agentId?: string;
+
+  /** Wait for watch lock instead of failing */
+  waitForLock?: boolean;
+
+  /** Lock wait timeout in ms (default: 30000) */
+  lockWaitTimeoutMs?: number;
+}
 
 /**
  * Watch orchestrator options
@@ -134,6 +170,8 @@ export interface WatchOrchestratorOptions {
   onEvent?: (event: WatchStatusEvent) => void;
   /** Verbose logging */
   verbose?: boolean;
+  /** Multi-agent coordination options */
+  multiAgent?: MultiAgentConfig;
 }
 
 /**
