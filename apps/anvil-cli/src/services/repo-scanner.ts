@@ -1,7 +1,7 @@
 import { glob } from 'glob';
 import { GateRunner, createCacheProvider, type AnalyzeResult } from '@eddacraft/anvil-runtime';
 import { ProjectDetector, type ProjectContext } from './project-detector.js';
-import { HistoricalAnalyzer, type HistoricalAnalysis } from './historical-analyzer.js';
+import { HistoricalAnalyzer, type HistoricalAnalysis } from './historical-analyser.js';
 
 const ANALYSABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 
@@ -63,7 +63,7 @@ type CheckType = 'architecture' | 'antipattern';
 export interface RepoScanOptions {
   /** Days to look back for historical analysis */
   historicalDaysBack?: number;
-  /** Max commits to analyze for historical analysis */
+  /** Max commits to analyse for historical analysis */
   historicalMaxCommits?: number;
   /** Use cache for analysis */
   useCache?: boolean;
@@ -119,15 +119,15 @@ export class RepoScanner {
     }
 
     // Step 3: Run analysis on all files
-    onProgress?.('analysis', `Analyzing ${sourceFiles.length} files...`);
-    const currentIssues = await this.analyzeFiles(sourceFiles, { useCache, checks });
+    onProgress?.('analysis', `Analysing ${sourceFiles.length} files...`);
+    const currentIssues = await this.analyseFiles(sourceFiles, { useCache, checks });
 
     // Step 4: Run historical analysis (if not skipped)
     let historical: HistoricalAnalysis;
     if (skipHistorical) {
       historical = this.createEmptyHistoricalAnalysis();
     } else {
-      onProgress?.('historical', 'Analyzing git history...');
+      onProgress?.('historical', 'Analysing git history...');
       const historicalAnalyzer = new HistoricalAnalyzer(this.projectRoot);
       historical = await historicalAnalyzer.analyse({
         daysBack: historicalDaysBack,
@@ -176,9 +176,9 @@ export class RepoScanner {
   }
 
   /**
-   * Analyze files for issues
+   * Analyse files for issues
    */
-  private async analyzeFiles(
+  private async analyseFiles(
     files: string[],
     options: { useCache: boolean; checks: CheckType[] }
   ): Promise<CurrentIssues> {
@@ -313,7 +313,7 @@ export class RepoScanner {
     if (result.historical.totalCommits > 0) {
       lines.push(`Historical Analysis (last 30 days)`);
       lines.push(`----------------------------------`);
-      lines.push(`Commits analyzed: ${result.historical.totalCommits}`);
+      lines.push(`Commits analysed: ${result.historical.totalCommits}`);
       lines.push(`Anvil would have caught: ${result.historical.totalViolations} issues`);
       lines.push(`Average per commit: ${result.historical.avgViolationsPerCommit.toFixed(1)}`);
 

@@ -176,7 +176,7 @@ function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
   if (result.historical.totalCommits > 0) {
     console.log(chalk.bold('Historical Analysis'));
     console.log(chalk.dim('─'.repeat(30)));
-    console.log(`  Commits analyzed:     ${result.historical.totalCommits}`);
+    console.log(`  Commits analysed:     ${result.historical.totalCommits}`);
     console.log(
       `  Anvil would have caught: ${chalk.yellow.bold(result.historical.totalViolations)} issues`
     );
@@ -217,7 +217,7 @@ function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
     console.log(chalk.dim('─'.repeat(30)));
     if (result.currentIssues.hasBlockingWarnings) {
       console.log(
-        `  ${chalk.red('1.')} Fix blocking errors: ${chalk.cyan('anvil check --verbose')}`
+        `  ${chalk.red('1.')} Fix blocking errors: ${chalk.cyan('anvil check --all --verbose')}`
       );
     }
     console.log(
@@ -241,7 +241,7 @@ export function createScanCommand(): Command {
     .option('--no-cache', 'Disable caching')
     .option('--skip-historical', 'Skip historical git analysis')
     .option('--days-back <days>', 'Days to look back for historical analysis', '30')
-    .option('--max-commits <count>', 'Maximum commits to analyze', '100')
+    .option('--max-commits <count>', 'Maximum commits to analyse', '100')
     .action(async (options: ScanOptions) => {
       const spinner = options.json ? null : ora('Starting repository scan...').start();
 
