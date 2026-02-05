@@ -209,6 +209,8 @@ function parseMetadataLine(para: Paragraph): ModuleMetadata {
 function assignMetadataField(metadata: ModuleMetadata, key: string, value: string): void {
   switch (key) {
     case 'Scope':
+    case 'ID':
+      // Support both 'Scope:' and 'ID:' per current APS spec
       metadata.scope = value;
       break;
     case 'Owner':
@@ -216,8 +218,13 @@ function assignMetadataField(metadata: ModuleMetadata, key: string, value: strin
       break;
     case 'Status': {
       // Normalise status values to match ModuleStatusSchema
+      // Supports both legacy (Draft, Complete) and current spec (Proposed, Done) values
       const normalizedStatus = value.trim();
-      if (['Draft', 'Ready', 'In Progress', 'Complete', 'Blocked'].includes(normalizedStatus)) {
+      if (
+        ['Draft', 'Proposed', 'Ready', 'In Progress', 'Complete', 'Done', 'Blocked'].includes(
+          normalizedStatus
+        )
+      ) {
         metadata.status = normalizedStatus as ModuleMetadata['status'];
       }
       break;
@@ -232,6 +239,10 @@ function assignMetadataField(metadata: ModuleMetadata, key: string, value: strin
       break;
     case 'Dependencies':
       metadata.dependencies = value.split(',').map((d) => d.trim());
+      break;
+    case 'Packages':
+      // Monorepo support: list of affected packages
+      metadata.packages = value.split(',').map((p) => p.trim());
       break;
   }
 }

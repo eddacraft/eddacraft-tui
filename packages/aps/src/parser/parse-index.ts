@@ -152,11 +152,25 @@ function parseModuleMetadata(moduleId: string, lists: List[]): ModuleMetadata {
           metadata.path = value;
           break;
         case 'Scope':
+        case 'ID':
+          // Support both 'Scope:' and 'ID:' per current APS spec
           metadata.scope = value;
           break;
         case 'Owner':
           metadata.owner = value;
           break;
+        case 'Status': {
+          // Normalise status values - support both legacy and current spec values
+          const normalizedStatus = value.trim();
+          if (
+            ['Draft', 'Proposed', 'Ready', 'In Progress', 'Complete', 'Done', 'Blocked'].includes(
+              normalizedStatus
+            )
+          ) {
+            metadata.status = normalizedStatus as ModuleMetadata['status'];
+          }
+          break;
+        }
         case 'Priority':
           if (value === 'low' || value === 'medium' || value === 'high') {
             metadata.priority = value as Priority;
@@ -170,6 +184,14 @@ function parseModuleMetadata(moduleId: string, lists: List[]): ModuleMetadata {
             metadata.dependencies = [];
           } else {
             metadata.dependencies = parseCommaSeparated(value);
+          }
+          break;
+        case 'Packages':
+          // Monorepo support: list of affected packages
+          if (value.toLowerCase() === '(none)' || value === '') {
+            metadata.packages = [];
+          } else {
+            metadata.packages = parseCommaSeparated(value);
           }
           break;
       }

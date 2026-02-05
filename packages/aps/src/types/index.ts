@@ -69,6 +69,9 @@ export const TaskSchema = z.object({
   /** Potential risks associated with this task (optional) */
   risks: z.array(z.string()).optional(),
 
+  /** Packages affected by this task (monorepo support) */
+  packages: z.array(z.string()).optional(),
+
   /** External link (e.g., Jira ticket) (optional) */
   link: z.string().optional(),
 
@@ -86,8 +89,17 @@ export type Task = z.infer<typeof TaskSchema>;
 
 /**
  * Module status values
+ * Supports both legacy values (Draft, Complete) and current spec values (Proposed, Done)
  */
-export const ModuleStatusSchema = z.enum(['Draft', 'Ready', 'In Progress', 'Complete', 'Blocked']);
+export const ModuleStatusSchema = z.enum([
+  'Draft', // legacy alias for Proposed
+  'Proposed',
+  'Ready',
+  'In Progress',
+  'Complete', // legacy alias for Done
+  'Done',
+  'Blocked',
+]);
 export type ModuleStatus = z.infer<typeof ModuleStatusSchema>;
 
 /**
@@ -120,6 +132,9 @@ export const ModuleMetadataSchema = z.object({
 
   /** Modules this depends on */
   dependencies: z.array(z.string()).optional(),
+
+  /** Packages affected by this module (monorepo support) */
+  packages: z.array(z.string()).optional(),
 });
 
 export type ModuleMetadata = z.infer<typeof ModuleMetadataSchema>;

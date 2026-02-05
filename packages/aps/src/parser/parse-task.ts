@@ -195,6 +195,11 @@ function assignField(task: Partial<Task>, key: string, value: string): void {
       task.risks = parseCommaSeparated(value);
       break;
 
+    case 'Packages':
+      // Monorepo support: list of affected packages
+      task.packages = parseCommaSeparated(value);
+      break;
+
     case 'Link':
       task.link = value;
       break;
@@ -305,6 +310,7 @@ export function parseTask(
     dependencies: fields.dependencies,
     inputs: fields.inputs,
     risks: fields.risks,
+    packages: fields.packages,
     link: fields.link,
     status: fields.status,
     sourcePath,

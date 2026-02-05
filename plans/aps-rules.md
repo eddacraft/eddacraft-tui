@@ -24,11 +24,13 @@ Modules progress through these statuses:
 
 | Status | Meaning | Tasks Executable? |
 |--------|---------|-------------------|
-| Draft | Work in progress, not ready | No |
+| Proposed / Draft | Work in progress, not ready | No |
 | Ready | Scope clear, dependencies identified, tasks defined | Yes |
 | In Progress | Actively being worked on | Yes |
-| Complete | All tasks done | N/A |
+| Done / Complete | All tasks done | N/A |
 | Blocked | Cannot proceed (document reason) | No |
+
+> Note: "Proposed" and "Done" are the current spec values; "Draft" and "Complete" are supported for backwards compatibility.
 
 ## Actions: The Lean Rule
 
@@ -107,6 +109,7 @@ Tasks are **execution authority** — permission to make changes.
 - **Dependencies:** Other task IDs that must complete first
 - **Inputs:** Required inputs or context (as a list)
 - **Risks:** Potential risks associated with this task
+- **Packages:** Affected packages (monorepo support)
 - **Link:** External reference (e.g., Jira ticket)
 
 ### Task Anti-Patterns

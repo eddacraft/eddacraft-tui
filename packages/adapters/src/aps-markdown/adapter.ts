@@ -32,7 +32,7 @@ import { createDetection } from '../base/utils.js';
 interface APSMarkdownIndicators {
   /** Has H1 title */
   hasH1Title: boolean;
-  /** Has **Scope:** field */
+  /** Has **Scope:** or **ID:** field */
   hasScopeField: boolean;
   /** Has ## Tasks section */
   hasTasksSection: boolean;
@@ -50,6 +50,8 @@ interface APSMarkdownIndicators {
   hasOwnerField: boolean;
   /** Has **Priority:** field */
   hasPriorityField: boolean;
+  /** Has **Packages:** field (monorepo support) */
+  hasPackagesField: boolean;
   /** Count of SCOPE-NNN patterns found */
   taskPatternCount: number;
   /** Count of .aps.md links found */
@@ -183,6 +185,7 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
         scopes: task.scopes,
         dependencies: task.dependencies,
         risks: task.risks,
+        packages: task.packages,
       },
     };
   }
@@ -286,8 +289,9 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
     // Check for H1 title
     const hasH1Title = /^#\s+.+$/m.test(content);
 
-    // Check for **Scope:** field (inline format: **Scope:** VALUE)
-    const hasScopeField = /\*\*Scope:\*\*\s*\S+/i.test(content);
+    // Check for **Scope:** or **ID:** field (ID is the current spec, Scope is legacy)
+    const hasScopeField =
+      /\*\*Scope:\*\*\s*\S+/i.test(content) || /\*\*ID:\*\*\s*\S+/i.test(content);
 
     // Check for ## Tasks section
     const hasTasksSection = /^##\s+Tasks\s*$/im.test(content);
@@ -319,6 +323,9 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
     // Check for **Priority:** field
     const hasPriorityField = /\*\*Priority:\*\*/i.test(content);
 
+    // Check for **Packages:** field (monorepo support)
+    const hasPackagesField = /\*\*Packages:\*\*/i.test(content);
+
     return {
       hasH1Title,
       hasScopeField,
@@ -330,6 +337,7 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
       hasConfidenceField,
       hasOwnerField,
       hasPriorityField,
+      hasPackagesField,
       taskPatternCount,
       apsLinkCount,
     };
@@ -388,6 +396,10 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
       score += 5; // Has **Priority:** field
     }
 
+    if (indicators.hasPackagesField) {
+      score += 5; // Has **Packages:** field (monorepo support)
+    }
+
     return Math.min(100, score);
   }
 
@@ -423,6 +435,9 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
     }
     if (indicators.hasPriorityField) {
       reasons.push('priority-field');
+    }
+    if (indicators.hasPackagesField) {
+      reasons.push('packages-field');
     }
 
     return reasons.length > 0 ? reasons.join(', ') : 'no APS indicators';
