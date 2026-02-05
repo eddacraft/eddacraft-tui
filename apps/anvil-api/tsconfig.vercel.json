@@ -16,8 +16,12 @@
     "noImplicitReturns": true,
     "noUnusedLocals": true,
     "declaration": true,
+    "declarationMap": true,
     "emitDeclarationOnly": false,
-    "composite": true
+    "composite": true,
+    "importHelpers": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true
   },
   "include": ["src/**/*"],
   "exclude": ["**/*.test.ts", "**/__tests__/**"]
