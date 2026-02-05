@@ -1,0 +1,3 @@
+{
+  "buildCommand": "cp tsconfig.vercel.json tsconfig.json && npx tsc"
+}
