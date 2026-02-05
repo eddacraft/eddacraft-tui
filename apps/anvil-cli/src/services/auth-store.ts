@@ -40,7 +40,7 @@ export function loadAuth(): StoredAuth | null {
 
     // Check local expiry (server is the real authority, but we avoid
     // obviously-expired tokens hitting the network)
-    if (new Date(data.expiresAt) < new Date()) {
+    if (Date.parse(data.expiresAt) < Date.now()) {
       return null;
     }
 

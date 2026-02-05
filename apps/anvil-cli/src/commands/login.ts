@@ -62,7 +62,7 @@ export function createLoginCommand(): Command {
 
         success(`Authenticated as ${chalk.bold(result.user.email)}`);
         info(`Scopes: ${result.scopes.join(', ')}`);
-        info(`Expires: ${new Date(result.expiresAt).toLocaleDateString()}`);
+        info(`Expires: ${new Date(result.expiresAt).toLocaleString()}`);
       } catch (err) {
         error(err instanceof Error ? err.message : 'Failed to verify token');
         process.exit(1);

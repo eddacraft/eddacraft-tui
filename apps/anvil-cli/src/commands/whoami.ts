@@ -17,7 +17,7 @@ export function createWhoamiCommand(): Command {
     console.log(chalk.bold('\nSession Info\n'));
     console.log(`  Email:    ${chalk.cyan(auth.user.email)}`);
     console.log(`  Scopes:   ${auth.scopes.join(', ')}`);
-    console.log(`  Expires:  ${new Date(auth.expiresAt).toLocaleDateString()}`);
+    console.log(`  Expires:  ${new Date(auth.expiresAt).toLocaleString()}`);
     console.log(`  Verified: ${new Date(auth.verifiedAt).toLocaleString()}`);
     console.log('');
   });

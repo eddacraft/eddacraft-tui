@@ -38,7 +38,7 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   }
 
   // Check expiry
-  if (new Date(record.expires_at) < new Date()) {
+  if (new Date(record.expires_at).getTime() < Date.now()) {
     return c.json({ valid: false });
   }
 

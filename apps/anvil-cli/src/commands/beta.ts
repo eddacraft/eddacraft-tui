@@ -28,9 +28,7 @@ export function createBetaCommand(): Command {
         console.log('');
         console.log(`  ${chalk.bold('User:')}     ${result.user.email}`);
         console.log(`  ${chalk.bold('Scopes:')}   ${result.scopes.join(', ')}`);
-        console.log(
-          `  ${chalk.bold('Expires:')}  ${new Date(result.expiresAt).toLocaleDateString()}`
-        );
+        console.log(`  ${chalk.bold('Expires:')}  ${new Date(result.expiresAt).toLocaleString()}`);
         console.log('');
         console.log(chalk.yellow('  Token (share with user — shown only once):'));
         console.log('');

@@ -1,6 +1,8 @@
 import { randomBytes, createHash } from 'node:crypto';
 
 const TOKEN_PREFIX = 'anvil_beta_';
+// base64url(32 bytes) = 43 characters (no padding needed for 32 bytes)
+const TOKEN_PAYLOAD_LENGTH = 43;
 
 /**
  * Generate a new beta access token.
@@ -29,6 +31,6 @@ export function hashToken(raw: string): string {
 export function isValidTokenFormat(token: string): boolean {
   if (!token.startsWith(TOKEN_PREFIX)) return false;
   const payload = token.slice(TOKEN_PREFIX.length);
-  // base64url: A-Z, a-z, 0-9, -, _  (no padding for 32 bytes = 43 chars)
-  return /^[A-Za-z0-9_-]{43}$/.test(payload);
+  // base64url: A-Z, a-z, 0-9, -, _
+  return new RegExp(`^[A-Za-z0-9_-]{${TOKEN_PAYLOAD_LENGTH}}$`).test(payload);
 }
