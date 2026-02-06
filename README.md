@@ -109,6 +109,38 @@ pnpm link:cli
 NX is used under the hood — you can also use `npx nx` commands directly for
 targeted builds, affected-only runs, and task graph visualisation.
 
+## Test Coverage Matrix
+
+Use the following command pattern to generate coverage per project:
+
+```bash
+pnpm nx test <project-name> --coverage
+```
+
+| Project                                 | Scope   | Directory                       | Coverage command example                                        |
+| --------------------------------------- | ------- | ------------------------------- | --------------------------------------------------------------- |
+| `@eddacraft/anvil-cli`                  | App     | `apps/anvil-cli`                | `pnpm nx test @eddacraft/anvil-cli --coverage`                  |
+| `@eddacraft/anvil-api`                  | App     | `apps/anvil-api`                | `pnpm nx test @eddacraft/anvil-api --coverage`                  |
+| `@eddacraft/anvil-aps`                  | Package | `packages/aps`                  | `pnpm nx test @eddacraft/anvil-aps --coverage`                  |
+| `@eddacraft/anvil-adapters`             | Package | `packages/adapters`             | `pnpm nx test @eddacraft/anvil-adapters --coverage`             |
+| `@eddacraft/anvil-edda-stack`           | Package | `packages/edda-stack`           | `pnpm nx test @eddacraft/anvil-edda-stack --coverage`           |
+| `@eddacraft/anvil-kindling-integration` | Package | `packages/kindling-integration` | `pnpm nx test @eddacraft/anvil-kindling-integration --coverage` |
+| `@eddacraft/anvil-mcp-server`           | Package | `packages/mcp-server`           | `pnpm nx test @eddacraft/anvil-mcp-server --coverage`           |
+| `anvil-vscode`                          | Package | `packages/vscode-extension`     | `pnpm nx test anvil-vscode --coverage`                          |
+| `eslint-plugin-anvil`                   | Package | `packages/eslint-plugin-anvil`  | `pnpm nx test eslint-plugin-anvil --coverage`                   |
+| `contracts`                             | Package | `packages/anvil/contracts`      | `pnpm nx test contracts --coverage`                             |
+| `ports`                                 | Package | `packages/anvil/ports`          | `pnpm nx test ports --coverage`                                 |
+| `core`                                  | Package | `packages/anvil/core`           | `pnpm nx test core --coverage`                                  |
+| `runtime`                               | Package | `packages/anvil/runtime`        | `pnpm nx test runtime --coverage`                               |
+| `policy`                                | Package | `packages/anvil/policy`         | `pnpm nx test policy --coverage`                                |
+| `platform-config`                       | Package | `packages/platform/config`      | `pnpm nx test platform-config --coverage`                       |
+| `platform-storage`                      | Package | `packages/platform/storage`     | `pnpm nx test platform-storage --coverage`                      |
+| `platform-crypto`                       | Package | `packages/platform/crypto`      | `pnpm nx test platform-crypto --coverage`                       |
+| `@eddacraft/anvil-source`               | Root    | `.`                             | `pnpm nx test @eddacraft/anvil-source --coverage`               |
+
+Coverage output is written under each project's `coverage/` directory (for
+example `apps/anvil-cli/coverage/coverage-summary.json`).
+
 ## Deployment
 
 | App         | Platform | Trigger                                               |
