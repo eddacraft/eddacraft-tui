@@ -86,11 +86,6 @@ describe('AnvilMcpServer', () => {
   describe('createAnvilMcpServer', () => {
     it('returns an McpServer instance with default options', () => {
       const server = createAnvilMcpServer();
-      expect(server).toBeInstanceOf(McpServer);
-    });
-
-    it('returns an McpServer instance when called with no arguments', () => {
-      const server = createAnvilMcpServer();
       expect(server).toBeDefined();
       expect(server).toBeInstanceOf(McpServer);
     });

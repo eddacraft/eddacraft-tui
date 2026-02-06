@@ -63,7 +63,7 @@ export function registerSuppressTool(server: McpServer, getWorkspaceRoot: () => 
         const days = expiryDays ?? 30;
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + days);
-        const expiryStr = expiry.toISOString().split('T')[0];
+        const expiryStr = `${expiry.getFullYear()}-${String(expiry.getMonth() + 1).padStart(2, '0')}-${String(expiry.getDate()).padStart(2, '0')}`;
         const content = readFileSync(absPath, 'utf-8');
         const lines = content.split('\n');
         const lineIndex = line - 1;

@@ -12,8 +12,14 @@
 
 import { startHttpServer } from './transports/streamable-http.js';
 
-const port = parseInt(process.env.ANVIL_MCP_PORT ?? '3000', 10);
+const portEnv = process.env.ANVIL_MCP_PORT ?? '3000';
+const port = parseInt(portEnv, 10);
 const host = process.env.ANVIL_MCP_HOST ?? 'localhost';
+
+if (!Number.isFinite(port) || port < 1 || port > 65535) {
+  console.error(`Invalid ANVIL_MCP_PORT: "${portEnv}". Must be an integer between 1 and 65535.`);
+  process.exit(1);
+}
 
 async function main(): Promise<void> {
   const server = await startHttpServer({ port, host });
