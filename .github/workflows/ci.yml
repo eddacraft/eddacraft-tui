@@ -26,9 +26,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Check changed files
         id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           if [ "${{ github.event_name }}" == "pull_request" ]; then
             BASE_SHA=${{ github.event.pull_request.base.sha }}
@@ -38,9 +42,14 @@ jobs:
             HEAD_SHA=${{ github.sha }}
           fi
 
-          # Get list of changed files
-          git fetch origin $BASE_SHA $HEAD_SHA --depth=1 2>/dev/null || git fetch --depth=100
-          CHANGED_FILES=$(git diff --name-only $BASE_SHA...$HEAD_SHA || echo "")
+          # Get list of changed files (full clone ensures merge-base is available)
+          CHANGED_FILES=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null)
+          if [ $? -ne 0 ] || [ -z "$CHANGED_FILES" ]; then
+            echo "⚠️  git diff failed or empty — falling back to GitHub API"
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null || echo "")
+            fi
+          fi
 
           # Check if only docs changed
           DOCS_ONLY=true
