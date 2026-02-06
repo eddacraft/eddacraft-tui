@@ -1,26 +1,35 @@
 <!--
-APS Module: CLI Hardening
-=========================
-Addresses issues from the 2026-02-06 adversarial code review.
-See: apps/anvil-cli/REVIEW.md
+APS Module: Codebase Hardening
+==============================
+Addresses issues from the 2026-02-06 adversarial code reviews.
+See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md
 -->
 
-# CLI Hardening
+# Codebase Hardening
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| CLIH  | —     | Draft  |
+| ID         | Owner | Status |
+| ---------- | ----- | ------ |
+| CLIH, CORE | —     | Draft  |
 
 ## Purpose
 
-Address the 19 issues identified in the anvil-cli adversarial code review
-(2026-02-06). These range from high-severity security hardening (P0/P1) through
-code quality improvements (P2) to optional cleanups (P3). This module tracks the
-work needed to resolve each finding and ensure the CLI is production-ready.
+Address the 33 issues identified across two adversarial code reviews (2026-02-06):
 
-**Source:** [apps/anvil-cli/REVIEW.md](../../apps/anvil-cli/REVIEW.md)
+- **anvil-cli** (scope CLIH): 3 high, 10 medium, 6 low → 18 tasks
+- **anvil-core** (scope CORE): 2 high, 7 medium, 5 low → 14 tasks
+
+These range from high-severity security hardening (P0/P1) through code quality
+improvements (P2) to optional cleanups (P3). This module tracks the work needed
+to resolve each finding and ensure both packages are production-ready.
+
+**Sources:**
+
+- [apps/anvil-cli/REVIEW.md](../../apps/anvil-cli/REVIEW.md)
+- [packages/anvil/core/REVIEW.md](../../packages/anvil/core/REVIEW.md)
 
 ## In Scope
+
+### anvil-cli (CLIH)
 
 - P0 startup resilience (1 item)
 - P1 security and correctness issues (4 items)
@@ -28,29 +37,40 @@ work needed to resolve each finding and ensure the CLI is production-ready.
 - P3 optional cleanups and improvements (6 items)
 - Architectural refactoring (2 items)
 
+### anvil-core (CORE)
+
+- P0 shell injection remediation (1 item)
+- P1 path safety, file operations, and locking (3 items)
+- P2 crypto, validation, and documentation fixes (4 items)
+- P3 optional cleanups and improvements (6 items)
+
 ## Out of Scope
 
 - New CLI features (handled by other modules)
 - Auth UX improvements beyond the identified issues
 - TUI visual changes
+- New core features or API changes
 
 ## Interfaces
 
 **Depends on:**
 
 - `@eddacraft/anvil-cli` — Package being hardened
+- `@eddacraft/anvil-core` — Package being hardened
 - `@eddacraft/anvil-runtime` — For gate runner and policy config
 
 **Exposes:**
 
 - Hardened CLI with improved input validation, path safety, and startup resilience
+- Hardened core library with shell-safe exec, path sanitisation, and accurate docs
 
 ## Ready Checklist
 
 Change status to **Ready** when:
 
 - [ ] All P0/P1 issues have clear implementation paths
-- [ ] Team has reviewed path-escape findings (M8, M9)
+- [ ] Team has reviewed path-escape findings (CLIH M8, M9)
+- [ ] Team has reviewed exec→execFile migration scope (CORE H1, H2)
 - [ ] At least one task defined per HIGH finding
 
 ## Tasks
@@ -309,11 +329,225 @@ Change status to **Ready** when:
 - **Priority:** P3
 - **Status:** Optional
 
+---
+
+## Core Hardening Tasks (CORE)
+
+### CORE-001: Migrate provenance collector from exec to execFile
+
+- **Intent:** Eliminate shell injection surface in the most shell-heavy module
+- **Expected Outcome:** All `promisify(exec)` calls in `collector.ts` are replaced
+  with `promisify(execFile)` using array arguments; the 7 parallel git commands in
+  `collectGitContext` use `execFileAsync('git', ['rev-parse', ...])` form; the
+  standalone `git config user.name` call in `createProvenanceRecord` is also migrated
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="collector|provenance"`
+- **Files:** `packages/anvil/core/src/provenance/collector.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### CORE-002: Migrate drift and git-notes modules from exec to execFile
+
+- **Intent:** Eliminate shell injection surface in remaining shell-using modules
+- **Expected Outcome:** `snapshot-capture.ts` and `git-notes.ts` use
+  `promisify(execFile)` with array arguments; the existing input validation
+  functions (`isValidGitRef`, `isValidRemoteName`, `isValidRevisionRange`) are
+  retained as an additional safety layer
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="drift|git-notes|snapshot"`
+- **Files:** `packages/anvil/core/src/drift/snapshot-capture.ts`,
+  `packages/anvil/core/src/provenance/git-ai-standard/git-notes.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### CORE-003: Add path sanitisation to ProvenanceStore.get() and related methods
+
+- **Intent:** Prevent path traversal via unsanitised record IDs
+- **Expected Outcome:** `ProvenanceStore.get(id)`, `findByCommit()`, and `clear()`
+  validate the `id` parameter using the same `sanitizeSnapshotIdentifier` pattern
+  from `drift/snapshot-storage.ts` (basename extraction + directory separator check);
+  IDs containing `../` or path separators throw an error
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="provenance|store"`
+- **Files:** `packages/anvil/core/src/provenance/store.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### CORE-004: Fix ProvenanceStore.clear() to actually delete files
+
+- **Intent:** Ensure clear() removes record files instead of leaving empty artifacts
+- **Expected Outcome:** `clear()` uses `unlinkSync()` instead of
+  `writeFileSync(path, '')` to delete record files; alternatively uses
+  `fs.rmSync(historyDir, { recursive: true })` followed by `ensureDirectories()`
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="provenance|store|clear"`
+- **Files:** `packages/anvil/core/src/provenance/store.ts`
+- **Dependencies:** CORE-003 (sanitisation should be in place before deletion logic)
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### CORE-005: Add file locking or atomic writes to store modules
+
+- **Intent:** Prevent data corruption from concurrent read-modify-write cycles
+- **Expected Outcome:** `SuppressionStore` and `ProvenanceStore` use atomic writes
+  (write to temp file, then rename) to prevent partial writes; optionally add
+  advisory file locking via `proper-lockfile` or similar to prevent lost updates
+  from concurrent processes
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="store|suppression"`
+- **Files:** `packages/anvil/core/src/suppression/store.ts`,
+  `packages/anvil/core/src/provenance/store.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P1
+- **Notes:** Atomic rename is the minimum; full locking adds a dependency. Team
+  should decide which level of protection is needed based on expected concurrency.
+- **Status:** Pending
+
+### CORE-006: Increase generatePlanId() entropy
+
+- **Intent:** Reduce collision probability for plan IDs across teams/repos
+- **Expected Outcome:** `generatePlanId()` uses `randomBytes(8)` (64 bits, 16 hex
+  chars) or `randomUUID()` instead of `randomBytes(4)` (32 bits); the
+  `isValidPlanId` regex is updated to match the new format; existing plan IDs
+  remain valid (backward compatible)
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="hash|planId|crypto"`
+- **Files:** `packages/anvil/core/src/crypto/hash.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P2
+- **Notes:** Changing the plan ID format is a breaking change for existing plans.
+  Consider supporting both old and new formats in `isValidPlanId`.
+- **Status:** Pending
+
+### CORE-007: Fix canonicalizeJSON undefined handling
+
+- **Intent:** Make canonicalization consistent for all input types
+- **Expected Outcome:** `canonicalizeJSON(undefined)` either throws an error
+  (matching `JSON.stringify` which returns `undefined` the value) or returns
+  `"null"` for consistency; the behavior is documented in JSDoc; existing tests
+  are updated
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="hash|canonical|crypto"`
+- **Files:** `packages/anvil/core/src/crypto/hash.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P2
+- **Notes:** Changing this affects hash output for any data that contained
+  top-level undefined. Verify no existing hashes depend on this behavior.
+- **Status:** Pending
+
+### CORE-008: Add depth limit to entry-detector recursive traversal
+
+- **Intent:** Prevent stack overflow from deeply nested package.json exports
+- **Expected Outcome:** `checkExports()` in `entry-detector.ts` accepts a depth
+  parameter (default 10) and stops recursing beyond the limit; JSON parse calls
+  are wrapped in try-catch
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="entry|detector|architecture"`
+- **Files:** `packages/anvil/core/src/architecture/entry-detector.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P2
+- **Status:** Pending
+
+### CORE-009: Update package header to reflect actual I/O usage
+
+- **Intent:** Accurately document the package's dependency profile
+- **Expected Outcome:** The `src/index.ts` module comment is updated to reflect
+  that provenance, drift, architecture, and suppression modules perform I/O;
+  either the comment is corrected or I/O is extracted to `@eddacraft/anvil-runtime`
+- **Validation:** Manual review
+- **Files:** `packages/anvil/core/src/index.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P2
+- **Notes:** If the team's intent is truly to keep core I/O-free, this becomes a
+  larger refactoring task to move I/O into anvil-runtime. Mark as P2 for the
+  documentation fix; a full I/O extraction would be a separate module.
+- **Status:** Pending
+
+### CORE-010: Add debug logging for silently skipped files
+
+- **Intent:** Make architecture analysis failures visible for debugging
+- **Expected Outcome:** `analyzer.ts`, `edge-detector.ts`, `entry-detector.ts`,
+  and `snapshot-capture.ts` use the existing `createDebugger` utility to log
+  when files are skipped due to read errors, parse failures, or permission issues
+- **Validation:** `DEBUG=anvil:* pnpm -F anvil-core test -- --testNamePattern="architecture"`
+- **Files:** `packages/anvil/core/src/architecture/analyzer.ts`,
+  `packages/anvil/core/src/architecture/edge-detector.ts`,
+  `packages/anvil/core/src/architecture/entry-detector.ts`,
+  `packages/anvil/core/src/drift/snapshot-capture.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P3
+- **Status:** Optional
+
+### CORE-011: Batch getAuthorshipStats commit processing
+
+- **Intent:** Improve performance for large revision ranges
+- **Expected Outcome:** `getAuthorshipStats` uses `git notes list` to get all
+  note references in one command, then reads only the commits that have notes,
+  rather than checking each commit individually
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="git-notes|authorship|stats"`
+- **Files:** `packages/anvil/core/src/provenance/git-ai-standard/git-notes.ts`
+- **Dependencies:** CORE-002 (exec migration should happen first)
+- **Confidence:** medium
+- **Priority:** P3
+- **Status:** Optional
+
+### CORE-012: Add input validation to expandLineRanges
+
+- **Intent:** Report errors on malformed line range input instead of silent NaN
+- **Expected Outcome:** `expandLineRanges` validates each part is a valid number
+  or range before processing; malformed input throws a descriptive error or
+  returns an empty array with a warning
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="serializer|lineRange"`
+- **Files:** `packages/anvil/core/src/provenance/git-ai-standard/serializer.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P3
+- **Status:** Optional
+
+### CORE-013: Complete architecture violations detection
+
+- **Intent:** Make boundary violation detection functional
+- **Expected Outcome:** The violations detection in `analyzer.ts` produces actual
+  results based on the layer definitions and dependency rules, instead of
+  returning an empty array
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="analyzer|violation|architecture"`
+- **Files:** `packages/anvil/core/src/architecture/analyzer.ts`
+- **Dependencies:** None
+- **Confidence:** low
+- **Priority:** P3
+- **Notes:** This may be intentionally deferred. Confirm with team whether
+  violations detection is in scope for the current release.
+- **Status:** Optional
+
+### CORE-014: Add log sanitisation to debug utility
+
+- **Intent:** Prevent sensitive data from appearing in debug output
+- **Expected Outcome:** The debug utility redacts known sensitive patterns
+  (tokens, passwords, API keys) from logged arguments when `DEBUG=*` is enabled;
+  at minimum, values matching common token formats are replaced with `[REDACTED]`
+- **Validation:** `pnpm -F anvil-core test -- --testNamePattern="debug"`
+- **Files:** `packages/anvil/core/src/utils/debug.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P3
+- **Notes:** Redaction heuristics can produce false positives. Keep the approach
+  simple (e.g., redact values longer than 20 chars that look like hex/base64).
+- **Status:** Optional
+
 ## Risks
 
-| Risk                               | Impact | Mitigation                                    |
-| ---------------------------------- | ------ | --------------------------------------------- |
-| Path validation breaks MCP config  | Medium | M7 writes outside workspace intentionally     |
-| Workspace root warning is too noisy| Low    | Gate behind --verbose or only warn once        |
-| policy.ts refactor causes conflicts| Medium | Schedule during quiet period; feature-flag     |
-| Zod validation rejects valid config| Medium | Start with loose schema, tighten incrementally |
+| Risk                                    | Impact | Mitigation                                       |
+| --------------------------------------- | ------ | ------------------------------------------------ |
+| Path validation breaks MCP config       | Medium | CLIH M7 writes outside workspace intentionally   |
+| Workspace root warning is too noisy     | Low    | Gate behind --verbose or only warn once           |
+| policy.ts refactor causes conflicts     | Medium | Schedule during quiet period; feature-flag        |
+| Zod validation rejects valid config     | Medium | Start with loose schema, tighten incrementally    |
+| exec→execFile migration breaks on edge cases | Medium | Run full test suite; some git commands may need shell features (pipes, redirects) — verify each call |
+| Plan ID format change is breaking       | High   | Support both old (8-char) and new (16-char) formats in `isValidPlanId` |
+| File locking adds new dependency        | Low    | Atomic rename (no new dep) is sufficient minimum  |
+| canonicalizeJSON change alters hashes   | High   | Audit existing stored hashes before changing      |
