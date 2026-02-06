@@ -1,0 +1,182 @@
+/**
+ * Shared Fixtures and Test Data Factories
+ *
+ * Provides deterministic test data for use across all E2E suites.
+ * Every factory produces valid data by default and accepts overrides
+ * for testing edge cases.
+ */
+
+import {
+  type APSPlan,
+  type Change,
+  type GateConfig,
+  type GateCheck,
+  APS_SCHEMA_VERSION,
+  createPlan,
+} from '@eddacraft/anvil-core';
+
+// ─── Plan Factories ─────────────────────────────────────────────
+
+/** Counter for deterministic IDs within a test run */
+let planCounter = 0;
+
+/**
+ * Reset the plan counter between test suites
+ */
+export function resetFixtures(): void {
+  planCounter = 0;
+}
+
+/**
+ * Create a minimal valid APS plan via the real createPlan() helper
+ * from @eddacraft/anvil-contracts so the hash is always correct.
+ */
+export function makePlan(overrides: Partial<APSPlan> = {}): APSPlan {
+  planCounter++;
+  return createPlan({
+    intent: overrides.intent ?? `E2E test plan #${planCounter}`,
+    proposed_changes: overrides.proposed_changes ?? [makeChange()],
+    provenance: overrides.provenance ?? {
+      timestamp: new Date().toISOString(),
+      author: 'e2e-harness',
+      source: 'cli' as const,
+      version: '0.1.0',
+    },
+    validations: overrides.validations ?? {
+      required_checks: ['lint', 'test', 'coverage', 'secrets'],
+      skip_checks: [],
+    },
+    ...overrides,
+  });
+}
+
+/**
+ * Create a single proposed change entry.
+ */
+export function makeChange(overrides: Partial<Change> = {}): Change {
+  return {
+    file: overrides.file ?? 'src/example.ts',
+    type: overrides.type ?? 'modify',
+    description: overrides.description ?? 'Update implementation',
+    ...overrides,
+  } as Change;
+}
+
+// ─── Gate Config Factories ──────────────────────────────────────
+
+/**
+ * Create a gate configuration with sensible defaults.
+ */
+export function makeGateConfig(overrides: Partial<GateConfig> = {}): GateConfig {
+  return {
+    checks: overrides.checks ?? {
+      lint: makeGateCheck({ enabled: true }),
+      test: makeGateCheck({ enabled: true }),
+      coverage: makeGateCheck({ enabled: true, min_score: 80 }),
+      secrets: makeGateCheck({ enabled: true }),
+    },
+    ...overrides,
+  } as GateConfig;
+}
+
+/**
+ * Create an individual gate check entry.
+ */
+export function makeGateCheck(overrides: Partial<GateCheck> = {}): GateCheck {
+  return {
+    enabled: true,
+    ...overrides,
+  } as GateCheck;
+}
+
+// ─── File Content Factories ─────────────────────────────────────
+
+/**
+ * Create a minimal TypeScript source file.
+ */
+export function makeTsSource(name = 'example'): string {
+  return `// ${name}.ts\nexport function ${name}(): string {\n  return '${name}';\n}\n`;
+}
+
+/**
+ * Create a SpecKit-format markdown document.
+ */
+export function makeSpecKitDoc(title = 'Test Spec'): string {
+  return [
+    `# ${title}`,
+    '',
+    '## Overview',
+    '',
+    'A test specification document.',
+    '',
+    '## Changes',
+    '',
+    '- Modify `src/example.ts` — update implementation',
+    '',
+    '## Metadata',
+    '',
+    '| Key     | Value       |',
+    '| ------- | ----------- |',
+    '| Author  | e2e-harness |',
+    '| Version | 0.1.0       |',
+    '',
+  ].join('\n');
+}
+
+/**
+ * Create an APS-format markdown planning document.
+ */
+export function makeAPSMarkdown(intent = 'E2E test plan'): string {
+  return [
+    '---',
+    `schema_version: "${APS_SCHEMA_VERSION}"`,
+    `intent: "${intent}"`,
+    '---',
+    '',
+    `# ${intent}`,
+    '',
+    '## Proposed Changes',
+    '',
+    '- **modify** `src/example.ts` — update implementation',
+    '',
+    '## Provenance',
+    '',
+    '| Field   | Value       |',
+    '| ------- | ----------- |',
+    '| author  | e2e-harness |',
+    '| source  | cli         |',
+    '| version | 0.1.0       |',
+    '',
+  ].join('\n');
+}
+
+/**
+ * Create source content that contains a known anti-pattern
+ * (hardcoded secret) for scanner testing.
+ */
+export function makeSourceWithSecret(): string {
+  return [
+    '// config.ts',
+    "const API_KEY = 'sk-live-abc123def456ghi789';",
+    "const DB_HOST = 'localhost';",
+    '',
+    'export { API_KEY, DB_HOST };',
+    '',
+  ].join('\n');
+}
+
+/**
+ * Create source content with a known architecture violation
+ * (importing from a layer it shouldn't).
+ */
+export function makeSourceWithBoundaryViolation(): string {
+  return [
+    '// domain/service.ts',
+    "import { dbQuery } from '../infrastructure/database';",
+    '',
+    'export function getUser(id: string) {',
+    '  return dbQuery(`SELECT * FROM users WHERE id = ${id}`);',
+    '}',
+    '',
+  ].join('\n');
+}

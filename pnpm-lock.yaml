@@ -273,6 +273,46 @@ importers:
         specifier: ~5.9.3
         version: 5.9.3
 
+  apps/e2e:
+    dependencies:
+      '@eddacraft/anvil-adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
+      '@eddacraft/anvil-aps':
+        specifier: workspace:*
+        version: link:../../packages/aps
+      '@eddacraft/anvil-contracts':
+        specifier: workspace:*
+        version: link:../../packages/anvil/contracts
+      '@eddacraft/anvil-core':
+        specifier: workspace:*
+        version: link:../../packages/anvil/core
+      '@eddacraft/anvil-edda-stack':
+        specifier: workspace:*
+        version: link:../../packages/edda-stack
+      '@eddacraft/anvil-mcp-server':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
+      '@eddacraft/anvil-runtime':
+        specifier: workspace:*
+        version: link:../../packages/anvil/runtime
+      hono:
+        specifier: ^4.7.0
+        version: 4.11.7
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
+    devDependencies:
+      '@types/node':
+        specifier: ^25.1.0
+        version: 25.1.0
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@25.1.0)(happy-dom@20.4.0)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.46.0)(tsx@4.21.0)(yaml@2.8.2)
+
   apps/website:
     dependencies:
       '@neondatabase/serverless':

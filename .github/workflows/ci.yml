@@ -198,6 +198,47 @@ jobs:
           path: playwright-report/
           retention-days: 30
 
+  # Cross-surface E2E harness (apps/e2e)
+  e2e-harness:
+    name: E2E Harness
+    runs-on: ubuntu-latest
+    needs: [detect-changes, lint-and-test]
+    if: needs.detect-changes.outputs.code-changed == 'true'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build all packages
+        run: pnpm run build
+
+      - name: Run E2E smoke tests
+        run: pnpm run test:e2e:smoke
+
+      - name: Run full E2E harness
+        run: pnpm run test:e2e:harness
+        timeout-minutes: 10
+
+      - name: Upload E2E results
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: e2e-harness-results
+          path: coverage/e2e-results.json
+          retention-days: 30
+
   # TUI E2E tests using tuistory
   tui-tests:
     name: TUI E2E Tests

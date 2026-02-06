@@ -1,0 +1,34 @@
+{
+  "name": "@eddacraft/anvil-e2e",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end test harness for all Anvil surfaces",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "vitest run --testPathPattern smoke",
+    "test:cli": "vitest run --testPathPattern cli",
+    "test:api": "vitest run --testPathPattern api",
+    "test:core": "vitest run --testPathPattern core",
+    "test:contracts": "vitest run --testPathPattern contracts",
+    "test:adapters": "vitest run --testPathPattern adapters",
+    "test:mcp": "vitest run --testPathPattern mcp"
+  },
+  "dependencies": {
+    "@eddacraft/anvil-contracts": "workspace:*",
+    "@eddacraft/anvil-core": "workspace:*",
+    "@eddacraft/anvil-runtime": "workspace:*",
+    "@eddacraft/anvil-aps": "workspace:*",
+    "@eddacraft/anvil-adapters": "workspace:*",
+    "@eddacraft/anvil-mcp-server": "workspace:*",
+    "@eddacraft/anvil-edda-stack": "workspace:*",
+    "hono": "^4.7.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "vitest": "^4.0.18",
+    "typescript": "~5.9.3"
+  }
+}
