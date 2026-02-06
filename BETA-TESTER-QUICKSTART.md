@@ -218,17 +218,17 @@ Found a bug or have feedback? We want to hear it!
 
 ## Quick Reference
 
-| Command                  | Purpose                             |
-| ------------------------ | ----------------------------------- |
-| `anvil tutorial`         | Interactive guided tutorial         |
-| `anvil init`             | Set up Anvil in a project           |
-| `anvil check --all`      | Scan entire codebase                |
-| `anvil watch --source`   | Real-time validation                |
-| `anvil doctor`           | Diagnostics and troubleshooting     |
-| `anvil explain <rule>`   | Understand a warning                |
-| `anvil status`           | Check configuration and state       |
-| `anvil gate`             | Run quality gates                   |
-| `anvil --help`           | See all commands                    |
+| Command                | Purpose                         |
+| ---------------------- | ------------------------------- |
+| `anvil tutorial`       | Interactive guided tutorial     |
+| `anvil init`           | Set up Anvil in a project       |
+| `anvil check --all`    | Scan entire codebase            |
+| `anvil watch --source` | Real-time validation            |
+| `anvil doctor`         | Diagnostics and troubleshooting |
+| `anvil explain <rule>` | Understand a warning            |
+| `anvil status`         | Check configuration and state   |
+| `anvil gate`           | Run quality gates               |
+| `anvil --help`         | See all commands                |
 
 ---
 
