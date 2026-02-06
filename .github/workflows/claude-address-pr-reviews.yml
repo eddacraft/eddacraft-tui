@@ -1,0 +1,69 @@
+name: Claude Address PR Reviews
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to address review comments for'
+        required: true
+        type: number
+
+jobs:
+  address-reviews:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    steps:
+      - name: Get PR details
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        run: |
+          PR_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPO" --json headRefName -q '.headRefName')
+          echo "branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          fetch-depth: 0
+
+      - name: Address PR Review Comments
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ inputs.pr_number }}
+          REPO: ${{ github.repository }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
+          prompt: |
+            You are addressing review comments on this repository's PR.
+            The PR number is in the PR_NUMBER environment variable and the
+            repo is in the REPO environment variable.
+
+            1. Fetch all review comments and requested changes:
+               - Run `gh pr view "$PR_NUMBER" --json reviews,reviewDecision`
+               - Run `gh api "repos/$REPO/pulls/$PR_NUMBER/comments"` for inline comments
+               - Run `gh api "repos/$REPO/pulls/$PR_NUMBER/reviews"` for review summaries
+
+            2. For each unresolved review comment:
+               - Understand the feedback and the code context
+               - Make the requested code change
+               - If a comment is unclear or you disagree, leave a reply explaining your reasoning
+
+            3. After addressing all comments:
+               - Commit the changes with a clear message referencing the PR
+               - Push to the PR branch
+               - Post a summary comment on the PR listing what was addressed
+
+            Be thorough but conservative — only make changes that are clearly requested.
+            Do not refactor or "improve" code beyond what reviewers asked for.
