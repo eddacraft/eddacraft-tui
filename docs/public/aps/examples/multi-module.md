@@ -62,7 +62,7 @@ User registration, login, and session management.
 
 ## Task: AUTH-001 — User registration
 
-**Status:** complete
+**Status:** completed
 
 **Intent:** New users can create accounts with email and password. Passwords
 are hashed. Email uniqueness enforced.
@@ -80,7 +80,7 @@ are hashed. Email uniqueness enforced.
 
 ## Task: AUTH-002 — User login
 
-**Status:** complete
+**Status:** completed
 
 **Intent:** Users authenticate with email/password and receive JWT.
 
@@ -97,7 +97,7 @@ are hashed. Email uniqueness enforced.
 
 ## Task: AUTH-003 — Auth middleware
 
-**Status:** complete
+**Status:** completed
 
 **Intent:** Protected routes require valid JWT. Invalid tokens return 401.
 
@@ -120,7 +120,7 @@ Product catalog management.
 
 ## Task: PROD-001 — List products
 
-**Status:** complete
+**Status:** completed
 
 **Intent:** GET /products returns paginated product list with filtering.
 
@@ -137,7 +137,7 @@ Product catalog management.
 
 ## Task: PROD-002 — Product details
 
-**Status:** complete
+**Status:** completed
 
 **Intent:** GET /products/:id returns full product details.
 
@@ -147,7 +147,7 @@ Product catalog management.
 
 ## Task: PROD-003 — Admin product management
 
-**Status:** pending
+**Status:** open
 
 **Intent:** Admins can create, update, and delete products.
 
@@ -177,7 +177,7 @@ Shopping cart functionality.
 
 ## Task: CART-001 — Add to cart
 
-**Status:** in_progress
+**Status:** locked
 
 **Intent:** Authenticated users can add products to their cart. Cart persists
 across sessions.
@@ -200,7 +200,7 @@ across sessions.
 
 ## Task: CART-002 — View cart
 
-**Status:** pending
+**Status:** open
 
 **Intent:** Users see their cart with items, quantities, and totals.
 
@@ -214,7 +214,7 @@ across sessions.
 
 ## Task: CART-003 — Update cart
 
-**Status:** pending
+**Status:** open
 
 **Intent:** Users can update quantities or remove items.
 
@@ -244,7 +244,7 @@ Payment processing and order creation.
 
 ## Task: PAY-001 — Stripe integration
 
-**Status:** pending
+**Status:** open
 
 **Intent:** System can process payments via Stripe. Supports card payments. PCI
 compliant.
@@ -262,7 +262,7 @@ compliant.
 
 ## Task: PAY-002 — Checkout flow
 
-**Status:** pending
+**Status:** open
 
 **Intent:** Users complete checkout: review → payment → confirmation. Cart
 cleared on success. Order created.

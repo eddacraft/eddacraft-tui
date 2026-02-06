@@ -104,7 +104,7 @@ hyphen
 
 **Intent:** Required
 
-**Validation:** Required
+**Validation:** Optional
 ```
 
 Optional:
