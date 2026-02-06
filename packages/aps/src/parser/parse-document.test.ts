@@ -237,6 +237,208 @@ describe('parseDocument', () => {
     });
   });
 
+  describe('ID field parsing', () => {
+    it('should parse ID field as alias for Scope', async () => {
+      const content = `# My Module
+
+**ID:** AUTH **Owner:** @alice
+
+## Tasks
+
+### AUTH-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+
+      expect(doc.metadata).toEqual({
+        scope: 'AUTH',
+        owner: '@alice',
+      });
+    });
+
+    it('should parse Scope field (legacy) the same as ID', async () => {
+      const content = `# My Module
+
+**Scope:** AUTH **Owner:** @alice
+
+## Tasks
+
+### AUTH-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+
+      expect(doc.metadata).toEqual({
+        scope: 'AUTH',
+        owner: '@alice',
+      });
+    });
+  });
+
+  describe('status normalization', () => {
+    it('should normalize legacy Draft to Proposed', async () => {
+      const content = `# My Module
+
+**Scope:** TEST **Status:** Draft
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+      expect(doc.metadata?.status).toBe('Proposed');
+    });
+
+    it('should normalize legacy Complete to Done', async () => {
+      const content = `# My Module
+
+**Scope:** TEST **Status:** Complete
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+      expect(doc.metadata?.status).toBe('Done');
+    });
+
+    it('should keep current spec values as-is', async () => {
+      const content = `# My Module
+
+**Scope:** TEST **Status:** Proposed
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+      expect(doc.metadata?.status).toBe('Proposed');
+    });
+
+    it('should accept all valid status values', async () => {
+      for (const [input, expected] of [
+        ['Proposed', 'Proposed'],
+        ['Ready', 'Ready'],
+        ['In Progress', 'In Progress'],
+        ['Done', 'Done'],
+        ['Blocked', 'Blocked'],
+      ] as const) {
+        const content = `# Module
+
+**Scope:** TEST **Status:** ${input}
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+        const doc = await parseDocument(content);
+        expect(doc.metadata?.status).toBe(expected);
+      }
+    });
+  });
+
+  describe('packages parsing', () => {
+    it('should parse comma-separated Packages field', async () => {
+      const content = `# My Module
+
+**Scope:** TEST **Packages:** @app/core, @app/utils
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+      expect(doc.metadata?.packages).toEqual(['@app/core', '@app/utils']);
+    });
+
+    it('should handle Packages: (none) as empty array', async () => {
+      const content = `# My Module
+
+**Scope:** TEST **Packages:** (none)
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+      expect(doc.metadata?.packages).toEqual([]);
+    });
+
+    it('should handle empty Packages value as empty array', async () => {
+      const content = `# My Module
+
+**Scope:** TEST **Packages:**
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+      expect(doc.metadata?.packages).toEqual([]);
+    });
+
+    it('should filter empty entries from Packages', async () => {
+      const content = `# My Module
+
+**Scope:** TEST **Packages:** @app/core,, @app/utils
+
+## Tasks
+
+### TEST-001: Task
+
+**Intent:** Do something`;
+
+      const doc = await parseDocument(content);
+      expect(doc.metadata?.packages).toEqual(['@app/core', '@app/utils']);
+    });
+  });
+
+  describe('task packages parsing', () => {
+    it('should parse Packages field on tasks', async () => {
+      const content = `# Plan
+
+## Tasks
+
+### TEST-001: Task with packages
+
+**Intent:** Do something
+**Packages:** @app/core, @app/utils`;
+
+      const doc = await parseDocument(content);
+      expect(doc.tasks[0].packages).toEqual(['@app/core', '@app/utils']);
+    });
+
+    it('should handle Packages: (none) on tasks as empty array', async () => {
+      const content = `# Plan
+
+## Tasks
+
+### TEST-001: Task with no packages
+
+**Intent:** Do something
+**Packages:** (none)`;
+
+      const doc = await parseDocument(content);
+      expect(doc.tasks[0].packages).toEqual([]);
+    });
+  });
+
   describe('source tracking', () => {
     it('should include source path in parsed document', async () => {
       const content = `# Plan

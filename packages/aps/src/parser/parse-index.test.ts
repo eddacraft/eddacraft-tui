@@ -130,6 +130,140 @@ describe('parseIndex', () => {
     });
   });
 
+  describe('ID field parsing', () => {
+    it('should parse ID field as alias for Scope', async () => {
+      const content = `# Test Plan
+
+## Modules
+
+### auth
+
+- **Path:** [./auth.aps.md](./auth.aps.md)
+- **ID:** AUTH
+`;
+
+      const index = await parseIndex(content);
+      expect(index.modules[0].scope).toBe('AUTH');
+    });
+
+    it('should parse Scope field (legacy) the same as ID', async () => {
+      const content = `# Test Plan
+
+## Modules
+
+### auth
+
+- **Path:** [./auth.aps.md](./auth.aps.md)
+- **Scope:** AUTH
+`;
+
+      const index = await parseIndex(content);
+      expect(index.modules[0].scope).toBe('AUTH');
+    });
+  });
+
+  describe('status normalization', () => {
+    it('should normalize legacy Draft to Proposed', async () => {
+      const content = `# Test Plan
+
+## Modules
+
+### auth
+
+- **Path:** [./auth.aps.md](./auth.aps.md)
+- **Status:** Draft
+`;
+
+      const index = await parseIndex(content);
+      expect(index.modules[0].status).toBe('Proposed');
+    });
+
+    it('should normalize legacy Complete to Done', async () => {
+      const content = `# Test Plan
+
+## Modules
+
+### auth
+
+- **Path:** [./auth.aps.md](./auth.aps.md)
+- **Status:** Complete
+`;
+
+      const index = await parseIndex(content);
+      expect(index.modules[0].status).toBe('Done');
+    });
+
+    it('should accept all valid status values', async () => {
+      for (const [input, expected] of [
+        ['Proposed', 'Proposed'],
+        ['Ready', 'Ready'],
+        ['In Progress', 'In Progress'],
+        ['Done', 'Done'],
+        ['Blocked', 'Blocked'],
+      ] as const) {
+        const content = `# Test Plan
+
+## Modules
+
+### mod
+
+- **Path:** [./mod.aps.md](./mod.aps.md)
+- **Status:** ${input}
+`;
+
+        const index = await parseIndex(content);
+        expect(index.modules[0].status).toBe(expected);
+      }
+    });
+  });
+
+  describe('packages parsing', () => {
+    it('should parse comma-separated Packages field', async () => {
+      const content = `# Test Plan
+
+## Modules
+
+### auth
+
+- **Path:** [./auth.aps.md](./auth.aps.md)
+- **Packages:** @app/core, @app/utils
+`;
+
+      const index = await parseIndex(content);
+      expect(index.modules[0].packages).toEqual(['@app/core', '@app/utils']);
+    });
+
+    it('should handle Packages: (none) as empty array', async () => {
+      const content = `# Test Plan
+
+## Modules
+
+### auth
+
+- **Path:** [./auth.aps.md](./auth.aps.md)
+- **Packages:** (none)
+`;
+
+      const index = await parseIndex(content);
+      expect(index.modules[0].packages).toEqual([]);
+    });
+
+    it('should handle empty Packages value as empty array', async () => {
+      const content = `# Test Plan
+
+## Modules
+
+### auth
+
+- **Path:** [./auth.aps.md](./auth.aps.md)
+- **Packages:**
+`;
+
+      const index = await parseIndex(content);
+      expect(index.modules[0].packages).toEqual([]);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle module with minimal metadata', async () => {
       const content = `# Minimal

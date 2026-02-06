@@ -188,6 +188,40 @@ Some tasks without proper formatting.
     });
   });
 
+  describe('detects ID and Packages fields', () => {
+    it('detects **ID:** field as APS indicator', () => {
+      const content = `# Feature Plan
+
+**ID:** AUTH
+
+## Tasks
+
+### AUTH-001: Implement login
+
+**Intent:** Create login endpoint
+`;
+      const result = adapter.detect(content);
+      expect(result.detected).toBe(true);
+      expect(result.reason).toContain('scope-field');
+    });
+
+    it('detects **Packages:** field as APS indicator', () => {
+      const content = `# Feature Plan
+
+**Scope:** AUTH **Packages:** @app/core, @app/utils
+
+## Tasks
+
+### AUTH-001: Implement login
+
+**Intent:** Create login endpoint
+`;
+      const result = adapter.detect(content);
+      expect(result.detected).toBe(true);
+      expect(result.reason).toContain('packages-field');
+    });
+  });
+
   describe('detection reasons', () => {
     it('provides reason for leaf spec detection', () => {
       const content = `# Feature
