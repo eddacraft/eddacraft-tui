@@ -3,6 +3,11 @@
  *
  * Coordinates file watching, git filtering, debouncing, and action dispatch.
  * This is the main entry point for watch mode functionality.
+ *
+ * Multi-Agent Support:
+ * - Acquires workspace-level watch lock to prevent multiple watchers
+ * - Coordinates action execution through lock manager
+ * - Registers agent and maintains heartbeat
  */
 
 import { FileWatcher } from './file-watcher.js';
@@ -15,7 +20,13 @@ import type {
   WatchActionResult,
   WatchChangeEvent,
   DebouncedChanges,
+  MultiAgentConfig,
 } from './types.js';
+import {
+  createConcurrencyContext,
+  createAgentInfo,
+  type ConcurrencyContext,
+} from '../concurrency/index.js';
 
 /**
  * Action handler type
@@ -23,9 +34,22 @@ import type {
 export type ActionHandler = (files: string[]) => Promise<WatchActionResult>;
 
 /**
+ * Default multi-agent configuration
+ */
+const DEFAULT_MULTI_AGENT_CONFIG: Required<MultiAgentConfig> = {
+  enabled: true,
+  exclusiveWatch: true,
+  coordinatedActions: true,
+  agentId: '',
+  waitForLock: true,
+  lockWaitTimeoutMs: 30000,
+};
+
+/**
  * Watch orchestrator
  *
  * Coordinates all watch components and dispatches actions.
+ * Supports multi-agent coordination with distributed locking.
  */
 export class WatchOrchestrator {
   private fileWatcher: FileWatcher;
@@ -37,6 +61,10 @@ export class WatchOrchestrator {
   private verbose: boolean;
   private isRunning = false;
   private isGitRepo = false;
+
+  // Multi-agent support
+  private multiAgentConfig: Required<MultiAgentConfig>;
+  private concurrencyContext: ConcurrencyContext | null = null;
 
   // Action handlers
   private validateHandler?: ActionHandler;
@@ -50,6 +78,8 @@ export class WatchOrchestrator {
     actionsRun: 0,
     actionsPassed: 0,
     actionsFailed: 0,
+    actionsQueued: 0,
+    lockWaits: 0,
   };
 
   constructor(options: WatchOrchestratorOptions) {
@@ -57,6 +87,10 @@ export class WatchOrchestrator {
     this.config = options.config;
     this.onEvent = options.onEvent;
     this.verbose = options.verbose ?? false;
+    this.multiAgentConfig = {
+      ...DEFAULT_MULTI_AGENT_CONFIG,
+      ...options.multiAgent,
+    };
 
     this.fileWatcher = new FileWatcher();
     this.gitChecker = new GitStatusChecker(options.workspaceRoot);
@@ -95,6 +129,11 @@ export class WatchOrchestrator {
       throw new Error('Watch orchestrator is already running');
     }
 
+    // Initialize multi-agent coordination if enabled
+    if (this.multiAgentConfig.enabled) {
+      await this.initializeMultiAgent();
+    }
+
     // Check if we're in a git repository
     this.isGitRepo = await this.gitChecker.isGitRepository();
 
@@ -120,6 +159,82 @@ export class WatchOrchestrator {
   }
 
   /**
+   * Initialize multi-agent coordination
+   */
+  private async initializeMultiAgent(): Promise<void> {
+    try {
+      // Create concurrency context, honouring custom agent ID if provided
+      this.concurrencyContext = await createConcurrencyContext({
+        workspaceRoot: this.workspaceRoot,
+        autoRegister: true,
+        autoHeartbeat: true,
+        ...(this.multiAgentConfig.agentId
+          ? { agentInfo: createAgentInfo({ id: this.multiAgentConfig.agentId }) }
+          : {}),
+      });
+
+      // Acquire exclusive watch lock if configured
+      if (this.multiAgentConfig.exclusiveWatch) {
+        const lockResult = await this.concurrencyContext.queue.waitForLock({
+          type: 'watch',
+          resource: 'workspace',
+          reason: 'Starting file watch mode',
+          maxWaitMs: this.multiAgentConfig.waitForLock
+            ? this.multiAgentConfig.lockWaitTimeoutMs
+            : 0,
+          onPositionChange: (position, _total) => {
+            this.stats.lockWaits++;
+            this.emitEvent({
+              type: 'lock:waiting',
+              resource: 'watch:workspace',
+              heldBy: 'another-agent',
+              queuePosition: position,
+            });
+          },
+        });
+
+        if (!lockResult.acquired) {
+          // Clean up context
+          await this.concurrencyContext.cleanup();
+          this.concurrencyContext = null;
+
+          const error = `Cannot start watch mode: ${lockResult.error || 'Lock held by another agent'}`;
+
+          if (lockResult.heldBy) {
+            this.emitEvent({
+              type: 'lock:denied',
+              resource: 'watch:workspace',
+              heldBy: lockResult.heldBy.agentId,
+              reason: `Lock expires at ${lockResult.heldBy.expiresAt}`,
+            });
+          }
+
+          throw new Error(error);
+        }
+
+        // Start auto-renewal for watch lock
+        this.concurrencyContext.locks.startAutoRenewal('watch', 'workspace');
+
+        this.emitEvent({
+          type: 'lock:acquired',
+          resource: 'watch:workspace',
+          agentId: this.concurrencyContext.agent.getAgentId(),
+        });
+      }
+
+      // Update agent operation
+      await this.concurrencyContext.agent.setOperation('watching');
+    } catch (error) {
+      // Clean up on error
+      if (this.concurrencyContext) {
+        await this.concurrencyContext.cleanup();
+        this.concurrencyContext = null;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Stop watching
    */
   async stop(): Promise<void> {
@@ -129,9 +244,23 @@ export class WatchOrchestrator {
 
     this.debouncer.cancel();
     await this.fileWatcher.stop();
+
+    // Clean up multi-agent coordination
+    if (this.concurrencyContext) {
+      await this.concurrencyContext.cleanup();
+      this.concurrencyContext = null;
+    }
+
     this.isRunning = false;
 
     this.emitEvent({ type: 'stopped' });
+  }
+
+  /**
+   * Get the agent ID (if multi-agent is enabled)
+   */
+  getAgentId(): string | undefined {
+    return this.concurrencyContext?.agent.getAgentId();
   }
 
   /**
@@ -220,6 +349,77 @@ export class WatchOrchestrator {
       return;
     }
 
+    // Use coordinated action execution if enabled
+    if (
+      this.multiAgentConfig.enabled &&
+      this.multiAgentConfig.coordinatedActions &&
+      this.concurrencyContext
+    ) {
+      await this.runCoordinatedAction(action, handler, files);
+    } else {
+      await this.runDirectAction(action, handler, files);
+    }
+  }
+
+  /**
+   * Run action with multi-agent coordination (locking/queuing)
+   */
+  private async runCoordinatedAction(
+    action: 'validate' | 'gate' | 'check',
+    handler: ActionHandler,
+    files: string[]
+  ): Promise<void> {
+    if (!this.concurrencyContext) {
+      return this.runDirectAction(action, handler, files);
+    }
+
+    const resource = `action:${action}`;
+
+    // Try to acquire action lock with queuing
+    const lockResult = await this.concurrencyContext.queue.waitForLock({
+      type: 'action',
+      resource,
+      reason: `Running ${action} on ${files.length} files`,
+      maxWaitMs: 60000, // Wait up to 60s for action lock
+      onPositionChange: (position, _total) => {
+        this.stats.actionsQueued++;
+        this.emitEvent({
+          type: 'action:queued',
+          action,
+          position,
+          files,
+        });
+      },
+    });
+
+    if (!lockResult.acquired) {
+      this.emitEvent({
+        type: 'action:error',
+        error: new Error(`Could not acquire action lock: ${lockResult.error}`),
+        files,
+      });
+      return;
+    }
+
+    try {
+      // Update agent operation
+      await this.concurrencyContext.agent.setOperation(`running:${action}`);
+
+      await this.runDirectAction(action, handler, files);
+    } finally {
+      await this.concurrencyContext.locks.release('action', resource);
+      await this.concurrencyContext.agent.setOperation('watching');
+    }
+  }
+
+  /**
+   * Run action directly without coordination
+   */
+  private async runDirectAction(
+    action: 'validate' | 'gate' | 'check',
+    handler: ActionHandler,
+    files: string[]
+  ): Promise<void> {
     this.stats.actionsRun++;
 
     this.emitEvent({
@@ -262,6 +462,7 @@ export class WatchOrchestrator {
       type: 'ready',
       patterns: this.config.patterns,
       gitFilter: this.isGitRepo && this.config.git.unstagedOnly,
+      agentId: this.concurrencyContext?.agent.getAgentId(),
     });
   }
 

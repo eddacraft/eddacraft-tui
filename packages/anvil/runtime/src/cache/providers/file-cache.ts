@@ -4,13 +4,14 @@
  */
 
 import { existsSync, unlinkSync } from 'node:fs';
-import { readFile, writeFile, rm, mkdir } from 'node:fs/promises';
+import { readFile, rm, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { atomicWriteText } from '../../concurrency/atomic.js';
 
 const debug = createDebugger('cache');
 
@@ -186,9 +187,9 @@ export class FileCacheProvider implements CacheProvider {
     const fileName = `${fileHash}.json`;
     const filePath = join(this.entriesDir, fileName);
 
-    // Write entry file
+    // Write entry file atomically to prevent corruption in multi-agent scenarios
     const content = JSON.stringify(entry, null, 2);
-    await writeFile(filePath, content, 'utf-8');
+    await atomicWriteText(filePath, content);
 
     // Update index
     index.entries[key] = {
@@ -341,7 +342,8 @@ export class FileCacheProvider implements CacheProvider {
     }
 
     await this.ensureCacheDir();
-    await writeFile(this.indexPath, JSON.stringify(this.index, null, 2), 'utf-8');
+    // Use atomic write to prevent corruption in multi-agent scenarios
+    await atomicWriteText(this.indexPath, JSON.stringify(this.index, null, 2));
     this.indexDirty = false;
   }
 

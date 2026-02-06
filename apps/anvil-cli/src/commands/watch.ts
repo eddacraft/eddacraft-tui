@@ -53,6 +53,10 @@ interface WatchOptions {
   all?: boolean;
   // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
   tui?: boolean;
+  // Multi-agent coordination options
+  multiAgent?: boolean;
+  agentId?: string;
+  exclusive?: boolean;
 }
 
 /**
@@ -102,6 +106,10 @@ export function createWatchCommand(): Command {
     .option('-v, --verbose', 'Verbose output')
     .option('--tui', 'Force TUI dashboard mode')
     .option('--no-tui', 'Force plain text mode')
+    .option('--multi-agent', 'Enable multi-agent coordination (default: true)')
+    .option('--no-multi-agent', 'Disable multi-agent coordination')
+    .option('--agent-id <id>', 'Custom agent identifier')
+    .option('--no-exclusive', 'Allow multiple watch instances (disable exclusive lock)')
     .action(async (file: string | undefined, options: WatchOptions) => {
       try {
         const workspaceRoot = getWorkspaceRoot();
@@ -213,12 +221,19 @@ export function createWatchCommand(): Command {
           profile: watchConfig.gateProfile,
         });
 
-        // Create orchestrator
+        // Create orchestrator with multi-agent support
         const orchestrator = createWatchOrchestrator({
           workspaceRoot,
           config: watchConfig,
           onEvent: (event: WatchStatusEvent) => output.handleEvent(event),
           verbose: options.verbose,
+          multiAgent: {
+            enabled: options.multiAgent !== false,
+            exclusiveWatch: options.exclusive !== false,
+            coordinatedActions: options.multiAgent !== false,
+            agentId: options.agentId,
+            waitForLock: true,
+          },
         });
 
         // Set up action handlers

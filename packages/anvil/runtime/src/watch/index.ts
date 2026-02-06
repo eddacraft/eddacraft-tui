@@ -24,6 +24,7 @@ export type {
   WatchStatusEventType,
   WatchActionResult,
   WatchOrchestratorOptions,
+  MultiAgentConfig,
 } from './types.js';
 
 // Git status checker

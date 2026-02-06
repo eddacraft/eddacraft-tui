@@ -1,3 +1,4 @@
+export { createAgentCommand } from './agent/index.js';
 export { createArchitectureCommand } from './architecture.js';
 export { createAuthorshipCommand } from './authorship.js';
 export { createCheckCommand } from './check.js';
