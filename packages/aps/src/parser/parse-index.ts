@@ -160,14 +160,19 @@ function parseModuleMetadata(moduleId: string, lists: List[]): ModuleMetadata {
           metadata.owner = value;
           break;
         case 'Status': {
-          // Normalise status values - support both legacy and current spec values
-          const normalizedStatus = value.trim();
-          if (
-            ['Draft', 'Proposed', 'Ready', 'In Progress', 'Complete', 'Done', 'Blocked'].includes(
-              normalizedStatus
-            )
-          ) {
-            metadata.status = normalizedStatus as ModuleMetadata['status'];
+          // Normalise status values - legacy values mapped to canonical equivalents
+          const statusMap: Record<string, ModuleMetadata['status']> = {
+            Draft: 'Proposed',
+            Proposed: 'Proposed',
+            Ready: 'Ready',
+            'In Progress': 'In Progress',
+            Complete: 'Done',
+            Done: 'Done',
+            Blocked: 'Blocked',
+          };
+          const mapped = statusMap[value.trim()];
+          if (mapped) {
+            metadata.status = mapped;
           }
           break;
         }

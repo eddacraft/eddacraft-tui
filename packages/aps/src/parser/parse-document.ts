@@ -175,8 +175,8 @@ function parseMetadataLine(para: Paragraph): ModuleMetadata {
 
   for (const child of para.children) {
     if (child.type === 'strong') {
-      // Save previous field
-      if (currentKey && currentValue) {
+      // Save previous field (even if value is empty, so handlers like Packages can default)
+      if (currentKey) {
         assignMetadataField(metadata, currentKey, currentValue.trim());
       }
 
@@ -195,8 +195,8 @@ function parseMetadataLine(para: Paragraph): ModuleMetadata {
     }
   }
 
-  // Save last field
-  if (currentKey && currentValue) {
+  // Save last field (even if value is empty)
+  if (currentKey) {
     assignMetadataField(metadata, currentKey, currentValue.trim());
   }
 
@@ -218,14 +218,19 @@ function assignMetadataField(metadata: ModuleMetadata, key: string, value: strin
       break;
     case 'Status': {
       // Normalise status values to match ModuleStatusSchema
-      // Supports both legacy (Draft, Complete) and current spec (Proposed, Done) values
-      const normalizedStatus = value.trim();
-      if (
-        ['Draft', 'Proposed', 'Ready', 'In Progress', 'Complete', 'Done', 'Blocked'].includes(
-          normalizedStatus
-        )
-      ) {
-        metadata.status = normalizedStatus as ModuleMetadata['status'];
+      // Legacy values are mapped to canonical equivalents: Draft→Proposed, Complete→Done
+      const statusMap: Record<string, ModuleMetadata['status']> = {
+        Draft: 'Proposed',
+        Proposed: 'Proposed',
+        Ready: 'Ready',
+        'In Progress': 'In Progress',
+        Complete: 'Done',
+        Done: 'Done',
+        Blocked: 'Blocked',
+      };
+      const mapped = statusMap[value.trim()];
+      if (mapped) {
+        metadata.status = mapped;
       }
       break;
     }
@@ -240,9 +245,18 @@ function assignMetadataField(metadata: ModuleMetadata, key: string, value: strin
     case 'Dependencies':
       metadata.dependencies = value.split(',').map((d) => d.trim());
       break;
-    case 'Packages':
+    case 'Packages': {
       // Monorepo support: list of affected packages
-      metadata.packages = value.split(',').map((p) => p.trim());
+      const trimmed = value.trim();
+      if (!trimmed || trimmed.toLowerCase() === '(none)') {
+        metadata.packages = [];
+      } else {
+        metadata.packages = trimmed
+          .split(',')
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+      }
       break;
+    }
   }
 }

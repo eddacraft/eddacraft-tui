@@ -89,17 +89,10 @@ export type Task = z.infer<typeof TaskSchema>;
 
 /**
  * Module status values
- * Supports both legacy values (Draft, Complete) and current spec values (Proposed, Done)
+ * Legacy values (Draft, Complete) are accepted during parsing but normalised
+ * to their canonical equivalents (Proposed, Done).
  */
-export const ModuleStatusSchema = z.enum([
-  'Draft', // legacy alias for Proposed
-  'Proposed',
-  'Ready',
-  'In Progress',
-  'Complete', // legacy alias for Done
-  'Done',
-  'Blocked',
-]);
+export const ModuleStatusSchema = z.enum(['Proposed', 'Ready', 'In Progress', 'Done', 'Blocked']);
 export type ModuleStatus = z.infer<typeof ModuleStatusSchema>;
 
 /**

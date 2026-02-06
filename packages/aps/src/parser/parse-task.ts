@@ -195,10 +195,16 @@ function assignField(task: Partial<Task>, key: string, value: string): void {
       task.risks = parseCommaSeparated(value);
       break;
 
-    case 'Packages':
+    case 'Packages': {
       // Monorepo support: list of affected packages
-      task.packages = parseCommaSeparated(value);
+      const trimmed = value.trim();
+      if (!trimmed || trimmed.toLowerCase() === '(none)') {
+        task.packages = [];
+      } else {
+        task.packages = parseCommaSeparated(value);
+      }
       break;
+    }
 
     case 'Link':
       task.link = value;
