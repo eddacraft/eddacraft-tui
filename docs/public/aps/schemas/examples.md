@@ -92,8 +92,8 @@ User authentication and session management.
 
 **Status:** completed
 
-**Intent:** Users can authenticate with email and password. The system returns
-a JWT valid for 24 hours. Invalid credentials return a 401 response.
+**Intent:** Users can authenticate with email and password. The system returns a
+JWT valid for 24 hours. Invalid credentials return a 401 response.
 
 **Validation:**
 

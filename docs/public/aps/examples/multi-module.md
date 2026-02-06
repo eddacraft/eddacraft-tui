@@ -64,8 +64,8 @@ User registration, login, and session management.
 
 **Status:** completed
 
-**Intent:** New users can create accounts with email and password. Passwords
-are hashed. Email uniqueness enforced.
+**Intent:** New users can create accounts with email and password. Passwords are
+hashed. Email uniqueness enforced.
 
 **Validation:** `pnpm test src/auth/register.test.ts`
 

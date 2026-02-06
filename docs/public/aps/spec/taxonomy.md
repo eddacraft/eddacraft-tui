@@ -141,8 +141,8 @@ A unit of authorised work.
 
 **Status:** open | locked | completed | cancelled
 
-**Intent:** Users can authenticate with email and password, receiving a JWT
-that can be used for subsequent authenticated requests.
+**Intent:** Users can authenticate with email and password, receiving a JWT that
+can be used for subsequent authenticated requests.
 
 **Validation:**
 

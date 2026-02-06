@@ -15,7 +15,11 @@ type generation.
 The core types are exported from `@eddacraft/anvil-aps`:
 
 ```typescript
-import type { Task, ModuleMetadata, ParsedDocument } from '@eddacraft/anvil-aps';
+import type {
+  Task,
+  ModuleMetadata,
+  ParsedDocument,
+} from '@eddacraft/anvil-aps';
 ```
 
 ### Task
