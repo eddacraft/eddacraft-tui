@@ -2,30 +2,32 @@
 APS Module: Codebase Hardening
 ==============================
 Addresses issues from the 2026-02-06 adversarial code reviews.
-See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md
+See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md, apps/anvil-api/REVIEW.md
 -->
 
 # Codebase Hardening
 
-| ID         | Owner | Status |
-| ---------- | ----- | ------ |
-| CLIH, CORE | —     | Draft  |
+| ID              | Owner | Status |
+| --------------- | ----- | ------ |
+| CLIH, CORE, API | —     | Draft  |
 
 ## Purpose
 
-Address the 33 issues identified across two adversarial code reviews (2026-02-06):
+Address the 45 issues identified across three adversarial code reviews (2026-02-06):
 
 - **anvil-cli** (scope CLIH): 3 high, 10 medium, 6 low → 18 tasks
 - **anvil-core** (scope CORE): 2 high, 7 medium, 5 low → 14 tasks
+- **anvil-api** (scope API): 2 high, 5 medium, 5 low → 12 tasks
 
 These range from high-severity security hardening (P0/P1) through code quality
 improvements (P2) to optional cleanups (P3). This module tracks the work needed
-to resolve each finding and ensure both packages are production-ready.
+to resolve each finding and ensure all packages are production-ready.
 
 **Sources:**
 
 - [apps/anvil-cli/REVIEW.md](../../apps/anvil-cli/REVIEW.md)
 - [packages/anvil/core/REVIEW.md](../../packages/anvil/core/REVIEW.md)
+- [apps/anvil-api/REVIEW.md](../../apps/anvil-api/REVIEW.md)
 
 ## In Scope
 
@@ -44,12 +46,20 @@ to resolve each finding and ensure both packages are production-ready.
 - P2 crypto, validation, and documentation fixes (4 items)
 - P3 optional cleanups and improvements (6 items)
 
+### anvil-api (API)
+
+- P0 CORS and rate limiting (2 items)
+- P1 scope validation, transactions, and output validation (3 items)
+- P2 input validation and audit improvements (3 items)
+- P3 optional hardening and documentation (4 items)
+
 ## Out of Scope
 
 - New CLI features (handled by other modules)
 - Auth UX improvements beyond the identified issues
 - TUI visual changes
 - New core features or API changes
+- New API features or endpoints
 
 ## Interfaces
 
@@ -57,12 +67,14 @@ to resolve each finding and ensure both packages are production-ready.
 
 - `@eddacraft/anvil-cli` — Package being hardened
 - `@eddacraft/anvil-core` — Package being hardened
+- `@eddacraft/anvil-api` — Package being hardened
 - `@eddacraft/anvil-runtime` — For gate runner and policy config
 
 **Exposes:**
 
 - Hardened CLI with improved input validation, path safety, and startup resilience
 - Hardened core library with shell-safe exec, path sanitisation, and accurate docs
+- Hardened API with restricted CORS, rate limiting, and output validation
 
 ## Ready Checklist
 
@@ -71,6 +83,7 @@ Change status to **Ready** when:
 - [ ] All P0/P1 issues have clear implementation paths
 - [ ] Team has reviewed path-escape findings (CLIH M8, M9)
 - [ ] Team has reviewed exec→execFile migration scope (CORE H1, H2)
+- [ ] Team has decided on CORS origin allowlist (API H1)
 - [ ] At least one task defined per HIGH finding
 
 ## Tasks
@@ -539,6 +552,186 @@ Change status to **Ready** when:
   simple (e.g., redact values longer than 20 chars that look like hex/base64).
 - **Status:** Optional
 
+---
+
+## API Hardening Tasks (API)
+
+### API-001: Restrict CORS to known origins
+
+- **Intent:** Prevent cross-origin abuse of admin endpoints from arbitrary websites
+- **Expected Outcome:** `cors()` middleware is configured with an explicit origin
+  allowlist; admin endpoints are only callable from approved origins; the
+  `/auth/verify` endpoint may remain open or be restricted to known CLI user-agents
+- **Validation:** `pnpm -F anvil-api test && curl -H "Origin: https://evil.com" -I https://<api>/api/v1/admin/invite` returns no `Access-Control-Allow-Origin` header
+- **Files:** `apps/anvil-api/src/index.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Notes:** Team must decide the allowlist. If there is no web admin UI yet, CORS
+  can be disabled entirely for admin routes (only CLI/server-to-server callers).
+- **Status:** Pending
+
+### API-002: Add rate limiting to all endpoints
+
+- **Intent:** Prevent brute-force token testing, mass invite/revoke abuse, and
+  database overload from request floods
+- **Expected Outcome:** Rate limiting middleware is applied to all routes;
+  `/auth/verify` allows ~60 req/min per IP; `/admin/*` allows ~30 req/min per
+  admin key; exceeded limits return 429 with `Retry-After` header
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="rate"`
+- **Files:** `apps/anvil-api/src/index.ts` (or new middleware file)
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Notes:** Vercel provides some DDoS protection but application-level limiting
+  is needed for abuse prevention and cost control (Neon bills per query).
+  Consider `hono-rate-limiter` or a simple in-memory/KV-backed counter.
+- **Status:** Pending
+
+### API-003: Validate scopes against known allowlist
+
+- **Intent:** Prevent creation of tokens with unintended privilege levels
+- **Expected Outcome:** The `scopes` field in `inviteSchema` validates each scope
+  against a defined allowlist (e.g., `['beta', 'preview', 'internal']`);
+  unknown scopes are rejected with a 400 error listing the valid options
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="invite|scope"`
+- **Files:** `apps/anvil-api/src/routes/admin.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### API-004: Wrap invite/revoke in database transactions
+
+- **Intent:** Prevent partial completion when audit log insert fails after
+  the main operation succeeds
+- **Expected Outcome:** The invite flow (upsert user → insert token → audit log)
+  and revoke flow (revoke tokens → audit log) are wrapped in database
+  transactions; if any step fails, the entire operation is rolled back;
+  alternatively, audit log failures are caught and the response still succeeds
+  with a warning flag
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="invite|revoke|transaction"`
+- **Files:** `apps/anvil-api/src/routes/admin.ts`,
+  `apps/anvil-api/src/db/queries.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P1
+- **Notes:** Neon serverless client supports transactions via `sql.begin()`.
+  If transactions add too much complexity, the simpler fix is to catch audit
+  log errors and still return the successful response.
+- **Status:** Pending
+
+### API-005: Add Zod validation to database query results
+
+- **Intent:** Catch DB schema drift and unexpected query results at runtime
+- **Expected Outcome:** Each query function in `queries.ts` validates the result
+  against a Zod schema before casting; the `rows()` helper is replaced with
+  schema-aware parsing; mismatches throw descriptive errors rather than passing
+  malformed data silently
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="queries|db"`
+- **Files:** `apps/anvil-api/src/db/queries.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### API-006: Add email validation to GET /admin/user/:email
+
+- **Intent:** Reject invalid email parameters before they reach the database
+- **Expected Outcome:** The `GET /admin/user/:email` route validates the URL
+  parameter against `z.string().email()` before querying; invalid emails
+  return 400 with a clear error message
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="user|email"`
+- **Files:** `apps/anvil-api/src/routes/admin.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P2
+- **Status:** Pending
+
+### API-007: Track admin identity in audit logs
+
+- **Intent:** Enable accountability when multiple people share admin access
+- **Expected Outcome:** Audit log entries include the actual admin identity
+  rather than the hardcoded string `'admin'`; implementation is one of:
+  (a) per-admin API keys with an admin_users lookup,
+  (b) a required `X-Admin-Actor` header recorded alongside the action, or
+  (c) source IP + User-Agent logged in the audit metadata
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="audit"`
+- **Files:** `apps/anvil-api/src/routes/admin.ts`,
+  `apps/anvil-api/src/middleware/admin-auth.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P2
+- **Notes:** Option (b) is simplest but unauthenticated. Option (a) is most
+  robust but requires a new DB table. Option (c) is zero-effort but less
+  reliable. Team should decide which level of accountability is needed.
+- **Status:** Pending
+
+### API-008: Add request body size limits
+
+- **Intent:** Prevent oversized payloads from consuming memory and DB storage
+- **Expected Outcome:** Zod schemas include `.max()` constraints on string
+  fields (e.g., `notes: z.string().max(1000)`, `token: z.string().max(100)`);
+  optionally, a body size middleware rejects payloads > 10KB before parsing
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="validation|size"`
+- **Files:** `apps/anvil-api/src/routes/admin.ts`,
+  `apps/anvil-api/src/routes/auth.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P2
+- **Status:** Pending
+
+### API-009: Add database health check to /health endpoint
+
+- **Intent:** Make health endpoint reflect actual service readiness
+- **Expected Outcome:** `GET /health` performs a `SELECT 1` against the database;
+  if the DB is unreachable, returns `503 { status: 'degraded', db: 'unreachable' }`
+  instead of `200 { status: 'ok' }`
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="health"`
+- **Files:** `apps/anvil-api/src/index.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P3
+- **Status:** Optional
+
+### API-010: Document TOKEN_PEPPER rotation procedure
+
+- **Intent:** Prevent accidental token invalidation during pepper rotation
+- **Expected Outcome:** README or runbook documents how to rotate TOKEN_PEPPER
+  without invalidating existing tokens; includes steps for dual-pepper support
+  during migration or re-hashing existing tokens
+- **Validation:** Manual review
+- **Files:** `apps/anvil-api/README.md`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P3
+- **Status:** Optional
+
+### API-011: Gate setClient() behind NODE_ENV check
+
+- **Intent:** Prevent test-only DB client override in production
+- **Expected Outcome:** `setClient()` throws an error if `NODE_ENV !== 'test'`;
+  or the function is moved to a `test-utils.ts` module not imported in production
+- **Validation:** `pnpm -F anvil-api test`
+- **Files:** `apps/anvil-api/src/db/client.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P3
+- **Status:** Optional
+
+### API-012: Remove server timestamp from health endpoint
+
+- **Intent:** Reduce information disclosure from health checks
+- **Expected Outcome:** `GET /health` returns `{ status: 'ok' }` without a
+  `timestamp` field, or the timestamp is only included in non-production
+  environments
+- **Validation:** `pnpm -F anvil-api test -- --testNamePattern="health"`
+- **Files:** `apps/anvil-api/src/index.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P3
+- **Status:** Optional
+
 ## Risks
 
 | Risk                                    | Impact | Mitigation                                       |
@@ -551,3 +744,7 @@ Change status to **Ready** when:
 | Plan ID format change is breaking       | High   | Support both old (8-char) and new (16-char) formats in `isValidPlanId` |
 | File locking adds new dependency        | Low    | Atomic rename (no new dep) is sufficient minimum  |
 | canonicalizeJSON change alters hashes   | High   | Audit existing stored hashes before changing      |
+| CORS restriction blocks legitimate clients | Medium | Inventory all API consumers before restricting; add origins incrementally |
+| Rate limiting blocks CI automation      | Medium | Exempt known CI IPs or use higher limits for authenticated requests |
+| DB transactions add latency             | Low    | Neon transactions have minimal overhead on serverless |
+| Scope allowlist rejects valid tokens    | Medium | Audit existing tokens for scope values before restricting |
