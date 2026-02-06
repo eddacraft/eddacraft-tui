@@ -98,8 +98,8 @@ This analyses your entire codebase for:
 **Other scan options:**
 
 ```bash
-anvil check               # Check only changed files (git-aware)
-anvil check --staged      # Check only staged files
+anvil check --changed            # Check only changed files (git-aware)
+anvil check --changed --staged   # Check only staged files
 anvil check --verbose     # Show detailed explanations
 ```
 
@@ -177,7 +177,7 @@ anvil gate --profile dev  # Development mode
 ### Getting Started Screen
 
 ```bash
-anvil start               # Interactive welcome with options
+anvil start               # Welcome screen with tutorial, init, doctor, and help options
 ```
 
 ---
