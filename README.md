@@ -138,8 +138,9 @@ pnpm nx test <project-name> --coverage
 | `platform-crypto`                       | Package | `packages/platform/crypto`      | `pnpm nx test platform-crypto --coverage`                       |
 | `@eddacraft/anvil-source`               | Root    | `.`                             | `pnpm nx test @eddacraft/anvil-source --coverage`               |
 
-Coverage output is written under each project's `coverage/` directory (for
-example `apps/anvil-cli/coverage/coverage-summary.json`).
+Coverage output is written to the root `coverage/` directory (e.g.
+`coverage/coverage-summary.json`), which is the path used by the built-in
+coverage gate check.
 
 ## Deployment
 
