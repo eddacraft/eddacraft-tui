@@ -11,12 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  createPlan,
-  validatePlan,
-  APS_SCHEMA_VERSION,
-  type APSPlan,
-} from '@eddacraft/anvil-core';
+import { createPlan, validatePlan, APS_SCHEMA_VERSION, type APSPlan } from '@eddacraft/anvil-core';
 import { validateAPSPlan, generateHash } from '@eddacraft/anvil-core';
 import { makePlan, makeChange, resetFixtures } from '../helpers/fixtures.js';
 
@@ -124,7 +119,11 @@ describe('Plan Lifecycle › Multi-change Plans', () => {
       proposed_changes: [
         makeChange({ file: 'src/auth/login.ts', type: 'modify', description: 'Update login flow' }),
         makeChange({ file: 'src/auth/register.ts', type: 'add', description: 'New registration' }),
-        makeChange({ file: 'src/auth/legacy.ts', type: 'delete', description: 'Remove legacy code' }),
+        makeChange({
+          file: 'src/auth/legacy.ts',
+          type: 'delete',
+          description: 'Remove legacy code',
+        }),
       ],
     });
 

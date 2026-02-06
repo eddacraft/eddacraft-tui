@@ -58,10 +58,7 @@ describe('Anti-pattern Scanning', () => {
   });
 
   it('scanFiles aggregates results across multiple files', async () => {
-    const results = await scanFiles([
-      join(ws.root, 'src/clean.ts'),
-      join(ws.root, 'src/dirty.ts'),
-    ]);
+    const results = await scanFiles([join(ws.root, 'src/clean.ts'), join(ws.root, 'src/dirty.ts')]);
     expect(results.length).toBe(2);
     const totalWarnings = results.reduce((sum, r) => sum + r.warnings.length, 0);
     expect(totalWarnings).toBeGreaterThan(0);

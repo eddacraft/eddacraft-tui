@@ -41,9 +41,7 @@ export interface CliRunOptions {
  */
 export function assertCliBuild(): void {
   if (!existsSync(CLI_ENTRY)) {
-    throw new Error(
-      `CLI not built — run \`pnpm build\` before E2E tests.\nExpected: ${CLI_ENTRY}`
-    );
+    throw new Error(`CLI not built — run \`pnpm build\` before E2E tests.\nExpected: ${CLI_ENTRY}`);
   }
 }
 
@@ -79,7 +77,7 @@ export function runCli(args: string[], options: CliRunOptions = {}): Promise<Cli
         maxBuffer: 10 * 1024 * 1024, // 10 MB
       },
       (error, stdout, stderr) => {
-        const exitCode = error && 'code' in error ? (error.code as number) ?? 1 : 0;
+        const exitCode = error && 'code' in error ? ((error.code as number) ?? 1) : 0;
         resolve({
           exitCode,
           stdout: stdout?.toString() ?? '',
@@ -100,7 +98,10 @@ export function runCli(args: string[], options: CliRunOptions = {}): Promise<Cli
  * Run CLI and assert it succeeds (exit code 0).
  * Throws with full output on failure.
  */
-export async function runCliExpectSuccess(args: string[], options: CliRunOptions = {}): Promise<CliResult> {
+export async function runCliExpectSuccess(
+  args: string[],
+  options: CliRunOptions = {}
+): Promise<CliResult> {
   const result = await runCli(args, options);
   if (result.exitCode !== 0) {
     throw new Error(
@@ -116,7 +117,10 @@ export async function runCliExpectSuccess(args: string[], options: CliRunOptions
 /**
  * Run CLI and assert it fails (non-zero exit code).
  */
-export async function runCliExpectFailure(args: string[], options: CliRunOptions = {}): Promise<CliResult> {
+export async function runCliExpectFailure(
+  args: string[],
+  options: CliRunOptions = {}
+): Promise<CliResult> {
   const result = await runCli(args, options);
   if (result.exitCode === 0) {
     throw new Error(
