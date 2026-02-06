@@ -10,61 +10,26 @@
 
 The anvil-cli is a well-structured CLI tool with a React-based TUI layer. The codebase follows
 reasonable security practices in most areas: no eval/dynamic code execution, parameterized shell
-commands, and path traversal protection on plan IDs. However, the review identified **5 critical
-issues** (missing source files that will crash the CLI at startup), **several medium-severity
-concerns** (code duplication, unvalidated YAML parsing, missing error handling), and a number of
-lower-severity design issues.
+commands, and path traversal protection on plan IDs. The auth layer is well-implemented with
+restrictive file permissions and local token expiry checks. The review identified **3 high-severity
+concerns** (unvalidated YAML parsing, shell exec, unguarded JSON.parse), **10 medium-severity
+issues** (code duplication, path escapes, input validation gaps, auth design concerns), and a
+number of lower-severity design issues.
 
 ### Severity Counts
 
 | Severity | Count |
 |----------|-------|
-| CRITICAL | 5 |
+| CRITICAL | 0 |
 | HIGH     | 3 |
-| MEDIUM   | 8 |
+| MEDIUM   | 10 |
 | LOW      | 6 |
 
 ---
 
 ## CRITICAL Issues
 
-### C1. Missing source files cause startup crash
-
-**Files:** `src/index.ts:6, 26-28, 30`
-
-The main entry point imports five modules that do not exist in the source tree:
-
-```
-src/commands/beta.ts       → createBetaCommand (line 6)
-src/commands/login.ts      → createLoginCommand (line 26)
-src/commands/logout.ts     → createLogoutCommand (line 27)
-src/commands/whoami.ts     → createWhoamiCommand (line 28)
-src/services/auth-store.ts → isAuthenticated (line 30)
-```
-
-These are all imported at the top level (not lazy/dynamic imports), so the CLI will throw
-`ERR_MODULE_NOT_FOUND` on **every invocation** before any command runs. This is a total blocker
-for the application.
-
-**Impact:** The CLI cannot start at all. Every user who runs `anvil` gets an unhandled module
-resolution error.
-
-**Recommendation:** Either create stub implementations for these modules or remove the imports and
-command registrations until they are ready.
-
----
-
-### C2. Auth gate references non-existent `isAuthenticated` function
-
-**File:** `src/index.ts:64-78`
-
-The pre-action hook calls `isAuthenticated()` from the missing `auth-store.js` module. Even if
-the imports were somehow resolved, this auth gate has a design issue: the `AUTH_EXEMPT_COMMANDS`
-set (line 40) uses a `cmd.name()` traversal that walks up the command chain to find the top-level
-name. If any command is registered as a subcommand of another, this traversal may return the
-wrong parent name, potentially bypassing the auth check.
-
-**Impact:** Authentication is non-functional.
+None.
 
 ---
 
@@ -136,7 +101,46 @@ unconditionally at startup, it blocks all commands including `--help`.
 
 ## MEDIUM Issues
 
-### M1. Complete file duplication: historical-analyzer.ts / historical-analyser.ts
+### M1. Auth token stored as plaintext JSON on disk
+
+**File:** `src/services/auth-store.ts:56-66`
+
+```typescript
+writeFileSync(authPath, JSON.stringify(auth, null, 2), { mode: 0o600 });
+```
+
+The raw beta token is stored in `~/.anvil/auth.json` as plaintext JSON. The file is correctly
+created with `0o600` permissions and the directory with `0o700` — this is good. However, the
+token is in the clear, readable by any process running as the same user. On shared systems or
+if `~/.anvil` is accidentally committed or synced, tokens are exposed.
+
+**Mitigating factors:** The permissions are set correctly, local expiry is checked, and this is
+standard practice for CLI tools (cf. `~/.npmrc`, `~/.docker/config.json`). This is a known
+tradeoff rather than a bug.
+
+**Recommendation:** Consider using the system keychain (e.g., via `keytar`) for production, or
+document the security model for users.
+
+---
+
+### M2. Auth API response cast without validation
+
+**File:** `src/services/auth-client.ts:27`
+
+```typescript
+return (await res.json()) as VerifyResponse;
+```
+
+The response from `/api/v1/auth/verify` is cast to `VerifyResponse` without runtime validation.
+A malicious or buggy server could return unexpected shapes. The `login.ts` command does check for
+`result.valid && result.user && result.scopes && result.expiresAt` (line 50), which provides
+some defense, but a Zod schema would be more robust.
+
+Same pattern in `admin-client.ts:67, 86, 103`.
+
+---
+
+### M3. Complete file duplication: historical-analyzer.ts / historical-analyser.ts
 
 **Files:**
 - `src/services/historical-analyzer.ts` (507 lines)
@@ -155,7 +159,7 @@ alias if both spellings are needed.
 
 ---
 
-### M2. Duplicate embedded shell scripts
+### M4. Duplicate embedded shell scripts
 
 **Files:**
 - `src/services/hook-installer.ts:93-145` (embedded pre-commit and pre-push scripts)
@@ -171,7 +175,7 @@ reimplementing hook management inline.
 
 ---
 
-### M3. `getWorkspaceRoot()` silently returns cwd on failure
+### M5. `getWorkspaceRoot()` silently returns cwd on failure
 
 **File:** `src/utils/file-io.ts:66-78`
 
@@ -186,7 +190,7 @@ found, rather than silently falling back.
 
 ---
 
-### M4. `parseInt` without radix validation on CLI options
+### M6. `parseInt` without radix validation on CLI options
 
 **Files:**
 - `src/commands/gate.ts:243` — `parseInt(options.parallel, 10)` — no NaN check
@@ -201,7 +205,7 @@ subtle bugs.
 
 ---
 
-### M5. `mcp-config --write` writes outside workspace
+### M7. `mcp-config --write` writes outside workspace
 
 **File:** `src/commands/mcp-config.ts:47-52`
 
@@ -221,7 +225,7 @@ MCP config, there is no user confirmation before writing outside the workspace.
 
 ---
 
-### M6. `policy doc --output` allows writing anywhere
+### M8. `policy doc --output` allows writing anywhere
 
 **File:** `src/commands/policy.ts:794-800`
 
@@ -242,7 +246,7 @@ writes outside the workspace. Similarly for relative paths with `../`.
 
 ---
 
-### M7. `policy scaffold --out` creates directories and files outside workspace
+### M9. `policy scaffold --out` creates directories and files outside workspace
 
 **File:** `src/commands/policy.ts:823`
 
@@ -254,7 +258,7 @@ Same issue as M6. The `--out` option is not validated and can escape the workspa
 
 ---
 
-### M8. Assertion-free type casting on enforcement level
+### M10. Assertion-free type casting on enforcement level
 
 **File:** `src/commands/policy.ts:767`
 
@@ -358,6 +362,10 @@ Consider adding a `timeout` option.
 4. **No hardcoded credentials** — secrets are always referenced via environment variable names.
 5. **Zod schema validation** used in some services for runtime type safety.
 6. **Proper signal handling** in watch mode (`watch.ts:337-338`).
+7. **Auth token file permissions** — `auth-store.ts` creates `~/.anvil/` with `0o700` and
+   `auth.json` with `0o600`, with an explicit `chmodSync` fallback. This is correct practice.
+8. **Local token expiry check** — `loadAuth()` checks `expiresAt` before returning, preventing
+   obviously-expired tokens from hitting the network.
 
 ### Negative Patterns
 
@@ -367,8 +375,8 @@ Consider adding a `timeout` option.
    `initialise`/`initialize`, `customise`/`customize`.
 3. **God object tendency** — `policy.ts` at 1676 lines is doing too much. The embedded Rego
    templates, bundle management, and policy CRUD could be separate modules.
-4. **Missing auth module** — The auth layer is referenced everywhere but doesn't exist, suggesting
-   feature-flagged code was merged without its dependencies.
+4. **Inconsistent API response validation** — Some code paths validate API responses before use
+   (`login.ts:50`), while others blindly cast (`auth-client.ts:27`, `admin-client.ts:67`).
 
 ---
 
@@ -376,13 +384,13 @@ Consider adding a `timeout` option.
 
 | Priority | Action |
 |----------|--------|
-| P0 | Create stub implementations for missing auth modules (C1, C2) |
 | P0 | Add try/catch around `package.json` parse at startup (H3) |
 | P1 | Add Zod validation for `config.yml` parsing (H1) |
-| P1 | Delete duplicate `historical-analyzer.ts` (M1) |
-| P1 | Consolidate hook scripts into single source of truth (M2) |
-| P2 | Validate `--output` paths stay within workspace (M6, M7) |
-| P2 | Add `parseInt` validation for numeric CLI options (M4) |
+| P1 | Add Zod validation for API responses in auth-client/admin-client (M2) |
+| P1 | Delete duplicate `historical-analyzer.ts` (M3) |
+| P1 | Consolidate hook scripts into single source of truth (M4) |
+| P2 | Validate `--output` paths stay within workspace (M8, M9) |
+| P2 | Add `parseInt` validation for numeric CLI options (M6) |
 | P2 | Replace `execSync` with `execFileSync` in doctor checks (H2) |
 | P3 | Standardize error output to always use `utils/output.ts` (L2) |
 | P3 | Split `policy.ts` into smaller modules (Architectural) |
