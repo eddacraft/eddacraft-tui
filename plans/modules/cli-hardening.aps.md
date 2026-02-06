@@ -2,32 +2,39 @@
 APS Module: Codebase Hardening
 ==============================
 Addresses issues from the 2026-02-06 adversarial code reviews.
-See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md, apps/anvil-api/REVIEW.md
+See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md, apps/anvil-api/REVIEW.md, REVIEW.md
 -->
 
 # Codebase Hardening
 
-| ID              | Owner | Status |
-| --------------- | ----- | ------ |
-| CLIH, CORE, API | —     | Draft  |
+| ID                                       | Owner | Status |
+| ---------------------------------------- | ----- | ------ |
+| CLIH, CORE, API, MCP, RT, POL, ADP, APS, VSIX, PLAT | — | Draft |
 
 ## Purpose
 
-Address the 45 issues identified across three adversarial code reviews (2026-02-06):
+Address the 129 issues identified across adversarial code reviews (2026-02-06):
 
 - **anvil-cli** (scope CLIH): 3 high, 10 medium, 6 low → 18 tasks
 - **anvil-core** (scope CORE): 2 high, 7 medium, 5 low → 14 tasks
 - **anvil-api** (scope API): 2 high, 5 medium, 5 low → 12 tasks
+- **mcp-server** (scope MCP): 3 crit, 3 high, 3 medium, 3 low → 6 tasks
+- **anvil/runtime** (scope RT): 6 high, 7 medium, 6 low → 5 tasks
+- **anvil/policy** (scope POL): 2 high, 8 medium, 5 low → 3 tasks
+- **adapters** (scope ADP): 3 high, 4 medium, 3 low → 3 tasks
+- **aps** (scope APS): 2 high, 7 medium, 4 low → 2 tasks
+- **vscode-extension** (scope VSIX): 3 high, 4 medium, 3 low → 2 tasks
+- **platform/storage** (scope PLAT): 1 high → 1 task
+- **website, contracts, eslint-plugin, ports**: low-severity only → 0 tasks
 
-These range from high-severity security hardening (P0/P1) through code quality
-improvements (P2) to optional cleanups (P3). This module tracks the work needed
-to resolve each finding and ensure all packages are production-ready.
+Total: **66 tasks** across all packages.
 
 **Sources:**
 
 - [apps/anvil-cli/REVIEW.md](../../apps/anvil-cli/REVIEW.md)
 - [packages/anvil/core/REVIEW.md](../../packages/anvil/core/REVIEW.md)
 - [apps/anvil-api/REVIEW.md](../../apps/anvil-api/REVIEW.md)
+- [REVIEW.md](../../REVIEW.md) (remaining packages)
 
 ## In Scope
 
@@ -53,6 +60,39 @@ to resolve each finding and ensure all packages are production-ready.
 - P2 input validation and audit improvements (3 items)
 - P3 optional hardening and documentation (4 items)
 
+### mcp-server (MCP)
+
+- P0 authentication, workspace validation, newline injection (3 items)
+- P1 race conditions, prompt injection (2 items)
+- P3 optional (1 item)
+
+### anvil/runtime (RT)
+
+- P0 OPA binary path, policy dir traversal (2 items)
+- P1 cache integrity, temp dir safety, env var exfiltration (3 items)
+
+### anvil/policy (POL)
+
+- P0 tar extraction path traversal (1 item)
+- P1 bundle manifest path traversal, URL validation (2 items)
+
+### adapters (ADP)
+
+- P1 path validation, input size limits, regex DoS (3 items)
+
+### aps (APS)
+
+- P1 path traversal in module loader (1 item)
+- P2 hash verification (1 item)
+
+### vscode-extension (VSIX)
+
+- P1 CLI output validation, gate path validation (2 items)
+
+### platform/storage (PLAT)
+
+- P0 path traversal in FileStorage (1 item)
+
 ## Out of Scope
 
 - New CLI features (handled by other modules)
@@ -60,6 +100,7 @@ to resolve each finding and ensure all packages are production-ready.
 - TUI visual changes
 - New core features or API changes
 - New API features or endpoints
+- Website, contracts, eslint-plugin, ports (low-severity only)
 
 ## Interfaces
 
@@ -731,6 +772,310 @@ Change status to **Ready** when:
 - **Confidence:** high
 - **Priority:** P3
 - **Status:** Optional
+
+---
+
+## MCP Server Tasks (MCP)
+
+### MCP-001: Add authentication to HTTP transport
+
+- **Intent:** Prevent unauthenticated access to file-modifying MCP tools
+- **Expected Outcome:** HTTP transport requires API key or mutual TLS; unauthenticated
+  requests are rejected with 401; CORS is restricted to known origins
+- **Validation:** `pnpm -F mcp-server test`
+- **Files:** `packages/mcp-server/src/transports/streamable-http.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### MCP-002: Validate workspaceRoot against server-configured root
+
+- **Intent:** Prevent MCP clients from accessing arbitrary filesystem directories
+- **Expected Outcome:** All tools validate `workspaceRoot` is within a configured
+  allowed root directory; arbitrary absolute paths are rejected
+- **Validation:** `pnpm -F mcp-server test`
+- **Files:** `packages/mcp-server/src/tools/check.tool.ts`,
+  `packages/mcp-server/src/tools/gate.tool.ts`,
+  `packages/mcp-server/src/tools/query-boundary.tool.ts`,
+  `packages/mcp-server/src/tools/status.tool.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### MCP-003: Sanitise reason parameter in suppress tool
+
+- **Intent:** Prevent newline injection into source file comments
+- **Expected Outcome:** The `reason` parameter has `\r\n` characters stripped or
+  rejected before interpolation into source file comments
+- **Validation:** `pnpm -F mcp-server test -- --testNamePattern="suppress"`
+- **Files:** `packages/mcp-server/src/tools/suppress.tool.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### MCP-004: Add file locking for concurrent modifications
+
+- **Intent:** Prevent TOCTOU race conditions in fix and suppress tools
+- **Expected Outcome:** File read-modify-write operations use advisory locking
+  or atomic writes to prevent concurrent requests from overwriting each other
+- **Validation:** `pnpm -F mcp-server test`
+- **Files:** `packages/mcp-server/src/tools/fix.tool.ts`,
+  `packages/mcp-server/src/tools/suppress.tool.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P1
+- **Status:** Pending
+
+### MCP-005: Sanitise prompt template inputs
+
+- **Intent:** Prevent prompt injection via MCP client-supplied values
+- **Expected Outcome:** User inputs interpolated into prompt templates are escaped
+  or validated against expected patterns before interpolation
+- **Validation:** `pnpm -F mcp-server test`
+- **Files:** `packages/mcp-server/src/prompts/fix-violation.prompt.ts`,
+  `packages/mcp-server/src/prompts/suppress-violation.prompt.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P1
+- **Status:** Pending
+
+### MCP-006: Add HTTP security headers and session cleanup
+
+- **Intent:** Harden HTTP transport against common web attacks
+- **Expected Outcome:** HTTP responses include standard security headers; idle
+  sessions are cleaned up after configurable timeout
+- **Validation:** `pnpm -F mcp-server test`
+- **Files:** `packages/mcp-server/src/transports/streamable-http.ts`
+- **Dependencies:** MCP-001
+- **Confidence:** high
+- **Priority:** P3
+- **Status:** Optional
+
+---
+
+## Runtime Tasks (RT)
+
+### RT-001: Validate ANVIL_OPA_PATH environment variable
+
+- **Intent:** Prevent execution of arbitrary binaries via env var override
+- **Expected Outcome:** `ANVIL_OPA_PATH` is validated: path must be a regular file
+  (not symlink), must exist, and ideally must match an expected binary name pattern;
+  or the env var override is removed entirely
+- **Validation:** `pnpm -F anvil-runtime test -- --testNamePattern="opa|binary"`
+- **Files:** `packages/anvil/runtime/src/gate/policy/opa-binary-manager.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### RT-002: Validate policy directory stays within workspace
+
+- **Intent:** Prevent loading .rego files from outside the workspace
+- **Expected Outcome:** `policy-loader.ts` validates the resolved policy directory
+  is within `workspaceRoot` before scanning for .rego files
+- **Validation:** `pnpm -F anvil-runtime test -- --testNamePattern="policy|loader"`
+- **Files:** `packages/anvil/runtime/src/gate/policy/policy-loader.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### RT-003: Add HMAC integrity protection to cache entries
+
+- **Intent:** Prevent cache poisoning via tampered .anvil/cache entries
+- **Expected Outcome:** Cache entries are signed with HMAC-SHA256 using a
+  per-workspace key; entries with invalid signatures are discarded
+- **Validation:** `pnpm -F anvil-runtime test -- --testNamePattern="cache"`
+- **Files:** `packages/anvil/runtime/src/cache/providers/file-cache.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P1
+- **Status:** Pending
+
+### RT-004: Use fs.mkdtemp() for OPA temp directories
+
+- **Intent:** Eliminate TOCTOU race condition in temp directory creation
+- **Expected Outcome:** OPA executor uses `fs.mkdtemp()` for atomic temp dir
+  creation instead of `randomUUID()` + `mkdir`
+- **Validation:** `pnpm -F anvil-runtime test -- --testNamePattern="opa|executor"`
+- **Files:** `packages/anvil/runtime/src/gate/policy/opa-executor.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### RT-005: Whitelist allowed env var names in bundle verifier
+
+- **Intent:** Prevent exfiltration of arbitrary environment variables
+- **Expected Outcome:** Bundle verifier only reads env vars matching an allowlist
+  pattern (e.g., `ANVIL_*`); attempts to read other vars are rejected with error
+- **Validation:** `pnpm -F anvil-runtime test -- --testNamePattern="bundle|verifier"`
+- **Files:** `packages/anvil/runtime/src/gate/policy/bundle-verifier.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+---
+
+## Policy Tasks (POL)
+
+### POL-001: Validate paths in tar archive extraction
+
+- **Intent:** Prevent zip-slip / path traversal during bundle extraction
+- **Expected Outcome:** Tarball extraction validates all entry paths are within
+  the destination directory; entries with `../` or absolute paths are rejected
+- **Validation:** `pnpm -F anvil-policy test -- --testNamePattern="bundle"`
+- **Files:** `packages/anvil/policy/src/bundle-manager.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+### POL-002: Validate paths in bundle signature manifest
+
+- **Intent:** Prevent path traversal via crafted .signatures.json
+- **Expected Outcome:** `verifySignatureBlock` validates `fileEntry.name` is within
+  the bundle directory before constructing file paths
+- **Validation:** `pnpm -F anvil-policy test -- --testNamePattern="bundle|verifier"`
+- **Files:** `packages/anvil/policy/src/bundle-verifier.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### POL-003: Enforce HTTPS and domain allowlist for bundle downloads
+
+- **Intent:** Prevent bundle downloads from untrusted sources
+- **Expected Outcome:** Bundle downloads enforce HTTPS and validate domains against
+  a configurable allowlist; HTTP URLs are rejected
+- **Validation:** `pnpm -F anvil-policy test -- --testNamePattern="bundle|download"`
+- **Files:** `packages/anvil/policy/src/bundle-manager.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P1
+- **Status:** Pending
+
+---
+
+## Adapters Tasks (ADP)
+
+### ADP-001: Validate extracted file paths from external plan formats
+
+- **Intent:** Prevent path traversal via malicious plan file content
+- **Expected Outcome:** All parsers validate extracted file paths: reject absolute
+  paths, normalise with `path.normalize()`, verify no `../` escapes
+- **Validation:** `pnpm -F adapters test`
+- **Files:** `packages/adapters/src/bmad/parser.ts`,
+  `packages/adapters/src/speckit/parser.ts`,
+  `packages/adapters/src/generic/parser.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### ADP-002: Add input size limits to all parsers
+
+- **Intent:** Prevent DoS via massive input content
+- **Expected Outcome:** All parsers reject content larger than a configurable max
+  (default 2MB); recursive parsing has a depth limit (default 20 levels)
+- **Validation:** `pnpm -F adapters test`
+- **Files:** `packages/adapters/src/base/file-discovery.ts`, all parser files
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### ADP-003: Fix regex DoS vulnerabilities in parsers
+
+- **Intent:** Prevent exponential backtracking on crafted input
+- **Expected Outcome:** Complex regex patterns in bmad/speckit parsers are
+  simplified or replaced with iterative parsing; input lines are length-limited
+  before regex matching
+- **Validation:** `pnpm -F adapters test`
+- **Files:** `packages/adapters/src/bmad/utils.ts`,
+  `packages/adapters/src/speckit/parser.ts`
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** P1
+- **Status:** Pending
+
+---
+
+## APS Tasks (APS-PKG)
+
+### APS-PKG-001: Fix path traversal in module path resolution
+
+- **Intent:** Prevent reading arbitrary files via malicious index Path fields
+- **Expected Outcome:** `resolvePath()` rejects absolute paths and validates
+  resolved paths are within `baseDir`; paths with `../` that escape are rejected
+- **Validation:** `pnpm -F aps test`
+- **Files:** `packages/aps/src/loader/index.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### APS-PKG-002: Add hash verification to execution plans
+
+- **Intent:** Detect tampering with execution plan files
+- **Expected Outcome:** `readExecutionPlan()` recomputes `content_hash` and
+  compares against the stored value; mismatches produce a warning
+- **Validation:** `pnpm -F aps test`
+- **Files:** `packages/aps/src/state/index.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P2
+- **Status:** Pending
+
+---
+
+## VS Code Extension Tasks (VSIX)
+
+### VSIX-001: Add schema validation to CLI output parsing
+
+- **Intent:** Prevent untrusted CLI output from injecting arbitrary properties
+- **Expected Outcome:** `parseValidationResult()` and `parseGateResults()` validate
+  JSON output against Zod schemas before use; unknown properties are stripped
+- **Validation:** Extension test suite
+- **Files:** `packages/vscode-extension/src/services/anvilService.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+### VSIX-002: Validate gate output file paths against workspace
+
+- **Intent:** Prevent opening arbitrary files via crafted gate output
+- **Expected Outcome:** Violation file paths from gate output are validated to be
+  within the workspace root before being passed to `vscode.Uri.file()`
+- **Validation:** Extension test suite
+- **Files:** `packages/vscode-extension/src/providers/gateResultsProvider.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P1
+- **Status:** Pending
+
+---
+
+## Platform Tasks (PLAT)
+
+### PLAT-001: Fix path traversal in FileStorage.resolvePath()
+
+- **Intent:** Prevent reads/writes outside the configured baseDir
+- **Expected Outcome:** `resolvePath()` uses `path.resolve()` and validates the
+  result starts with `baseDir`; absolute paths and `../` escapes are rejected
+- **Validation:** `pnpm -F platform-storage test`
+- **Files:** `packages/platform/storage/src/file-storage.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Pending
+
+---
 
 ## Risks
 
