@@ -8,9 +8,28 @@ interface ResponseLine {
   delay: number;
 }
 
+async function submitToWaitlist(email: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch('/api/waitlist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, error: data.error || 'Failed to join waitlist' };
+    }
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Network error. Please try again.' };
+  }
+}
+
 export function CLIFooter() {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [displayedLines, setDisplayedLines] = useState<{ text: string; colorClass: string }[]>([]);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
@@ -67,11 +86,21 @@ export function CLIFooter() {
     }
   }, [submitted, currentLineIndex, currentCharIndex, email]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (email.trim() && email.includes('@')) {
+    if (!email.trim() || !email.includes('@') || isSubmitting) return;
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    const result = await submitToWaitlist(email);
+
+    if (result.success) {
       setSubmitted(true);
+    } else {
+      setSubmitError(result.error || 'Something went wrong');
     }
+    setIsSubmitting(false);
   };
 
   const handleTerminalClick = () => {
@@ -90,6 +119,8 @@ export function CLIFooter() {
   const reset = () => {
     setEmail('');
     setSubmitted(false);
+    setIsSubmitting(false);
+    setSubmitError(null);
     setDisplayedLines([]);
     setCurrentLineIndex(0);
     setCurrentCharIndex(0);
@@ -139,13 +170,26 @@ export function CLIFooter() {
                       placeholder="you@example.dev"
                       className="flex-1 min-w-0 bg-transparent text-text-primary placeholder:text-text-muted/50 outline-none border-none"
                       autoComplete="email"
+                      disabled={isSubmitting}
                     />
-                    <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
+                    {isSubmitting ? (
+                      <span className="text-text-muted animate-pulse">...</span>
+                    ) : (
+                      <span className="inline-block w-[0.6ch] h-[1.1em] bg-anvil/70 animate-pulse"></span>
+                    )}
                   </>
                 ) : (
                   <span className="text-text-muted">{email}</span>
                 )}
               </form>
+
+              {/* Error Display */}
+              {submitError && (
+                <div className="flex items-center gap-3">
+                  <span className="text-text-muted opacity-0">$</span>
+                  <span className="text-red-500">[ ERROR ] {submitError}</span>
+                </div>
+              )}
 
               {/* Response Lines with Typewriter */}
               {displayedLines.map((line, index) => (
