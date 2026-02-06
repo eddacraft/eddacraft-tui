@@ -20,7 +20,13 @@ import {
   type LockAcquisitionResult,
   getDefaultConcurrencyConfig,
 } from './types.js';
-import { atomicWriteJson, readJsonSafe, unlinkSafe, sleepWithJitter } from './atomic.js';
+import {
+  atomicWriteJson,
+  readJsonSafe,
+  unlinkSafe,
+  sleepWithJitter,
+  acquireFileLock,
+} from './atomic.js';
 import { createAgentInfo } from './agent.js';
 import { LockManager } from './lock-manager.js';
 import { createDebugger } from '@eddacraft/anvil-core';
@@ -136,68 +142,84 @@ export class QueueManager {
     await this.ensureQueueDir();
 
     const queuePath = this.getQueuePath(type, resource);
-    const queue = await this.loadQueue(queuePath, type, resource);
 
-    // Check if already in queue
-    const existingIndex = queue.entries.findIndex((e) => e.agentId === this.agent.id);
+    // Serialise access to the queue file to prevent lost updates
+    const lockPath = `${queuePath}.lock`;
+    const fileLock = await acquireFileLock(lockPath, {
+      timeout: Math.min(timeoutMs, 30_000),
+      retryInterval: 50,
+    });
 
-    if (existingIndex !== -1) {
-      // Update existing entry
-      queue.entries[existingIndex] = {
-        ...queue.entries[existingIndex],
+    if (!fileLock) {
+      throw new Error(`Timed out waiting for queue lock: ${type}:${resource}`);
+    }
+
+    try {
+      const queue = await this.loadQueue(queuePath, type, resource);
+
+      // Check if already in queue
+      const existingIndex = queue.entries.findIndex((e) => e.agentId === this.agent.id);
+
+      if (existingIndex !== -1) {
+        // Update existing entry
+        queue.entries[existingIndex] = {
+          ...queue.entries[existingIndex],
+          priority,
+          reason,
+          timeoutAt: new Date(Date.now() + timeoutMs).toISOString(),
+        };
+
+        this.sortQueue(queue);
+        queue.updatedAt = new Date().toISOString();
+        await atomicWriteJson(queuePath, queue);
+
+        const newPosition = queue.entries.findIndex((e) => e.agentId === this.agent.id) + 1;
+
+        debug(`Queue entry updated: ${type}:${resource} position=${newPosition}`);
+
+        return {
+          entryId: queue.entries[existingIndex].id,
+          position: newPosition,
+          alreadyQueued: true,
+        };
+      }
+
+      // Check queue size limit
+      if (queue.entries.length >= this.config.maxQueueSize) {
+        throw new Error(`Queue is full (max ${this.config.maxQueueSize} entries)`);
+      }
+
+      // Create new entry
+      const entry: QueueEntry = {
+        id: randomUUID(),
+        agentId: this.agent.id,
+        agentType: this.agent.type,
+        lockType: type,
+        resource,
+        queuedAt: new Date().toISOString(),
         priority,
-        reason,
         timeoutAt: new Date(Date.now() + timeoutMs).toISOString(),
+        reason,
       };
 
+      queue.entries.push(entry);
       this.sortQueue(queue);
       queue.updatedAt = new Date().toISOString();
+
       await atomicWriteJson(queuePath, queue);
 
-      const newPosition = queue.entries.findIndex((e) => e.agentId === this.agent.id) + 1;
+      const position = queue.entries.findIndex((e) => e.id === entry.id) + 1;
 
-      debug(`Queue entry updated: ${type}:${resource} position=${newPosition}`);
+      debug(`Joined queue: ${type}:${resource} position=${position}`);
 
       return {
-        entryId: queue.entries[existingIndex].id,
-        position: newPosition,
-        alreadyQueued: true,
+        entryId: entry.id,
+        position,
+        alreadyQueued: false,
       };
+    } finally {
+      await fileLock.release();
     }
-
-    // Check queue size limit
-    if (queue.entries.length >= this.config.maxQueueSize) {
-      throw new Error(`Queue is full (max ${this.config.maxQueueSize} entries)`);
-    }
-
-    // Create new entry
-    const entry: QueueEntry = {
-      id: randomUUID(),
-      agentId: this.agent.id,
-      agentType: this.agent.type,
-      lockType: type,
-      resource,
-      queuedAt: new Date().toISOString(),
-      priority,
-      timeoutAt: new Date(Date.now() + timeoutMs).toISOString(),
-      reason,
-    };
-
-    queue.entries.push(entry);
-    this.sortQueue(queue);
-    queue.updatedAt = new Date().toISOString();
-
-    await atomicWriteJson(queuePath, queue);
-
-    const position = queue.entries.findIndex((e) => e.id === entry.id) + 1;
-
-    debug(`Joined queue: ${type}:${resource} position=${position}`);
-
-    return {
-      entryId: entry.id,
-      position,
-      alreadyQueued: false,
-    };
   }
 
   /**
@@ -550,7 +572,7 @@ export async function coordinatedExecution<T>(
   try {
     return await fn();
   } finally {
-    // Release is handled by LockManager through QueueManager
+    await manager['lockManager'].release(options.type, options.resource);
   }
 }
 
@@ -595,7 +617,7 @@ export async function withConcurrencyLimit<T>(
       try {
         return await fn();
       } finally {
-        // Lock released by waitForLock cleanup
+        await manager['lockManager'].release(type, slotResource);
       }
     }
   }

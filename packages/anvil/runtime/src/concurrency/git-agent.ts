@@ -339,9 +339,13 @@ COMMIT_MSG_FILE=$1
 COMMIT_SOURCE=$2
 SHA1=$3
 
-# Check if anvil is available
-if command -v anvil &> /dev/null; then
-  anvil hooks prepare-commit-msg "$COMMIT_MSG_FILE" "$COMMIT_SOURCE" "$SHA1"
+# Run the prepare-commit-msg hook via the runtime module
+if command -v node &> /dev/null; then
+  node -e "
+    import('${`@eddacraft/anvil-runtime/concurrency`}')
+      .then(m => m.prepareCommitMsgHook('$COMMIT_MSG_FILE', '$COMMIT_SOURCE', '$SHA1'))
+      .catch(() => {});
+  "
 fi
 `.trim();
 }

@@ -22,7 +22,11 @@ import type {
   DebouncedChanges,
   MultiAgentConfig,
 } from './types.js';
-import { createConcurrencyContext, type ConcurrencyContext } from '../concurrency/index.js';
+import {
+  createConcurrencyContext,
+  createAgentInfo,
+  type ConcurrencyContext,
+} from '../concurrency/index.js';
 
 /**
  * Action handler type
@@ -159,11 +163,14 @@ export class WatchOrchestrator {
    */
   private async initializeMultiAgent(): Promise<void> {
     try {
-      // Create concurrency context
+      // Create concurrency context, honouring custom agent ID if provided
       this.concurrencyContext = await createConcurrencyContext({
         workspaceRoot: this.workspaceRoot,
         autoRegister: true,
         autoHeartbeat: true,
+        ...(this.multiAgentConfig.agentId
+          ? { agentInfo: createAgentInfo({ id: this.multiAgentConfig.agentId }) }
+          : {}),
       });
 
       // Acquire exclusive watch lock if configured
@@ -400,7 +407,7 @@ export class WatchOrchestrator {
 
       await this.runDirectAction(action, handler, files);
     } finally {
-      // Lock is released automatically by queue manager
+      await this.concurrencyContext.locks.release('action', resource);
       await this.concurrencyContext.agent.setOperation('watching');
     }
   }

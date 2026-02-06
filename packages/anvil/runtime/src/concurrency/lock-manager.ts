@@ -19,7 +19,13 @@ import {
   type ConcurrencyConfig,
   getDefaultConcurrencyConfig,
 } from './types.js';
-import { atomicWriteJson, readJsonSafe, unlinkSafe, sleepWithJitter } from './atomic.js';
+import {
+  atomicWriteJson,
+  readJsonSafe,
+  unlinkSafe,
+  sleepWithJitter,
+  tryAcquireFileLock,
+} from './atomic.js';
 import { createAgentInfo } from './agent.js';
 import { createDebugger } from '@eddacraft/anvil-core';
 
@@ -412,43 +418,14 @@ export class LockManager {
     reason: string | undefined,
     timeoutMs: number
   ): Promise<LockAcquisitionResult> {
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + timeoutMs);
+    // Use O_EXCL sentinel to prevent two agents both creating the lock
+    const sentinelPath = `${lockPath}.creating`;
+    const sentinel = await tryAcquireFileLock(sentinelPath, this.agent.id);
 
-    const lock: LockRecord = {
-      type,
-      resource,
-      agentId: this.agent.id,
-      agentType: this.agent.type,
-      pid: this.agent.pid,
-      acquiredAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      reason,
-      renewCount: 0,
-    };
-
-    const lockFile: LockFile = {
-      version: '1.0.0',
-      lock,
-      history: [],
-    };
-
-    try {
-      await atomicWriteJson(lockPath, lockFile);
-
-      const lockKey = this.getLockKey(type, resource);
-      this.heldLocks.set(lockKey, lock);
-
-      debug(`Lock acquired: ${lockKey}`);
-
-      return {
-        acquired: true,
-        lock,
-      };
-    } catch (error) {
-      // Another process might have created the lock
+    if (!sentinel) {
+      // Another agent is creating the lock right now — read what they wrote
       const existingLock = await this.readLock(lockPath);
-      if (existingLock && existingLock.lock.agentId !== this.agent.id) {
+      if (existingLock) {
         return {
           acquired: false,
           error: `Lock acquired by another agent: ${existingLock.lock.agentId}`,
@@ -461,8 +438,63 @@ export class LockManager {
           },
         };
       }
+      return {
+        acquired: false,
+        error: 'Lock creation in progress by another agent',
+      };
+    }
 
-      throw error;
+    try {
+      // Re-check after acquiring sentinel (another agent may have finished first)
+      const raceCheck = await this.readLock(lockPath);
+      if (raceCheck && raceCheck.lock.agentId !== this.agent.id) {
+        return {
+          acquired: false,
+          error: `Lock acquired by another agent: ${raceCheck.lock.agentId}`,
+          heldBy: {
+            agentId: raceCheck.lock.agentId,
+            agentType: raceCheck.lock.agentType,
+            acquiredAt: raceCheck.lock.acquiredAt,
+            expiresAt: raceCheck.lock.expiresAt,
+            pid: raceCheck.lock.pid,
+          },
+        };
+      }
+
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + timeoutMs);
+
+      const lock: LockRecord = {
+        type,
+        resource,
+        agentId: this.agent.id,
+        agentType: this.agent.type,
+        pid: this.agent.pid,
+        acquiredAt: now.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        reason,
+        renewCount: 0,
+      };
+
+      const lockFile: LockFile = {
+        version: '1.0.0',
+        lock,
+        history: [],
+      };
+
+      await atomicWriteJson(lockPath, lockFile);
+
+      const lockKey = this.getLockKey(type, resource);
+      this.heldLocks.set(lockKey, lock);
+
+      debug(`Lock acquired: ${lockKey}`);
+
+      return {
+        acquired: true,
+        lock,
+      };
+    } finally {
+      await sentinel.release();
     }
   }
 
