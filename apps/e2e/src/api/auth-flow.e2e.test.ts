@@ -13,15 +13,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { Hono } from 'hono';
 
 // Mock the DB layer at the source-resolved paths (via vitest alias)
-vi.mock('../../anvil-api/src/db/client.js', () => ({
+vi.mock('../../../anvil-api/src/db/client.js', () => ({
   getClient: vi.fn(),
 }));
 
-vi.mock('../../anvil-api/src/db/queries.js', () => ({
+vi.mock('../../../anvil-api/src/db/queries.js', () => ({
   findTokenByHash: vi.fn(),
 }));
 
-vi.mock('../../anvil-api/src/lib/token.js', async (importOriginal) => {
+vi.mock('../../../anvil-api/src/lib/token.js', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
@@ -31,7 +31,7 @@ vi.mock('../../anvil-api/src/lib/token.js', async (importOriginal) => {
 
 // Import after mocks
 const { auth } = await import('@eddacraft/anvil-api/routes/auth.js');
-const { findTokenByHash } = await import('../../anvil-api/src/db/queries.js');
+const { findTokenByHash } = await import('../../../anvil-api/src/db/queries.js');
 
 const app = new Hono();
 app.route('/auth', auth);

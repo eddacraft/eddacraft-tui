@@ -158,9 +158,7 @@ describe('Smoke › @eddacraft/anvil-api', () => {
 
   it('health endpoint responds', async () => {
     const mod = await import('@eddacraft/anvil-api');
-    const res = await mod.default.request(
-      new Request('http://localhost/api/v1/health')
-    );
+    const res = await mod.default.request(new Request('http://localhost/api/v1/health'));
     expect(res.status).toBe(200);
   });
 });
@@ -171,7 +169,7 @@ describe('Smoke › CLI binary', () => {
   it('built CLI entry point exists', async () => {
     const { existsSync } = await import('node:fs');
     const { resolve } = await import('node:path');
-    const cliPath = resolve(__dirname, '../../../../anvil-cli/dist/index.js');
+    const cliPath = resolve(__dirname, '../../../anvil-cli/dist/index.js');
     // This test fails fast if the CLI hasn't been built
     expect(existsSync(cliPath)).toBe(true);
   });
