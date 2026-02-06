@@ -1,16 +1,20 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import {
+  explainById,
   explainByRule,
   parseWarningId,
   isExplainable,
   getExplainableRules,
   type WarningExplanation,
 } from '@eddacraft/anvil-core';
+import { getWorkspaceRoot } from '../utils/file-io.js';
+import { loadRecentWarnings } from '../services/recent-warnings-store.js';
 
 interface ExplainOptions {
   list?: boolean;
   json?: boolean;
+  rules?: boolean;
 }
 
 function formatSection(title: string, content: string): void {
@@ -120,20 +124,47 @@ function listExplainableRules(json: boolean): void {
   console.log(chalk.gray('       anvil explain AP-003-src/file.ts:42'));
 }
 
-function handleExplainWarningId(warningId: string, options: ExplainOptions): void {
-  const parsed = parseWarningId(warningId);
+async function listRecentWarnings(json: boolean): Promise<void> {
+  const workspaceRoot = getWorkspaceRoot();
+  const warnings = await loadRecentWarnings(workspaceRoot);
 
-  if (parsed) {
-    const explanation = explainByRule(parsed.rule, {
-      file: parsed.file,
-      line: parsed.line,
-    });
+  if (json) {
+    console.log(JSON.stringify({ warnings }, null, 2));
+    return;
+  }
+
+  console.log('');
+  console.log(chalk.bold('Recent warnings (from last `anvil check` run):'));
+  console.log('');
+
+  if (warnings.length === 0) {
+    console.log(chalk.gray('No recent warnings found. Run `anvil check` first.'));
+    console.log('');
+    return;
+  }
+
+  for (const warning of warnings) {
+    const rule = warning.warningId.split('-').slice(0, 2).join('-');
+    console.log(chalk.yellow(`  ${warning.warningId}`));
+    console.log(chalk.gray(`    ${rule} · ${warning.location.file}:${warning.location.line}`));
+    console.log(`    ${warning.title}`);
+    console.log('');
+  }
+}
+
+async function handleExplainWarningId(warningId: string, options: ExplainOptions): Promise<void> {
+  const workspaceRoot = getWorkspaceRoot();
+  const recentWarnings = await loadRecentWarnings(workspaceRoot);
+
+  if (parseWarningId(warningId)) {
+    const explanation = explainById(warningId, recentWarnings);
 
     if (explanation) {
       if (options.json) {
         formatExplanationJson(explanation);
       } else {
-        formatExplanationText(explanation, { file: parsed.file, line: parsed.line });
+        const parsed = parseWarningId(warningId);
+        formatExplanationText(explanation, { file: parsed?.file, line: parsed?.line });
       }
       return;
     }
@@ -153,7 +184,8 @@ function handleExplainWarningId(warningId: string, options: ExplainOptions): voi
 
   console.error(chalk.red(`Unknown warning ID or rule: ${warningId}`));
   console.log('');
-  console.log(chalk.gray('Use --list to see available rules'));
+  console.log(chalk.gray('Use --list to see recent warning IDs from check output'));
+  console.log(chalk.gray('Use --rules to see all explainable rules'));
   console.log(chalk.gray('Format: RULE-ID or RULE-ID-file.ts:line'));
   console.log(chalk.gray('Examples:'));
   console.log(chalk.gray('  anvil explain AP-003'));
@@ -167,15 +199,21 @@ export function createExplainCommand(): Command {
   command
     .description('Get detailed explanation for a warning')
     .argument('[warning-id]', 'Warning ID (e.g., AP-003, AP-003-src/file.ts:42)')
-    .option('--list', 'List all explainable rules')
+    .option('--list', 'List warning IDs from the most recent check run')
+    .option('--rules', 'List all explainable rules')
     .option('--json', 'Output as JSON')
-    .action((warningId: string | undefined, options: ExplainOptions) => {
-      if (options.list || !warningId) {
+    .action(async (warningId: string | undefined, options: ExplainOptions) => {
+      if (options.rules) {
         listExplainableRules(options.json ?? false);
         return;
       }
 
-      handleExplainWarningId(warningId, options);
+      if (options.list || !warningId) {
+        await listRecentWarnings(options.json ?? false);
+        return;
+      }
+
+      await handleExplainWarningId(warningId, options);
     });
 
   return command;

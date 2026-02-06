@@ -10,6 +10,7 @@ import {
 } from '@eddacraft/anvil-runtime';
 import type { Warning } from '@eddacraft/anvil-core/antipattern';
 import { getWorkspaceRoot } from '../utils/file-io.js';
+import { saveRecentWarnings } from '../services/recent-warnings-store.js';
 import { success, error, info } from '../utils/output.js';
 
 const ANALYSABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
@@ -269,6 +270,8 @@ export function createCheckCommand(): Command {
           noCache: cacheDisabled,
           checks: ['architecture'],
         });
+
+        await saveRecentWarnings(workspaceRoot, result.warnings.warnings);
 
         spinner?.stop();
 
