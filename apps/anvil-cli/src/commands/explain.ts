@@ -144,7 +144,8 @@ async function listRecentWarnings(json: boolean): Promise<void> {
   }
 
   for (const warning of warnings) {
-    const rule = warning.warningId.split('-').slice(0, 2).join('-');
+    const parsed = parseWarningId(warning.warningId);
+    const rule = parsed?.rule ?? warning.warningId;
     console.log(chalk.yellow(`  ${warning.warningId}`));
     console.log(chalk.gray(`    ${rule} · ${warning.location.file}:${warning.location.line}`));
     console.log(`    ${warning.title}`);
@@ -156,15 +157,16 @@ async function handleExplainWarningId(warningId: string, options: ExplainOptions
   const workspaceRoot = getWorkspaceRoot();
   const recentWarnings = await loadRecentWarnings(workspaceRoot);
 
-  if (parseWarningId(warningId)) {
+  const parsed = parseWarningId(warningId);
+
+  if (parsed) {
     const explanation = explainById(warningId, recentWarnings);
 
     if (explanation) {
       if (options.json) {
         formatExplanationJson(explanation);
       } else {
-        const parsed = parseWarningId(warningId);
-        formatExplanationText(explanation, { file: parsed?.file, line: parsed?.line });
+        formatExplanationText(explanation, { file: parsed.file, line: parsed.line });
       }
       return;
     }

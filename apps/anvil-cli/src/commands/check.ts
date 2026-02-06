@@ -271,7 +271,15 @@ export function createCheckCommand(): Command {
           checks: ['architecture'],
         });
 
-        await saveRecentWarnings(workspaceRoot, result.warnings.warnings);
+        try {
+          await saveRecentWarnings(workspaceRoot, result.warnings.warnings);
+        } catch (saveErr) {
+          info(
+            `Failed to save recent warnings: ${
+              saveErr instanceof Error ? saveErr.message : String(saveErr)
+            }`
+          );
+        }
 
         spinner?.stop();
 
