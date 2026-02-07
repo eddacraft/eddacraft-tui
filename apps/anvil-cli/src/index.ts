@@ -30,12 +30,13 @@ import { createWhoamiCommand } from './commands/whoami.js';
 import { isFirstRun } from './services/first-run-detector.js';
 import { isAuthenticated } from './services/auth-store.js';
 import { showWelcome, createStartCommand } from './commands/welcome.js';
-import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readJsonFileSync } from './utils/file-io.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const packageJson = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
+const packageJson =
+  readJsonFileSync<Record<string, string>>(join(__dirname, '..', 'package.json')) ?? {};
 
 // Commands that don't require authentication
 const AUTH_EXEMPT_COMMANDS = new Set(['login', 'logout', 'whoami', 'beta', 'start', 'help']);

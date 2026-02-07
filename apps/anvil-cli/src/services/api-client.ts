@@ -5,24 +5,22 @@
  * admin-client.ts and auth-client.ts.
  */
 
+import { requireEnv, getEnv } from '../utils/env.js';
+
 const DEFAULT_API_URL = 'https://anvil-api.vercel.app';
 
 /**
  * Get the configured API base URL.
  */
 export function getApiUrl(): string {
-  return process.env['ANVIL_API_URL'] ?? DEFAULT_API_URL;
+  return getEnv('ANVIL_API_URL', DEFAULT_API_URL);
 }
 
 /**
  * Get the admin API key from environment, or throw if missing.
  */
 export function getAdminKey(): string {
-  const key = process.env['ANVIL_ADMIN_KEY'];
-  if (!key) {
-    throw new Error('ANVIL_ADMIN_KEY environment variable is required for admin commands');
-  }
-  return key;
+  return requireEnv('ANVIL_ADMIN_KEY', 'admin commands');
 }
 
 interface ApiRequestOptions {

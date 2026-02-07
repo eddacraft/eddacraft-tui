@@ -9,8 +9,10 @@ export async function loadPlan(path: string): Promise<APSPlan> {
   }
 
   try {
-    const content = readFileSync(path, 'utf-8');
-    const data = JSON.parse(content);
+    const data = readJsonFileSync(path);
+    if (!data) {
+      throw new Error('Failed to parse JSON');
+    }
 
     // Validate the plan
     const validationResult = await validateAPSPlan(data);
@@ -61,6 +63,21 @@ export function findPlanById(id: string, workspaceRoot: string): string | null {
 
 export function ensureDirectory(path: string): void {
   ensureDirSync(path);
+}
+
+/**
+ * Read and parse a JSON file synchronously.
+ * Returns null if the file doesn't exist or can't be parsed.
+ */
+export function readJsonFileSync<T = unknown>(filePath: string): T | null {
+  try {
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
+  } catch {
+    return null;
+  }
 }
 
 export function getWorkspaceRoot(): string {

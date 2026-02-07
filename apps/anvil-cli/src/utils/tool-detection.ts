@@ -5,8 +5,9 @@
  * detection logic for ESLint, Prettier, package managers, etc.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { readJsonFileSync } from './file-io.js';
 
 /**
  * Config file lists for common tools
@@ -45,15 +46,7 @@ export const JEST_CONFIG_FILES = ['jest.config.js', 'jest.config.ts', 'jest.conf
  * Read and parse package.json from a project root.
  */
 export function readPackageJson(projectRoot: string): Record<string, unknown> | null {
-  try {
-    const packageJsonPath = join(projectRoot, 'package.json');
-    if (!existsSync(packageJsonPath)) {
-      return null;
-    }
-    return JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-  } catch {
-    return null;
-  }
+  return readJsonFileSync(join(projectRoot, 'package.json'));
 }
 
 /**

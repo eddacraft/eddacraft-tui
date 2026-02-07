@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { readJsonFileSync } from '../../../../utils/file-io.js';
 
 import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult, FixResult } from '../types.js';
 
@@ -10,19 +11,16 @@ export class HuskyInstalledCheck implements DiagnosticCheck {
   readonly description = 'Verifies Husky git hooks manager is installed';
 
   private checkPackageJsonForHusky(projectRoot: string): boolean {
-    const packageJsonPath = path.join(projectRoot, 'package.json');
-    if (!fs.existsSync(packageJsonPath)) return false;
+    const pkg = readJsonFileSync<Record<string, Record<string, unknown>>>(
+      path.join(projectRoot, 'package.json')
+    );
+    if (!pkg) return false;
 
-    try {
-      const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-      return !!(
-        pkg.devDependencies?.husky ||
-        pkg.dependencies?.husky ||
-        pkg.optionalDependencies?.husky
-      );
-    } catch {
-      return false;
-    }
+    return !!(
+      pkg.devDependencies?.husky ||
+      pkg.dependencies?.husky ||
+      pkg.optionalDependencies?.husky
+    );
   }
 
   async run(context: DiagnosticContext): Promise<DiagnosticResult> {

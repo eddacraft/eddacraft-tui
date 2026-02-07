@@ -7,6 +7,7 @@ import {
   readPackageJson,
   hasPackageDependency,
 } from '../utils/tool-detection.js';
+import { readJsonFileSync } from '../utils/file-io.js';
 
 /**
  * Package.json shape (extends the generic record from tool-detection)
@@ -190,12 +191,13 @@ export class ProjectDetector {
    */
   private detectTypeScriptStrictness(): TypeScriptStrictness {
     try {
-      const tsconfigPath = join(this.projectRoot, 'tsconfig.json');
-      if (!existsSync(tsconfigPath)) {
+      const tsconfig = readJsonFileSync<Record<string, Record<string, unknown>>>(
+        join(this.projectRoot, 'tsconfig.json')
+      );
+      if (!tsconfig) {
         return 'none';
       }
 
-      const tsconfig = JSON.parse(readFileSync(tsconfigPath, 'utf-8'));
       const compilerOptions = tsconfig.compilerOptions || {};
 
       // Check for strict mode
@@ -341,16 +343,9 @@ export class ProjectDetector {
     }
 
     // Check for lerna.json
-    try {
-      const lernaPath = join(this.projectRoot, 'lerna.json');
-      if (existsSync(lernaPath)) {
-        const lerna = JSON.parse(readFileSync(lernaPath, 'utf-8'));
-        if (Array.isArray(lerna.packages)) {
-          return lerna.packages;
-        }
-      }
-    } catch {
-      // Ignore parsing errors
+    const lerna = readJsonFileSync<Record<string, unknown>>(join(this.projectRoot, 'lerna.json'));
+    if (lerna && Array.isArray(lerna.packages)) {
+      return lerna.packages;
     }
 
     return [];

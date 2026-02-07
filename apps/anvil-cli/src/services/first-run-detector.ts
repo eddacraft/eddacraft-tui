@@ -1,16 +1,16 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isEnvTrue } from '../utils/env.js';
 
 const ANVIL_DIR = '.anvil';
 const FIRST_RUN_MARKER = 'first-run';
-const SKIP_WELCOME_ENV = 'ANVIL_SKIP_WELCOME';
 
 export interface FirstRunOptions {
   projectRoot?: string;
 }
 
 export function isFirstRun(options: FirstRunOptions = {}): boolean {
-  if (process.env[SKIP_WELCOME_ENV] === '1' || process.env[SKIP_WELCOME_ENV] === 'true') {
+  if (isEnvTrue('ANVIL_SKIP_WELCOME')) {
     return false;
   }
 
@@ -42,7 +42,7 @@ export function markFirstRunComplete(options: FirstRunOptions = {}): void {
 }
 
 export function isWelcomeSkipped(): boolean {
-  return process.env[SKIP_WELCOME_ENV] === '1' || process.env[SKIP_WELCOME_ENV] === 'true';
+  return isEnvTrue('ANVIL_SKIP_WELCOME');
 }
 
 export function getMarkerPath(options: FirstRunOptions = {}): string {

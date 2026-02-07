@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { getWorkspaceRoot } from '../utils/file-io.js';
+import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
 
 /** Marker comment to identify Anvil-managed hooks */
@@ -94,13 +94,9 @@ function detectHusky(workspaceRoot: string): { detected: boolean; huskyDir: stri
   const packageJsonPath = join(workspaceRoot, 'package.json');
   let hasHuskyDep = false;
 
-  if (existsSync(packageJsonPath)) {
-    try {
-      const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      hasHuskyDep = !!(pkg.devDependencies?.husky || pkg.dependencies?.husky);
-    } catch {
-      // Ignore parse errors
-    }
+  const pkg = readJsonFileSync<Record<string, Record<string, unknown>>>(packageJsonPath);
+  if (pkg) {
+    hasHuskyDep = !!(pkg.devDependencies?.husky || pkg.dependencies?.husky);
   }
 
   return {
