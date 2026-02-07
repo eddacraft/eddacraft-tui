@@ -53,6 +53,12 @@
     },
     {
       "path": "./packages/aps"
+    },
+    {
+      "path": "./packages/mcp-server"
+    },
+    {
+      "path": "./apps/e2e"
     }
   ]
 }

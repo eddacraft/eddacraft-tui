@@ -10,9 +10,5 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "dist", "node_modules", "docs", "examples"],
-  "references": [
-    {
-      "path": "../anvil/core/tsconfig.lib.json"
-    }
-  ]
+  "references": []
 }

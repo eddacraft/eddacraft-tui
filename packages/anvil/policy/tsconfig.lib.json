@@ -5,9 +5,5 @@
     "declarationMap": true
   },
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
-  "references": [
-    {
-      "path": "../contracts/tsconfig.lib.json"
-    }
-  ]
+  "references": []
 }

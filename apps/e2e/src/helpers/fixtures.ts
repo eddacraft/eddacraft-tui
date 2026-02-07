@@ -96,7 +96,7 @@ export function makeGateCheck(overrides: Partial<GateCheck> = {}): GateCheck {
     description: overrides.description ?? 'Test gate check',
     enabled: true,
     ...overrides,
-  } as GateCheck;
+  };
 }
 
 // ─── File Content Factories ─────────────────────────────────────

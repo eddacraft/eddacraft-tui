@@ -20,9 +20,6 @@
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
   "references": [
     {
-      "path": "../adapters"
-    },
-    {
       "path": "../anvil/core"
     }
   ]

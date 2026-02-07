@@ -12,6 +12,9 @@
   "exclude": ["src/**/*.spec.ts", "src/**/*.test.ts", "dist", "node_modules"],
   "references": [
     {
+      "path": "../aps/tsconfig.lib.json"
+    },
+    {
       "path": "../anvil/core/tsconfig.lib.json"
     }
   ]

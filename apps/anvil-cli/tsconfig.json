@@ -26,6 +26,9 @@
       "path": "../../packages/anvil/runtime"
     },
     {
+      "path": "../../packages/mcp-server"
+    },
+    {
       "path": "../../packages/edda-stack"
     },
     {

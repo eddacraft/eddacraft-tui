@@ -155,6 +155,9 @@ jobs:
       - name: Run type check
         run: pnpm run typecheck
 
+      - name: Build all packages
+        run: pnpm run build
+
       - name: Run unit tests
         run: pnpm run test -- --run --coverage
 
@@ -164,9 +167,6 @@ jobs:
         with:
           name: coverage-report
           path: coverage/
-
-      - name: Build all packages
-        run: pnpm run build
 
   e2e-tests:
     name: E2E Tests

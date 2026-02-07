@@ -4,9 +4,5 @@
     "declaration": true,
     "declarationMap": true
   },
-  "references": [
-    {
-      "path": "../../anvil/contracts/tsconfig.lib.json"
-    }
-  ]
+  "references": []
 }

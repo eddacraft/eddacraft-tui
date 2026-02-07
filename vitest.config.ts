@@ -40,6 +40,7 @@ export default defineConfig({
       'docs/archive/**',
       // E2E tests run in dedicated CI jobs, not the unit test step
       '**/*.e2e.test.*',
+      '**/*.e2e.spec.*',
     ],
   },
   resolve: {
@@ -55,6 +56,7 @@ export default defineConfig({
       '@eddacraft/anvil-aps': resolve(__dirname, './packages/aps/src'),
       '@eddacraft/anvil-mcp-server': resolve(__dirname, './packages/mcp-server/src'),
       '@eddacraft/anvil-edda-stack': resolve(__dirname, './packages/edda-stack/src'),
+      '@eddacraft/anvil-mcp-server': resolve(__dirname, './packages/mcp-server/src'),
       vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },
   },

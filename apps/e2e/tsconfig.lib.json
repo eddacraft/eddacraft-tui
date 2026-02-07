@@ -4,5 +4,28 @@
     "declaration": true,
     "emitDeclarationOnly": false
   },
-  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"],
+  "references": [
+    {
+      "path": "../../packages/edda-stack"
+    },
+    {
+      "path": "../../packages/mcp-server/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/adapters/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/aps/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/anvil/runtime/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/anvil/core/tsconfig.lib.json"
+    },
+    {
+      "path": "../../packages/anvil/contracts/tsconfig.lib.json"
+    }
+  ]
 }
