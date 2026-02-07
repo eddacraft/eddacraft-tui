@@ -291,7 +291,7 @@ jobs:
   e2e-harness:
     name: E2E Harness
     runs-on: ubuntu-latest
-    needs: [detect-changes, lint-and-test]
+    needs: [detect-changes, build]
     if: false # needs.detect-changes.outputs.code-changed == 'true'
 
     steps:
