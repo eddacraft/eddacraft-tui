@@ -444,6 +444,9 @@ importers:
       '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../core
+      '@eddacraft/anvil-policy':
+        specifier: workspace:*
+        version: link:../policy
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0

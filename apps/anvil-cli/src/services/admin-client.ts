@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'https://anvil-api.vercel.app';
+import { apiRequest, getAdminKey } from './api-client.js';
 
 interface InviteRequest {
   email: string;
@@ -36,69 +36,31 @@ interface UserResponse {
   }>;
 }
 
-function getAdminKey(): string {
-  const key = process.env['ANVIL_ADMIN_KEY'];
-  if (!key) {
-    throw new Error('ANVIL_ADMIN_KEY environment variable is required for admin commands');
-  }
-  return key;
-}
-
-function getApiUrl(): string {
-  return process.env['ANVIL_API_URL'] ?? DEFAULT_API_URL;
-}
-
 export async function adminInvite(request: InviteRequest): Promise<InviteResponse> {
-  const url = `${getApiUrl()}/api/v1/admin/invite`;
-  const res = await fetch(url, {
+  return apiRequest<InviteResponse>({
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getAdminKey()}`,
-    },
-    body: JSON.stringify(request),
+    path: '/api/v1/admin/invite',
+    body: request,
+    token: getAdminKey(),
+    operationName: 'Admin invite',
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Admin invite failed: ${res.status} ${body}`);
-  }
-
-  return (await res.json()) as InviteResponse;
 }
 
 export async function adminRevoke(email: string): Promise<RevokeResponse> {
-  const url = `${getApiUrl()}/api/v1/admin/revoke`;
-  const res = await fetch(url, {
+  return apiRequest<RevokeResponse>({
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${getAdminKey()}`,
-    },
-    body: JSON.stringify({ email }),
+    path: '/api/v1/admin/revoke',
+    body: { email },
+    token: getAdminKey(),
+    operationName: 'Admin revoke',
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Admin revoke failed: ${res.status} ${body}`);
-  }
-
-  return (await res.json()) as RevokeResponse;
 }
 
 export async function adminGetUser(email: string): Promise<UserResponse> {
-  const url = `${getApiUrl()}/api/v1/admin/user/${encodeURIComponent(email)}`;
-  const res = await fetch(url, {
+  return apiRequest<UserResponse>({
     method: 'GET',
-    headers: {
-      Authorization: `Bearer ${getAdminKey()}`,
-    },
+    path: `/api/v1/admin/user/${encodeURIComponent(email)}`,
+    token: getAdminKey(),
+    operationName: 'Admin user lookup',
   });
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Admin user lookup failed: ${res.status} ${body}`);
-  }
-
-  return (await res.json()) as UserResponse;
 }

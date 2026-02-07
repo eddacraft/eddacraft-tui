@@ -1,38 +1,42 @@
 /**
  * Policy module exports
  *
+ * Re-exports from @eddacraft/anvil-policy to avoid code duplication.
  * OPA integration for flexible policy evaluation using Rego language.
+ *
+ * Note: SignatureAlgorithm is intentionally not re-exported here as it is
+ * already exported from @eddacraft/anvil-contracts via gate.types.
  */
 
-export { OPABinaryManager, getOPABinaryManager } from './opa-binary-manager.js';
-export type { OPABinaryConfig, BinaryInfo } from './opa-binary-manager.js';
+export {
+  OPABinaryManager,
+  getOPABinaryManager,
+  PolicyLoader,
+  OPAExecutor,
+  BundleManager,
+  getBundleManager,
+  BundleVerifier,
+  loadKeyFromFile,
+} from '@eddacraft/anvil-policy';
 
-export { PolicyLoader } from './policy-loader.js';
-export type { LoadedPolicy, PolicyDiscoveryResult, PolicyLoaderConfig } from './policy-loader.js';
-
-export { OPAExecutor } from './opa-executor.js';
 export type {
+  OPABinaryConfig,
+  BinaryInfo,
+  LoadedPolicy,
+  PolicyDiscoveryResult,
+  PolicyLoaderConfig,
   OPAInput,
   PolicyViolation,
   OPAEvaluationResult,
   OPAExecutorConfig,
   ViolationCategory,
-} from './opa-executor.js';
-
-export { BundleManager, getBundleManager } from './bundle-manager.js';
-export type {
   BundleConfig,
   BundleAuthConfig,
   BundleCacheEntry,
   BundleManagerConfig,
   BundleSyncResult,
-} from './bundle-manager.js';
-
-export { BundleVerifier, loadKeyFromFile } from './bundle-verifier.js';
-export type {
   VerificationResult,
   PublicKeyConfig,
   BundleVerifierConfig,
   SignatureManifest,
-  // SignatureAlgorithm exported from @eddacraft/anvil-contracts via gate.types
-} from './bundle-verifier.js';
+} from '@eddacraft/anvil-policy';

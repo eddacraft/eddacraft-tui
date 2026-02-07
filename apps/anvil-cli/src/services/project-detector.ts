@@ -1,8 +1,15 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  detectEslint,
+  detectPrettier,
+  detectPackageManager,
+  readPackageJson,
+  hasPackageDependency,
+} from '../utils/tool-detection.js';
 
 /**
- * Package.json shape
+ * Package.json shape (extends the generic record from tool-detection)
  */
 interface PackageJson {
   type?: string;
@@ -89,7 +96,7 @@ export class ProjectDetector {
   public detect(): ProjectContext {
     const framework = this.detectFramework();
     const monorepo = this.detectMonorepo();
-    const packageManager = this.detectPackageManager();
+    const packageManager = detectPackageManager(this.projectRoot);
     const fileCount = this.estimateFileCount();
     const workspacePackages = this.detectWorkspacePackages();
 
@@ -99,8 +106,8 @@ export class ProjectDetector {
       tsStrictness: this.detectTypeScriptStrictness(),
       size: this.categorizeProjectSize(fileCount),
       fileCount,
-      hasEslint: this.detectEslint(),
-      hasPrettier: this.detectPrettier(),
+      hasEslint: detectEslint(this.projectRoot),
+      hasPrettier: detectPrettier(this.projectRoot),
       hasTests: this.detectTestFramework(),
       packageManager,
       projectRoot: this.projectRoot,
@@ -112,7 +119,7 @@ export class ProjectDetector {
    * Detect primary framework or runtime
    */
   private detectFramework(): FrameworkType {
-    const packageJson = this.readPackageJson();
+    const packageJson = readPackageJson(this.projectRoot) as PackageJson | null;
     if (!packageJson) {
       return 'unknown';
     }
@@ -165,7 +172,7 @@ export class ProjectDetector {
     }
 
     // Check for yarn workspace
-    const packageJson = this.readPackageJson();
+    const packageJson = readPackageJson(this.projectRoot) as PackageJson | null;
     if (packageJson?.workspaces) {
       if (existsSync(join(this.projectRoot, 'yarn.lock'))) {
         return 'yarn-workspace';
@@ -294,70 +301,11 @@ export class ProjectDetector {
   }
 
   /**
-   * Detect ESLint configuration
-   */
-  private detectEslint(): boolean {
-    const eslintFiles = [
-      '.eslintrc',
-      '.eslintrc.js',
-      '.eslintrc.cjs',
-      '.eslintrc.json',
-      '.eslintrc.yml',
-      'eslint.config.js',
-      'eslint.config.mjs',
-      'eslint.config.cjs',
-    ];
-
-    if (eslintFiles.some((file) => existsSync(join(this.projectRoot, file)))) {
-      return true;
-    }
-
-    return this.hasPackageDependency('eslint');
-  }
-
-  /**
-   * Detect Prettier configuration
-   */
-  private detectPrettier(): boolean {
-    const prettierFiles = [
-      '.prettierrc',
-      '.prettierrc.js',
-      '.prettierrc.cjs',
-      '.prettierrc.json',
-      '.prettierrc.yml',
-      'prettier.config.js',
-      'prettier.config.cjs',
-    ];
-
-    if (prettierFiles.some((file) => existsSync(join(this.projectRoot, file)))) {
-      return true;
-    }
-
-    return this.hasPackageDependency('prettier');
-  }
-
-  /**
    * Detect test framework
    */
   private detectTestFramework(): boolean {
     const testPackages = ['vitest', 'jest', 'mocha', 'jasmine', '@playwright/test'];
-    return testPackages.some((pkg) => this.hasPackageDependency(pkg));
-  }
-
-  /**
-   * Detect package manager
-   */
-  private detectPackageManager(): 'npm' | 'pnpm' | 'yarn' | 'unknown' {
-    if (existsSync(join(this.projectRoot, 'pnpm-lock.yaml'))) {
-      return 'pnpm';
-    }
-    if (existsSync(join(this.projectRoot, 'yarn.lock'))) {
-      return 'yarn';
-    }
-    if (existsSync(join(this.projectRoot, 'package-lock.json'))) {
-      return 'npm';
-    }
-    return 'unknown';
+    return testPackages.some((pkg) => hasPackageDependency(this.projectRoot, pkg));
   }
 
   /**
@@ -365,7 +313,7 @@ export class ProjectDetector {
    */
   private detectWorkspacePackages(): string[] {
     // Check for workspaces in package.json
-    const packageJson = this.readPackageJson();
+    const packageJson = readPackageJson(this.projectRoot) as PackageJson | null;
     if (packageJson) {
       if (Array.isArray(packageJson.workspaces)) {
         return packageJson.workspaces;
@@ -406,37 +354,5 @@ export class ProjectDetector {
     }
 
     return [];
-  }
-
-  /**
-   * Read and parse package.json
-   */
-  private readPackageJson(): PackageJson | null {
-    try {
-      const packageJsonPath = join(this.projectRoot, 'package.json');
-      if (!existsSync(packageJsonPath)) {
-        return null;
-      }
-      return JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Check if a package is in dependencies or devDependencies
-   */
-  private hasPackageDependency(packageName: string): boolean {
-    const packageJson = this.readPackageJson();
-    if (!packageJson) {
-      return false;
-    }
-
-    const deps = {
-      ...packageJson.dependencies,
-      ...packageJson.devDependencies,
-    };
-
-    return packageName in deps;
   }
 }

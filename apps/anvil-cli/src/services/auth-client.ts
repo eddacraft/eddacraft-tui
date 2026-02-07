@@ -1,4 +1,4 @@
-const DEFAULT_API_URL = 'https://anvil-api.vercel.app';
+import { apiRequest } from './api-client.js';
 
 interface VerifyResponse {
   valid: boolean;
@@ -11,18 +11,10 @@ interface VerifyResponse {
  * Verify a beta token against the API.
  */
 export async function verifyToken(token: string): Promise<VerifyResponse> {
-  const apiUrl = process.env['ANVIL_API_URL'] ?? DEFAULT_API_URL;
-  const url = `${apiUrl}/api/v1/auth/verify`;
-
-  const res = await fetch(url, {
+  return apiRequest<VerifyResponse>({
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ token }),
+    path: '/api/v1/auth/verify',
+    body: { token },
+    operationName: 'API request',
   });
-
-  if (!res.ok) {
-    throw new Error(`API request failed: ${res.status} ${res.statusText}`);
-  }
-
-  return (await res.json()) as VerifyResponse;
 }

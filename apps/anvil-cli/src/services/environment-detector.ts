@@ -1,5 +1,15 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import {
+  detectEslint,
+  detectPrettier,
+  detectPackageManager,
+  readPackageJson,
+  hasPackageDependency,
+  hasConfigFile,
+  VITEST_CONFIG_FILES,
+  JEST_CONFIG_FILES,
+} from '../utils/tool-detection.js';
 
 /**
  * Detected development tools and their configurations
@@ -38,14 +48,14 @@ export class EnvironmentDetector {
    */
   public detect(): EnvironmentInfo {
     return {
-      hasGit: this.detectGit(),
-      hasPackageJson: this.detectPackageJson(),
-      hasEslint: this.detectEslint(),
-      hasPrettier: this.detectPrettier(),
+      hasGit: existsSync(join(this.projectRoot, '.git')),
+      hasPackageJson: existsSync(join(this.projectRoot, 'package.json')),
+      hasEslint: detectEslint(this.projectRoot),
+      hasPrettier: detectPrettier(this.projectRoot),
       hasVitest: this.detectVitest(),
       hasJest: this.detectJest(),
-      hasTypeScript: this.detectTypeScript(),
-      packageManager: this.detectPackageManager(),
+      hasTypeScript: existsSync(join(this.projectRoot, 'tsconfig.json')),
+      packageManager: detectPackageManager(this.projectRoot),
       projectName: this.getProjectName(),
       projectRoot: this.projectRoot,
     };
@@ -72,131 +82,22 @@ export class EnvironmentDetector {
     return checks;
   }
 
-  private detectGit(): boolean {
-    return existsSync(join(this.projectRoot, '.git'));
-  }
-
-  private detectPackageJson(): boolean {
-    return existsSync(join(this.projectRoot, 'package.json'));
-  }
-
-  private detectEslint(): boolean {
-    const eslintFiles = [
-      '.eslintrc',
-      '.eslintrc.js',
-      '.eslintrc.cjs',
-      '.eslintrc.json',
-      '.eslintrc.yml',
-      'eslint.config.js',
-      'eslint.config.mjs',
-      'eslint.config.cjs',
-    ];
-
-    // Check for config files
-    if (eslintFiles.some((file) => existsSync(join(this.projectRoot, file)))) {
-      return true;
-    }
-
-    // Check package.json for eslint dependency
-    return this.hasPackageDependency('eslint');
-  }
-
-  private detectPrettier(): boolean {
-    const prettierFiles = [
-      '.prettierrc',
-      '.prettierrc.js',
-      '.prettierrc.cjs',
-      '.prettierrc.json',
-      '.prettierrc.yml',
-      'prettier.config.js',
-      'prettier.config.cjs',
-    ];
-
-    // Check for config files
-    if (prettierFiles.some((file) => existsSync(join(this.projectRoot, file)))) {
-      return true;
-    }
-
-    // Check package.json for prettier dependency
-    return this.hasPackageDependency('prettier');
-  }
-
   private detectVitest(): boolean {
-    const vitestFiles = [
-      'vitest.config.js',
-      'vitest.config.ts',
-      'vite.config.js',
-      'vite.config.ts',
-    ];
-
-    // Check for config files
-    if (vitestFiles.some((file) => existsSync(join(this.projectRoot, file)))) {
+    if (hasConfigFile(this.projectRoot, VITEST_CONFIG_FILES)) {
       return true;
     }
-
-    // Check package.json for vitest dependency
-    return this.hasPackageDependency('vitest');
+    return hasPackageDependency(this.projectRoot, 'vitest');
   }
 
   private detectJest(): boolean {
-    const jestFiles = ['jest.config.js', 'jest.config.ts', 'jest.config.json'];
-
-    // Check for config files
-    if (jestFiles.some((file) => existsSync(join(this.projectRoot, file)))) {
+    if (hasConfigFile(this.projectRoot, JEST_CONFIG_FILES)) {
       return true;
     }
-
-    // Check package.json for jest dependency
-    return this.hasPackageDependency('jest');
-  }
-
-  private detectTypeScript(): boolean {
-    return existsSync(join(this.projectRoot, 'tsconfig.json'));
-  }
-
-  private detectPackageManager(): 'npm' | 'pnpm' | 'yarn' | 'unknown' {
-    if (existsSync(join(this.projectRoot, 'pnpm-lock.yaml'))) {
-      return 'pnpm';
-    }
-    if (existsSync(join(this.projectRoot, 'yarn.lock'))) {
-      return 'yarn';
-    }
-    if (existsSync(join(this.projectRoot, 'package-lock.json'))) {
-      return 'npm';
-    }
-    return 'unknown';
+    return hasPackageDependency(this.projectRoot, 'jest');
   }
 
   private getProjectName(): string | undefined {
-    try {
-      const packageJsonPath = join(this.projectRoot, 'package.json');
-      if (!existsSync(packageJsonPath)) {
-        return undefined;
-      }
-
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      return packageJson.name;
-    } catch {
-      return undefined;
-    }
-  }
-
-  private hasPackageDependency(packageName: string): boolean {
-    try {
-      const packageJsonPath = join(this.projectRoot, 'package.json');
-      if (!existsSync(packageJsonPath)) {
-        return false;
-      }
-
-      const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-      const deps = {
-        ...packageJson.dependencies,
-        ...packageJson.devDependencies,
-      };
-
-      return packageName in deps;
-    } catch {
-      return false;
-    }
+    const packageJson = readPackageJson(this.projectRoot);
+    return packageJson?.name as string | undefined;
   }
 }
