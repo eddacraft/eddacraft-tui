@@ -18,7 +18,6 @@ import {
   EvidenceEntrySchema,
   APS_SCHEMA_VERSION,
   createPlan,
-  validatePlan,
 } from '@eddacraft/anvil-contracts';
 
 // Also import from @eddacraft/anvil-core to verify re-exports are consistent
@@ -26,7 +25,6 @@ import {
   APSPlanSchema as CorePlanSchema,
   APS_SCHEMA_VERSION as CoreSchemaVersion,
   createPlan as coreCreatePlan,
-  validatePlan as coreValidatePlan,
 } from '@eddacraft/anvil-core';
 
 describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {

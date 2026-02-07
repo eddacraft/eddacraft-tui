@@ -9,7 +9,7 @@
  * Surface: API (auth route)
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Hono } from 'hono';
 
 // Mock the DB layer at the source-resolved paths (via vitest alias)
@@ -46,6 +46,10 @@ function post(path: string, body: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('API Auth Flow › POST /auth/verify', () => {

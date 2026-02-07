@@ -21,7 +21,12 @@ type DebugNamespace =
   | 'adapter'
   | 'architecture'
   | 'policy'
-  | 'git-ai-notes';
+  | 'git-ai-notes'
+  | 'agent'
+  | 'atomic'
+  | 'git-agent'
+  | 'lock'
+  | 'queue';
 
 /**
  * Check if debug logging is enabled

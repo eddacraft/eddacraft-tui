@@ -16,12 +16,14 @@ import {
   formatEntryPoints,
   formatEntryPointsSummary,
   formatLayerDiagram,
+  layersToMermaid,
   generateArchitectureExplanation,
   formatArchitectureExplanation,
   saveArchitectureBaseline,
   hasExistingBaseline,
   type ArchitectureSummary,
 } from '../services/architecture-service.js';
+import { renderMermaidAscii } from 'beautiful-mermaid';
 import { success, error, info } from '../utils/output.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
@@ -122,9 +124,16 @@ export function createInitCommand(): Command {
 
             // Display layer diagram
             console.log(chalk.cyan('\nDetected layer structure:'));
-            formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
-              console.log(chalk.dim(line))
-            );
+            try {
+              const mermaidDef = layersToMermaid(archSummary.layers, archSummary.layerAssignments);
+              const ascii = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
+              ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
+            } catch {
+              // Fall back to box diagram if mermaid rendering fails
+              formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
+                console.log(chalk.dim(line))
+              );
+            }
             console.log('');
 
             // Display architecture explanation

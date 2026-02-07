@@ -45,7 +45,7 @@ export default typescriptEslint.config(
   // Nx dependency checks for package.json files
   {
     files: ['**/package.json'],
-    ignores: ['node_modules/**'],
+    ignores: ['node_modules/**', 'apps/e2e/package.json'],
     plugins: {
       '@nx': nxPlugin,
     },

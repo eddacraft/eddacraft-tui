@@ -104,13 +104,13 @@ describe('Smoke › @eddacraft/anvil-adapters', () => {
   it('exports the adapter registry', async () => {
     const mod = await import('@eddacraft/anvil-adapters');
     expect(mod.registry).toBeDefined();
-    expect(typeof mod.registry.detect).toBe('function');
-    expect(typeof mod.registry.getAll).toBe('function');
+    expect(typeof mod.registry.detectAdapter).toBe('function');
+    expect(typeof mod.registry.listAdapters).toBe('function');
   });
 
   it('has registered adapters on import', async () => {
     const mod = await import('@eddacraft/anvil-adapters');
-    expect(mod.registry.getAll().length).toBeGreaterThan(0);
+    expect(mod.registry.listAdapters().length).toBeGreaterThan(0);
   });
 });
 

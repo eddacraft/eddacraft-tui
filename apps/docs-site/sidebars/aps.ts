@@ -25,13 +25,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Tooling',
       collapsed: true,
-      items: ['tooling/cli', 'tooling/validation'],
-    },
-    {
-      type: 'category',
-      label: 'Design Notes',
-      collapsed: true,
-      items: ['design/rationale', 'design/alternatives'],
+      items: ['tooling/validation'],
     },
   ],
 };

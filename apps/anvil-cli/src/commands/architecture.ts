@@ -23,6 +23,7 @@ import {
   ARCHITECTURE_DEFINITION_VERSION,
   getDefaultOptions,
 } from '@eddacraft/anvil-core';
+import { renderMermaidAscii, renderMermaid } from 'beautiful-mermaid';
 
 /** Template metadata for display */
 const TEMPLATE_INFO: Record<
@@ -87,6 +88,12 @@ function printWelcomeBanner(): void {
   console.log('');
 }
 
+/** Build a mermaid definition from template layer list */
+function templateToMermaid(layers: string[]): string {
+  if (layers.length === 0) return '';
+  return `graph TD\n  ${layers.join(' --> ')}`;
+}
+
 /** Print template details */
 function printTemplatePreview(template: ArchitectureTemplate): void {
   const info = TEMPLATE_INFO[template];
@@ -96,7 +103,14 @@ function printTemplatePreview(template: ArchitectureTemplate): void {
   console.log(`  ${chalk.dim(info.description)}`);
   if (info.layers.length > 0) {
     console.log('');
-    console.log(`  ${chalk.cyan('Layers:')} ${info.layers.join(' → ')}`);
+    try {
+      const mermaidDef = templateToMermaid(info.layers);
+      const ascii = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
+      ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
+    } catch {
+      // Fall back to simple arrow notation
+      console.log(`  ${chalk.cyan('Layers:')} ${info.layers.join(' → ')}`);
+    }
   }
   console.log(chalk.dim('  ─────────────────────────────────────────'));
   console.log('');
@@ -290,7 +304,26 @@ async function showArchitectureDefinition(
   console.log(`  ${chalk.cyan('Template:')}  ${definition.template}`);
   console.log(`  ${chalk.cyan('Schema:')}    ${definition.schema_version}`);
 
+  // Show dependency graph
   console.log('');
+  try {
+    const lines = ['graph TD'];
+    for (const [name, layer] of Object.entries(definition.layers)) {
+      for (const dep of layer.depends_on) {
+        if (definition.layers[dep]) {
+          lines.push(`  ${name} --> ${dep}`);
+        }
+      }
+    }
+    if (lines.length > 1) {
+      const ascii = renderMermaidAscii(lines.join('\n'), { paddingX: 2, paddingY: 1 });
+      ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
+      console.log('');
+    }
+  } catch {
+    // Diagram rendering failed — skip silently, details below are sufficient
+  }
+
   console.log(chalk.bold('  Layers'));
   console.log('');
   for (const [name, layer] of Object.entries(definition.layers)) {
@@ -450,6 +483,7 @@ export function createArchitectureCommand(): Command {
   command.addCommand(createGenerateSubcommand());
   command.addCommand(createValidateSubcommand());
   command.addCommand(createShowSubcommand());
+  command.addCommand(createVisualiseSubcommand());
 
   return command;
 }
@@ -580,6 +614,91 @@ function createShowSubcommand(): Command {
 
       try {
         await showArchitectureDefinition(projectRoot, options);
+      } catch (err) {
+        console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+        process.exit(1);
+      }
+    });
+}
+
+function createVisualiseSubcommand(): Command {
+  return new Command('visualise')
+    .alias('visualize')
+    .alias('viz')
+    .description('Visualise architecture dependency graph')
+    .option('-f, --format <format>', 'Output format: ascii (default), svg, mermaid', 'ascii')
+    .option('-o, --output <path>', 'Write output to file instead of stdout')
+    .action(async (options: { format?: string; output?: string }) => {
+      const projectRoot = process.cwd();
+
+      if (!architectureYamlExists(projectRoot)) {
+        console.log('');
+        console.log(chalk.red('  No architecture.yaml found.'));
+        console.log(chalk.dim('  Run: anvil arch init'));
+        console.log('');
+        process.exit(1);
+      }
+
+      try {
+        const definition = await parseArchitectureDefinition(projectRoot);
+
+        // Build mermaid definition from layers
+        const mermaidLines = ['graph TD'];
+        // Declare all layer nodes so isolated layers still appear
+        for (const name of Object.keys(definition.layers)) {
+          mermaidLines.push(`  ${name}`);
+        }
+        for (const [name, layer] of Object.entries(definition.layers)) {
+          for (const dep of layer.depends_on) {
+            if (definition.layers[dep]) {
+              mermaidLines.push(`  ${name} --> ${dep}`);
+            }
+          }
+        }
+        const mermaidDef = mermaidLines.join('\n');
+
+        const format = options.format ?? 'ascii';
+        let output: string;
+
+        switch (format) {
+          case 'mermaid':
+            output = mermaidDef;
+            break;
+          case 'svg': {
+            try {
+              output = await renderMermaid(mermaidDef);
+            } catch {
+              console.log(chalk.yellow('  SVG rendering failed — falling back to raw Mermaid'));
+              output = mermaidDef;
+            }
+            break;
+          }
+          case 'ascii':
+          default:
+            try {
+              output = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
+            } catch {
+              console.log(chalk.yellow('  ASCII rendering failed — falling back to raw Mermaid'));
+              output = mermaidDef;
+            }
+            break;
+        }
+
+        if (options.output) {
+          const outDir = dirname(options.output);
+          if (!existsSync(outDir)) {
+            await mkdir(outDir, { recursive: true });
+          }
+          await writeFile(options.output, output, 'utf-8');
+          console.log(chalk.green(`  Written to ${options.output}`));
+        } else {
+          console.log('');
+          console.log(chalk.bold.cyan('  Architecture Dependency Graph'));
+          console.log(chalk.dim(`  Template: ${definition.template}`));
+          console.log('');
+          output.split('\n').forEach((line) => console.log('  ' + line));
+          console.log('');
+        }
       } catch (err) {
         console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
         process.exit(1);

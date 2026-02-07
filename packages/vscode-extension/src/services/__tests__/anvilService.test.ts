@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { EventEmitter } from 'node:events';
 
 // Mock child_process
-vi.mock('child_process', () => ({
+vi.mock('node:child_process', () => ({
   spawn: vi.fn(),
 }));
 

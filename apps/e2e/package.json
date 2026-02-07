@@ -7,13 +7,13 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:smoke": "vitest run --testPathPattern smoke",
-    "test:cli": "vitest run --testPathPattern cli",
-    "test:api": "vitest run --testPathPattern api",
-    "test:core": "vitest run --testPathPattern core",
-    "test:contracts": "vitest run --testPathPattern contracts",
-    "test:adapters": "vitest run --testPathPattern adapters",
-    "test:mcp": "vitest run --testPathPattern mcp"
+    "test:smoke": "vitest run smoke",
+    "test:cli": "vitest run cli",
+    "test:api": "vitest run api",
+    "test:core": "vitest run core",
+    "test:contracts": "vitest run contracts",
+    "test:adapters": "vitest run adapters",
+    "test:mcp": "vitest run mcp"
   },
   "dependencies": {
     "@eddacraft/anvil-contracts": "workspace:*",

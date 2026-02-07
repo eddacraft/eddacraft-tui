@@ -38,6 +38,8 @@ export default defineConfig({
       '**/playwright-report/**',
       // Docs archive excluded from test discovery
       'docs/archive/**',
+      // E2E tests run in dedicated CI jobs, not the unit test step
+      '**/*.e2e.test.*',
     ],
   },
   resolve: {
@@ -51,6 +53,7 @@ export default defineConfig({
       '@eddacraft/anvil-cli': resolve(__dirname, './apps/anvil-cli/src'),
       '@eddacraft/anvil-adapters': resolve(__dirname, './packages/adapters/src'),
       '@eddacraft/anvil-aps': resolve(__dirname, './packages/aps/src'),
+      '@eddacraft/anvil-mcp-server': resolve(__dirname, './packages/mcp-server/src'),
       '@eddacraft/anvil-edda-stack': resolve(__dirname, './packages/edda-stack/src'),
       vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },

@@ -33,32 +33,38 @@ export function resetFixtures(): void {
  */
 export function makePlan(overrides: Partial<APSPlan> = {}): APSPlan {
   planCounter++;
-  return createPlan({
+  const plan = createPlan({
+    id: overrides.id ?? `e2e-plan-${planCounter}`,
     intent: overrides.intent ?? `E2E test plan #${planCounter}`,
-    proposed_changes: overrides.proposed_changes ?? [makeChange()],
     provenance: overrides.provenance ?? {
       timestamp: new Date().toISOString(),
       author: 'e2e-harness',
       source: 'cli' as const,
       version: '0.1.0',
     },
+    changes: overrides.proposed_changes ?? [makeChange()],
     validations: overrides.validations ?? {
       required_checks: ['lint', 'test', 'coverage', 'secrets'],
       skip_checks: [],
     },
-    ...overrides,
   });
+  return {
+    ...plan,
+    hash: overrides.hash ?? 'e2e-fixture-hash',
+    ...overrides,
+  } as APSPlan;
 }
 
 /**
  * Create a single proposed change entry.
  */
-export function makeChange(overrides: Partial<Change> = {}): Change {
+export function makeChange(overrides: Partial<Change> & { file?: string } = {}): Change {
+  const { file, ...rest } = overrides;
   return {
-    file: overrides.file ?? 'src/example.ts',
-    type: overrides.type ?? 'modify',
-    description: overrides.description ?? 'Update implementation',
-    ...overrides,
+    path: file ?? rest.path ?? 'src/example.ts',
+    type: rest.type ?? 'file_update',
+    description: rest.description ?? 'Update implementation',
+    ...rest,
   } as Change;
 }
 
@@ -69,12 +75,14 @@ export function makeChange(overrides: Partial<Change> = {}): Change {
  */
 export function makeGateConfig(overrides: Partial<GateConfig> = {}): GateConfig {
   return {
-    checks: overrides.checks ?? {
-      lint: makeGateCheck({ enabled: true }),
-      test: makeGateCheck({ enabled: true }),
-      coverage: makeGateCheck({ enabled: true, min_score: 80 }),
-      secrets: makeGateCheck({ enabled: true }),
-    },
+    version: 1,
+    checks: overrides.checks ?? [
+      makeGateCheck({ name: 'lint', enabled: true }),
+      makeGateCheck({ name: 'test', enabled: true }),
+      makeGateCheck({ name: 'coverage', enabled: true }),
+      makeGateCheck({ name: 'secrets', enabled: true }),
+    ],
+    thresholds: overrides.thresholds ?? { overall_score: 80 },
     ...overrides,
   } as GateConfig;
 }
@@ -84,6 +92,8 @@ export function makeGateConfig(overrides: Partial<GateConfig> = {}): GateConfig 
  */
 export function makeGateCheck(overrides: Partial<GateCheck> = {}): GateCheck {
   return {
+    name: overrides.name ?? 'check',
+    description: overrides.description ?? 'Test gate check',
     enabled: true,
     ...overrides,
   } as GateCheck;

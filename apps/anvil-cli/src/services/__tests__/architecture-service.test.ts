@@ -3,6 +3,7 @@ import {
   formatEntryPoints,
   formatEntryPointsSummary,
   formatLayerDiagram,
+  layersToMermaid,
   generateArchitectureExplanation,
   formatArchitectureExplanation,
   hasExistingBaseline,
@@ -190,7 +191,7 @@ describe('architecture-service', () => {
       const result = formatLayerDiagram(layers, assignments);
 
       expect(result.join('\n')).toContain('domain');
-      expect(result.join('\n')).toContain('[1 files]');
+      expect(result.join('\n')).toContain('[1 file]');
     });
 
     it('should include box borders', () => {
@@ -432,6 +433,56 @@ describe('architecture-service', () => {
       expect(baseline.created_at).toBeDefined();
       expect(baseline.baseline_snapshot.timestamp).toBeDefined();
       expect(baseline.baseline_snapshot.module_count).toBe(mockSummary.moduleCount);
+    });
+  });
+
+  describe('layersToMermaid', () => {
+    it('should generate mermaid definition from layers', () => {
+      const layers: Layers = {
+        presentation: { patterns: ['src/ui/**'], depends_on: ['application'] },
+        application: { patterns: ['src/app/**'], depends_on: ['domain'] },
+        domain: { patterns: ['src/domain/**'], depends_on: [] },
+      };
+
+      const result = layersToMermaid(layers);
+      expect(result).toContain('graph TD');
+      expect(result).toContain('presentation --> application');
+      expect(result).toContain('application --> domain');
+    });
+
+    it('should include file counts in node labels when assignments provided', () => {
+      const layers: Layers = {
+        domain: { patterns: ['src/domain/**'], depends_on: [] },
+        shared: { patterns: ['src/shared/**'], depends_on: [] },
+      };
+      const assignments = new Map([
+        ['domain', ['a.ts', 'b.ts', 'c.ts']],
+        ['shared', ['x.ts']],
+      ]);
+
+      const result = layersToMermaid(layers, assignments);
+      expect(result).toContain('domain["domain (3 files)"]');
+      expect(result).toContain('shared["shared (1 file)"]');
+    });
+
+    it('should not add edges to non-existent layers', () => {
+      const layers: Layers = {
+        app: { patterns: ['src/app/**'], depends_on: ['missing_layer'] },
+      };
+
+      const result = layersToMermaid(layers);
+      expect(result).toBe('graph TD');
+    });
+
+    it('should not produce duplicate edges', () => {
+      const layers: Layers = {
+        a: { patterns: ['a/**'], depends_on: ['b'] },
+        b: { patterns: ['b/**'], depends_on: [] },
+      };
+
+      const result = layersToMermaid(layers);
+      const edges = result.split('\n').filter((l) => l.includes('-->'));
+      expect(edges).toHaveLength(1);
     });
   });
 });

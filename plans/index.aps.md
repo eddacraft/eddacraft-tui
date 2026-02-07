@@ -134,6 +134,7 @@ regardless of how good the engine is. First impressions matter.
 | TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)           | Draft    |
 | Template Library  | Pre-built architecture patterns (TUI-006)              | Draft    |
 | Tutorial Mode     | Interactive learning experience (TUI-007)              | Draft    |
+| TUI Diagrams      | Mermaid-based ASCII diagrams via beautiful-mermaid (TUI-013–015) | Draft    |
 
 #### VS Code Extension Details (v1.2.0 → v1.3.0)
 
@@ -226,6 +227,9 @@ To ship fast and focused, these are explicitly deferred:
   v1.3; Python/Rust/.NET in v2.1+
 - **Team dashboards** — Individual developer focus first
 - **Auto-fix** — Warnings only; don't be too clever
+- ~~**TUI Mermaid diagrams** — Nice-to-have for v1.2~~ Promoted to beta —
+  dependency arrows and violation overlays make architecture visualisation
+  significantly more impressive in demos
 
 ## Constraints
 
@@ -503,6 +507,9 @@ graph TD
 | TUI-010 | tui    | `anvil gate` interactive explorer | Planned | medium   |
 | TUI-011 | tui    | Parallel progress visualisation   | Planned | low      |
 | TUI-012 | tui    | Log panel with filtering          | Planned | low      |
+| TUI-013 | tui    | `<MermaidDiagram />` component + `layersToMermaid()` helper ([brainstorm](./brainstorms/mermaid-tui-diagrams.md)) | Draft | high |
+| TUI-014 | tui    | Replace existing ASCII diagrams with mermaid rendering | Draft | high |
+| TUI-015 | tui    | `anvil architecture visualise` command (ascii/svg/mermaid formats) | Draft | high |
 
 ### Task Status — v2.0 (Web Dashboard)
 
@@ -898,7 +905,7 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 | Idea                           | Value | Status                                 |
 | ------------------------------ | ----- | -------------------------------------- |
 | Architecture pattern templates | High  | ✅ Planned (OPA-011–015)               |
-| Visual dependency graph        | High  | Deferred to v1.2+                      |
+| Visual dependency graph        | High  | Planned v1.2 (TUI-013–015 via beautiful-mermaid) |
 | Layer violation detection      | High  | ✅ Planned (DC + OPA bridge)           |
 | Circular dependency detection  | High  | ✅ Already have via dependency-cruiser |
 | Public API surface detection   | Med   | Open                                   |

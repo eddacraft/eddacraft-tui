@@ -1,16 +1,13 @@
 import React from 'react';
 import { Box, Text } from 'ink';
 import { theme } from '../../../../utils/theme.js';
+import { MermaidDiagram } from '../../../../components/MermaidDiagram.js';
 
-const LAYERS_DIAGRAM = [
-  '\u250C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510',
-  '\u2502 Watch Mode    (instant, local)  \u2502',
-  '\u251C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524',
-  '\u2502 Pre-commit    (before push)     \u2502',
-  '\u251C\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524',
-  '\u2502 CI Pipeline   (before merge)    \u2502',
-  '\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518',
-];
+const LAYERS_MERMAID = `graph TD
+  watch["Watch Mode (instant, local)"]
+  precommit["Pre-commit (before push)"]
+  ci["CI Pipeline (before merge)"]
+  watch --> precommit --> ci`;
 
 export function HooksStep(): React.ReactElement {
   return (
@@ -42,12 +39,8 @@ export function HooksStep(): React.ReactElement {
 
       <Box flexDirection="column" marginBottom={1}>
         <Text color={theme.colours.text}>Layered protection:</Text>
-        <Box flexDirection="column" marginLeft={2} marginTop={1}>
-          {LAYERS_DIAGRAM.map((line, index) => (
-            <Text key={index} color={theme.colours.ash}>
-              {line}
-            </Text>
-          ))}
+        <Box marginLeft={2} marginTop={1}>
+          <MermaidDiagram definition={LAYERS_MERMAID} asciiOptions={{ paddingX: 2, paddingY: 1 }} />
         </Box>
       </Box>
 

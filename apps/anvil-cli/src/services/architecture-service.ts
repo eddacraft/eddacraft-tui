@@ -283,7 +283,8 @@ export function formatLayerDiagram(layers: Layers, assignments: Map<string, stri
     const truncatedPatterns =
       patterns.length > boxWidth - 10 ? patterns.slice(0, boxWidth - 13) + '...' : patterns;
 
-    const content = `${layerName} (${truncatedPatterns}) [${fileCount} files]`;
+    const fileLabel = fileCount === 1 ? 'file' : 'files';
+    const content = `${layerName} (${truncatedPatterns}) [${fileCount} ${fileLabel}]`;
     const padding = boxWidth - content.length;
     const leftPad = Math.floor(padding / 2);
     const rightPad = padding - leftPad;
@@ -300,6 +301,48 @@ export function formatLayerDiagram(layers: Layers, assignments: Map<string, stri
   lines.push('  └' + '─'.repeat(boxWidth) + '┘');
 
   return lines;
+}
+
+/**
+ * Convert layer definitions to a Mermaid flowchart showing dependency arrows.
+ *
+ * Generates a `graph TD` definition from the Layers structure, using each
+ * layer's `depends_on` list to draw directed edges. Optionally includes
+ * file counts as node labels.
+ */
+export function layersToMermaid(layers: Layers, assignments?: Map<string, string[]>): string {
+  const layerOrder = ['presentation', 'application', 'domain', 'infrastructure', 'shared'];
+  const ordered = layerOrder.filter((l) => layers[l]);
+  const unordered = Object.keys(layers).filter((l) => !layerOrder.includes(l));
+  const all = [...ordered, ...unordered];
+
+  const lines = ['graph TD'];
+
+  // Declare nodes with labels (include file count when available)
+  for (const name of all) {
+    const fileCount = assignments?.get(name)?.length;
+    if (fileCount !== undefined) {
+      const fileLabel = fileCount === 1 ? 'file' : 'files';
+      lines.push(`  ${name}["${name} (${fileCount} ${fileLabel})"]`);
+    }
+  }
+
+  // Draw dependency edges
+  const edgesAdded = new Set<string>();
+  for (const name of all) {
+    const layer = layers[name];
+    for (const dep of layer.depends_on) {
+      if (layers[dep]) {
+        const edgeKey = `${name}->${dep}`;
+        if (!edgesAdded.has(edgeKey)) {
+          lines.push(`  ${name} --> ${dep}`);
+          edgesAdded.add(edgeKey);
+        }
+      }
+    }
+  }
+
+  return lines.join('\n');
 }
 
 /**
