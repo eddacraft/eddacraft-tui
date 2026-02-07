@@ -148,6 +148,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build eslint-plugin-anvil
+        run: pnpm -F eslint-plugin-anvil build
+
       - name: Run lint
         run: pnpm run lint:check
 
