@@ -34,6 +34,13 @@ export const metadata: Metadata = {
       'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
     creator: '@eddacraft',
   },
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-light-32x32.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({
