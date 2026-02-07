@@ -691,6 +691,10 @@ importers:
         version: 5.9.3
 
   tools/generators:
+    dependencies:
+      '@nx/devkit':
+        specifier: ^22.4.2
+        version: 22.4.3(nx@22.4.3(@swc-node/register@1.11.1(@swc/core@1.15.11(@swc/helpers@0.5.18))(@swc/types@0.1.25)(typescript@5.9.3))(@swc/core@1.15.11(@swc/helpers@0.5.18)))
     devDependencies:
       '@types/node':
         specifier: ^25.1.0

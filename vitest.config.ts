@@ -56,7 +56,6 @@ export default defineConfig({
       '@eddacraft/anvil-aps': resolve(__dirname, './packages/aps/src'),
       '@eddacraft/anvil-mcp-server': resolve(__dirname, './packages/mcp-server/src'),
       '@eddacraft/anvil-edda-stack': resolve(__dirname, './packages/edda-stack/src'),
-      '@eddacraft/anvil-mcp-server': resolve(__dirname, './packages/mcp-server/src'),
       vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },
   },
