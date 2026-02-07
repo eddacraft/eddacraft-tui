@@ -14,9 +14,6 @@ permissions:
   actions: read
   contents: read
 
-env:
-  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
-
 jobs:
   # Detect what changed to skip unnecessary jobs
   detect-changes:
@@ -121,9 +118,7 @@ jobs:
       - name: Run format check
         run: pnpm run format:check
 
-  # ── Shared setup via reusable anchor ──────────────────────────────
-  # The four parallel quality-gate jobs below all share the same
-  # checkout → pnpm → node → install preamble.
+  # ── Shared setup (duplicated in each job) ────────────────────────
 
   # ── Job 1: Lint + Format (Node-version independent) ──────────────
   lint:
@@ -247,6 +242,8 @@ jobs:
 
       - name: Build all packages
         run: pnpm run build
+        env:
+          NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
 
   # ── E2E Tests (runs in parallel, no longer blocked on lint/test) ─
   e2e-tests:
