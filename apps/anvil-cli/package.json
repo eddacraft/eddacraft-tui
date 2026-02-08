@@ -42,6 +42,7 @@
   "author": "EddaCraft",
   "dependencies": {
     "@eddacraft/anvil-adapters": "workspace:*",
+    "@eddacraft/anvil-platform-config": "workspace:*",
     "@eddacraft/anvil-aps": "workspace:*",
     "@eddacraft/anvil-core": "workspace:*",
     "@eddacraft/anvil-edda-stack": "workspace:*",
