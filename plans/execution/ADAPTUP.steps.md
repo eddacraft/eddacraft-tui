@@ -17,7 +17,7 @@ See: plans/aps-rules.md
 
 - [ ] `@eddacraft/anvil-core` builds successfully
 - [ ] `@eddacraft/anvil-adapters` builds successfully
-- [ ] Existing adapter tests pass (`pnpm nx run adapters:test`)
+- [ ] Existing adapter tests pass (`pnpm nx run @eddacraft/anvil-adapters:test`)
 
 ## Steps
 

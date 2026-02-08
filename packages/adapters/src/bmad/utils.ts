@@ -319,7 +319,7 @@ export function identifyDocumentType(
     if (/architecture/i.test(frontMatter.name)) {
       return BMADDocumentType.ARCHITECTURE;
     }
-    if (/agent/i.test(frontMatter.name)) {
+    if (/\bagent\b/i.test(frontMatter.name)) {
       return BMADDocumentType.AGENT;
     }
   }
@@ -432,6 +432,11 @@ export function calculateConfidenceScore(indicators: DetectionIndicators): numbe
     score += 15;
   }
 
+  // v6: Hyphenated variables like {{var-name}} (10 points bonus)
+  if (indicators.hasHyphenatedVariables) {
+    score += 10;
+  }
+
   return Math.min(100, score);
 }
 
@@ -471,6 +476,9 @@ export function buildDetectionReason(indicators: DetectionIndicators): string {
   }
   if (indicators.hasHasSidecar) {
     reasons.push('has-sidecar');
+  }
+  if (indicators.hasHyphenatedVariables) {
+    reasons.push('hyphenated-variables');
   }
 
   return reasons.length > 0 ? reasons.join(', ') : 'no strong indicators';

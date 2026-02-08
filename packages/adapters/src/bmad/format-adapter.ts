@@ -207,9 +207,11 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
       valid: issues.filter((i) => i.severity === 'error').length === 0,
       issues: issues.length > 0 ? issues : undefined,
       summary:
-        issues.length === 0
+        issues.filter((i) => i.severity === 'error').length === 0 && issues.length === 0
           ? 'BMAD document is valid'
-          : `Found ${issues.length} validation issue${issues.length > 1 ? 's' : ''}`,
+          : issues.filter((i) => i.severity === 'error').length === 0
+            ? `Valid with ${issues.length} warning${issues.length > 1 ? 's' : ''}`
+            : `Found ${issues.filter((i) => i.severity === 'error').length} error${issues.filter((i) => i.severity === 'error').length > 1 ? 's' : ''}`,
     };
   }
 }
