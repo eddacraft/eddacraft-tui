@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
+const mockFs = vi.hoisted(() => ({
+  forceExistsSync: false,
+  rmSyncCalls: [] as Array<unknown[]>,
+}));
+
 // Mock TUI/renderer dependencies to avoid Ink import issues in non-TTY test env
 vi.mock('../../tui/utils/tty-detection.js', () => ({
   isTUIAvailable: () => false,
@@ -13,10 +18,37 @@ vi.mock('../../utils/file-io.js', () => ({
   getWorkspaceRoot: () => '/mock/workspace',
 }));
 
+vi.mock(import('node:fs'), async (importOriginal) => {
+  const actual = await importOriginal();
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const realFs = require('node:fs') as typeof import('node:fs');
+  const result = Object.create(null);
+  for (const key of Reflect.ownKeys(actual)) {
+    result[key] = (actual as Record<string | symbol, unknown>)[key];
+  }
+  result.existsSync = (path: string) => {
+    if (mockFs.forceExistsSync) return true;
+    return realFs.existsSync(path);
+  };
+  result.rmSync = (...args: unknown[]) => {
+    if (mockFs.forceExistsSync) {
+      mockFs.rmSyncCalls.push(args);
+      return;
+    }
+    return (realFs.rmSync as (...a: unknown[]) => void)(...args);
+  };
+  if (!('default' in result)) {
+    result.default = result;
+  }
+  return result;
+});
+
 import { createTutorialCommand } from '../tutorial.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
+  mockFs.forceExistsSync = false;
+  mockFs.rmSyncCalls = [];
 });
 
 describe('tutorial --list', () => {
@@ -66,8 +98,6 @@ describe('tutorial --list', () => {
     expect(allOutput).toContain('architecture');
     expect(allOutput).toContain('drift');
     expect(allOutput).toContain('ci');
-
-    consoleSpy.mockRestore();
   });
 
   it('shows descriptions for each tutorial', async () => {
@@ -82,8 +112,6 @@ describe('tutorial --list', () => {
     expect(allOutput).toContain('boundaries');
     expect(allOutput).toContain('drift');
     expect(allOutput).toContain('CI');
-
-    consoleSpy.mockRestore();
   });
 
   it('handles unknown topic gracefully', async () => {
@@ -96,8 +124,6 @@ describe('tutorial --list', () => {
 
     expect(allOutput).toContain('Unknown tutorial topic');
     expect(allOutput).toContain('nonexistent');
-
-    consoleSpy.mockRestore();
   });
 });
 
@@ -112,11 +138,9 @@ describe('tutorial --reset with topic', () => {
 
     expect(allOutput).toContain("Tutorial 'architecture' reset");
     expect(allOutput).toContain('anvil tutorial architecture');
-
-    consoleSpy.mockRestore();
   });
 
-  it('resets policies topic and mentions cleanup', async () => {
+  it('resets policies topic and confirms reset', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const command = createTutorialCommand();
@@ -126,8 +150,22 @@ describe('tutorial --reset with topic', () => {
 
     expect(allOutput).toContain("Tutorial 'policies' reset");
     expect(allOutput).toContain('anvil tutorial policies');
+  });
 
-    consoleSpy.mockRestore();
+  it('removes the policy file and logs cleanup when it exists', async () => {
+    mockFs.forceExistsSync = true;
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createTutorialCommand();
+    await command.parseAsync(['policies', '--reset'], { from: 'user' });
+
+    const policyRmCall = mockFs.rmSyncCalls.find(
+      (args) => typeof args[0] === 'string' && (args[0] as string).includes('max_file_length.rego')
+    );
+    expect(policyRmCall).toBeDefined();
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
+    expect(allOutput).toContain('Removed tutorial policy file');
   });
 
   it('resets drift topic', async () => {
@@ -139,8 +177,6 @@ describe('tutorial --reset with topic', () => {
     const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
 
     expect(allOutput).toContain("Tutorial 'drift' reset");
-
-    consoleSpy.mockRestore();
   });
 
   it('resets ci topic', async () => {
@@ -152,8 +188,6 @@ describe('tutorial --reset with topic', () => {
     const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
 
     expect(allOutput).toContain("Tutorial 'ci' reset");
-
-    consoleSpy.mockRestore();
   });
 
   it('rejects --reset with unknown topic', async () => {
@@ -166,7 +200,5 @@ describe('tutorial --reset with topic', () => {
 
     expect(allOutput).toContain('Unknown tutorial topic');
     expect(allOutput).toContain('nonexistent');
-
-    consoleSpy.mockRestore();
   });
 });

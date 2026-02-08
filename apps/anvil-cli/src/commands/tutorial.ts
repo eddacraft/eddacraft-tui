@@ -87,6 +87,21 @@ function ensureTutorialDir(workspaceRoot: string): string {
   return tutorialDir;
 }
 
+/**
+ * Relative path to the policy file created by the policies tutorial.
+ * Shared across the reset handler and the TUI onCleanup handler.
+ */
+const POLICY_TUTORIAL_FILE = '.anvil/policies/max_file_length.rego' as const;
+
+function cleanupPolicyTutorialFile(workspaceRoot: string): boolean {
+  const policyFile = join(workspaceRoot, POLICY_TUTORIAL_FILE);
+  if (existsSync(policyFile)) {
+    rmSync(policyFile);
+    return true;
+  }
+  return false;
+}
+
 const AVAILABLE_TUTORIALS = [
   { topic: 'policies', description: 'Write custom OPA/Rego rules' },
   { topic: 'architecture', description: 'Define architecture boundaries' },
@@ -135,10 +150,7 @@ export function createTutorialCommand(): Command {
         // Topic-specific reset: clean up artifacts created by that tutorial
         if (topic === 'policies') {
           const workspaceRoot = getWorkspaceRoot();
-          const policyFile = join(workspaceRoot, '.anvil', 'policies', 'max_file_length.rego');
-
-          if (existsSync(policyFile)) {
-            rmSync(policyFile);
+          if (cleanupPolicyTutorialFile(workspaceRoot)) {
             console.log(
               chalk.hex(theme.colours.steel)(`${theme.icons.success} Removed tutorial policy file`)
             );
@@ -177,13 +189,8 @@ export function createTutorialCommand(): Command {
           await renderTUIAndWait(PolicyTutorial, {
             onComplete: () => {},
             onCleanup: () => {
-              // Clean up the policy file created by the tutorial
               const workspaceRoot = getWorkspaceRoot();
-              const policyFile = join(workspaceRoot, '.anvil', 'policies', 'max_file_length.rego');
-
-              if (existsSync(policyFile)) {
-                rmSync(policyFile);
-              }
+              cleanupPolicyTutorialFile(workspaceRoot);
               policyCleanedUp = true;
             },
           });
