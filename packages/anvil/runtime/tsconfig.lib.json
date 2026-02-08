@@ -6,7 +6,13 @@
   },
   "references": [
     {
+      "path": "../policy/tsconfig.lib.json"
+    },
+    {
       "path": "../core/tsconfig.lib.json"
+    },
+    {
+      "path": "../../platform/config/tsconfig.lib.json"
     },
     {
       "path": "../contracts/tsconfig.lib.json"

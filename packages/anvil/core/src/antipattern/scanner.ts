@@ -34,6 +34,9 @@ function getPatternsToCheck(options: ScanOptions = {}): AntiPattern[] {
   return includeOptIn ? getEnabledPatterns() : getDefaultPatterns();
 }
 
+/** Default file extensions for legacy patterns that predate HTML/CSS support */
+const LEGACY_JS_TS_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
+
 function matchesFileExtension(filePath: string, fileExtensions: string[]): boolean {
   const ext = filePath.substring(filePath.lastIndexOf('.'));
   return fileExtensions.includes(ext.toLowerCase());
@@ -78,7 +81,14 @@ export function scanFile(filePath: string, content: string, options?: ScanOption
 
   for (const pattern of patterns) {
     if (pattern.detection.type !== 'regex') continue;
-    if (pattern.fileExtensions && !matchesFileExtension(filePath, pattern.fileExtensions)) continue;
+
+    // File extension matching:
+    // - If fileExtensions is set, use it explicitly
+    // - If allFileTypes is true, skip extension check (matches everything)
+    // - Otherwise, default to JS/TS extensions (legacy behavior prevents false positives on HTML/CSS)
+    const effectiveExtensions =
+      pattern.fileExtensions ?? (pattern.allFileTypes ? undefined : LEGACY_JS_TS_EXTENSIONS);
+    if (effectiveExtensions && !matchesFileExtension(filePath, effectiveExtensions)) continue;
     if (isFileAllowlisted(filePath, pattern.allowlist)) continue;
 
     const regexPattern = pattern.detection.pattern;

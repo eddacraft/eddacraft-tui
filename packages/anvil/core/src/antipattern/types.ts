@@ -187,6 +187,10 @@ export const AntiPatternSchema = z.object({
     .array(z.string())
     .optional()
     .describe('File extensions this pattern applies to (e.g., [".html", ".htm"])'),
+  allFileTypes: z
+    .boolean()
+    .optional()
+    .describe('If true, pattern applies to all scanned file types regardless of extension'),
 
   // Customisation
   allowlist: z.array(z.string()).optional().describe('File patterns to skip (glob patterns)'),

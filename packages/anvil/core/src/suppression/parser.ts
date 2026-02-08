@@ -69,7 +69,9 @@ function hasCode(line: string): boolean {
   if (trimmed.startsWith('/*') && trimmed.endsWith('*/')) return false;
   if (trimmed.startsWith('/**') && trimmed.endsWith('*/')) return false;
   if (trimmed.startsWith('*') && !trimmed.startsWith('*/')) return false;
-  if (trimmed.startsWith('<!--') && trimmed.endsWith('-->')) return false;
+  if (trimmed.startsWith('<!--')) return false; // handles both single-line and multi-line HTML comments
+  if (trimmed.startsWith('-->')) return false; // closing of multi-line HTML comment
+  if (trimmed.endsWith('-->') && !trimmed.includes('<')) return false; // mid-comment content ending with -->
   return true;
 }
 

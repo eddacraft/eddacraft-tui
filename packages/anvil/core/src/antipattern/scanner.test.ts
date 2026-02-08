@@ -280,6 +280,37 @@ describe('Scanner', () => {
     });
   });
 
+  describe('legacy pattern scoping to JS/TS files', () => {
+    it('should NOT detect JS/TS-only patterns on HTML files', () => {
+      // AP-003 (explicit any) has no fileExtensions set, so it defaults to JS/TS only
+      const content = `<div>const x: any = 1;</div>`;
+      const result = scanFile('page.html', content, { patterns: ['AP-003'] });
+
+      expect(result.warnings).toHaveLength(0);
+    });
+
+    it('should NOT detect JS/TS-only patterns on CSS files', () => {
+      const content = `/* eslint-disable */`;
+      const result = scanFile('style.css', content, { patterns: ['AP-001'] });
+
+      expect(result.warnings).toHaveLength(0);
+    });
+
+    it('should still detect JS/TS-only patterns on .ts files', () => {
+      const content = `const x: any = 1;`;
+      const result = scanFile('test.ts', content, { patterns: ['AP-003'] });
+
+      expect(result.warnings).toHaveLength(1);
+    });
+
+    it('should still detect JS/TS-only patterns on .jsx files', () => {
+      const content = `const x: any = 1;`;
+      const result = scanFile('component.jsx', content, { patterns: ['AP-003'] });
+
+      expect(result.warnings).toHaveLength(1);
+    });
+  });
+
   describe('fileExtensions filtering', () => {
     it('should skip pattern when file extension does not match fileExtensions', () => {
       // AP-008 (inline style) has fileExtensions: ['.html', '.htm']

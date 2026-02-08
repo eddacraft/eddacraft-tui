@@ -176,7 +176,15 @@ export function createCheckCommand(): Command {
       try {
         const workspaceRoot = getWorkspaceRoot();
         const activeExtensions = options.extensions
-          ? options.extensions.split(',').map((e) => e.trim())
+          ? [
+              ...new Set(
+                options.extensions
+                  .split(',')
+                  .map((e) => e.trim().toLowerCase())
+                  .filter((e) => e.length > 0)
+                  .map((e) => (e.startsWith('.') ? e : `.${e}`))
+              ),
+            ]
           : DEFAULT_ANALYSABLE_EXTENSIONS;
         let filesToAnalyse = files;
 

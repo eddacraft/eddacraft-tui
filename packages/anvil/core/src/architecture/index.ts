@@ -81,7 +81,7 @@ export {
 } from './analyzer.js';
 
 // HTML/CSS edge detection
-export { extractHtmlEdges, extractCssEdges } from './edge-detector-html.js';
+export { extractHtmlEdges, extractCssEdges } from './edge-detector-web.js';
 
 // Edge detection
 export {

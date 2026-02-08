@@ -220,6 +220,19 @@ const x = 1;
       expect(result.errors[0].message).toContain('non-empty reason');
     });
 
+    it('treats multi-line HTML comment opening as non-code', () => {
+      // A multi-line <!-- without --> should not be treated as code
+      const content = `<!--
+  This is a multi-line comment
+-->
+<!-- @anvil-ignore AP-008: Multi-line comment above -->
+<div style="color: red">Hello</div>`;
+      const result = parseSuppressions(content);
+
+      expect(result.suppressions).toHaveLength(1);
+      expect(result.suppressions[0].scope).toBe('file');
+    });
+
     it('works alongside JS comments', () => {
       const content = `// @anvil-ignore AP-001: JS suppression
 <!-- @anvil-ignore AP-008: HTML suppression -->`;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractHtmlEdges, extractCssEdges } from './edge-detector-html.js';
+import { extractHtmlEdges, extractCssEdges } from './edge-detector-web.js';
 
 describe('HTML Edge Detector', () => {
   describe('extractHtmlEdges', () => {
@@ -112,6 +112,18 @@ describe('HTML Edge Detector', () => {
       expect(edges[0].line).toBe(3);
       expect(edges[1].line).toBe(4);
     });
+
+    it('should detect stylesheet when rel="stylesheet" appears after href', () => {
+      const content = `<link href="./styles.css" rel="stylesheet">`;
+      const edges = extractHtmlEdges('index.html', content);
+
+      expect(edges).toHaveLength(1);
+      expect(edges[0]).toMatchObject({
+        from: 'index.html',
+        to: 'styles.css',
+        specifier: './styles.css',
+      });
+    });
   });
 
   describe('extractCssEdges', () => {
@@ -222,6 +234,26 @@ body { background: url("./bg.png"); }`;
       const edges = extractCssEdges('style.css', content);
 
       expect(edges).toHaveLength(1);
+    });
+
+    it('should extract @import url() without quotes', () => {
+      const content = `@import url(./base.css);`;
+      const edges = extractCssEdges('style.css', content);
+
+      expect(edges).toHaveLength(1);
+      expect(edges[0]).toMatchObject({
+        from: 'style.css',
+        to: 'base.css',
+        specifier: './base.css',
+      });
+    });
+
+    it('should extract @import url() without quotes and with spaces', () => {
+      const content = `@import url( ./reset.css );`;
+      const edges = extractCssEdges('style.css', content);
+
+      expect(edges).toHaveLength(1);
+      expect(edges[0].specifier).toBe('./reset.css');
     });
   });
 });

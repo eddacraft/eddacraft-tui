@@ -15,7 +15,7 @@ import { join, dirname, normalize, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { DependencyEdge, BaselineViolation } from './types.js';
 import { createViolationId } from './types.js';
-import { extractHtmlEdges, extractCssEdges } from './edge-detector-html.js';
+import { extractHtmlEdges, extractCssEdges } from './edge-detector-web.js';
 
 /**
  * Import edge extracted from source code

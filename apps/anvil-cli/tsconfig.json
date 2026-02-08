@@ -38,6 +38,9 @@
       "path": "../../packages/aps"
     },
     {
+      "path": "../../packages/platform/config"
+    },
+    {
       "path": "../../packages/adapters"
     }
   ]

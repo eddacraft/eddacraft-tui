@@ -6,5 +6,6 @@
  * @module @eddacraft/anvil-platform-config
  */
 
+export * from './constants.js';
 export * from './loader.js';
 export * from './types.js';
