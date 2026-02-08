@@ -55,10 +55,10 @@ Custom rules (set to `warn` initially):
 | TEST-001 | Create audit script              | Complete | high     |
 | TEST-002 | Create ESLint plugin package     | Complete | high     |
 | TEST-003 | Integrate plugin into lint       | Complete | high     |
-| TEST-004 | Fix `as any` violations          | Planned  | medium   |
-| TEST-005 | Fix mock cleanup violations      | Planned  | medium   |
-| TEST-006 | Fix cwd restoration violations   | Planned  | medium   |
-| TEST-007 | Promote rules to `error`         | Planned  | low      |
+| TEST-004 | Fix `as any` violations          | Complete | medium   |
+| TEST-005 | Fix mock cleanup violations      | Complete | medium   |
+| TEST-006 | Fix cwd restoration violations   | Complete | medium   |
+| TEST-007 | Promote rules to `error`         | Complete | low      |
 
 ## Current Violations (Baseline)
 

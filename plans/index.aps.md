@@ -331,7 +331,7 @@ graph TD
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | v2.0  | save-time-trust                                           |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF    | Draft       | —       | save-time-trust, ide-integration                          |
 | [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUIENH  | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
-| [test-quality](./modules/test-quality.aps.md)                           | TEST    | Ready       | —       | —                                                         |
+| [test-quality](./archive/modules/test-quality.aps.md)                   | TEST    | Complete    | —       | —                                                         |
 | [monorepo-migration](./archive/modules/monorepo-migration.aps.md)       | MONO    | Complete    | v1.1    | —                                                         |
 | [dashboard-foundation](./modules/dashboard-foundation.aps.md)           | DASH     | Draft       | v2.0    | monorepo-migration, contracts                             |
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md)           | DASHCORE | Draft       | v2.0    | dashboard-foundation                                      |
