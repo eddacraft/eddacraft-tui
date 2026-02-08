@@ -100,3 +100,73 @@ describe('tutorial --list', () => {
     consoleSpy.mockRestore();
   });
 });
+
+describe('tutorial --reset with topic', () => {
+  it('resets a known topic and confirms', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createTutorialCommand();
+    await command.parseAsync(['architecture', '--reset'], { from: 'user' });
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
+
+    expect(allOutput).toContain("Tutorial 'architecture' reset");
+    expect(allOutput).toContain('anvil tutorial architecture');
+
+    consoleSpy.mockRestore();
+  });
+
+  it('resets policies topic and mentions cleanup', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createTutorialCommand();
+    await command.parseAsync(['policies', '--reset'], { from: 'user' });
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
+
+    expect(allOutput).toContain("Tutorial 'policies' reset");
+    expect(allOutput).toContain('anvil tutorial policies');
+
+    consoleSpy.mockRestore();
+  });
+
+  it('resets drift topic', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createTutorialCommand();
+    await command.parseAsync(['drift', '--reset'], { from: 'user' });
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
+
+    expect(allOutput).toContain("Tutorial 'drift' reset");
+
+    consoleSpy.mockRestore();
+  });
+
+  it('resets ci topic', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createTutorialCommand();
+    await command.parseAsync(['ci', '--reset'], { from: 'user' });
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
+
+    expect(allOutput).toContain("Tutorial 'ci' reset");
+
+    consoleSpy.mockRestore();
+  });
+
+  it('rejects --reset with unknown topic', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createTutorialCommand();
+    await command.parseAsync(['nonexistent', '--reset'], { from: 'user' });
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
+
+    expect(allOutput).toContain('Unknown tutorial topic');
+    expect(allOutput).toContain('nonexistent');
+
+    consoleSpy.mockRestore();
+  });
+});

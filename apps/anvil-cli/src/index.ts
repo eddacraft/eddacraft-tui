@@ -39,7 +39,15 @@ const packageJson =
   readJsonFileSync<Record<string, string>>(join(__dirname, '..', 'package.json')) ?? {};
 
 // Commands that don't require authentication
-const AUTH_EXEMPT_COMMANDS = new Set(['login', 'logout', 'whoami', 'beta', 'start', 'help']);
+const AUTH_EXEMPT_COMMANDS = new Set([
+  'login',
+  'logout',
+  'whoami',
+  'beta',
+  'start',
+  'help',
+  'tutorial',
+]);
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);

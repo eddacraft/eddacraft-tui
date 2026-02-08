@@ -121,6 +121,42 @@ export function createTutorialCommand(): Command {
         return;
       }
 
+      if (topic && options.reset) {
+        const validTopics = AVAILABLE_TUTORIALS.map((t) => t.topic);
+        if (!validTopics.includes(topic)) {
+          console.log(
+            chalk.hex(theme.colours.slag)(
+              `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
+            )
+          );
+          return;
+        }
+
+        // Topic-specific reset: clean up artifacts created by that tutorial
+        if (topic === 'policies') {
+          const workspaceRoot = getWorkspaceRoot();
+          const policyFile = join(workspaceRoot, '.anvil', 'policies', 'max_file_length.rego');
+
+          if (existsSync(policyFile)) {
+            rmSync(policyFile);
+            console.log(
+              chalk.hex(theme.colours.steel)(`${theme.icons.success} Removed tutorial policy file`)
+            );
+          }
+        }
+
+        // For architecture, drift, ci — no persistent files are created
+        console.log(
+          chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial '${topic}' reset`)
+        );
+        console.log(
+          chalk.hex(theme.colours.smoke)(
+            `Run ${chalk.hex(theme.colours.text)(`anvil tutorial ${topic}`)} to start fresh.`
+          )
+        );
+        return;
+      }
+
       if (topic) {
         if (topic === 'policies') {
           const useTUI = isTUIAvailable({ tui: options.tui });

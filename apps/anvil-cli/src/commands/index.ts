@@ -12,3 +12,4 @@ export { createNewCommand } from './new.js';
 export { createAuditCommand } from './audit.js';
 export { createWatchCommand } from './watch.js';
 export { createStatusCommand } from './status.js';
+export { createTutorialCommand } from './tutorial.js';
