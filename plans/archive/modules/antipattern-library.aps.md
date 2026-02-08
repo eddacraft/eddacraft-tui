@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| ANTI  | —     | high     | Draft  |
+| ANTI  | —     | high     | Complete |
 
 ## Purpose
 

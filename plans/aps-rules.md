@@ -156,7 +156,7 @@ Tasks use the module's ID prefix: `AUTH-001`, `AUTH-002`, `CORE-001`, etc.
 
 1. Find the task in the relevant `.aps.md` file
 2. Check module has **Ready** or **In Progress** status
-3. Create action plan file in `plans/actions/` if complex
+3. Create action plan file in `plans/execution/` if complex
 4. Execute one action at a time, validate checkpoint
 5. Mark task complete when validation passes
 
@@ -169,9 +169,9 @@ plans/
 ├── modules/               # Module specs (numbered by dependency order)
 │   ├── 01-core.aps.md
 │   └── 02-auth.aps.md
-├── actions/               # Action plan files
-│   ├── [TASK-ID].actions.md   # Per-task (complex projects)
-│   └── [MODULE].actions.md    # Per-module (simple projects)
+├── execution/             # Action plan files
+│   ├── [TASK-ID].steps.md     # Per-task (complex projects)
+│   └── [MODULE].steps.md      # Per-module (simple projects)
 └── decisions/             # ADRs (optional)
     └── [NNN]-[title].md
 ```

@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| ARCH  | —     | high     | Draft  |
+| ARCH  | —     | high     | Complete |
 
 ## Purpose
 

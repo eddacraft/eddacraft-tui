@@ -160,7 +160,7 @@ resolution, no type system, all regex-based. It establishes the configurable
 extensions infrastructure (HTMLCSS-001) that all future language modules depend
 on.
 
-### v2.0 — AI Tool Integration
+### v2.0a — AI Tool Integration
 
 | Feature         | Description                                | Status |
 | --------------- | ------------------------------------------ | ------ |
@@ -168,7 +168,7 @@ on.
 | Command Safety  | Validate AI tool commands (CMDSAF)         | Ready  |
 | MCP Server      | Real-time validation during AI generation  | Ready  |
 
-### v2.0 — Web Dashboard
+### v2.0b — Web Dashboard
 
 | Feature                  | Description                                         | Status |
 | ------------------------ | --------------------------------------------------- | ------ |
@@ -185,7 +185,7 @@ CLI remains the primary developer interface; the dashboard serves team leads,
 platform engineers, and compliance roles who need persistent views, historical
 trends, and graphical visualizations that a terminal cannot provide.
 
-### v2.0 — Organisational Policy Governance
+### v2.0c — Organisational Policy Governance
 
 | Feature                  | Description                                                  | Status |
 | ------------------------ | ------------------------------------------------------------ | ------ |
@@ -298,24 +298,24 @@ graph TD
 
 | Module                                                                  | Scope   | Status      | Release | Dependencies                                              |
 | ----------------------------------------------------------------------- | ------- | ----------- | ------- | --------------------------------------------------------- |
-| [save-time-trust](./modules/save-time-trust.aps.md)                     | CORE    | Complete    | v1.0    | —                                                         |
-| [architecture-safety](./modules/architecture-safety.aps.md)             | ARCH    | Complete    | v1.0    | save-time-trust                                           |
-| [antipattern-library](./modules/antipattern-library.aps.md)             | ANTI    | Complete    | v1.0    | save-time-trust                                           |
-| [suppressions](./modules/suppressions.aps.md)                           | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library                  |
-| [ci-integration](./modules/ci-integration.aps.md)                       | CI      | Complete    | v1.0    | save-time-trust                                           |
-| [tui](./modules/tui.aps.md)                                             | TUI     | Complete    | v1.0    | — (Phase 1: onboarding only)                              |
-| [documentation-polish](./modules/documentation-polish.aps.md)           | DOCS    | Complete    | v1.0    | —                                                         |
-| [explain-command](./modules/explain-command.aps.md)                     | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
-| [drift-reporting](./modules/drift-reporting.aps.md)                     | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
-| [opa-architecture-integration](./modules/opa-architecture-integration.aps.md) | OPA | Complete    | v1.1    | architecture-safety, save-time-trust                      |
-| [ide-integration](./modules/ide-integration.aps.md)                     | IDE     | Complete    | v1.2    | save-time-trust, architecture-safety, antipattern-library |
+| [save-time-trust](./archive/modules/save-time-trust.aps.md)             | CORE    | Complete    | v1.0    | —                                                         |
+| [architecture-safety](./archive/modules/architecture-safety.aps.md)     | ARCH    | Complete    | v1.0    | save-time-trust                                           |
+| [antipattern-library](./archive/modules/antipattern-library.aps.md)     | ANTI    | Complete    | v1.0    | save-time-trust                                           |
+| [suppressions](./archive/modules/suppressions.aps.md)                   | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library                  |
+| [ci-integration](./archive/modules/ci-integration.aps.md)               | CI      | Complete    | v1.0    | save-time-trust                                           |
+| [tui](./archive/modules/tui.aps.md)                                     | TUI     | Complete    | v1.0    | — (Phase 1: onboarding only)                              |
+| [documentation-polish](./archive/modules/documentation-polish.aps.md)   | DOCS    | Complete    | v1.0    | —                                                         |
+| [explain-command](./archive/modules/explain-command.aps.md)             | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
+| [drift-reporting](./archive/modules/drift-reporting.aps.md)             | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
+| [opa-architecture-integration](./archive/modules/opa-architecture-integration.aps.md) | OPA | Complete | v1.1 | architecture-safety, save-time-trust                      |
+| [ide-integration](./archive/modules/ide-integration.aps.md)             | IDE     | Complete    | v1.2    | save-time-trust, architecture-safety, antipattern-library |
 | [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
 | [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
 | [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
 | [policy-pack-validation](./modules/policy-pack-validation.aps.md)       | POLVAL  | Draft       | v2.0    | opa-architecture-integration                              |
 | [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | v2.0 | opa-architecture-integration, architecture-safety         |
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md)           | AIGUARD | Draft       | v2.0    | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
-| [aps-markdown-adapter](./modules/aps-markdown-adapter.aps.md)           | APSMD   | Complete    | v1.1    | —                                                         |
+| [aps-markdown-adapter](./archive/modules/aps-markdown-adapter.aps.md)   | APSMD   | Complete    | v1.1    | —                                                         |
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md)                 | OPENSPEC| Draft       | v2.0    | —                                                         |
 | [adapter-upstream-updates](./modules/adapter-upstream-updates.aps.md)   | ADAPTUP | Draft       | v1.2    | —                                                         |
 | [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.0    | save-time-trust, drift-reporting                          |
@@ -327,12 +327,12 @@ graph TD
 | [policy-lifecycle](./modules/policy-lifecycle.aps.md)                   | POLLC   | Draft       | v2.0    | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
 | [compliance-reporting](./modules/compliance-reporting.aps.md)           | COMPLY  | Draft       | v2.0    | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
 | [policy-federation](./modules/policy-federation.aps.md)                 | POLFED  | Draft       | v2.0    | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
-| [onboarding-feedback-resolution](./modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | v1.1    | architecture-safety, tui                                  |
-| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTV | Draft | v2.0  | save-time-trust                                           |
-| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTV     | Draft       | —       | save-time-trust, ide-integration                          |
-| [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUI     | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
-| [test-quality](./modules/test-quality.aps.md)                           | TEST    | In Progress | —       | —                                                         |
-| [monorepo-migration](./modules/monorepo-migration.aps.md)               | MONO    | Complete    | v1.1    | —                                                         |
+| [onboarding-feedback-resolution](./archive/modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | v1.1 | architecture-safety, tui                                  |
+| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | v2.0  | save-time-trust                                           |
+| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF    | Draft       | —       | save-time-trust, ide-integration                          |
+| [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUIENH  | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
+| [test-quality](./modules/test-quality.aps.md)                           | TEST    | Ready       | —       | —                                                         |
+| [monorepo-migration](./archive/modules/monorepo-migration.aps.md)       | MONO    | Complete    | v1.1    | —                                                         |
 | [dashboard-foundation](./modules/dashboard-foundation.aps.md)           | DASH     | Draft       | v2.0    | monorepo-migration, contracts                             |
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md)           | DASHCORE | Draft       | v2.0    | dashboard-foundation                                      |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | v2.0   | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
@@ -343,6 +343,11 @@ graph TD
 | [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 | [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 | [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
+| [intelligent-first-run](./modules/intelligent-first-run.aps.md)         | IFR      | Ready       | v1.3    | tui, architecture-safety                                  |
+| [tutorial-overhaul](./modules/tutorial-overhaul.aps.md)                 | TUT      | Ready       | v1.3    | tui                                                       |
+| [website-migration](./modules/website-migration.aps.md)                 | WEB      | Ready       | v1.2    | monorepo-migration                                        |
+| [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | Ready       | v2.0    | antipattern-library                                       |
+| [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | Draft       | —       | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
 
@@ -395,32 +400,32 @@ graph TD
 
 | Task       | Module  | Description               | Status   | Priority |
 | ---------- | ------- | ------------------------- | -------- | -------- |
-| EXPLAIN-01 | explain | Warning ID system         | Complete | high     |
-| EXPLAIN-02 | explain | Explanation templates     | Complete | high     |
-| EXPLAIN-03 | explain | Architecture explanations | Complete | high     |
-| EXPLAIN-04 | explain | Anti-pattern explanations | Complete | high     |
-| EXPLAIN-05 | explain | ExplainService            | Complete | high     |
-| EXPLAIN-06 | explain | CLI explain command       | Complete | high     |
+| EXPLAIN-001 | explain | Warning ID system         | Complete | high     |
+| EXPLAIN-002 | explain | Explanation templates     | Complete | high     |
+| EXPLAIN-003 | explain | Architecture explanations | Complete | high     |
+| EXPLAIN-004 | explain | Anti-pattern explanations | Complete | high     |
+| EXPLAIN-005 | explain | ExplainService            | Complete | high     |
+| EXPLAIN-006 | explain | CLI explain command       | Complete | high     |
 
 ### Task Status — v1.1 (Drift Reporting)
 
 | Task     | Module | Description               | Status   | Priority |
 | -------- | ------ | ------------------------- | -------- | -------- |
-| DRIFT-01 | drift  | Snapshot schema & storage | Complete | high     |
-| DRIFT-02 | drift  | Snapshot capture          | Complete | high     |
-| DRIFT-03 | drift  | Snapshot comparison       | Complete | high     |
-| DRIFT-04 | drift  | Report generator          | Complete | medium   |
-| DRIFT-05 | drift  | CLI drift commands        | Complete | high     |
+| DRIFT-001 | drift  | Snapshot schema & storage | Complete | high     |
+| DRIFT-002 | drift  | Snapshot capture          | Complete | high     |
+| DRIFT-003 | drift  | Snapshot comparison       | Complete | high     |
+| DRIFT-004 | drift  | Report generator          | Complete | medium   |
+| DRIFT-005 | drift  | CLI drift commands        | Complete | high     |
 
 ### Task Status — v1.1 (Onboarding Feedback Resolution)
 
 | Task     | Module | Description                                 | Status   | Priority |
 | -------- | ------ | ------------------------------------------- | -------- | -------- |
-| ONFBK-01 | onfbk  | Fix --no-tui flag handling                  | Complete | high     |
-| ONFBK-02 | onfbk  | Fix TUI wizard early exit                   | Complete | high     |
-| ONFBK-03 | onfbk  | Improve layer detection for project variety | Complete | high     |
-| ONFBK-04 | onfbk  | Improve entry points presentation           | Complete | medium   |
-| ONFBK-05 | onfbk  | Add architecture explanation                | Complete | medium   |
+| ONFBK-001 | onfbk  | Fix --no-tui flag handling                  | Complete | high     |
+| ONFBK-002 | onfbk  | Fix TUI wizard early exit                   | Complete | high     |
+| ONFBK-003 | onfbk  | Improve layer detection for project variety | Complete | high     |
+| ONFBK-004 | onfbk  | Improve entry points presentation           | Complete | medium   |
+| ONFBK-005 | onfbk  | Add architecture explanation                | Complete | medium   |
 
 ### Task Status — v1.1 (OPA & Architecture Integration)
 
@@ -441,12 +446,16 @@ graph TD
 | OPA-013 | opa    | Clean Architecture template         | Complete    | medium   |
 | OPA-014 | opa    | DDD template with bounded contexts  | Complete    | medium   |
 | OPA-015 | opa    | Template loader and validator       | Complete    | medium   |
-| OPA-016 | opa    | TypeScript analyser foundation      | Planned     | low      |
-| OPA-017 | opa    | Path alias resolver                 | Planned     | low      |
-| OPA-018 | opa    | Analyser feature flag               | Planned     | low      |
-| OPA-019 | opa    | Bundle download and caching         | Planned     | medium   |
-| OPA-020 | opa    | Signature verification              | Planned     | medium   |
-| OPA-021 | opa    | Basic auth and CLI commands         | Planned     | medium   |
+| OPA-016 | opa    | TypeScript analyser foundation      | Deferred    | low      |
+| OPA-017 | opa    | Path alias resolver                 | Deferred    | low      |
+| OPA-018 | opa    | Analyser feature flag               | Deferred    | low      |
+| OPA-019 | opa    | Bundle download and caching         | Deferred    | medium   |
+| OPA-020 | opa    | Signature verification              | Deferred    | medium   |
+| OPA-021 | opa    | Basic auth and CLI commands         | Deferred    | medium   |
+
+> **Note:** OPA-016 through OPA-021 were deferred when the OPA module was marked
+> Complete at OPA-015. These tasks may be revisited in the OPA Enhancements module
+> (OPAE) or a future release.
 
 ### Task Status — v1.1 (Monorepo Migration)
 
@@ -475,12 +484,12 @@ graph TD
 
 | Task     | Module | Description                          | Status   | Priority |
 | -------- | ------ | ------------------------------------ | -------- | -------- |
-| APSMD-01 | apsmd  | APSMarkdownAdapter with detection    | Complete | high     |
-| APSMD-02 | apsmd  | Confidence scoring system            | Complete | high     |
-| APSMD-03 | apsmd  | Parse method implementation          | Complete | high     |
-| APSMD-04 | apsmd  | Task-to-Change conversion            | Complete | high     |
-| APSMD-05 | apsmd  | Registry integration                 | Complete | high     |
-| APSMD-06 | apsmd  | CLI PlanLoader integration           | Complete | high     |
+| APSMD-001 | apsmd  | APSMarkdownAdapter with detection    | Complete | high     |
+| APSMD-002 | apsmd  | Confidence scoring system            | Complete | high     |
+| APSMD-003 | apsmd  | Parse method implementation          | Complete | high     |
+| APSMD-004 | apsmd  | Task-to-Change conversion            | Complete | high     |
+| APSMD-005 | apsmd  | Registry integration                 | Complete | high     |
+| APSMD-006 | apsmd  | CLI PlanLoader integration           | Complete | high     |
 
 ### Task Status — v1.2 (Advanced Experience)
 
@@ -503,7 +512,7 @@ graph TD
 | ------- | ------ | --------------------------------- | ------- | -------- |
 | TUI-006 | tui    | Static template library           | Planned | medium   |
 | TUI-007 | tui    | Interactive tutorial              | Planned | low      |
-| TUI-009 | tui    | `anvil watch` real-time dashboard | Planned | medium   |
+| TUI-009 | tui    | `anvil watch` real-time dashboard | Complete | medium   |
 | TUI-010 | tui    | `anvil gate` interactive explorer | Planned | medium   |
 | TUI-011 | tui    | Parallel progress visualisation   | Planned | low      |
 | TUI-012 | tui    | Log panel with filtering          | Planned | low      |
@@ -900,7 +909,7 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 
 **Many of these are now planned in the OPA & Architecture Integration module
 (v1.1).** See
-[opa-architecture-integration](./modules/opa-architecture-integration.aps.md).
+[opa-architecture-integration](./archive/modules/opa-architecture-integration.aps.md).
 
 | Idea                           | Value | Status                                 |
 | ------------------------------ | ----- | -------------------------------------- |
