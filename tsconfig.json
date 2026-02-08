@@ -59,9 +59,6 @@
     },
     {
       "path": "./apps/e2e"
-    },
-    {
-      "path": "./packages/vscode-extension"
     }
   ]
 }

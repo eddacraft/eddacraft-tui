@@ -62,17 +62,28 @@ function determineScope(
   return 'statement';
 }
 
-function hasCode(line: string): boolean {
+function hasCode(line: string, insideHtmlComment: boolean): boolean {
+  if (insideHtmlComment) return false;
   const trimmed = line.trim();
   if (trimmed.length === 0) return false;
   if (trimmed.startsWith('//')) return false;
   if (trimmed.startsWith('/*') && trimmed.endsWith('*/')) return false;
   if (trimmed.startsWith('/**') && trimmed.endsWith('*/')) return false;
   if (trimmed.startsWith('*') && !trimmed.startsWith('*/')) return false;
-  if (trimmed.startsWith('<!--')) return false; // handles both single-line and multi-line HTML comments
-  if (trimmed.startsWith('-->')) return false; // closing of multi-line HTML comment
-  if (trimmed.endsWith('-->') && !trimmed.includes('<')) return false; // mid-comment content ending with -->
+  if (trimmed.startsWith('<!--') && trimmed.includes('-->')) return false;
+  if (trimmed.startsWith('<!--')) return false;
   return true;
+}
+
+function updateHtmlCommentState(line: string, insideHtmlComment: boolean): boolean {
+  const trimmed = line.trim();
+  if (insideHtmlComment) {
+    return !trimmed.includes('-->');
+  }
+  if (trimmed.includes('<!--') && !trimmed.includes('-->')) {
+    return true;
+  }
+  return false;
 }
 
 function extractSuppressionComment(line: string): { comment: string; column: number } | null {
@@ -184,19 +195,22 @@ export function parseSuppressions(content: string, _filePath?: string): ParseRes
   const errors: SuppressionParseError[] = [];
 
   let previousLineHasCode = false;
+  let insideHtmlComment = false;
 
   for (let i = 0; i < lines.length; i++) {
     const lineNumber = i + 1;
     const lineContent = lines[i];
 
     if (!lineContent.includes('@anvil-ignore')) {
-      previousLineHasCode = previousLineHasCode || hasCode(lineContent);
+      previousLineHasCode = previousLineHasCode || hasCode(lineContent, insideHtmlComment);
+      insideHtmlComment = updateHtmlCommentState(lineContent, insideHtmlComment);
       continue;
     }
 
     const extracted = extractSuppressionComment(lineContent);
     if (!extracted) {
-      previousLineHasCode = previousLineHasCode || hasCode(lineContent);
+      previousLineHasCode = previousLineHasCode || hasCode(lineContent, insideHtmlComment);
+      insideHtmlComment = updateHtmlCommentState(lineContent, insideHtmlComment);
       continue;
     }
 
@@ -211,7 +225,8 @@ export function parseSuppressions(content: string, _filePath?: string): ParseRes
       suppressions.push(result);
     }
 
-    previousLineHasCode = previousLineHasCode || hasCode(lineContent);
+    previousLineHasCode = previousLineHasCode || hasCode(lineContent, insideHtmlComment);
+    insideHtmlComment = updateHtmlCommentState(lineContent, insideHtmlComment);
   }
 
   return { suppressions, errors };
