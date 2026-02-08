@@ -106,6 +106,21 @@ export interface ParseContext {
 }
 
 /**
+ * Hint for path-based format detection
+ *
+ * Provides file path and sibling file information to improve
+ * detection accuracy for formats that use folder conventions.
+ */
+export interface PathDetectionHint {
+  /** File path being analyzed */
+  filePath: string;
+  /** Sibling file names in the same directory */
+  siblingFiles?: string[];
+  /** Parent directory names (innermost first) */
+  parentDirs?: string[];
+}
+
+/**
  * Options for adapter operations
  */
 export interface AdapterOptions {
@@ -185,6 +200,19 @@ export interface FormatAdapter {
    * @returns Validation result
    */
   validate(content: string, options?: AdapterOptions): Promise<ValidationResult>;
+
+  /**
+   * Detect if this adapter can handle content using file path hints
+   *
+   * Optional method that uses folder structure and sibling files
+   * to improve detection accuracy. Falls back to content-only
+   * detection if not implemented.
+   *
+   * @param content - Raw content to analyze
+   * @param hint - Path and directory information
+   * @returns Detection result with confidence score
+   */
+  detectWithPath?(content: string, hint: PathDetectionHint): DetectionResult;
 
   /**
    * Check if this adapter can import from a given format

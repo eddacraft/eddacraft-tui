@@ -430,6 +430,52 @@ anvil export plan.json --to bmad --output docs/
 
 ---
 
+## BMAD v6 Compatibility (ADAPTUP)
+
+**Added**: 2026-02-09 **Module**:
+`plans/modules/adapter-upstream-updates.aps.md`
+
+### Breaking Changes in v6.0.0-alpha.23
+
+| Change          | Old              | New              | Adapter Support  |
+| --------------- | ---------------- | ---------------- | ---------------- |
+| Project folder  | `.bmad`          | `_bmad`          | Both detected    |
+| Config folder   | `_cfg`           | `_config`        | Both detected    |
+| Variable syntax | `{project_root}` | `{project-root}` | Both expanded    |
+| Module config   | Various          | `module.yaml`    | Constant defined |
+
+### New Features
+
+**Path-aware detection** — `detectWithPath(content, hint)` uses folder structure
+to boost confidence when files are inside `_bmad/` or `.bmad/` directories.
+
+**`hasSidecar` field** — Agent documents can declare `hasSidecar: true` in YAML
+front-matter. The adapter parses YAML boolean values (`true`/`false`,
+`yes`/`no`, `on`/`off`) and warns when agent documents are missing this field.
+
+**AGENT document type** — `BMADDocumentType.AGENT` identifies agent
+persona/configuration documents, detected via `hasSidecar` field or front-matter
+name containing "agent".
+
+**Variable expansion** — `expandVariables()` handles both underscore
+(`{project_root}`) and hyphenated (`{project-root}`) syntax, normalising keys in
+either direction.
+
+**`BMAD_FOLDERS` constants** — Exported from `bmad/types.ts`:
+
+- `PROJECT` = `_bmad` / `PROJECT_LEGACY` = `.bmad`
+- `CONFIG` = `_config` / `CONFIG_LEGACY` = `_cfg`
+- `MEMORY` = `_memory`
+- `MODULE_CONFIG` = `module.yaml`
+
+### Backward Compatibility
+
+All v5 documents continue to work. Legacy folder paths (`.bmad`, `_cfg`) and
+underscore variable syntax (`{project_root}`) are detected and processed
+alongside their v6 equivalents.
+
+---
+
 ## References
 
 - **Context7**: `/bmad-code-org/bmad-method` - 3001 code snippets

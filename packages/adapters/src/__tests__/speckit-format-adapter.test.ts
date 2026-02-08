@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SpecKitFormatAdapter } from '../speckit/format-adapter.js';
-import type { ParseContext } from '../base/types.js';
+import type { ParseContext, PathDetectionHint } from '../base/types.js';
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -652,6 +652,181 @@ Minimal implementation`;
         const serializeResult = await adapter.serialize(parseResult.data!);
         expect(serializeResult.success).toBe(true);
       });
+    });
+  });
+
+  describe('ADAPTUP: SpecKit namespace detection', () => {
+    it('should detect speckit.* namespace in content', async () => {
+      const content = await readFile(join(fixturesDir, 'sample-spec-namespaced.md'), 'utf-8');
+      const result = adapter.detect(content);
+
+      expect(result.detected).toBe(true);
+      expect(result.reason).toContain('speckit-namespace');
+    });
+
+    it('should detect /speckit.clarify command', () => {
+      const content = `# Specification
+
+## Intent
+
+Use /speckit.clarify to clarify requirements.
+
+## Changes
+
+### Files to Create
+
+#### Create src/feature.ts
+
+Feature implementation.`;
+
+      const result = adapter.detect(content);
+      expect(result.reason).toContain('speckit-namespace');
+    });
+
+    it('should detect speckit.analyze reference', () => {
+      const content = `# Specification
+
+## Intent
+
+Run speckit.analyze for validation.
+
+## Changes
+
+### Files to Create
+
+#### Create src/feature.ts
+
+Feature implementation.`;
+
+      const result = adapter.detect(content);
+      expect(result.reason).toContain('speckit-namespace');
+    });
+
+    it('should boost confidence with namespace detection', () => {
+      const baseContent = `# Specification
+
+## Intent
+
+Build feature
+
+## Changes
+
+### Files to Create
+
+#### Create feature.ts
+
+Implementation`;
+
+      const namespacedContent = `# Specification
+
+## Intent
+
+Build feature with /speckit.clarify
+
+## Changes
+
+### Files to Create
+
+#### Create feature.ts
+
+Implementation`;
+
+      const baseResult = adapter.detect(baseContent);
+      const namespacedResult = adapter.detect(namespacedContent);
+
+      expect(namespacedResult.confidence).toBeGreaterThan(baseResult.confidence);
+    });
+
+    it('should parse namespaced spec successfully', async () => {
+      const content = await readFile(join(fixturesDir, 'sample-spec-namespaced.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.intent).toBeDefined();
+        expect(result.data?.proposed_changes.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  describe('ADAPTUP: SpecKit AGENTS.md detection', () => {
+    it('should boost confidence when AGENTS.md is a sibling', () => {
+      // Use content that has enough signals to score above 50 without the bonus rule
+      // Spec header (20) + Intent (15) + Changes (20) = 55 base, +15 AGENTS.md = 70
+      const content = `# Specification
+
+## Intent
+
+Build feature
+
+## Changes
+
+### Files to Create
+
+#### Create feature.ts
+
+Implementation`;
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/spec.md',
+        siblingFiles: ['AGENTS.md', 'README.md', 'package.json'],
+      };
+
+      const resultWithPath = adapter.detectWithPath(content, hint);
+      const resultWithout = adapter.detect(content);
+
+      expect(resultWithPath.confidence).toBeGreaterThan(resultWithout.confidence);
+      expect(resultWithPath.reason).toContain('agents-md');
+    });
+
+    it('should detect AGENTS.md case-insensitively', () => {
+      const content = `# Specification
+
+## Intent
+
+Build feature`;
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/spec.md',
+        siblingFiles: ['agents.md', 'README.md'],
+      };
+
+      const result = adapter.detectWithPath(content, hint);
+      expect(result.reason).toContain('agents-md');
+    });
+
+    it('should not boost when no AGENTS.md sibling', () => {
+      const content = `# Specification
+
+## Intent
+
+Build feature`;
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/spec.md',
+        siblingFiles: ['README.md', 'package.json'],
+      };
+
+      const result = adapter.detectWithPath(content, hint);
+      expect(result.reason).not.toContain('agents-md');
+    });
+
+    it('should combine namespace and AGENTS.md boosts', () => {
+      const content = `# Specification
+
+## Intent
+
+Build feature with /speckit.clarify`;
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/spec.md',
+        siblingFiles: ['AGENTS.md'],
+      };
+
+      const result = adapter.detectWithPath(content, hint);
+      expect(result.detected).toBe(true);
+      expect(result.reason).toContain('speckit-namespace');
+      expect(result.reason).toContain('agents-md');
     });
   });
 });

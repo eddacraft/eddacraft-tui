@@ -2,7 +2,7 @@
  * BMAD Format Adapter
  *
  * FormatAdapter implementation for BMAD (Breakthrough Method for Agile AI-Driven Development) format.
- * Handles PRD, Architecture, Epic, and Story documents.
+ * Handles PRD, Architecture, Epic, Story, and Agent documents.
  */
 
 import { generateHash, type APSPlan, type ValidationResult } from '@eddacraft/anvil-core';
@@ -14,9 +14,17 @@ import {
   type SerializeResult,
   type ParseContext,
   type AdapterOptions,
+  type PathDetectionHint,
 } from '../base/types.js';
 import { createDetection } from '../base/utils.js';
-import { analyzeContent, calculateConfidenceScore, buildDetectionReason } from './utils.js';
+import {
+  analyzeContent,
+  calculateConfidenceScore,
+  buildDetectionReason,
+  extractFrontMatter,
+  identifyDocumentType,
+} from './utils.js';
+import { BMADDocumentType } from './types.js';
 import { parseBMAD } from './parser.js';
 import { serializeToBMAD } from './serializer.js';
 
@@ -54,6 +62,24 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
     const reason = buildDetectionReason(indicators);
 
     // Detection threshold: 50% confidence
+    return createDetection(confidence >= 50, confidence, reason);
+  }
+
+  /**
+   * Detect with file path hints for improved accuracy
+   *
+   * Uses folder structure (e.g., `_bmad/`, `.bmad/`, `_config/`)
+   * to boost detection confidence.
+   *
+   * @param content - Document content to analyze
+   * @param hint - Path and directory information
+   * @returns Detection result with confidence score
+   */
+  detectWithPath(content: string, hint: PathDetectionHint): DetectionResult {
+    const indicators = analyzeContent(content, hint);
+    const confidence = calculateConfidenceScore(indicators);
+    const reason = buildDetectionReason(indicators);
+
     return createDetection(confidence >= 50, confidence, reason);
   }
 
@@ -165,8 +191,20 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
       });
     }
 
+    // v6: Warn on agent docs missing hasSidecar
+    const frontMatter = extractFrontMatter(content);
+    const docType = identifyDocumentType(content, frontMatter);
+    if (docType === BMADDocumentType.AGENT && frontMatter?.hasSidecar === undefined) {
+      issues.push({
+        code: 'MISSING_HAS_SIDECAR',
+        path: 'frontMatter.hasSidecar',
+        message: 'Agent document is missing required hasSidecar field (BMAD v6)',
+        severity: 'warning',
+      });
+    }
+
     return {
-      valid: issues.length === 0,
+      valid: issues.filter((i) => i.severity === 'error').length === 0,
       issues: issues.length > 0 ? issues : undefined,
       summary:
         issues.length === 0

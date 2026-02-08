@@ -4,7 +4,12 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AdapterRegistry } from '../registry.js';
-import type { FormatAdapter, DetectionResult, AdapterMetadata } from '../types.js';
+import type {
+  FormatAdapter,
+  DetectionResult,
+  AdapterMetadata,
+  PathDetectionHint,
+} from '../types.js';
 import { createDetection } from '../utils.js';
 
 // Mock adapter for testing
@@ -381,6 +386,130 @@ describe('AdapterRegistry', () => {
       expect(registry.size).toBe(1);
       registry.clear();
       expect(registry.size).toBe(0);
+    });
+  });
+
+  describe('Path-aware Detection (registry)', () => {
+    it('should use detectWithPath when available', () => {
+      const pathAwareAdapter = new MockAdapter(
+        {
+          name: 'path-aware',
+          version: '1.0.0',
+          displayName: 'Path Aware',
+          description: 'Has detectWithPath',
+          extensions: [],
+          formats: [],
+        },
+        createDetection(true, 60)
+      );
+
+      // Add detectWithPath that returns higher confidence
+      (pathAwareAdapter as FormatAdapter).detectWithPath = (
+        _content: string,
+        _hint: PathDetectionHint
+      ) => createDetection(true, 90, 'path-boosted');
+
+      registry.register(pathAwareAdapter);
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/_bmad/doc.md',
+        parentDirs: ['_bmad', 'project'],
+      };
+
+      const result = registry.detectAdapterWithPath('test content', hint);
+      expect(result).toBeDefined();
+      expect(result?.detection.confidence).toBe(90);
+      expect(result?.detection.reason).toBe('path-boosted');
+    });
+
+    it('should fall back to detect when detectWithPath is not available', () => {
+      const standardAdapter = new MockAdapter(
+        {
+          name: 'standard',
+          version: '1.0.0',
+          displayName: 'Standard',
+          description: 'No detectWithPath',
+          extensions: [],
+          formats: [],
+        },
+        createDetection(true, 70)
+      );
+
+      registry.register(standardAdapter);
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/doc.md',
+      };
+
+      const result = registry.detectAdapterWithPath('test content', hint);
+      expect(result).toBeDefined();
+      expect(result?.detection.confidence).toBe(70);
+    });
+
+    it('should select highest confidence from path-aware detection', () => {
+      const lowAdapter = new MockAdapter(
+        {
+          name: 'low-path',
+          version: '1.0.0',
+          displayName: 'Low',
+          description: 'Low confidence',
+          extensions: [],
+          formats: [],
+        },
+        createDetection(true, 50)
+      );
+
+      const highAdapter = new MockAdapter(
+        {
+          name: 'high-path',
+          version: '1.0.0',
+          displayName: 'High',
+          description: 'High confidence',
+          extensions: [],
+          formats: [],
+        },
+        createDetection(true, 60)
+      );
+
+      (highAdapter as FormatAdapter).detectWithPath = (
+        _content: string,
+        _hint: PathDetectionHint
+      ) => createDetection(true, 95, 'path-detected');
+
+      registry.register(lowAdapter);
+      registry.register(highAdapter);
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/_bmad/doc.md',
+        parentDirs: ['_bmad'],
+      };
+
+      const result = registry.detectAdapterWithPath('test', hint);
+      expect(result?.adapter.metadata.name).toBe('high-path');
+      expect(result?.detection.confidence).toBe(95);
+    });
+
+    it('should respect minimum confidence threshold for path detection', () => {
+      const lowAdapter = new MockAdapter(
+        {
+          name: 'low-threshold',
+          version: '1.0.0',
+          displayName: 'Low',
+          description: 'Low confidence',
+          extensions: [],
+          formats: [],
+        },
+        createDetection(true, 30)
+      );
+
+      registry.register(lowAdapter);
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/doc.md',
+      };
+
+      const result = registry.detectAdapterWithPath('test', hint, 50);
+      expect(result).toBeUndefined();
     });
   });
 });

@@ -4,7 +4,7 @@
  * Central registry for format adapters with auto-detection and lookup capabilities.
  */
 
-import type { FormatAdapter, DetectionResult } from './types.js';
+import type { FormatAdapter, DetectionResult, PathDetectionHint } from './types.js';
 
 /**
  * Registry for managing format adapters
@@ -103,6 +103,39 @@ export class AdapterRegistry {
 
     for (const adapter of this.adapters.values()) {
       const detection = adapter.detect(content);
+      if (detection.detected && detection.confidence > bestConfidence) {
+        bestConfidence = detection.confidence;
+        bestMatch = { adapter, detection };
+      }
+    }
+
+    return bestMatch;
+  }
+
+  /**
+   * Detect adapter from content with path hints
+   *
+   * Like detectAdapter but passes file path information to adapters
+   * that implement detectWithPath for improved accuracy.
+   *
+   * @param content - Content to analyze
+   * @param hint - File path and directory information
+   * @param minConfidence - Minimum confidence score (0-100) to accept
+   * @returns Best matching adapter and detection result, or undefined
+   */
+  detectAdapterWithPath(
+    content: string,
+    hint: PathDetectionHint,
+    minConfidence: number = 50
+  ): { adapter: FormatAdapter; detection: DetectionResult } | undefined {
+    let bestMatch: { adapter: FormatAdapter; detection: DetectionResult } | undefined;
+    let bestConfidence = minConfidence - 1;
+
+    for (const adapter of this.adapters.values()) {
+      const detection = adapter.detectWithPath
+        ? adapter.detectWithPath(content, hint)
+        : adapter.detect(content);
+
       if (detection.detected && detection.confidence > bestConfidence) {
         bestConfidence = detection.confidence;
         bestMatch = { adapter, detection };

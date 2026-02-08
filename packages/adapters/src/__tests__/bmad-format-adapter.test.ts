@@ -8,7 +8,14 @@ import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BMADFormatAdapter } from '../bmad/format-adapter.js';
-import type { ParseContext } from '../base/types.js';
+import {
+  analyzePath,
+  expandVariables,
+  parseYamlBoolean,
+  hasHyphenatedVariables,
+} from '../bmad/utils.js';
+import { BMAD_FOLDERS } from '../bmad/types.js';
+import type { ParseContext, PathDetectionHint } from '../base/types.js';
 
 // Get __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -1237,6 +1244,226 @@ FR-01: ${longDesc}`;
       if (parse2.success && parse1.success) {
         // Author and version should be preserved
         expect(parse2.data?.provenance.author).toBe(parse1.data?.provenance.author);
+      }
+    });
+  });
+
+  describe('ADAPTUP: BMAD v6 folder structure detection', () => {
+    it('should detect v6 _bmad folder path', () => {
+      const hint: PathDetectionHint = {
+        filePath: '/project/_bmad/docs/prd.md',
+        parentDirs: ['docs', '_bmad', 'project'],
+      };
+      const result = analyzePath(hint);
+      expect(result.isBmadFolder).toBe(true);
+    });
+
+    it('should detect legacy .bmad folder path', () => {
+      const hint: PathDetectionHint = {
+        filePath: '/project/.bmad/docs/prd.md',
+        parentDirs: ['docs', '.bmad', 'project'],
+      };
+      const result = analyzePath(hint);
+      expect(result.isBmadFolder).toBe(true);
+    });
+
+    it('should detect v6 _config folder path', () => {
+      const hint: PathDetectionHint = {
+        filePath: '/project/_bmad/_config/module.yaml',
+        parentDirs: ['_config', '_bmad', 'project'],
+      };
+      const result = analyzePath(hint);
+      expect(result.isBmadFolder).toBe(true);
+      expect(result.isConfigFolder).toBe(true);
+    });
+
+    it('should detect legacy _cfg folder path', () => {
+      const hint: PathDetectionHint = {
+        filePath: '/project/.bmad/_cfg/settings.yaml',
+        parentDirs: ['_cfg', '.bmad', 'project'],
+      };
+      const result = analyzePath(hint);
+      expect(result.isBmadFolder).toBe(true);
+      expect(result.isConfigFolder).toBe(true);
+    });
+
+    it('should not detect non-BMAD folder paths', () => {
+      const hint: PathDetectionHint = {
+        filePath: '/project/docs/prd.md',
+        parentDirs: ['docs', 'project'],
+      };
+      const result = analyzePath(hint);
+      expect(result.isBmadFolder).toBe(false);
+      expect(result.isConfigFolder).toBe(false);
+    });
+
+    it('should boost confidence when file is in _bmad folder', async () => {
+      const content = `---
+name: Minimal
+---
+
+Some document content that is not very BMAD-like.`;
+
+      const hint: PathDetectionHint = {
+        filePath: '/project/_bmad/docs/doc.md',
+        parentDirs: ['docs', '_bmad', 'project'],
+      };
+
+      const resultWithPath = adapter.detectWithPath(content, hint);
+      const resultWithout = adapter.detect(content);
+
+      expect(resultWithPath.confidence).toBeGreaterThan(resultWithout.confidence);
+      expect(resultWithPath.reason).toContain('bmad-folder');
+    });
+
+    it('should have correct folder constants', () => {
+      expect(BMAD_FOLDERS.PROJECT).toBe('_bmad');
+      expect(BMAD_FOLDERS.PROJECT_LEGACY).toBe('.bmad');
+      expect(BMAD_FOLDERS.CONFIG).toBe('_config');
+      expect(BMAD_FOLDERS.CONFIG_LEGACY).toBe('_cfg');
+      expect(BMAD_FOLDERS.MEMORY).toBe('_memory');
+      expect(BMAD_FOLDERS.MODULE_CONFIG).toBe('module.yaml');
+    });
+  });
+
+  describe('ADAPTUP: BMAD v6 config path handling', () => {
+    it('should detect config folder in path indicators', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-prd.md'), 'utf-8');
+      const hint: PathDetectionHint = {
+        filePath: '/project/_bmad/_config/prd.md',
+        parentDirs: ['_config', '_bmad', 'project'],
+      };
+
+      const result = adapter.detectWithPath(content, hint);
+      expect(result.reason).toContain('bmad-config');
+    });
+  });
+
+  describe('ADAPTUP: BMAD v6 variable syntax', () => {
+    it('should expand underscore variable syntax', () => {
+      const content = 'Path: {project_root}/docs';
+      const result = expandVariables(content, { project_root: '/home/user' });
+      expect(result).toBe('Path: /home/user/docs');
+    });
+
+    it('should expand hyphenated variable syntax', () => {
+      const content = 'Path: {project-root}/docs';
+      const result = expandVariables(content, { 'project-root': '/home/user' });
+      expect(result).toBe('Path: /home/user/docs');
+    });
+
+    it('should expand both syntaxes from underscore key', () => {
+      const content = '{project_root} and {project-root}';
+      const result = expandVariables(content, { project_root: '/home' });
+      expect(result).toBe('/home and /home');
+    });
+
+    it('should expand both syntaxes from hyphenated key', () => {
+      const content = '{project_root} and {project-root}';
+      const result = expandVariables(content, { 'project-root': '/home' });
+      expect(result).toBe('/home and /home');
+    });
+
+    it('should detect hyphenated variables in content', () => {
+      expect(hasHyphenatedVariables('{project-root}/docs')).toBe(true);
+      expect(hasHyphenatedVariables('{output-file}')).toBe(true);
+      expect(hasHyphenatedVariables('{project_root}/docs')).toBe(false);
+      expect(hasHyphenatedVariables('no variables here')).toBe(false);
+    });
+
+    it('should detect v6 PRD with hyphenated variables', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-prd.md'), 'utf-8');
+      const result = adapter.detect(content);
+
+      expect(result.detected).toBe(true);
+      expect(result.confidence).toBeGreaterThanOrEqual(50);
+    });
+  });
+
+  describe('ADAPTUP: BMAD hasSidecar field support', () => {
+    it('should parse hasSidecar: true from front-matter', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-agent.md'), 'utf-8');
+
+      // Agent docs may not reach 50% with content-only detection (YAML 30 + hasSidecar 15 = 45)
+      // Use detectWithPath from a _bmad folder to boost (+20 = 65)
+      const hint: PathDetectionHint = {
+        filePath: '/project/_bmad/agents/code-review.md',
+        parentDirs: ['agents', '_bmad', 'project'],
+      };
+      const result = adapter.detectWithPath(content, hint);
+
+      expect(result.detected).toBe(true);
+      expect(result.reason).toContain('has-sidecar');
+      expect(result.reason).toContain('bmad-folder');
+    });
+
+    it('should parse boolean YAML values', () => {
+      expect(parseYamlBoolean('true')).toBe(true);
+      expect(parseYamlBoolean('false')).toBe(false);
+      expect(parseYamlBoolean('yes')).toBe(true);
+      expect(parseYamlBoolean('no')).toBe(false);
+      expect(parseYamlBoolean('on')).toBe(true);
+      expect(parseYamlBoolean('off')).toBe(false);
+      expect(parseYamlBoolean('TRUE')).toBe(true);
+      expect(parseYamlBoolean('maybe')).toBeUndefined();
+    });
+
+    it('should warn on agent doc missing hasSidecar', async () => {
+      const content = `---
+name: 'Test Agent'
+version: '1.0.0'
+author: 'Test'
+---
+
+# Test Agent
+
+## Purpose
+
+A test agent for validation.
+
+## Role
+
+Performs test operations for quality assurance.`;
+
+      const result = await adapter.validate(content);
+      expect(result.issues).toBeDefined();
+      if (result.issues) {
+        const sidecarWarning = result.issues.find((i) => i.code === 'MISSING_HAS_SIDECAR');
+        expect(sidecarWarning).toBeDefined();
+        if (sidecarWarning) {
+          expect(sidecarWarning.severity).toBe('warning');
+        }
+      }
+    });
+
+    it('should not warn when hasSidecar is present', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-agent.md'), 'utf-8');
+      const result = await adapter.validate(content);
+
+      if (result.issues) {
+        const sidecarWarning = result.issues.find((i) => i.code === 'MISSING_HAS_SIDECAR');
+        expect(sidecarWarning).toBeUndefined();
+      }
+    });
+
+    it('should parse agent document successfully', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-agent.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.provenance.author).toBe('BMAD Team');
+      }
+    });
+
+    it('should parse v6 PRD with all new features', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-prd.md'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.proposed_changes.length).toBeGreaterThanOrEqual(3);
+        expect(result.data?.provenance.author).toBe('v6 Author');
       }
     });
   });

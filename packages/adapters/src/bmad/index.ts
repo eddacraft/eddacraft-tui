@@ -5,6 +5,7 @@
  */
 
 export { BMADFormatAdapter, createBMADAdapter } from './format-adapter.js';
+export { BMAD_FOLDERS } from './types.js';
 export type {
   BMADDocument,
   BMADDocumentType,

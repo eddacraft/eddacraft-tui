@@ -1,6 +1,6 @@
 # Adapter Upstream Updates
 
-**Scope:** ADAPTUP **Owner:** @team **Priority:** medium **Status:** Draft
+**Scope:** ADAPTUP **Owner:** @team **Priority:** medium **Status:** In Progress
 
 ## Purpose
 

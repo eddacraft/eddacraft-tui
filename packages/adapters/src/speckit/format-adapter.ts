@@ -23,6 +23,7 @@ import {
   type SerializeResult,
   type ParseContext,
   type AdapterOptions,
+  type PathDetectionHint,
 } from '../base/types.js';
 import { createDetection, generateDeterministicPlanId } from '../base/utils.js';
 import { SpecKitParser } from './parser.js';
@@ -41,6 +42,10 @@ interface SpecKitIndicators {
   hasFilesToUpdateSection: boolean;
   hasCodeBlocks: boolean;
   sectionCount: number;
+  /** Agent-first: content references speckit.* namespace commands */
+  hasSpeckitNamespace: boolean;
+  /** Agent-first: sibling AGENTS.md file detected */
+  hasAgentsMdSibling: boolean;
 }
 
 /**
@@ -88,6 +93,24 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
 
     // Detection threshold: 50% confidence
     // Lower threshold than BMAD to accommodate minimal SpecKit documents
+    return createDetection(confidence >= 50, confidence, reason);
+  }
+
+  /**
+   * Detect with file path hints for improved accuracy
+   *
+   * Uses sibling file information (e.g., AGENTS.md) and content
+   * namespace patterns (e.g., `speckit.*`) to boost detection.
+   *
+   * @param content - Document content to analyze
+   * @param hint - Path and directory information
+   * @returns Detection result with confidence score
+   */
+  detectWithPath(content: string, hint: PathDetectionHint): DetectionResult {
+    const indicators = this.analyzeContent(content, hint);
+    const confidence = this.calculateConfidence(indicators);
+    const reason = this.buildDetectionReason(indicators);
+
     return createDetection(confidence >= 50, confidence, reason);
   }
 
@@ -416,8 +439,15 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
   /**
    * Analyze content for SpecKit indicators
    */
-  private analyzeContent(content: string): SpecKitIndicators {
+  private analyzeContent(content: string, hint?: PathDetectionHint): SpecKitIndicators {
     const lowerContent = content.toLowerCase();
+
+    // Detect speckit.* namespace commands (e.g., /speckit.clarify, /speckit.analyze)
+    const hasSpeckitNamespace = /\/speckit\.\w+/i.test(content) || /speckit\.\w+/i.test(content);
+
+    // Check for AGENTS.md sibling
+    const hasAgentsMdSibling =
+      hint?.siblingFiles?.some((f) => f.toLowerCase() === 'agents.md') ?? false;
 
     return {
       hasSpecificationHeader: /^#\s+(specification|spec)\s*$/im.test(content),
@@ -432,6 +462,8 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
         lowerContent.includes('files to update') || lowerContent.includes('update file'),
       hasCodeBlocks: /```[\s\S]*?```/.test(content),
       sectionCount: (content.match(/^##\s+/gim) || []).length,
+      hasSpeckitNamespace,
+      hasAgentsMdSibling,
     };
   }
 
@@ -481,6 +513,16 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
       score += 5;
     }
 
+    // speckit.* namespace commands (10 points)
+    if (indicators.hasSpeckitNamespace) {
+      score += 10;
+    }
+
+    // AGENTS.md sibling (15 points)
+    if (indicators.hasAgentsMdSibling) {
+      score += 15;
+    }
+
     // Bonus: If has both Specification header AND Intent section, ensure at least 50% confidence
     // This accommodates minimal but valid SpecKit documents
     if (indicators.hasSpecificationHeader && indicators.hasIntentSection && score < 50) {
@@ -516,6 +558,12 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
     }
     if (indicators.hasCodeBlocks) {
       reasons.push('code-blocks');
+    }
+    if (indicators.hasSpeckitNamespace) {
+      reasons.push('speckit-namespace');
+    }
+    if (indicators.hasAgentsMdSibling) {
+      reasons.push('agents-md');
     }
     if (indicators.sectionCount >= 3) {
       reasons.push(`${indicators.sectionCount} sections`);

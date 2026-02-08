@@ -12,7 +12,94 @@ import {
   RequirementType,
   BMADDocumentType,
   DetectionIndicators,
+  BMAD_FOLDERS,
 } from './types.js';
+import type { PathDetectionHint } from '../base/types.js';
+
+/**
+ * Analyze a file path for BMAD folder structure indicators
+ *
+ * Detects both v6 (`_bmad`, `_config`) and legacy (`.bmad`, `_cfg`) paths.
+ *
+ * @param hint - Path detection hint with file path and directory info
+ * @returns Object indicating which BMAD path patterns were found
+ */
+export function analyzePath(hint: PathDetectionHint): {
+  isBmadFolder: boolean;
+  isConfigFolder: boolean;
+} {
+  const { filePath, parentDirs } = hint;
+  const normalizedPath = filePath.replace(/\\/g, '/');
+  const allDirs = parentDirs ?? [];
+
+  const bmadDirs: readonly string[] = [BMAD_FOLDERS.PROJECT, BMAD_FOLDERS.PROJECT_LEGACY];
+  const configDirs: readonly string[] = [BMAD_FOLDERS.CONFIG, BMAD_FOLDERS.CONFIG_LEGACY];
+
+  const isBmadFolder =
+    bmadDirs.some((d) => normalizedPath.includes(`/${d}/`) || normalizedPath.includes(`${d}/`)) ||
+    allDirs.some((d) => bmadDirs.includes(d));
+
+  const isConfigFolder =
+    configDirs.some((d) => normalizedPath.includes(`/${d}/`) || normalizedPath.includes(`${d}/`)) ||
+    allDirs.some((d) => configDirs.includes(d));
+
+  return { isBmadFolder, isConfigFolder };
+}
+
+/**
+ * Expand BMAD template variables in content
+ *
+ * Supports both legacy underscore syntax `{project_root}` and
+ * v6 hyphenated syntax `{project-root}`.
+ *
+ * @param content - Content with variable placeholders
+ * @param variables - Variable values to substitute
+ * @returns Content with variables expanded
+ */
+export function expandVariables(content: string, variables: Record<string, string>): string {
+  let result = content;
+
+  for (const [key, value] of Object.entries(variables)) {
+    // Support both underscore and hyphenated forms
+    const underscoreKey = key.replace(/-/g, '_');
+    const hyphenKey = key.replace(/_/g, '-');
+
+    result = result
+      .replace(new RegExp(`\\{${escapeRegExp(underscoreKey)}\\}`, 'g'), value)
+      .replace(new RegExp(`\\{${escapeRegExp(hyphenKey)}\\}`, 'g'), value);
+  }
+
+  return result;
+}
+
+/**
+ * Check if content contains hyphenated variable syntax (v6)
+ *
+ * @param content - Content to check
+ * @returns True if hyphenated variables are found
+ */
+export function hasHyphenatedVariables(content: string): boolean {
+  return /\{[a-z]+-[a-z]+(?:-[a-z]+)*\}/i.test(content);
+}
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Parse a YAML boolean value
+ *
+ * Handles YAML 1.1 boolean forms: true/false, yes/no, on/off.
+ *
+ * @param value - String value from YAML
+ * @returns Boolean or undefined if not a boolean value
+ */
+export function parseYamlBoolean(value: string): boolean | undefined {
+  const lower = value.toLowerCase().trim();
+  if (['true', 'yes', 'on'].includes(lower)) return true;
+  if (['false', 'no', 'off'].includes(lower)) return false;
+  return undefined;
+}
 
 /**
  * Extract YAML front-matter from markdown content
@@ -50,6 +137,12 @@ export function extractFrontMatter(content: string): BMADFrontMatter | null {
 
       if (key === 'variables') {
         frontMatter[key] = {};
+      } else if (key === 'hasSidecar') {
+        // Parse boolean value
+        const boolVal = parseYamlBoolean(cleanValue);
+        if (boolVal !== undefined) {
+          frontMatter.hasSidecar = boolVal;
+        }
       } else {
         frontMatter[key as keyof BMADFrontMatter] = cleanValue as never;
       }
@@ -226,6 +319,14 @@ export function identifyDocumentType(
     if (/architecture/i.test(frontMatter.name)) {
       return BMADDocumentType.ARCHITECTURE;
     }
+    if (/agent/i.test(frontMatter.name)) {
+      return BMADDocumentType.AGENT;
+    }
+  }
+
+  // v6: hasSidecar field is a strong agent indicator
+  if (frontMatter?.hasSidecar !== undefined) {
+    return BMADDocumentType.AGENT;
   }
 
   // Check content
@@ -249,11 +350,14 @@ export function identifyDocumentType(
  * Analyze content for detection indicators
  *
  * @param content - Document content
+ * @param hint - Optional path detection hint
  * @returns Detection indicators
  */
-export function analyzeContent(content: string): DetectionIndicators {
+export function analyzeContent(content: string, hint?: PathDetectionHint): DetectionIndicators {
   const frontMatter = extractFrontMatter(content);
   const requirements = extractRequirements(content);
+
+  const pathAnalysis = hint ? analyzePath(hint) : { isBmadFolder: false, isConfigFolder: false };
 
   return {
     hasYamlFrontMatter: frontMatter !== null && Object.keys(frontMatter).length > 0,
@@ -268,6 +372,10 @@ export function analyzeContent(content: string): DetectionIndicators {
     ),
     hasDocumentTitle: /(Product Requirements|Architecture) Document/i.test(content),
     requirementCount: requirements.length,
+    hasBmadFolderPath: pathAnalysis.isBmadFolder,
+    hasBmadConfigPath: pathAnalysis.isConfigFolder,
+    hasHasSidecar: frontMatter?.hasSidecar !== undefined,
+    hasHyphenatedVariables: hasHyphenatedVariables(content),
   };
 }
 
@@ -309,6 +417,21 @@ export function calculateConfidenceScore(indicators: DetectionIndicators): numbe
     score += 10;
   }
 
+  // v6: BMAD folder path (20 points bonus)
+  if (indicators.hasBmadFolderPath) {
+    score += 20;
+  }
+
+  // v6: Config folder path (5 points bonus)
+  if (indicators.hasBmadConfigPath) {
+    score += 5;
+  }
+
+  // v6: hasSidecar field (15 points bonus)
+  if (indicators.hasHasSidecar) {
+    score += 15;
+  }
+
   return Math.min(100, score);
 }
 
@@ -339,6 +462,15 @@ export function buildDetectionReason(indicators: DetectionIndicators): string {
   }
   if (indicators.hasDocumentTitle) {
     reasons.push('document-title');
+  }
+  if (indicators.hasBmadFolderPath) {
+    reasons.push('bmad-folder');
+  }
+  if (indicators.hasBmadConfigPath) {
+    reasons.push('bmad-config');
+  }
+  if (indicators.hasHasSidecar) {
+    reasons.push('has-sidecar');
   }
 
   return reasons.length > 0 ? reasons.join(', ') : 'no strong indicators';
@@ -378,15 +510,16 @@ export function extractIntent(content: string, docType: BMADDocumentType): strin
   const intentLines: string[] = [];
 
   // Section headers to look for based on document type
-  const targetSections = {
+  const targetSections: Record<string, string[]> = {
     [BMADDocumentType.PRD]: ['Executive Summary', 'Product Vision', 'Overview'],
     [BMADDocumentType.ARCHITECTURE]: ['Technical Summary', 'Overview'],
     [BMADDocumentType.EPIC]: ['Epic Goal', 'Goal', 'Overview'],
     [BMADDocumentType.STORY]: ['Description', 'Story'],
+    [BMADDocumentType.AGENT]: ['Purpose', 'Role', 'Overview'],
     [BMADDocumentType.UNKNOWN]: ['Overview', 'Summary'],
   };
 
-  const sections = targetSections[docType];
+  const sections = targetSections[docType] ?? targetSections[BMADDocumentType.UNKNOWN];
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
