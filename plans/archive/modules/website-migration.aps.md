@@ -1,7 +1,7 @@
 # Website Migration
 
 > **Module ID:** WEB
-> **Status:** Ready
+> **Status:** Complete
 > **Release:** v1.2
 > **Dependencies:** monorepo-migration (MONO)
 

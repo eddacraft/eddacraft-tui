@@ -345,7 +345,7 @@ graph TD
 | [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 | [intelligent-first-run](./modules/intelligent-first-run.aps.md)         | IFR      | Ready       | v1.3    | tui, architecture-safety                                  |
 | [tutorial-overhaul](./modules/tutorial-overhaul.aps.md)                 | TUT      | Ready       | v1.3    | tui                                                       |
-| [website-migration](./modules/website-migration.aps.md)                 | WEB      | Ready       | v1.2    | monorepo-migration                                        |
+| [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | v1.2    | monorepo-migration                                        |
 | [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | Ready       | v2.0    | antipattern-library                                       |
 | [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | Draft       | —       | —                                                         |
 
