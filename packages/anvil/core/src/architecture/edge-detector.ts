@@ -11,10 +11,11 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { join, dirname, normalize } from 'node:path';
+import { join, dirname, normalize, extname } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { DependencyEdge, BaselineViolation } from './types.js';
 import { createViolationId } from './types.js';
+import { extractHtmlEdges, extractCssEdges } from './edge-detector-html.js';
 
 /**
  * Import edge extracted from source code
@@ -114,6 +115,15 @@ export function extractImports(
     content = readFileSync(fullPath, 'utf-8');
   } catch {
     return edges;
+  }
+
+  // Delegate to HTML/CSS extractors based on file extension
+  const ext = extname(filePath).toLowerCase();
+  if (ext === '.html' || ext === '.htm') {
+    return extractHtmlEdges(filePath, content);
+  }
+  if (ext === '.css' || ext === '.scss' || ext === '.less') {
+    return extractCssEdges(filePath, content);
   }
 
   const lines = content.split('\n');

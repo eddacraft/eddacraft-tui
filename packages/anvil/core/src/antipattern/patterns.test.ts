@@ -12,8 +12,8 @@ import {
 
 describe('Pattern Catalogue', () => {
   describe('PATTERNS', () => {
-    it('should contain 7 patterns', () => {
-      expect(PATTERNS).toHaveLength(7);
+    it('should contain 13 patterns', () => {
+      expect(PATTERNS).toHaveLength(13);
     });
 
     it('should have unique IDs', () => {
@@ -28,7 +28,14 @@ describe('Pattern Catalogue', () => {
     });
 
     it('should have all required fields with valid values', () => {
-      const validCategories = ['escape-hatch', 'error-handling', 'code-quality', 'type-safety'];
+      const validCategories = [
+        'escape-hatch',
+        'error-handling',
+        'code-quality',
+        'type-safety',
+        'html',
+        'css',
+      ];
       const validSeverities = ['error', 'warning', 'info'];
       const validConfidences = ['high', 'medium', 'low'];
 
@@ -89,13 +96,25 @@ describe('Pattern Catalogue', () => {
       expect(patterns).toHaveLength(1);
       expect(patterns.map((p) => p.id)).toEqual(['AP-007']);
     });
+
+    it('should return html patterns', () => {
+      const patterns = getPatternsByCategory('html');
+      expect(patterns).toHaveLength(4);
+      expect(patterns.map((p) => p.id)).toEqual(['AP-008', 'AP-009', 'AP-010', 'AP-011']);
+    });
+
+    it('should return css patterns', () => {
+      const patterns = getPatternsByCategory('css');
+      expect(patterns).toHaveLength(2);
+      expect(patterns.map((p) => p.id)).toEqual(['AP-012', 'AP-013']);
+    });
   });
 
   describe('getEnabledPatterns', () => {
     it('should return all enabled patterns', () => {
       const patterns = getEnabledPatterns();
       expect(patterns.every((p) => p.enabled)).toBe(true);
-      expect(patterns).toHaveLength(7);
+      expect(patterns).toHaveLength(13);
     });
   });
 
@@ -120,13 +139,34 @@ describe('Pattern Catalogue', () => {
       expect(ids).not.toContain('AP-002');
       expect(ids).not.toContain('AP-005');
       expect(ids).not.toContain('AP-007');
+      // HTML/CSS patterns are all opt-in
+      expect(ids).not.toContain('AP-008');
+      expect(ids).not.toContain('AP-009');
+      expect(ids).not.toContain('AP-010');
+      expect(ids).not.toContain('AP-011');
+      expect(ids).not.toContain('AP-012');
+      expect(ids).not.toContain('AP-013');
     });
   });
 
   describe('getPatternIds', () => {
     it('should return all pattern IDs', () => {
       const ids = getPatternIds();
-      expect(ids).toEqual(['AP-001', 'AP-002', 'AP-003', 'AP-004', 'AP-005', 'AP-006', 'AP-007']);
+      expect(ids).toEqual([
+        'AP-001',
+        'AP-002',
+        'AP-003',
+        'AP-004',
+        'AP-005',
+        'AP-006',
+        'AP-007',
+        'AP-008',
+        'AP-009',
+        'AP-010',
+        'AP-011',
+        'AP-012',
+        'AP-013',
+      ]);
     });
   });
 
@@ -134,6 +174,8 @@ describe('Pattern Catalogue', () => {
     it('should return true for valid IDs', () => {
       expect(isValidPatternId('AP-001')).toBe(true);
       expect(isValidPatternId('AP-007')).toBe(true);
+      expect(isValidPatternId('AP-008')).toBe(true);
+      expect(isValidPatternId('AP-013')).toBe(true);
     });
 
     it('should return false for invalid IDs', () => {

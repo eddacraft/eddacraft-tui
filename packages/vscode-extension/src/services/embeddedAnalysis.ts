@@ -21,6 +21,7 @@ import {
   getDefaultPatterns,
   type AntiPattern,
 } from '@eddacraft/anvil-core/antipattern';
+import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-platform-config';
 
 /**
  * Cache entry for analysis results
@@ -203,7 +204,7 @@ export class EmbeddedAnalysisService {
    * @returns true if file should be analysed
    */
   shouldAnalyse(filePath: string): boolean {
-    const analysableExtensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'];
+    const analysableExtensions = [...DEFAULT_ANALYSABLE_EXTENSIONS, '.mts', '.cts'];
 
     const ext = filePath.substring(filePath.lastIndexOf('.'));
     return analysableExtensions.includes(ext.toLowerCase());

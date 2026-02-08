@@ -11,6 +11,8 @@
  */
 
 import type { AntiPattern } from './types.js';
+import { HTML_PATTERNS } from './patterns-html.js';
+import { CSS_PATTERNS } from './patterns-css.js';
 
 // =============================================================================
 // Pattern Definitions
@@ -227,6 +229,8 @@ export const PATTERNS: readonly AntiPattern[] = [
   AP005_TS_EXPECT_ERROR,
   AP006_EMPTY_CATCH,
   AP007_CONSOLE_IN_PROD,
+  ...HTML_PATTERNS,
+  ...CSS_PATTERNS,
 ] as const;
 
 /**

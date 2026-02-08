@@ -19,6 +19,7 @@ import {
   type WarningResult,
 } from '@eddacraft/anvil-core/antipattern';
 import { parseSeverity } from '@eddacraft/anvil-core';
+import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-platform-config';
 
 export interface AntipatternCheckConfig {
   patterns?: string[];
@@ -30,7 +31,7 @@ export interface AntipatternCheckConfig {
 const DEFAULT_CONFIG: Required<AntipatternCheckConfig> = {
   patterns: [],
   includeOptIn: false,
-  extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'],
+  extensions: DEFAULT_ANALYSABLE_EXTENSIONS,
   severityThreshold: 'error',
 };
 

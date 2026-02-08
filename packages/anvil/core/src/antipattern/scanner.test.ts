@@ -280,6 +280,49 @@ describe('Scanner', () => {
     });
   });
 
+  describe('fileExtensions filtering', () => {
+    it('should skip pattern when file extension does not match fileExtensions', () => {
+      // AP-008 (inline style) has fileExtensions: ['.html', '.htm']
+      // scanning a .ts file should skip it
+      const content = `const style = 'style="color:red"';`;
+      const result = scanFile('test.ts', content, { patterns: ['AP-008'] });
+
+      expect(result.warnings).toHaveLength(0);
+    });
+
+    it('should detect pattern when file extension matches fileExtensions', () => {
+      const content = `<div style="color: red">Hello</div>`;
+      const result = scanFile('page.html', content, { patterns: ['AP-008'] });
+
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].id).toBe('AP-008');
+    });
+
+    it('should detect pattern when file has .htm extension', () => {
+      const content = `<div style="color: red">Hello</div>`;
+      const result = scanFile('page.htm', content, { patterns: ['AP-008'] });
+
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0].id).toBe('AP-008');
+    });
+
+    it('should apply CSS pattern only to CSS files', () => {
+      const content = `color: red !important;`;
+      const resultCss = scanFile('style.css', content, { patterns: ['AP-012'] });
+      const resultTs = scanFile('style.ts', content, { patterns: ['AP-012'] });
+
+      expect(resultCss.warnings).toHaveLength(1);
+      expect(resultTs.warnings).toHaveLength(0);
+    });
+
+    it('should apply CSS pattern to SCSS files', () => {
+      const content = `color: red !important;`;
+      const result = scanFile('style.scss', content, { patterns: ['AP-012'] });
+
+      expect(result.warnings).toHaveLength(1);
+    });
+  });
+
   describe('scanFiles', () => {
     it('should scan multiple files', () => {
       const files = [

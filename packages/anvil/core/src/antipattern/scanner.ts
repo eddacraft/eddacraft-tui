@@ -34,6 +34,11 @@ function getPatternsToCheck(options: ScanOptions = {}): AntiPattern[] {
   return includeOptIn ? getEnabledPatterns() : getDefaultPatterns();
 }
 
+function matchesFileExtension(filePath: string, fileExtensions: string[]): boolean {
+  const ext = filePath.substring(filePath.lastIndexOf('.'));
+  return fileExtensions.includes(ext.toLowerCase());
+}
+
 function isFileAllowlisted(filePath: string, allowlist: string[] | undefined): boolean {
   if (!allowlist || allowlist.length === 0) return false;
   return allowlist.some((pattern) => minimatch(filePath, pattern, { matchBase: true }));
@@ -73,6 +78,7 @@ export function scanFile(filePath: string, content: string, options?: ScanOption
 
   for (const pattern of patterns) {
     if (pattern.detection.type !== 'regex') continue;
+    if (pattern.fileExtensions && !matchesFileExtension(filePath, pattern.fileExtensions)) continue;
     if (isFileAllowlisted(filePath, pattern.allowlist)) continue;
 
     const regexPattern = pattern.detection.pattern;

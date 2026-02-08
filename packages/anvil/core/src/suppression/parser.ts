@@ -44,7 +44,12 @@ function determineScope(
 ): SuppressionScope {
   if (line <= 5 && !previousLineHasCode) {
     const trimmed = lineContent.trim();
-    if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('/**')) {
+    if (
+      trimmed.startsWith('//') ||
+      trimmed.startsWith('/*') ||
+      trimmed.startsWith('/**') ||
+      trimmed.startsWith('<!--')
+    ) {
       return 'file';
     }
   }
@@ -64,6 +69,7 @@ function hasCode(line: string): boolean {
   if (trimmed.startsWith('/*') && trimmed.endsWith('*/')) return false;
   if (trimmed.startsWith('/**') && trimmed.endsWith('*/')) return false;
   if (trimmed.startsWith('*') && !trimmed.startsWith('*/')) return false;
+  if (trimmed.startsWith('<!--') && trimmed.endsWith('-->')) return false;
   return true;
 }
 
@@ -81,6 +87,14 @@ function extractSuppressionComment(line: string): { comment: string; column: num
     return {
       comment: blockMatch[1],
       column: line.indexOf('/*'),
+    };
+  }
+
+  const htmlMatch = line.match(/<!--\s*(@anvil-ignore.*?)\s*-->/);
+  if (htmlMatch) {
+    return {
+      comment: htmlMatch[1],
+      column: line.indexOf('<!--'),
     };
   }
 

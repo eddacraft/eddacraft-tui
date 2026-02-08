@@ -9,11 +9,10 @@ import {
   type AnalyzeResult,
 } from '@eddacraft/anvil-runtime';
 import type { Warning } from '@eddacraft/anvil-core/antipattern';
+import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-platform-config';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
 import { success, error, info } from '../utils/output.js';
-
-const ANALYSABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
 
 interface CheckOptions {
   verbose?: boolean;
@@ -23,6 +22,7 @@ interface CheckOptions {
   staged?: boolean;
   since?: string;
   all?: boolean;
+  extensions?: string;
 }
 
 interface JSONCheckOutput {
@@ -133,8 +133,11 @@ function formatResultsHuman(result: AnalyzeResult, verbose: boolean): void {
   console.log(`  Time: ${result.executionTimeMs}ms`);
 }
 
-async function getSourceFiles(workspaceRoot: string): Promise<string[]> {
-  const patterns = ANALYSABLE_EXTENSIONS.map((ext) => `**/*${ext}`);
+async function getSourceFiles(
+  workspaceRoot: string,
+  extensions: string[] = DEFAULT_ANALYSABLE_EXTENSIONS
+): Promise<string[]> {
+  const patterns = extensions.map((ext) => `**/*${ext}`);
   const ignorePatterns = ['**/node_modules/**', '**/dist/**', '**/build/**', '**/.git/**'];
 
   const files: string[] = [];
@@ -163,11 +166,18 @@ export function createCheckCommand(): Command {
     .option('--staged', 'With --changed, analyse only staged files')
     .option('--since <ref>', 'With --changed, compare against git ref (e.g., main, HEAD~3)')
     .option('--all', 'Analyse all source files in the project')
+    .option(
+      '--extensions <list>',
+      'Comma-separated file extensions to analyse (e.g., .ts,.tsx,.html)'
+    )
     .action(async (files: string[], options: CheckOptions) => {
       const spinner = options.json ? null : ora('Analysing files...').start();
 
       try {
         const workspaceRoot = getWorkspaceRoot();
+        const activeExtensions = options.extensions
+          ? options.extensions.split(',').map((e) => e.trim())
+          : DEFAULT_ANALYSABLE_EXTENSIONS;
         let filesToAnalyse = files;
 
         if (options.all && options.changed) {
@@ -179,7 +189,7 @@ export function createCheckCommand(): Command {
         if (options.all) {
           if (spinner) spinner.text = 'Gathering all source files...';
 
-          const allFiles = await getSourceFiles(workspaceRoot);
+          const allFiles = await getSourceFiles(workspaceRoot, activeExtensions);
 
           if (allFiles.length === 0) {
             spinner?.stop();
@@ -217,7 +227,7 @@ export function createCheckCommand(): Command {
             unstaged: options.staged ? false : !options.since,
             untracked: false,
             since: options.since,
-            extensions: ANALYSABLE_EXTENSIONS,
+            extensions: activeExtensions,
           });
 
           if (changedFiles.length === 0) {

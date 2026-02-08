@@ -60,5 +60,11 @@ export {
   isValidPatternId,
 } from './patterns.js';
 
+// HTML patterns
+export { HTML_PATTERNS } from './patterns-html.js';
+
+// CSS patterns
+export { CSS_PATTERNS } from './patterns-css.js';
+
 // Scanner
 export { type ScanOptions, type ScanResult, scanFile, scanFiles } from './scanner.js';

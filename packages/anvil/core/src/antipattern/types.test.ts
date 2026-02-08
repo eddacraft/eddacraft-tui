@@ -258,6 +258,83 @@ describe('AntiPattern Schema', () => {
     }
   });
 
+  it('should validate html category', () => {
+    const pattern = {
+      id: 'AP-008',
+      name: 'Inline style attribute',
+      category: 'html',
+      severity: 'warning',
+      confidence: 'high',
+      detection: {
+        type: 'regex',
+        pattern: String.raw`style\s*=\s*["']`,
+      },
+      title: 'Inline style attribute',
+      explanation: 'Inline styles hinder maintainability',
+      suggestion: 'Use external CSS classes instead',
+      enabled: true,
+      optIn: true,
+      fileExtensions: ['.html', '.htm'],
+    };
+
+    const result = AntiPatternSchema.safeParse(pattern);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.category).toBe('html');
+      expect(result.data.fileExtensions).toEqual(['.html', '.htm']);
+    }
+  });
+
+  it('should validate css category', () => {
+    const pattern = {
+      id: 'AP-012',
+      name: '!important in CSS',
+      category: 'css',
+      severity: 'warning',
+      confidence: 'high',
+      detection: {
+        type: 'regex',
+        pattern: String.raw`!\s*important`,
+      },
+      title: '!important in CSS',
+      explanation: '!important makes CSS harder to override',
+      suggestion: 'Use more specific selectors instead',
+      enabled: true,
+      optIn: true,
+      fileExtensions: ['.css', '.scss', '.less'],
+    };
+
+    const result = AntiPatternSchema.safeParse(pattern);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.category).toBe('css');
+      expect(result.data.fileExtensions).toEqual(['.css', '.scss', '.less']);
+    }
+  });
+
+  it('should accept pattern without fileExtensions (optional)', () => {
+    const pattern = {
+      id: 'AP-001',
+      name: 'Broad eslint-disable',
+      category: 'escape-hatch',
+      severity: 'warning',
+      confidence: 'high',
+      detection: {
+        type: 'regex',
+        pattern: 'eslint-disable',
+      },
+      title: 'Test',
+      explanation: 'Test',
+      suggestion: 'Test',
+    };
+
+    const result = AntiPatternSchema.safeParse(pattern);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.fileExtensions).toBeUndefined();
+    }
+  });
+
   it('should reject pattern with invalid detection config', () => {
     const pattern = {
       id: 'AP-001',

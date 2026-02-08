@@ -80,6 +80,9 @@ export {
   inferBaseline,
 } from './analyzer.js';
 
+// HTML/CSS edge detection
+export { extractHtmlEdges, extractCssEdges } from './edge-detector-html.js';
+
 // Edge detection
 export {
   type ImportEdge,

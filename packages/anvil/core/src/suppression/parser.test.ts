@@ -159,6 +159,79 @@ const x = 1;
     });
   });
 
+  describe('HTML comment suppression', () => {
+    it('parses HTML comment with @anvil-ignore', () => {
+      const content = `<!-- @anvil-ignore AP-008: Inline style needed for email -->`;
+      const result = parseSuppressions(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.suppressions).toHaveLength(1);
+      expect(result.suppressions[0]).toMatchObject({
+        warningId: 'AP-008',
+        reason: 'Inline style needed for email',
+        line: 1,
+        scope: 'file',
+      });
+    });
+
+    it('parses HTML comment with @anvil-ignore-until', () => {
+      const content = `<!-- @anvil-ignore-until 2026-06-01 AP-011: Migrating deprecated tags -->`;
+      const result = parseSuppressions(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.suppressions).toHaveLength(1);
+      expect(result.suppressions[0]).toMatchObject({
+        warningId: 'AP-011',
+        reason: 'Migrating deprecated tags',
+      });
+      expect(result.suppressions[0].expiresAt).toEqual(new Date('2026-06-01'));
+    });
+
+    it('detects file scope for HTML comment in top lines', () => {
+      const content = `<!-- @anvil-ignore AP-008: File-level suppression -->
+<div style="color: red">Hello</div>`;
+      const result = parseSuppressions(content);
+
+      expect(result.suppressions[0].scope).toBe('file');
+    });
+
+    it('detects statement scope for HTML comment below code', () => {
+      const content = `<div>Some content</div>
+<!-- @anvil-ignore AP-008: Statement suppression -->
+<p style="font-size: 14px">Text</p>`;
+      const result = parseSuppressions(content);
+
+      expect(result.suppressions[0].scope).toBe('statement');
+    });
+
+    it('detects line scope for end-of-line HTML comment', () => {
+      const content = `<div style="color: red"> <!-- @anvil-ignore AP-008: Inline needed here -->`;
+      const result = parseSuppressions(content);
+
+      expect(result.suppressions[0].scope).toBe('line');
+    });
+
+    it('rejects HTML comment with empty reason', () => {
+      const content = `<!-- @anvil-ignore AP-008: -->`;
+      const result = parseSuppressions(content);
+
+      expect(result.suppressions).toHaveLength(0);
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].message).toContain('non-empty reason');
+    });
+
+    it('works alongside JS comments', () => {
+      const content = `// @anvil-ignore AP-001: JS suppression
+<!-- @anvil-ignore AP-008: HTML suppression -->`;
+      const result = parseSuppressions(content);
+
+      expect(result.errors).toHaveLength(0);
+      expect(result.suppressions).toHaveLength(2);
+      expect(result.suppressions[0].warningId).toBe('AP-001');
+      expect(result.suppressions[1].warningId).toBe('AP-008');
+    });
+  });
+
   describe('edge cases', () => {
     it('ignores lines without @anvil-ignore', () => {
       const content = `

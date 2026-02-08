@@ -169,7 +169,7 @@ export const AntiPatternSchema = z.object({
 
   // Classification
   category: z
-    .enum(['escape-hatch', 'error-handling', 'code-quality', 'type-safety'])
+    .enum(['escape-hatch', 'error-handling', 'code-quality', 'type-safety', 'html', 'css'])
     .describe('Pattern category'),
   severity: WarningSeveritySchema.describe('Default severity'),
   confidence: ConfidenceSchema.describe('Detection confidence'),
@@ -181,6 +181,12 @@ export const AntiPatternSchema = z.object({
   title: z.string().describe('Warning title template'),
   explanation: z.string().describe('Why this pattern is problematic'),
   suggestion: z.string().describe('Recommended alternative'),
+
+  // File targeting
+  fileExtensions: z
+    .array(z.string())
+    .optional()
+    .describe('File extensions this pattern applies to (e.g., [".html", ".htm"])'),
 
   // Customisation
   allowlist: z.array(z.string()).optional().describe('File patterns to skip (glob patterns)'),
