@@ -91,13 +91,14 @@ export function CLIFooter() {
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault();
+    const trimmedEmail = email.trim();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim()) || isSubmitting) return;
+    if (!emailRegex.test(trimmedEmail) || isSubmitting) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
 
-    const result = await submitToWaitlist(email);
+    const result = await submitToWaitlist(trimmedEmail);
 
     if (result.success) {
       setSubmitted(true);

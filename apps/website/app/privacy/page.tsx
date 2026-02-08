@@ -192,7 +192,10 @@ export default function PrivacyPage() {
                   anvil-security(7)
                 </Link>
                 ,{' '}
-                <span className="text-text-muted cursor-default" title="Coming soon">
+                <span
+                  className="text-text-muted cursor-default"
+                  aria-label="anvil-terms(7) (coming soon)"
+                >
                   anvil-terms(7)
                 </span>
               </p>
