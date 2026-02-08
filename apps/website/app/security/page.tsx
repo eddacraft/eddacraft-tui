@@ -177,7 +177,7 @@ export default function SecurityPage() {
               <div>
                 <p className="text-text-primary mb-1">How to Report</p>
                 <p className="pl-4">
-                  Email <span className="text-anvil">security@eddacraft.com</span> with details of
+                  Email <a href="mailto:security@eddacraft.com" className="text-anvil hover:underline">security@eddacraft.com</a> with details of
                   the vulnerability. Include steps to reproduce if possible.
                 </p>
               </div>
@@ -247,9 +247,9 @@ export default function SecurityPage() {
                   anvil-privacy(7)
                 </Link>
                 ,{' '}
-                <a href="#" className="text-anvil hover:underline">
+                <span className="text-text-muted cursor-default" title="Coming soon">
                   anvil-terms(7)
-                </a>
+                </span>
               </p>
             </div>
           </section>

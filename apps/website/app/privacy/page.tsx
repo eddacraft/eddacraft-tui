@@ -149,7 +149,7 @@ export default function PrivacyPage() {
               </ul>
               <p className="mt-4">
                 To exercise these rights, contact us at{' '}
-                <span className="text-anvil">privacy@eddacraft.com</span>.
+                <a href="mailto:privacy@eddacraft.com" className="text-anvil hover:underline">privacy@eddacraft.com</a>.
               </p>
             </div>
           </section>
@@ -189,9 +189,9 @@ export default function PrivacyPage() {
                   anvil-security(7)
                 </Link>
                 ,{' '}
-                <a href="#" className="text-anvil hover:underline">
+                <span className="text-text-muted cursor-default" title="Coming soon">
                   anvil-terms(7)
-                </a>
+                </span>
               </p>
             </div>
           </section>

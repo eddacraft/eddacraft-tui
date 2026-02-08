@@ -2,6 +2,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 
+const ANVIL_VERSION = 'v0.9.2';
+const ANVIL_BUILD_HASH = '7f3a91';
+
 interface ResponseLine {
   text: string;
   colorClass: string;
@@ -88,7 +91,8 @@ export function CLIFooter() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || !email.includes('@') || isSubmitting) return;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim()) || isSubmitting) return;
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -239,11 +243,11 @@ export function CLIFooter() {
             >
               <span>LATEST:</span>
               <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">
-                v0.9.2
+                {ANVIL_VERSION}
               </span>
               <span className="text-structure">::</span>
               <span className="bg-structure text-text-primary px-1.5 py-0.5 rounded-sm text-[9px] sm:text-[10px]">
-                7f3a91
+                {ANVIL_BUILD_HASH}
               </span>
             </button>
 
@@ -323,7 +327,7 @@ export function CLIFooter() {
 
             {/* Version Info */}
             <div className="text-[10px] text-text-muted/50 pt-2 border-t border-structure">
-              build: v0.9.2 :: 7f3a91 :: pre-release
+              build: {ANVIL_VERSION} :: {ANVIL_BUILD_HASH} :: pre-release
             </div>
           </div>
         </div>

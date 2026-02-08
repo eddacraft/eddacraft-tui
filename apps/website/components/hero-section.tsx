@@ -7,7 +7,7 @@ export function HeroSection() {
   return (
     <section className="lg:min-h-screen pt-14">
       <div className="mx-auto max-w-6xl px-4 sm:px-6 py-12 sm:py-16 lg:py-24 font-mono">
-        <div className="grid gap-10 lg:grid-cols-2 lg:gap-12 items-center">
+        <div className="grid gap-10 md:grid-cols-2 lg:gap-12 items-center">
           {/* Text Content - Left */}
           <div className="space-y-6 sm:space-y-8">
             {/* Product Identity */}
@@ -89,7 +89,7 @@ export function HeroSection() {
           </div>
 
           {/* Terminal - Right (hidden on mobile) */}
-          <div className="hidden lg:block lg:pl-8">
+          <div className="hidden md:block lg:pl-8">
             <TerminalWindow />
           </div>
         </div>
