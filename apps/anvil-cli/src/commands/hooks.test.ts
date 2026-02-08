@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { execSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 
 // Create a unique temp directory for each test
@@ -23,9 +22,9 @@ function cleanupTempDir(dir: string): void {
 
 // Initialise a git repo in the temp directory
 function initGitRepo(dir: string): void {
-  execSync('git init', { cwd: dir, stdio: 'pipe' });
-  execSync('git config user.email "test@example.com"', { cwd: dir, stdio: 'pipe' });
-  execSync('git config user.name "Test User"', { cwd: dir, stdio: 'pipe' });
+  const gitDir = join(dir, '.git');
+  const hooksDir = join(gitDir, 'hooks');
+  mkdirSync(hooksDir, { recursive: true });
 }
 
 describe('hooks command', () => {

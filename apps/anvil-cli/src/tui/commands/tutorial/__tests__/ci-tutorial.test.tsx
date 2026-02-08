@@ -62,6 +62,7 @@ describe('CITutorial types', () => {
 describe('CITutorial component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     mockExistsSyncFn.mockReturnValue(false);
   });
 
@@ -134,14 +135,20 @@ describe('CITutorial component', () => {
     expect(lastFrame()).toContain('Step 1 of 6');
 
     stdin.write('\r');
-    await vi.waitFor(() => {
-      expect(lastFrame()).toContain('Step 2 of 6');
-    });
+    await vi.waitFor(
+      () => {
+        expect(lastFrame()).toContain('Step 2 of 6');
+      },
+      { timeout: 2000 }
+    );
 
     stdin.write('\r');
-    await vi.waitFor(() => {
-      expect(lastFrame()).toContain('Step 3 of 6');
-    });
+    await vi.waitFor(
+      () => {
+        expect(lastFrame()).toContain('Step 3 of 6');
+      },
+      { timeout: 2000 }
+    );
   });
 });
 

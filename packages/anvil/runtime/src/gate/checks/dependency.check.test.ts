@@ -1,6 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { DependencyCheck } from './dependency.check.js';
 import type { CheckContext } from '../../types/gate.types.js';
+
+type DependencyCheckInternals = {
+  runAudit: (workspaceRoot: string, packageManager: 'npm' | 'yarn' | 'pnpm') => Promise<unknown>;
+  detectPackageManager: (workspaceRoot: string) => 'npm' | 'yarn' | 'pnpm' | null;
+};
 
 describe('DependencyCheck', () => {
   const mockContext: CheckContext = {
@@ -52,6 +57,10 @@ describe('DependencyCheck', () => {
     },
   };
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should have correct metadata', () => {
     const check = new DependencyCheck();
     expect(check.name).toBe('dependency');
@@ -73,14 +82,18 @@ describe('DependencyCheck', () => {
 
   it('should execute without throwing', async () => {
     const check = new DependencyCheck();
+    const internal = check as unknown as DependencyCheckInternals;
+    vi.spyOn(internal, 'runAudit').mockResolvedValue(null);
+    vi.spyOn(internal, 'detectPackageManager').mockReturnValue('pnpm');
 
-    // This will actually run pnpm audit on the current workspace
-    // It should not throw even if vulnerabilities are found
     await expect(check.run(mockContext)).resolves.toBeDefined();
   });
 
   it('should return a properly formatted result', async () => {
     const check = new DependencyCheck();
+    const internal = check as unknown as DependencyCheckInternals;
+    vi.spyOn(internal, 'runAudit').mockResolvedValue(null);
+    vi.spyOn(internal, 'detectPackageManager').mockReturnValue('pnpm');
     const result = await check.run(mockContext);
 
     expect(result).toHaveProperty('check');

@@ -4,6 +4,14 @@ import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult } from '../ty
 
 const MIN_NODE_VERSION = 20;
 
+function isSpawnBlocked(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const err = error as { code?: string; message?: string };
+  if (err.code === 'EPERM') return true;
+  if (typeof err.message === 'string' && err.message.includes('EPERM')) return true;
+  return false;
+}
+
 export class NodeVersionCheck implements DiagnosticCheck {
   readonly id = 'node-version';
   readonly name = 'Node.js Version';
@@ -54,7 +62,17 @@ export class GitCheck implements DiagnosticCheck {
         message: `git ${version}`,
         fixable: false,
       };
-    } catch {
+    } catch (error) {
+      if (isSpawnBlocked(error)) {
+        return {
+          checkId: this.id,
+          name: this.name,
+          status: 'skip',
+          message: 'git execution blocked by environment',
+          fixable: false,
+        };
+      }
+
       return {
         checkId: this.id,
         name: this.name,
@@ -87,7 +105,17 @@ export class GitRepoCheck implements DiagnosticCheck {
         message: 'Git repository detected',
         fixable: false,
       };
-    } catch {
+    } catch (error) {
+      if (isSpawnBlocked(error)) {
+        return {
+          checkId: this.id,
+          name: this.name,
+          status: 'skip',
+          message: 'git execution blocked by environment',
+          fixable: false,
+        };
+      }
+
       return {
         checkId: this.id,
         name: this.name,
@@ -113,6 +141,13 @@ export class GitRepoCheck implements DiagnosticCheck {
         commandsRun: ['git init'],
       };
     } catch (error) {
+      if (isSpawnBlocked(error)) {
+        return {
+          success: false,
+          message: 'git execution blocked by environment',
+        };
+      }
+
       return {
         success: false,
         message: `Failed to initialise git: ${error instanceof Error ? error.message : 'Unknown error'}`,

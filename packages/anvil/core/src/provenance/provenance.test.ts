@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { execSync } from 'node:child_process';
+import { execSync, spawnSync } from 'node:child_process';
 import {
   collectEnvironment,
   collectGitContext,
@@ -15,6 +15,10 @@ import type { GateRunResult } from '@eddacraft/anvil-contracts';
 
 describe('Provenance System', () => {
   let tempDir: string;
+  const gitAvailable = (() => {
+    const result = spawnSync('git', ['--version'], { stdio: 'pipe' });
+    return !result.error && result.status === 0;
+  })();
 
   beforeEach(() => {
     tempDir = join(tmpdir(), 'anvil-provenance-test', Math.random().toString(36));
@@ -37,12 +41,14 @@ describe('Provenance System', () => {
   });
 
   describe('collectGitContext', () => {
+    const itIfGit = gitAvailable ? it : it.skip;
+
     it('should return undefined for non-git directory', async () => {
       const git = await collectGitContext(tempDir);
       expect(git).toBeUndefined();
     });
 
-    it('should collect git context for git repository', async () => {
+    itIfGit('should collect git context for git repository', async () => {
       // Initialize a git repo with signing disabled for test environment
       execSync('git init', { cwd: tempDir, stdio: 'pipe' });
       execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
@@ -63,7 +69,7 @@ describe('Provenance System', () => {
       expect(git?.dirty).toBe(false);
     });
 
-    it('should detect dirty state', async () => {
+    itIfGit('should detect dirty state', async () => {
       execSync('git init', { cwd: tempDir, stdio: 'pipe' });
       execSync('git config user.email "test@example.com"', { cwd: tempDir, stdio: 'pipe' });
       execSync('git config user.name "Test User"', { cwd: tempDir, stdio: 'pipe' });

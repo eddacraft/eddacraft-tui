@@ -166,8 +166,8 @@ export function extractRequirements(content: string): BMADRequirement[] {
     const line = lines[i];
     const trimmed = line.trim();
 
-    // Match FR-01, NFR-01, US-01 patterns
-    const reqMatch = trimmed.match(/^(FR|NFR|US)-(\d{2}):\s*(.+)$/);
+    // Match FR-01, NFR-01, US-01 patterns (optionally prefixed by list markers)
+    const reqMatch = trimmed.match(/^(?:[-*+]\s+)?(FR|NFR|US)-(\d{2}):\s*(.+)$/);
     if (reqMatch) {
       const [, typeStr, numStr, description] = reqMatch;
       requirements.push({
@@ -197,7 +197,7 @@ export function extractUserStories(content: string): BMADUserStory[] {
     const line = lines[i];
 
     // Match US-01: Title format
-    const storyMatch = line.match(/^(US-\d{2}):\s*(.+)$/);
+    const storyMatch = line.trim().match(/^(?:[-*+]\s+)?(US-\d{2}):\s*(.+)$/);
     if (!storyMatch) continue;
 
     const [, id, title] = storyMatch;

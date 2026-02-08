@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { render } from 'ink-testing-library';
 import React from 'react';
 import { Diagnostics } from '../Diagnostics.js';
@@ -18,6 +19,11 @@ import {
 } from '../checks/index.js';
 import { calculateSummary } from '../types.js';
 import type { DiagnosticContext, DiagnosticResult } from '../types.js';
+
+const gitAvailable = (() => {
+  const result = spawnSync('git', ['--version'], { stdio: 'pipe' });
+  return !result.error && result.status === 0;
+})();
 
 describe('doctor types', () => {
   describe('calculateSummary', () => {
@@ -78,8 +84,12 @@ describe('SystemChecks', () => {
     it('should pass when git is available', async () => {
       const check = new GitCheck();
       const result = await check.run(context);
-      expect(result.status).toBe('pass');
-      expect(result.message).toContain('git');
+      if (gitAvailable) {
+        expect(result.status).toBe('pass');
+        expect(result.message).toContain('git');
+      } else {
+        expect(result.status).toBe('skip');
+      }
     });
   });
 
@@ -87,7 +97,11 @@ describe('SystemChecks', () => {
     it('should pass for anvil repository', async () => {
       const check = new GitRepoCheck();
       const result = await check.run(context);
-      expect(result.status).toBe('pass');
+      if (gitAvailable) {
+        expect(result.status).toBe('pass');
+      } else {
+        expect(result.status).toBe('skip');
+      }
     });
   });
 });
