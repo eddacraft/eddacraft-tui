@@ -13,6 +13,8 @@ export interface InitOptions {
   configTemplate: ConfigTemplate;
   enabledChecks: string[];
   coverageThreshold: number;
+  /** When provided, overrides the template-derived overall_score threshold. */
+  overallScoreOverride?: number;
 }
 
 /**
@@ -119,11 +121,14 @@ export class TemplateGenerator {
       return check;
     });
 
+    const overallScore =
+      this.options.overallScoreOverride ?? (this.options.configTemplate === 'strict' ? 90 : 80);
+
     return {
       version: 1,
       checks,
       thresholds: {
-        overall_score: this.options.configTemplate === 'strict' ? 90 : 80,
+        overall_score: overallScore,
       },
     };
   }

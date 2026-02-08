@@ -214,9 +214,12 @@ export function createInitCommand(): Command {
               (smartCoverageCheck?.config?.thresholds as { lines?: number } | undefined)?.lines ??
               80;
 
-            // Determine config template based on overall score threshold
+            // Preserve the numeric overall_score from smart defaults so the
+            // generated .anvilrc matches the computed threshold exactly,
+            // rather than coercing to a template name that hard-codes 90/80.
+            const smartOverallScore = smartConfig.thresholds.overall_score;
             const smartConfigTemplate: ConfigTemplate =
-              smartConfig.thresholds.overall_score >= 90 ? 'strict' : 'basic';
+              smartOverallScore >= 90 ? 'strict' : 'basic';
 
             initOptions = {
               projectRoot,
@@ -226,6 +229,7 @@ export function createInitCommand(): Command {
               configTemplate: smartConfigTemplate,
               enabledChecks: smartEnabledChecks,
               coverageThreshold: smartCoverageThreshold,
+              overallScoreOverride: smartOverallScore,
             };
           } else if (isTUIAvailable({ tui: options.tui })) {
             initOptions = await runTUIWizard(projectRoot, env, detector);
