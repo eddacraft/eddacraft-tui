@@ -89,8 +89,8 @@ export function CLIFooter() {
     }
   }, [submitted, currentLineIndex, currentCharIndex, email]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    e?.preventDefault();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim()) || isSubmitting) return;
 
@@ -220,7 +220,13 @@ export function CLIFooter() {
             <div className="text-center text-[10px] sm:text-xs text-text-muted">
               {!submitted ? (
                 <p>
-                  <span className="text-text-primary">enter</span> submit
+                  <button
+                    type="button"
+                    onClick={handleSubmit}
+                    className="bg-transparent border-none p-0 font-mono text-[10px] sm:text-xs text-text-muted cursor-pointer hover:text-text-primary transition-colors"
+                  >
+                    <span className="text-text-primary">enter</span> submit
+                  </button>
                   <span className="text-structure mx-2">::</span>
                   <span className="text-text-primary">esc</span> clear
                 </p>
