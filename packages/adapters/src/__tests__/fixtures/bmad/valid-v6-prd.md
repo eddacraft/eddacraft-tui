@@ -23,11 +23,10 @@ and variable syntax. The project uses `_bmad/_config` for configuration and
 
 ## Functional Requirements
 
-FR-01: Support `_bmad` folder structure for project configuration FR-02: Support
-`_config` folder for module configuration FR-03: Expand `{project-root}`
-hyphenated variable syntax
+FR-01: Support `_bmad` folder structure FR-02: Support `_config` folder for
+modules FR-03: Expand `{project-root}` variables
 
 ## Non-Functional Requirements
 
-NFR-01: Maintain backward compatibility with `.bmad` and `_cfg` folders NFR-02:
-Support both `{project_root}` and `{project-root}` variable formats
+NFR-01: Backward compat with `.bmad` and `_cfg` NFR-02: Support `{project_root}`
+and `{project-root}`
