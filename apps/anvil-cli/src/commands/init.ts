@@ -32,6 +32,8 @@ import { ProjectDetector } from '../services/project-detector.js';
 import { SampleAnalyzer } from '../services/sample-analyzer.js';
 import { HistoricalAnalyzer } from '../services/historical-analyser.js';
 import { RepoScanner } from '../services/repo-scanner.js';
+import { QuickWinsIdentifier } from '../services/quick-wins.js';
+import { SmartDefaultsGenerator } from '../services/smart-defaults.js';
 import { InitResults } from '../tui/commands/init/InitResults.js';
 import type { InitAnalysisResults } from '../tui/components/ResultsDashboard.js';
 import {
@@ -197,14 +199,33 @@ export function createInitCommand(): Command {
           let initOptions: InitOptions;
 
           if (options.nonInteractive) {
+            // Use smart defaults based on detected project context
+            const projectDetector = new ProjectDetector(projectRoot);
+            const projectContext = projectDetector.detect();
+            const smartDefaultsGenerator = new SmartDefaultsGenerator();
+            const smartConfig = smartDefaultsGenerator.generate(projectContext);
+
+            // Derive enabled checks and coverage threshold from smart defaults
+            const smartEnabledChecks = smartConfig.checks
+              .filter((c) => c.enabled)
+              .map((c) => c.name);
+            const smartCoverageCheck = smartConfig.checks.find((c) => c.name === 'coverage');
+            const smartCoverageThreshold =
+              (smartCoverageCheck?.config?.thresholds as { lines?: number } | undefined)?.lines ??
+              80;
+
+            // Determine config template based on overall score threshold
+            const smartConfigTemplate: ConfigTemplate =
+              smartConfig.thresholds.overall_score >= 90 ? 'strict' : 'basic';
+
             initOptions = {
               projectRoot,
               planningDir: 'docs/plans',
               format: 'generic',
               createExample: true,
-              configTemplate: 'basic',
-              enabledChecks: detector.getRecommendedChecks(env),
-              coverageThreshold: 80,
+              configTemplate: smartConfigTemplate,
+              enabledChecks: smartEnabledChecks,
+              coverageThreshold: smartCoverageThreshold,
             };
           } else if (isTUIAvailable({ tui: options.tui })) {
             initOptions = await runTUIWizard(projectRoot, env, detector);
@@ -610,6 +631,12 @@ async function runIntelligentAnalysis(
     const totalChecks = scanResult.currentIssues.checksRun.length;
     const passedChecks = totalChecks - checksWithBlockingWarnings.size;
 
+    // Identify quick wins from warnings
+    const quickWinsIdentifier = new QuickWinsIdentifier();
+    const quickWins = quickWinsIdentifier.analyse(
+      scanResult.currentIssues.rawResult.warnings.warnings
+    );
+
     const results: InitAnalysisResults = {
       project: scanResult.project,
       configPath,
@@ -624,6 +651,7 @@ async function runIntelligentAnalysis(
         errors: scanResult.currentIssues.bySeverity.errors,
         suppressions: scanResult.currentIssues.rawResult.warnings.summary.suppressed,
       },
+      quickWins,
       historical: scanResult.historical,
     };
 

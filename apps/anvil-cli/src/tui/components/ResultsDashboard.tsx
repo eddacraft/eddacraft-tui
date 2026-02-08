@@ -204,7 +204,6 @@ function HistoricalPanel({ analysis }: { analysis: HistoricalAnalysis }): React.
               <Text color={theme.colours.smoke}>Average per Commit:</Text>
             </Box>
             <Text color={theme.colours.ash}>{analysis.avgViolationsPerCommit.toFixed(1)}</Text>
-            <Text color={theme.colours.ash}>{analysis.avgViolationsPerCommit.toFixed(1)}</Text>
           </Box>
 
           {analysis.patternOccurrences.length > 0 && (
