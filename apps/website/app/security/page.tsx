@@ -177,8 +177,11 @@ export default function SecurityPage() {
               <div>
                 <p className="text-text-primary mb-1">How to Report</p>
                 <p className="pl-4">
-                  Email <a href="mailto:security@eddacraft.com" className="text-anvil hover:underline">security@eddacraft.com</a> with details of
-                  the vulnerability. Include steps to reproduce if possible.
+                  Email{' '}
+                  <a href="mailto:security@eddacraft.com" className="text-anvil hover:underline">
+                    security@eddacraft.com
+                  </a>{' '}
+                  with details of the vulnerability. Include steps to reproduce if possible.
                 </p>
               </div>
 

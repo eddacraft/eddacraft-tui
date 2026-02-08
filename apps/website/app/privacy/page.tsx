@@ -149,7 +149,10 @@ export default function PrivacyPage() {
               </ul>
               <p className="mt-4">
                 To exercise these rights, contact us at{' '}
-                <a href="mailto:privacy@eddacraft.com" className="text-anvil hover:underline">privacy@eddacraft.com</a>.
+                <a href="mailto:privacy@eddacraft.com" className="text-anvil hover:underline">
+                  privacy@eddacraft.com
+                </a>
+                .
               </p>
             </div>
           </section>
