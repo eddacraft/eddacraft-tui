@@ -198,7 +198,7 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
       issues.push({
         code: 'MISSING_HAS_SIDECAR',
         path: 'frontMatter.hasSidecar',
-        message: 'Agent document is missing required hasSidecar field (BMAD v6)',
+        message: 'Agent document is missing the hasSidecar field (expected for BMAD v6)',
         severity: 'warning',
       });
     }

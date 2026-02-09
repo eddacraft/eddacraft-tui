@@ -250,11 +250,14 @@ describe('PromptFormatter', () => {
     });
 
     it('should exclude anti-patterns when configured', () => {
-      const formatter = new PromptFormatter({ includeAntiPatterns: false });
+      const formatter = new PromptFormatter({
+        includeAntiPatterns: false,
+        includeSuppressions: false,
+      });
       const result = formatter.format(sampleConstraints);
 
       expect(result).not.toContain('**Forbidden Anti-patterns**');
-      expect(result).not.toContain('Broad eslint-disable');
+      expect(result).not.toContain('AP-001');
     });
 
     it('should skip anti-patterns section when empty', () => {

@@ -443,7 +443,7 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
     const lowerContent = content.toLowerCase();
 
     // Detect speckit.* namespace commands (e.g., /speckit.clarify, /speckit.analyze)
-    const hasSpeckitNamespace = /(^|\s)\/?speckit\.[a-z]+\b/i.test(content);
+    const hasSpeckitNamespace = /\b\/?speckit\.\w+\b/i.test(content);
 
     // Check for AGENTS.md sibling
     const hasAgentsMdSibling =

@@ -263,7 +263,11 @@ export class LlmsTxtFormatter {
         lines.push(`- **\`${suppression.file}\`** (${suppression.scope})`);
         lines.push(`  - Reason: ${suppression.reason}`);
         if (suppression.expiresAt) {
-          lines.push(`  - Expires: ${new Date(suppression.expiresAt).toISOString().slice(0, 10)}`);
+          const expiresDate = new Date(suppression.expiresAt);
+          const expiresValue = Number.isNaN(expiresDate.getTime())
+            ? String(suppression.expiresAt)
+            : expiresDate.toISOString().slice(0, 10);
+          lines.push(`  - Expires: ${expiresValue}`);
         }
         lines.push('');
       }

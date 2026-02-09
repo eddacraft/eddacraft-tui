@@ -275,7 +275,12 @@ export class PromptFormatter {
         for (const suppression of suppressions) {
           lines.push(`- **${suppression.file}** (${suppression.scope}): ${suppression.reason}`);
           if (suppression.expiresAt) {
-            lines.push(`  Expires: ${new Date(suppression.expiresAt).toISOString().slice(0, 10)}`);
+            const expiresAtDate = new Date(suppression.expiresAt);
+            if (!Number.isNaN(expiresAtDate.getTime())) {
+              lines.push(`  Expires: ${expiresAtDate.toISOString().slice(0, 10)}`);
+            } else {
+              lines.push(`  Expires: ${suppression.expiresAt}`);
+            }
           }
         }
         lines.push('');

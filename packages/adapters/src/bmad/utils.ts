@@ -36,12 +36,16 @@ export function analyzePath(hint: PathDetectionHint): {
   const configDirs: readonly string[] = [BMAD_FOLDERS.CONFIG, BMAD_FOLDERS.CONFIG_LEGACY];
 
   const isBmadFolder =
-    bmadDirs.some((d) => normalizedPath.includes(`/${d}/`) || normalizedPath.includes(`${d}/`)) ||
-    allDirs.some((d) => bmadDirs.includes(d));
+    bmadDirs.some((d) => {
+      const pattern = new RegExp(`(?:^|/)${escapeRegExp(d)}(?:/|$)`);
+      return pattern.test(normalizedPath);
+    }) || allDirs.some((d) => bmadDirs.includes(d));
 
   const isConfigFolder =
-    configDirs.some((d) => normalizedPath.includes(`/${d}/`) || normalizedPath.includes(`${d}/`)) ||
-    allDirs.some((d) => configDirs.includes(d));
+    configDirs.some((d) => {
+      const pattern = new RegExp(`(?:^|/)${escapeRegExp(d)}(?:/|$)`);
+      return pattern.test(normalizedPath);
+    }) || allDirs.some((d) => configDirs.includes(d));
 
   return { isBmadFolder, isConfigFolder };
 }
@@ -65,8 +69,8 @@ export function expandVariables(content: string, variables: Record<string, strin
     const hyphenKey = key.replace(/_/g, '-');
 
     result = result
-      .replace(new RegExp(`\\{${escapeRegExp(underscoreKey)}\\}`, 'g'), value)
-      .replace(new RegExp(`\\{${escapeRegExp(hyphenKey)}\\}`, 'g'), value);
+      .replace(new RegExp(`\\{${escapeRegExp(underscoreKey)}\\}`, 'g'), () => value)
+      .replace(new RegExp(`\\{${escapeRegExp(hyphenKey)}\\}`, 'g'), () => value);
   }
 
   return result;
