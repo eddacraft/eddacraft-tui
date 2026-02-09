@@ -23,6 +23,7 @@ interface CheckOptions {
   since?: string;
   all?: boolean;
   extensions?: string;
+  interactive?: boolean;
 }
 
 interface JSONCheckOutput {
@@ -50,6 +51,123 @@ interface JSONCheckOutput {
     info: number;
     suppressed: number;
   };
+}
+
+/** Pattern IDs that have deterministic fixes available */
+const FIXABLE_PATTERNS = new Set(['AP-001', 'AP-004']);
+
+type InteractiveAction = 'skip' | 'fix' | 'suppress' | 'quit';
+
+/**
+ * Display a warning interactively and prompt for action.
+ * Extracted for testability — accepts a prompt function.
+ */
+export async function promptForWarning(
+  w: Warning,
+  promptFn: (choices: Array<{ name: string; value: string }>) => Promise<string>
+): Promise<InteractiveAction> {
+  const icon = w.severity === 'error' ? '✗' : w.severity === 'warning' ? '⚠' : 'ℹ';
+
+  console.log('');
+  console.log(chalk.bold(`  ${icon} [${w.id}] ${w.title}`));
+  console.log(chalk.gray(`    ${w.location.file}:${w.location.line}`));
+  console.log(`    ${w.message}`);
+
+  if (w.nudge) {
+    console.log(chalk.green(`\n    → ${w.nudge}`));
+  }
+
+  console.log('');
+
+  const choices: Array<{ name: string; value: string }> = [
+    { name: '[s]kip — move to next warning', value: 'skip' },
+  ];
+
+  if (FIXABLE_PATTERNS.has(w.id)) {
+    choices.push({ name: '[f]ix — apply deterministic fix', value: 'fix' });
+  }
+
+  choices.push({ name: '[u]ppress — add @anvil-ignore comment', value: 'suppress' });
+  choices.push({ name: '[q]uit — stop reviewing', value: 'quit' });
+
+  const answer = await promptFn(choices);
+  return answer as InteractiveAction;
+}
+
+/**
+ * Run interactive review loop over warnings.
+ * Returns the list of actions taken.
+ */
+export async function runInteractiveReview(
+  warnings: Warning[],
+  promptFn?: (choices: Array<{ name: string; value: string }>) => Promise<string>
+): Promise<Array<{ warning: Warning; action: InteractiveAction }>> {
+  const results: Array<{ warning: Warning; action: InteractiveAction }> = [];
+
+  // Default prompt uses inquirer
+  const defaultPromptFn = async (
+    choices: Array<{ name: string; value: string }>
+  ): Promise<string> => {
+    const inquirer = await import('inquirer');
+    const { action } = await inquirer.default.prompt<{ action: string }>([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'What would you like to do?',
+        choices,
+      },
+    ]);
+    return action;
+  };
+
+  const askFn = promptFn ?? defaultPromptFn;
+
+  // Only review non-suppressed warnings
+  const reviewable = warnings.filter((w) => !w.suppressed);
+
+  if (reviewable.length === 0) {
+    return results;
+  }
+
+  console.log(chalk.bold(`\n🔍 Interactive review: ${reviewable.length} warning(s) to review\n`));
+
+  for (let i = 0; i < reviewable.length; i++) {
+    const w = reviewable[i];
+    console.log(chalk.gray(`  [${i + 1}/${reviewable.length}]`));
+
+    const action = await promptForWarning(w, askFn);
+    results.push({ warning: w, action });
+
+    if (action === 'quit') {
+      console.log(chalk.gray('\n  Review stopped.'));
+      break;
+    }
+
+    if (action === 'fix') {
+      console.log(chalk.cyan(`    ℹ Fix for ${w.id} noted — apply fixes after review.`));
+    }
+
+    if (action === 'suppress') {
+      console.log(
+        chalk.yellow(
+          `    ℹ Add \`// @anvil-ignore ${w.id}: <reason>\` above line ${w.location.line} in ${w.location.file}`
+        )
+      );
+    }
+  }
+
+  // Summary
+  const skipped = results.filter((r) => r.action === 'skip').length;
+  const fixed = results.filter((r) => r.action === 'fix').length;
+  const suppressed = results.filter((r) => r.action === 'suppress').length;
+
+  console.log(chalk.bold('\n  Review summary:'));
+  if (skipped > 0) console.log(`    Skipped: ${skipped}`);
+  if (fixed > 0) console.log(`    To fix: ${fixed}`);
+  if (suppressed > 0) console.log(`    To suppress: ${suppressed}`);
+  console.log('');
+
+  return results;
 }
 
 function formatWarning(w: Warning, verbose: boolean): void {
@@ -175,6 +293,7 @@ export function createCheckCommand(): Command {
       '--extensions <list>',
       'Comma-separated file extensions to analyse (e.g., .ts,.tsx,.html)'
     )
+    .option('-i, --interactive', 'Review each warning interactively with nudge coaching')
     .action(async (files: string[], options: CheckOptions) => {
       const spinner = options.json ? null : ora('Analysing files...').start();
 
@@ -318,6 +437,15 @@ export function createCheckCommand(): Command {
 
           if (options.verbose) {
             info(`Checks run: ${result.checksRun.join(', ')}`);
+          }
+        }
+
+        // Interactive mode: review each warning with nudge coaching
+        if (options.interactive && !options.json && result.warnings.warnings.length > 0) {
+          if (!process.stdout.isTTY) {
+            info('--interactive ignored: not a TTY environment');
+          } else {
+            await runInteractiveReview(result.warnings.warnings);
           }
         }
 

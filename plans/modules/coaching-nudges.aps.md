@@ -221,7 +221,7 @@ better solution than a mechanical transform.
   notification or inline. Deterministic fix actions (AP-003, AP-004) can
   actually modify code via `WorkspaceEdit`.
 
-### NUDGE-005: CLI interactive mode
+### NUDGE-005: CLI interactive mode ✅
 
 - **Intent:** Add `--interactive` flag to `anvil check` that pauses on each
   violation and displays the nudge
