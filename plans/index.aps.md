@@ -128,13 +128,14 @@ regardless of how good the engine is. First impressions matter.
 
 ### v1.2 — Advanced Experience
 
-| Feature           | Description                                            | Status   |
-| ----------------- | ------------------------------------------------------ | -------- |
-| VS Code Extension | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Complete |
-| TUI Operational   | Watch dashboard, gate explorer (TUI-009–012)           | Draft    |
-| Template Library  | Pre-built architecture patterns (TUI-006)              | Draft    |
-| Tutorial Mode     | Interactive learning experience (TUI-007)              | Draft    |
-| TUI Diagrams      | Mermaid-based ASCII diagrams via beautiful-mermaid (TUI-013–015) | Draft    |
+| Feature               | Description                                            | Status   |
+| --------------------- | ------------------------------------------------------ | -------- |
+| VS Code Extension     | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Complete |
+| Adapter Upstream Sync | BMAD v6 + SpecKit agent-first updates (ADAPTUP)        | Complete |
+| TUI Operational       | Watch dashboard, gate explorer (TUI-009–012)           | Draft    |
+| Template Library      | Pre-built architecture patterns (TUI-006)              | Draft    |
+| Tutorial Mode         | Interactive learning experience (TUI-007)              | Draft    |
+| TUI Diagrams          | Mermaid-based ASCII diagrams via beautiful-mermaid (TUI-013–015) | Draft    |
 
 #### VS Code Extension Details (v1.2.0 → v1.3.0)
 
@@ -144,21 +145,24 @@ regardless of how good the engine is. First impressions matter.
 | v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 | Complete |
 | v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 | Complete |
 
-### v1.3 — HTML/CSS Support & Multi-Language Foundation
+### v1.3 — HTML/CSS Support, Tutorial Overhaul & Intelligent First Run (Complete)
 
-| Feature                  | Description                                         | Status |
-| ------------------------ | --------------------------------------------------- | ------ |
-| Configurable Extensions  | Make analysable file extensions configurable         | Ready  |
-| HTML Anti-patterns       | Inline styles, scripts, event handlers, deprecated  | Ready  |
-| CSS Anti-patterns        | `!important` abuse, CSS `@import` performance       | Ready  |
-| HTML/CSS Edge Detection  | `<script src>`, `<link href>`, `@import url()`      | Ready  |
-| HTML Suppression Syntax  | `<!-- @anvil-ignore ... -->` comment support         | Ready  |
-| VS Code HTML/CSS Trigger | Analysis on HTML/CSS file saves                     | Ready  |
+| Feature                   | Description                                         | Status   |
+| ------------------------- | --------------------------------------------------- | -------- |
+| Configurable Extensions   | Make analysable file extensions configurable         | Complete |
+| HTML Anti-patterns        | Inline styles, scripts, event handlers, deprecated  | Complete |
+| CSS Anti-patterns         | `!important` abuse, CSS `@import` performance       | Complete |
+| HTML/CSS Edge Detection   | `<script src>`, `<link href>`, `@import url()`      | Complete |
+| HTML Suppression Syntax   | `<!-- @anvil-ignore ... -->` comment support         | Complete |
+| VS Code HTML/CSS Trigger  | Analysis on HTML/CSS file saves                     | Complete |
+| Tutorial Overhaul         | Scan-watch-fix flow, feature tutorials, docs        | Complete |
+| Intelligent First Run     | Post-init analysis, smart defaults, quick wins      | Complete |
 
 **Why v1.3:** HTML/CSS is the simplest non-JS language to support — no module
 resolution, no type system, all regex-based. It establishes the configurable
 extensions infrastructure (HTMLCSS-001) that all future language modules depend
-on.
+on. The tutorial overhaul and intelligent first-run experience complete the
+onboarding story by giving new users an immediate value demonstration.
 
 ### v2.0a — AI Tool Integration
 
@@ -317,7 +321,7 @@ graph TD
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md)           | AIGUARD | Draft       | v2.0    | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
 | [aps-markdown-adapter](./archive/modules/aps-markdown-adapter.aps.md)   | APSMD   | Complete    | v1.1    | —                                                         |
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md)                 | OPENSPEC| Draft       | v2.0    | —                                                         |
-| [adapter-upstream-updates](./modules/adapter-upstream-updates.aps.md)   | ADAPTUP | Draft       | v1.2    | —                                                         |
+| [adapter-upstream-updates](./archive/modules/adapter-upstream-updates.aps.md) | ADAPTUP | Complete    | v1.3    | —                                                         |
 | [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.0    | save-time-trust, drift-reporting                          |
 | [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | v2.0    | kindling-integration                                      |
 | [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | v2.0    | ember                                                     |
@@ -339,12 +343,12 @@ graph TD
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | v2.0    | dashboard-foundation                                      |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | v2.0    | dashboard-foundation                                      |
 | [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Ready       | v2.0    | —                                                         |
-| [html-css-support](./modules/html-css-support.aps.md)                   | HTMLCSS  | Ready       | v1.3    | antipattern-library, architecture-safety, suppressions    |
+| [html-css-support](./archive/modules/html-css-support.aps.md)           | HTMLCSS  | Complete    | v1.3    | antipattern-library, architecture-safety, suppressions    |
 | [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 | [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
 | [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
-| [intelligent-first-run](./modules/intelligent-first-run.aps.md)         | IFR      | Ready       | v1.3    | tui, architecture-safety                                  |
-| [tutorial-overhaul](./modules/tutorial-overhaul.aps.md)                 | TUT      | Ready       | v1.3    | tui                                                       |
+| [intelligent-first-run](./archive/modules/intelligent-first-run.aps.md) | IFR      | Complete    | v1.3    | tui, architecture-safety                                  |
+| [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md)         | TUT      | Complete    | v1.3    | tui                                                       |
 | [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | v1.2    | monorepo-migration                                        |
 | [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | Ready       | v2.0    | antipattern-library                                       |
 | [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | Draft       | —       | —                                                         |
@@ -593,15 +597,58 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 
 ### Task Status — v1.3 (HTML/CSS Support)
 
-| Task        | Module  | Description                                 | Status  | Priority |
-| ----------- | ------- | ------------------------------------------- | ------- | -------- |
-| HTMLCSS-001 | htmlcss | Make analysable extensions configurable      | Planned | high     |
-| HTMLCSS-002 | htmlcss | HTML anti-pattern detectors (AP-008–011)     | Planned | high     |
-| HTMLCSS-003 | htmlcss | CSS anti-pattern detectors (AP-012–013)      | Planned | high     |
-| HTMLCSS-004 | htmlcss | HTML/CSS edge detection                      | Planned | high     |
-| HTMLCSS-005 | htmlcss | HTML suppression comment syntax              | Planned | high     |
-| HTMLCSS-006 | htmlcss | VS Code extension HTML/CSS trigger           | Planned | medium   |
-| HTMLCSS-007 | htmlcss | Documentation and tests                      | Planned | medium   |
+| Task        | Module  | Description                                 | Status   | Priority |
+| ----------- | ------- | ------------------------------------------- | -------- | -------- |
+| HTMLCSS-001 | htmlcss | Make analysable extensions configurable      | Complete | high     |
+| HTMLCSS-002 | htmlcss | HTML anti-pattern detectors (AP-008–011)     | Complete | high     |
+| HTMLCSS-003 | htmlcss | CSS anti-pattern detectors (AP-012–013)      | Complete | high     |
+| HTMLCSS-004 | htmlcss | HTML/CSS edge detection                      | Complete | high     |
+| HTMLCSS-005 | htmlcss | HTML suppression comment syntax              | Complete | high     |
+| HTMLCSS-006 | htmlcss | VS Code extension HTML/CSS trigger           | Complete | medium   |
+| HTMLCSS-007 | htmlcss | Documentation and tests                      | Complete | medium   |
+
+### Task Status — v1.3 (Tutorial Overhaul)
+
+| Task    | Module | Description                                          | Status   | Priority |
+| ------- | ------ | ---------------------------------------------------- | -------- | -------- |
+| TUT-001 | tut    | Rewrite tutorial step types for scan-watch-fix flow  | Complete | high     |
+| TUT-002 | tut    | Create ScanStep TUI component                        | Complete | high     |
+| TUT-003 | tut    | Create WatchStep TUI component                       | Complete | high     |
+| TUT-004 | tut    | Create FixStep TUI component                         | Complete | high     |
+| TUT-005 | tut    | Create NextStepsStep and wire up Tutorial.tsx         | Complete | high     |
+| TUT-006 | tut    | Interactive policy creation tutorial                  | Complete | medium   |
+| TUT-007 | tut    | Interactive architecture boundaries tutorial          | Complete | medium   |
+| TUT-008 | tut    | Interactive drift tracking tutorial                   | Complete | medium   |
+| TUT-009 | tut    | Interactive CI integration tutorial                   | Complete | high     |
+| TUT-010 | tut    | Docs-site tutorials section                           | Complete | high     |
+| TUT-011 | tut    | Rewrite quickstart.md and update navigation           | Complete | high     |
+| TUT-012 | tut    | Tutorial --list flag and e2e test                     | Complete | high     |
+
+### Task Status — v1.3 (Intelligent First Run)
+
+| Task    | Module | Description                                   | Status   | Priority |
+| ------- | ------ | --------------------------------------------- | -------- | -------- |
+| IFR-001 | ifr    | Add project context detection service         | Complete | high     |
+| IFR-002 | ifr    | Create smart defaults generator               | Complete | high     |
+| IFR-003 | ifr    | Add post-init automatic analysis              | Complete | high     |
+| IFR-004 | ifr    | Create quick wins identifier                  | Complete | high     |
+| IFR-005 | ifr    | Create interactive results dashboard TUI      | Complete | high     |
+| IFR-006 | ifr    | Add historical analysis feature               | Complete | medium   |
+| IFR-007 | ifr    | Integrate all components in init flow         | Complete | high     |
+| IFR-008 | ifr    | Update documentation                          | Complete | medium   |
+
+### Task Status — v1.2 (Adapter Upstream Updates)
+
+| Task        | Module  | Description                                 | Status   | Priority |
+| ----------- | ------- | ------------------------------------------- | -------- | -------- |
+| ADAPTUP-001 | adaptup | Update BMAD folder structure detection       | Complete | high     |
+| ADAPTUP-002 | adaptup | Update BMAD config path handling             | Complete | high     |
+| ADAPTUP-003 | adaptup | Update BMAD variable syntax                  | Complete | medium   |
+| ADAPTUP-004 | adaptup | Add BMAD hasSidecar field support             | Complete | medium   |
+| ADAPTUP-005 | adaptup | Update SpecKit command namespace detection   | Complete | high     |
+| ADAPTUP-006 | adaptup | Add SpecKit AGENTS.md support                | Complete | medium   |
+| ADAPTUP-007 | adaptup | Update adapter test fixtures                 | Complete | high     |
+| ADAPTUP-008 | adaptup | Update adapter documentation                 | Complete | medium   |
 
 ### Task Status — v2.0 (AI Tool Integration)
 
