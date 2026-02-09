@@ -239,8 +239,14 @@ export function createGateCommand(): Command {
         });
 
         // Parse parallel limit
-        const parallelLimit =
-          options.parallel !== undefined ? parseInt(options.parallel, 10) : undefined;
+        let parallelLimit: number | undefined;
+        if (options.parallel !== undefined) {
+          parallelLimit = parseInt(options.parallel, 10);
+          if (Number.isNaN(parallelLimit) || parallelLimit < 0) {
+            error('--parallel must be a non-negative integer');
+            process.exit(1);
+          }
+        }
 
         // Prepare gate options
         const gateOptions: GateRunOptions = {

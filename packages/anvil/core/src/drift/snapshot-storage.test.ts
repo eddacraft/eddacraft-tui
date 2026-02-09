@@ -299,33 +299,27 @@ describe('SnapshotStorage Security', () => {
 
   describe('path traversal prevention', () => {
     it('should reject path traversal in loadSnapshot with ../', async () => {
-      await expect(loadSnapshot(testDir, '../secrets.json')).rejects.toThrow(
-        'Invalid snapshot identifier'
-      );
+      await expect(loadSnapshot(testDir, '../secrets.json')).rejects.toThrow('Invalid identifier');
     });
 
     it('should reject path traversal in deleteSnapshot with ../', async () => {
       await expect(deleteSnapshot(testDir, '../secrets.json')).rejects.toThrow(
-        'Invalid snapshot identifier'
+        'Invalid identifier'
       );
     });
 
     it('should reject path traversal in snapshotExists with ../', async () => {
       await expect(snapshotExists(testDir, '../secrets.json')).rejects.toThrow(
-        'Invalid snapshot identifier'
+        'Invalid identifier'
       );
     });
 
     it('should reject absolute paths in loadSnapshot', async () => {
-      await expect(loadSnapshot(testDir, '/etc/passwd.json')).rejects.toThrow(
-        'Invalid snapshot identifier'
-      );
+      await expect(loadSnapshot(testDir, '/etc/passwd.json')).rejects.toThrow('Invalid identifier');
     });
 
     it('should reject paths with directory separators', async () => {
-      await expect(loadSnapshot(testDir, 'subdir/file.json')).rejects.toThrow(
-        'Invalid snapshot identifier'
-      );
+      await expect(loadSnapshot(testDir, 'subdir/file.json')).rejects.toThrow('Invalid identifier');
     });
 
     it('should reject backslash path separators (Windows-style)', async () => {
@@ -340,9 +334,7 @@ describe('SnapshotStorage Security', () => {
         expect(loaded).toBeNull(); // File doesn't exist
       } else {
         // On Windows or if basename strips it, should reject
-        await expect(loadSnapshot(testDir, identifier)).rejects.toThrow(
-          'Invalid snapshot identifier'
-        );
+        await expect(loadSnapshot(testDir, identifier)).rejects.toThrow('Invalid identifier');
       }
     });
 
@@ -356,9 +348,7 @@ describe('SnapshotStorage Security', () => {
     });
 
     it('should reject filename with null byte', async () => {
-      await expect(loadSnapshot(testDir, 'file\0.json')).rejects.toThrow(
-        'Invalid snapshot identifier'
-      );
+      await expect(loadSnapshot(testDir, 'file\0.json')).rejects.toThrow('Invalid identifier');
     });
   });
 });

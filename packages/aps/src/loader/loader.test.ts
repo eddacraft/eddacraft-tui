@@ -118,8 +118,10 @@ describe('resolvePath', () => {
     );
   });
 
-  it('should preserve absolute paths', () => {
-    expect(resolvePath('/absolute/path.md', '/project')).toBe('/absolute/path.md');
+  it('should reject absolute paths', () => {
+    expect(() => resolvePath('/absolute/path.md', '/project')).toThrow(
+      'Absolute module paths are not allowed'
+    );
   });
 });
 

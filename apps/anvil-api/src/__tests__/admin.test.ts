@@ -8,19 +8,23 @@ afterEach(() => {
 
 const ADMIN_KEY = 'test-admin-key-12345';
 
+// Create a mock SQL tagged template function with transaction support
+function createMockSql() {
+  const sql = vi.fn() as ReturnType<typeof vi.fn> & { transaction: ReturnType<typeof vi.fn> };
+  sql.transaction = vi.fn();
+  return sql;
+}
+
+const mockSql = createMockSql();
+
 // Mock db client
 vi.mock('../db/client.js', () => ({
-  getClient: vi.fn(),
+  getClient: vi.fn(() => mockSql),
 }));
 
-// Mock queries
+// Mock queries (findUserWithTokens is still used directly)
 vi.mock('../db/queries.js', () => ({
-  upsertUser: vi.fn(),
-  insertToken: vi.fn(),
-  revokeTokensByEmail: vi.fn(),
-  revokeTokenByHash: vi.fn(),
   findUserWithTokens: vi.fn(),
-  insertAuditLog: vi.fn(),
 }));
 
 // Mock token utilities
@@ -30,13 +34,7 @@ vi.mock('../lib/token.js', () => ({
   isValidTokenFormat: vi.fn().mockReturnValue(true),
 }));
 
-import {
-  upsertUser,
-  insertToken,
-  revokeTokensByEmail,
-  findUserWithTokens,
-  insertAuditLog,
-} from '../db/queries.js';
+import { findUserWithTokens } from '../db/queries.js';
 
 const app = new Hono();
 app.route('/admin', admin);
@@ -88,33 +86,13 @@ describe('admin endpoints', () => {
 
   describe('POST /admin/invite', () => {
     it('creates user and returns token', async () => {
-      const mockUser = {
-        id: 'user-1',
-        email: 'alice@example.com',
-        name: null,
-        status: 'active',
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      vi.mocked(upsertUser).mockResolvedValue(mockUser);
-      vi.mocked(insertToken).mockResolvedValue({
-        id: 'token-1',
-        user_id: 'user-1',
-        token_hash: 'mocked-hash',
-        scopes: ['beta'],
-        expires_at: new Date(Date.now() + 86400000 * 90).toISOString(),
-        revoked_at: null,
-        created_at: new Date().toISOString(),
-      });
-      vi.mocked(insertAuditLog).mockResolvedValue({
-        id: 'audit-1',
-        action: 'token.created',
-        actor: 'admin',
-        metadata: {},
-        created_at: new Date().toISOString(),
-      });
+      // Mock the transaction to return results for each statement:
+      // [0] = upsert user rows, [1] = insert token rows, [2] = audit log rows
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'user-1', email: 'alice@example.com' }],
+        [{ id: 'token-1' }],
+        [{ id: 'audit-1' }],
+      ]);
 
       const res = await request(
         'POST',
@@ -128,9 +106,7 @@ describe('admin endpoints', () => {
       expect(body.token).toMatch(/^anvil_beta_/);
       expect(body.user.email).toBe('alice@example.com');
       expect(body.scopes).toEqual(['beta']);
-      expect(upsertUser).toHaveBeenCalled();
-      expect(insertToken).toHaveBeenCalled();
-      expect(insertAuditLog).toHaveBeenCalled();
+      expect(mockSql.transaction).toHaveBeenCalledTimes(1);
     });
 
     it('returns 400 for invalid email', async () => {
@@ -141,14 +117,12 @@ describe('admin endpoints', () => {
 
   describe('POST /admin/revoke', () => {
     it('revokes all tokens by email', async () => {
-      vi.mocked(revokeTokensByEmail).mockResolvedValue(2);
-      vi.mocked(insertAuditLog).mockResolvedValue({
-        id: 'audit-1',
-        action: 'tokens.revoked',
-        actor: 'admin',
-        metadata: {},
-        created_at: new Date().toISOString(),
-      });
+      // Mock the transaction to return results:
+      // [0] = revoked token rows, [1] = audit log rows
+      mockSql.transaction.mockResolvedValue([
+        [{ id: 'token-1' }, { id: 'token-2' }],
+        [{ id: 'audit-1' }],
+      ]);
 
       const res = await request('POST', '/admin/revoke', { email: 'alice@example.com' }, ADMIN_KEY);
 
@@ -201,6 +175,11 @@ describe('admin endpoints', () => {
       vi.mocked(findUserWithTokens).mockResolvedValue(null);
       const res = await request('GET', '/admin/user/nobody@example.com', undefined, ADMIN_KEY);
       expect(res.status).toBe(404);
+    });
+
+    it('returns 400 for invalid email format', async () => {
+      const res = await request('GET', '/admin/user/not-an-email', undefined, ADMIN_KEY);
+      expect(res.status).toBe(400);
     });
   });
 });

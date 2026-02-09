@@ -5,7 +5,7 @@
     "id": {
       "description": "Unique plan identifier",
       "type": "string",
-      "pattern": "^aps-[a-f0-9]{8}$"
+      "pattern": "^aps-[a-f0-9]{8}([a-f0-9]{8})?$"
     },
     "hash": {
       "description": "SHA-256 hash of the plan content",

@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readJsonFileSync } from '../../../../utils/file-io.js';
@@ -59,7 +59,7 @@ export class HuskyInstalledCheck implements DiagnosticCheck {
 
   async fix(context: DiagnosticContext): Promise<FixResult> {
     try {
-      execSync('npx husky init', {
+      execFileSync('npx', ['husky', 'init'], {
         cwd: context.projectRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
       });

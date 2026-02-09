@@ -11,6 +11,45 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import YAML from 'yaml';
+import { z } from 'zod';
+
+// ---------------------------------------------------------------------------
+// Zod schemas for config.yml validation
+// ---------------------------------------------------------------------------
+
+const EnforcementLevelSchema = z.enum(['block', 'warn', 'info', 'off']);
+
+const PolicyEntrySchema = z.object({
+  name: z.string().max(200),
+  reason: z.string().max(1000).optional(),
+  owner: z.string().max(200).optional(),
+  enforcement: EnforcementLevelSchema,
+  effective: z.string().optional(),
+  tags: z.array(z.string().max(100)).optional(),
+});
+
+const OrgPolicySourceSchema = z.object({
+  source: z.string().max(500),
+  ref: z.string().max(200).optional(),
+});
+
+const AnnouncementEntrySchema = z.object({
+  message: z.string().max(2000),
+  expires: z.string().optional(),
+  level: z.enum(['info', 'warning']).optional(),
+});
+
+const PoliciesConfigSchema = z.object({
+  org: OrgPolicySourceSchema.optional(),
+  team: z.array(PolicyEntrySchema).optional(),
+  local: z.array(PolicyEntrySchema).optional(),
+  starter_profile: z.string().optional(),
+});
+
+const AnvilConfigSchema = z.object({
+  policies: PoliciesConfigSchema.optional(),
+  announcements: z.array(AnnouncementEntrySchema).optional(),
+});
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,7 +157,10 @@ export class PolicyConfigManager {
 
     const raw = readFileSync(this.configPath, 'utf-8');
     const parsed = YAML.parse(raw);
-    return (parsed as AnvilConfig) ?? {};
+    if (!parsed || typeof parsed !== 'object') {
+      return {};
+    }
+    return AnvilConfigSchema.parse(parsed);
   }
 
   /** Write config back to .anvil/config.yml */

@@ -216,9 +216,15 @@ export class EntryPointDetector {
         }
       }
 
-      // Check exports
+      // Check exports (depth-limited to prevent abuse via deeply nested exports)
       if (pkg.exports) {
-        const checkExports = (exports: Record<string, unknown>, prefix = ''): EntryPoint | null => {
+        const MAX_EXPORTS_DEPTH = 10;
+        const checkExports = (
+          exports: Record<string, unknown>,
+          prefix = '',
+          depth = 0
+        ): EntryPoint | null => {
+          if (depth >= MAX_EXPORTS_DEPTH) return null;
           for (const [key, value] of Object.entries(exports)) {
             if (typeof value === 'string') {
               const exportPath = value.replace(/^\.\//, '');
@@ -231,7 +237,11 @@ export class EntryPointDetector {
                 };
               }
             } else if (typeof value === 'object' && value !== null) {
-              const result = checkExports(value as Record<string, unknown>, prefix + key + '/');
+              const result = checkExports(
+                value as Record<string, unknown>,
+                prefix + key + '/',
+                depth + 1
+              );
               if (result) return result;
             }
           }

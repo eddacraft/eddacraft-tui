@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { ProvenanceRecordSchema, ProvenanceIndexSchema } from './types.js';
 import type { ProvenanceRecord, ProvenanceIndex } from './types.js';
 import { createDebugger } from '../utils/debug.js';
+import { sanitizeIdentifier } from '../utils/path-safety.js';
 
 const debug = createDebugger('provenance');
 
@@ -103,7 +104,8 @@ history/
     this.ensureDirectories();
 
     // Save the full record
-    const recordPath = join(this.historyDir, `${record.id}.json`);
+    const safeId = sanitizeIdentifier(record.id);
+    const recordPath = join(this.historyDir, `${safeId}.json`);
     writeFileSync(recordPath, JSON.stringify(record, null, 2));
 
     // Update the index
@@ -140,7 +142,8 @@ history/
    * Gets a specific provenance record by ID
    */
   get(id: string): ProvenanceRecord | null {
-    const recordPath = join(this.historyDir, `${id}.json`);
+    const safeId = sanitizeIdentifier(id);
+    const recordPath = join(this.historyDir, `${safeId}.json`);
     if (!existsSync(recordPath)) {
       return null;
     }
@@ -267,13 +270,14 @@ history/
     const index = this.loadIndex();
 
     for (const record of index.records) {
-      const recordPath = join(this.historyDir, `${record.id}.json`);
+      const safeId = sanitizeIdentifier(record.id);
+      const recordPath = join(this.historyDir, `${safeId}.json`);
       try {
         if (existsSync(recordPath)) {
-          writeFileSync(recordPath, '');
+          unlinkSync(recordPath);
         }
       } catch (error) {
-        debug(`Failed to clear record file ${record.id}`, error);
+        debug(`Failed to delete record file ${record.id}`, error);
       }
     }
 

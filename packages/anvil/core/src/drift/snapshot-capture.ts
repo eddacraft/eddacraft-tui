@@ -1,6 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import {
   type DriftSnapshot,
@@ -21,7 +21,7 @@ import { scanFiles, type ScanResult } from '../antipattern/index.js';
 import { SuppressionService, type FileSuppressions } from '../suppression/index.js';
 import { generateHash } from '../crypto/index.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface CaptureOptions {
   name?: string;
@@ -40,7 +40,7 @@ export interface CaptureContext {
 
 async function getGitRef(workspaceRoot: string): Promise<string | undefined> {
   try {
-    const { stdout } = await execAsync('git rev-parse HEAD', { cwd: workspaceRoot });
+    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot });
     return stdout.trim();
   } catch {
     return undefined;

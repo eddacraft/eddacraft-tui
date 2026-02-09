@@ -4,7 +4,7 @@
 
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { join, basename, extname, sep } from 'node:path';
+import { join, basename, extname, sep, resolve } from 'node:path';
 
 /**
  * Default policy directory relative to workspace root
@@ -76,6 +76,13 @@ export class PolicyLoader {
       errors: [],
       directory: fullPolicyDir,
     };
+
+    // Validate policy directory is within workspace root
+    const resolvedRoot = resolve(workspaceRoot);
+    const resolvedPolicy = resolve(fullPolicyDir);
+    if (resolvedPolicy !== resolvedRoot && !resolvedPolicy.startsWith(resolvedRoot + sep)) {
+      throw new Error(`Policy directory escapes workspace root: ${policyDir}`);
+    }
 
     // Check if policy directory exists
     if (!existsSync(fullPolicyDir)) {

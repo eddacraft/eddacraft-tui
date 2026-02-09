@@ -7,9 +7,9 @@ See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md, apps/anvil-api/REV
 
 # Codebase Hardening
 
-| ID                                       | Owner | Status |
-| ---------------------------------------- | ----- | ------ |
-| CLIH, CORE, API, MCP, RT, POL, ADP, APS, VSIX, PLAT | — | Draft |
+| ID                                       | Owner | Status      |
+| ---------------------------------------- | ----- | ----------- |
+| CLIH, CORE, API, MCP, RT, POL, ADP, APS, VSIX, PLAT | — | In Progress |
 
 ## Branch Status
 
@@ -140,6 +140,23 @@ Change status to **Ready** when:
 
 ## Tasks
 
+### Shared Utilities (UTIL)
+
+### UTIL-001: Extract path safety utilities
+
+- **Intent:** Provide reusable path traversal validation for all packages
+- **Expected Outcome:** `packages/anvil/core/src/utils/path-safety.ts` exports
+  path safety utilities (e.g., `assertWithinBase()`, `sanitizePath()`) used by
+  hardening tasks across PLAT, MCP, RT, POL, and other scopes
+- **Validation:** `pnpm -F anvil-core typecheck`
+- **Files:** `packages/anvil/core/src/utils/path-safety.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** P0
+- **Status:** Complete (2026-02-09)
+
+---
+
 ### CLIH-001: Guard JSON.parse at CLI startup
 
 - **Intent:** Prevent the entire CLI from crashing on corrupted package.json
@@ -151,7 +168,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-002: Add Zod schema validation for config.yml parsing
 
@@ -164,7 +181,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-003: Add Zod validation for auth API responses
 
@@ -178,7 +195,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-004: Delete duplicate historical-analyser.ts
 
@@ -193,7 +210,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-005: Consolidate hook scripts into single source
 
@@ -208,7 +225,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-006: Replace execSync with execFileSync in doctor HooksCheck
 
@@ -221,7 +238,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P2
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-007: Validate --output paths stay within workspace
 
@@ -235,7 +252,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P2
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-008: Add parseInt validation for numeric CLI options
 
@@ -250,7 +267,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P2
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CLIH-009: Add workspace root detection warning
 
@@ -410,7 +427,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CORE-002: Migrate drift and git-notes modules from exec to execFile
 
@@ -425,7 +442,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CORE-003: Add path sanitisation to ProvenanceStore.get() and related methods
 
@@ -439,7 +456,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CORE-004: Fix ProvenanceStore.clear() to actually delete files
 
@@ -452,7 +469,7 @@ Change status to **Ready** when:
 - **Dependencies:** CORE-003 (sanitisation should be in place before deletion logic)
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CORE-005: Add file locking or atomic writes to store modules
 
@@ -469,7 +486,7 @@ Change status to **Ready** when:
 - **Priority:** P1
 - **Notes:** Atomic rename is the minimum; full locking adds a dependency. Team
   should decide which level of protection is needed based on expected concurrency.
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CORE-006: Increase generatePlanId() entropy
 
@@ -485,7 +502,7 @@ Change status to **Ready** when:
 - **Priority:** P2
 - **Notes:** Changing the plan ID format is a breaking change for existing plans.
   Consider supporting both old and new formats in `isValidPlanId`.
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CORE-007: Fix canonicalizeJSON undefined handling
 
@@ -514,7 +531,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P2
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### CORE-009: Update package header to reflect actual I/O usage
 
@@ -621,7 +638,7 @@ Change status to **Ready** when:
 - **Priority:** P0
 - **Notes:** Team must decide the allowlist. If there is no web admin UI yet, CORS
   can be disabled entirely for admin routes (only CLI/server-to-server callers).
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### API-002: Add rate limiting to all endpoints
 
@@ -638,7 +655,7 @@ Change status to **Ready** when:
 - **Notes:** Vercel provides some DDoS protection but application-level limiting
   is needed for abuse prevention and cost control (Neon bills per query).
   Consider `hono-rate-limiter` or a simple in-memory/KV-backed counter.
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### API-003: Validate scopes against known allowlist
 
@@ -651,7 +668,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### API-004: Wrap invite/revoke in database transactions
 
@@ -671,7 +688,7 @@ Change status to **Ready** when:
 - **Notes:** Neon serverless client supports transactions via `sql.begin()`.
   If transactions add too much complexity, the simpler fix is to catch audit
   log errors and still return the successful response.
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### API-005: Add Zod validation to database query results
 
@@ -685,7 +702,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### API-006: Add email validation to GET /admin/user/:email
 
@@ -698,7 +715,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P2
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### API-007: Track admin identity in audit logs
 
@@ -731,7 +748,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P2
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### API-009: Add database health check to /health endpoint
 
@@ -798,7 +815,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### MCP-002: Validate workspaceRoot against server-configured root
 
@@ -813,7 +830,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### MCP-003: Sanitise reason parameter in suppress tool
 
@@ -825,7 +842,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### MCP-004: Add file locking for concurrent modifications
 
@@ -838,7 +855,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### MCP-005: Sanitise prompt template inputs
 
@@ -851,7 +868,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### MCP-006: Add HTTP security headers and session cleanup
 
@@ -880,7 +897,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### RT-002: Validate policy directory stays within workspace
 
@@ -892,7 +909,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### RT-003: Add HMAC integrity protection to cache entries
 
@@ -904,7 +921,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### RT-004: Use fs.mkdtemp() for OPA temp directories
 
@@ -916,7 +933,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### RT-005: Whitelist allowed env var names in bundle verifier
 
@@ -928,7 +945,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ---
 
@@ -944,7 +961,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### POL-002: Validate paths in bundle signature manifest
 
@@ -956,7 +973,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### POL-003: Enforce HTTPS and domain allowlist for bundle downloads
 
@@ -968,7 +985,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ---
 
@@ -986,7 +1003,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### ADP-002: Add input size limits to all parsers
 
@@ -998,7 +1015,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### ADP-003: Fix regex DoS vulnerabilities in parsers
 
@@ -1012,7 +1029,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ---
 
@@ -1028,7 +1045,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### APS-PKG-002: Add hash verification to execution plans
 
@@ -1056,7 +1073,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ### VSIX-002: Validate gate output file paths against workspace
 
@@ -1068,7 +1085,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P1
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ---
 
@@ -1084,7 +1101,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P0
-- **Status:** Pending
+- **Status:** Complete (2026-02-09)
 
 ---
 

@@ -4,7 +4,7 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { dirname, join, resolve, isAbsolute } from 'node:path';
+import { dirname, resolve, isAbsolute } from 'node:path';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { visit } from 'unist-util-visit';
@@ -230,18 +230,26 @@ async function loadMultiModulePlan(
 }
 
 /**
- * Resolve a relative path against a base directory
+ * Resolve a relative path against a base directory.
+ * Rejects absolute paths and paths that escape the base directory.
  */
 export function resolvePath(relativePath: string, baseDir: string): string {
-  // Remove leading ./ if present
-  const cleanPath = relativePath.replace(/^\.\//, '');
-
-  // If it's already absolute, return as-is
+  // Reject absolute paths — module paths must be relative to baseDir
   if (isAbsolute(relativePath)) {
-    return relativePath;
+    throw new ParseError(`Absolute module paths are not allowed: ${relativePath}`, relativePath);
   }
 
-  return join(baseDir, cleanPath);
+  // Remove leading ./ if present
+  const cleanPath = relativePath.replace(/^\.\//, '');
+  const resolved = resolve(baseDir, cleanPath);
+  const resolvedBase = resolve(baseDir);
+
+  // Validate the resolved path stays within baseDir
+  if (resolved !== resolvedBase && !resolved.startsWith(resolvedBase + '/')) {
+    throw new ParseError(`Module path escapes base directory: ${relativePath}`, relativePath);
+  }
+
+  return resolved;
 }
 
 /**

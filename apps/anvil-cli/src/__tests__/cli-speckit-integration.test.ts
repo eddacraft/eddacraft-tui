@@ -103,7 +103,7 @@ Add authentication routes to Express app.
       const result = await planLoader.loadPlan(filePath);
 
       expect(result.plan).toBeDefined();
-      expect(result.plan.id).toMatch(/^aps-[a-f0-9]{8}$/);
+      expect(result.plan.id).toMatch(/^aps-[a-f0-9]{8,16}$/);
       expect(result.plan.intent).toContain('authentication');
       expect(result.plan.schema_version).toBe('0.1.0');
       expect(result.plan.proposed_changes.length).toBeGreaterThan(0);

@@ -24,7 +24,13 @@ import { createError, createWarning, generateDeterministicPlanId } from '../base
  * @param content - BMAD markdown content
  * @returns Parsed document
  */
+/** Maximum input size for BMAD parsing (2MB) */
+const MAX_INPUT_SIZE = 2 * 1024 * 1024;
+
 export function parseBMADDocument(content: string): BMADDocument {
+  if (content.length > MAX_INPUT_SIZE) {
+    throw new Error(`Input exceeds maximum size of ${MAX_INPUT_SIZE} bytes`);
+  }
   const frontMatter = extractFrontMatter(content);
   const docType = identifyDocumentType(content, frontMatter);
   const requirements = extractRequirements(content);

@@ -6,7 +6,7 @@ import { findTokenByHash } from '../db/queries.js';
 import { hashToken, isValidTokenFormat } from '../lib/token.js';
 
 const verifySchema = z.object({
-  token: z.string(),
+  token: z.string().max(200),
 });
 
 const auth = new Hono();

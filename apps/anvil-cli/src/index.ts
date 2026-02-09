@@ -37,6 +37,7 @@ import { readJsonFileSync } from './utils/file-io.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJson =
   readJsonFileSync<Record<string, string>>(join(__dirname, '..', 'package.json')) ?? {};
+const CLI_VERSION = packageJson.version || '0.0.0-unknown';
 
 // Commands that don't require authentication
 const AUTH_EXEMPT_COMMANDS = new Set([
@@ -68,7 +69,7 @@ async function main(): Promise<void> {
   program
     .name('anvil')
     .description('Anvil - Deterministic development automation platform')
-    .version(packageJson.version);
+    .version(CLI_VERSION);
 
   // Auth gate: check authentication before every command (except exempt ones)
   program.hook('preAction', (_thisCommand, actionCommand) => {

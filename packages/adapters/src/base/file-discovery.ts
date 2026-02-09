@@ -40,6 +40,16 @@ export interface SearchOptions {
 }
 
 /**
+ * Maximum file size to consider (2MB)
+ */
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Maximum directory depth for recursive search
+ */
+const MAX_DEPTH = 20;
+
+/**
  * Default directories to exclude
  */
 const DEFAULT_EXCLUDE_DIRS = [
@@ -160,8 +170,9 @@ async function searchDirectory(
   currentDepth: number = 0,
   results: DiscoveredFile[] = []
 ): Promise<DiscoveredFile[]> {
-  // Stop if max depth reached
-  if (currentDepth > options.maxDepth) {
+  // Stop if max depth reached (clamped to safety limit)
+  const effectiveMaxDepth = Math.min(options.maxDepth, MAX_DEPTH);
+  if (currentDepth > effectiveMaxDepth) {
     return results;
   }
 
@@ -187,6 +198,12 @@ async function searchDirectory(
         if (matchesPattern && (lower.endsWith('.md') || lower.endsWith('.markdown'))) {
           try {
             const stats = await stat(fullPath);
+
+            // Skip files exceeding size limit
+            if (stats.size > MAX_FILE_SIZE_BYTES) {
+              continue;
+            }
+
             const { confidence, reason } = calculateFileConfidence(fullPath);
 
             if (confidence >= 40) {

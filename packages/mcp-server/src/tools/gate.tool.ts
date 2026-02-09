@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { PlanData } from '@eddacraft/anvil-runtime';
+import { validateWorkspaceRoot } from '../utils/validate-workspace.js';
 
 /**
  * Registers the `anvil_gate` tool on the given MCP server.
@@ -36,6 +37,7 @@ export function registerGateTool(server: McpServer): void {
     },
     async ({ workspaceRoot, targetFiles, skipChecks, failFast }) => {
       try {
+        validateWorkspaceRoot(workspaceRoot);
         const { GateRunner, GateConfigManager } = await import('@eddacraft/anvil-runtime');
         const runner = new GateRunner();
 
@@ -66,9 +68,23 @@ export function registerGateTool(server: McpServer): void {
         // Full gate run with config
         const configManager = new GateConfigManager(workspaceRoot);
         const config = configManager.loadConfig();
-        // Pass an empty plan object -- the runner tolerates missing fields and
-        // falls back to 'no-hash' when plan.hash is absent.
-        const emptyPlan = {} as unknown as PlanData;
+        // Minimal valid plan for planless full-codebase gate runs
+        const emptyPlan: PlanData = {
+          schema_version: '0.1.0',
+          id: 'aps-00000000',
+          hash: '0'.repeat(64),
+          intent: 'Full codebase quality gate run (MCP)',
+          proposed_changes: [],
+          provenance: {
+            timestamp: new Date().toISOString(),
+            source: 'automation',
+            version: '0.0.1',
+          },
+          validations: {
+            required_checks: [],
+            skip_checks: [],
+          },
+        };
         const result = await runner.runGate(emptyPlan, config, workspaceRoot, {
           skipChecks,
           failFast,

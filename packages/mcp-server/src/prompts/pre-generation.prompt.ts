@@ -23,13 +23,24 @@ export function registerPreGenerationPrompt(server: McpServer): void {
           .describe('Target file path for generation (used to determine layer constraints)'),
       },
     },
-    ({ workspaceRoot, targetFile }) => ({
-      messages: [
-        {
-          role: 'user' as const,
-          content: {
-            type: 'text' as const,
-            text: `[ARCHITECTURE CONSTRAINTS] Follow these rules when generating code${targetFile ? ` for ${targetFile}` : ''}.
+    ({ workspaceRoot, targetFile }) => {
+      // Sanitize inputs to prevent injection into prompt template
+      const safeRoot = String(workspaceRoot)
+        .replace(/[\r\n`]/g, '')
+        .slice(0, 500);
+      const safeTarget = targetFile
+        ? String(targetFile)
+            .replace(/[\r\n`]/g, '')
+            .slice(0, 500)
+        : undefined;
+
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `[ARCHITECTURE CONSTRAINTS] Follow these rules when generating code${safeTarget ? ` for ${safeTarget}` : ''}.
 
 ## Layer definitions and boundaries:
 
@@ -43,15 +54,15 @@ This project uses layered architecture enforced by Anvil. Common layers include:
 Dependencies must flow inward: UI -> Application -> Domain. Never the reverse.
 
 ${
-  targetFile
+  safeTarget
     ? `## Target file constraints:
 
-The file \`${targetFile}\` must respect the layer it belongs to. Before writing any cross-layer import, use \`anvil_query_boundary\` to verify it is allowed:
+The file \`${safeTarget}\` must respect the layer it belongs to. Before writing any cross-layer import, use \`anvil_query_boundary\` to verify it is allowed:
 \`\`\`
 anvil_query_boundary({
-  sourceFile: "${targetFile}",
+  sourceFile: "${safeTarget}",
   targetFile: "<file-to-import>",
-  workspaceRoot: "${workspaceRoot}"
+  workspaceRoot: "${safeRoot}"
 })
 \`\`\`
 
@@ -77,13 +88,14 @@ anvil_query_boundary({
 - Run \`anvil_check\` against the generated file to verify no violations were introduced:
   \`\`\`
   anvil_check({
-    files: ["${targetFile ?? '<generated-file>'}"],
-    workspaceRoot: "${workspaceRoot}"
+    files: ["${safeTarget ?? '<generated-file>'}"],
+    workspaceRoot: "${safeRoot}"
   })
   \`\`\``,
+            },
           },
-        },
-      ],
-    })
+        ],
+      };
+    }
   );
 }

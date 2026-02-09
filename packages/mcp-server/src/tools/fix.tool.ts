@@ -1,7 +1,35 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
-import { resolve, relative } from 'node:path';
+import {
+  readFileSync,
+  writeFileSync,
+  realpathSync,
+  mkdirSync,
+  unlinkSync,
+  existsSync,
+} from 'node:fs';
+import { resolve, relative, dirname } from 'node:path';
+
+/** Simple file lock for preventing concurrent file modifications */
+async function withFileLock<T>(lockPath: string, fn: () => T | Promise<T>): Promise<T> {
+  const dir = dirname(lockPath);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  // Attempt to create lock file (exclusive)
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+  } catch {
+    throw new Error('File is locked by another process');
+  }
+  try {
+    return await fn();
+  } finally {
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      /* ignore cleanup errors */
+    }
+  }
+}
 
 /**
  * Deterministic mechanical transforms for known antipattern warnings.
@@ -16,6 +44,10 @@ const FIXABLE_PATTERNS: Record<
   { description: string; apply: (line: string) => string | null }
 > = {
   'AP-003': {
+    // Limitation: This regex-based fix only handles simple `: any` annotations.
+    // It will NOT correctly transform: generic parameters (Array<any>), union
+    // types (string | any), function signatures ((...args: any[]) => void),
+    // or the `any` keyword used in string literals. Manual review is advised.
     description: 'Replace explicit `any` type with `unknown`',
     apply: (line) => {
       if (line.includes(': any') || line.includes(':any')) {
@@ -116,63 +148,65 @@ export function registerFixTool(server: McpServer, getWorkspaceRoot: () => strin
           };
         }
 
-        const content = readFileSync(absPath, 'utf-8');
-        const lines = content.split('\n');
-        const lineIndex = line - 1;
+        return await withFileLock(absPath + '.lock', () => {
+          const content = readFileSync(absPath, 'utf-8');
+          const lines = content.split('\n');
+          const lineIndex = line - 1;
 
-        if (lineIndex < 0 || lineIndex >= lines.length) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify({
-                  fixed: false,
-                  reason: `Line ${line} out of range (file has ${lines.length} lines)`,
-                }),
-              },
-            ],
-          };
-        }
-
-        const before = lines[lineIndex];
-        const after = fixer.apply(before);
-
-        if (after === null) {
-          return {
-            content: [
-              {
-                type: 'text' as const,
-                text: JSON.stringify({
-                  fixed: false,
-                  reason: `Pattern ${warningId} not found on line ${line}`,
-                }),
-              },
-            ],
-          };
-        }
-
-        lines[lineIndex] = after;
-        writeFileSync(absPath, lines.join('\n'), 'utf-8');
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
+          if (lineIndex < 0 || lineIndex >= lines.length) {
+            return {
+              content: [
                 {
-                  fixed: true,
-                  description: fixer.description,
-                  filePath,
-                  line,
-                  before: before.trim(),
-                  after: after.trim(),
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    fixed: false,
+                    reason: `Line ${line} out of range (file has ${lines.length} lines)`,
+                  }),
                 },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+              ],
+            };
+          }
+
+          const before = lines[lineIndex];
+          const after = fixer.apply(before);
+
+          if (after === null) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    fixed: false,
+                    reason: `Pattern ${warningId} not found on line ${line}`,
+                  }),
+                },
+              ],
+            };
+          }
+
+          lines[lineIndex] = after;
+          writeFileSync(absPath, lines.join('\n'), 'utf-8');
+
+          return {
+            content: [
+              {
+                type: 'text' as const,
+                text: JSON.stringify(
+                  {
+                    fixed: true,
+                    description: fixer.description,
+                    filePath,
+                    line,
+                    before: before.trim(),
+                    after: after.trim(),
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        });
       } catch (error) {
         return {
           content: [

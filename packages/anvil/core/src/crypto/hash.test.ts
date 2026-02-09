@@ -161,7 +161,7 @@ describe('Hash Generation', () => {
     it('should generate valid plan IDs', () => {
       const id = generatePlanId();
 
-      expect(id).toMatch(/^aps-[a-f0-9]{8}$/);
+      expect(id).toMatch(/^aps-[a-f0-9]{16}$/);
       expect(isValidPlanId(id)).toBe(true);
     });
 

@@ -96,12 +96,12 @@ export function verifyHash(data: unknown, expectedHash: string): boolean {
 }
 
 /**
- * Generates a unique plan ID in the format 'aps-[8 hex chars]'
+ * Generates a unique plan ID in the format 'aps-[16 hex chars]'
  * @returns A unique plan identifier
  */
 export function generatePlanId(): string {
-  // Generate 4 random bytes (8 hex characters)
-  const buffer = randomBytes(4);
+  // Generate 8 random bytes (16 hex characters) for sufficient entropy
+  const buffer = randomBytes(8);
   const hexString = buffer.toString('hex');
   return `aps-${hexString}`;
 }
@@ -112,7 +112,8 @@ export function generatePlanId(): string {
  * @returns True if valid, false otherwise
  */
 export function isValidPlanId(id: string): boolean {
-  return /^aps-[a-f0-9]{8}$/.test(id);
+  // Accept both legacy 8-char and new 16-char IDs
+  return /^aps-[a-f0-9]{8}$/.test(id) || /^aps-[a-f0-9]{16}$/.test(id);
 }
 
 /**

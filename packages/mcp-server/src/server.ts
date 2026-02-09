@@ -1,4 +1,19 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+function loadPackageVersion(): string {
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const pkg = JSON.parse(readFileSync(join(dir, '..', 'package.json'), 'utf-8'));
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0';
+  } catch {
+    return '0.0.0';
+  }
+}
+
+export const SERVER_VERSION = loadPackageVersion();
 import {
   registerCheckTool,
   registerFixTool,
@@ -37,7 +52,7 @@ export interface AnvilMcpServerOptions {
  * Creates and configures the Anvil MCP server with all tools, resources, and prompts.
  */
 export function createAnvilMcpServer(options: AnvilMcpServerOptions = {}): McpServer {
-  const { name = 'anvil-mcp-server', version = '0.1.0', projectRoot } = options;
+  const { name = 'anvil-mcp-server', version = SERVER_VERSION, projectRoot } = options;
 
   const server = new McpServer({
     name,

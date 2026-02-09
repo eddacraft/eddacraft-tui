@@ -28,7 +28,13 @@ export class SpecKitParser {
     changes: ['changes', 'modifications', 'alterations', 'tasks'],
   } as const;
 
+  /** Maximum input size for SpecKit parsing (2MB) */
+  private static readonly MAX_INPUT_SIZE = 2 * 1024 * 1024;
+
   parseSpecMarkdown(content: string): ParsedSpecKit {
+    if (content.length > SpecKitParser.MAX_INPUT_SIZE) {
+      throw new Error(`Input exceeds maximum size of ${SpecKitParser.MAX_INPUT_SIZE} bytes`);
+    }
     const sections = this.parseMarkdownSections(content);
     const result: ParsedSpecKit = {
       metadata: {},

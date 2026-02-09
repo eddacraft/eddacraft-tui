@@ -5,7 +5,7 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import type { IStorageProvider } from '@eddacraft/anvil-ports';
 
 /**
@@ -49,11 +49,15 @@ export class FileStorage implements IStorageProvider {
     await fs.mkdir(this.resolvePath(path), { recursive });
   }
 
-  private resolvePath(path: string): string {
-    if (path.startsWith('/')) {
-      return path;
+  private resolvePath(filePath: string): string {
+    const resolvedBase = resolve(this.baseDir);
+    const resolvedTarget = resolve(resolvedBase, filePath);
+
+    if (resolvedTarget !== resolvedBase && !resolvedTarget.startsWith(resolvedBase + sep)) {
+      throw new Error(`Path escapes base directory: ${filePath}`);
     }
-    return `${this.baseDir}/${path}`;
+
+    return resolvedTarget;
   }
 
   private async ensureDir(dir: string): Promise<void> {

@@ -7,6 +7,7 @@ import {
   generateSnapshotFilename,
   generateNamedSnapshotFilename,
 } from './snapshot-schema.js';
+import { sanitizeIdentifier } from '../utils/path-safety.js';
 
 export const SNAPSHOTS_DIR = 'snapshots';
 export const ANVIL_DIR = '.anvil';
@@ -45,24 +46,10 @@ function isTimestampIdentifier(identifier: string): boolean {
 
 /**
  * Sanitize a snapshot identifier to prevent path traversal attacks.
- * Extracts only the basename and ensures it stays within the snapshots directory.
+ * Delegates to the shared sanitizeIdentifier utility.
  */
 function sanitizeSnapshotIdentifier(identifier: string): string {
-  // Extract basename to prevent path traversal (e.g., ../secrets.json -> secrets.json)
-  const basename = path.basename(identifier);
-
-  // Validate that no path traversal was attempted
-  // If basename differs from identifier, it contained directory separators
-  if (basename !== identifier) {
-    throw new Error(`Invalid snapshot identifier: ${identifier}`);
-  }
-
-  // Validate the basename itself is safe
-  if (!basename || basename === '.' || basename === '..' || basename.includes('\0')) {
-    throw new Error(`Invalid snapshot identifier: ${identifier}`);
-  }
-
-  return basename;
+  return sanitizeIdentifier(identifier);
 }
 
 /**

@@ -232,6 +232,14 @@ export class BundleManager {
         }
       }
 
+      // Validate URL: enforce HTTPS (allow localhost for development/testing)
+      const parsedBundleUrl = new URL(config.url);
+      const isLocalhost =
+        parsedBundleUrl.hostname === 'localhost' || parsedBundleUrl.hostname === '127.0.0.1';
+      if (parsedBundleUrl.protocol !== 'https:' && !isLocalhost) {
+        throw new Error(`Bundle URL must use HTTPS: ${config.url}`);
+      }
+
       // Download the bundle
       debug(`Downloading bundle ${name} from ${config.url}`);
       const tempFile = join(this.cacheDir, `${name}.tar.gz.tmp`);
@@ -664,12 +672,23 @@ export class BundleManager {
    * Extract a tarball to destination directory
    */
   private async extractBundle(tarPath: string, destDir: string): Promise<void> {
+    const { resolve, sep } = await import('node:path');
+    const resolvedDest = resolve(destDir);
+
     await pipeline(
       createReadStream(tarPath),
       createGunzip(),
       extract({
         cwd: destDir,
         strip: 0,
+        filter: (entryPath) => {
+          const resolved = resolve(destDir, entryPath);
+          if (resolved !== resolvedDest && !resolved.startsWith(resolvedDest + sep)) {
+            debug(`Zip-slip blocked: ${entryPath} escapes ${destDir}`);
+            return false;
+          }
+          return true;
+        },
       })
     );
   }

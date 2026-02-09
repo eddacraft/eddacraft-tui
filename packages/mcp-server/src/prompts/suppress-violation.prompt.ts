@@ -20,15 +20,29 @@ export function registerSuppressViolationPrompt(server: McpServer): void {
         reason: z.string().optional().describe('Reason for suppressing instead of fixing'),
       },
     },
-    ({ warningId, filePath, line, reason }) => ({
-      messages: [
-        {
-          role: 'user' as const,
-          content: {
-            type: 'text' as const,
-            text: `Suppress Anvil warning ${warningId} in ${filePath} at line ${line}.
+    ({ warningId, filePath, line, reason }) => {
+      // Sanitize inputs to prevent injection into prompt template
+      const safeWarningId = String(warningId)
+        .replace(/[\r\n`]/g, '')
+        .slice(0, 50);
+      const safeFilePath = String(filePath)
+        .replace(/[\r\n`]/g, '')
+        .slice(0, 500);
+      const safeReason = reason
+        ? String(reason)
+            .replace(/[\r\n]/g, ' ')
+            .slice(0, 1000)
+        : '';
 
-${reason ? `Reason provided: ${reason}\n\n` : ''}## When suppression is appropriate:
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `Suppress Anvil warning ${safeWarningId} in ${safeFilePath} at line ${line}.
+
+${safeReason ? `Reason provided: ${safeReason}\n\n` : ''}## When suppression is appropriate:
 
 - The violation is in generated code that will be overwritten
 - A fix requires a larger refactor that is planned but not yet scheduled
@@ -44,8 +58,8 @@ ${reason ? `Reason provided: ${reason}\n\n` : ''}## When suppression is appropri
 ## Suppression format:
 
 Use the \`anvil_suppress\` tool with these parameters:
-- \`filePath\`: "${filePath}"
-- \`warningId\`: "${warningId}"
+- \`filePath\`: "${safeFilePath}"
+- \`warningId\`: "${safeWarningId}"
 - \`line\`: ${line}
 - \`reason\`: A clear, specific explanation of why suppression is needed
 - \`expiryDays\`: Number of days before the suppression expires (default: 30)
@@ -62,9 +76,10 @@ This will insert a comment above the target line:
 3. Expired suppressions will show up as new warnings during \`anvil_check\`
 4. Review suppressed warnings regularly to determine if they can be fixed
 5. After suppressing, run \`anvil_check\` to confirm the warning is suppressed`,
+            },
           },
-        },
-      ],
-    })
+        ],
+      };
+    }
   );
 }

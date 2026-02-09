@@ -180,9 +180,14 @@ export function createWatchCommand(): Command {
           patterns,
           exclude: excludePatterns,
           action,
-          debounceMs: options.debounce
-            ? parseInt(options.debounce, 10)
-            : (savedConfig?.debounceMs ?? defaultConfig.debounceMs),
+          debounceMs: (() => {
+            if (!options.debounce) return savedConfig?.debounceMs ?? defaultConfig.debounceMs;
+            const val = parseInt(options.debounce, 10);
+            if (Number.isNaN(val) || val < 0) {
+              throw new Error('--debounce must be a non-negative integer');
+            }
+            return val;
+          })(),
           git: {
             unstagedOnly: options.gitFilter !== false,
             includeUntracked:

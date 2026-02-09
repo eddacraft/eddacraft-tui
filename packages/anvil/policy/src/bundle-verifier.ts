@@ -7,7 +7,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve, sep, isAbsolute, normalize } from 'node:path';
 import { createHash, createVerify, timingSafeEqual } from 'node:crypto';
 
 /**
@@ -281,8 +281,31 @@ export class BundleVerifier {
     }
 
     // First verify all file hashes
+    const resolvedBundle = resolve(bundlePath);
     for (const fileEntry of sigBlock.files) {
+      // Validate manifest file paths don't escape bundle directory
+      if (isAbsolute(fileEntry.name) || normalize(fileEntry.name).startsWith('..')) {
+        errors.push(`Unsafe path in manifest: ${fileEntry.name}`);
+        fileResults.push({
+          file: fileEntry.name,
+          verified: false,
+          error: 'Path traversal rejected',
+        });
+        continue;
+      }
       const filePath = join(bundlePath, fileEntry.name);
+      if (
+        !resolve(filePath).startsWith(resolvedBundle + sep) &&
+        resolve(filePath) !== resolvedBundle
+      ) {
+        errors.push(`Path escapes bundle directory: ${fileEntry.name}`);
+        fileResults.push({
+          file: fileEntry.name,
+          verified: false,
+          error: 'Path traversal rejected',
+        });
+        continue;
+      }
       const verified = await this.verifyFile(filePath, fileEntry.hash);
 
       fileResults.push({
@@ -378,7 +401,10 @@ export class BundleVerifier {
         return this.base64ToPem(keyConfig.key, keyConfig.algorithm);
 
       case 'env': {
-        // Key is stored in an environment variable
+        // Validate env var name is a safe identifier (alphanumeric + underscore)
+        if (!/^[A-Z_][A-Z0-9_]*$/i.test(keyConfig.key)) {
+          throw new Error(`Invalid environment variable name: ${keyConfig.key}`);
+        }
         const envValue = process.env[keyConfig.key];
         if (!envValue) {
           throw new Error(`Environment variable not found: ${keyConfig.key}`);

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { validateWorkspaceRoot } from '../utils/validate-workspace.js';
+import { SERVER_VERSION } from '../server.js';
 
 /**
  * Registers the `anvil_status` tool on the given MCP server.
@@ -25,6 +27,7 @@ export function registerStatusTool(server: McpServer): void {
     },
     async ({ workspaceRoot }) => {
       try {
+        validateWorkspaceRoot(workspaceRoot);
         const { GateRunner, GateConfigManager } = await import('@eddacraft/anvil-runtime');
         const { baselineExists } = await import('@eddacraft/anvil-core');
 
@@ -67,7 +70,7 @@ export function registerStatusTool(server: McpServer): void {
                   availableChecks,
                   config: configInfo,
                   hasBaseline,
-                  version: '0.1.0',
+                  version: SERVER_VERSION,
                 },
                 null,
                 2

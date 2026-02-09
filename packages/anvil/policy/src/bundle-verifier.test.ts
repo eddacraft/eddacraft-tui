@@ -656,7 +656,7 @@ describe('BundleVerifier', () => {
           {
             id: 'missing-env-key',
             algorithm: 'RS256',
-            key: 'NON_EXISTENT_ENV_VAR_' + Math.random().toString(36),
+            key: 'NON_EXISTENT_ENV_VAR_' + Math.random().toString(36).slice(2),
             source: 'env',
           },
         ],

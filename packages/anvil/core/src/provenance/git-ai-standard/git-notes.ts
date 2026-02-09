@@ -1,4 +1,4 @@
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { serializeAuthorshipLog, parseAuthorshipLog } from './serializer.js';
@@ -6,7 +6,7 @@ import type { AuthorshipLog } from './types.js';
 import { createDebugger } from '../../utils/debug.js';
 
 const debug = createDebugger('git-ai-notes');
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Validate a git commit SHA or ref to prevent shell injection
@@ -67,9 +67,13 @@ export async function writeAuthorshipNote(
   try {
     await writeFile(tempFile, content, 'utf-8');
 
-    await execAsync(`git notes --ref=${NOTES_REF} add -f -F "${tempFile}" -- ${commitSha}`, {
-      cwd: workspaceRoot,
-    });
+    await execFileAsync(
+      'git',
+      ['notes', `--ref=${NOTES_REF}`, 'add', '-f', '-F', tempFile, '--', commitSha],
+      {
+        cwd: workspaceRoot,
+      }
+    );
 
     debug(`Wrote authorship note for commit ${commitSha.slice(0, 8)}`);
   } catch (error) {
@@ -101,9 +105,13 @@ export async function readAuthorshipNote(
   }
 
   try {
-    const { stdout } = await execAsync(`git notes --ref=${NOTES_REF} show -- ${commitSha}`, {
-      cwd: workspaceRoot,
-    });
+    const { stdout } = await execFileAsync(
+      'git',
+      ['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha],
+      {
+        cwd: workspaceRoot,
+      }
+    );
 
     return parseAuthorshipLog(stdout);
   } catch (error) {
@@ -121,7 +129,7 @@ export async function readAuthorshipNote(
  */
 export async function listAuthorshipNotes(workspaceRoot: string): Promise<string[]> {
   try {
-    const { stdout } = await execAsync(`git notes --ref=${NOTES_REF} list`, {
+    const { stdout } = await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'list'], {
       cwd: workspaceRoot,
     });
 
@@ -154,7 +162,7 @@ export async function removeAuthorshipNote(
   }
 
   try {
-    await execAsync(`git notes --ref=${NOTES_REF} remove -- ${commitSha}`, {
+    await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'remove', '--', commitSha], {
       cwd: workspaceRoot,
     });
     debug(`Removed authorship note for commit ${commitSha.slice(0, 8)}`);
@@ -189,7 +197,9 @@ export async function copyAuthorshipNote(
     if (!existingLog) return false;
 
     // Resolve toSha to full 40-character SHA
-    const { stdout } = await execAsync(`git rev-parse -- ${toSha}`, { cwd: workspaceRoot });
+    const { stdout } = await execFileAsync('git', ['rev-parse', '--', toSha], {
+      cwd: workspaceRoot,
+    });
     const resolvedSha = stdout.trim();
 
     // Update base_commit_sha in metadata to point to new commit
@@ -222,7 +232,7 @@ export async function pushAuthorshipNotes(remote: string, workspaceRoot: string)
   }
 
   try {
-    await execAsync(`git push ${remote} ${NOTES_REF}`, {
+    await execFileAsync('git', ['push', remote, NOTES_REF], {
       cwd: workspaceRoot,
     });
     debug(`Pushed authorship notes to ${remote}`);
@@ -244,7 +254,7 @@ export async function fetchAuthorshipNotes(remote: string, workspaceRoot: string
   }
 
   try {
-    await execAsync(`git fetch ${remote} ${NOTES_REF}:${NOTES_REF}`, {
+    await execFileAsync('git', ['fetch', remote, `${NOTES_REF}:${NOTES_REF}`], {
       cwd: workspaceRoot,
     });
     debug(`Fetched authorship notes from ${remote}`);
@@ -270,7 +280,7 @@ export async function hasAuthorshipNote(
   }
 
   try {
-    await execAsync(`git notes --ref=${NOTES_REF} show -- ${commitSha}`, {
+    await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha], {
       cwd: workspaceRoot,
     });
     return true;
@@ -310,7 +320,7 @@ export async function getAuthorshipStats(
 
   try {
     // Get list of commits in range
-    const { stdout } = await execAsync(`git rev-list -- ${range}`, {
+    const { stdout } = await execFileAsync('git', ['rev-list', '--', range], {
       cwd: workspaceRoot,
     });
 

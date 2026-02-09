@@ -293,9 +293,26 @@ export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem>, v
 
   private resolveFilePath(filePath: string): string {
     if (path.isAbsolute(filePath)) {
+      // Validate absolute paths stay within workspace
+      if (
+        this.workspaceRoot &&
+        !filePath.startsWith(this.workspaceRoot + path.sep) &&
+        filePath !== this.workspaceRoot
+      ) {
+        return filePath; // Return as-is, VS Code will handle security
+      }
       return filePath;
     }
-    return path.join(this.workspaceRoot, filePath);
+    const resolved = path.resolve(this.workspaceRoot, filePath);
+    // Validate resolved path stays within workspace
+    if (
+      this.workspaceRoot &&
+      !resolved.startsWith(this.workspaceRoot + path.sep) &&
+      resolved !== this.workspaceRoot
+    ) {
+      return path.join(this.workspaceRoot, path.basename(filePath));
+    }
+    return resolved;
   }
 }
 

@@ -372,26 +372,48 @@ export class AnvilService {
     try {
       const parsed = JSON.parse(output);
 
+      if (typeof parsed !== 'object' || parsed === null) {
+        throw new Error('Expected JSON object');
+      }
+
+      const safeErrors = Array.isArray(parsed.errors) ? parsed.errors : [];
+      const safeWarnings = Array.isArray(parsed.warnings) ? parsed.warnings : [];
+
       return {
-        success: parsed.success ?? parsed.valid ?? false,
-        planId: parsed.planId ?? parsed.plan_id,
-        format: parsed.format,
-        errors: (parsed.errors || []).map(
-          (err: { message?: string; path?: string; line?: number; column?: number }) => ({
-            message: err.message || String(err),
-            path: err.path,
-            line: err.line,
-            column: err.column,
-          })
-        ),
-        warnings: (parsed.warnings || []).map(
-          (warn: { message?: string; path?: string; line?: number; column?: number }) => ({
-            message: warn.message || String(warn),
-            path: warn.path,
-            line: warn.line,
-            column: warn.column,
-          })
-        ),
+        success:
+          typeof parsed.success === 'boolean'
+            ? parsed.success
+            : typeof parsed.valid === 'boolean'
+              ? parsed.valid
+              : false,
+        planId:
+          typeof parsed.planId === 'string'
+            ? parsed.planId
+            : typeof parsed.plan_id === 'string'
+              ? parsed.plan_id
+              : undefined,
+        format: typeof parsed.format === 'string' ? parsed.format : undefined,
+        errors: safeErrors.map((err: unknown) => {
+          const e = (typeof err === 'object' && err !== null ? err : {}) as Record<string, unknown>;
+          return {
+            message: typeof e.message === 'string' ? e.message : String(err),
+            path: typeof e.path === 'string' ? e.path : undefined,
+            line: typeof e.line === 'number' ? e.line : undefined,
+            column: typeof e.column === 'number' ? e.column : undefined,
+          };
+        }),
+        warnings: safeWarnings.map((warn: unknown) => {
+          const w = (typeof warn === 'object' && warn !== null ? warn : {}) as Record<
+            string,
+            unknown
+          >;
+          return {
+            message: typeof w.message === 'string' ? w.message : String(warn),
+            path: typeof w.path === 'string' ? w.path : undefined,
+            line: typeof w.line === 'number' ? w.line : undefined,
+            column: typeof w.column === 'number' ? w.column : undefined,
+          };
+        }),
       };
     } catch {
       // If not JSON, treat as plain text result
@@ -410,18 +432,34 @@ export class AnvilService {
     try {
       const parsed = JSON.parse(output);
 
+      if (typeof parsed !== 'object' || parsed === null) {
+        throw new Error('Expected JSON object');
+      }
+
+      const rawGates = Array.isArray(parsed.gates)
+        ? parsed.gates
+        : Array.isArray(parsed.results)
+          ? parsed.results
+          : [];
+
       return {
-        success: parsed.success ?? false,
-        gates: (parsed.gates || parsed.results || []).map((gate: Record<string, unknown>) => ({
-          ...gate,
-          name: (gate.name as string) || 'unknown',
-          status: this.normalizeGateStatus(gate.status as string | undefined),
-          message: gate.message as string | undefined,
-          duration: gate.duration as number | undefined,
-          details: gate.details as GateDetail[] | undefined,
-        })),
-        timestamp: parsed.timestamp || new Date().toISOString(),
-        duration: parsed.duration || Date.now() - startTime,
+        success: typeof parsed.success === 'boolean' ? parsed.success : false,
+        gates: rawGates.map((gate: unknown) => {
+          const g = (typeof gate === 'object' && gate !== null ? gate : {}) as Record<
+            string,
+            unknown
+          >;
+          return {
+            name: typeof g.name === 'string' ? g.name : 'unknown',
+            status: this.normalizeGateStatus(typeof g.status === 'string' ? g.status : undefined),
+            message: typeof g.message === 'string' ? g.message : undefined,
+            duration: typeof g.duration === 'number' ? g.duration : undefined,
+            details: Array.isArray(g.details) ? (g.details as GateDetail[]) : undefined,
+          };
+        }),
+        timestamp:
+          typeof parsed.timestamp === 'string' ? parsed.timestamp : new Date().toISOString(),
+        duration: typeof parsed.duration === 'number' ? parsed.duration : Date.now() - startTime,
       };
     } catch {
       // If not JSON, treat as plain text result

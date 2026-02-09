@@ -6,7 +6,7 @@
 import { existsSync, unlinkSync } from 'node:fs';
 import { readFile, rm, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createHash } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
@@ -100,6 +100,7 @@ export class FileCacheProvider implements CacheProvider {
   private readonly indexPath: string;
   private readonly defaultTtl: number;
   private readonly maxSizeBytes: number;
+  private readonly hmacKey: string;
 
   private index: CacheIndex | null = null;
   private indexDirty = false;
@@ -115,6 +116,10 @@ export class FileCacheProvider implements CacheProvider {
     this.indexPath = join(this.cacheDir, 'index.json');
     this.defaultTtl = config.defaultTtl ?? DEFAULT_TTL_MS;
     this.maxSizeBytes = config.maxSizeBytes ?? 100 * 1024 * 1024; // 100MB
+    // HMAC key: prefer env var, fall back to workspace-derived key
+    this.hmacKey =
+      process.env['ANVIL_CACHE_HMAC_KEY'] ??
+      createHash('sha256').update(`anvil-cache:${workspaceRoot}`).digest('hex');
   }
 
   async get<T>(key: string): Promise<CacheEntry<T> | null> {
@@ -137,10 +142,27 @@ export class FileCacheProvider implements CacheProvider {
       return null;
     }
 
-    // Read entry file
+    // Read entry file and verify HMAC integrity
     const entryPath = join(this.entriesDir, entryMeta.file);
     try {
-      const content = await readFile(entryPath, 'utf-8');
+      const raw = await readFile(entryPath, 'utf-8');
+      const newlineIndex = raw.indexOf('\n');
+      const storedHmac = newlineIndex >= 0 ? raw.slice(0, newlineIndex) : '';
+      const content = newlineIndex >= 0 ? raw.slice(newlineIndex + 1) : raw;
+
+      // Verify HMAC if present (skip for legacy entries without HMAC)
+      if (storedHmac && storedHmac.length === 64) {
+        const expectedHmac = this.computeHmac(content);
+        if (storedHmac !== expectedHmac) {
+          debug('Cache entry HMAC verification failed, possible tampering', { key });
+          await this.invalidate(key);
+          index.stats.misses++;
+          this.indexDirty = true;
+          await this.saveIndex();
+          return null;
+        }
+      }
+
       const parseResult = CacheEntrySchema.safeParse(JSON.parse(content));
       if (!parseResult.success) {
         debug('Invalid cache entry schema, removing from index', parseResult.error);
@@ -188,8 +210,10 @@ export class FileCacheProvider implements CacheProvider {
     const filePath = join(this.entriesDir, fileName);
 
     // Write entry file atomically to prevent corruption in multi-agent scenarios
+    // Include HMAC for integrity verification
     const content = JSON.stringify(entry, null, 2);
-    await atomicWriteText(filePath, content);
+    const hmac = this.computeHmac(content);
+    await atomicWriteText(filePath, `${hmac}\n${content}`);
 
     // Update index
     index.entries[key] = {
@@ -345,6 +369,10 @@ export class FileCacheProvider implements CacheProvider {
     // Use atomic write to prevent corruption in multi-agent scenarios
     await atomicWriteText(this.indexPath, JSON.stringify(this.index, null, 2));
     this.indexDirty = false;
+  }
+
+  private computeHmac(content: string): string {
+    return createHmac('sha256', this.hmacKey).update(content).digest('hex');
   }
 
   private hashKey(key: string): string {

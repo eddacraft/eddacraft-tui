@@ -34,11 +34,38 @@ export async function startHttpServer(
   const app = express();
   app.use(express.json());
 
+  // API key authentication middleware (opt-in via ANVIL_MCP_API_KEY env var)
+  const apiKey = process.env['ANVIL_MCP_API_KEY'];
+  if (apiKey) {
+    app.use('/mcp', (req, res, next) => {
+      const provided = req.headers['authorization'];
+      if (!provided || provided !== `Bearer ${apiKey}`) {
+        res.status(401).json({
+          jsonrpc: '2.0',
+          error: { code: -32001, message: 'Unauthorized: invalid or missing API key' },
+          id: null,
+        });
+        return;
+      }
+      next();
+    });
+  }
+
   // Active sessions keyed by their session ID.
   const transports = new Map<string, StreamableHTTPServerTransport>();
 
   // --- POST /mcp ---------------------------------------------------------
   app.post('/mcp', async (req, res) => {
+    // Validate Content-Type for POST requests
+    const contentType = req.headers['content-type'];
+    if (!contentType || !contentType.includes('application/json')) {
+      res.status(415).json({
+        jsonrpc: '2.0',
+        error: { code: -32700, message: 'Content-Type must be application/json' },
+        id: null,
+      });
+      return;
+    }
     const sessionId = req.headers['mcp-session-id'] as string | undefined;
     let transport: StreamableHTTPServerTransport;
 

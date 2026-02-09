@@ -351,7 +351,7 @@ graph TD
 | [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md)         | TUT      | Complete    | v1.3    | tui                                                       |
 | [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | v1.2    | monorepo-migration                                        |
 | [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | In Progress | v2.0    | antipattern-library                                       |
-| [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | Draft       | —       | —                                                         |
+| [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | In Progress | —       | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
 

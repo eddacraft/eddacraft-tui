@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { apiRequest, getAdminKey } from './api-client.js';
 
 interface InviteRequest {
@@ -8,59 +9,68 @@ interface InviteRequest {
   scopes?: string[];
 }
 
-interface InviteResponse {
-  token: string;
-  user: { email: string; id: string };
-  expiresAt: string;
-  scopes: string[];
-}
+const InviteResponseSchema = z.object({
+  token: z.string(),
+  user: z.object({ email: z.string(), id: z.string() }),
+  expiresAt: z.string(),
+  scopes: z.array(z.string()),
+});
 
-interface RevokeResponse {
-  revoked: number;
-}
+const RevokeResponseSchema = z.object({
+  revoked: z.number(),
+});
 
-interface UserResponse {
-  user: {
-    id: string;
-    email: string;
-    name: string | null;
-    status: string;
-    created_at: string;
-  };
-  tokens: Array<{
-    id: string;
-    scopes: string[];
-    expires_at: string;
-    revoked_at: string | null;
-    created_at: string;
-  }>;
-}
+const UserResponseSchema = z.object({
+  user: z.object({
+    id: z.string(),
+    email: z.string(),
+    name: z.string().nullable(),
+    status: z.string(),
+    created_at: z.string(),
+  }),
+  tokens: z.array(
+    z.object({
+      id: z.string(),
+      scopes: z.array(z.string()),
+      expires_at: z.string(),
+      revoked_at: z.string().nullable(),
+      created_at: z.string(),
+    })
+  ),
+});
+
+export type InviteResponse = z.infer<typeof InviteResponseSchema>;
+export type RevokeResponse = z.infer<typeof RevokeResponseSchema>;
+export type UserResponse = z.infer<typeof UserResponseSchema>;
 
 export async function adminInvite(request: InviteRequest): Promise<InviteResponse> {
-  return apiRequest<InviteResponse>({
+  const raw = await apiRequest<unknown>({
     method: 'POST',
     path: '/api/v1/admin/invite',
     body: request,
     token: getAdminKey(),
     operationName: 'Admin invite',
   });
+  return InviteResponseSchema.parse(raw);
 }
 
 export async function adminRevoke(email: string): Promise<RevokeResponse> {
-  return apiRequest<RevokeResponse>({
+  const raw = await apiRequest<unknown>({
     method: 'POST',
     path: '/api/v1/admin/revoke',
     body: { email },
     token: getAdminKey(),
     operationName: 'Admin revoke',
   });
+  return RevokeResponseSchema.parse(raw);
 }
 
 export async function adminGetUser(email: string): Promise<UserResponse> {
-  return apiRequest<UserResponse>({
+  const raw = await apiRequest<unknown>({
     method: 'GET',
     path: `/api/v1/admin/user/${encodeURIComponent(email)}`,
     token: getAdminKey(),
     operationName: 'Admin user lookup',
   });
+  return UserResponseSchema.parse(raw);
 }

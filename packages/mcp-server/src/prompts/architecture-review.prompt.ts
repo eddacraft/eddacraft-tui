@@ -22,7 +22,15 @@ export function registerArchitectureReviewPrompt(server: McpServer): void {
       },
     },
     ({ filePath, workspaceRoot }) => {
-      const root = workspaceRoot ?? '.';
+      // Sanitize inputs to prevent injection into prompt template
+      const safeFilePath = String(filePath)
+        .replace(/[\r\n`]/g, '')
+        .slice(0, 500);
+      const root = workspaceRoot
+        ? String(workspaceRoot)
+            .replace(/[\r\n`]/g, '')
+            .slice(0, 500)
+        : '.';
 
       return {
         messages: [
@@ -30,7 +38,7 @@ export function registerArchitectureReviewPrompt(server: McpServer): void {
             role: 'user' as const,
             content: {
               type: 'text' as const,
-              text: `Review ${filePath} against the project's architecture rules.
+              text: `Review ${safeFilePath} against the project's architecture rules.
 
 ## Review checklist:
 
@@ -44,7 +52,7 @@ export function registerArchitectureReviewPrompt(server: McpServer): void {
 - For each cross-layer import, use \`anvil_query_boundary\` to verify it is allowed:
   \`\`\`
   anvil_query_boundary({
-    sourceFile: "${filePath}",
+    sourceFile: "${safeFilePath}",
     targetFile: "<imported-file>",
     workspaceRoot: "${root}"
   })
@@ -60,7 +68,7 @@ export function registerArchitectureReviewPrompt(server: McpServer): void {
 - Execute \`anvil_check\` with architecture-only checks:
   \`\`\`
   anvil_check({
-    files: ["${filePath}"],
+    files: ["${safeFilePath}"],
     workspaceRoot: "${root}",
     checks: ["architecture"]
   })

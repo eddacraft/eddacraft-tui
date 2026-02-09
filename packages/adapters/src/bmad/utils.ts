@@ -343,7 +343,7 @@ export function identifyDocumentType(
   if (/Epic:/i.test(content) || /Epic Goal/i.test(content)) {
     return BMADDocumentType.EPIC;
   }
-  if (/As an?\s+.+,\s*\nI want\s+.+,\s*\nso that/i.test(content)) {
+  if (/As an?\s+[^\n]{1,200},\s*\nI want\s+[^\n]{1,200},\s*\nso that/i.test(content)) {
     return BMADDocumentType.STORY;
   }
 
@@ -370,7 +370,9 @@ export function analyzeContent(content: string, hint?: PathDetectionHint): Detec
       (r) => r.type === RequirementType.NON_FUNCTIONAL
     ),
     hasUserStories: requirements.some((r) => r.type === RequirementType.USER_STORY),
-    hasUserStoryFormat: /As an?\s+.+[,\s]+I want\s+.+[,\s]+so that/i.test(content),
+    hasUserStoryFormat: /As an?\s+[^\n]{1,200}[,\s]+I want\s+[^\n]{1,200}[,\s]+so that/i.test(
+      content
+    ),
     hasChangeLogTable: /\|\s*Date\s*\|\s*Version\s*\|\s*Description\s*\|\s*Author\s*\|/i.test(
       content
     ),

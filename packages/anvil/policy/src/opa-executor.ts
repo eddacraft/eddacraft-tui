@@ -3,7 +3,7 @@
  */
 
 import { spawn } from 'node:child_process';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, mkdtemp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -267,8 +267,8 @@ export class OPAExecutor {
       };
     }
 
-    // Create temporary directory for evaluation
-    const tempDir = join(tmpdir(), `anvil-opa-${randomUUID()}`);
+    // Create temporary directory for evaluation (using mkdtemp for secure unique dir)
+    const tempDir = await mkdtemp(join(tmpdir(), 'anvil-opa-'));
 
     try {
       await this.setupTempDirectory(tempDir, policies, input);
@@ -307,13 +307,9 @@ export class OPAExecutor {
     valid: boolean;
     errors: string[];
   }> {
-    const tempDir = join(tmpdir(), `anvil-opa-validate-${randomUUID()}`);
+    const tempDir = await mkdtemp(join(tmpdir(), 'anvil-opa-validate-'));
 
     try {
-      if (!existsSync(tempDir)) {
-        await mkdir(tempDir, { recursive: true });
-      }
-
       const policyPath = join(tempDir, 'policy.rego');
       await writeFile(policyPath, policyContent, 'utf-8');
 
@@ -357,7 +353,7 @@ export class OPAExecutor {
       return { passed: 0, failed: 0, errors: [], details: [] };
     }
 
-    const tempDir = join(tmpdir(), `anvil-opa-test-${randomUUID()}`);
+    const tempDir = await mkdtemp(join(tmpdir(), 'anvil-opa-test-'));
 
     try {
       await this.setupTempDirectory(tempDir, policies, undefined, testFiles);

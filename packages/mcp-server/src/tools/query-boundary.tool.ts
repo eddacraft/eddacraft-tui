@@ -10,6 +10,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { validateWorkspaceRoot } from '../utils/validate-workspace.js';
 
 export function registerQueryBoundaryTool(server: McpServer): void {
   server.registerTool(
@@ -31,6 +32,7 @@ export function registerQueryBoundaryTool(server: McpServer): void {
     },
     async ({ sourceFile, targetFile, workspaceRoot }) => {
       try {
+        validateWorkspaceRoot(workspaceRoot);
         const {
           baselineExists: checkBaseline,
           loadBaseline: getBaseline,

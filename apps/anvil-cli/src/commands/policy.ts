@@ -16,7 +16,7 @@ import {
   writeFileSync,
   readFileSync,
 } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info, warning } from '../utils/output.js';
@@ -791,7 +791,12 @@ export function createPolicyCommand(): Command {
         const configMgr = new PolicyConfigManager(workspaceRoot);
         const markdown = configMgr.generatePoliciesDoc();
 
-        const outputPath = join(workspaceRoot, options.output);
+        const outputPath = resolve(workspaceRoot, options.output);
+        const rel = relative(workspaceRoot, outputPath);
+        if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== outputPath) {
+          error(`Output path "${options.output}" resolves outside workspace root`);
+          process.exit(1);
+        }
         const outputDir = dirname(outputPath);
         if (!existsSync(outputDir)) {
           mkdirSync(outputDir, { recursive: true });
@@ -1407,7 +1412,13 @@ function createBundleAddCommand(): Command {
           const bundleConfig: PolicyBundleConfig = {
             name: bundleName,
             url,
-            polling_interval: parseInt(options.refresh || '300000', 10),
+            polling_interval: (() => {
+              const val = parseInt(options.refresh || '300000', 10);
+              if (Number.isNaN(val) || val < 0) {
+                throw new Error('--refresh must be a non-negative integer');
+              }
+              return val;
+            })(),
             enabled: true,
           };
 

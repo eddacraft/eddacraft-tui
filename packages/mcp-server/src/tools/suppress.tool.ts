@@ -1,7 +1,34 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
-import { resolve, relative } from 'node:path';
+import {
+  readFileSync,
+  writeFileSync,
+  realpathSync,
+  mkdirSync,
+  unlinkSync,
+  existsSync,
+} from 'node:fs';
+import { resolve, relative, dirname } from 'node:path';
+
+/** Simple file lock for preventing concurrent file modifications */
+async function withFileLock<T>(lockPath: string, fn: () => T | Promise<T>): Promise<T> {
+  const dir = dirname(lockPath);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  try {
+    writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+  } catch {
+    throw new Error('File is locked by another process');
+  }
+  try {
+    return await fn();
+  } finally {
+    try {
+      unlinkSync(lockPath);
+    } catch {
+      /* ignore cleanup errors */
+    }
+  }
+}
 
 export function registerSuppressTool(server: McpServer, getWorkspaceRoot: () => string): void {
   server.registerTool(
@@ -60,55 +87,61 @@ export function registerSuppressTool(server: McpServer, getWorkspaceRoot: () => 
           };
         }
 
+        // Sanitize reason to prevent injection of newlines into source comments
+        const sanitizedReason = reason.replace(/[\r\n]+/g, ' ').trim();
+
         const days = expiryDays ?? 30;
         const expiry = new Date();
         expiry.setDate(expiry.getDate() + days);
         const expiryStr = `${expiry.getFullYear()}-${String(expiry.getMonth() + 1).padStart(2, '0')}-${String(expiry.getDate()).padStart(2, '0')}`;
-        const content = readFileSync(absPath, 'utf-8');
-        const lines = content.split('\n');
-        const lineIndex = line - 1;
 
-        if (lineIndex < 0 || lineIndex >= lines.length) {
+        return await withFileLock(absPath + '.lock', () => {
+          const content = readFileSync(absPath, 'utf-8');
+          const lines = content.split('\n');
+          const lineIndex = line - 1;
+
+          if (lineIndex < 0 || lineIndex >= lines.length) {
+            return {
+              content: [
+                {
+                  type: 'text' as const,
+                  text: JSON.stringify({
+                    suppressed: false,
+                    reason: `Line ${line} out of range (file has ${lines.length} lines)`,
+                  }),
+                },
+              ],
+            };
+          }
+
+          // Detect indentation of the target line
+          const indent = lines[lineIndex].match(/^(\s*)/)?.[1] ?? '';
+          const comment = `${indent}// @anvil-ignore-until ${expiryStr} ${warningId}: ${sanitizedReason}`;
+
+          // Insert suppression comment above the target line
+          lines.splice(lineIndex, 0, comment);
+          writeFileSync(absPath, lines.join('\n'), 'utf-8');
+
           return {
             content: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({
-                  suppressed: false,
-                  reason: `Line ${line} out of range (file has ${lines.length} lines)`,
-                }),
+                text: JSON.stringify(
+                  {
+                    suppressed: true,
+                    filePath,
+                    line,
+                    comment,
+                    expiryDate: expiryStr,
+                    warningId,
+                  },
+                  null,
+                  2
+                ),
               },
             ],
           };
-        }
-
-        // Detect indentation of the target line
-        const indent = lines[lineIndex].match(/^(\s*)/)?.[1] ?? '';
-        const comment = `${indent}// @anvil-ignore-until ${expiryStr} ${warningId}: ${reason}`;
-
-        // Insert suppression comment above the target line
-        lines.splice(lineIndex, 0, comment);
-        writeFileSync(absPath, lines.join('\n'), 'utf-8');
-
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: JSON.stringify(
-                {
-                  suppressed: true,
-                  filePath,
-                  line,
-                  comment,
-                  expiryDate: expiryStr,
-                  warningId,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        });
       } catch (error) {
         return {
           content: [

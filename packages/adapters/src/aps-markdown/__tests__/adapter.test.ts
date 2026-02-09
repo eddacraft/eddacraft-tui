@@ -354,7 +354,7 @@ Some tasks without proper formatting.
       const result = await adapter.parse(content);
 
       expect(result.success).toBe(true);
-      expect(result.data!.id).toMatch(/^aps-[a-f0-9]{8}$/);
+      expect(result.data!.id).toMatch(/^aps-[a-f0-9]{8,16}$/);
       expect(result.data!.hash).toMatch(/^[a-f0-9]{64}$/);
     });
 

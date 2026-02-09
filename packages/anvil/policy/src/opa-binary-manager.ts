@@ -95,11 +95,22 @@ export class OPABinaryManager {
     // Check environment override first
     const envPath = process.env.ANVIL_OPA_PATH;
     if (envPath) {
-      if (existsSync(envPath)) {
-        await this.verifyVersion(envPath);
-        return envPath;
+      if (!existsSync(envPath)) {
+        throw new Error(`ANVIL_OPA_PATH specified but file not found: ${envPath}`);
       }
-      throw new Error(`ANVIL_OPA_PATH specified but file not found: ${envPath}`);
+      // Validate the path is a regular file and executable
+      const { statSync, accessSync, constants } = await import('node:fs');
+      const stat = statSync(envPath);
+      if (!stat.isFile()) {
+        throw new Error(`ANVIL_OPA_PATH is not a regular file: ${envPath}`);
+      }
+      try {
+        accessSync(envPath, constants.X_OK);
+      } catch {
+        throw new Error(`ANVIL_OPA_PATH is not executable: ${envPath}`);
+      }
+      await this.verifyVersion(envPath);
+      return envPath;
     }
 
     // Check if already cached

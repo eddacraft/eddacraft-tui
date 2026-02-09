@@ -115,7 +115,7 @@ export const APSPlanSchema = z
     // Identification
     id: z
       .string()
-      .regex(/^aps-[a-f0-9]{8}$/)
+      .regex(/^aps-[a-f0-9]{8}(?:[a-f0-9]{8})?$/)
       .describe('Unique plan identifier'),
     hash: z
       .string()

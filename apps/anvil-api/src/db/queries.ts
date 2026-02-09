@@ -1,32 +1,37 @@
+import { z } from 'zod';
 import type { NeonClient } from './client.js';
 
-export interface BetaUser {
-  id: string;
-  email: string;
-  name: string | null;
-  status: string;
-  notes: string | null;
-  created_at: string;
-  updated_at: string;
-}
+const BetaUserSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string().nullable(),
+  status: z.string(),
+  notes: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
 
-export interface AccessToken {
-  id: string;
-  user_id: string;
-  token_hash: string;
-  scopes: string[];
-  expires_at: string;
-  revoked_at: string | null;
-  created_at: string;
-}
+const AccessTokenSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  token_hash: z.string(),
+  scopes: z.array(z.string()),
+  expires_at: z.string(),
+  revoked_at: z.string().nullable(),
+  created_at: z.string(),
+});
 
-export interface AuditEntry {
-  id: string;
-  action: string;
-  actor: string;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
+const AuditEntrySchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  actor: z.string(),
+  metadata: z.record(z.string(), z.unknown()),
+  created_at: z.string(),
+});
+
+export type BetaUser = z.infer<typeof BetaUserSchema>;
+export type AccessToken = z.infer<typeof AccessTokenSchema>;
+export type AuditEntry = z.infer<typeof AuditEntrySchema>;
 
 // Helper to cast Neon query results (returns union type) to row array
 function rows(result: unknown): Record<string, unknown>[] {
@@ -39,7 +44,8 @@ export async function findUserByEmail(sql: NeonClient, email: string): Promise<B
     SELECT * FROM beta_users WHERE email = ${email} LIMIT 1
   `
   );
-  return (r[0] as BetaUser) ?? null;
+  if (!r[0]) return null;
+  return BetaUserSchema.parse(r[0]);
 }
 
 export async function upsertUser(
@@ -58,7 +64,7 @@ export async function upsertUser(
     RETURNING *
   `
   );
-  return r[0] as BetaUser;
+  return BetaUserSchema.parse(r[0]);
 }
 
 export async function insertToken(
@@ -75,7 +81,7 @@ export async function insertToken(
     RETURNING *
   `
   );
-  return r[0] as AccessToken;
+  return AccessTokenSchema.parse(r[0]);
 }
 
 export async function findTokenByHash(
@@ -91,7 +97,12 @@ export async function findTokenByHash(
     LIMIT 1
   `
   );
-  return (r[0] as AccessToken & { email: string; user_status: string }) ?? null;
+  if (!r[0]) return null;
+  const TokenWithUserSchema = AccessTokenSchema.extend({
+    email: z.string(),
+    user_status: z.string(),
+  });
+  return TokenWithUserSchema.parse(r[0]);
 }
 
 export async function revokeTokensByEmail(sql: NeonClient, email: string): Promise<number> {
@@ -132,7 +143,7 @@ export async function findUserWithTokens(
     ORDER BY created_at DESC
   `
   );
-  return { user, tokens: r as AccessToken[] };
+  return { user, tokens: z.array(AccessTokenSchema).parse(r) };
 }
 
 export async function insertAuditLog(
@@ -148,5 +159,5 @@ export async function insertAuditLog(
     RETURNING *
   `
   );
-  return r[0] as AuditEntry;
+  return AuditEntrySchema.parse(r[0]);
 }
