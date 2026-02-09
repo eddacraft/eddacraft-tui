@@ -29,6 +29,7 @@ export default typescriptEslint.config(
       '**/.vercel/',
       '**/.docusaurus/',
       '**/build/',
+      '.claude/',
       'eslint.config.mts',
       '**/*.md',
     ],
