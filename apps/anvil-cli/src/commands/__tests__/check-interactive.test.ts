@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Warning } from '@eddacraft/anvil-core/antipattern';
 import { runInteractiveReview } from '../check.js';
 
@@ -22,6 +22,10 @@ function makeWarning(overrides: Partial<Warning> = {}): Warning {
 describe('runInteractiveReview', () => {
   beforeEach(() => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should return empty results for empty warnings', async () => {

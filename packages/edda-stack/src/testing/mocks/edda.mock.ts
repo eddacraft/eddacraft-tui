@@ -33,7 +33,12 @@ import type { CandidateProposal } from '../../contracts/ember-proposal.js';
 import type { ProvenanceChain } from '../../contracts/provenance.js';
 import type { MemoryId, ProposalId, Timestamp } from '../../contracts/index.js';
 import { now } from '../../contracts/temporal.js';
-import { createMemoryId, createProposalId, createSessionId } from '../../contracts/identifiers.js';
+import {
+  createMemoryId,
+  createObservationId,
+  createProposalId,
+  createSessionId,
+} from '../../contracts/identifiers.js';
 import { MEMORY_SCHEMA_VERSION } from '../../contracts/edda-memory.js';
 
 // =============================================================================
@@ -134,13 +139,13 @@ export function createMockEddaPort(options: MockEddaPortOptions = {}): MockEddaP
         },
         kindling_sources: [
           {
-            observation_id: uuidv4() as any,
-            session_id: uuidv4() as any,
+            observation_id: createObservationId(uuidv4()),
+            session_id: createSessionId(uuidv4()),
             kind: 'gate_evaluated',
             timestamp,
           },
         ],
-        source_sessions: [uuidv4() as any],
+        source_sessions: [createSessionId(uuidv4())],
       },
       attribution: {
         actor: input.promoted_by,
@@ -672,7 +677,7 @@ export function mockEddaWithMemories(): MockEddaPort {
         },
         kindling_sources: [
           {
-            observation_id: uuidv4() as any,
+            observation_id: createObservationId(uuidv4()),
             session_id: sessionId,
             kind: 'gate_evaluated',
             timestamp: baseTimestamp.toISOString() as Timestamp,
@@ -705,7 +710,7 @@ export function mockEddaWithMemories(): MockEddaPort {
       provenance: {
         kindling_sources: [
           {
-            observation_id: uuidv4() as any,
+            observation_id: createObservationId(uuidv4()),
             session_id: sessionId,
             kind: 'action_executed',
             timestamp: new Date(baseTimestamp.getTime() + 86400000).toISOString() as Timestamp,
@@ -739,7 +744,7 @@ export function mockEddaWithMemories(): MockEddaPort {
       provenance: {
         kindling_sources: [
           {
-            observation_id: uuidv4() as any,
+            observation_id: createObservationId(uuidv4()),
             session_id: sessionId,
             kind: 'gate_evaluated',
             timestamp: new Date(baseTimestamp.getTime() + 259200000).toISOString() as Timestamp,
@@ -798,7 +803,7 @@ export function mockEddaWithEvolutionChain(): MockEddaPort {
       provenance: {
         kindling_sources: [
           {
-            observation_id: uuidv4() as any,
+            observation_id: createObservationId(uuidv4()),
             session_id: sessionId,
             kind: 'gate_evaluated',
             timestamp: baseTimestamp.toISOString() as Timestamp,
@@ -839,7 +844,7 @@ export function mockEddaWithEvolutionChain(): MockEddaPort {
       provenance: {
         kindling_sources: [
           {
-            observation_id: uuidv4() as any,
+            observation_id: createObservationId(uuidv4()),
             session_id: sessionId,
             kind: 'gate_evaluated',
             timestamp: new Date(baseTimestamp.getTime() + 2592000000).toISOString() as Timestamp,
