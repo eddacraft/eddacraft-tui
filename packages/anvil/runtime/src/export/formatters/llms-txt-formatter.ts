@@ -29,6 +29,8 @@ export interface LlmsTxtFormatterOptions {
   includeConventions?: boolean;
   /** Include layer definitions section */
   includeLayers?: boolean;
+  /** Include active suppressions section */
+  includeSuppressions?: boolean;
 }
 
 // =============================================================================
@@ -48,6 +50,7 @@ export class LlmsTxtFormatter {
       includeAntiPatterns: true,
       includeConventions: true,
       includeLayers: true,
+      includeSuppressions: true,
       ...options,
     };
   }
@@ -87,6 +90,11 @@ export class LlmsTxtFormatter {
     // Conventions
     if (this.options.includeConventions && constraints.conventions.length > 0) {
       sections.push(this.formatConventions(constraints));
+    }
+
+    // Suppressions
+    if (this.options.includeSuppressions && constraints.suppressions.length > 0) {
+      sections.push(this.formatSuppressions(constraints));
     }
 
     return sections.join('\n');
@@ -220,6 +228,42 @@ export class LlmsTxtFormatter {
         lines.push('**Examples:**');
         for (const example of convention.examples) {
           lines.push(`- ${example}`);
+        }
+        lines.push('');
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Format active suppressions section
+   */
+  private formatSuppressions(constraints: Constraints): string {
+    const lines: string[] = ['## Active Suppressions\n'];
+
+    lines.push(
+      'These patterns are intentionally suppressed in specific locations. ' +
+        'Do not flag or attempt to fix these.\n'
+    );
+
+    // Group by pattern ID
+    const byPattern = new Map<string, typeof constraints.suppressions>();
+    for (const suppression of constraints.suppressions) {
+      if (!byPattern.has(suppression.patternId)) {
+        byPattern.set(suppression.patternId, []);
+      }
+      byPattern.get(suppression.patternId)!.push(suppression);
+    }
+
+    for (const [patternId, suppressions] of byPattern) {
+      lines.push(`### \`${patternId}\`\n`);
+
+      for (const suppression of suppressions) {
+        lines.push(`- **\`${suppression.file}\`** (${suppression.scope})`);
+        lines.push(`  - Reason: ${suppression.reason}`);
+        if (suppression.expiresAt) {
+          lines.push(`  - Expires: ${new Date(suppression.expiresAt).toLocaleDateString()}`);
         }
         lines.push('');
       }

@@ -3,9 +3,9 @@
 
 # llms.txt Export
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| LLMS  | —     | high     | Ready  |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| LLMS  | —     | high     | Complete |
 
 ## Purpose
 
@@ -84,14 +84,14 @@ policies as machine-readable context that AI tools can consume via:
 
 ## Acceptance Criteria
 
-- [ ] `anvil export --format llms.txt` generates valid llms.txt
-- [ ] Export includes architecture boundaries from baseline
-- [ ] Export includes anti-pattern rules with explanations
-- [ ] Export includes active suppression policies
-- [ ] Export updates when baseline changes
-- [ ] MCP resource format compatible with MCP spec
-- [ ] Prompt fragment is copy-paste ready
-- [ ] < 100ms generation time for typical project
+- [x] `anvil export --format llms.txt` generates valid llms.txt
+- [x] Export includes architecture boundaries from baseline
+- [x] Export includes anti-pattern rules with explanations
+- [x] Export includes active suppression policies
+- [x] Export updates when baseline changes
+- [x] MCP resource format compatible with MCP spec
+- [x] Prompt fragment is copy-paste ready
+- [x] < 100ms generation time for typical project
 
 ## Tasks
 

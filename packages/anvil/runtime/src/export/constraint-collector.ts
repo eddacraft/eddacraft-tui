@@ -14,6 +14,8 @@ import { PATTERNS } from '@eddacraft/anvil-core/antipattern';
 import type { AntiPattern } from '@eddacraft/anvil-core/antipattern';
 import { loadBaseline } from '@eddacraft/anvil-core/architecture';
 import type { ArchitectureBaseline, Boundary, Layer } from '@eddacraft/anvil-core/architecture';
+import { SuppressionStore } from '@eddacraft/anvil-core/suppression';
+import { join } from 'node:path';
 
 // =============================================================================
 // Types
@@ -82,6 +84,22 @@ export interface ConventionConstraint {
 }
 
 /**
+ * Active suppression policy constraint
+ */
+export interface SuppressionConstraint {
+  /** Pattern ID being suppressed (e.g., AP-001) */
+  patternId: string;
+  /** Relative file path */
+  file: string;
+  /** Suppression scope */
+  scope: string;
+  /** Human-provided reason */
+  reason: string;
+  /** Expiry date (ISO) for time-boxed suppressions */
+  expiresAt?: string;
+}
+
+/**
  * Aggregated constraints from all sources
  */
 export interface Constraints {
@@ -93,6 +111,8 @@ export interface Constraints {
   antiPatterns: AntiPatternConstraint[];
   /** Project conventions */
   conventions: ConventionConstraint[];
+  /** Active suppression policies */
+  suppressions: SuppressionConstraint[];
   /** Metadata */
   metadata: {
     /** When constraints were collected */
@@ -146,6 +166,7 @@ export class ConstraintCollector {
       layers: this.collectLayers(baseline),
       antiPatterns: this.collectAntiPatterns(),
       conventions: this.collectConventions(),
+      suppressions: await this.collectSuppressions(),
       metadata: {
         collectedAt: new Date().toISOString(),
         workspaceRoot: this.config.workspaceRoot,
@@ -214,6 +235,36 @@ export class ConstraintCollector {
   }
 
   /**
+   * Collect active suppression policies from the suppression store
+   */
+  private async collectSuppressions(): Promise<SuppressionConstraint[]> {
+    try {
+      const anvilDir = join(this.config.workspaceRoot, '.anvil');
+      const store = new SuppressionStore(anvilDir);
+      await store.load();
+
+      const now = new Date();
+      const all = store.getAll();
+
+      // Filter out expired suppressions
+      const active = all.filter((record) => {
+        if (!record.expires_at) return true;
+        return new Date(record.expires_at) >= now;
+      });
+
+      return active.map((record) => ({
+        patternId: record.pattern_id,
+        file: record.file,
+        scope: record.scope,
+        reason: record.reason,
+        expiresAt: record.expires_at,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
    * Collect project conventions
    *
    * These are static conventions for the Anvil project itself.
@@ -279,7 +330,8 @@ export function hasAnyConstraints(constraints: Constraints): boolean {
     constraints.boundaries.length > 0 ||
     constraints.layers.length > 0 ||
     constraints.antiPatterns.length > 0 ||
-    constraints.conventions.length > 0
+    constraints.conventions.length > 0 ||
+    constraints.suppressions.length > 0
   );
 }
 
@@ -294,6 +346,7 @@ export function countConstraints(constraints: Constraints): number {
     constraints.boundaries.length +
     constraints.layers.length +
     constraints.antiPatterns.length +
-    constraints.conventions.length
+    constraints.conventions.length +
+    constraints.suppressions.length
   );
 }

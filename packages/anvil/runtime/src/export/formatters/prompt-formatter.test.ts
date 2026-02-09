@@ -76,6 +76,21 @@ describe('PromptFormatter', () => {
         examples: ["import { foo } from './bar.js'"],
       },
     ],
+    suppressions: [
+      {
+        patternId: 'AP-003',
+        file: 'src/legacy.ts',
+        scope: 'file',
+        reason: 'Legacy code not yet migrated',
+      },
+      {
+        patternId: 'AP-001',
+        file: 'src/api.ts',
+        scope: 'statement',
+        reason: 'Third-party integration',
+        expiresAt: '2025-06-01T00:00:00.000Z',
+      },
+    ],
     metadata: {
       collectedAt: '2024-01-15T10:30:00.000Z',
       workspaceRoot: '/test/workspace',
@@ -92,6 +107,7 @@ describe('PromptFormatter', () => {
       expect(result).toContain('**Layer Definitions**');
       expect(result).toContain('**Forbidden Anti-patterns**');
       expect(result).toContain('**Project Conventions**');
+      expect(result).toContain('**Active Suppressions**');
     });
 
     it('should include opening instruction', () => {
@@ -238,7 +254,7 @@ describe('PromptFormatter', () => {
       const result = formatter.format(sampleConstraints);
 
       expect(result).not.toContain('**Forbidden Anti-patterns**');
-      expect(result).not.toContain('AP-001');
+      expect(result).not.toContain('Broad eslint-disable');
     });
 
     it('should skip anti-patterns section when empty', () => {
@@ -319,6 +335,7 @@ describe('PromptFormatter', () => {
         layers: [],
         antiPatterns: [],
         conventions: [],
+        suppressions: [],
         metadata: {
           collectedAt: '2024-01-15T10:30:00.000Z',
           workspaceRoot: '/test',
@@ -334,6 +351,7 @@ describe('PromptFormatter', () => {
       expect(result).not.toContain('**Layer Definitions**');
       expect(result).not.toContain('**Forbidden Anti-patterns**');
       expect(result).not.toContain('**Project Conventions**');
+      expect(result).not.toContain('**Active Suppressions**');
     });
   });
 
@@ -376,6 +394,52 @@ describe('PromptFormatter', () => {
       // Should have clear separation between sections
       expect(result).toMatch(/\n\n.*Architecture Boundaries/);
       expect(result).toMatch(/\n\n.*Layer Definitions/);
+    });
+  });
+
+  describe('suppressions formatting', () => {
+    it('should format suppressions in detail', () => {
+      const formatter = new PromptFormatter({ concise: false });
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).toContain('**Active Suppressions**');
+      expect(result).toContain('AP-003:');
+      expect(result).toContain('**src/legacy.ts**');
+      expect(result).toContain('Legacy code not yet migrated');
+    });
+
+    it('should format suppressions concisely', () => {
+      const formatter = new PromptFormatter({ concise: true });
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).toContain('**Active Suppressions**');
+      expect(result).toContain('AP-003: suppressed in src/legacy.ts');
+    });
+
+    it('should include expiry date in verbose mode', () => {
+      const formatter = new PromptFormatter({ concise: false });
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).toContain('Expires:');
+    });
+
+    it('should exclude suppressions when configured', () => {
+      const formatter = new PromptFormatter({ includeSuppressions: false });
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).not.toContain('**Active Suppressions**');
+    });
+
+    it('should skip suppressions section when empty', () => {
+      const emptyConstraints: Constraints = {
+        ...sampleConstraints,
+        suppressions: [],
+      };
+
+      const formatter = new PromptFormatter();
+      const result = formatter.format(emptyConstraints);
+
+      expect(result).not.toContain('**Active Suppressions**');
     });
   });
 });

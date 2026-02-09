@@ -282,6 +282,146 @@ describe('ConstraintCollector', () => {
       expect(spellingConvention?.examples?.length).toBeGreaterThan(0);
     });
   });
+
+  describe('suppression collection', () => {
+    it('should return empty suppressions when no store exists', async () => {
+      const collector = new ConstraintCollector({ workspaceRoot: testDir });
+      const constraints = await collector.collect();
+
+      expect(constraints.suppressions).toHaveLength(0);
+    });
+
+    it('should collect active suppressions from store', async () => {
+      const anvilDir = join(testDir, ANVIL_DIR);
+      mkdirSync(anvilDir, { recursive: true });
+
+      const storeData = {
+        version: 1,
+        suppressions: [
+          {
+            id: 'src/legacy.ts:10:AP-003',
+            pattern_id: 'AP-003',
+            file: 'src/legacy.ts',
+            line: 10,
+            reason: 'Legacy code not yet migrated',
+            timestamp: '2024-01-15T10:00:00.000Z',
+            scope: 'file',
+          },
+          {
+            id: 'src/api.ts:25:AP-001',
+            pattern_id: 'AP-001',
+            file: 'src/api.ts',
+            line: 25,
+            reason: 'Third-party integration requires broad disable',
+            timestamp: '2024-01-15T10:00:00.000Z',
+            scope: 'statement',
+          },
+        ],
+        lastUpdated: '2024-01-15T10:00:00.000Z',
+      };
+
+      writeFileSync(join(anvilDir, 'suppressions.json'), JSON.stringify(storeData, null, 2));
+
+      const collector = new ConstraintCollector({ workspaceRoot: testDir });
+      const constraints = await collector.collect();
+
+      expect(constraints.suppressions).toHaveLength(2);
+
+      const first = constraints.suppressions[0];
+      expect(first.patternId).toBe('AP-003');
+      expect(first.file).toBe('src/legacy.ts');
+      expect(first.scope).toBe('file');
+      expect(first.reason).toBe('Legacy code not yet migrated');
+    });
+
+    it('should filter out expired suppressions', async () => {
+      const anvilDir = join(testDir, ANVIL_DIR);
+      mkdirSync(anvilDir, { recursive: true });
+
+      const pastDate = new Date(Date.now() - 86400000).toISOString(); // yesterday
+      const futureDate = new Date(Date.now() + 86400000 * 30).toISOString(); // 30 days from now
+
+      const storeData = {
+        version: 1,
+        suppressions: [
+          {
+            id: 'src/old.ts:5:AP-001',
+            pattern_id: 'AP-001',
+            file: 'src/old.ts',
+            line: 5,
+            reason: 'Expired suppression',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            scope: 'line',
+            expires_at: pastDate,
+          },
+          {
+            id: 'src/new.ts:10:AP-002',
+            pattern_id: 'AP-002',
+            file: 'src/new.ts',
+            line: 10,
+            reason: 'Active time-boxed suppression',
+            timestamp: '2024-01-15T00:00:00.000Z',
+            scope: 'statement',
+            expires_at: futureDate,
+          },
+          {
+            id: 'src/permanent.ts:1:AP-003',
+            pattern_id: 'AP-003',
+            file: 'src/permanent.ts',
+            line: 1,
+            reason: 'Permanent suppression',
+            timestamp: '2024-01-15T00:00:00.000Z',
+            scope: 'file',
+          },
+        ],
+        lastUpdated: '2024-01-15T00:00:00.000Z',
+      };
+
+      writeFileSync(join(anvilDir, 'suppressions.json'), JSON.stringify(storeData, null, 2));
+
+      const collector = new ConstraintCollector({ workspaceRoot: testDir });
+      const constraints = await collector.collect();
+
+      // Should have 2 active (future + permanent), not the expired one
+      expect(constraints.suppressions).toHaveLength(2);
+      expect(constraints.suppressions.map((s) => s.file)).toEqual(
+        expect.arrayContaining(['src/new.ts', 'src/permanent.ts'])
+      );
+      expect(constraints.suppressions.map((s) => s.file)).not.toContain('src/old.ts');
+    });
+
+    it('should include expiresAt for time-boxed suppressions', async () => {
+      const anvilDir = join(testDir, ANVIL_DIR);
+      mkdirSync(anvilDir, { recursive: true });
+
+      const futureDate = new Date(Date.now() + 86400000 * 30).toISOString();
+
+      const storeData = {
+        version: 1,
+        suppressions: [
+          {
+            id: 'src/temp.ts:5:AP-001',
+            pattern_id: 'AP-001',
+            file: 'src/temp.ts',
+            line: 5,
+            reason: 'Temporary exception',
+            timestamp: '2024-01-15T00:00:00.000Z',
+            scope: 'line',
+            expires_at: futureDate,
+          },
+        ],
+        lastUpdated: '2024-01-15T00:00:00.000Z',
+      };
+
+      writeFileSync(join(anvilDir, 'suppressions.json'), JSON.stringify(storeData, null, 2));
+
+      const collector = new ConstraintCollector({ workspaceRoot: testDir });
+      const constraints = await collector.collect();
+
+      expect(constraints.suppressions).toHaveLength(1);
+      expect(constraints.suppressions[0].expiresAt).toBe(futureDate);
+    });
+  });
 });
 
 describe('collectConstraints', () => {
@@ -315,6 +455,7 @@ describe('hasAnyConstraints', () => {
       layers: [],
       antiPatterns: [],
       conventions: [],
+      suppressions: [],
       metadata: {
         collectedAt: new Date().toISOString(),
         workspaceRoot: '/test',
@@ -339,6 +480,7 @@ describe('hasAnyConstraints', () => {
       layers: [],
       antiPatterns: [],
       conventions: [],
+      suppressions: [],
       metadata: {
         collectedAt: new Date().toISOString(),
         workspaceRoot: '/test',
@@ -365,6 +507,31 @@ describe('hasAnyConstraints', () => {
         },
       ],
       conventions: [],
+      suppressions: [],
+      metadata: {
+        collectedAt: new Date().toISOString(),
+        workspaceRoot: '/test',
+        hasBaseline: false,
+      },
+    };
+
+    expect(hasAnyConstraints(constraints)).toBe(true);
+  });
+
+  it('should return true when suppressions exist', () => {
+    const constraints: Constraints = {
+      boundaries: [],
+      layers: [],
+      antiPatterns: [],
+      conventions: [],
+      suppressions: [
+        {
+          patternId: 'AP-001',
+          file: 'src/legacy.ts',
+          scope: 'file',
+          reason: 'Legacy code migration',
+        },
+      ],
       metadata: {
         collectedAt: new Date().toISOString(),
         workspaceRoot: '/test',
@@ -383,6 +550,7 @@ describe('countConstraints', () => {
       layers: [],
       antiPatterns: [],
       conventions: [],
+      suppressions: [],
       metadata: {
         collectedAt: new Date().toISOString(),
         workspaceRoot: '/test',
@@ -424,8 +592,7 @@ describe('countConstraints', () => {
           name: 'Test',
           category: 'test',
           explanation: 'test',
-          suggestion: 'test',
-          severity: 'warning',
+          suggestion: 'warning',
           enabled: true,
         },
       ],
@@ -435,6 +602,14 @@ describe('countConstraints', () => {
           description: 'test',
         },
       ],
+      suppressions: [
+        {
+          patternId: 'AP-001',
+          file: 'src/foo.ts',
+          scope: 'file',
+          reason: 'test',
+        },
+      ],
       metadata: {
         collectedAt: new Date().toISOString(),
         workspaceRoot: '/test',
@@ -442,7 +617,7 @@ describe('countConstraints', () => {
       },
     };
 
-    // 2 boundaries + 1 layer + 1 anti-pattern + 1 convention = 5
-    expect(countConstraints(constraints)).toBe(5);
+    // 2 boundaries + 1 layer + 1 anti-pattern + 1 convention + 1 suppression = 6
+    expect(countConstraints(constraints)).toBe(6);
   });
 });

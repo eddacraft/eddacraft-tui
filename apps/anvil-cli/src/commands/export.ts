@@ -281,6 +281,9 @@ async function exportConstraints(
     if (constraints.conventions.length > 0) {
       console.log(chalk.gray('    - Conventions:  '), chalk.cyan(constraints.conventions.length));
     }
+    if (constraints.suppressions.length > 0) {
+      console.log(chalk.gray('    - Suppressions: '), chalk.cyan(constraints.suppressions.length));
+    }
 
     console.log(chalk.green('\n✓ Export complete'));
   } catch (error) {

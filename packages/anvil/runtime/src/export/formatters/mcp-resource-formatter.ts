@@ -43,6 +43,8 @@ export interface McpResourceContents {
   antiPatterns?: McpAntiPattern[];
   /** Project conventions */
   conventions?: McpConvention[];
+  /** Active suppression policies */
+  suppressions?: McpSuppression[];
   /** Metadata */
   metadata: {
     /** When resource was generated */
@@ -120,6 +122,22 @@ export interface McpConvention {
   examples?: string[];
 }
 
+/**
+ * MCP representation of a suppression
+ */
+export interface McpSuppression {
+  /** Pattern ID being suppressed */
+  patternId: string;
+  /** File path */
+  file: string;
+  /** Suppression scope */
+  scope: string;
+  /** Reason for suppression */
+  reason: string;
+  /** Expiry date */
+  expiresAt?: string;
+}
+
 // =============================================================================
 // Formatter Options
 // =============================================================================
@@ -138,6 +156,8 @@ export interface McpResourceFormatterOptions {
   includeAntiPatterns?: boolean;
   /** Include conventions */
   includeConventions?: boolean;
+  /** Include active suppressions */
+  includeSuppressions?: boolean;
 }
 
 // =============================================================================
@@ -157,6 +177,7 @@ export class McpResourceFormatter {
       includeLayers: true,
       includeAntiPatterns: true,
       includeConventions: true,
+      includeSuppressions: true,
       ...options,
     };
   }
@@ -239,6 +260,16 @@ export class McpResourceFormatter {
         category: convention.category,
         description: convention.description,
         examples: convention.examples,
+      }));
+    }
+
+    if (this.options.includeSuppressions && constraints.suppressions.length > 0) {
+      contents.suppressions = constraints.suppressions.map((suppression) => ({
+        patternId: suppression.patternId,
+        file: suppression.file,
+        scope: suppression.scope,
+        reason: suppression.reason,
+        expiresAt: suppression.expiresAt,
       }));
     }
 

@@ -25,6 +25,8 @@ export interface PromptFormatterOptions {
   includeAntiPatterns?: boolean;
   /** Include conventions section */
   includeConventions?: boolean;
+  /** Include active suppressions section */
+  includeSuppressions?: boolean;
   /** Use concise format (shorter, less detail) */
   concise?: boolean;
 }
@@ -45,6 +47,7 @@ export class PromptFormatter {
       includeLayers: true,
       includeAntiPatterns: true,
       includeConventions: true,
+      includeSuppressions: true,
       concise: false,
       ...options,
     };
@@ -80,6 +83,11 @@ export class PromptFormatter {
     // Conventions
     if (this.options.includeConventions && constraints.conventions.length > 0) {
       sections.push(this.formatConventions(constraints));
+    }
+
+    // Suppressions
+    if (this.options.includeSuppressions && constraints.suppressions.length > 0) {
+      sections.push(this.formatSuppressions(constraints));
     }
 
     return sections.join('\n\n');
@@ -231,6 +239,46 @@ export class PromptFormatter {
         for (const example of convention.examples) {
           lines.push(`  • ${example}`);
         }
+      }
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Format active suppressions section
+   */
+  private formatSuppressions(constraints: Constraints): string {
+    const lines: string[] = ['**Active Suppressions**'];
+
+    if (!this.options.concise) {
+      lines.push('These violations are intentionally suppressed. Do not flag or fix them:');
+    }
+
+    lines.push('');
+
+    // Group by pattern ID
+    const byPattern = new Map<string, typeof constraints.suppressions>();
+    for (const suppression of constraints.suppressions) {
+      if (!byPattern.has(suppression.patternId)) {
+        byPattern.set(suppression.patternId, []);
+      }
+      byPattern.get(suppression.patternId)!.push(suppression);
+    }
+
+    for (const [patternId, suppressions] of byPattern) {
+      if (this.options.concise) {
+        const files = suppressions.map((s) => s.file).join(', ');
+        lines.push(`- ${patternId}: suppressed in ${files}`);
+      } else {
+        lines.push(`${patternId}:`);
+        for (const suppression of suppressions) {
+          lines.push(`- **${suppression.file}** (${suppression.scope}): ${suppression.reason}`);
+          if (suppression.expiresAt) {
+            lines.push(`  Expires: ${new Date(suppression.expiresAt).toLocaleDateString()}`);
+          }
+        }
+        lines.push('');
       }
     }
 

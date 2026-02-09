@@ -75,6 +75,21 @@ describe('McpResourceFormatter', () => {
         examples: ["import { foo } from './bar.js'"],
       },
     ],
+    suppressions: [
+      {
+        patternId: 'AP-003',
+        file: 'src/legacy.ts',
+        scope: 'file',
+        reason: 'Legacy code not yet migrated',
+      },
+      {
+        patternId: 'AP-001',
+        file: 'src/api.ts',
+        scope: 'statement',
+        reason: 'Third-party integration',
+        expiresAt: '2025-06-01T00:00:00.000Z',
+      },
+    ],
     metadata: {
       collectedAt: '2024-01-15T10:30:00.000Z',
       workspaceRoot: '/test/workspace',
@@ -381,6 +396,7 @@ describe('McpResourceFormatter', () => {
         layers: [],
         antiPatterns: [],
         conventions: [],
+        suppressions: [],
         metadata: {
           collectedAt: '2024-01-15T10:30:00.000Z',
           workspaceRoot: '/test',
@@ -397,6 +413,7 @@ describe('McpResourceFormatter', () => {
       expect(result.contents.layers).toBeUndefined();
       expect(result.contents.antiPatterns).toBeUndefined();
       expect(result.contents.conventions).toBeUndefined();
+      expect(result.contents.suppressions).toBeUndefined();
     });
   });
 
@@ -409,6 +426,7 @@ describe('McpResourceFormatter', () => {
       expect(result.contents.layers).toBeDefined();
       expect(result.contents.antiPatterns).toBeDefined();
       expect(result.contents.conventions).toBeDefined();
+      expect(result.contents.suppressions).toBeDefined();
     });
   });
 
@@ -425,6 +443,54 @@ describe('McpResourceFormatter', () => {
 
       expect(result).not.toContain('\n  ');
       expect(() => JSON.parse(result)).not.toThrow();
+    });
+  });
+
+  describe('suppressions formatting', () => {
+    it('should format suppressions', () => {
+      const formatter = new McpResourceFormatter();
+      const result = formatter.format(sampleConstraints);
+
+      expect(result.contents.suppressions).toBeDefined();
+      expect(result.contents.suppressions).toHaveLength(2);
+    });
+
+    it('should include suppression fields', () => {
+      const formatter = new McpResourceFormatter();
+      const result = formatter.format(sampleConstraints);
+
+      const suppression = result.contents.suppressions![0];
+      expect(suppression.patternId).toBe('AP-003');
+      expect(suppression.file).toBe('src/legacy.ts');
+      expect(suppression.scope).toBe('file');
+      expect(suppression.reason).toBe('Legacy code not yet migrated');
+    });
+
+    it('should include expiresAt for time-boxed suppressions', () => {
+      const formatter = new McpResourceFormatter();
+      const result = formatter.format(sampleConstraints);
+
+      const suppression = result.contents.suppressions![1];
+      expect(suppression.expiresAt).toBe('2025-06-01T00:00:00.000Z');
+    });
+
+    it('should exclude suppressions when configured', () => {
+      const formatter = new McpResourceFormatter({ includeSuppressions: false });
+      const result = formatter.format(sampleConstraints);
+
+      expect(result.contents.suppressions).toBeUndefined();
+    });
+
+    it('should exclude suppressions when empty', () => {
+      const emptyConstraints: Constraints = {
+        ...sampleConstraints,
+        suppressions: [],
+      };
+
+      const formatter = new McpResourceFormatter();
+      const result = formatter.format(emptyConstraints);
+
+      expect(result.contents.suppressions).toBeUndefined();
     });
   });
 });

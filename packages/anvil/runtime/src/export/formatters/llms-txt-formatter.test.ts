@@ -80,6 +80,21 @@ describe('LlmsTxtFormatter', () => {
         examples: ["import { foo } from './bar.js'"],
       },
     ],
+    suppressions: [
+      {
+        patternId: 'AP-003',
+        file: 'src/legacy.ts',
+        scope: 'file',
+        reason: 'Legacy code not yet migrated',
+      },
+      {
+        patternId: 'AP-001',
+        file: 'src/api.ts',
+        scope: 'statement',
+        reason: 'Third-party integration',
+        expiresAt: '2025-06-01T00:00:00.000Z',
+      },
+    ],
     metadata: {
       collectedAt: '2024-01-15T10:30:00.000Z',
       workspaceRoot: '/test/workspace',
@@ -97,6 +112,7 @@ describe('LlmsTxtFormatter', () => {
       expect(result).toContain('## Layer Definitions');
       expect(result).toContain('## Anti-patterns (Blocked)');
       expect(result).toContain('## Conventions');
+      expect(result).toContain('## Active Suppressions');
     });
 
     it('should include title', () => {
@@ -242,7 +258,7 @@ describe('LlmsTxtFormatter', () => {
       const result = formatter.format(sampleConstraints);
 
       expect(result).not.toContain('## Anti-patterns (Blocked)');
-      expect(result).not.toContain('AP-001');
+      expect(result).not.toContain('Broad eslint-disable');
     });
 
     it('should skip anti-patterns section when empty', () => {
@@ -323,6 +339,7 @@ describe('LlmsTxtFormatter', () => {
         layers: [],
         antiPatterns: [],
         conventions: [],
+        suppressions: [],
         metadata: {
           collectedAt: '2024-01-15T10:30:00.000Z',
           workspaceRoot: '/test',
@@ -337,6 +354,7 @@ describe('LlmsTxtFormatter', () => {
       expect(result).not.toContain('## Boundary Rules');
       expect(result).not.toContain('## Anti-patterns');
       expect(result).not.toContain('## Conventions');
+      expect(result).not.toContain('## Active Suppressions');
     });
   });
 
@@ -400,6 +418,7 @@ describe('LlmsTxtFormatter', () => {
         layers: [],
         antiPatterns: [],
         conventions: [],
+        suppressions: [],
         metadata: {
           collectedAt: '2024-01-15T10:30:00.000Z',
           workspaceRoot: '/test',
@@ -413,6 +432,52 @@ describe('LlmsTxtFormatter', () => {
       expect(result).toContain('🚫'); // error
       expect(result).toContain('⚠️'); // warning
       expect(result).toContain('ℹ️'); // info
+    });
+  });
+
+  describe('suppression formatting', () => {
+    it('should format active suppressions', () => {
+      const formatter = new LlmsTxtFormatter();
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).toContain('## Active Suppressions');
+      expect(result).toContain('`AP-003`');
+      expect(result).toContain('`src/legacy.ts`');
+      expect(result).toContain('Legacy code not yet migrated');
+    });
+
+    it('should group suppressions by pattern ID', () => {
+      const formatter = new LlmsTxtFormatter();
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).toContain('### `AP-003`');
+      expect(result).toContain('### `AP-001`');
+    });
+
+    it('should include expiry date for time-boxed suppressions', () => {
+      const formatter = new LlmsTxtFormatter();
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).toContain('Expires:');
+    });
+
+    it('should exclude suppressions when configured', () => {
+      const formatter = new LlmsTxtFormatter({ includeSuppressions: false });
+      const result = formatter.format(sampleConstraints);
+
+      expect(result).not.toContain('## Active Suppressions');
+    });
+
+    it('should skip suppressions section when empty', () => {
+      const emptyConstraints: Constraints = {
+        ...sampleConstraints,
+        suppressions: [],
+      };
+
+      const formatter = new LlmsTxtFormatter();
+      const result = formatter.format(emptyConstraints);
+
+      expect(result).not.toContain('## Active Suppressions');
     });
   });
 });
