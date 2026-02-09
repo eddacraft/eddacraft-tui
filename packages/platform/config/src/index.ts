@@ -8,4 +8,5 @@
 
 export * from './constants.js';
 export * from './loader.js';
+export * from './nudge-config.js';
 export * from './types.js';

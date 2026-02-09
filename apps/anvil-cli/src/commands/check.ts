@@ -9,7 +9,12 @@ import {
   type AnalyzeResult,
 } from '@eddacraft/anvil-runtime';
 import type { Warning } from '@eddacraft/anvil-core/antipattern';
-import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-platform-config';
+import {
+  DEFAULT_ANALYSABLE_EXTENSIONS,
+  DEFAULT_NUDGE_CONFIG,
+  meetsNudgeThreshold,
+  type NudgeConfig,
+} from '@eddacraft/anvil-platform-config';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
 import { success, error, info } from '../utils/output.js';
@@ -24,6 +29,8 @@ interface CheckOptions {
   all?: boolean;
   extensions?: string;
   interactive?: boolean;
+  nudge?: boolean;
+  nudgeThreshold?: string;
 }
 
 interface JSONCheckOutput {
@@ -170,7 +177,7 @@ export async function runInteractiveReview(
   return results;
 }
 
-function formatWarning(w: Warning, verbose: boolean): void {
+function formatWarning(w: Warning, verbose: boolean, nudgeConfig: NudgeConfig): void {
   const severityColors: Record<string, (s: string) => string> = {
     error: chalk.red,
     warning: chalk.yellow,
@@ -184,7 +191,11 @@ function formatWarning(w: Warning, verbose: boolean): void {
   console.log(`    ${w.message}`);
 
   if (verbose) {
-    if (w.nudge) {
+    if (
+      w.nudge &&
+      nudgeConfig.enabled &&
+      meetsNudgeThreshold(w.severity, nudgeConfig.severityThreshold)
+    ) {
       console.log(chalk.green(`    → ${w.nudge}`));
     }
     console.log(chalk.gray(`    Why: ${w.explanation}`));
@@ -218,7 +229,11 @@ function formatResultsJSON(files: string[], result: AnalyzeResult): void {
   console.log(JSON.stringify(output, null, 2));
 }
 
-function formatResultsHuman(result: AnalyzeResult, verbose: boolean): void {
+function formatResultsHuman(
+  result: AnalyzeResult,
+  verbose: boolean,
+  nudgeConfig: NudgeConfig
+): void {
   const { warnings, summary } = result.warnings;
 
   if (warnings.length === 0) {
@@ -234,17 +249,17 @@ function formatResultsHuman(result: AnalyzeResult, verbose: boolean): void {
 
   if (errors.length > 0) {
     console.log(chalk.red.bold('Errors:'));
-    errors.forEach((w) => formatWarning(w, verbose));
+    errors.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
   if (warns.length > 0) {
     console.log(chalk.yellow.bold('Warnings:'));
-    warns.forEach((w) => formatWarning(w, verbose));
+    warns.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
   if (infos.length > 0 && verbose) {
     console.log(chalk.blue.bold('Info:'));
-    infos.forEach((w) => formatWarning(w, verbose));
+    infos.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
   console.log(chalk.bold('Summary:'));
@@ -294,11 +309,28 @@ export function createCheckCommand(): Command {
       'Comma-separated file extensions to analyse (e.g., .ts,.tsx,.html)'
     )
     .option('-i, --interactive', 'Review each warning interactively with nudge coaching')
+    .option('--no-nudge', 'Disable coaching nudges')
+    .option(
+      '--nudge-threshold <level>',
+      'Minimum severity for nudges: error, warning, info (default: warning)'
+    )
     .action(async (files: string[], options: CheckOptions) => {
       const spinner = options.json ? null : ora('Analysing files...').start();
 
       try {
         const workspaceRoot = getWorkspaceRoot();
+
+        // Resolve nudge configuration: CLI flags override defaults
+        const nudgeConfig: NudgeConfig = {
+          ...DEFAULT_NUDGE_CONFIG,
+          ...(options.nudge === false ? { enabled: false } : {}),
+          ...(options.nudgeThreshold
+            ? { severityThreshold: options.nudgeThreshold as NudgeConfig['severityThreshold'] }
+            : {}),
+        };
+
+        // --interactive flag or config default
+        const useInteractive = options.interactive ?? (nudgeConfig.interactive && !options.json);
         const activeExtensions = options.extensions
           ? [
               ...new Set(
@@ -433,7 +465,7 @@ export function createCheckCommand(): Command {
           } else if (options.changed) {
             console.log(chalk.gray(`\nChecked ${filesToAnalyse.length} changed file(s)\n`));
           }
-          formatResultsHuman(result, options.verbose ?? false);
+          formatResultsHuman(result, options.verbose ?? false, nudgeConfig);
 
           if (options.verbose) {
             info(`Checks run: ${result.checksRun.join(', ')}`);
@@ -441,11 +473,19 @@ export function createCheckCommand(): Command {
         }
 
         // Interactive mode: review each warning with nudge coaching
-        if (options.interactive && !options.json && result.warnings.warnings.length > 0) {
-          if (!process.stdout.isTTY) {
+        if (useInteractive && !options.json && result.warnings.warnings.length > 0) {
+          if (!nudgeConfig.enabled) {
+            info('Interactive review skipped: nudges are disabled');
+          } else if (!process.stdout.isTTY) {
             info('--interactive ignored: not a TTY environment');
           } else {
-            await runInteractiveReview(result.warnings.warnings);
+            // Filter warnings by nudge severity threshold for interactive review
+            const reviewableWarnings = result.warnings.warnings.filter((w) =>
+              meetsNudgeThreshold(w.severity, nudgeConfig.severityThreshold)
+            );
+            if (reviewableWarnings.length > 0) {
+              await runInteractiveReview(reviewableWarnings);
+            }
           }
         }
 

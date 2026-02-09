@@ -7,9 +7,9 @@ See: plans/aps-rules.md
 
 # Coaching Nudges
 
-| ID    | Owner | Status      |
-| ----- | ----- | ----------- |
-| NUDGE | —     | In Progress |
+| ID    | Owner | Status   |
+| ----- | ----- | -------- |
+| NUDGE | —     | Complete |
 
 ## Purpose
 
@@ -238,19 +238,19 @@ better solution than a mechanical transform.
   deterministic fixes (AP-003, AP-004, AP-001). The `[u]ppress` option
   should insert a suppression comment and re-run.
 
-### NUDGE-006: Configuration and severity threshold
+### NUDGE-006: Configuration and severity threshold ✅
 
 - **Intent:** Add configuration for nudge behaviour
 - **Expected Outcome:** Config supports `nudge.enabled` (default: true),
   `nudge.interactive` (default: false), `nudge.severityThreshold`
   (default: `warning` — nudge on warnings and errors, not info)
-- **Files:** `packages/platform/config/src/schema.ts`,
+- **Files:** `packages/platform/config/src/nudge-config.ts`,
   `apps/anvil-cli/src/commands/check.ts`
 - **Dependencies:** NUDGE-001
 - **Validation:** `pnpm -F config test`
 - **Confidence:** high
 
-### NUDGE-007: Tests and documentation
+### NUDGE-007: Tests and documentation ✅
 
 - **Intent:** Full test coverage and documentation for nudge feature
 - **Expected Outcome:** Unit tests for nudge field propagation, MCP nudge
