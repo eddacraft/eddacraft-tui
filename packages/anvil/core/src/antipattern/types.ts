@@ -109,6 +109,7 @@ export const WarningSchema = z.object({
   message: z.string().describe('Primary message - what happened'),
   explanation: z.string().describe('Why this matters'),
   suggestion: z.string().describe('What to do instead'),
+  nudge: z.string().optional().describe('Imperative coaching prompt from the pattern'),
 
   // Location
   location: LocationSchema.describe('Source code location'),
@@ -181,6 +182,7 @@ export const AntiPatternSchema = z.object({
   title: z.string().describe('Warning title template'),
   explanation: z.string().describe('Why this pattern is problematic'),
   suggestion: z.string().describe('Recommended alternative'),
+  nudge: z.string().optional().describe('Imperative coaching prompt for AI agents and developers'),
 
   // File targeting
   fileExtensions: z

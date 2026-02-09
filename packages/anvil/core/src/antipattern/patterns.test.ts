@@ -54,6 +54,25 @@ describe('Pattern Catalogue', () => {
         expect(pattern.suggestion.length).toBeGreaterThan(0);
       }
     });
+
+    it('should have nudge text on every pattern', () => {
+      for (const pattern of PATTERNS) {
+        expect(pattern.nudge, `${pattern.id} missing nudge`).toBeDefined();
+        expect(typeof pattern.nudge).toBe('string');
+        expect(pattern.nudge!.length).toBeGreaterThan(0);
+      }
+    });
+
+    it('should have nudge text in imperative voice', () => {
+      const imperativeStarters = ["Don't", 'Before', 'Move', 'Remove', 'Replace', 'This'];
+      for (const pattern of PATTERNS) {
+        const startsImperative = imperativeStarters.some((s) => pattern.nudge!.startsWith(s));
+        expect(
+          startsImperative,
+          `${pattern.id} nudge should start with imperative voice: "${pattern.nudge!.substring(0, 30)}..."`
+        ).toBe(true);
+      }
+    });
   });
 
   describe('getPattern', () => {

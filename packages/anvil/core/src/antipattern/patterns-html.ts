@@ -39,6 +39,10 @@ const AP008_INLINE_STYLE: AntiPattern = {
   suggestion:
     'Move styles to an external CSS file or use CSS classes. ' +
     'For dynamic styles, use CSS custom properties or a CSS-in-JS solution.',
+  nudge:
+    "Move this inline style to a CSS class. Inline styles can't be overridden " +
+    'by stylesheets, break consistency, and make maintenance harder. Define a ' +
+    'class in your stylesheet and apply it instead.',
   fileExtensions: ['.html', '.htm'],
   allowlist: ['**/email/**'],
   enabled: true,
@@ -68,6 +72,10 @@ const AP009_INLINE_SCRIPT: AntiPattern = {
   suggestion:
     'Move JavaScript to external .js files referenced with <script src="...">. ' +
     'This enables caching, CSP compliance, and better separation of concerns.',
+  nudge:
+    'Move this script to an external `.js` file and reference it with ' +
+    '`<script src="...">`. Inline scripts cannot be cached, violate CSP ' +
+    'policies, and make code harder to test.',
   fileExtensions: ['.html', '.htm'],
   allowlist: ['**/email/**'],
   enabled: true,
@@ -97,6 +105,10 @@ const AP010_INLINE_EVENT_HANDLER: AntiPattern = {
   suggestion:
     'Use addEventListener() in external JavaScript files instead. ' +
     'For frameworks, use the framework event binding syntax.',
+  nudge:
+    'Remove this inline event handler and use `addEventListener()` in an ' +
+    'external script instead. Inline handlers mix behaviour with markup and ' +
+    'are blocked by strict Content Security Policies.',
   fileExtensions: ['.html', '.htm'],
   allowlist: ['**/email/**'],
   enabled: true,
@@ -126,6 +138,9 @@ const AP011_DEPRECATED_TAGS: AntiPattern = {
   suggestion:
     'Replace deprecated tags with semantic HTML and CSS. ' +
     'For example, use CSS text-align instead of <center>, and CSS font properties instead of <font>.',
+  nudge:
+    'Replace this deprecated HTML tag with its modern CSS equivalent. Use CSS ' +
+    'for visual presentation instead of presentational HTML elements.',
   fileExtensions: ['.html', '.htm'],
   allowlist: ['**/email/**'],
   enabled: true,

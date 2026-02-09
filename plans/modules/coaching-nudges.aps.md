@@ -7,9 +7,9 @@ See: plans/aps-rules.md
 
 # Coaching Nudges
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| NUDGE | —     | Ready  |
+| ID    | Owner | Status      |
+| ----- | ----- | ----------- |
+| NUDGE | —     | In Progress |
 
 ## Purpose
 
@@ -151,7 +151,7 @@ better solution than a mechanical transform.
 
 ## Tasks
 
-### NUDGE-001: Add nudge field to schemas
+### NUDGE-001: Add nudge field to schemas ✅
 
 - **Intent:** Add `nudge` field to `AntiPattern` and `Warning` schemas
 - **Expected Outcome:** `AntiPatternSchema` has optional `nudge: string`
@@ -167,9 +167,9 @@ better solution than a mechanical transform.
   `suggestion`. Update `createWarningFromMatch` in `scanner.ts:42` to copy
   `pattern.nudge` to the warning.
 
-### NUDGE-002: Author nudge text for all patterns
+### NUDGE-002: Author nudge text for all patterns ✅
 
-- **Intent:** Write and add nudge text for AP-001 through AP-007
+- **Intent:** Write and add nudge text for AP-001 through AP-013
 - **Expected Outcome:** All 7 patterns in `patterns.ts` have `nudge` fields
   with imperative coaching text
 - **Files:** `packages/anvil/core/src/antipattern/patterns.ts`
@@ -183,7 +183,7 @@ better solution than a mechanical transform.
   - Work for both AI agents and human developers
   - Not reference "you" as AI or human specifically
 
-### NUDGE-003: MCP tool nudge integration
+### NUDGE-003: MCP tool nudge integration ✅
 
 - **Intent:** Include nudge in `anvil_check` MCP tool responses
 - **Expected Outcome:** When `anvil_check` returns warnings, each warning

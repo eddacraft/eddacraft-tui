@@ -278,6 +278,52 @@ describe('Scanner', () => {
         expect(warning.pattern).toBe('AP-003');
       });
     });
+
+    describe('nudge propagation', () => {
+      it('should propagate nudge from pattern to warning', () => {
+        const content = `const x: any = 1;`;
+        const result = scanFile('src/file.ts', content);
+        const warning = result.warnings[0];
+
+        expect(warning.nudge).toBeDefined();
+        expect(warning.nudge).toContain("Don't use `any` here");
+      });
+
+      it('should propagate nudge for AP-001', () => {
+        const content = `/* eslint-disable */`;
+        const result = scanFile('test.ts', content, { patterns: ['AP-001'] });
+
+        expect(result.warnings[0].nudge).toContain('Blanket disables');
+      });
+
+      it('should propagate nudge for AP-004', () => {
+        const content = `// @ts-ignore`;
+        const result = scanFile('test.ts', content, { patterns: ['AP-004'] });
+
+        expect(result.warnings[0].nudge).toContain('@ts-expect-error');
+      });
+
+      it('should propagate nudge for AP-006', () => {
+        const content = `try { x(); } catch (e) {}`;
+        const result = scanFile('test.ts', content, { patterns: ['AP-006'] });
+
+        expect(result.warnings[0].nudge).toContain('swallow');
+      });
+
+      it('should include nudge for HTML patterns', () => {
+        const content = `<div style="color: red">Hello</div>`;
+        const result = scanFile('page.html', content, { patterns: ['AP-008'] });
+
+        expect(result.warnings[0].nudge).toContain('inline style');
+      });
+
+      it('should include nudge for CSS patterns', () => {
+        const content = `color: red !important;`;
+        const result = scanFile('style.css', content, { patterns: ['AP-012'] });
+
+        expect(result.warnings[0].nudge).toContain('!important');
+      });
+    });
   });
 
   describe('legacy pattern scoping to JS/TS files', () => {

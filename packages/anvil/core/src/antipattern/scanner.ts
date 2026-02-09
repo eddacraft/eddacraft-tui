@@ -62,6 +62,7 @@ function createWarningFromMatch(
     message: `Found ${pattern.name} at line ${line}`,
     explanation: pattern.explanation,
     suggestion: pattern.suggestion,
+    ...(pattern.nudge ? { nudge: pattern.nudge } : {}),
     location: {
       file: filePath,
       line,

@@ -41,6 +41,7 @@ interface JSONCheckOutput {
     file: string;
     line: number;
     suggestion: string;
+    nudge?: string;
   }>;
   summary: {
     total: number;
@@ -65,6 +66,9 @@ function formatWarning(w: Warning, verbose: boolean): void {
   console.log(`    ${w.message}`);
 
   if (verbose) {
+    if (w.nudge) {
+      console.log(chalk.green(`    → ${w.nudge}`));
+    }
     console.log(chalk.gray(`    Why: ${w.explanation}`));
     console.log(chalk.cyan(`    Fix: ${w.suggestion}`));
   }
@@ -88,6 +92,7 @@ function formatResultsJSON(files: string[], result: AnalyzeResult): void {
       file: w.location.file,
       line: w.location.line,
       suggestion: w.suggestion,
+      ...(w.nudge ? { nudge: w.nudge } : {}),
     })),
     summary: result.warnings.summary,
   };

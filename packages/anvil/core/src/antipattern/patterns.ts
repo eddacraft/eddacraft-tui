@@ -44,6 +44,10 @@ const AP001_BROAD_ESLINT_DISABLE: AntiPattern = {
     'This pattern indicates technical debt that should be addressed.',
   suggestion:
     'Disable specific rules with /* eslint-disable rule-name */ or fix the underlying issues.',
+  nudge:
+    "Don't disable all linting rules. Identify which specific rule is failing and " +
+    'either fix the underlying issue or disable only that one rule with ' +
+    '`/* eslint-disable specific-rule */`. Blanket disables hide real problems.',
   enabled: true,
   optIn: false,
 };
@@ -72,6 +76,10 @@ const AP002_RULE_SPECIFIC_ESLINT_DISABLE: AntiPattern = {
     'While better than disabling all rules, targeted disables still indicate code that violates linting standards. ' +
     'Consider if the disable is necessary or if the code can be improved.',
   suggestion: 'Add a comment explaining why this rule needs to be disabled here.',
+  nudge:
+    'Before disabling this rule, try to fix the code so it passes. If the disable ' +
+    'is genuinely necessary, add a comment explaining why this specific case ' +
+    "can't follow the rule.",
   enabled: true,
   optIn: true, // Noisy - opt-in only
 };
@@ -101,6 +109,11 @@ const AP003_ANY_TYPE: AntiPattern = {
   suggestion:
     'Use `unknown` for truly unknown types, or define a proper interface/type. ' +
     'For third-party libraries, consider using or creating type definitions.',
+  nudge:
+    "Don't use `any` here. Think about what type this value actually holds and " +
+    'declare it explicitly. If it comes from an API, define an interface for the ' +
+    'response shape. If the type is truly unknown, use `unknown` and narrow it ' +
+    'with type guards before use.',
   enabled: true,
   optIn: false,
   allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts'],
@@ -128,6 +141,11 @@ const AP004_TS_IGNORE: AntiPattern = {
   suggestion:
     'Use @ts-expect-error with a description instead, which fails if the expected error disappears. ' +
     'Better yet, fix the underlying type issue.',
+  nudge:
+    "Don't suppress this TypeScript error — fix it. If you must suppress, use " +
+    '`@ts-expect-error` instead so it fails when the underlying issue is ' +
+    'resolved. But first, read the actual error message and address the type ' +
+    'mismatch directly.',
   enabled: true,
   optIn: false,
 };
@@ -155,6 +173,11 @@ const AP005_TS_EXPECT_ERROR: AntiPattern = {
   suggestion:
     'Consider if the underlying type issue can be fixed. ' +
     'If not, ensure the @ts-expect-error comment explains why.',
+  nudge:
+    'This type error is being suppressed rather than fixed. Read the error ' +
+    'message and resolve the type mismatch. If it is a genuine limitation of the ' +
+    'type system, keep the `@ts-expect-error` but ensure the comment explains ' +
+    'exactly why.',
   enabled: true,
   optIn: true, // Often legitimate in tests
   allowlist: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**'],
@@ -183,6 +206,10 @@ const AP006_EMPTY_CATCH: AntiPattern = {
   suggestion:
     'At minimum, log the error for debugging. Consider if the error should be re-thrown ' +
     'or if specific recovery logic is needed.',
+  nudge:
+    "Don't swallow this error silently. At minimum, log it so failures are " +
+    'visible. Better: decide whether this error is recoverable (handle it) or ' +
+    'not (re-throw it). Silent catch blocks make debugging impossible.',
   enabled: true,
   optIn: false,
 };
@@ -209,6 +236,11 @@ const AP007_CONSOLE_IN_PROD: AntiPattern = {
   suggestion:
     'Use a proper logging library with log levels, or remove the console statement. ' +
     'console.error is acceptable for actual error conditions.',
+  nudge:
+    'Remove this console statement or replace it with a proper logger that ' +
+    'supports log levels. Console output in production leaks information and ' +
+    'clutters output. If this is intentional debugging, wrap it in a ' +
+    'development-only check.',
   enabled: true,
   optIn: true, // Noisy in development
   allowlist: ['**/*.test.ts', '**/*.spec.ts', '**/scripts/**', '**/cli/**'],

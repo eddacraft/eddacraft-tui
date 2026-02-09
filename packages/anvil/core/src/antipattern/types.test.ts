@@ -37,6 +37,47 @@ describe('Warning Schema', () => {
     expect(result.success).toBe(true);
   });
 
+  it('should validate a warning with nudge field', () => {
+    const warning = {
+      id: 'AP-003',
+      category: 'anti-pattern',
+      severity: 'warning',
+      confidence: 'high',
+      title: 'Explicit any type usage',
+      message: 'Found explicit any type',
+      explanation: 'Using any defeats type checking',
+      suggestion: 'Use unknown instead',
+      nudge: "Don't use `any` here. Think about what type this value actually holds.",
+      location: { file: 'src/foo.ts', line: 5 },
+    };
+
+    const result = WarningSchema.safeParse(warning);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.nudge).toBe(warning.nudge);
+    }
+  });
+
+  it('should validate a warning without nudge field (optional)', () => {
+    const warning = {
+      id: 'AP-001',
+      category: 'anti-pattern',
+      severity: 'warning',
+      confidence: 'high',
+      title: 'Test',
+      message: 'Test',
+      explanation: 'Test',
+      suggestion: 'Test',
+      location: { file: 'test.ts', line: 1 },
+    };
+
+    const result = WarningSchema.safeParse(warning);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.nudge).toBeUndefined();
+    }
+  });
+
   it('should validate a boundary warning with drift', () => {
     const warning = {
       id: 'BOUND-001',
@@ -230,6 +271,32 @@ describe('AntiPattern Schema', () => {
     if (result.success) {
       expect(result.data.optIn).toBe(true);
       expect(result.data.threshold).toBe(3);
+    }
+  });
+
+  it('should validate a pattern with nudge field', () => {
+    const pattern = {
+      id: 'AP-001',
+      name: 'Broad eslint-disable',
+      category: 'escape-hatch',
+      severity: 'warning',
+      confidence: 'high',
+      detection: {
+        type: 'regex',
+        pattern: 'eslint-disable(?!-next-line)',
+      },
+      title: 'Broad eslint-disable added',
+      explanation: 'Disabling all rules bypasses safety checks',
+      suggestion: 'Use specific rule names',
+      nudge: "Don't disable all linting rules.",
+      enabled: true,
+      optIn: false,
+    };
+
+    const result = AntiPatternSchema.safeParse(pattern);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.nudge).toBe("Don't disable all linting rules.");
     }
   });
 

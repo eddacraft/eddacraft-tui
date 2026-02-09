@@ -35,6 +35,10 @@ const AP012_IMPORTANT: AntiPattern = {
   suggestion:
     'Increase selector specificity naturally, restructure CSS to avoid conflicts, ' +
     'or use CSS layers (@layer) for better cascade control.',
+  nudge:
+    "Don't use `!important` — it breaks the cascade and makes styles nearly " +
+    'impossible to override. Instead, increase the specificity of your ' +
+    'selector or restructure your CSS to avoid the conflict.',
   fileExtensions: ['.css', '.scss', '.less'],
   allowlist: ['**/reset.css', '**/normalize.css'],
   enabled: true,
@@ -64,6 +68,10 @@ const AP013_CSS_IMPORT: AntiPattern = {
   suggestion:
     'Use <link> tags in HTML for parallel loading, or use a CSS bundler ' +
     '(PostCSS, Sass, etc.) to inline imports at build time.',
+  nudge:
+    'Replace this CSS `@import` with a `<link>` tag in your HTML. `@import` ' +
+    'blocks parallel downloads and slows page load. Each `@import` creates a ' +
+    'sequential request.',
   fileExtensions: ['.css', '.scss', '.less'],
   enabled: true,
   optIn: true,

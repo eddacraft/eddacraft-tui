@@ -69,6 +69,7 @@ export const WarningSchema = z.object({
   message: z.string(),
   explanation: z.string(),
   suggestion: z.string(),
+  nudge: z.string().optional(),
   location: LocationSchema,
   pattern: z.string().optional(),
   drift: DriftSchema.optional(),
