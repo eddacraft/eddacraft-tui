@@ -275,7 +275,7 @@ export class PromptFormatter {
         for (const suppression of suppressions) {
           lines.push(`- **${suppression.file}** (${suppression.scope}): ${suppression.reason}`);
           if (suppression.expiresAt) {
-            lines.push(`  Expires: ${new Date(suppression.expiresAt).toLocaleDateString()}`);
+            lines.push(`  Expires: ${new Date(suppression.expiresAt).toISOString().slice(0, 10)}`);
           }
         }
         lines.push('');

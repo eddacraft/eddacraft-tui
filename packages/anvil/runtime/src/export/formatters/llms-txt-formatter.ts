@@ -263,7 +263,7 @@ export class LlmsTxtFormatter {
         lines.push(`- **\`${suppression.file}\`** (${suppression.scope})`);
         lines.push(`  - Reason: ${suppression.reason}`);
         if (suppression.expiresAt) {
-          lines.push(`  - Expires: ${new Date(suppression.expiresAt).toLocaleDateString()}`);
+          lines.push(`  - Expires: ${new Date(suppression.expiresAt).toISOString().slice(0, 10)}`);
         }
         lines.push('');
       }
