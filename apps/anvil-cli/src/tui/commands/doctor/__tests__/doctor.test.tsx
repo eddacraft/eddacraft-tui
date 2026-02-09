@@ -88,7 +88,8 @@ describe('SystemChecks', () => {
         expect(result.status).toBe('pass');
         expect(result.message).toContain('git');
       } else {
-        expect(result.status).toBe('skip');
+        // git missing (ENOENT) → fail; only EPERM → skip
+        expect(result.status).toBe('fail');
       }
     });
   });
@@ -100,7 +101,8 @@ describe('SystemChecks', () => {
       if (gitAvailable) {
         expect(result.status).toBe('pass');
       } else {
-        expect(result.status).toBe('skip');
+        // git missing (ENOENT) → warn; only EPERM → skip
+        expect(result.status).toBe('warn');
       }
     });
   });
