@@ -202,7 +202,7 @@ better solution than a mechanical transform.
   → Don't use `any` here. Think about what type this value actually holds...
   ```
 
-### NUDGE-004: VS Code CodeAction provider
+### NUDGE-004: VS Code CodeAction provider ✅
 
 - **Intent:** Add a CodeAction provider that surfaces nudges as "Rethink"
   quick-fix actions in the VS Code lightbulb menu

@@ -162,10 +162,15 @@ export class DiagnosticsManager implements vscode.Disposable {
         : vscode.Uri.parse(`https://github.com/EddaCraft/anvil-001#${warning.id.toLowerCase()}`),
     };
 
+    const infoLines = [warning.explanation, `\nSuggestion: ${warning.suggestion}`];
+    if (warning.nudge) {
+      infoLines.push(`\nNudge: ${warning.nudge}`);
+    }
+
     diagnostic.relatedInformation = [
       new vscode.DiagnosticRelatedInformation(
         new vscode.Location(vscode.Uri.file(warning.location.file), range),
-        `${warning.explanation}\n\nSuggestion: ${warning.suggestion}`
+        infoLines.join('')
       ),
     ];
 

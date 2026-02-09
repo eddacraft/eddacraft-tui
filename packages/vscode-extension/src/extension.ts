@@ -4,6 +4,7 @@ import { StatusBarManager } from './services/statusBar.js';
 import { DiagnosticsManager } from './services/diagnostics.js';
 import { GateResultsProvider } from './providers/gateResultsProvider.js';
 import { PlanCodeLensProvider } from './providers/codeLensProvider.js';
+import { NudgeCodeActionProvider } from './providers/nudgeCodeActionProvider.js';
 import { PlanWatcher } from './services/planWatcher.js';
 import { SourceWatcher } from './services/sourceWatcher.js';
 import { AnvilService } from './services/anvilService.js';
@@ -52,6 +53,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
     );
     context.subscriptions.push(codeLensDisposable, codeLensProvider);
   }
+
+  // Register CodeAction provider for nudge coaching
+  const nudgeProvider = new NudgeCodeActionProvider();
+  const nudgeLanguages = [
+    { language: 'typescript' },
+    { language: 'typescriptreact' },
+    { language: 'javascript' },
+    { language: 'javascriptreact' },
+    { language: 'html' },
+    { language: 'css' },
+    { language: 'scss' },
+    { language: 'less' },
+  ];
+  const nudgeDisposable = vscode.languages.registerCodeActionsProvider(
+    nudgeLanguages,
+    nudgeProvider,
+    { providedCodeActionKinds: NudgeCodeActionProvider.providedCodeActionKinds }
+  );
+  context.subscriptions.push(nudgeDisposable);
+
+  // Register nudge display command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('anvil.showNudge', (nudgeText: string, patternId: string) => {
+      vscode.window.showInformationMessage(`[${patternId}] ${nudgeText}`);
+    })
+  );
 
   // Register commands
   registerCommands(

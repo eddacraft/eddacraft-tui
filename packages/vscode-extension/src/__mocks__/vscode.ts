@@ -229,6 +229,51 @@ export class CodeLens {
   ) {}
 }
 
+// CodeActionKind class
+export class CodeActionKind {
+  static readonly QuickFix = new CodeActionKind('quickfix');
+  static readonly Refactor = new CodeActionKind('refactor');
+  static readonly Source = new CodeActionKind('source');
+
+  constructor(public readonly value: string) {}
+}
+
+// CodeAction class
+export class CodeAction {
+  diagnostics?: Diagnostic[];
+  edit?: WorkspaceEdit;
+  command?: { command: string; title: string; arguments?: unknown[] };
+  isPreferred?: boolean;
+
+  constructor(
+    public title: string,
+    public kind?: CodeActionKind
+  ) {}
+}
+
+// WorkspaceEdit class
+export class WorkspaceEdit {
+  private edits: Array<{ uri: Uri; range: Range; newText: string }> = [];
+
+  replace(uri: Uri, range: Range, newText: string): void {
+    this.edits.push({ uri, range, newText });
+  }
+
+  get size(): number {
+    return this.edits.length;
+  }
+
+  entries(): Array<[Uri, Array<{ range: Range; newText: string }>]> {
+    const byUri = new Map<string, Array<{ range: Range; newText: string }>>();
+    for (const edit of this.edits) {
+      const key = edit.uri.toString();
+      if (!byUri.has(key)) byUri.set(key, []);
+      byUri.get(key)!.push({ range: edit.range, newText: edit.newText });
+    }
+    return Array.from(byUri.entries()).map(([uriStr, edits]) => [Uri.file(uriStr), edits]);
+  }
+}
+
 // Mock implementations
 const mockDiagnosticCollections = new Map<string, DiagnosticCollection>();
 const mockOutputChannels: OutputChannel[] = [];
@@ -260,6 +305,7 @@ export const languages = {
     return collection;
   },
   registerCodeLensProvider: vi.fn(),
+  registerCodeActionsProvider: vi.fn(),
 };
 
 // window namespace

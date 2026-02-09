@@ -63,6 +63,8 @@ export interface AnalysisWarning {
   explanation: string;
   /** What to do instead */
   suggestion: string;
+  /** Imperative coaching prompt from the pattern */
+  nudge?: string;
   /** Severity level */
   severity: 'error' | 'warning' | 'info';
   /** Detection confidence */
@@ -249,6 +251,7 @@ export class EmbeddedAnalysisService {
       message: warning.message,
       explanation: warning.explanation,
       suggestion: warning.suggestion,
+      nudge: warning.nudge,
       severity: warning.severity,
       confidence: warning.confidence,
       location: {
