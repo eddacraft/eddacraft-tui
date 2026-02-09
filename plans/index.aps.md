@@ -168,9 +168,9 @@ onboarding story by giving new users an immediate value demonstration.
 
 | Feature         | Description                                | Status |
 | --------------- | ------------------------------------------ | ------ |
-| llms.txt Export | Export constraints for AI tool consumption | Ready  |
-| Command Safety  | Validate AI tool commands (CMDSAF)         | Ready  |
-| MCP Server      | Real-time validation during AI generation  | Ready  |
+| llms.txt Export | Export constraints for AI tool consumption | Complete |
+| Command Safety  | Validate AI tool commands (CMDSAF)         | Complete |
+| MCP Server      | Real-time validation during AI generation  | Complete |
 
 ### v2.0b — Web Dashboard
 
@@ -313,9 +313,9 @@ graph TD
 | [drift-reporting](./archive/modules/drift-reporting.aps.md)             | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
 | [opa-architecture-integration](./archive/modules/opa-architecture-integration.aps.md) | OPA | Complete | v1.1 | architecture-safety, save-time-trust                      |
 | [ide-integration](./archive/modules/ide-integration.aps.md)             | IDE     | Complete    | v1.2    | save-time-trust, architecture-safety, antipattern-library |
-| [llms-txt-export](./modules/llms-txt-export.aps.md)                     | LLMS    | Ready       | v2.0    | architecture-safety, antipattern-library                  |
-| [command-safety-validation](./modules/command-safety-validation.aps.md) | CMDSAF  | Ready       | v2.0    | —                                                         |
-| [mcp-server](./modules/mcp-server.aps.md)                               | MCP     | Ready       | v2.0    | save-time-trust, architecture-safety                      |
+| [llms-txt-export](./archive/modules/llms-txt-export.aps.md)                     | LLMS    | Complete    | v2.0    | architecture-safety, antipattern-library                  |
+| [command-safety-validation](./archive/modules/command-safety-validation.aps.md) | CMDSAF  | Complete    | v2.0    | —                                                         |
+| [mcp-server](./archive/modules/mcp-server.aps.md)                               | MCP     | Complete    | v2.0    | save-time-trust, architecture-safety                      |
 | [policy-pack-validation](./modules/policy-pack-validation.aps.md)       | POLVAL  | Draft       | v2.0    | opa-architecture-integration                              |
 | [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | v2.0 | opa-architecture-integration, architecture-safety         |
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md)           | AIGUARD | Draft       | v2.0    | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
@@ -654,30 +654,30 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 
 | Task       | Module         | Description                       | Status  | Priority |
 | ---------- | -------------- | --------------------------------- | ------- | -------- |
-| LLMS-001   | llms-txt       | Constraint collector              | Planned | high     |
-| LLMS-002   | llms-txt       | llms.txt formatter                | Planned | high     |
-| LLMS-003   | llms-txt       | MCP resource formatter            | Planned | medium   |
-| LLMS-004   | llms-txt       | Prompt fragment formatter         | Planned | medium   |
-| LLMS-005   | llms-txt       | CLI export command                | Planned | high     |
-| CMDSAF-001 | command-safety | Rule system and types             | Planned | high     |
-| CMDSAF-002 | command-safety | Command parser with unwrapping    | Planned | high     |
-| CMDSAF-003 | command-safety | Rule matcher with specificity     | Planned | high     |
-| CMDSAF-004 | command-safety | Default git operation rules       | Planned | medium   |
-| CMDSAF-005 | command-safety | Default filesystem rules          | Planned | medium   |
-| CMDSAF-006 | command-safety | CommandSafetyCheck implementation | Planned | high     |
-| CMDSAF-007 | command-safety | Configuration system              | Planned | medium   |
-| CMDSAF-008 | command-safety | Message formatting                | Planned | low      |
-| CMDSAF-009 | command-safety | CLI integration and documentation | Planned | high     |
-| MCP-001    | mcp-server     | Package scaffold and basic server | Planned | high     |
-| MCP-002    | mcp-server     | anvil_check tool implementation   | Planned | high     |
-| MCP-003    | mcp-server     | anvil_gate and anvil_status tools | Planned | high     |
-| MCP-004    | mcp-server     | anvil_fix and anvil_suppress tools| Planned | high     |
-| MCP-005    | mcp-server     | anvil_query_boundary tool         | Planned | high     |
-| MCP-006    | mcp-server     | Resources with subscriptions      | Planned | medium   |
-| MCP-007    | mcp-server     | Prompt templates                  | Planned | medium   |
-| MCP-008    | mcp-server     | Streamable HTTP transport         | Planned | medium   |
-| MCP-009    | mcp-server     | Config generators and CLI         | Planned | high     |
-| MCP-010    | mcp-server     | Error handling and JSON-RPC       | Planned | high     |
+| LLMS-001   | llms-txt       | Constraint collector              | Complete | high     |
+| LLMS-002   | llms-txt       | llms.txt formatter                | Complete | high     |
+| LLMS-003   | llms-txt       | MCP resource formatter            | Complete | medium   |
+| LLMS-004   | llms-txt       | Prompt fragment formatter         | Complete | medium   |
+| LLMS-005   | llms-txt       | CLI export command                | Complete | high     |
+| CMDSAF-001 | command-safety | Rule system and types             | Complete | high     |
+| CMDSAF-002 | command-safety | Command parser with unwrapping    | Complete | high     |
+| CMDSAF-003 | command-safety | Rule matcher with specificity     | Complete | high     |
+| CMDSAF-004 | command-safety | Default git operation rules       | Complete | medium   |
+| CMDSAF-005 | command-safety | Default filesystem rules          | Complete | medium   |
+| CMDSAF-006 | command-safety | CommandSafetyCheck implementation | Complete | high     |
+| CMDSAF-007 | command-safety | Configuration system              | Complete | medium   |
+| CMDSAF-008 | command-safety | Message formatting                | Complete | low      |
+| CMDSAF-009 | command-safety | CLI integration and documentation | Complete | high     |
+| MCP-001    | mcp-server     | Package scaffold and basic server | Complete | high     |
+| MCP-002    | mcp-server     | anvil_check tool implementation   | Complete | high     |
+| MCP-003    | mcp-server     | anvil_gate and anvil_status tools | Complete | high     |
+| MCP-004    | mcp-server     | anvil_fix and anvil_suppress tools| Complete | high     |
+| MCP-005    | mcp-server     | anvil_query_boundary tool         | Complete | high     |
+| MCP-006    | mcp-server     | Resources with subscriptions      | Complete | medium   |
+| MCP-007    | mcp-server     | Prompt templates                  | Complete | medium   |
+| MCP-008    | mcp-server     | Streamable HTTP transport         | Complete | medium   |
+| MCP-009    | mcp-server     | Config generators and CLI         | Complete | high     |
+| MCP-010    | mcp-server     | Error handling and JSON-RPC       | Complete | high     |
 
 ### Task Status — v2.0 (Edda Stack — Memory System)
 
