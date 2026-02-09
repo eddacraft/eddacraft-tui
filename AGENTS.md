@@ -36,6 +36,22 @@ This is an **Nx monorepo** using **pnpm** workspaces, **TypeScript** throughout,
 and **Vitest** for testing. The product ships as a CLI (`@eddacraft/anvil-cli`),
 with a marketing website and documentation site deployed on Vercel.
 
+## Key Documents
+
+| Document                      | Purpose                                                    |
+| ----------------------------- | ---------------------------------------------------------- |
+| `plans/aps-rules.md`          | **Read first** — APS format rules for all planning work    |
+| `plans/index.aps.md`          | Root plan — modules, milestones, task IDs, release roadmap |
+| `docs/ARCHITECTURE.md`        | System design and package dependency graph                 |
+| `docs/TESTING.md`             | Testing strategy and best practices                        |
+| `docs/MONOREPO_STRUCTURE.md`  | Package layout and dependency rules                        |
+| `plans/decisions/`            | Architecture Decision Records (ADRs D-001 through D-010)   |
+| `packages/adapters/AGENTS.md` | Adapter framework guide (FormatAdapter, registry)          |
+| `packages/aps/AGENTS.md`      | APS document parser and validator                          |
+| `apps/anvil-cli/AGENTS.md`    | CLI commands, services, TUI components                     |
+| `apps/website/AGENTS.md`      | Next.js marketing site                                     |
+| `apps/docs-site/AGENTS.md`    | Docusaurus documentation hub                               |
+
 ## Technical Overview
 
 Anvil validates AI-generated code changes through **APS (Anvil Plan
