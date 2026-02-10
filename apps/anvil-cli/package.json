@@ -70,6 +70,6 @@
     "@types/react": "^19.2.9",
     "ink-testing-library": "^4.0.0",
     "node-pty": "^1.1.0",
-    "tuistory": "^0.0.9"
+    "tuistory": "^0.0.12"
   }
 }
