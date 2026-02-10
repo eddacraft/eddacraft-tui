@@ -133,7 +133,7 @@ async function runInteractiveWizard(options: { force?: boolean }): Promise<void>
       action: 'show' | 'validate' | 'generate' | 'replace' | 'exit';
     }>([
       {
-        type: 'list',
+        type: 'select',
         name: 'action',
         message: 'What would you like to do?',
         choices: [
@@ -182,7 +182,7 @@ async function runInteractiveWizard(options: { force?: boolean }): Promise<void>
 
   const { template } = await inquirer.prompt<{ template: ArchitectureTemplate }>([
     {
-      type: 'list',
+      type: 'select',
       name: 'template',
       message: 'Select a template:',
       choices,

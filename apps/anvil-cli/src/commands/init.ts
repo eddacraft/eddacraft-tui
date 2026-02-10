@@ -162,7 +162,7 @@ export function createInitCommand(): Command {
               const existingBaseline = hasExistingBaseline(projectRoot);
               const confirmAnswer = await inquirer.prompt([
                 {
-                  type: 'list' as const,
+                  type: 'select' as const,
                   name: 'archAction' as const,
                   message: existingBaseline
                     ? 'Architecture baseline exists. What would you like to do?'
@@ -431,7 +431,7 @@ async function runInteractiveSetup(
       },
     },
     {
-      type: 'list' as const,
+      type: 'select' as const,
       name: 'format' as const,
       message: 'Which planning format do you use?',
       choices: [
@@ -450,7 +450,7 @@ async function runInteractiveSetup(
       when: (currentAnswers: Record<string, unknown>) => currentAnswers['format'] !== 'skip',
     },
     {
-      type: 'list' as const,
+      type: 'select' as const,
       name: 'configTemplate' as const,
       message: 'Configuration template:',
       choices: [
