@@ -14,6 +14,7 @@ import {
   DEFAULT_NUDGE_CONFIG,
   meetsNudgeThreshold,
   type NudgeConfig,
+  type NudgeSeverityThreshold,
 } from '@eddacraft/anvil-platform-config';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
@@ -69,9 +70,15 @@ type InteractiveAction = 'skip' | 'fix' | 'suppress' | 'quit';
  * Display a warning interactively and prompt for action.
  * Extracted for testability — accepts a prompt function.
  */
+const VALID_THRESHOLDS: ReadonlySet<string> = new Set<NudgeSeverityThreshold>([
+  'error',
+  'warning',
+  'info',
+]);
+
 export async function promptForWarning(
   w: Warning,
-  promptFn: (choices: Array<{ name: string; value: string }>) => Promise<string>
+  promptFn: (choices: Array<{ name: string; value: string }>) => Promise<InteractiveAction>
 ): Promise<InteractiveAction> {
   const icon = w.severity === 'error' ? '✗' : w.severity === 'warning' ? '⚠' : 'ℹ';
 
@@ -94,11 +101,11 @@ export async function promptForWarning(
     choices.push({ name: '[f]ix — apply deterministic fix', value: 'fix' });
   }
 
-  choices.push({ name: '[u]ppress — add @anvil-ignore comment', value: 'suppress' });
+  choices.push({ name: 's[u]ppress — add @anvil-ignore comment', value: 'suppress' });
   choices.push({ name: '[q]uit — stop reviewing', value: 'quit' });
 
   const answer = await promptFn(choices);
-  return answer as InteractiveAction;
+  return answer;
 }
 
 /**
@@ -107,14 +114,14 @@ export async function promptForWarning(
  */
 export async function runInteractiveReview(
   warnings: Warning[],
-  promptFn?: (choices: Array<{ name: string; value: string }>) => Promise<string>
+  promptFn?: (choices: Array<{ name: string; value: string }>) => Promise<InteractiveAction>
 ): Promise<Array<{ warning: Warning; action: InteractiveAction }>> {
   const results: Array<{ warning: Warning; action: InteractiveAction }> = [];
 
   // Default prompt uses inquirer
   const defaultPromptFn = async (
     choices: Array<{ name: string; value: string }>
-  ): Promise<string> => {
+  ): Promise<InteractiveAction> => {
     const inquirer = await import('inquirer');
     const { action } = await inquirer.default.prompt<{ action: string }>([
       {
@@ -124,7 +131,7 @@ export async function runInteractiveReview(
         choices,
       },
     ]);
-    return action;
+    return action as InteractiveAction;
   };
 
   const askFn = promptFn ?? defaultPromptFn;
@@ -320,12 +327,22 @@ export function createCheckCommand(): Command {
       try {
         const workspaceRoot = getWorkspaceRoot();
 
+        // Validate --nudge-threshold if provided
+        if (options.nudgeThreshold && !VALID_THRESHOLDS.has(options.nudgeThreshold)) {
+          spinner?.stop();
+          error(
+            `Invalid --nudge-threshold "${options.nudgeThreshold}". ` +
+              `Allowed values: error, warning, info`
+          );
+          process.exit(1);
+        }
+
         // Resolve nudge configuration: CLI flags override defaults
         const nudgeConfig: NudgeConfig = {
           ...DEFAULT_NUDGE_CONFIG,
           ...(options.nudge === false ? { enabled: false } : {}),
           ...(options.nudgeThreshold
-            ? { severityThreshold: options.nudgeThreshold as NudgeConfig['severityThreshold'] }
+            ? { severityThreshold: options.nudgeThreshold as NudgeSeverityThreshold }
             : {}),
         };
 
@@ -476,7 +493,7 @@ export function createCheckCommand(): Command {
         if (useInteractive && !options.json && result.warnings.warnings.length > 0) {
           if (!nudgeConfig.enabled) {
             info('Interactive review skipped: nudges are disabled');
-          } else if (!process.stdout.isTTY) {
+          } else if (!process.stdout.isTTY || !process.stdin.isTTY) {
             info('--interactive ignored: not a TTY environment');
           } else {
             // Filter warnings by nudge severity threshold for interactive review

@@ -43,8 +43,8 @@ describe('meetsNudgeThreshold', () => {
     expect(meetsNudgeThreshold('warning', 'error')).toBe(false);
   });
 
-  it('should handle unknown severity as lowest (0)', () => {
-    expect(meetsNudgeThreshold('unknown', 'info')).toBe(true);
+  it('should handle unknown severity as below info (-1)', () => {
+    expect(meetsNudgeThreshold('unknown', 'info')).toBe(false);
     expect(meetsNudgeThreshold('unknown', 'warning')).toBe(false);
   });
 

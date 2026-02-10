@@ -36,7 +36,7 @@ export const DEFAULT_NUDGE_CONFIG: Readonly<NudgeConfig> = {
  * Severity ordering for threshold comparison.
  * Higher number = higher severity.
  */
-const SEVERITY_ORDER: Record<string, number> = {
+const SEVERITY_ORDER: Record<NudgeSeverityThreshold, number> = {
   info: 0,
   warning: 1,
   error: 2,
@@ -53,7 +53,7 @@ export function meetsNudgeThreshold(
   warningSeverity: string,
   threshold: NudgeSeverityThreshold
 ): boolean {
-  const warningLevel = SEVERITY_ORDER[warningSeverity] ?? 0;
-  const thresholdLevel = SEVERITY_ORDER[threshold] ?? 0;
+  const warningLevel = SEVERITY_ORDER[warningSeverity as NudgeSeverityThreshold] ?? -1;
+  const thresholdLevel = SEVERITY_ORDER[threshold];
   return warningLevel >= thresholdLevel;
 }
