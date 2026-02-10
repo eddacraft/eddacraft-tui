@@ -23,9 +23,9 @@
   },
   "devDependencies": {
     "@types/eslint": "^9.6.1",
-    "@typescript-eslint/parser": "^8.54.0",
-    "@typescript-eslint/rule-tester": "^8.54.0",
-    "@typescript-eslint/types": "^8.54.0",
+    "@typescript-eslint/parser": "^8.55.0",
+    "@typescript-eslint/rule-tester": "^8.55.0",
+    "@typescript-eslint/types": "^8.55.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }
