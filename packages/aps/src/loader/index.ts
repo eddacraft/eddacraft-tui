@@ -4,7 +4,7 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { dirname, resolve, isAbsolute } from 'node:path';
+import { dirname, resolve, isAbsolute, sep } from 'node:path';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { visit } from 'unist-util-visit';
@@ -245,7 +245,7 @@ export function resolvePath(relativePath: string, baseDir: string): string {
   const resolvedBase = resolve(baseDir);
 
   // Validate the resolved path stays within baseDir
-  if (resolved !== resolvedBase && !resolved.startsWith(resolvedBase + '/')) {
+  if (resolved !== resolvedBase && !resolved.startsWith(resolvedBase + sep)) {
     throw new ParseError(`Module path escapes base directory: ${relativePath}`, relativePath);
   }
 

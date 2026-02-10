@@ -372,7 +372,7 @@ export class AnvilService {
     try {
       const parsed = JSON.parse(output);
 
-      if (typeof parsed !== 'object' || parsed === null) {
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
         throw new Error('Expected JSON object');
       }
 
@@ -432,7 +432,7 @@ export class AnvilService {
     try {
       const parsed = JSON.parse(output);
 
-      if (typeof parsed !== 'object' || parsed === null) {
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
         throw new Error('Expected JSON object');
       }
 

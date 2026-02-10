@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { resolve, isAbsolute } from 'node:path';
 import { existsSync, statSync } from 'node:fs';
 
 /**
@@ -6,11 +6,11 @@ import { existsSync, statSync } from 'node:fs';
  * and is an absolute path. Returns the resolved path or throws.
  */
 export function validateWorkspaceRoot(workspaceRoot: string): string {
-  const resolved = resolve(workspaceRoot);
-
-  if (resolved !== workspaceRoot) {
+  if (!isAbsolute(workspaceRoot)) {
     throw new Error(`workspaceRoot must be an absolute path, got: ${workspaceRoot}`);
   }
+
+  const resolved = resolve(workspaceRoot);
 
   if (!existsSync(resolved)) {
     throw new Error(`workspaceRoot does not exist: ${resolved}`);

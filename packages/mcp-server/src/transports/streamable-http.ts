@@ -57,8 +57,12 @@ export async function startHttpServer(
   // --- POST /mcp ---------------------------------------------------------
   app.post('/mcp', async (req, res) => {
     // Validate Content-Type for POST requests
-    const contentType = req.headers['content-type'];
-    if (!contentType || !contentType.includes('application/json')) {
+    const rawContentType = req.headers['content-type'];
+    const baseType =
+      typeof rawContentType === 'string'
+        ? rawContentType.split(';', 1)[0]?.trim().toLowerCase()
+        : undefined;
+    if (baseType !== 'application/json') {
       res.status(415).json({
         jsonrpc: '2.0',
         error: { code: -32700, message: 'Content-Type must be application/json' },

@@ -3,10 +3,10 @@
  * Stores cache entries as JSON files in .anvil/cache/
  */
 
-import { existsSync, unlinkSync } from 'node:fs';
+import { existsSync, unlinkSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { readFile, rm, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createHash, createHmac } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
@@ -116,10 +116,24 @@ export class FileCacheProvider implements CacheProvider {
     this.indexPath = join(this.cacheDir, 'index.json');
     this.defaultTtl = config.defaultTtl ?? DEFAULT_TTL_MS;
     this.maxSizeBytes = config.maxSizeBytes ?? 100 * 1024 * 1024; // 100MB
-    // HMAC key: prefer env var, fall back to workspace-derived key
-    this.hmacKey =
-      process.env['ANVIL_CACHE_HMAC_KEY'] ??
-      createHash('sha256').update(`anvil-cache:${workspaceRoot}`).digest('hex');
+    // HMAC key: prefer env var, then persisted random key in cache dir
+    this.hmacKey = process.env['ANVIL_CACHE_HMAC_KEY'] ?? this.loadOrCreateHmacKey();
+  }
+
+  /**
+   * Load a persisted HMAC key from the cache dir, or generate and store one.
+   * The key is stored with 0o600 permissions so only the current user can read it.
+   */
+  private loadOrCreateHmacKey(): string {
+    const keyPath = join(this.cacheDir, '.hmac-key');
+    try {
+      return readFileSync(keyPath, 'utf-8').trim();
+    } catch {
+      const key = randomBytes(32).toString('hex');
+      mkdirSync(this.cacheDir, { recursive: true });
+      writeFileSync(keyPath, key, { mode: 0o600 });
+      return key;
+    }
   }
 
   async get<T>(key: string): Promise<CacheEntry<T> | null> {
