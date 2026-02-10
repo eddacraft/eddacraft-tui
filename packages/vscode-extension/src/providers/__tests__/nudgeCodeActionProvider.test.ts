@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as vscode from 'vscode';
 import { NudgeCodeActionProvider } from '../nudgeCodeActionProvider.js';
 
@@ -56,6 +56,10 @@ describe('NudgeCodeActionProvider', () => {
 
   beforeEach(() => {
     provider = new NudgeCodeActionProvider();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should provide a Rethink action for an antipattern diagnostic', () => {
