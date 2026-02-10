@@ -12,9 +12,9 @@
 
 import { startHttpServer } from './transports/streamable-http.js';
 
-const portEnv = process.env.ANVIL_MCP_PORT ?? '3000';
+const portEnv = process.env['ANVIL_MCP_PORT'] ?? '3000';
 const port = parseInt(portEnv, 10);
-const host = process.env.ANVIL_MCP_HOST ?? 'localhost';
+const host = process.env['ANVIL_MCP_HOST'] ?? 'localhost';
 
 if (!Number.isFinite(port) || port < 1 || port > 65535) {
   console.error(`Invalid ANVIL_MCP_PORT: "${portEnv}". Must be an integer between 1 and 65535.`);

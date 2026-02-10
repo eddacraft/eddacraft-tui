@@ -249,28 +249,31 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
       sections.push('');
 
       // Overview section (if available in metadata)
-      if (plan.metadata?.overview) {
+      const overview = plan.metadata?.['overview'];
+      if (overview) {
         sections.push('## Overview');
         sections.push('');
-        sections.push(plan.metadata.overview as string);
+        sections.push(overview as string);
         sections.push('');
       }
 
       // Goals section (if available in metadata)
-      if (plan.metadata?.goals && Array.isArray(plan.metadata.goals)) {
+      const goals = plan.metadata?.['goals'];
+      if (goals && Array.isArray(goals)) {
         sections.push('## Goals');
         sections.push('');
-        for (const goal of plan.metadata.goals as string[]) {
+        for (const goal of goals as string[]) {
           sections.push(`- ${goal}`);
         }
         sections.push('');
       }
 
       // Requirements section (if available in metadata)
-      if (plan.metadata?.requirements && Array.isArray(plan.metadata.requirements)) {
+      const requirements = plan.metadata?.['requirements'];
+      if (requirements && Array.isArray(requirements)) {
         sections.push('## Requirements');
         sections.push('');
-        for (const req of plan.metadata.requirements as string[]) {
+        for (const req of requirements as string[]) {
           sections.push(`- ${req}`);
         }
         sections.push('');

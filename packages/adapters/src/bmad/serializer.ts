@@ -28,7 +28,7 @@ export function serializeToBMAD(plan: APSPlan): string {
   lines.push('');
 
   // Generate document header
-  const projectName = plan.metadata?.projectName || 'Project';
+  const projectName = plan.metadata?.['projectName'] || 'Project';
   lines.push(`# ${projectName} - Product Requirements Document`);
   lines.push('');
   lines.push(`**Author:** ${plan.provenance.author || 'unknown'}`);

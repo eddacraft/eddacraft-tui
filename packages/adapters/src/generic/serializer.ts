@@ -27,13 +27,13 @@ export function serializeToGeneric(plan: APSPlan): string {
   const lines: string[] = [];
 
   // Title (from intent or metadata) - safely check if title is a non-empty string
-  const metadataTitle = plan.metadata?.title;
+  const metadataTitle = plan.metadata?.['title'];
   const title = isString(metadataTitle) && metadataTitle ? metadataTitle : plan.intent;
   lines.push(`# ${title}`);
   lines.push('');
 
   // Overview section - safely check if overview is a string
-  const metadataOverview = plan.metadata?.overview;
+  const metadataOverview = plan.metadata?.['overview'];
   if (metadataOverview && isString(metadataOverview)) {
     lines.push('## Overview');
     lines.push('');
@@ -47,7 +47,7 @@ export function serializeToGeneric(plan: APSPlan): string {
   }
 
   // Goals section - safely check if goals is a string array
-  const metadataGoals = plan.metadata?.goals;
+  const metadataGoals = plan.metadata?.['goals'];
   if (metadataGoals && isStringArray(metadataGoals)) {
     lines.push('## Goals');
     lines.push('');
