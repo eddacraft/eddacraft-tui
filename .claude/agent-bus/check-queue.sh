@@ -1,1 +1,1 @@
-/home/aneki/Projects/src/code-env/.claude/agent-bus/check-queue.sh
+/home/aneki/src/code-env/.claude/agent-bus/check-queue.sh

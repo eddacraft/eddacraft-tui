@@ -61,3 +61,11 @@ gha-creds-*.json
 /.serena
 .vercel
 .env*.local
+
+# Root-level tsc build artifacts
+/vitest.config.js
+/vitest.config.d.ts
+/vitest.config.d.ts.map
+/playwright.config.js
+/playwright.config.d.ts
+/playwright.config.d.ts.map

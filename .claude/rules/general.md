@@ -1,1 +1,1 @@
-/home/aneki/Projects/src/code-env/.claude/rules/general.md
+/home/aneki/src/code-env/.claude/rules/general.md

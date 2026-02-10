@@ -1,1 +1,1 @@
-/home/aneki/Projects/src/code-env/.claude/hooks/session-start.sh
+/home/aneki/src/code-env/.claude/hooks/session-start.sh

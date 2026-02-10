@@ -1,1 +1,1 @@
-/home/aneki/Projects/src/code-env/.claude/agent-bus/types.ts
+/home/aneki/src/code-env/.claude/agent-bus/types.ts

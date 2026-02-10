@@ -1,1 +1,1 @@
-/home/aneki/Projects/src/code-env/.claude/CHANGELOG.md
+/home/aneki/src/code-env/.claude/CHANGELOG.md

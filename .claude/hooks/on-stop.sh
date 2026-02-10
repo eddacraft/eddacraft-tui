@@ -1,1 +1,1 @@
-/home/aneki/Projects/src/code-env/.claude/hooks/on-stop.sh
+/home/aneki/src/code-env/.claude/hooks/on-stop.sh
