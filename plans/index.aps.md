@@ -133,8 +133,8 @@ regardless of how good the engine is. First impressions matter.
 | VS Code Extension     | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Complete |
 | Adapter Upstream Sync | BMAD v6 + SpecKit agent-first updates (ADAPTUP)        | Complete |
 | TUI Operational       | Watch dashboard, gate explorer (TUI-009–012)           | Draft    |
-| Template Library      | Pre-built architecture patterns (TUI-006)              | Draft    |
-| Tutorial Mode         | Interactive learning experience (TUI-007)              | Draft    |
+| Template Library      | Pre-built architecture patterns (TUI-006)              | Deferred |
+| Tutorial Mode         | Interactive learning experience (TUI-007)              | Deferred |
 | TUI Diagrams          | Mermaid-based ASCII diagrams via beautiful-mermaid (TUI-013–015) | Complete |
 
 #### VS Code Extension Details (v1.2.0 → v1.3.0)
@@ -350,7 +350,7 @@ graph TD
 | [intelligent-first-run](./archive/modules/intelligent-first-run.aps.md) | IFR      | Complete    | v1.3    | tui, architecture-safety                                  |
 | [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md)         | TUT      | Complete    | v1.3    | tui                                                       |
 | [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | v1.2    | monorepo-migration                                        |
-| [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | Ready       | v2.0    | antipattern-library                                       |
+| [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | In Progress | v2.0    | antipattern-library                                       |
 | [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | Draft       | —       | —                                                         |
 
 ### Task Status — v1.0 (Core Engine)
@@ -514,12 +514,12 @@ graph TD
 
 | Task    | Module | Description                       | Status  | Priority |
 | ------- | ------ | --------------------------------- | ------- | -------- |
-| TUI-006 | tui    | Static template library           | Planned | medium   |
-| TUI-007 | tui    | Interactive tutorial              | Planned | low      |
+| TUI-006 | tui    | Static template library           | Deferred | medium   |
+| TUI-007 | tui    | Interactive tutorial              | Deferred | low      |
 | TUI-009 | tui    | `anvil watch` real-time dashboard | Complete | medium   |
-| TUI-010 | tui    | `anvil gate` interactive explorer | Planned | medium   |
-| TUI-011 | tui    | Parallel progress visualisation   | Planned | low      |
-| TUI-012 | tui    | Log panel with filtering          | Planned | low      |
+| TUI-010 | tui    | `anvil gate` interactive explorer | Deferred | medium   |
+| TUI-011 | tui    | Parallel progress visualisation   | Deferred | low      |
+| TUI-012 | tui    | Log panel with filtering          | Deferred | low      |
 | TUI-013 | tui    | `<MermaidDiagram />` component + `layersToMermaid()` helper ([brainstorm](./brainstorms/mermaid-tui-diagrams.md)) | Complete | high |
 | TUI-014 | tui    | Replace existing ASCII diagrams with mermaid rendering | Complete | high |
 | TUI-015 | tui    | `anvil architecture visualise` command (ascii/svg/mermaid formats) | Complete | high |
@@ -936,7 +936,8 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 - [ ] How to handle monorepos with multiple architecture baselines?
 - [x] OpenTUI vs Ink for TUI implementation? → **Ink** — OpenTUI requires Bun
       runtime (bun-ffi-structs for Zig FFI); Anvil requires Node.js 20+
-- [ ] Should first-run auto-run `anvil check` on sample files for demo?
+- [x] Should first-run auto-run `anvil check` on sample files for demo? → **Yes** —
+      implemented in IFR-003 (post-init automatic analysis)
 
 ## Considerations for Future
 

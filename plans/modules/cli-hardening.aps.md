@@ -11,6 +11,12 @@ See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md, apps/anvil-api/REV
 | ---------------------------------------- | ----- | ------ |
 | CLIH, CORE, API, MCP, RT, POL, ADP, APS, VSIX, PLAT | — | Draft |
 
+## Branch Status
+
+> **Note:** Branch `hardening/wave-0-foundation` (commit `333a291`) implements
+> 47 of 66 tasks. Task statuses below reflect the plan file (main branch) — the
+> branch work has not yet been merged. Update task statuses after merge.
+
 ## Purpose
 
 Address the 129 issues identified across adversarial code reviews (2026-02-06):
@@ -65,6 +71,11 @@ Total: **66 tasks** across all packages.
 - P0 authentication, workspace validation, newline injection (3 items)
 - P1 race conditions, prompt injection (2 items)
 - P3 optional (1 item)
+
+> **See also:** [mcp-server-hardening.aps.md](./mcp-server-hardening.aps.md)
+> (MCPH) covers additional MCP issues from the 2026-02-05 review. CLIH MCP-001–006
+> and MCPH-001–009 have partial overlap on workspace validation and HTTP transport
+> hardening — coordinate implementation to avoid duplicate work.
 
 ### anvil/runtime (RT)
 

@@ -31,6 +31,11 @@ and ensure the MCP server is production-ready.
 - New MCP features (handled by MCP module)
 - Performance optimization beyond the identified issues
 
+> **See also:** [cli-hardening.aps.md](./cli-hardening.aps.md) (CLIH) MCP-001–006
+> covers additional MCP hardening from the 2026-02-06 review. MCPH-001 overlaps
+> with CLIH MCP-002 (workspace validation) and MCPH-009 overlaps with CLIH MCP-006
+> (HTTP security headers). Coordinate implementation to avoid duplicate work.
+
 ## Interfaces
 
 **Depends on:**
