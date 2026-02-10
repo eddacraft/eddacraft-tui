@@ -278,4 +278,4 @@ This enables tooling to validate that changes stay within scope.
 
 ---
 
-**Next:** [File layout conventions →](/docs/aps/spec/file-layout)
+**Next:** [File layout conventions →](/aps/spec/file-layout)

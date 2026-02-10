@@ -78,7 +78,7 @@ This section will be updated with each major release.
 
 If you encounter upgrade issues:
 
-1. Check the [Troubleshooting guide](/docs/anvil/operations/troubleshooting)
+1. Check the [Troubleshooting guide](/anvil/operations/troubleshooting)
 2. Search [existing issues](https://github.com/EddaCraft/anvil-001/issues)
 3. Open a new issue with:
    - Old version

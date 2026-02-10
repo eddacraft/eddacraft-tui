@@ -131,4 +131,4 @@ Anvil picks it up on the next run.
 
 ---
 
-**Next:** [Architecture Boundaries](/docs/anvil/tutorials/architecture)
+**Next:** [Architecture Boundaries](/anvil/tutorials/architecture)

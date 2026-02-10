@@ -15,12 +15,12 @@ Not sure where to start? Pick the path that matches your goal.
 
 You want to understand what EddaCraft offers and whether it fits your needs.
 
-| Goal                                 | Start here                                       |
-| ------------------------------------ | ------------------------------------------------ |
-| Understand Anvil's value proposition | [What Anvil does](/docs/anvil/overview)          |
-| See how APS fits into the picture    | [APS Overview](/docs/aps/overview)               |
-| Learn why Kindling exists            | [Kindling Overview](/docs/kindling/overview)     |
-| Grasp the overall architecture       | [Edda Stack Overview](/docs/edda-stack/overview) |
+| Goal                                 | Start here                                  |
+| ------------------------------------ | ------------------------------------------- |
+| Understand Anvil's value proposition | [What Anvil does](/anvil/overview)          |
+| See how APS fits into the picture    | [APS Overview](/aps/overview)               |
+| Learn why Kindling exists            | [Kindling Overview](/kindling/overview)     |
+| Grasp the overall architecture       | [Edda Stack Overview](/edda-stack/overview) |
 
 ---
 
@@ -29,12 +29,12 @@ You want to understand what EddaCraft offers and whether it fits your needs.
 You're interested in the Anvil Plan Specification for your own tooling or
 workflows.
 
-| Goal                        | Start here                                         |
-| --------------------------- | -------------------------------------------------- |
-| Read the specification      | [APS Taxonomy](/docs/aps/spec/taxonomy)            |
-| See file layout conventions | [File Layout](/docs/aps/spec/file-layout)          |
-| View example plans          | [Minimal Plan](/docs/aps/examples/minimal-plan)    |
-| Validate APS documents      | [Validation Tooling](/docs/aps/tooling/validation) |
+| Goal                        | Start here                                    |
+| --------------------------- | --------------------------------------------- |
+| Read the specification      | [APS Taxonomy](/aps/spec/taxonomy)            |
+| See file layout conventions | [File Layout](/aps/spec/file-layout)          |
+| View example plans          | [Minimal Plan](/aps/examples/minimal-plan)    |
+| Validate APS documents      | [Validation Tooling](/aps/tooling/validation) |
 
 ---
 
@@ -42,12 +42,12 @@ workflows.
 
 You need to capture session context and observations for later retrieval.
 
-| Goal                      | Start here                                                   |
-| ------------------------- | ------------------------------------------------------------ |
-| Get Kindling running      | [Install Kindling](/docs/kindling/quickstart/install)        |
-| Create your first capsule | [Create a Capsule](/docs/kindling/quickstart/create-capsule) |
-| Connect to your workflow  | [Custom Adapters](/docs/kindling/adapters/custom)            |
-| Understand the data model | [Observations](/docs/kindling/concepts/observations)         |
+| Goal                      | Start here                                              |
+| ------------------------- | ------------------------------------------------------- |
+| Get Kindling running      | [Install Kindling](/kindling/quickstart/install)        |
+| Create your first capsule | [Create a Capsule](/kindling/quickstart/create-capsule) |
+| Connect to your workflow  | [Custom Adapters](/kindling/adapters/custom)            |
+| Understand the data model | [Observations](/kindling/concepts/observations)         |
 
 ---
 
@@ -55,12 +55,12 @@ You need to capture session context and observations for later retrieval.
 
 You're ready to roll out Anvil to your team or integrate it into CI/CD.
 
-| Goal                        | Start here                                            |
-| --------------------------- | ----------------------------------------------------- |
-| Team workflow patterns      | [Team Flow Guide](/docs/anvil/guides/team-flow)       |
-| GitHub Actions integration  | [GitHub Integration](/docs/anvil/integrations/github) |
-| Security model and policies | [Security](/docs/anvil/operations/security)           |
-| Configuration reference     | [Config](/docs/anvil/operations/config)               |
+| Goal                        | Start here                                       |
+| --------------------------- | ------------------------------------------------ |
+| Team workflow patterns      | [Team Flow Guide](/anvil/guides/team-flow)       |
+| GitHub Actions integration  | [GitHub Integration](/anvil/integrations/github) |
+| Security model and policies | [Security](/anvil/operations/security)           |
+| Configuration reference     | [Config](/anvil/operations/config)               |
 
 ---
 
@@ -68,11 +68,11 @@ You're ready to roll out Anvil to your team or integrate it into CI/CD.
 
 You want the fastest path to productive use of Anvil.
 
-| Goal                      | Start here                                        |
-| ------------------------- | ------------------------------------------------- |
-| Install and configure     | [Quickstart](/docs/anvil/quickstart)              |
-| Set up your first project | [First Project](/docs/anvil/first-project)        |
-| Understand the workflow   | [Solo Dev Flow](/docs/anvil/guides/solo-dev-flow) |
+| Goal                      | Start here                                   |
+| ------------------------- | -------------------------------------------- |
+| Install and configure     | [Quickstart](/anvil/quickstart)              |
+| Set up your first project | [First Project](/anvil/first-project)        |
+| Understand the workflow   | [Solo Dev Flow](/anvil/guides/solo-dev-flow) |
 
 ---
 
@@ -82,25 +82,25 @@ You want the fastest path to productive use of Anvil.
   <div className="col col--4">
     <h3>Anvil</h3>
     <ul>
-      <li><a href="/docs/anvil/overview">Overview</a></li>
-      <li><a href="/docs/anvil/quickstart">Quickstart</a></li>
-      <li><a href="/docs/anvil/concepts/gates">Gates</a></li>
+      <li><a href="/anvil/overview">Overview</a></li>
+      <li><a href="/anvil/quickstart">Quickstart</a></li>
+      <li><a href="/anvil/concepts/gates">Gates</a></li>
     </ul>
   </div>
   <div className="col col--4">
     <h3>APS</h3>
     <ul>
-      <li><a href="/docs/aps/overview">Overview</a></li>
-      <li><a href="/docs/aps/spec/taxonomy">Specification</a></li>
-      <li><a href="/docs/aps/examples/minimal-plan">Examples</a></li>
+      <li><a href="/aps/overview">Overview</a></li>
+      <li><a href="/aps/spec/taxonomy">Specification</a></li>
+      <li><a href="/aps/examples/minimal-plan">Examples</a></li>
     </ul>
   </div>
   <div className="col col--4">
     <h3>Kindling</h3>
     <ul>
-      <li><a href="/docs/kindling/overview">Overview</a></li>
-      <li><a href="/docs/kindling/quickstart/install">Install</a></li>
-      <li><a href="/docs/kindling/concepts/capsules">Capsules</a></li>
+      <li><a href="/kindling/overview">Overview</a></li>
+      <li><a href="/kindling/quickstart/install">Install</a></li>
+      <li><a href="/kindling/concepts/capsules">Capsules</a></li>
     </ul>
   </div>
 </div>

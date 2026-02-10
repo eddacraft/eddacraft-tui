@@ -134,8 +134,8 @@ Issues caught at inner layers never reach outer ones. The goal is to catch
 everything at save-time -- CI exists as the safety net.
 
 :::info The `--staged` flag pairs well with lint-staged or Husky. See
-[Configuration](/docs/anvil/operations/config) for hook setup options. :::
+[Configuration](/anvil/operations/config) for hook setup options. :::
 
 ---
 
-**Next:** [Suppressions](/docs/anvil/tutorials/suppressions)
+**Next:** [Suppressions](/anvil/tutorials/suppressions)

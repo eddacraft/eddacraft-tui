@@ -89,7 +89,7 @@ Upgrade to multi-file when:
 - Multiple distinct features
 - Multiple people working
 
-See [Multi-module example →](/docs/aps/examples/multi-module)
+See [Multi-module example →](/aps/examples/multi-module)
 
 ## Template
 
@@ -119,4 +119,4 @@ version: 1.0
 
 ---
 
-**Next:** [Multi-module example →](/docs/aps/examples/multi-module)
+**Next:** [Multi-module example →](/aps/examples/multi-module)

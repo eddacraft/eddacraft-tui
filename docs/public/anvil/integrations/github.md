@@ -200,4 +200,4 @@ Speed up CI with caching:
 
 ---
 
-**Next:** [VS Code integration →](/docs/anvil/integrations/vscode)
+**Next:** [VS Code integration →](/anvil/integrations/vscode)

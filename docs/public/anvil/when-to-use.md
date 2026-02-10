@@ -108,4 +108,4 @@ If you answered "yes" to 2+ questions, Anvil will likely add value.
 
 ---
 
-**Ready to try it?** [Quickstart →](/docs/anvil/quickstart)
+**Ready to try it?** [Quickstart →](/anvil/quickstart)

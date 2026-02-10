@@ -59,7 +59,7 @@ kindling observe "The API requires idempotency keys for POST requests"
 - Structured storage
 - Local-first, portable
 
-[Kindling Documentation →](/docs/kindling/overview)
+[Kindling Documentation →](/kindling/overview)
 
 ### Ember (Candidate)
 
@@ -185,4 +185,4 @@ Individual observations → Team candidates → Organisation knowledge
 
 ---
 
-**Next:** [Component details →](/docs/edda-stack/components/kindling)
+**Next:** [Component details →](/edda-stack/components/kindling)

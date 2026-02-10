@@ -136,4 +136,4 @@ ZodError: Invalid enum value at "status"
 
 ---
 
-**Next:** [Examples →](/docs/aps/schemas/examples)
+**Next:** [Examples →](/aps/schemas/examples)

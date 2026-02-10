@@ -32,7 +32,7 @@ export function Navbar() {
 
           <div className="flex items-center gap-4 sm:gap-8 font-mono text-xs sm:text-sm">
             <Link
-              href="https://docs.eddacraft.ai/docs/anvil/overview"
+              href="https://docs.eddacraft.ai/anvil/overview"
               className="text-anvil transition-colors hover:text-text-primary"
             >
               Anvil

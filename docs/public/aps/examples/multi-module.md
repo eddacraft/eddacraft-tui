@@ -330,4 +330,4 @@ PROD-002 ───────────────────────�
 
 ---
 
-**Next:** [Validation tooling →](/docs/aps/tooling/validation)
+**Next:** [Validation tooling →](/aps/tooling/validation)

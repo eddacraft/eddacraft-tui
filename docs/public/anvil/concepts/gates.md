@@ -234,4 +234,4 @@ const legacyData: any = fetchLegacyApi();
 
 ---
 
-**Next:** [Sessions and runs →](/docs/anvil/concepts/sessions)
+**Next:** [Sessions and runs →](/anvil/concepts/sessions)

@@ -207,4 +207,4 @@ kindling capsule list --all
 
 ---
 
-**Next:** [Observations →](/docs/kindling/concepts/observations)
+**Next:** [Observations →](/kindling/concepts/observations)

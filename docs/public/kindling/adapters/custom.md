@@ -207,4 +207,4 @@ kindling adapter install kindling-adapter-mytool
 
 ---
 
-**Next:** [Memory commands →](/docs/kindling/commands/memory)
+**Next:** [Memory commands →](/kindling/commands/memory)

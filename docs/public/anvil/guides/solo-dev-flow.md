@@ -189,4 +189,4 @@ Even solo, there are times to bypass:
 
 ---
 
-**Next:** [Team workflow →](/docs/anvil/guides/team-flow)
+**Next:** [Team workflow →](/anvil/guides/team-flow)

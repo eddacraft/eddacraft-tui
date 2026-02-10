@@ -50,7 +50,7 @@ before they reach review.
 **Best for:** Teams shipping with AI assistance who need production-grade
 quality gates.
 
-[Get started with Anvil →](/docs/anvil/overview)
+[Get started with Anvil →](/anvil/overview)
 
 ### APS (Anvil Plan Specification)
 
@@ -59,7 +59,7 @@ APS defines _what_ should be built, enabling reproducible validation.
 
 **Best for:** Teams wanting a standard format for AI-agent task definitions.
 
-[Explore the APS spec →](/docs/aps/overview)
+[Explore the APS spec →](/aps/overview)
 
 ### Kindling
 
@@ -68,7 +68,7 @@ sessions. Kindling stores context that matters—without the noise.
 
 **Best for:** Developers wanting session memory that persists and transfers.
 
-[Learn about Kindling →](/docs/kindling/overview)
+[Learn about Kindling →](/kindling/overview)
 
 ## Design Principles
 
@@ -94,4 +94,4 @@ builds on open foundations.
 
 ---
 
-**Ready to dive in?** [Choose your path →](/docs/start-here/choose-your-path)
+**Ready to dive in?** [Choose your path →](/start-here/choose-your-path)

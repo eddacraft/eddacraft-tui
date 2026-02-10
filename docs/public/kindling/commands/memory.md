@@ -175,4 +175,4 @@ Periodic reminder to capture:
 
 ---
 
-**Next:** [Formats reference →](/docs/kindling/reference/formats)
+**Next:** [Formats reference →](/kindling/reference/formats)

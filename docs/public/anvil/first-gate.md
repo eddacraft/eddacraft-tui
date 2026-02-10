@@ -146,4 +146,4 @@ technical debt.
 
 ---
 
-**Next:** [Understand the concepts behind gates →](/docs/anvil/concepts/gates)
+**Next:** [Understand the concepts behind gates →](/anvil/concepts/gates)

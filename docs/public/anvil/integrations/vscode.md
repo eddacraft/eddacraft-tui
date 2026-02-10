@@ -178,4 +178,4 @@ Anvil evidence can be viewed alongside GitLens blame info.
 
 ---
 
-**Next:** [MCP integration →](/docs/anvil/integrations/mcp)
+**Next:** [MCP integration →](/anvil/integrations/mcp)

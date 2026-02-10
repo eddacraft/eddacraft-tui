@@ -220,4 +220,4 @@ For compliance, evidence can be pushed to remote storage:
 
 ---
 
-**Next:** [Solo dev workflow →](/docs/anvil/guides/solo-dev-flow)
+**Next:** [Solo dev workflow →](/anvil/guides/solo-dev-flow)

@@ -194,4 +194,4 @@ const tracker = new ConfidenceTracker({
 
 ---
 
-**Next:** [Custom Adapters ->](/docs/kindling/adapters/custom)
+**Next:** [Custom Adapters ->](/kindling/adapters/custom)

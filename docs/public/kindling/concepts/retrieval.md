@@ -216,4 +216,4 @@ kindling recent -n 50
 
 ---
 
-**Next:** [Custom Adapters →](/docs/kindling/adapters/custom)
+**Next:** [Custom Adapters →](/kindling/adapters/custom)

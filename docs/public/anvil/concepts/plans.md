@@ -172,4 +172,4 @@ Plans can be created:
 
 ---
 
-**Learn more:** [APS Specification →](/docs/aps/overview)
+**Learn more:** [APS Specification →](/aps/overview)

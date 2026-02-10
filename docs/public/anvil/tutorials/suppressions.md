@@ -156,5 +156,5 @@ resolve old suppressions before adding new ones.
 
 ---
 
-**Previous:** [CI Integration](/docs/anvil/tutorials/ci) | **All tutorials:**
-[Tutorials index](/docs/anvil/tutorials)
+**Previous:** [CI Integration](/anvil/tutorials/ci) | **All tutorials:**
+[Tutorials index](/anvil/tutorials)

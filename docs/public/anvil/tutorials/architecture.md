@@ -163,4 +163,4 @@ explanation triggers its own warning. :::
 
 ---
 
-**Next:** [Drift Detection](/docs/anvil/tutorials/drift)
+**Next:** [Drift Detection](/anvil/tutorials/drift)

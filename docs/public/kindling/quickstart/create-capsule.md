@@ -138,4 +138,4 @@ This creates `.kindling/` in the project root. Useful for:
 
 ---
 
-**Next:** [Write observations →](/docs/kindling/quickstart/write-observations)
+**Next:** [Write observations →](/kindling/quickstart/write-observations)

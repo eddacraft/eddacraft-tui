@@ -157,4 +157,4 @@ reset the reference point. :::
 
 ---
 
-**Next:** [CI Integration](/docs/anvil/tutorials/ci)
+**Next:** [CI Integration](/anvil/tutorials/ci)

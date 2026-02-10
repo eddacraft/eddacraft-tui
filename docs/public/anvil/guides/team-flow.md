@@ -265,4 +265,4 @@ Add evidence, auditing, and approval workflows.
 
 ---
 
-**Next:** [Agent harness patterns →](/docs/anvil/guides/agent-harness)
+**Next:** [Agent harness patterns →](/anvil/guides/agent-harness)

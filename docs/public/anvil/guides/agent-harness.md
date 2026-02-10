@@ -221,4 +221,4 @@ Analyse:
 
 ---
 
-**Next:** [GitHub integration →](/docs/anvil/integrations/github)
+**Next:** [GitHub integration →](/anvil/integrations/github)

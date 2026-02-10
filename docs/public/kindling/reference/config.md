@@ -226,4 +226,4 @@ kindling config reset
 
 ---
 
-**Back to:** [Kindling Overview →](/docs/kindling/overview)
+**Back to:** [Kindling Overview →](/kindling/overview)

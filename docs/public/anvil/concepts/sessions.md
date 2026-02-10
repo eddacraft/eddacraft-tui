@@ -177,4 +177,4 @@ Evidence enables:
 
 ---
 
-**Next:** [Audit trail and trust model →](/docs/anvil/concepts/audit-trail)
+**Next:** [Audit trail and trust model →](/anvil/concepts/audit-trail)

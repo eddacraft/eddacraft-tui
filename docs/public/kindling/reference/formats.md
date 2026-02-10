@@ -201,4 +201,4 @@ kindling import notes.md --parse-tags
 
 ---
 
-**Next:** [CLI reference →](/docs/kindling/reference/cli)
+**Next:** [CLI reference →](/kindling/reference/cli)

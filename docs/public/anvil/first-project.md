@@ -169,14 +169,14 @@ codes.
 
 ---
 
-**Next:** [Experience your first gate moment →](/docs/anvil/first-gate)
+**Next:** [Experience your first gate moment →](/anvil/first-gate)
 
 **Learn more:**
 
-- [Custom policies](/docs/anvil/tutorials/policies) -- write OPA/Rego rules for
-  your standards
-- [Architecture boundaries](/docs/anvil/tutorials/architecture) -- templates and
+- [Custom policies](/anvil/tutorials/policies) -- write OPA/Rego rules for your
+  standards
+- [Architecture boundaries](/anvil/tutorials/architecture) -- templates and
   enforcement
-- [Drift detection](/docs/anvil/tutorials/drift) -- track architectural changes
-- [CI integration](/docs/anvil/tutorials/ci) -- add Anvil to your pipeline
-- [Suppressions](/docs/anvil/tutorials/suppressions) -- manage legacy warnings
+- [Drift detection](/anvil/tutorials/drift) -- track architectural changes
+- [CI integration](/anvil/tutorials/ci) -- add Anvil to your pipeline
+- [Suppressions](/anvil/tutorials/suppressions) -- manage legacy warnings

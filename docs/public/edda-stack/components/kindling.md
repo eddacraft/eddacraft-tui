@@ -38,7 +38,7 @@ Kindling is fully functional:
 - Adapter framework
 - Export capabilities
 
-[Full Kindling Documentation →](/docs/kindling/overview)
+[Full Kindling Documentation →](/kindling/overview)
 
 ## Quick Start
 
@@ -144,4 +144,4 @@ kindling observe "..." --tag bug --tag performance
 
 ---
 
-**Next:** [Design Principles →](/docs/edda-stack/design-principles)
+**Next:** [Design Principles →](/edda-stack/design-principles)

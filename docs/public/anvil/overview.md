@@ -105,4 +105,4 @@ Anvil catches _structural_ and _architectural_ issues that other tools miss.
 
 ---
 
-**Ready to start?** [Install Anvil →](/docs/anvil/quickstart)
+**Ready to start?** [Install Anvil →](/anvil/quickstart)

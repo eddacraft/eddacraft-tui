@@ -312,4 +312,4 @@ File at:
 
 ---
 
-**Back to:** [Configuration →](/docs/anvil/operations/config)
+**Back to:** [Configuration →](/anvil/operations/config)

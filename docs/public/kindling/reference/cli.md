@@ -279,4 +279,4 @@ kindling adapter opencode config --capsule my-project
 
 ---
 
-**Next:** [Configuration reference →](/docs/kindling/reference/config)
+**Next:** [Configuration reference →](/kindling/reference/config)

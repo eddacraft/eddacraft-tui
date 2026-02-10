@@ -58,7 +58,7 @@ export function HeroSection() {
 
               {/* Secondary - Docs */}
               <Link
-                href="https://docs.eddacraft.ai/docs/anvil/overview"
+                href="https://docs.eddacraft.ai/anvil/overview"
                 className="block w-full max-w-[450px] border border-structure bg-transparent px-4 sm:px-6 py-3 font-mono text-xs sm:text-sm text-text-muted transition-colors hover:border-text-muted hover:text-text-primary text-left"
               >
                 READ THE DOCS

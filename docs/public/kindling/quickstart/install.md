@@ -141,4 +141,4 @@ rm -rf ~/.kindling
 
 ---
 
-**Next:** [Create a capsule →](/docs/kindling/quickstart/create-capsule)
+**Next:** [Create a capsule →](/kindling/quickstart/create-capsule)

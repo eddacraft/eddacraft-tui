@@ -286,4 +286,4 @@ ANVIL_FAIL_ON_WARNINGS=true anvil run
 
 ---
 
-**Next:** [Security model →](/docs/anvil/operations/security)
+**Next:** [Security model →](/anvil/operations/security)

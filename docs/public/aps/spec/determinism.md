@@ -270,4 +270,4 @@ anvil plan verify
 
 ---
 
-**Next:** [JSON Schema →](/docs/aps/schemas/json-schema)
+**Next:** [JSON Schema →](/aps/schemas/json-schema)

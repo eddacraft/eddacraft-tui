@@ -20,10 +20,10 @@ function HomepageHeader() {
           Anvil enforces plans and gates. APS defines the plan.
         </p>
         <div className={styles.buttons}>
-          <Link className="button button--primary button--lg" to="/docs/anvil/overview">
+          <Link className="button button--primary button--lg" to="/anvil/overview">
             Get Started
           </Link>
-          <Link className="button button--secondary button--lg" to="/docs/anvil/quickstart">
+          <Link className="button button--secondary button--lg" to="/anvil/quickstart">
             Anvil Quickstart
           </Link>
         </div>
@@ -78,14 +78,14 @@ function ProductTiles() {
             title="Anvil"
             tagline="Ship with restraint"
             description="Validate AI-generated code changes at save-time. Catch architecture drift and anti-patterns before they reach review."
-            href="/docs/anvil/overview"
+            href="/anvil/overview"
             variant="anvil"
           />
           <ProductTile
             title="APS"
             tagline="A deterministic plan spec"
             description="Define what should be built with hash-stable, reproducible plans. Separate intent from implementation."
-            href="/docs/aps/overview"
+            href="/aps/overview"
             variant="aps"
           />
         </div>
@@ -137,13 +137,13 @@ function QuickLinks() {
             <h4>Getting Started</h4>
             <ul>
               <li>
-                <Link to="/docs/anvil/overview">Anvil Overview</Link>
+                <Link to="/anvil/overview">Anvil Overview</Link>
               </li>
               <li>
-                <Link to="/docs/aps/overview">APS Overview</Link>
+                <Link to="/aps/overview">APS Overview</Link>
               </li>
               <li>
-                <Link to="/docs/anvil/quickstart">Anvil Quickstart</Link>
+                <Link to="/anvil/quickstart">Anvil Quickstart</Link>
               </li>
             </ul>
           </div>
@@ -151,13 +151,13 @@ function QuickLinks() {
             <h4>Core Concepts</h4>
             <ul>
               <li>
-                <Link to="/docs/anvil/concepts/gates">Gates</Link>
+                <Link to="/anvil/concepts/gates">Gates</Link>
               </li>
               <li>
-                <Link to="/docs/aps/spec/taxonomy">APS Taxonomy</Link>
+                <Link to="/aps/spec/taxonomy">APS Taxonomy</Link>
               </li>
               <li>
-                <Link to="/docs/anvil/concepts/plans">Plans</Link>
+                <Link to="/anvil/concepts/plans">Plans</Link>
               </li>
             </ul>
           </div>
@@ -165,13 +165,13 @@ function QuickLinks() {
             <h4>Integrations</h4>
             <ul>
               <li>
-                <Link to="/docs/anvil/integrations/github">GitHub Actions</Link>
+                <Link to="/anvil/integrations/github">GitHub Actions</Link>
               </li>
               <li>
-                <Link to="/docs/anvil/integrations/vscode">VS Code</Link>
+                <Link to="/anvil/integrations/vscode">VS Code</Link>
               </li>
               <li>
-                <Link to="/docs/anvil/integrations/mcp">MCP Server</Link>
+                <Link to="/anvil/integrations/mcp">MCP Server</Link>
               </li>
             </ul>
           </div>
@@ -179,13 +179,13 @@ function QuickLinks() {
             <h4>Reference</h4>
             <ul>
               <li>
-                <Link to="/docs/anvil/operations/config">Configuration</Link>
+                <Link to="/anvil/operations/config">Configuration</Link>
               </li>
               <li>
-                <Link to="/docs/aps/schemas/json-schema">APS Schema</Link>
+                <Link to="/aps/schemas/json-schema">APS Schema</Link>
               </li>
               <li>
-                <Link to="/docs/aps/examples/minimal-plan">APS Examples</Link>
+                <Link to="/aps/examples/minimal-plan">APS Examples</Link>
               </li>
             </ul>
           </div>

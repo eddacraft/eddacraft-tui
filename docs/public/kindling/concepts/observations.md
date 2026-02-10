@@ -239,4 +239,4 @@ kindling observe "Follow-up: see obs_abc123 for root cause" --related obs_abc123
 
 ---
 
-**Next:** [Storage →](/docs/kindling/concepts/storage)
+**Next:** [Storage →](/kindling/concepts/storage)

@@ -166,4 +166,4 @@ from within OpenCode sessions:
 
 ---
 
-**Next:** [PocketFlow Adapter →](/docs/kindling/adapters/pocketflow)
+**Next:** [PocketFlow Adapter →](/kindling/adapters/pocketflow)

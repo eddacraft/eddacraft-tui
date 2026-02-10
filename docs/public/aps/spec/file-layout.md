@@ -218,4 +218,4 @@ plans/
 
 ---
 
-**Next:** [Determinism rules →](/docs/aps/spec/determinism)
+**Next:** [Determinism rules →](/aps/spec/determinism)

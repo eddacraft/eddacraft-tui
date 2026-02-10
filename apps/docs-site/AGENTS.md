@@ -63,13 +63,13 @@ pnpm typecheck                   # TypeScript validation
 Each product has its own `@docusaurus/plugin-content-docs` instance. This gives
 each section independent routing, sidebars, and (future) versioning.
 
-| Instance   | Content path      | URL route          | Sidebar config           |
-| ---------- | ----------------- | ------------------ | ------------------------ |
-| start-here | `docs/start-here` | `/docs/start-here` | `sidebars/start-here.ts` |
-| anvil      | `docs/anvil`      | `/docs/anvil`      | `sidebars/anvil.ts`      |
-| aps        | `docs/aps`        | `/docs/aps`        | `sidebars/aps.ts`        |
-| kindling   | `docs/kindling`   | `/docs/kindling`   | `sidebars/kindling.ts`   |
-| edda-stack | `docs/edda-stack` | `/docs/edda-stack` | `sidebars/edda-stack.ts` |
+| Instance   | Content path (plugin `path`)   | URL route     | Sidebar config           |
+| ---------- | ------------------------------ | ------------- | ------------------------ |
+| start-here | `../../docs/public/start-here` | `/start-here` | `sidebars/start-here.ts` |
+| anvil      | `../../docs/public/anvil`      | `/anvil`      | `sidebars/anvil.ts`      |
+| aps        | `../../docs/public/aps`        | `/aps`        | `sidebars/aps.ts`        |
+| kindling   | `../../docs/public/kindling`   | `/kindling`   | `sidebars/kindling.ts`   |
+| edda-stack | `../../docs/public/edda-stack` | `/edda-stack` | `sidebars/edda-stack.ts` |
 
 **To add a new doc section**, see `TOGGLING-DOCS.md` or:
 
@@ -100,7 +100,7 @@ sidebar_position: 1
 - Content lives in `docs/<product>/` directories
 - Sidebar ordering is controlled by `sidebar_position` in front-matter and the
   sidebar config files in `sidebars/`
-- Cross-product links use full paths: `/docs/anvil/overview`
+- Cross-product links use full paths: `/anvil/overview`
 - Broken links will **fail the build** (configured to `throw`)
 
 ## Styling — Nordic Terminal Theme

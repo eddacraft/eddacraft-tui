@@ -181,4 +181,4 @@ Record observations while context is fresh. Waiting leads to:
 
 ---
 
-**Next:** [Search and export →](/docs/kindling/quickstart/search-export)
+**Next:** [Search and export →](/kindling/quickstart/search-export)

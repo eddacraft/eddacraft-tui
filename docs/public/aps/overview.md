@@ -225,4 +225,4 @@ anvil plan validate plans/index.aps.md
 
 ---
 
-**Next:** [Specification details →](/docs/aps/spec/taxonomy)
+**Next:** [Specification details →](/aps/spec/taxonomy)

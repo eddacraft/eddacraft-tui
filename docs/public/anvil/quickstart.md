@@ -147,23 +147,23 @@ One warning down. Repeat for the rest at your own pace.
 
 - **Interactive tutorial** -- run `anvil tutorial` for a guided walk-through
   inside your terminal
-- [Set up your first project](/docs/anvil/first-project) -- architecture
-  boundaries, suppressions, and CI
-- [Understand gates](/docs/anvil/concepts/gates) -- what Anvil validates and why
-- [Configuration reference](/docs/anvil/operations/config) -- customise checks,
+- [Set up your first project](/anvil/first-project) -- architecture boundaries,
+  suppressions, and CI
+- [Understand gates](/anvil/concepts/gates) -- what Anvil validates and why
+- [Configuration reference](/anvil/operations/config) -- customise checks,
   patterns, and watch behaviour
 
 **Feature tutorials:**
 
-- [Custom policies](/docs/anvil/tutorials/policies) -- write OPA/Rego rules for
-  your team's standards
-- [Architecture boundaries](/docs/anvil/tutorials/architecture) -- define and
-  enforce module boundaries
-- [Drift detection](/docs/anvil/tutorials/drift) -- capture snapshots and track
+- [Custom policies](/anvil/tutorials/policies) -- write OPA/Rego rules for your
+  team's standards
+- [Architecture boundaries](/anvil/tutorials/architecture) -- define and enforce
+  module boundaries
+- [Drift detection](/anvil/tutorials/drift) -- capture snapshots and track
   architectural drift
-- [CI integration](/docs/anvil/tutorials/ci) -- add Anvil to your pipeline
+- [CI integration](/anvil/tutorials/ci) -- add Anvil to your pipeline
 
 ---
 
-**Need help?** Check [Troubleshooting](/docs/anvil/operations/troubleshooting)
-or [open an issue](https://github.com/EddaCraft/anvil-001/issues).
+**Need help?** Check [Troubleshooting](/anvil/operations/troubleshooting) or
+[open an issue](https://github.com/EddaCraft/anvil-001/issues).

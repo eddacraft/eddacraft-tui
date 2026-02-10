@@ -155,4 +155,4 @@ Kindling is focused:
 
 ---
 
-**Next:** [Install Kindling →](/docs/kindling/quickstart/install)
+**Next:** [Install Kindling →](/kindling/quickstart/install)

@@ -56,7 +56,7 @@ const config: Config = {
     //   {
     //     id: 'start-here',
     //     path: '../../docs/public/start-here',
-    //     routeBasePath: 'docs/start-here',
+    //     routeBasePath: 'start-here',
     //     sidebarPath: './sidebars/start-here.ts',
     //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/start-here/',
     //   },
@@ -67,7 +67,7 @@ const config: Config = {
       {
         id: 'anvil',
         path: '../../docs/public/anvil',
-        routeBasePath: 'docs/anvil',
+        routeBasePath: 'anvil',
         sidebarPath: './sidebars/anvil.ts',
         editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/anvil/',
       },
@@ -78,29 +78,29 @@ const config: Config = {
       {
         id: 'aps',
         path: '../../docs/public/aps',
-        routeBasePath: 'docs/aps',
+        routeBasePath: 'aps',
         sidebarPath: './sidebars/aps.ts',
         editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/aps/',
       },
     ],
-    // DISABLED for go-live: Kindling - OSS memory capture
-    // [
-    //   '@docusaurus/plugin-content-docs',
-    //   {
-    //     id: 'kindling',
-    //     path: '../../docs/public/kindling',
-    //     routeBasePath: 'docs/kindling',
-    //     sidebarPath: './sidebars/kindling.ts',
-    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/kindling/',
-    //   },
-    // ],
+    // Kindling - OSS memory capture
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'kindling',
+        path: '../../docs/public/kindling',
+        routeBasePath: 'kindling',
+        sidebarPath: './sidebars/kindling.ts',
+        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/kindling/',
+      },
+    ],
     // DISABLED for go-live: Edda Stack - placeholder/roadmap
     // [
     //   '@docusaurus/plugin-content-docs',
     //   {
     //     id: 'edda-stack',
     //     path: '../../docs/public/edda-stack',
-    //     routeBasePath: 'docs/edda-stack',
+    //     routeBasePath: 'edda-stack',
     //     sidebarPath: './sidebars/edda-stack.ts',
     //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/edda-stack/',
     //   },
@@ -124,12 +124,17 @@ const config: Config = {
       items: [
         {
           label: 'Anvil',
-          to: '/docs/anvil/overview',
+          to: '/anvil/overview',
           position: 'left',
         },
         {
           label: 'APS',
-          to: '/docs/aps/overview',
+          to: '/aps/overview',
+          position: 'left',
+        },
+        {
+          label: 'Kindling',
+          to: '/kindling/overview',
           position: 'left',
         },
         {
@@ -151,16 +156,17 @@ const config: Config = {
         {
           title: 'Products',
           items: [
-            { label: 'Anvil', to: '/docs/anvil/overview' },
-            { label: 'APS', to: '/docs/aps/overview' },
+            { label: 'Anvil', to: '/anvil/overview' },
+            { label: 'APS', to: '/aps/overview' },
+            { label: 'Kindling', to: '/kindling/overview' },
           ],
         },
         {
           title: 'Docs',
           items: [
-            { label: 'Anvil Overview', to: '/docs/anvil/overview' },
-            { label: 'Anvil Quickstart', to: '/docs/anvil/quickstart' },
-            { label: 'APS Spec', to: '/docs/aps/spec/taxonomy' },
+            { label: 'Anvil Overview', to: '/anvil/overview' },
+            { label: 'Anvil Quickstart', to: '/anvil/quickstart' },
+            { label: 'APS Spec', to: '/aps/spec/taxonomy' },
           ],
         },
         {

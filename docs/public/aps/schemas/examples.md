@@ -266,4 +266,4 @@ NODE_ENV=test pnpm test src/auth/
 
 ---
 
-**Next:** [Minimal plan example →](/docs/aps/examples/minimal-plan)
+**Next:** [Minimal plan example →](/aps/examples/minimal-plan)

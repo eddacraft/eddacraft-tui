@@ -29,7 +29,7 @@ const sidebars: SidebarsConfig = {
       type: 'category',
       label: 'Adapters',
       collapsed: true,
-      items: ['adapters/opencode', 'adapters/pocketflow', 'adapters/custom'],
+      items: ['adapters/custom'],
     },
     {
       type: 'category',

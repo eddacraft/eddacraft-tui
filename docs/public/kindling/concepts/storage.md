@@ -218,4 +218,4 @@ Planned support for:
 
 ---
 
-**Next:** [Retrieval philosophy →](/docs/kindling/concepts/retrieval)
+**Next:** [Retrieval philosophy →](/kindling/concepts/retrieval)

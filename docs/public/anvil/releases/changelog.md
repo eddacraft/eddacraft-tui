@@ -59,4 +59,4 @@ Anvil follows [Semantic Versioning](https://semver.org/):
 
 ## Upgrading
 
-See [Upgrade Notes](/docs/anvil/releases/upgrade-notes) for migration guides.
+See [Upgrade Notes](/anvil/releases/upgrade-notes) for migration guides.

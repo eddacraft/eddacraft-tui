@@ -232,4 +232,4 @@ Activity:
 
 ---
 
-**Next:** [Understand capsules →](/docs/kindling/concepts/capsules)
+**Next:** [Understand capsules →](/kindling/concepts/capsules)

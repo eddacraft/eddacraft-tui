@@ -226,4 +226,4 @@ Response includes explanation, examples, and fix suggestions.
 
 ---
 
-**Next:** [Configuration reference →](/docs/anvil/operations/config)
+**Next:** [Configuration reference →](/anvil/operations/config)

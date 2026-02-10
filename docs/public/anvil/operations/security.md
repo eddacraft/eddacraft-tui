@@ -242,4 +242,4 @@ anvil evidence export \
 
 ---
 
-**Next:** [Troubleshooting →](/docs/anvil/operations/troubleshooting)
+**Next:** [Troubleshooting →](/anvil/operations/troubleshooting)
