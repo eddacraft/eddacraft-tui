@@ -1,0 +1,4 @@
+config:
+  azure-native:location: uksouth
+  azure-native:subscriptionId: 290aa167-2d41-45aa-9b36-8ef5b9be99e0
+  azure-dns:resourceGroupName: rg-prd-ap-public-web

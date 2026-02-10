@@ -1,0 +1,6 @@
+name: anvil-iac
+runtime:
+  name: nodejs
+  options:
+    packagemanager: pnpm
+description: Infrastructure as Code for the Anvil monorepo

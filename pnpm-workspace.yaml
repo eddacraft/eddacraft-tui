@@ -1,4 +1,6 @@
 packages:
+  # Infrastructure
+  - infra
   # Apps (v1.1+)
   - apps/*
   # Core domain packages
