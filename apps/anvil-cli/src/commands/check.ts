@@ -135,7 +135,7 @@ export async function runInteractiveReview(
     const inquirer = await import('inquirer');
     const { action } = await inquirer.default.prompt<{ action: string }>([
       {
-        type: 'list',
+        type: 'select',
         name: 'action',
         message: 'What would you like to do?',
         choices,
