@@ -6,7 +6,8 @@
   "main": "index.ts",
   "dependencies": {
     "@pulumi/pulumi": "^3.219.0",
-    "@pulumi/azure-native": "^3.12.0"
+    "@pulumi/azure-native": "^3.12.0",
+    "@pulumiverse/vercel": "^1.14.3"
   },
   "devDependencies": {
     "typescript": "~5.9.3"
