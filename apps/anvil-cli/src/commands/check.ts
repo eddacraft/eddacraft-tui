@@ -76,9 +76,16 @@ const VALID_THRESHOLDS: ReadonlySet<string> = new Set<NudgeSeverityThreshold>([
   'info',
 ]);
 
+function isNudgeSeverityThreshold(value: string): value is NudgeSeverityThreshold {
+  return VALID_THRESHOLDS.has(value);
+}
+
 export async function promptForWarning(
   w: Warning,
-  promptFn: (choices: Array<{ name: string; value: string }>) => Promise<InteractiveAction>
+  promptFn: (
+    choices: Array<{ name: string; value: InteractiveAction }>
+  ) => Promise<InteractiveAction>,
+  showNudge = true
 ): Promise<InteractiveAction> {
   const icon = w.severity === 'error' ? '✗' : w.severity === 'warning' ? '⚠' : 'ℹ';
 
@@ -87,13 +94,13 @@ export async function promptForWarning(
   console.log(chalk.gray(`    ${w.location.file}:${w.location.line}`));
   console.log(`    ${w.message}`);
 
-  if (w.nudge) {
+  if (showNudge && w.nudge) {
     console.log(chalk.green(`\n    → ${w.nudge}`));
   }
 
   console.log('');
 
-  const choices: Array<{ name: string; value: string }> = [
+  const choices: Array<{ name: string; value: InteractiveAction }> = [
     { name: '[s]kip — move to next warning', value: 'skip' },
   ];
 
@@ -114,13 +121,16 @@ export async function promptForWarning(
  */
 export async function runInteractiveReview(
   warnings: Warning[],
-  promptFn?: (choices: Array<{ name: string; value: string }>) => Promise<InteractiveAction>
+  promptFn?: (
+    choices: Array<{ name: string; value: InteractiveAction }>
+  ) => Promise<InteractiveAction>,
+  showNudge = true
 ): Promise<Array<{ warning: Warning; action: InteractiveAction }>> {
   const results: Array<{ warning: Warning; action: InteractiveAction }> = [];
 
   // Default prompt uses inquirer
   const defaultPromptFn = async (
-    choices: Array<{ name: string; value: string }>
+    choices: Array<{ name: string; value: InteractiveAction }>
   ): Promise<InteractiveAction> => {
     const inquirer = await import('inquirer');
     const { action } = await inquirer.default.prompt<{ action: string }>([
@@ -149,7 +159,7 @@ export async function runInteractiveReview(
     const w = reviewable[i];
     console.log(chalk.gray(`  [${i + 1}/${reviewable.length}]`));
 
-    const action = await promptForWarning(w, askFn);
+    const action = await promptForWarning(w, askFn, showNudge);
     results.push({ warning: w, action });
 
     if (action === 'quit') {
@@ -328,7 +338,7 @@ export function createCheckCommand(): Command {
         const workspaceRoot = getWorkspaceRoot();
 
         // Validate --nudge-threshold if provided
-        if (options.nudgeThreshold && !VALID_THRESHOLDS.has(options.nudgeThreshold)) {
+        if (options.nudgeThreshold && !isNudgeSeverityThreshold(options.nudgeThreshold)) {
           spinner?.stop();
           error(
             `Invalid --nudge-threshold "${options.nudgeThreshold}". ` +
@@ -341,8 +351,8 @@ export function createCheckCommand(): Command {
         const nudgeConfig: NudgeConfig = {
           ...DEFAULT_NUDGE_CONFIG,
           ...(options.nudge === false ? { enabled: false } : {}),
-          ...(options.nudgeThreshold
-            ? { severityThreshold: options.nudgeThreshold as NudgeSeverityThreshold }
+          ...(options.nudgeThreshold && isNudgeSeverityThreshold(options.nudgeThreshold)
+            ? { severityThreshold: options.nudgeThreshold }
             : {}),
         };
 
@@ -489,19 +499,19 @@ export function createCheckCommand(): Command {
           }
         }
 
-        // Interactive mode: review each warning with nudge coaching
+        // Interactive mode: review each warning with actions and optional nudge coaching
         if (useInteractive && !options.json && result.warnings.warnings.length > 0) {
-          if (!nudgeConfig.enabled) {
-            info('Interactive review skipped: nudges are disabled');
-          } else if (!process.stdout.isTTY || !process.stdin.isTTY) {
+          if (!process.stdout.isTTY || !process.stdin.isTTY) {
             info('--interactive ignored: not a TTY environment');
           } else {
             // Filter warnings by nudge severity threshold for interactive review
-            const reviewableWarnings = result.warnings.warnings.filter((w) =>
-              meetsNudgeThreshold(w.severity, nudgeConfig.severityThreshold)
-            );
+            const reviewableWarnings = nudgeConfig.enabled
+              ? result.warnings.warnings.filter((w) =>
+                  meetsNudgeThreshold(w.severity, nudgeConfig.severityThreshold)
+                )
+              : result.warnings.warnings.filter((w) => !w.suppressed);
             if (reviewableWarnings.length > 0) {
-              await runInteractiveReview(reviewableWarnings);
+              await runInteractiveReview(reviewableWarnings, undefined, nudgeConfig.enabled);
             }
           }
         }
