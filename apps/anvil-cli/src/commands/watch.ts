@@ -65,7 +65,7 @@ interface WatchOptions {
 async function promptWatchMode(): Promise<WatchMode> {
   const { mode } = await inquirer.prompt<{ mode: WatchMode }>([
     {
-      type: 'select',
+      type: 'list',
       name: 'mode',
       message: 'What would you like to watch?',
       choices: [
