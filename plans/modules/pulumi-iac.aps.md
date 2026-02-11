@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID | Owner | Status |
 |----|-------|--------|
-| IAC | @eddacraft | Ready |
+| IAC | @eddacraft | Complete |
 
 ## Purpose
 

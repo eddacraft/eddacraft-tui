@@ -346,9 +346,9 @@ graph TD
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | 0.2.0   | dashboard-foundation                                      |
 | [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Complete    | 0.1.0   | —                                                         |
 | [html-css-support](./archive/modules/html-css-support.aps.md)           | HTMLCSS  | Complete    | 0.1.0   | antipattern-library, architecture-safety, suppressions    |
-| [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | post-1.0 | html-css-support (HTMLCSS-001)                            |
-| [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | post-1.0 | html-css-support (HTMLCSS-001)                            |
-| [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | post-1.0 | html-css-support (HTMLCSS-001)                            |
+| [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | post-1.0.0 | html-css-support (HTMLCSS-001)                          |
+| [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | post-1.0.0 | html-css-support (HTMLCSS-001)                          |
+| [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | post-1.0.0 | html-css-support (HTMLCSS-001)                          |
 | [intelligent-first-run](./archive/modules/intelligent-first-run.aps.md) | IFR      | Complete    | 0.1.0   | tui, architecture-safety                                  |
 | [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md)         | TUT      | Complete    | 0.1.0   | tui                                                       |
 | [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | 0.1.0   | monorepo-migration                                        |
