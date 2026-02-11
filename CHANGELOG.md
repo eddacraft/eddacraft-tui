@@ -105,23 +105,70 @@ violations and anti-patterns at save time.
 - Demo showing Anvil catching real issues
 - Actionable error messages
 
-## [Unreleased]
-
-### Planned for v1.1
+#### Drift Visibility
 
 - `anvil explain <id>` - Deep-dive into warnings
 - `anvil drift snapshot` - Capture current state
 - `anvil drift compare` - Show changes over time
 - `anvil drift report` - Visualise trends
+
+#### OPA & Architecture
+
 - OPA architecture integration with YAML-first definitions
-- Architecture templates (Layered, Hexagonal, Clean, DDD)
-- Remote policy bundle support
+- Architecture templates (Layered, Hexagonal, Clean, DDD, Monorepo, Serverless,
+  Nx Workspace, Starter)
+- Remote policy bundles with HTTPS download, checksum verification, signature
+  verification, and authentication
+- `anvil architecture visualise` with Mermaid-based dependency graph rendering
+- Interactive architecture wizard with live diagram previews
 
-### Planned for v2.0
+#### AI Tool Integration
 
-- llms.txt export for AI tool integration
-- Copilot/Cursor context rules
-- MCP tool server
+- llms.txt export for AI tool consumption
+- Command safety validation for AI tool commands
+- MCP tool server with real-time validation
+
+#### HTML/CSS Support
+
+- Configurable file extensions for analysis
+- HTML anti-pattern detection (inline styles, scripts, event handlers)
+- CSS anti-pattern detection (`!important` abuse, `@import` performance)
+- HTML/CSS edge detection
+
+#### Tutorial & First Run
+
+- Tutorial overhaul with scan-watch-fix flow
+- Intelligent first-run experience with post-init analysis
+
+#### Infrastructure as Code
+
+- Pulumi-based infrastructure management (TypeScript)
+- Vercel project configuration (website + docs-site)
+- Azure DNS zone and record management
+- CI/CD pipeline with preview on PR, apply on merge
+
+## [Unreleased]
+
+### Planned for 0.2.0 — Web Dashboard
+
+- Browser-based dashboard for exploring Anvil data
+- Overview, gates history, warnings, architecture graphs
+- AI builder interface with json-render
+- Operations and administration views
+
+### Planned for 0.3.0 — Organisational Policy Governance
+
+- OPA enhancements (YAML-first rules, policy library, debugger)
+- Multi-level org → team → project policy hierarchy
+- Policy lifecycle management (versioning, canary rollout)
+- Compliance reporting (SOC 2, ISO 27001 mapping)
+- Policy federation and fleet sync
+
+### Planned for 0.4.0 — Edda Stack (Memory System)
+
+- Kindling (observation layer)
+- Ember (interpretive layer)
+- Edda (canonical memory)
 
 [0.1.0]: https://github.com/EddaCraft/anvil/releases/tag/v0.1.0
 [Unreleased]: https://github.com/EddaCraft/anvil/compare/v0.1.0...HEAD

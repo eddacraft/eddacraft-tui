@@ -34,7 +34,7 @@ plugins: [
     ['@docusaurus/plugin-content-docs', { id: 'anvil', /* ... */ }],
     ['@docusaurus/plugin-content-docs', { id: 'aps', /* ... */ }],
 
-    // DISABLED: Kindling docs hidden until v1.0 release
+    // DISABLED: Kindling docs hidden until 0.4.0 (Edda Stack)
     // ['@docusaurus/plugin-content-docs', { id: 'kindling', /* ... */ }],
 
     // DISABLED: Edda Stack is placeholder only

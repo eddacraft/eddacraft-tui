@@ -1,11 +1,11 @@
 <!-- APS: See https://github.com/EddaCraft/anvil-plan-spec for format reference -->
 <!-- This document is non-executable. -->
 
-# Anvil v1 — Save-time Trust
+# Anvil — Save-time Trust
 
 ## Overview
 
-Anvil v1 makes AI-generated code safe to merge by catching architecture boundary
+Anvil makes AI-generated code safe to merge by catching architecture boundary
 violations and AI escape-hatch anti-patterns at file-save time. Developers get
 actionable warnings before code leaves the file, with human-owned exceptions for
 intentional deviations.
@@ -45,7 +45,7 @@ class reaches across architectural contexts.
 - [ ] < 10% of warnings are suppressed without resolution (signal quality) —
       post-release
 
-**Implementation Progress (v1.0):**
+**Implementation Progress (0.1.0):**
 
 Core Engine:
 
@@ -73,10 +73,10 @@ Documentation:
 
 ## Release Plan
 
-### v1.0 — Save-time Trust + Smooth Onboarding
+### 0.1.0 — Beta
 
-**Philosophy:** A powerful engine is worthless if no one uses it. v1.0 must
-deliver both the core value AND a friction-free first experience.
+**Philosophy:** A powerful engine is worthless if no one uses it. The initial
+release must deliver both the core value AND a friction-free first experience.
 
 #### Core Engine (Complete ✅)
 
@@ -100,8 +100,8 @@ deliver both the core value AND a friction-free first experience.
 | Doctor Command    | Diagnose setup issues: `anvil doctor` (TUI-004) | Complete |
 | First-run Welcome | Show value immediately on first run (TUI-005)   | Complete |
 
-**Why onboarding is v1:** Without smooth onboarding, users won't adopt the tool
-regardless of how good the engine is. First impressions matter.
+**Why onboarding ships in 0.1.0:** Without smooth onboarding, users won't adopt
+the tool regardless of how good the engine is. First impressions matter.
 
 #### Documentation & Polish (Complete ✅)
 
@@ -112,40 +112,40 @@ regardless of how good the engine is. First impressions matter.
 | Demo/Tutorial     | Show Anvil catching real issues | Complete |
 | Error Messages    | Actionable, not cryptic         | Complete |
 
-### v1.1 — Drift Visibility & Developer Trust
+#### Drift Visibility & Developer Trust (Complete ✅)
 
-| Feature                | Description                                    | Status |
-| ---------------------- | ---------------------------------------------- | ------ |
-| Explain Command        | `anvil explain <id>` — deep-dive into warnings | Ready  |
-| Drift Snapshots        | `anvil drift snapshot` — capture current state | Ready  |
-| Drift Compare          | `anvil drift compare` — show changes over time | Ready  |
-| Drift Reports          | `anvil drift report` — visualise trends        | Ready  |
-| Trend Reports          | Visualise suppression and violation trends     | Draft  |
-| OPA Architecture       | DC → OPA bridge, YAML-first architecture       | Draft  |
-| Architecture Templates | Layered, Hexagonal, Clean, DDD presets         | Draft  |
-| Remote Policy Bundles  | Centralised policy distribution                | Draft  |
+| Feature                | Description                                    | Status   |
+| ---------------------- | ---------------------------------------------- | -------- |
+| Explain Command        | `anvil explain <id>` — deep-dive into warnings | Complete |
+| Drift Snapshots        | `anvil drift snapshot` — capture current state | Complete |
+| Drift Compare          | `anvil drift compare` — show changes over time | Complete |
+| Drift Reports          | `anvil drift report` — visualise trends        | Complete |
+| Trend Reports          | Visualise suppression and violation trends     | Complete |
+| OPA Architecture       | DC → OPA bridge, YAML-first architecture       | Complete |
+| Architecture Templates | Layered, Hexagonal, Clean, DDD presets         | Complete |
+| Remote Policy Bundles  | Centralised policy distribution                | Complete |
 | Monorepo Migration     | Restructure to apps/packages layered layout    | Complete |
 
-### v1.2 — Advanced Experience
+#### Advanced Experience
 
 | Feature               | Description                                            | Status   |
 | --------------------- | ------------------------------------------------------ | -------- |
 | VS Code Extension     | Anti-pattern on save, arch gates, OPA display (IDE-\*) | Complete |
 | Adapter Upstream Sync | BMAD v6 + SpecKit agent-first updates (ADAPTUP)        | Complete |
-| TUI Operational       | Watch dashboard, gate explorer (TUI-009–012)           | Draft    |
+| TUI Operational       | Watch dashboard, gate explorer (TUI-009–012)           | Partial  |
 | Template Library      | Pre-built architecture patterns (TUI-006)              | Deferred |
 | Tutorial Mode         | Interactive learning experience (TUI-007)              | Deferred |
 | TUI Diagrams          | Mermaid-based ASCII diagrams via beautiful-mermaid (TUI-013–015) | Complete |
 
-#### VS Code Extension Details (v1.2.0 → v1.3.0)
+#### VS Code Extension Details
 
-| Phase  | Features                                            | Tasks       | Status   |
-| ------ | --------------------------------------------------- | ----------- | -------- |
-| v1.2.0 | Embed core, anti-pattern on save, diagnostics, VSIX | IDE-001–003 | Complete |
-| v1.2.1 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 | Complete |
-| v1.3.0 | Syntax highlighting, caching, Marketplace           | IDE-007–008 | Complete |
+| Phase   | Features                                            | Tasks       | Status   |
+| ------- | --------------------------------------------------- | ----------- | -------- |
+| Phase 1 | Embed core, anti-pattern on save, diagnostics, VSIX | IDE-001–003 | Complete |
+| Phase 2 | Arch gate display, OPA policies, click-to-navigate  | IDE-004–006 | Complete |
+| Phase 3 | Syntax highlighting, caching, Marketplace           | IDE-007–008 | Complete |
 
-### v1.3 — HTML/CSS Support, Tutorial Overhaul & Intelligent First Run (Complete)
+#### HTML/CSS Support, Tutorial Overhaul & Intelligent First Run (Complete ✅)
 
 | Feature                   | Description                                         | Status   |
 | ------------------------- | --------------------------------------------------- | -------- |
@@ -158,13 +158,14 @@ regardless of how good the engine is. First impressions matter.
 | Tutorial Overhaul         | Scan-watch-fix flow, feature tutorials, docs        | Complete |
 | Intelligent First Run     | Post-init analysis, smart defaults, quick wins      | Complete |
 
-**Why v1.3:** HTML/CSS is the simplest non-JS language to support — no module
-resolution, no type system, all regex-based. It establishes the configurable
-extensions infrastructure (HTMLCSS-001) that all future language modules depend
-on. The tutorial overhaul and intelligent first-run experience complete the
-onboarding story by giving new users an immediate value demonstration.
+**Why HTML/CSS ships in 0.1.0:** HTML/CSS is the simplest non-JS language to
+support — no module resolution, no type system, all regex-based. It establishes
+the configurable extensions infrastructure (HTMLCSS-001) that all future language
+modules depend on. The tutorial overhaul and intelligent first-run experience
+complete the onboarding story by giving new users an immediate value
+demonstration.
 
-### v2.0a — AI Tool Integration
+#### AI Tool Integration (Complete ✅)
 
 | Feature         | Description                                | Status |
 | --------------- | ------------------------------------------ | ------ |
@@ -172,7 +173,7 @@ onboarding story by giving new users an immediate value demonstration.
 | Command Safety  | Validate AI tool commands (CMDSAF)         | Complete |
 | MCP Server      | Real-time validation during AI generation  | Complete |
 
-### v2.0b — Web Dashboard
+### 0.2.0 — Web Dashboard
 
 | Feature                  | Description                                         | Status |
 | ------------------------ | --------------------------------------------------- | ------ |
@@ -182,14 +183,14 @@ onboarding story by giving new users an immediate value demonstration.
 | Dashboard AI Builder     | json-render prompt interface, templates, persistence| Draft  |
 | Dashboard Operations     | Audit trail, plans, config, diagnostics, roles      | Draft  |
 
-**Why this is v2.0:** The web dashboard builds on top of all v1.x domain logic
+**Why this is 0.2.0:** The web dashboard builds on top of all 0.1.0 domain logic
 (gates, warnings, architecture, drift, suppressions, plans). It is a new
 surface — a read-heavy browser interface — not a replacement for the CLI. The
 CLI remains the primary developer interface; the dashboard serves team leads,
 platform engineers, and compliance roles who need persistent views, historical
-trends, and graphical visualizations that a terminal cannot provide.
+trends, and graphical visualisations that a terminal cannot provide.
 
-### v2.0c — Organisational Policy Governance
+### 0.3.0 — Organisational Policy Governance
 
 | Feature                  | Description                                                  | Status |
 | ------------------------ | ------------------------------------------------------------ | ------ |
@@ -199,14 +200,14 @@ trends, and graphical visualizations that a terminal cannot provide.
 | Compliance Reporting     | Framework mapping (SOC 2, ISO 27001), audit-ready reports    | Draft  |
 | Policy Federation        | Central registry, channels, fleet sync, publish approvals    | Draft  |
 
-**Why this is v2.0:** Organisational policy governance builds on top of the
-single-repo OPA infrastructure delivered in v1.1. It requires multi-repo
+**Why this is 0.3.0:** Organisational policy governance builds on top of the
+single-repo OPA infrastructure delivered in 0.1.0. It requires multi-repo
 awareness, hierarchy resolution, and fleet-level aggregation that only make
 sense after the core policy engine is battle-tested. Individual developers
-benefit from v1.x; platform teams and compliance roles benefit from these
+benefit from 0.1.x; platform teams and compliance roles benefit from these
 modules.
 
-### v2.1+ — Multi-Language Support (Placeholders)
+### Post-1.0.0 — Multi-Language Support (Placeholders)
 
 | Feature         | Description                                    | Status      |
 | --------------- | ---------------------------------------------- | ----------- |
@@ -217,21 +218,22 @@ modules.
 **Why these three:** Python is the second most common AI-assisted language. Rust
 and .NET represent compiled-language ecosystems with strong architecture
 conventions. Each depends on the configurable extensions infrastructure from
-v1.3. Language modules will be promoted to Ready as demand and resources allow.
+0.1.0 (HTMLCSS-001). Language modules will be promoted to Ready as demand and
+resources allow.
 
-### What's NOT in v1
+### What's NOT in 0.1.0
 
 To ship fast and focused, these are explicitly deferred:
 
-- ~~**VS Code extension** — CLI-first; IDE comes in v1.2~~ ✅ Complete in v1.2
-- ~~**Drift reports** — Core value doesn't require trend analysis~~ ✅ Complete in v1.1
-- **Command safety** — Important but not blocking for initial adoption (v2.0)
+- ~~**VS Code extension** — CLI-first; IDE later~~ ✅ Complete (shipped in 0.1.0)
+- ~~**Drift reports** — Core value doesn't require trend analysis~~ ✅ Complete (shipped in 0.1.0)
+- ~~**Command safety** — Important but not blocking for initial adoption~~ ✅ Complete (shipped in 0.1.0)
 - **Plan/APS execution** — Planless-first; APS is internal
-- ~~**Multi-language support** — TypeScript/JavaScript only for v1~~ HTML/CSS in
-  v1.3; Python/Rust/.NET in v2.1+
-- **Team dashboards** — Individual developer focus first
+- ~~**Multi-language support** — TypeScript/JavaScript only initially~~ HTML/CSS
+  shipped in 0.1.0; Python/Rust/.NET post-1.0.0
+- **Team dashboards** — Individual developer focus first (0.2.0)
 - **Auto-fix** — Warnings only; don't be too clever
-- ~~**TUI Mermaid diagrams** — Nice-to-have for v1.2~~ Promoted to beta —
+- ~~**TUI Mermaid diagrams** — Nice-to-have~~ ✅ Complete (shipped in 0.1.0) —
   dependency arrows and violation overlays make architecture visualisation
   significantly more impressive in demos
 
@@ -302,58 +304,58 @@ graph TD
 
 | Module                                                                  | Scope   | Status      | Release | Dependencies                                              |
 | ----------------------------------------------------------------------- | ------- | ----------- | ------- | --------------------------------------------------------- |
-| [save-time-trust](./archive/modules/save-time-trust.aps.md)             | CORE    | Complete    | v1.0    | —                                                         |
-| [architecture-safety](./archive/modules/architecture-safety.aps.md)     | ARCH    | Complete    | v1.0    | save-time-trust                                           |
-| [antipattern-library](./archive/modules/antipattern-library.aps.md)     | ANTI    | Complete    | v1.0    | save-time-trust                                           |
-| [suppressions](./archive/modules/suppressions.aps.md)                   | SUPP    | Complete    | v1.0    | architecture-safety, antipattern-library                  |
-| [ci-integration](./archive/modules/ci-integration.aps.md)               | CI      | Complete    | v1.0    | save-time-trust                                           |
-| [tui](./archive/modules/tui.aps.md)                                     | TUI     | Complete    | v1.0    | — (Phase 1: onboarding only)                              |
-| [documentation-polish](./archive/modules/documentation-polish.aps.md)   | DOCS    | Complete    | v1.0    | —                                                         |
-| [explain-command](./archive/modules/explain-command.aps.md)             | EXPLAIN | Complete    | v1.1    | architecture-safety, antipattern-library                  |
-| [drift-reporting](./archive/modules/drift-reporting.aps.md)             | DRIFT   | Complete    | v1.1    | architecture-safety, antipattern-library, suppressions    |
-| [opa-architecture-integration](./archive/modules/opa-architecture-integration.aps.md) | OPA | Complete | v1.1 | architecture-safety, save-time-trust                      |
-| [ide-integration](./archive/modules/ide-integration.aps.md)             | IDE     | Complete    | v1.2    | save-time-trust, architecture-safety, antipattern-library |
-| [llms-txt-export](./archive/modules/llms-txt-export.aps.md)                     | LLMS    | Complete    | v2.0    | architecture-safety, antipattern-library                  |
-| [command-safety-validation](./archive/modules/command-safety-validation.aps.md) | CMDSAF  | Complete    | v2.0    | —                                                         |
-| [mcp-server](./archive/modules/mcp-server.aps.md)                               | MCP     | Complete    | v2.0    | save-time-trust, architecture-safety                      |
-| [policy-pack-validation](./modules/policy-pack-validation.aps.md)       | POLVAL  | Draft       | v2.0    | opa-architecture-integration                              |
-| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | v2.0 | opa-architecture-integration, architecture-safety         |
-| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md)           | AIGUARD | Draft       | v2.0    | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
-| [aps-markdown-adapter](./archive/modules/aps-markdown-adapter.aps.md)   | APSMD   | Complete    | v1.1    | —                                                         |
-| [open-spec-adapter](./modules/open-spec-adapter.aps.md)                 | OPENSPEC| Draft       | v2.0    | —                                                         |
-| [adapter-upstream-updates](./archive/modules/adapter-upstream-updates.aps.md) | ADAPTUP | Complete    | v1.3    | —                                                         |
-| [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | v2.0    | save-time-trust, drift-reporting                          |
-| [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | v2.0    | kindling-integration                                      |
-| [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | v2.0    | ember                                                     |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md)       | STACK   | Draft       | v2.0    | kindling-integration, ember, edda                         |
-| [opa-enhancements](./modules/opa-enhancements.aps.md)                   | OPAE    | Draft       | v2.0    | opa-architecture-integration, architecture-safety, tui    |
-| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md)           | ORGHIER | Draft       | v2.0    | opa-architecture-integration, policy-pack-validation, opa-enhancements |
-| [policy-lifecycle](./modules/policy-lifecycle.aps.md)                   | POLLC   | Draft       | v2.0    | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
-| [compliance-reporting](./modules/compliance-reporting.aps.md)           | COMPLY  | Draft       | v2.0    | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
-| [policy-federation](./modules/policy-federation.aps.md)                 | POLFED  | Draft       | v2.0    | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
-| [onboarding-feedback-resolution](./archive/modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | v1.1 | architecture-safety, tui                                  |
-| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | v2.0  | save-time-trust                                           |
+| [save-time-trust](./archive/modules/save-time-trust.aps.md)             | CORE    | Complete    | 0.1.0   | —                                                         |
+| [architecture-safety](./archive/modules/architecture-safety.aps.md)     | ARCH    | Complete    | 0.1.0   | save-time-trust                                           |
+| [antipattern-library](./archive/modules/antipattern-library.aps.md)     | ANTI    | Complete    | 0.1.0   | save-time-trust                                           |
+| [suppressions](./archive/modules/suppressions.aps.md)                   | SUPP    | Complete    | 0.1.0   | architecture-safety, antipattern-library                  |
+| [ci-integration](./archive/modules/ci-integration.aps.md)               | CI      | Complete    | 0.1.0   | save-time-trust                                           |
+| [tui](./archive/modules/tui.aps.md)                                     | TUI     | Complete    | 0.1.0   | — (Phase 1: onboarding only)                              |
+| [documentation-polish](./archive/modules/documentation-polish.aps.md)   | DOCS    | Complete    | 0.1.0   | —                                                         |
+| [explain-command](./archive/modules/explain-command.aps.md)             | EXPLAIN | Complete    | 0.1.0   | architecture-safety, antipattern-library                  |
+| [drift-reporting](./archive/modules/drift-reporting.aps.md)             | DRIFT   | Complete    | 0.1.0   | architecture-safety, antipattern-library, suppressions    |
+| [opa-architecture-integration](./archive/modules/opa-architecture-integration.aps.md) | OPA | Complete | 0.1.0 | architecture-safety, save-time-trust                      |
+| [ide-integration](./archive/modules/ide-integration.aps.md)             | IDE     | Complete    | 0.1.0   | save-time-trust, architecture-safety, antipattern-library |
+| [llms-txt-export](./archive/modules/llms-txt-export.aps.md)                     | LLMS    | Complete    | 0.1.0   | architecture-safety, antipattern-library                  |
+| [command-safety-validation](./archive/modules/command-safety-validation.aps.md) | CMDSAF  | Complete    | 0.1.0   | —                                                         |
+| [mcp-server](./archive/modules/mcp-server.aps.md)                               | MCP     | Complete    | 0.1.0   | save-time-trust, architecture-safety                      |
+| [policy-pack-validation](./modules/policy-pack-validation.aps.md)       | POLVAL  | Draft       | 0.3.0   | opa-architecture-integration                              |
+| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | 0.3.0 | opa-architecture-integration, architecture-safety         |
+| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md)           | AIGUARD | Draft       | 0.3.0   | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
+| [aps-markdown-adapter](./archive/modules/aps-markdown-adapter.aps.md)   | APSMD   | Complete    | 0.1.0   | —                                                         |
+| [open-spec-adapter](./modules/open-spec-adapter.aps.md)                 | OPENSPEC| Draft       | —       | —                                                         |
+| [adapter-upstream-updates](./archive/modules/adapter-upstream-updates.aps.md) | ADAPTUP | Complete    | 0.1.0   | —                                                         |
+| [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | 0.4.0   | save-time-trust, drift-reporting                          |
+| [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | 0.4.0   | kindling-integration                                      |
+| [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | 0.4.0   | ember                                                     |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md)       | STACK   | Draft       | 0.4.0   | kindling-integration, ember, edda                         |
+| [opa-enhancements](./modules/opa-enhancements.aps.md)                   | OPAE    | Draft       | 0.3.0   | opa-architecture-integration, architecture-safety, tui    |
+| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md)           | ORGHIER | Draft       | 0.3.0   | opa-architecture-integration, policy-pack-validation, opa-enhancements |
+| [policy-lifecycle](./modules/policy-lifecycle.aps.md)                   | POLLC   | Draft       | 0.3.0   | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
+| [compliance-reporting](./modules/compliance-reporting.aps.md)           | COMPLY  | Draft       | 0.3.0   | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
+| [policy-federation](./modules/policy-federation.aps.md)                 | POLFED  | Draft       | 0.3.0   | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
+| [onboarding-feedback-resolution](./archive/modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | 0.1.0 | architecture-safety, tui                                  |
+| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | —      | save-time-trust                                           |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF    | Draft       | —       | save-time-trust, ide-integration                          |
 | [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUIENH  | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
 | [test-quality](./archive/modules/test-quality.aps.md)                   | TEST    | Complete    | —       | —                                                         |
-| [monorepo-migration](./archive/modules/monorepo-migration.aps.md)       | MONO    | Complete    | v1.1    | —                                                         |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md)           | DASH     | Draft       | v2.0    | monorepo-migration, contracts                             |
-| [dashboard-core-views](./modules/dashboard-core-views.aps.md)           | DASHCORE | Draft       | v2.0    | dashboard-foundation                                      |
-| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | v2.0   | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
-| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | v2.0    | dashboard-foundation                                      |
-| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | v2.0    | dashboard-foundation                                      |
-| [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Ready       | v2.0    | —                                                         |
-| [html-css-support](./archive/modules/html-css-support.aps.md)           | HTMLCSS  | Complete    | v1.3    | antipattern-library, architecture-safety, suppressions    |
-| [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
-| [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
-| [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | v2.1+   | html-css-support (HTMLCSS-001)                            |
-| [intelligent-first-run](./archive/modules/intelligent-first-run.aps.md) | IFR      | Complete    | v1.3    | tui, architecture-safety                                  |
-| [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md)         | TUT      | Complete    | v1.3    | tui                                                       |
-| [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | v1.2    | monorepo-migration                                        |
-| [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | In Progress | v2.0    | antipattern-library                                       |
-| [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | In Progress | —       | —                                                         |
+| [monorepo-migration](./archive/modules/monorepo-migration.aps.md)       | MONO    | Complete    | 0.1.0   | —                                                         |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md)           | DASH     | Draft       | 0.2.0   | monorepo-migration, contracts                             |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md)           | DASHCORE | Draft       | 0.2.0   | dashboard-foundation                                      |
+| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | 0.2.0  | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
+| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | 0.2.0   | dashboard-foundation                                      |
+| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | 0.2.0   | dashboard-foundation                                      |
+| [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Complete    | 0.1.0   | —                                                         |
+| [html-css-support](./archive/modules/html-css-support.aps.md)           | HTMLCSS  | Complete    | 0.1.0   | antipattern-library, architecture-safety, suppressions    |
+| [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | post-1.0 | html-css-support (HTMLCSS-001)                            |
+| [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | post-1.0 | html-css-support (HTMLCSS-001)                            |
+| [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | post-1.0 | html-css-support (HTMLCSS-001)                            |
+| [intelligent-first-run](./archive/modules/intelligent-first-run.aps.md) | IFR      | Complete    | 0.1.0   | tui, architecture-safety                                  |
+| [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md)         | TUT      | Complete    | 0.1.0   | tui                                                       |
+| [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | 0.1.0   | monorepo-migration                                        |
+| [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | In Progress | 0.1.x   | antipattern-library                                       |
+| [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | In Progress | 0.1.x   | —                                                         |
 
-### Task Status — v1.0 (Core Engine)
+### Task Status — 0.1.0 (Core Engine)
 
 | Task     | Module          | Description                      | Status   |
 | -------- | --------------- | -------------------------------- | -------- |
@@ -378,7 +380,7 @@ graph TD
 | CI-003   | ci-integration  | PR comments and status checks    | Complete |
 | CI-004   | ci-integration  | Documentation and configuration  | Complete |
 
-### Task Status — v1.0 (Onboarding TUI)
+### Task Status — 0.1.0 (Onboarding TUI)
 
 | Task    | Module | Description                   | Status   | Priority |
 | ------- | ------ | ----------------------------- | -------- | -------- |
@@ -389,7 +391,7 @@ graph TD
 | TUI-005 | tui    | First-run welcome experience  | Complete | high     |
 | TUI-008 | tui    | Testing infrastructure        | Complete | medium   |
 
-### Task Status — v1.0 (Documentation)
+### Task Status — 0.1.0 (Documentation)
 
 | Task     | Module | Description            | Status   | Priority |
 | -------- | ------ | ---------------------- | -------- | -------- |
@@ -400,7 +402,7 @@ graph TD
 | DOCS-005 | docs   | Troubleshooting guide  | Complete | medium   |
 | DOCS-006 | docs   | README refresh         | Complete | high     |
 
-### Task Status — v1.1 (Explain Command)
+### Task Status — 0.1.0 (Explain Command)
 
 | Task       | Module  | Description               | Status   | Priority |
 | ---------- | ------- | ------------------------- | -------- | -------- |
@@ -411,7 +413,7 @@ graph TD
 | EXPLAIN-005 | explain | ExplainService            | Complete | high     |
 | EXPLAIN-006 | explain | CLI explain command       | Complete | high     |
 
-### Task Status — v1.1 (Drift Reporting)
+### Task Status — 0.1.0 (Drift Reporting)
 
 | Task     | Module | Description               | Status   | Priority |
 | -------- | ------ | ------------------------- | -------- | -------- |
@@ -421,7 +423,7 @@ graph TD
 | DRIFT-004 | drift  | Report generator          | Complete | medium   |
 | DRIFT-005 | drift  | CLI drift commands        | Complete | high     |
 
-### Task Status — v1.1 (Onboarding Feedback Resolution)
+### Task Status — 0.1.0 (Onboarding Feedback Resolution)
 
 | Task     | Module | Description                                 | Status   | Priority |
 | -------- | ------ | ------------------------------------------- | -------- | -------- |
@@ -431,7 +433,7 @@ graph TD
 | ONFBK-004 | onfbk  | Improve entry points presentation           | Complete | medium   |
 | ONFBK-005 | onfbk  | Add architecture explanation                | Complete | medium   |
 
-### Task Status — v1.1 (OPA & Architecture Integration)
+### Task Status — 0.1.0 (OPA & Architecture Integration)
 
 | Task    | Module | Description                         | Status      | Priority |
 | ------- | ------ | ----------------------------------- | ----------- | -------- |
@@ -453,15 +455,16 @@ graph TD
 | OPA-016 | opa    | TypeScript analyser foundation      | Deferred    | low      |
 | OPA-017 | opa    | Path alias resolver                 | Deferred    | low      |
 | OPA-018 | opa    | Analyser feature flag               | Deferred    | low      |
-| OPA-019 | opa    | Bundle download and caching         | Deferred    | medium   |
-| OPA-020 | opa    | Signature verification              | Deferred    | medium   |
-| OPA-021 | opa    | Basic auth and CLI commands         | Deferred    | medium   |
+| OPA-019 | opa    | Bundle download and caching         | Complete    | medium   |
+| OPA-020 | opa    | Signature verification              | Complete    | medium   |
+| OPA-021 | opa    | Basic auth and CLI commands         | Complete    | medium   |
 
-> **Note:** OPA-016 through OPA-021 were deferred when the OPA module was marked
-> Complete at OPA-015. These tasks may be revisited in the OPA Enhancements module
-> (OPAE) or a future release.
+> **Note:** OPA-016 through OPA-018 were deferred when the OPA module was marked
+> Complete at OPA-015. OPA-019 through OPA-021 (remote policy bundles) were
+> subsequently implemented. The remaining tasks may be revisited in the OPA
+> Enhancements module (OPAE) or a future release.
 
-### Task Status — v1.1 (Monorepo Migration)
+### Task Status — 0.1.0 (Monorepo Migration)
 
 | Task     | Module | Description                          | Status   | Priority |
 | -------- | ------ | ------------------------------------ | -------- | -------- |
@@ -484,7 +487,7 @@ graph TD
 | MONO-017 | mono   | Dependency graph validation          | Complete | high     |
 | MONO-018 | mono   | Documentation update                 | Complete | medium   |
 
-### Task Status — v1.1 (APS Markdown Adapter)
+### Task Status — 0.1.0 (APS Markdown Adapter)
 
 | Task     | Module | Description                          | Status   | Priority |
 | -------- | ------ | ------------------------------------ | -------- | -------- |
@@ -495,7 +498,7 @@ graph TD
 | APSMD-005 | apsmd  | Registry integration                 | Complete | high     |
 | APSMD-006 | apsmd  | CLI PlanLoader integration           | Complete | high     |
 
-### Task Status — v1.2 (Advanced Experience)
+### Task Status — 0.1.0 (Advanced Experience)
 
 #### IDE Integration (VS Code Extension)
 
@@ -524,7 +527,7 @@ graph TD
 | TUI-014 | tui    | Replace existing ASCII diagrams with mermaid rendering | Complete | high |
 | TUI-015 | tui    | `anvil architecture visualise` command (ascii/svg/mermaid formats) | Complete | high |
 
-### Task Status — v2.0 (Web Dashboard)
+### Task Status — 0.2.0 (Web Dashboard)
 
 The web dashboard provides a browser-based interface for exploring Anvil data.
 See [brainstorm](./brainstorms/dashboard-web-ui.md) and
@@ -595,7 +598,7 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | DASHOPS-007 | dashops | Role-based view filtering            | Draft  | low      |
 | DASHOPS-008 | dashops | Real-time update infrastructure      | Draft  | low      |
 
-### Task Status — v1.3 (HTML/CSS Support)
+### Task Status — 0.1.0 (HTML/CSS Support)
 
 | Task        | Module  | Description                                 | Status   | Priority |
 | ----------- | ------- | ------------------------------------------- | -------- | -------- |
@@ -607,7 +610,7 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | HTMLCSS-006 | htmlcss | VS Code extension HTML/CSS trigger           | Complete | medium   |
 | HTMLCSS-007 | htmlcss | Documentation and tests                      | Complete | medium   |
 
-### Task Status — v1.3 (Tutorial Overhaul)
+### Task Status — 0.1.0 (Tutorial Overhaul)
 
 | Task    | Module | Description                                          | Status   | Priority |
 | ------- | ------ | ---------------------------------------------------- | -------- | -------- |
@@ -624,7 +627,7 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | TUT-011 | tut    | Rewrite quickstart.md and update navigation           | Complete | high     |
 | TUT-012 | tut    | Tutorial --list flag and e2e test                     | Complete | high     |
 
-### Task Status — v1.3 (Intelligent First Run)
+### Task Status — 0.1.0 (Intelligent First Run)
 
 | Task    | Module | Description                                   | Status   | Priority |
 | ------- | ------ | --------------------------------------------- | -------- | -------- |
@@ -637,7 +640,7 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | IFR-007 | ifr    | Integrate all components in init flow         | Complete | high     |
 | IFR-008 | ifr    | Update documentation                          | Complete | medium   |
 
-### Task Status — v1.2 (Adapter Upstream Updates)
+### Task Status — 0.1.0 (Adapter Upstream Updates)
 
 | Task        | Module  | Description                                 | Status   | Priority |
 | ----------- | ------- | ------------------------------------------- | -------- | -------- |
@@ -650,7 +653,7 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | ADAPTUP-007 | adaptup | Update adapter test fixtures                 | Complete | high     |
 | ADAPTUP-008 | adaptup | Update adapter documentation                 | Complete | medium   |
 
-### Task Status — v2.0 (AI Tool Integration)
+### Task Status — 0.1.0 (AI Tool Integration)
 
 | Task       | Module         | Description                       | Status  | Priority |
 | ---------- | -------------- | --------------------------------- | ------- | -------- |
@@ -679,7 +682,7 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | MCP-009    | mcp-server     | Config generators and CLI         | Complete | high     |
 | MCP-010    | mcp-server     | Error handling and JSON-RPC       | Complete | high     |
 
-### Task Status — v2.0 (Edda Stack — Memory System)
+### Task Status — 0.4.0 (Edda Stack — Memory System)
 
 The Edda Stack provides a three-layer architecture for memory: Kindling (observation),
 Ember (interpretation), and Edda (canonical memory).
@@ -772,7 +775,7 @@ Ember (interpretation), and Edda (canonical memory).
 | STACK-015 | stack  | Stack architecture documentation  | Draft  | medium   |
 | STACK-016 | stack  | Migration guide                   | Draft  | medium   |
 
-### Task Status — v2.0 (Organisational Policy Governance)
+### Task Status — 0.3.0 (Organisational Policy Governance)
 
 #### OPA Enhancements
 
@@ -865,24 +868,24 @@ Ember (interpretation), and Edda (canonical memory).
 | POLFED-007 | polfed | Fleet compliance aggregator            | Draft  | medium   |
 | POLFED-008 | polfed | CLI federation commands                | Draft  | high     |
 
-### Task Status — v2.0 (Pulumi Infrastructure as Code)
+### Task Status — 0.1.0 (Pulumi Infrastructure as Code)
 
-| Task    | Module | Description                              | Status  | Priority |
-| ------- | ------ | ---------------------------------------- | ------- | -------- |
-| IAC-001 | iac    | Scaffold Pulumi project in monorepo      | Planned | high     |
-| IAC-002 | iac    | Configure Pulumi state backend           | Planned | high     |
-| IAC-003 | iac    | Manage website Vercel project config     | Planned | high     |
-| IAC-004 | iac    | Manage docs-site Vercel project config   | Planned | high     |
-| IAC-005 | iac    | Create VercelApp ComponentResource       | Planned | medium   |
-| IAC-006 | iac    | Manage GitHub repository configuration   | Planned | high     |
-| IAC-007 | iac    | Manage Azure DNS zones and records       | Planned | high     |
-| IAC-008 | iac    | Add Pulumi CI/CD pipeline integration    | Planned | high     |
-| IAC-009 | iac    | Write unit tests for infrastructure code | Planned | medium   |
-| IAC-010 | iac    | Import existing Vercel resources         | Planned | high     |
-| IAC-011 | iac    | Document IaC setup and contributor guide | Planned | medium   |
-| IAC-012 | iac    | Document rollback procedures             | Planned | medium   |
+| Task    | Module | Description                              | Status   | Priority |
+| ------- | ------ | ---------------------------------------- | -------- | -------- |
+| IAC-001 | iac    | Scaffold Pulumi project in monorepo      | Complete | high     |
+| IAC-002 | iac    | Configure Pulumi state backend           | Complete | high     |
+| IAC-003 | iac    | Manage website Vercel project config     | Complete | high     |
+| IAC-004 | iac    | Manage docs-site Vercel project config   | Complete | high     |
+| IAC-005 | iac    | Create VercelApp ComponentResource       | Complete | medium   |
+| IAC-006 | iac    | Manage GitHub repository configuration   | Deferred | high     |
+| IAC-007 | iac    | Manage Azure DNS zones and records       | Complete | high     |
+| IAC-008 | iac    | Add Pulumi CI/CD pipeline integration    | Complete | high     |
+| IAC-009 | iac    | Write unit tests for infrastructure code | Complete | medium   |
+| IAC-010 | iac    | Import existing Vercel resources         | Complete | high     |
+| IAC-011 | iac    | Document IaC setup and contributor guide | Complete | medium   |
+| IAC-012 | iac    | Document rollback procedures             | Complete | medium   |
 
-### Task Status — v2.1+ (Multi-Language Placeholders)
+### Task Status — Post-1.0.0 (Multi-Language Placeholders)
 
 Tasks will be defined when each module moves from Placeholder to Ready status.
 
@@ -924,10 +927,10 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 
 ### Decided
 
-- [x] VS Code extension vs CLI-only for v1? → **CLI for v1.0**, VS Code in v1.2
-- [x] Provenance storage? → **Inline-only** for v1.0 (no central DB)
-- [x] Onboarding TUI in v1? → **Yes** — critical for adoption
-- [x] Command Safety (CMDSAF) in v1? → **No** — deferred to v2.0
+- [x] VS Code extension vs CLI-only initially? → **CLI-first**, VS Code added in 0.1.0
+- [x] Provenance storage? → **Inline-only** for 0.1.0 (no central DB)
+- [x] Onboarding TUI in 0.1.0? → **Yes** — critical for adoption
+- [x] Command Safety (CMDSAF) initially? → Shipped in 0.1.0
 
 ### Open
 
@@ -945,7 +948,7 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 
 | Idea                         | Value  | Effort | Notes                                    |
 | ---------------------------- | ------ | ------ | ---------------------------------------- |
-| `anvil explain <warning-id>` | High   | Low    | ✅ Planned for v1.1 (EXPLAIN module)     |
+| `anvil explain <warning-id>` | High   | Low    | ✅ Shipped in 0.1.0 (EXPLAIN module)     |
 | `anvil fix <warning-id>`     | High   | Medium | Auto-fix where safe (e.g., add suppress) |
 | Config inheritance           | Medium | Medium | Org → repo → folder config cascade       |
 | Baseline diff on PR          | High   | Medium | Show architecture changes in PR          |
@@ -956,7 +959,7 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 ### Architecture Scanning Enhancements (Frequently Requested)
 
 **Many of these are now planned in the OPA & Architecture Integration module
-(v1.1).** See
+(0.1.0).** See
 [opa-architecture-integration](./archive/modules/opa-architecture-integration.aps.md).
 
 | Idea                           | Value | Status                                 |
