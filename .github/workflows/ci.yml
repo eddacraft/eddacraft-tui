@@ -243,7 +243,7 @@ jobs:
       - name: Build all packages
         run: pnpm run build
         env:
-          NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+          NX_NO_CLOUD: true
 
   # ── E2E Tests (runs in parallel, no longer blocked on lint/test) ─
   e2e-tests:
@@ -312,6 +312,8 @@ jobs:
 
       - name: Build all packages
         run: pnpm run build
+        env:
+          NX_NO_CLOUD: true
 
       - name: Run E2E smoke tests
         run: pnpm run test:e2e:smoke
@@ -366,6 +368,8 @@ jobs:
 
       - name: Build CLI
         run: pnpm build
+        env:
+          NX_NO_CLOUD: true
 
       # continue-on-error: this is a PoC integration of tuistory;
       # failures should not block CI until the tests are stabilised.
