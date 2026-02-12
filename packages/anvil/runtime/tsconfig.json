@@ -12,12 +12,6 @@
     },
     {
       "path": "../core"
-    },
-    {
-      "path": "../../platform/config"
-    },
-    {
-      "path": "../contracts"
     }
   ]
 }

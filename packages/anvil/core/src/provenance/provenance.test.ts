@@ -11,7 +11,7 @@ import {
   formatProvenanceRecord,
 } from './collector.js';
 import { ProvenanceStore, createProvenanceStore } from './store.js';
-import type { GateRunResult } from '@eddacraft/anvil-contracts';
+import type { GateRunResult } from '../contracts/index.js';
 
 describe('Provenance System', () => {
   let tempDir: string;

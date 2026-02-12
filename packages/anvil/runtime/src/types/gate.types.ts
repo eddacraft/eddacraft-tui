@@ -6,10 +6,10 @@
 
 import { existsSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
-import type { CheckContext, NormaliseFilesOptions } from '@eddacraft/anvil-contracts';
+import type { CheckContext, NormaliseFilesOptions } from '@eddacraft/anvil-core';
 
-// Re-export all types from contracts
-export * from '@eddacraft/anvil-contracts';
+// Re-export all contract types via core
+export * from '@eddacraft/anvil-core';
 
 // =============================================================================
 // Path Normalisation Helpers (runtime-specific with fs operations)

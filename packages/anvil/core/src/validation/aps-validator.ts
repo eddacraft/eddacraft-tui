@@ -5,7 +5,7 @@
  * Provides comprehensive validation including schema and hash verification.
  */
 
-import { type APSPlan, APSPlanSchema } from '@eddacraft/anvil-contracts';
+import { type APSPlan, APSPlanSchema } from '../contracts/index.js';
 import {
   SchemaValidationError,
   HashValidationError,

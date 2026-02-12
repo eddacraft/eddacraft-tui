@@ -16,7 +16,6 @@
     "test:mcp": "vitest run mcp"
   },
   "dependencies": {
-    "@eddacraft/anvil-contracts": "workspace:*",
     "@eddacraft/anvil-core": "workspace:*",
     "@eddacraft/anvil-runtime": "workspace:*",
     "@eddacraft/anvil-aps": "workspace:*",

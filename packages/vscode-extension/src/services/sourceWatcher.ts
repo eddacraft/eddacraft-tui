@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { getEmbeddedAnalysisService } from './embeddedAnalysis.js';
 import type { DiagnosticsManager } from './diagnostics.js';
-import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-platform-config';
+import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-core';
 
 const ANALYSABLE_EXTENSIONS = [...DEFAULT_ANALYSABLE_EXTENSIONS, '.mts', '.cts'];
 const DEBOUNCE_MS = 300;

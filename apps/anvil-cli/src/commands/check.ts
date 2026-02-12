@@ -15,7 +15,7 @@ import {
   meetsNudgeThreshold,
   type NudgeConfig,
   type NudgeSeverityThreshold,
-} from '@eddacraft/anvil-platform-config';
+} from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
 import { success, error, info } from '../utils/output.js';

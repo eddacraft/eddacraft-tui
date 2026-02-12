@@ -4,7 +4,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { APSValidator, validateAPSPlan } from './aps-validator.js';
-import { createPlan, type APSPlan } from '@eddacraft/anvil-contracts';
+import { createPlan, type APSPlan } from '../contracts/index.js';
 import { generateHash } from '../crypto/index.js';
 import { validator as defaultValidator } from './index.js';
 

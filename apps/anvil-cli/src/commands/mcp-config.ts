@@ -1,5 +1,59 @@
 import { Command } from 'commander';
 
+// ---------------------------------------------------------------------------
+// MCP config generation — inlined from @eddacraft/anvil-mcp-server/config
+// to avoid pulling express + @modelcontextprotocol/sdk into the CLI publish tree.
+// ---------------------------------------------------------------------------
+
+interface McpConfigOptions {
+  transport?: 'stdio' | 'http';
+  port?: number;
+}
+
+interface McpConfig {
+  target: string;
+  configPath: string;
+  content: Record<string, unknown>;
+}
+
+type McpConfigTarget = 'claude-code' | 'cursor' | 'windsurf' | 'vscode';
+
+const SUPPORTED_TARGETS: McpConfigTarget[] = ['claude-code', 'cursor', 'windsurf', 'vscode'];
+
+const SERVER_NAME = 'anvil';
+const PACKAGE_NAME = '@eddacraft/anvil-mcp-server';
+
+function generateMcpConfig(target: McpConfigTarget, options: McpConfigOptions = {}): McpConfig {
+  const { transport = 'stdio', port = 3000 } = options;
+  const httpUrl = `http://localhost:${port}/mcp`;
+
+  const targetConfigs: Record<McpConfigTarget, { configPath: string; serverKey: string }> = {
+    'claude-code': { configPath: '.claude/mcp.json', serverKey: 'mcpServers' },
+    cursor: { configPath: '.cursor/mcp.json', serverKey: 'mcpServers' },
+    windsurf: { configPath: '~/.codeium/windsurf/mcp_config.json', serverKey: 'mcpServers' },
+    vscode: { configPath: '.vscode/mcp.json', serverKey: 'servers' },
+  };
+
+  const { configPath, serverKey } = targetConfigs[target];
+
+  const serverEntry =
+    transport === 'http'
+      ? target === 'vscode'
+        ? { type: 'sse', url: httpUrl }
+        : { url: httpUrl }
+      : target === 'vscode'
+        ? { type: 'stdio', command: 'npx', args: [PACKAGE_NAME] }
+        : { command: 'npx', args: [PACKAGE_NAME] };
+
+  return {
+    target,
+    configPath,
+    content: { [serverKey]: { [SERVER_NAME]: serverEntry } },
+  };
+}
+
+// ---------------------------------------------------------------------------
+
 export function createMcpConfigCommand(): Command {
   const command = new Command('mcp-config');
 
@@ -15,10 +69,6 @@ export function createMcpConfigCommand(): Command {
     .action(
       async (options: { target: string; transport: string; port: string; write?: boolean }) => {
         try {
-          const { generateMcpConfig, SUPPORTED_TARGETS } =
-            await import('@eddacraft/anvil-mcp-server');
-
-          type McpConfigTarget = (typeof SUPPORTED_TARGETS)[number];
           const target = options.target;
           if (!SUPPORTED_TARGETS.includes(target as McpConfigTarget)) {
             console.error(`Unknown target: ${target}. Supported: ${SUPPORTED_TARGETS.join(', ')}`);
@@ -43,7 +93,6 @@ export function createMcpConfigCommand(): Command {
             const { writeFileSync, mkdirSync } = await import('node:fs');
             const { dirname, resolve } = await import('node:path');
             const { homedir } = await import('node:os');
-            // Expand ~ to the user's home directory
             const expandedPath = config.configPath.startsWith('~/')
               ? config.configPath.replace('~', homedir())
               : config.configPath;

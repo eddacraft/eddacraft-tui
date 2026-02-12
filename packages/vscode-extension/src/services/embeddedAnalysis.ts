@@ -21,7 +21,7 @@ import {
   getDefaultPatterns,
   type AntiPattern,
 } from '@eddacraft/anvil-core/antipattern';
-import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-platform-config';
+import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-core';
 
 /**
  * Cache entry for analysis results

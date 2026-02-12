@@ -18,7 +18,7 @@ import {
   EvidenceEntrySchema,
   APS_SCHEMA_VERSION,
   createPlan,
-} from '@eddacraft/anvil-contracts';
+} from '@eddacraft/anvil-core';
 
 // Also import from @eddacraft/anvil-core to verify re-exports are consistent
 import {

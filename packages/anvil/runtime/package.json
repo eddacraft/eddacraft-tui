@@ -1,7 +1,8 @@
 {
   "name": "@eddacraft/anvil-runtime",
   "version": "0.1.0",
-  "description": "Orchestration and I/O depending on core, ports, contracts",
+  "description": "Runtime orchestration layer for Anvil — gate runner, file watching, caching, exports",
+  "license": "PROPRIETARY",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -34,13 +35,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@eddacraft/anvil-contracts": "workspace:*",
-    "@eddacraft/anvil-platform-config": "workspace:*",
     "@eddacraft/anvil-core": "workspace:*",
     "@eddacraft/anvil-policy": "workspace:*",
     "chokidar": "^5.0.0",
     "eslint": "^10.0.0",
-    "glob": "13.0.1",
+    "glob": "13.0.0",
     "minimatch": "^10.1.2",
     "shell-quote": "^1.8.3",
     "zod": "^4.3.6"
@@ -49,10 +48,13 @@
     "@types/shell-quote": "^1.7.5",
     "vitest": "^4.0.18"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "keywords": [
     "anvil",
     "runtime",
     "orchestration"
-  ],
-  "license": "PROPRIETARY"
+  ]
 }

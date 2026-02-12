@@ -10,6 +10,12 @@
  * @module @eddacraft/anvil-core
  */
 
+// Contracts (schemas, types, events) — formerly @eddacraft/anvil-contracts
+export * from './contracts/index.js';
+
+// Platform config — formerly @eddacraft/anvil-platform-config
+export * from './config/index.js';
+
 // Antipattern detection
 export * from './antipattern/index.js';
 
@@ -39,43 +45,3 @@ export * from './crypto/index.js';
 
 // General utilities
 export * from './utils/index.js';
-
-// Re-export from @eddacraft/anvil-contracts for backward compatibility
-// (only types - no circular dependency)
-export {
-  APSPlanSchema,
-  APS_SCHEMA_VERSION,
-  ChangeTypeSchema,
-  ChangeSchema,
-  ProvenanceSchema,
-  ValidationSchema,
-  EvidenceEntrySchema,
-  EvidenceSchema,
-  ApprovalSchema,
-  ExecutionResultSchema,
-  validatePlan,
-  createPlan,
-} from '@eddacraft/anvil-contracts';
-
-export type {
-  APSPlan,
-  Change,
-  ChangeType,
-  Provenance,
-  Validation,
-  EvidenceEntry,
-  Evidence,
-  Approval,
-  ExecutionResult,
-  SchemaValidationResult,
-  GateConfig,
-  GateCheck,
-  GateResult,
-  GateRunResult,
-  CheckContext,
-  PlanData,
-  WatchConfig,
-  PolicyConfig,
-  StackConfig,
-  ArchitectureContextBase,
-} from '@eddacraft/anvil-contracts';

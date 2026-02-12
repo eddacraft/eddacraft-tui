@@ -17,7 +17,7 @@ import {
   getEnabledLayerCount,
   isLayerEnabled,
   type StackConfig,
-} from '@eddacraft/anvil-edda-stack';
+} from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { success, info, warning } from '../../utils/output.js';
 
