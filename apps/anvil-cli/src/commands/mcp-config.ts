@@ -43,7 +43,7 @@ function generateMcpConfig(target: McpConfigTarget, options: McpConfigOptions = 
         : { url: httpUrl }
       : target === 'vscode'
         ? { type: 'stdio', command: 'npx', args: [PACKAGE_NAME] }
-        : { command: 'npx', args: [PACKAGE_NAME] };
+        : { command: 'npx', args: [PACKAGE_NAME], env: {} };
 
   return {
     target,

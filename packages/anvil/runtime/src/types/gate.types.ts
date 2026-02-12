@@ -8,8 +8,54 @@ import { existsSync } from 'node:fs';
 import { join, isAbsolute } from 'node:path';
 import type { CheckContext, NormaliseFilesOptions } from '@eddacraft/anvil-core';
 
-// Re-export all contract types via core
-export * from '@eddacraft/anvil-core';
+// Re-export only contract types (not full core surface) to keep runtime API stable
+export type {
+  APSPlan,
+  Change,
+  ChangeType,
+  Provenance,
+  Validation,
+  EvidenceEntry,
+  Evidence,
+  Approval,
+  ExecutionResult,
+  SchemaValidationResult,
+  GateConfig,
+  GateCheck,
+  GateResult,
+  GateResultDetails,
+  GateRunResult,
+  CheckContext,
+  PlanData,
+  WatchConfig,
+  PolicyConfig,
+  PolicyBundleConfig,
+  PolicyVerificationConfig,
+  SignatureAlgorithm,
+  StackConfig,
+  StackLayerConfig,
+  StackValidationConfig,
+  ArchitectureContextBase,
+  NormaliseFilesOptions,
+} from '@eddacraft/anvil-core';
+
+export {
+  APSPlanSchema,
+  APS_SCHEMA_VERSION,
+  ChangeTypeSchema,
+  ChangeSchema,
+  ProvenanceSchema,
+  ValidationSchema,
+  EvidenceEntrySchema,
+  EvidenceSchema,
+  ApprovalSchema,
+  ExecutionResultSchema,
+  validatePlan,
+  createPlan,
+  generateJSONSchema,
+  getWarningsFromResult,
+  hasBlockingWarnings,
+} from '@eddacraft/anvil-core';
 
 // =============================================================================
 // Path Normalisation Helpers (runtime-specific with fs operations)

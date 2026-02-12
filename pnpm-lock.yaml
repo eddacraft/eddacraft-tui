@@ -661,9 +661,6 @@ importers:
       '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../anvil/core
-      '@eddacraft/anvil-platform-config':
-        specifier: workspace:*
-        version: link:../platform/config
     devDependencies:
       '@types/vscode':
         specifier: ^1.109.0

@@ -38,5 +38,5 @@ export { validatePlan, createPlan, APS_SCHEMA_VERSION } from './aps.schema.js';
 // Warning schema (planless checks)
 export * from './warning.schema.js';
 
-// Export JSON Schema generation (will be implemented when we add the dependency)
+// Export JSON Schema generation utilities
 export { generateJSONSchema } from './json-schema.js';
