@@ -1,5 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 import { NextResponse } from 'next/server';
+import { sendWaitlistConfirmation } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,11 @@ export async function POST(request: Request) {
       console.error('Waitlist insertion did not return a result');
       return NextResponse.json({ error: 'Failed to join waitlist' }, { status: 500 });
     }
+
+    // Send confirmation email (fire-and-forget — don't block the response)
+    sendWaitlistConfirmation(result[0].email).catch((err) => {
+      console.error('Waitlist confirmation email error:', err);
+    });
 
     return NextResponse.json({
       success: true,

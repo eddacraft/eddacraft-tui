@@ -1,0 +1,85 @@
+import { Unosend } from '@unosend/node';
+
+let client: Unosend | null = null;
+
+function getClient(): Unosend | null {
+  const apiKey = process.env.UNOSEND_API_KEY;
+  if (!apiKey) return null;
+  if (!client) {
+    client = new Unosend(apiKey);
+  }
+  return client;
+}
+
+const FROM_ADDRESS = 'Anvil <anvil@send.eddacraft.ai>';
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+export async function sendWaitlistConfirmation(email: string): Promise<void> {
+  const unosend = getClient();
+  if (!unosend) {
+    console.warn('UNOSEND_API_KEY not configured — skipping confirmation email');
+    return;
+  }
+
+  const safeEmail = escapeHtml(email);
+
+  const { error } = await unosend.emails.send({
+    from: FROM_ADDRESS,
+    to: email,
+    subject: "You're on the Anvil waitlist",
+    html: `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background-color:#0a0a0a;font-family:'Courier New',Courier,monospace;color:#d4d4d4;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#0a0a0a;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;">
+          <tr>
+            <td style="padding-bottom:24px;border-bottom:1px solid #262626;">
+              <span style="font-size:14px;color:#737373;">$ </span>
+              <span style="font-size:14px;color:#d4d4d4;font-weight:bold;">anvil</span>
+              <span style="font-size:14px;color:#737373;"> :: waitlist confirm</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 0;">
+              <p style="margin:0 0 16px;font-size:14px;color:#22c55e;">[ OK ] Access request received</p>
+              <p style="margin:0 0 24px;font-size:14px;color:#d4d4d4;">
+                Your email <strong style="color:#f5f5f5;">${safeEmail}</strong> has been added to the Anvil waitlist.
+              </p>
+              <p style="margin:0 0 8px;font-size:13px;color:#a3a3a3;">
+                We're onboarding engineering teams in controlled cohorts. You'll hear from us when your slot opens.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding-top:24px;border-top:1px solid #262626;">
+              <p style="margin:0;font-size:11px;color:#525252;">
+                anvil v0.9.2 :: eddacraft.ai
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`,
+    tags: [{ name: 'category', value: 'waitlist-confirmation' }],
+  });
+
+  if (error) {
+    console.error('Failed to send waitlist confirmation email:', error.message);
+  }
+}

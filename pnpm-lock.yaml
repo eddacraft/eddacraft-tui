@@ -321,6 +321,9 @@ importers:
       '@radix-ui/react-dialog':
         specifier: 1.1.15
         version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.10))(@types/react@19.2.10)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@unosend/node':
+        specifier: ^1.1.0
+        version: 1.1.0
       '@vercel/analytics':
         specifier: 1.6.1
         version: 1.6.1(next@16.1.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
@@ -4342,6 +4345,10 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+
+  '@unosend/node@1.1.0':
+    resolution: {integrity: sha512-7jBb+80JSGPjn6Rrz77lgDwZtVEYHIitBwvzissTWQtvvdt/MvWkUOdbNQYYeI8qkmWUKDrJ0rutBZ5zjE+ieA==}
+    engines: {node: '>=18'}
 
   '@vercel/analytics@1.6.1':
     resolution: {integrity: sha512-oH9He/bEM+6oKlv3chWuOOcp8Y6fo6/PSro8hEkgCW3pu9/OiCXiUpRUogDh3Fs3LH2sosDrx8CxeOLBEE+afg==}
@@ -15613,6 +15620,8 @@ snapshots:
       - supports-color
 
   '@ungap/structured-clone@1.3.0': {}
+
+  '@unosend/node@1.1.0': {}
 
   '@vercel/analytics@1.6.1(next@16.1.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.0)(@playwright/test@1.58.2)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)':
     optionalDependencies:

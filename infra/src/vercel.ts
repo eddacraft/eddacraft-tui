@@ -5,6 +5,7 @@ const config = new pulumi.Config('vercel-apps');
 const gitRepo = 'EddaCraft/anvil-001';
 
 const websiteDatabaseUrl = config.getSecret('website-database-url');
+const unosendApiKey = config.getSecret('unosend-api-key');
 
 // IAC-003: Website (Next.js)
 export const website = new VercelApp('website', {
@@ -13,13 +14,10 @@ export const website = new VercelApp('website', {
   rootDirectory: 'apps/website',
   gitRepo,
   domains: ['eddacraft.ai'],
-  ...(websiteDatabaseUrl
-    ? {
-        envVars: {
-          DATABASE_URL: websiteDatabaseUrl,
-        },
-      }
-    : {}),
+  envVars: {
+    ...(websiteDatabaseUrl ? { DATABASE_URL: websiteDatabaseUrl } : {}),
+    ...(unosendApiKey ? { UNOSEND_API_KEY: unosendApiKey } : {}),
+  },
 });
 
 // IAC-004: Docs Site (Docusaurus)
