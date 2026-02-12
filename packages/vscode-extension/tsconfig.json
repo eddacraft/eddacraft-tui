@@ -21,9 +21,6 @@
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"],
   "references": [
     {
-      "path": "../platform/config"
-    },
-    {
       "path": "../anvil/core"
     }
   ]
