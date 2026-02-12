@@ -284,9 +284,6 @@ importers:
       '@eddacraft/anvil-aps':
         specifier: workspace:*
         version: link:../../packages/aps
-      '@eddacraft/anvil-contracts':
-        specifier: workspace:*
-        version: link:../../packages/anvil/contracts
       '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../../packages/anvil/core
@@ -415,9 +412,9 @@ importers:
 
   packages/anvil/core:
     dependencies:
-      '@eddacraft/anvil-contracts':
-        specifier: workspace:*
-        version: link:../contracts
+      json-schema:
+        specifier: ^0.4.0
+        version: 0.4.0
       minimatch:
         specifier: ^10.1.2
         version: 10.1.2
@@ -444,9 +441,9 @@ importers:
 
   packages/anvil/ports:
     dependencies:
-      '@eddacraft/anvil-contracts':
+      '@eddacraft/anvil-core':
         specifier: workspace:*
-        version: link:../contracts
+        version: link:../core
     devDependencies:
       vitest:
         specifier: ^4.0.18
@@ -454,15 +451,9 @@ importers:
 
   packages/anvil/runtime:
     dependencies:
-      '@eddacraft/anvil-contracts':
-        specifier: workspace:*
-        version: link:../contracts
       '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../core
-      '@eddacraft/anvil-platform-config':
-        specifier: workspace:*
-        version: link:../../platform/config
       '@eddacraft/anvil-policy':
         specifier: workspace:*
         version: link:../policy
