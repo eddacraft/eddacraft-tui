@@ -18,7 +18,6 @@
     "declaration": true,
     "declarationMap": true,
     "emitDeclarationOnly": false,
-    "composite": true,
     "importHelpers": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitOverride": true

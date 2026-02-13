@@ -30,6 +30,7 @@ export default defineConfig({
       'packages/vscode-extension/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/aps/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/edda-stack/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'packages/kindling-integration/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/platform/*/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: [
@@ -57,6 +58,10 @@ export default defineConfig({
       '@eddacraft/anvil-aps': resolve(__dirname, './packages/aps/src'),
       '@eddacraft/anvil-mcp-server': resolve(__dirname, './packages/mcp-server/src'),
       '@eddacraft/anvil-edda-stack': resolve(__dirname, './packages/edda-stack/src'),
+      '@eddacraft/anvil-kindling-integration': resolve(
+        __dirname,
+        './packages/kindling-integration/src'
+      ),
       '@eddacraft/anvil-platform-config': resolve(__dirname, './packages/platform/config/src'),
       vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },
