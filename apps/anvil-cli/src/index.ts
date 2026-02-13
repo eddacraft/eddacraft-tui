@@ -33,6 +33,9 @@ import { showWelcome, createStartCommand } from './commands/welcome.js';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readJsonFileSync } from './utils/file-io.js';
+import { loadAnvilEnv } from './utils/env.js';
+
+loadAnvilEnv();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJson =

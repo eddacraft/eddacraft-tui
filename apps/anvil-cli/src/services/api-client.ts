@@ -7,7 +7,7 @@
 
 import { requireEnv, getEnv } from '../utils/env.js';
 
-const DEFAULT_API_URL = 'https://anvil-api.vercel.app';
+const DEFAULT_API_URL = 'https://eddacraft-api-eddacraft.vercel.app';
 
 /**
  * Get the configured API base URL.
