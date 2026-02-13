@@ -13,7 +13,7 @@ describe('api-client', () => {
     it('should return the default URL when env var is not set', () => {
       delete process.env.ANVIL_API_URL;
 
-      expect(getApiUrl()).toBe('https://anvil-api.vercel.app');
+      expect(getApiUrl()).toBe('https://eddacraft-api-eddacraft.vercel.app');
     });
 
     it('should return the custom URL from env var', () => {
@@ -56,7 +56,7 @@ describe('api-client', () => {
       });
 
       expect(result).toEqual({ data: 'test' });
-      expect(fetch).toHaveBeenCalledWith('https://anvil-api.vercel.app/api/v1/test', {
+      expect(fetch).toHaveBeenCalledWith('https://eddacraft-api-eddacraft.vercel.app/api/v1/test', {
         method: 'GET',
         headers: {},
         body: undefined,
@@ -76,13 +76,16 @@ describe('api-client', () => {
         operationName: 'Test post',
       });
 
-      expect(fetch).toHaveBeenCalledWith('https://anvil-api.vercel.app/api/v1/action', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: '{"email":"test@example.com"}',
-      });
+      expect(fetch).toHaveBeenCalledWith(
+        'https://eddacraft-api-eddacraft.vercel.app/api/v1/action',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: '{"email":"test@example.com"}',
+        }
+      );
     });
 
     it('should include authorization header when token is provided', async () => {

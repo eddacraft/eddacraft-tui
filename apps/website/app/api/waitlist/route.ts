@@ -51,9 +51,11 @@ export async function POST(request: Request) {
 
     // Only send confirmation for genuinely new signups, not repeated submissions
     if (result[0].is_new) {
-      sendWaitlistConfirmation(result[0].email).catch((err) => {
+      try {
+        await sendWaitlistConfirmation(result[0].email);
+      } catch (err) {
         console.error('Waitlist confirmation email error:', err);
-      });
+      }
     }
 
     return NextResponse.json({

@@ -7,6 +7,7 @@ describe('Vercel resources', () => {
   beforeAll(async () => {
     pulumi.runtime.setAllConfig({
       'vercel-apps:website-database-url': 'mock-database-url',
+      'vercel-apps:unosend-api-key': 'mock-unosend-key',
     });
     pulumi.runtime.setMocks(
       {
@@ -43,17 +44,15 @@ describe('Vercel resources', () => {
     expect(domains.length).toBe(2);
   });
 
-  it('creates environment variable for website DATABASE_URL when secret is configured', () => {
+  it('creates environment variables for website when secrets are configured', () => {
     const envVars = resources.filter(
       (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
     );
 
-    // DATABASE_URL env var is only created when the secret is configured
     const dbUrl = envVars.find((e) => e.inputs.key === 'DATABASE_URL');
-    if (dbUrl) {
-      expect(dbUrl).toBeDefined();
-    } else {
-      expect(envVars.length).toBe(0);
-    }
+    expect(dbUrl).toBeDefined();
+
+    const unosend = envVars.find((e) => e.inputs.key === 'UNOSEND_API_KEY');
+    expect(unosend).toBeDefined();
   });
 });

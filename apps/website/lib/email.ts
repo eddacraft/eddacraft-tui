@@ -66,7 +66,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<void> {
           <tr>
             <td style="padding-top:24px;border-top:1px solid #262626;">
               <p style="margin:0;font-size:11px;color:#525252;">
-                anvil v0.9.2 :: eddacraft.ai
+                anvil :: eddacraft.ai
               </p>
             </td>
           </tr>
