@@ -11,7 +11,7 @@ function getClient(): Unosend | null {
   return client;
 }
 
-const FROM_ADDRESS = 'Anvil <anvil@send.eddacraft.ai>';
+const FROM_ADDRESS = 'Anvil <anvil@eddacraft.ai>';
 
 function escapeHtml(str: string): string {
   return str
