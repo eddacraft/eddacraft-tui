@@ -41,18 +41,20 @@ export async function POST(request: Request) {
       INSERT INTO waitlist (email, source)
       VALUES (${trimmedEmail.toLowerCase()}, 'website')
       ON CONFLICT (email) DO UPDATE SET updated_at = NOW()
-      RETURNING id, email, created_at
-    `) as { id: number; email: string; created_at: string }[];
+      RETURNING id, email, created_at, (xmax = 0) AS is_new
+    `) as { id: number; email: string; created_at: string; is_new: boolean }[];
 
     if (!Array.isArray(result) || result.length === 0) {
       console.error('Waitlist insertion did not return a result');
       return NextResponse.json({ error: 'Failed to join waitlist' }, { status: 500 });
     }
 
-    // Send confirmation email (fire-and-forget — don't block the response)
-    sendWaitlistConfirmation(result[0].email).catch((err) => {
-      console.error('Waitlist confirmation email error:', err);
-    });
+    // Only send confirmation for genuinely new signups, not repeated submissions
+    if (result[0].is_new) {
+      sendWaitlistConfirmation(result[0].email).catch((err) => {
+        console.error('Waitlist confirmation email error:', err);
+      });
+    }
 
     return NextResponse.json({
       success: true,
