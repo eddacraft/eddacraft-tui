@@ -11,7 +11,8 @@ function getClient(): Unosend | null {
   return client;
 }
 
-const FROM_ADDRESS = 'Anvil <anvil@eddacraft.ai>';
+const FROM_ADDRESS = 'Josh at EddaCraft <anvil@eddacraft.ai>';
+const REPLY_TO = 'josh@eddacraft.ai';
 
 function escapeHtml(str: string): string {
   return str
@@ -32,6 +33,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<void> {
 
   const { error } = await unosend.emails.send({
     from: FROM_ADDRESS,
+    replyTo: REPLY_TO,
     to: email,
     subject: "You're on the Anvil waitlist",
     html: `<!DOCTYPE html>
@@ -60,6 +62,9 @@ export async function sendWaitlistConfirmation(email: string): Promise<void> {
               </p>
               <p style="margin:0 0 8px;font-size:13px;color:#a3a3a3;">
                 We're onboarding engineering teams in controlled cohorts. You'll hear from us when your slot opens.
+              </p>
+              <p style="margin:16px 0 0;font-size:13px;color:#a3a3a3;">
+                If you have any questions or feedback, just reply to this email — I personally respond to each one.
               </p>
             </td>
           </tr>
