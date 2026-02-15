@@ -105,6 +105,16 @@ const config: Config = {
     //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/edda-stack/',
     //   },
     // ],
+    // Beta - unlisted quickstart for beta testers (not in navbar/footer)
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'beta',
+        path: '../../docs/public/beta',
+        routeBasePath: 'beta',
+        sidebarPath: './sidebars/beta.ts',
+      },
+    ],
   ],
 
   themeConfig: {
