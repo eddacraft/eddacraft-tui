@@ -30,12 +30,12 @@ new azure.dns.RecordSet('dmarc-eddacraft-ai', {
 });
 
 // =============================================================================
-// Subdomain (mail.eddacraft.ai) — Unosend transactional email
+// Subdomain (send.eddacraft.ai) — Unosend transactional email
 // =============================================================================
 
 // Unosend inbound MX record
-new azure.dns.RecordSet('mx-mail-eddacraft-ai', {
-  relativeRecordSetName: 'mail',
+new azure.dns.RecordSet('mx-send-eddacraft-ai', {
+  relativeRecordSetName: 'send',
   zoneName: zone.eddacraftAi.name,
   resourceGroupName,
   recordType: 'MX',
@@ -43,19 +43,25 @@ new azure.dns.RecordSet('mx-mail-eddacraft-ai', {
   mxRecords: [{ exchange: 'mail.unosend.co', preference: 10 }],
 });
 
-// SPF for Unosend sending via Amazon SES
-new azure.dns.RecordSet('txt-mail-eddacraft-ai', {
-  relativeRecordSetName: 'mail',
+// SPF for Unosend sending
+new azure.dns.RecordSet('txt-send-eddacraft-ai', {
+  relativeRecordSetName: 'send',
   zoneName: zone.eddacraftAi.name,
   resourceGroupName,
   recordType: 'TXT',
   ttl: 3600,
-  txtRecords: [{ value: ['v=spf1 include:amazonses.com ~all'] }],
+  txtRecords: [
+    {
+      value: [
+        'v=spf1 include:_spf.unosend.co ip4:217.217.250.114 ip6:2400:d321:2294:2881::1 ~all',
+      ],
+    },
+  ],
 });
 
-// DMARC for mail subdomain
-new azure.dns.RecordSet('dmarc-mail-eddacraft-ai', {
-  relativeRecordSetName: '_dmarc.mail',
+// DMARC for send subdomain
+new azure.dns.RecordSet('dmarc-send-eddacraft-ai', {
+  relativeRecordSetName: '_dmarc.send',
   zoneName: zone.eddacraftAi.name,
   resourceGroupName,
   recordType: 'TXT',
@@ -63,10 +69,9 @@ new azure.dns.RecordSet('dmarc-mail-eddacraft-ai', {
   txtRecords: [{ value: ['v=DMARC1; p=none; rua=mailto:dmarc@eddacraft.ai'] }],
 });
 
-// DKIM for Unosend on mail subdomain
-// TODO: Update with DKIM key from Unosend after verifying mail.eddacraft.ai
-new azure.dns.RecordSet('unosend-dkim-mail-eddacraft-ai', {
-  relativeRecordSetName: 'unosend._domainkey.mail',
+// DKIM for Unosend (shared across root domain)
+new azure.dns.RecordSet('unosend-dkim-eddacraft-ai', {
+  relativeRecordSetName: 'unosend._domainkey',
   zoneName: zone.eddacraftAi.name,
   resourceGroupName,
   recordType: 'TXT',

@@ -11,7 +11,7 @@ function getClient(): Unosend | null {
   return client;
 }
 
-const FROM_ADDRESS = 'Josh at EddaCraft <anvil@mail.eddacraft.ai>';
+const FROM_ADDRESS = 'Josh at EddaCraft <anvil@send.eddacraft.ai>';
 const REPLY_TO = 'josh@eddacraft.ai';
 
 function escapeHtml(str: string): string {
@@ -30,7 +30,7 @@ export async function sendWaitlistConfirmation(email: string): Promise<void> {
   }
 
   const safeEmail = escapeHtml(email);
-  const unsubscribeMailto = `mailto:anvil@mail.eddacraft.ai?subject=Unsubscribe&body=Please remove ${email} from the waitlist.`;
+  const unsubscribeMailto = `mailto:anvil@send.eddacraft.ai?subject=Unsubscribe&body=Please remove ${email} from the waitlist.`;
 
   const { error } = await unosend.emails.send({
     from: FROM_ADDRESS,
