@@ -319,7 +319,7 @@ Overall: ✓ PASSED (4/4 checks passed)
 
 ### `anvil export <source>`
 
-Export/convert plans between formats (SpecKit ↔ APS ↔ JSON ↔ YAML).
+Export/convert plans between formats (SpecKit ↔ APS ↔ JSON).
 
 **Usage:**
 
@@ -333,7 +333,7 @@ anvil export <source> --to <format> [options]
 
 **Required Options:**
 
-- `--to <format>` - Target format: `aps`, `json`, `yaml`, `speckit`
+- `--to <format>` - Target format: `aps`, `json`, `speckit`
 
 **Options:**
 
@@ -346,9 +346,6 @@ anvil export <source> --to <format> [options]
 ```bash
 # Convert SpecKit to APS (JSON)
 anvil export spec.md --to aps
-
-# Convert to YAML with custom output path
-anvil export spec.md --to yaml --output plan.yaml
 
 # Convert APS to SpecKit format
 anvil export plan.json --to speckit --output ./speckit-docs/
