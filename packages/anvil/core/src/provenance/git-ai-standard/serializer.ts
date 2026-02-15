@@ -2,7 +2,7 @@ import type { AuthorshipLog, FileAttestation } from './types.js';
 import { AuthorshipLogSchema, SCHEMA_VERSION } from './types.js';
 import { createDebugger } from '../../utils/debug.js';
 
-const debug = createDebugger('provenance:serializer');
+const debug = createDebugger('provenance');
 
 /**
  * Serialize an AuthorshipLog to Git AI Standard format
