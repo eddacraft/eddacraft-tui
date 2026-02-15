@@ -21,7 +21,7 @@ export function createExportCommand(): Command {
   return new Command('export')
     .description('Export/convert plans between formats or export constraints')
     .argument('[source]', 'Source file path (optional for constraint export)')
-    .option('--to <format>', 'Target format for plan conversion (aps, json, yaml, speckit)')
+    .option('--to <format>', 'Target format for plan conversion (aps, json, speckit)')
     .option(
       '--format <format>',
       'Output format for constraint export (llms.txt, mcp-resource, prompt-fragment)'
@@ -321,11 +321,13 @@ function normalizeTargetFormat(format: string): string {
   const formatMap: Record<string, string> = {
     aps: 'aps',
     json: 'json',
-    yaml: 'yaml',
-    yml: 'yaml',
     speckit: 'speckit',
     'spec.md': 'speckit',
   };
+
+  if (normalized === 'yaml' || normalized === 'yml') {
+    throw new Error('YAML export is not yet supported. Use --to json instead.');
+  }
 
   return formatMap[normalized] || normalized;
 }

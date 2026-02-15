@@ -57,7 +57,7 @@ export class PolicyDirectoryCheck implements DiagnosticCheck {
         name: this.name,
         status: 'warn',
         message: 'No .anvil/policies/ directory',
-        fixable: true,
+        fixable: false,
         suggestion: 'Run: anvil policy init',
       };
     }
@@ -73,7 +73,7 @@ export class PolicyDirectoryCheck implements DiagnosticCheck {
         name: this.name,
         status: 'warn',
         message: 'Policy directory exists but contains no .rego files',
-        fixable: true,
+        fixable: false,
         suggestion: 'Run: anvil policy init',
       };
     }

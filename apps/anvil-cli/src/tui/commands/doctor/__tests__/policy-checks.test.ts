@@ -78,7 +78,7 @@ describe('PolicyChecks', () => {
 
       expect(result.status).toBe('warn');
       expect(result.message).toContain('No .anvil/policies/ directory');
-      expect(result.fixable).toBe(true);
+      expect(result.fixable).toBe(false);
       expect(result.suggestion).toContain('anvil policy init');
     });
 
@@ -91,7 +91,7 @@ describe('PolicyChecks', () => {
 
       expect(result.status).toBe('warn');
       expect(result.message).toContain('no .rego files');
-      expect(result.fixable).toBe(true);
+      expect(result.fixable).toBe(false);
     });
 
     it('should warn when policies have no tests', async () => {

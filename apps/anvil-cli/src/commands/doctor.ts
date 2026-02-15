@@ -197,7 +197,7 @@ export function createDoctorCommand(): Command {
       };
 
       if (options.json) {
-        const data = await runChecksPlain(checks, context, false);
+        const data = await runChecksPlain(checks, context, options.fix ?? false);
         console.log(formatJsonOutput(data));
         process.exit(data.summary.healthy ? 0 : 1);
         return;

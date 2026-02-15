@@ -35,7 +35,7 @@ if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Validating planning documents..."
 
   for file in $PLAN_FILES; do
-    if anvil validate "$file" --quiet 2>/dev/null; then
+    if anvil validate "$file" 2>/dev/null; then
       echo "  ✓ $file"
     fi
   done
@@ -66,7 +66,7 @@ if [ -n "$PLAN_FILES" ]; then
   for file in $PLAN_FILES; do
     if [ -f "$file" ]; then
       echo "  Checking: $file"
-      if ! anvil gate "$file" --quiet 2>/dev/null; then
+      if ! anvil gate "$file" 2>/dev/null; then
         echo "  ✗ Gate failed: $file"
         echo ""
         echo "Run 'anvil gate $file' to see details."
