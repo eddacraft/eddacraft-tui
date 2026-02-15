@@ -52,9 +52,7 @@ new azure.dns.RecordSet('txt-send-eddacraft-ai', {
   ttl: 3600,
   txtRecords: [
     {
-      value: [
-        'v=spf1 include:_spf.unosend.co ip4:217.217.250.114 ip6:2400:d321:2294:2881::1 ~all',
-      ],
+      value: ['v=spf1 include:_spf.unosend.co ip4:217.217.250.114 ip6:2400:d321:2294:2881::1 ~all'],
     },
   ],
 });
