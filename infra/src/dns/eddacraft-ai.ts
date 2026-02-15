@@ -1,7 +1,12 @@
 import * as azure from '@pulumi/azure-native';
 import { zone, resourceGroupName } from './index.js';
 
-// Root domain TXT records (Unosend verification + SPF)
+// =============================================================================
+// Root domain (eddacraft.ai) — Google Workspace
+// MX records managed manually in Azure DNS (not by Pulumi)
+// =============================================================================
+
+// Root TXT records (Unosend domain verification + Google Workspace SPF)
 new azure.dns.RecordSet('root-txt-eddacraft-ai', {
   relativeRecordSetName: '@',
   zoneName: zone.eddacraftAi.name,
@@ -10,11 +15,11 @@ new azure.dns.RecordSet('root-txt-eddacraft-ai', {
   ttl: 3600,
   txtRecords: [
     { value: ['_cux88fmbdoc8oeyu9sy0paxt0yd4mzm'] },
-    { value: ['v=spf1 include:amazonses.com ~all'] },
+    { value: ['v=spf1 include:_spf.google.com ~all'] },
   ],
 });
 
-// DMARC policy
+// DMARC policy for root domain
 new azure.dns.RecordSet('dmarc-eddacraft-ai', {
   relativeRecordSetName: '_dmarc',
   zoneName: zone.eddacraftAi.name,
@@ -24,9 +29,44 @@ new azure.dns.RecordSet('dmarc-eddacraft-ai', {
   txtRecords: [{ value: ['v=DMARC1; p=none; rua=mailto:dmarc@eddacraft.ai'] }],
 });
 
-// DKIM for Unosend (Amazon SES)
-new azure.dns.RecordSet('unosend-dkim-eddacraft-ai', {
-  relativeRecordSetName: 'unosend._domainkey',
+// =============================================================================
+// Subdomain (mail.eddacraft.ai) — Unosend transactional email
+// =============================================================================
+
+// Unosend inbound MX record
+new azure.dns.RecordSet('mx-mail-eddacraft-ai', {
+  relativeRecordSetName: 'mail',
+  zoneName: zone.eddacraftAi.name,
+  resourceGroupName,
+  recordType: 'MX',
+  ttl: 3600,
+  mxRecords: [{ exchange: 'mail.unosend.co', preference: 10 }],
+});
+
+// SPF for Unosend sending via Amazon SES
+new azure.dns.RecordSet('txt-mail-eddacraft-ai', {
+  relativeRecordSetName: 'mail',
+  zoneName: zone.eddacraftAi.name,
+  resourceGroupName,
+  recordType: 'TXT',
+  ttl: 3600,
+  txtRecords: [{ value: ['v=spf1 include:amazonses.com ~all'] }],
+});
+
+// DMARC for mail subdomain
+new azure.dns.RecordSet('dmarc-mail-eddacraft-ai', {
+  relativeRecordSetName: '_dmarc.mail',
+  zoneName: zone.eddacraftAi.name,
+  resourceGroupName,
+  recordType: 'TXT',
+  ttl: 3600,
+  txtRecords: [{ value: ['v=DMARC1; p=none; rua=mailto:dmarc@eddacraft.ai'] }],
+});
+
+// DKIM for Unosend on mail subdomain
+// TODO: Update with DKIM key from Unosend after verifying mail.eddacraft.ai
+new azure.dns.RecordSet('unosend-dkim-mail-eddacraft-ai', {
+  relativeRecordSetName: 'unosend._domainkey.mail',
   zoneName: zone.eddacraftAi.name,
   resourceGroupName,
   recordType: 'TXT',
