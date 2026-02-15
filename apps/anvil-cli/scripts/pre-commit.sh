@@ -10,7 +10,7 @@ if [ -n "$PLAN_FILES" ]; then
 
   for file in $PLAN_FILES; do
     if anvil validate "$file" --quiet 2>/dev/null; then
-      echo "  ✓ $file"
+      echo "  [OK] $file"
     fi
   done
 fi

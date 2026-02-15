@@ -36,7 +36,7 @@ if [ -n "$PLAN_FILES" ]; then
 
   for file in $PLAN_FILES; do
     if anvil validate "$file" 2>/dev/null; then
-      echo "  ✓ $file"
+      echo "  [OK] $file"
     fi
   done
 fi
@@ -58,16 +58,16 @@ if [ -n "$ANVIL_SKIP_HOOKS" ]; then
 fi
 
 # Find plan files in the repository
-PLAN_FILES=$(find . -name "*.md" -path "*/planning/*" -o -name "*-plan.md" -o -name "*-prd.md" 2>/dev/null | head -5)
+PLAN_FILES=$(find . \\( -name "*.md" -path "*/planning/*" \\) -o -name "*-plan.md" -o -name "*-prd.md" 2>/dev/null | head -5)
 
 if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Running quality gates..."
 
-  for file in $PLAN_FILES; do
+  echo "$PLAN_FILES" | while IFS= read -r file; do
     if [ -f "$file" ]; then
       echo "  Checking: $file"
       if ! anvil gate "$file" 2>/dev/null; then
-        echo "  ✗ Gate failed: $file"
+        echo "  [FAIL] Gate failed: $file"
         echo ""
         echo "Run 'anvil gate $file' to see details."
         echo "To bypass, set ANVIL_SKIP_HOOKS=1"
@@ -76,7 +76,7 @@ if [ -n "$PLAN_FILES" ]; then
     fi
   done
 
-  echo "  ✓ All gates passed"
+  echo "  [OK] All gates passed"
 fi
 
 exit 0
@@ -213,6 +213,17 @@ export function createHooksCommand(): Command {
 
         try {
           const workspaceRoot = getWorkspaceRoot();
+
+          // Warn on Windows about limited shell hook support
+          if (process.platform === 'win32') {
+            console.log(
+              chalk.yellow(
+                '\nWarning: Git hooks use shell scripts (#!/bin/sh) which require' +
+                  '\na POSIX-compatible shell (Git Bash, WSL, or MSYS2) on Windows.' +
+                  '\nHooks may not work in PowerShell or cmd.exe.\n'
+              )
+            );
+          }
 
           // Check for Git repository
           const gitDir = join(workspaceRoot, '.git');

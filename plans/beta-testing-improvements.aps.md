@@ -1,6 +1,6 @@
 # Beta Testing Improvements
 
-**Status:** Draft
+**Status:** In Progress
 **Owner:** Engineering
 **Priority:** High
 
@@ -27,7 +27,7 @@ missing Intent, malformed headings, and edge cases (empty values, inline vs
 list Inputs).
 
 **Confidence:** High
-**Status:** Open
+**Status:** completed
 **Tags:** testing, aps, parser
 **Files:** packages/aps/src/parser/parse-task.ts
 
@@ -46,7 +46,7 @@ base-directory equality edge case, and all CRUD methods (read, write, exists,
 delete, list, mkdir).
 
 **Confidence:** High
-**Status:** Open
+**Status:** completed
 **Tags:** testing, security, storage
 **Files:** packages/platform/storage/src/file-storage.ts
 
@@ -66,7 +66,7 @@ existing non-Anvil hooks, script loading with fallback to embedded scripts,
 error when hook scripts directory not found.
 
 **Confidence:** High
-**Status:** Open
+**Status:** completed
 **Tags:** testing, cli, hooks
 **Files:** apps/anvil-cli/src/services/hook-installer.ts
 
@@ -84,7 +84,7 @@ file filtering with include/exclude patterns, baseline creation and comparison,
 violation classification (new vs existing), error handling for I/O failures.
 
 **Confidence:** High
-**Status:** Open
+**Status:** completed
 **Tags:** testing, core, architecture
 **Files:** packages/anvil/core/src/architecture/analyzer.ts
 
@@ -103,7 +103,7 @@ template merging with user overrides, default options application, round-trip
 write/read.
 
 **Confidence:** High
-**Status:** Open
+**Status:** completed
 **Tags:** testing, core, architecture, config
 **Files:** packages/anvil/core/src/architecture/yaml-parser.ts, packages/anvil/core/src/architecture/definition-schema.ts
 
@@ -120,7 +120,7 @@ coverage. Multi-agent coordination depends on correct locking behavior.
 JSON writes, queue manager ordering, timeout behavior.
 
 **Confidence:** Medium
-**Status:** Open
+**Status:** completed
 **Tags:** testing, runtime, concurrency
 **Files:** packages/anvil/runtime/src/concurrency/lock-manager.ts, packages/anvil/runtime/src/concurrency/atomic.ts, packages/anvil/runtime/src/concurrency/queue-manager.ts
 
@@ -170,7 +170,7 @@ grouping (missing parentheses) and unquoted `$PLAN_FILES` on line 17.
 `while IFS= read -r` instead of unquoted `for file in $PLAN_FILES`.
 
 **Confidence:** High
-**Status:** Open
+**Status:** completed
 **Tags:** cross-platform, shell, hooks
 **Files:** apps/anvil-cli/scripts/pre-push.sh, apps/anvil-cli/src/services/hook-installer.ts
 
@@ -187,7 +187,7 @@ ASCII alternatives. Update both the script files AND the embedded copies in
 `hook-installer.ts:92-146`.
 
 **Confidence:** High
-**Status:** Open
+**Status:** completed
 **Tags:** cross-platform, windows, hooks
 **Files:** apps/anvil-cli/scripts/pre-commit.sh, apps/anvil-cli/scripts/pre-push.sh, apps/anvil-cli/src/services/hook-installer.ts
 
@@ -205,7 +205,7 @@ or (c) skip hook installation with a clear message. Add `process.platform`
 check in `HookInstaller`.
 
 **Confidence:** Medium
-**Status:** Open
+**Status:** completed
 **Tags:** cross-platform, windows, hooks
 **Files:** apps/anvil-cli/src/services/hook-installer.ts, apps/anvil-cli/src/commands/init.ts
 
@@ -222,7 +222,7 @@ matrix for at least the unit test and build jobs. Gate the shell script tests
 to only run on Linux/macOS.
 
 **Confidence:** Medium
-**Status:** Open
+**Status:** completed
 **Tags:** cross-platform, ci
 **Files:** .github/workflows/ci.yml
 
@@ -250,16 +250,16 @@ Windows-style paths.
 
 | ID | Title | Priority | Status |
 |----|-------|----------|--------|
-| TEST-001 | parse-task.ts tests | P0 | Open |
-| TEST-002 | file-storage.ts tests (security) | P0 | Open |
-| TEST-003 | hook-installer.ts tests | P0 | Open |
-| TEST-004 | analyzer.ts tests | P1 | Open |
-| TEST-005 | yaml-parser + schema tests | P1 | Open |
-| TEST-006 | concurrency lock-manager tests | P1 | Open |
+| TEST-001 | parse-task.ts tests | P0 | Done |
+| TEST-002 | file-storage.ts tests (security) | P0 | Done |
+| TEST-003 | hook-installer.ts tests | P0 | Done |
+| TEST-004 | analyzer.ts tests | P1 | Done |
+| TEST-005 | yaml-parser + schema tests | P1 | Done |
+| TEST-006 | concurrency lock-manager tests | P1 | Done |
 | TEST-007 | config loader tests | P2 | Open |
 | TEST-008 | init error path tests | P2 | Open |
-| XPLAT-001 | Fix pre-push.sh find/quoting | P0 | Open |
-| XPLAT-002 | Replace UTF-8 symbols | P0 | Open |
-| XPLAT-003 | Windows hook installation | P1 | Open |
-| XPLAT-004 | CI matrix for macOS/Windows | P1 | Open |
+| XPLAT-001 | Fix pre-push.sh find/quoting | P0 | Done |
+| XPLAT-002 | Replace UTF-8 symbols | P0 | Done |
+| XPLAT-003 | Windows hook installation | P1 | Done |
+| XPLAT-004 | CI matrix for macOS/Windows | P1 | Done |
 | XPLAT-005 | Glob patterns and Windows paths | P2 | Open |
