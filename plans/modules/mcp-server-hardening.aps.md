@@ -7,9 +7,9 @@ See: packages/mcp-server/REVIEW.md
 
 # MCP Server Hardening
 
-| ID   | Owner | Status |
-| ---- | ----- | ------ |
-| MCPH | —     | Draft  |
+| ID   | Owner | Status      |
+| ---- | ----- | ----------- |
+| MCPH | —     | In Progress |
 
 ## Purpose
 
@@ -77,6 +77,7 @@ Change status to **Ready** when:
   tools, (b) validate against allowed roots list, or (c) accept risk for
   localhost-only HTTP deployments. For stdio transport this is low-risk since
   the client already has local access.
+- **Status:** Complete (2026-02-15)
 
 ### MCPH-002: Document AP-003 regex limitations
 
@@ -93,6 +94,7 @@ Change status to **Ready** when:
 - **Notes:** Full AST-level analysis would require TypeScript compiler
   integration, which is out of scope for deterministic mechanical fixes.
   Documentation is the pragmatic solution.
+- **Status:** Complete (2026-02-15)
 
 ### MCPH-003: Synchronize version strings
 
@@ -109,6 +111,7 @@ Change status to **Ready** when:
 - **Notes:** Options: (a) import version from package.json at runtime, (b) use
   build-time constant via esbuild/rollup define, (c) generate version.ts during
   build. Option (a) is simplest for ESM packages.
+- **Status:** Complete (already implemented via loadPackageVersion() in server.ts)
 
 ### MCPH-004: Add empty plan factory to anvil-runtime
 

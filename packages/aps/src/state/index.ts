@@ -299,18 +299,34 @@ export async function writeExecutionPlan(
 }
 
 /**
- * Read execution plan from file
+ * Read execution plan from file.
+ * Verifies the stored content_hash matches the recomputed hash.
+ * If the hash does not match, the plan is still returned but a
+ * `hashMismatch` flag is set on the result.
  */
 export async function readExecutionPlan(
   projectRoot: string,
   taskId: string
-): Promise<ExecutionPlan | undefined> {
+): Promise<(ExecutionPlan & { hashMismatch?: boolean }) | undefined> {
   const execPath = getExecutionPlanPath(projectRoot, taskId);
 
   try {
     const content = await fs.readFile(execPath, 'utf-8');
     const data = JSON.parse(content);
-    return ExecutionPlanSchema.parse(data);
+    const plan = ExecutionPlanSchema.parse(data);
+
+    // Verify content hash integrity
+    const recomputed = recomputeContentHash(plan);
+    if (recomputed !== plan.content_hash) {
+      process.stderr.write(
+        `Warning: execution plan "${taskId}" content_hash mismatch ` +
+          `(stored: ${plan.content_hash.slice(0, 12)}…, computed: ${recomputed.slice(0, 12)}…). ` +
+          `The plan file may have been tampered with.\n`
+      );
+      return { ...plan, hashMismatch: true };
+    }
+
+    return plan;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return undefined;
@@ -320,6 +336,26 @@ export async function readExecutionPlan(
       execPath
     );
   }
+}
+
+/**
+ * Recompute the content hash for an execution plan using the same
+ * fields that `computeTaskHash` uses when creating the plan.
+ */
+function recomputeContentHash(plan: ExecutionPlan): string {
+  const content = JSON.stringify({
+    id: plan.task_id,
+    title: plan.title,
+    intent: plan.intent,
+    expectedOutcome: plan.expected_outcome,
+    confidence: plan.confidence,
+    scopes: plan.scopes,
+    tags: plan.tags,
+    dependencies: plan.dependencies,
+    inputs: plan.inputs,
+  });
+
+  return createHash('sha256').update(content).digest('hex');
 }
 
 /**

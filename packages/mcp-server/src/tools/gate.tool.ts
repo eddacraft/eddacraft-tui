@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { PlanData } from '@eddacraft/anvil-runtime';
-import { validateWorkspaceRoot } from '../utils/validate-workspace.js';
+import { validateWorkspaceRootAgainstServer } from '../utils/validate-workspace.js';
 
 /**
  * Registers the `anvil_gate` tool on the given MCP server.
@@ -9,7 +9,7 @@ import { validateWorkspaceRoot } from '../utils/validate-workspace.js';
  * The tool runs the full Anvil quality gate on a project, or analyses specific
  * files in planless mode when `targetFiles` is supplied.
  */
-export function registerGateTool(server: McpServer): void {
+export function registerGateTool(server: McpServer, serverRoot?: string): void {
   server.registerTool(
     'anvil_gate',
     {
@@ -37,7 +37,7 @@ export function registerGateTool(server: McpServer): void {
     },
     async ({ workspaceRoot, targetFiles, skipChecks, failFast }) => {
       try {
-        validateWorkspaceRoot(workspaceRoot);
+        validateWorkspaceRootAgainstServer(workspaceRoot, serverRoot);
         const { GateRunner, GateConfigManager } = await import('@eddacraft/anvil-runtime');
         const runner = new GateRunner();
 

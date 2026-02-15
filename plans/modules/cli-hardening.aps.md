@@ -13,9 +13,9 @@ See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md, apps/anvil-api/REV
 
 ## Branch Status
 
-> **Note:** Branch `hardening/wave-0-foundation` (commit `333a291`) implements
-> 47 of 66 tasks. Task statuses below reflect the plan file (main branch) — the
-> branch work has not yet been merged. Update task statuses after merge.
+> **Note:** Branch `hardening/wave-0-foundation` (commit `333a291`) implemented
+> 47 of 66 tasks. Additional P2 tasks completed on 2026-02-15: CLIH-009,
+> CLIH-010, CORE-007, CORE-009, API-007, APS-PKG-002 (53 of 66 total).
 
 ## Purpose
 
@@ -283,7 +283,7 @@ Change status to **Ready** when:
 - **Priority:** P2
 - **Notes:** May be intentionally silent for use in non-project directories. Check
   with team before adding warning.
-- **Status:** Pending
+- **Status:** Complete (2026-02-15)
 
 ### CLIH-010: Add user confirmation for mcp-config --write outside workspace
 
@@ -299,7 +299,7 @@ Change status to **Ready** when:
 - **Notes:** Writing to `~/.config/` is the intended behavior for MCP config.
   This finding may be acceptable as-is if the team decides the path is always
   controlled by `generateMcpConfig()` and not user-supplied.
-- **Status:** Pending
+- **Status:** Complete (2026-02-15)
 
 ### CLIH-011: Validate enforcement level before type cast
 
@@ -518,7 +518,7 @@ Change status to **Ready** when:
 - **Priority:** P2
 - **Notes:** Changing this affects hash output for any data that contained
   top-level undefined. Verify no existing hashes depend on this behavior.
-- **Status:** Pending
+- **Status:** Complete (2026-02-15)
 
 ### CORE-008: Add depth limit to entry-detector recursive traversal
 
@@ -547,7 +547,7 @@ Change status to **Ready** when:
 - **Notes:** If the team's intent is truly to keep core I/O-free, this becomes a
   larger refactoring task to move I/O into anvil-runtime. Mark as P2 for the
   documentation fix; a full I/O extraction would be a separate module.
-- **Status:** Pending
+- **Status:** Complete (2026-02-15)
 
 ### CORE-010: Add debug logging for silently skipped files
 
@@ -734,7 +734,7 @@ Change status to **Ready** when:
 - **Notes:** Option (b) is simplest but unauthenticated. Option (a) is most
   robust but requires a new DB table. Option (c) is zero-effort but less
   reliable. Team should decide which level of accountability is needed.
-- **Status:** Pending
+- **Status:** Complete (2026-02-15)
 
 ### API-008: Add request body size limits
 
@@ -1057,7 +1057,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P2
-- **Status:** Pending
+- **Status:** Complete (2026-02-15)
 
 ---
 

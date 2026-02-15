@@ -31,6 +31,19 @@ const admin = new Hono();
 admin.use('*', adminAuth);
 
 /**
+ * Resolve the admin actor identity for audit logging.
+ * Checks X-Admin-Actor header first, then falls back to source IP.
+ */
+function resolveAdminActor(c: { req: { header: (name: string) => string | undefined } }): string {
+  const actor = c.req.header('X-Admin-Actor');
+  if (actor && actor.length <= 200) {
+    // Sanitise: strip control characters, keep printable ASCII
+    return actor.replace(/[^\x20-\x7E]/g, '').trim() || 'admin';
+  }
+  return 'admin';
+}
+
+/**
  * POST /admin/invite
  *
  * Creates or finds a user by email, generates a new token.
@@ -39,6 +52,7 @@ admin.use('*', adminAuth);
 admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   const { email, name, notes, days, scopes } = c.req.valid('json');
   const sql = getClient();
+  const actor = resolveAdminActor(c);
 
   const normalizedEmail = email.toLowerCase().trim();
 
@@ -62,7 +76,7 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
         )
         RETURNING *`,
     sql`INSERT INTO audit_log (action, actor, metadata)
-        VALUES (${'token.created'}, ${'admin'}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
+        VALUES (${'token.created'}, ${actor}, ${JSON.stringify({ email: normalizedEmail, scopes, days })})
         RETURNING *`,
   ]);
 
@@ -87,6 +101,7 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
 admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
   const { email, token } = c.req.valid('json');
   const sql = getClient();
+  const actor = resolveAdminActor(c);
 
   if (email) {
     const normalizedEmail = email.toLowerCase().trim();
@@ -97,7 +112,7 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
             AND revoked_at IS NULL
           RETURNING id`,
       sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'tokens.revoked'}, ${'admin'}, ${JSON.stringify({ email: normalizedEmail })})
+          VALUES (${'tokens.revoked'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
           RETURNING *`,
     ]);
     const revokedRows = (txResult as unknown[][])[0] ?? [];
@@ -113,7 +128,7 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
             AND revoked_at IS NULL
           RETURNING id`,
       sql`INSERT INTO audit_log (action, actor, metadata)
-          VALUES (${'token.revoked'}, ${'admin'}, ${JSON.stringify({ revoked: true })})
+          VALUES (${'token.revoked'}, ${actor}, ${JSON.stringify({ revoked: true })})
           RETURNING *`,
     ]);
     const revokedRows = (txResult as unknown[][])[0] ?? [];

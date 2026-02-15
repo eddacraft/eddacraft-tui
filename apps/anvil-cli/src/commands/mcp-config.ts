@@ -66,8 +66,15 @@ export function createMcpConfigCommand(): Command {
     .option('--transport <type>', 'Transport type (stdio, http)', 'stdio')
     .option('--port <number>', 'HTTP port (only for http transport)', '3000')
     .option('--write', 'Write config file to disk (default: print to stdout)')
+    .option('-y, --yes', 'Skip confirmation when writing outside workspace')
     .action(
-      async (options: { target: string; transport: string; port: string; write?: boolean }) => {
+      async (options: {
+        target: string;
+        transport: string;
+        port: string;
+        write?: boolean;
+        yes?: boolean;
+      }) => {
         try {
           const target = options.target;
           if (!SUPPORTED_TARGETS.includes(target as McpConfigTarget)) {
@@ -93,10 +100,33 @@ export function createMcpConfigCommand(): Command {
             const { writeFileSync, mkdirSync } = await import('node:fs');
             const { dirname, resolve } = await import('node:path');
             const { homedir } = await import('node:os');
+            const { createInterface } = await import('node:readline');
             const expandedPath = config.configPath.startsWith('~/')
               ? config.configPath.replace('~', homedir())
               : config.configPath;
             const fullPath = resolve(process.cwd(), expandedPath);
+
+            // Confirm when writing outside the workspace
+            const cwd = process.cwd();
+            if (!fullPath.startsWith(cwd + '/') && fullPath !== cwd && !options.yes) {
+              if (!process.stdin.isTTY) {
+                console.error(
+                  `Target path is outside workspace: ${fullPath}\n` +
+                    `Use --yes to skip confirmation in non-interactive mode.`
+                );
+                process.exit(1);
+              }
+              const rl = createInterface({ input: process.stdin, output: process.stdout });
+              const answer = await new Promise<string>((res) => {
+                rl.question(`Write config outside workspace to ${fullPath}? [y/N] `, res);
+              });
+              rl.close();
+              if (answer.toLowerCase() !== 'y') {
+                console.log('Aborted.');
+                return;
+              }
+            }
+
             mkdirSync(dirname(fullPath), { recursive: true });
             writeFileSync(fullPath, JSON.stringify(config.content, null, 2) + '\n', 'utf-8');
             console.log(`Wrote ${config.configPath}`);

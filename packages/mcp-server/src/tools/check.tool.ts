@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { validateWorkspaceRoot } from '../utils/validate-workspace.js';
+import { validateWorkspaceRootAgainstServer } from '../utils/validate-workspace.js';
 
 /**
  * Registers the `anvil_check` tool on the given MCP server.
@@ -8,7 +8,7 @@ import { validateWorkspaceRoot } from '../utils/validate-workspace.js';
  * The tool validates files against Anvil architecture and antipattern rules,
  * returning warnings with locations, explanations, and suggestions.
  */
-export function registerCheckTool(server: McpServer): void {
+export function registerCheckTool(server: McpServer, serverRoot?: string): void {
   server.registerTool(
     'anvil_check',
     {
@@ -31,7 +31,7 @@ export function registerCheckTool(server: McpServer): void {
     },
     async ({ files, workspaceRoot, checks }) => {
       try {
-        validateWorkspaceRoot(workspaceRoot);
+        validateWorkspaceRootAgainstServer(workspaceRoot, serverRoot);
         // Dynamic import to avoid requiring runtime at module load
         const { GateRunner } = await import('@eddacraft/anvil-runtime');
         const runner = new GateRunner();

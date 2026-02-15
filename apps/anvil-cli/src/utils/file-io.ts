@@ -80,6 +80,9 @@ export function readJsonFileSync<T = unknown>(filePath: string): T | null {
   }
 }
 
+/** Tracks whether the workspace root warning has already been emitted this process */
+let workspaceRootWarningEmitted = false;
+
 export function getWorkspaceRoot(): string {
   // Look for package.json or .git directory to find workspace root
   let currentDir = process.cwd();
@@ -89,6 +92,15 @@ export function getWorkspaceRoot(): string {
       return currentDir;
     }
     currentDir = resolve(currentDir, '..');
+  }
+
+  // No workspace root found — warn once, then fall back to cwd
+  if (!workspaceRootWarningEmitted) {
+    workspaceRootWarningEmitted = true;
+    process.stderr.write(
+      'Warning: No workspace root found (no package.json or .git directory in parent chain).\n' +
+        '  Falling back to current directory. Run from a project directory or run `anvil init`.\n'
+    );
   }
 
   return process.cwd();

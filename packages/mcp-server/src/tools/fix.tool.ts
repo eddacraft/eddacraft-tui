@@ -84,7 +84,10 @@ export function registerFixTool(server: McpServer, getWorkspaceRoot: () => strin
       title: 'Anvil Fix',
       description:
         'Apply deterministic auto-fixes for known antipattern warnings. ' +
-        'Supports AP-001 (broad eslint-disable), AP-003 (explicit any), AP-004 (@ts-ignore).',
+        'Supports AP-001 (broad eslint-disable), AP-003 (explicit any), AP-004 (@ts-ignore). ' +
+        'LIMITATION: AP-003 uses line-by-line regex, so it may match `: any` inside string ' +
+        'literals or comments. It does not handle generic parameters (Array<any>), union types, ' +
+        'or complex function signatures. Always review the applied changes.',
       inputSchema: {
         filePath: z.string().describe('File path relative to workspace root'),
         warningId: z.string().describe('Warning/pattern ID (e.g., AP-003, AP-004)'),

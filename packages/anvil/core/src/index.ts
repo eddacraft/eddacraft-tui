@@ -1,11 +1,13 @@
 /**
  * @eddacraft/anvil-core
  *
- * Pure domain logic for the Anvil system.
+ * Core domain logic for the Anvil system.
  * Contains antipattern detection, architecture analysis, drift detection,
  * suppression management, validation, and other core functionality.
  *
- * This package has NO I/O operations - all I/O is handled by @eddacraft/anvil-runtime.
+ * Note: Some modules perform filesystem I/O (provenance, drift snapshots,
+ * architecture baseline, suppression store). Heavy I/O orchestration
+ * (gate runner, caching, OPA execution) lives in @eddacraft/anvil-runtime.
  *
  * @module @eddacraft/anvil-core
  */

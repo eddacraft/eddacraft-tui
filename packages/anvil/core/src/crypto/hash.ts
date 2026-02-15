@@ -25,8 +25,10 @@ export function generateHash(data: unknown): string {
 /**
  * Converts an object to a canonical JSON string with sorted keys
  * This ensures consistent hashing regardless of property order
+ *
  * @param obj - The object to serialize
  * @returns Canonical JSON string representation
+ * @throws {TypeError} If obj is `undefined` (not a valid JSON value)
  */
 export function canonicalizeJSON(obj: unknown): string {
   if (obj === null) {
@@ -34,7 +36,9 @@ export function canonicalizeJSON(obj: unknown): string {
   }
 
   if (obj === undefined) {
-    return 'undefined';
+    throw new TypeError(
+      'canonicalizeJSON does not accept undefined — it is not a valid JSON value. Use null instead.'
+    );
   }
 
   if (typeof obj === 'string') {

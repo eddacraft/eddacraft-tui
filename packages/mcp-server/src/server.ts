@@ -65,13 +65,16 @@ export function createAnvilMcpServer(options: AnvilMcpServerOptions = {}): McpSe
     return process.cwd();
   };
 
-  // Register tools
-  registerCheckTool(server);
-  registerGateTool(server);
-  registerStatusTool(server);
+  // The server root (if configured) is used to restrict client workspace paths
+  const serverRoot = projectRoot;
+
+  // Register tools — read tools get serverRoot for workspace validation
+  registerCheckTool(server, serverRoot);
+  registerGateTool(server, serverRoot);
+  registerStatusTool(server, serverRoot);
   registerFixTool(server, getWorkspaceRoot);
   registerSuppressTool(server, getWorkspaceRoot);
-  registerQueryBoundaryTool(server);
+  registerQueryBoundaryTool(server, serverRoot);
 
   // Register prompts
   registerFixViolationPrompt(server);

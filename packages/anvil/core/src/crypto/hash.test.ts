@@ -115,12 +115,17 @@ describe('Hash Generation', () => {
       expect(json).toContain('"null":null');
     });
 
-    it('should skip undefined values', () => {
+    it('should skip undefined values in objects', () => {
       const obj = { a: 1, b: undefined, c: 3 };
       const json = canonicalizeJSON(obj);
 
       expect(json).toBe('{"a":1,"c":3}');
       expect(json).not.toContain('undefined');
+    });
+
+    it('should throw TypeError for top-level undefined', () => {
+      expect(() => canonicalizeJSON(undefined)).toThrow(TypeError);
+      expect(() => canonicalizeJSON(undefined)).toThrow(/not a valid JSON value/);
     });
 
     it('should handle dates', () => {
