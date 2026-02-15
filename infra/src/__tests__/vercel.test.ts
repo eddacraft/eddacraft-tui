@@ -1,14 +1,28 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { afterEach, describe, it, expect, beforeAll, vi } from 'vitest';
 import * as pulumi from '@pulumi/pulumi';
 
+vi.mock('../../src/keyvault.js', () => ({
+  getSecret: (name: string) => {
+    const secrets: Record<string, string> = {
+      'website-database-url': 'mock-database-url',
+      'unosend-api-key': 'mock-unosend-key',
+    };
+    const value = secrets[name];
+    if (value === undefined) {
+      throw new Error(`Unknown secret requested in test: ${name}`);
+    }
+    return pulumi.output(value);
+  },
+}));
+
 describe('Vercel resources', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const resources: pulumi.runtime.MockResourceArgs[] = [];
 
   beforeAll(async () => {
-    pulumi.runtime.setAllConfig({
-      'vercel-apps:website-database-url': 'mock-database-url',
-      'vercel-apps:unosend-api-key': 'mock-unosend-key',
-    });
     pulumi.runtime.setMocks(
       {
         newResource(args: pulumi.runtime.MockResourceArgs) {

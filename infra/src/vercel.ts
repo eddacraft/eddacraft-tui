@@ -1,11 +1,10 @@
-import * as pulumi from '@pulumi/pulumi';
 import { VercelApp } from './components/vercel-app.js';
+import { getSecret } from './keyvault.js';
 
-const config = new pulumi.Config('vercel-apps');
 const gitRepo = 'EddaCraft/anvil-001';
 
-const websiteDatabaseUrl = config.getSecret('website-database-url');
-const unosendApiKey = config.getSecret('unosend-api-key');
+const websiteDatabaseUrl = getSecret('website-database-url');
+const unosendApiKey = getSecret('unosend-api-key');
 
 // IAC-003: Website (Next.js)
 export const website = new VercelApp('website', {
@@ -15,8 +14,8 @@ export const website = new VercelApp('website', {
   gitRepo,
   domains: ['eddacraft.ai'],
   envVars: {
-    ...(websiteDatabaseUrl ? { DATABASE_URL: websiteDatabaseUrl } : {}),
-    ...(unosendApiKey ? { UNOSEND_API_KEY: unosendApiKey } : {}),
+    DATABASE_URL: websiteDatabaseUrl,
+    UNOSEND_API_KEY: unosendApiKey,
   },
 });
 

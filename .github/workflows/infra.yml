@@ -23,11 +23,32 @@ env:
   PULUMI_STACK_UP: prod
 
 jobs:
+  # Check if Azure infrastructure secrets are configured
+  check-secrets:
+    name: Check Azure Secrets
+    runs-on: ubuntu-latest
+    outputs:
+      azure-configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - name: Check if ARM secrets exist
+        id: check
+        run: |
+          if [ -n "$ARM_CLIENT_ID" ] && [ -n "$ARM_CLIENT_SECRET" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::Azure secrets (ARM_CLIENT_ID, ARM_CLIENT_SECRET) not configured — skipping Pulumi jobs"
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+
   preview:
     name: Pulumi Preview
-    if:
-      github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name ==
-      github.repository
+    needs: check-secrets
+    if: >-
+      needs.check-secrets.outputs.azure-configured == 'true' && github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -45,17 +66,34 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Pulumi CLI
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+
+      - name: Fetch Vercel token from Key Vault
+        run: |
+          VERCEL_TOKEN=$(az keyvault secret show --vault-name kv-iac-anvil --name vercel-token --query value -o tsv)
+          echo "::add-mask::$VERCEL_TOKEN"
+          echo "VERCEL_TOKEN=$VERCEL_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Pulumi Preview
         uses: pulumi/actions@v6
         with:
           command: preview
           stack-name: ${{ env.PULUMI_STACK_PREVIEW }}
           work-dir: infra
+          cloud-url: azblob://pulumi-state
           comment-on-pr: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
         env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          VERCEL_API_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          VERCEL_API_TOKEN: ${{ env.VERCEL_TOKEN }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
@@ -63,7 +101,10 @@ jobs:
 
   up:
     name: Pulumi Up
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check-secrets
+    if: >-
+      needs.check-secrets.outputs.azure-configured == 'true' && github.event_name == 'push' &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -81,15 +122,32 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+
+      - name: Fetch Vercel token from Key Vault
+        run: |
+          VERCEL_TOKEN=$(az keyvault secret show --vault-name kv-iac-anvil --name vercel-token --query value -o tsv)
+          echo "::add-mask::$VERCEL_TOKEN"
+          echo "VERCEL_TOKEN=$VERCEL_TOKEN" >> "$GITHUB_ENV"
+
       - name: Apply infrastructure changes
         uses: pulumi/actions@v6
         with:
           command: up
           stack-name: ${{ env.PULUMI_STACK_UP }}
           work-dir: infra
+          cloud-url: azblob://pulumi-state
         env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          VERCEL_API_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          VERCEL_API_TOKEN: ${{ env.VERCEL_TOKEN }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}

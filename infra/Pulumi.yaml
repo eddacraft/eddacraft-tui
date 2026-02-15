@@ -4,3 +4,5 @@ runtime:
   options:
     packagemanager: pnpm
 description: Infrastructure as Code for the Anvil monorepo
+backend:
+  url: azblob://pulumi-state
