@@ -3,6 +3,7 @@ id: quickstart
 title: Beta Quickstart
 description: Get up and running with the Anvil beta in 10 minutes.
 sidebar_position: 1
+slug: /
 ---
 
 # Beta Quickstart
@@ -13,7 +14,8 @@ all in about 10 minutes.
 :::info Beta release
 
 This is **pre-release software** (0.1.0-beta). APIs and behaviour may change
-between releases. Your feedback directly shapes the product before public launch.
+between releases. Your feedback directly shapes the product before public
+launch.
 
 :::
 
@@ -69,7 +71,18 @@ npx anvil tutorial drift          # Track architecture drift over time
 npx anvil tutorial ci             # Set up CI integration
 ```
 
-## Step 2 -- Initialise Your Project
+## Step 2 -- Log In
+
+Authenticate with your beta access token (provided with your invite):
+
+```bash
+npx anvil login
+```
+
+You will be prompted for your token. Once authenticated, all CLI commands are
+available.
+
+## Step 3 -- Initialise Your Project
 
 Try Anvil on a real codebase:
 
@@ -101,7 +114,7 @@ Created files:
   .anvil/
 ```
 
-## Step 3 -- Scan Your Codebase
+## Step 4 -- Scan Your Codebase
 
 Run a full scan to see what Anvil catches:
 
@@ -140,10 +153,10 @@ npx anvil check --verbose            # Detailed explanations
 ```bash
 npx anvil explain AP-003                    # What does AP-003 mean?
 npx anvil explain AP-003-src/file.ts:42     # Explain with file context
-npx anvil explain --list                    # List all explainable rules
+npx anvil explain --rules                   # List all explainable rules
 ```
 
-## Step 4 -- Watch Mode
+## Step 5 -- Watch Mode
 
 Start real-time validation as you code:
 
@@ -168,7 +181,7 @@ Run watch mode in a dedicated terminal pane or use the
 
 :::
 
-## Step 5 -- Run Diagnostics
+## Step 6 -- Run Diagnostics
 
 If something is not working, run the doctor:
 
@@ -235,17 +248,17 @@ Found a bug or have feedback?
 
 ## Quick Reference
 
-| Command                      | Purpose                         |
-| ---------------------------- | ------------------------------- |
-| `npx anvil tutorial`        | Interactive guided tutorial     |
-| `npx anvil init`            | Set up Anvil in a project       |
-| `npx anvil check --all`     | Scan entire codebase            |
-| `npx anvil watch --source`  | Real-time validation            |
-| `npx anvil doctor`          | Diagnostics and troubleshooting |
-| `npx anvil explain <rule>`  | Understand a warning            |
-| `npx anvil status`          | Check configuration and state   |
-| `npx anvil gate`            | Run quality gates               |
-| `npx anvil --help`          | See all commands                |
+| Command                    | Purpose                         |
+| -------------------------- | ------------------------------- |
+| `npx anvil tutorial`       | Interactive guided tutorial     |
+| `npx anvil init`           | Set up Anvil in a project       |
+| `npx anvil check --all`    | Scan entire codebase            |
+| `npx anvil watch --source` | Real-time validation            |
+| `npx anvil doctor`         | Diagnostics and troubleshooting |
+| `npx anvil explain <rule>` | Understand a warning            |
+| `npx anvil status`         | Check configuration and state   |
+| `npx anvil gate`           | Run quality gates               |
+| `npx anvil --help`         | See all commands                |
 
 ## Next Steps
 

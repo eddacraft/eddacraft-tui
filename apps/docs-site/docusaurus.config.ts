@@ -113,6 +113,7 @@ const config: Config = {
         path: '../../docs/public/beta',
         routeBasePath: 'beta',
         sidebarPath: './sidebars/beta.ts',
+        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/beta/',
       },
     ],
   ],
