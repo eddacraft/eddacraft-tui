@@ -39,8 +39,8 @@ describe('DNS resources', () => {
     expect(recordSets.length).toBe(3);
 
     const names = recordSets.map((r) => r.name);
+    expect(names).toContain('root-txt-eddacraft-ai');
+    expect(names).toContain('dmarc-eddacraft-ai');
     expect(names).toContain('unosend-dkim-eddacraft-ai');
-    expect(names).toContain('send-mx-eddacraft-ai');
-    expect(names).toContain('send-spf-eddacraft-ai');
   });
 });

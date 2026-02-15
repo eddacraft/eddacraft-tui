@@ -30,12 +30,30 @@ export async function sendWaitlistConfirmation(email: string): Promise<void> {
   }
 
   const safeEmail = escapeHtml(email);
+  const unsubscribeMailto = `mailto:anvil@eddacraft.ai?subject=Unsubscribe&body=Please remove ${email} from the waitlist.`;
 
   const { error } = await unosend.emails.send({
     from: FROM_ADDRESS,
     replyTo: REPLY_TO,
     to: email,
     subject: "You're on the Anvil waitlist",
+    headers: {
+      'List-Unsubscribe': `<${unsubscribeMailto}>`,
+    },
+    text: `$ anvil :: waitlist confirm
+
+[ OK ] Access request received
+
+Your email ${email} has been added to the Anvil waitlist.
+
+We're onboarding engineering teams in controlled cohorts. You'll hear from us when your slot opens.
+
+If you have any questions or feedback, just reply to this email — I personally respond to each one.
+
+—
+anvil :: eddacraft.ai
+
+To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}`,
     html: `<!DOCTYPE html>
 <html>
 <head>
@@ -70,8 +88,11 @@ export async function sendWaitlistConfirmation(email: string): Promise<void> {
           </tr>
           <tr>
             <td style="padding-top:24px;border-top:1px solid #262626;">
-              <p style="margin:0;font-size:11px;color:#525252;">
+              <p style="margin:0 0 8px;font-size:11px;color:#525252;">
                 anvil :: eddacraft.ai
+              </p>
+              <p style="margin:0;font-size:10px;">
+                <a href="${unsubscribeMailto}" style="color:#525252;text-decoration:underline;">unsubscribe</a>
               </p>
             </td>
           </tr>
