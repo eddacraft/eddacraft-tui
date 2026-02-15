@@ -242,6 +242,7 @@ jobs:
 
       - name: Azure Login
         uses: azure/login@v2
+        continue-on-error: true
         with:
           creds:
             '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
@@ -318,6 +319,7 @@ jobs:
 
       - name: Azure Login
         uses: azure/login@v2
+        continue-on-error: true
         with:
           creds:
             '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
@@ -380,6 +382,7 @@ jobs:
 
       - name: Azure Login
         uses: azure/login@v2
+        continue-on-error: true
         with:
           creds:
             '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
