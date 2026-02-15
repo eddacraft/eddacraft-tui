@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createDebugger } from '../utils/debug.js';
 import {
   type DriftSnapshot,
   type SnapshotViolation,
@@ -21,6 +22,7 @@ import { scanFiles, type ScanResult } from '../antipattern/index.js';
 import { SuppressionService, type FileSuppressions } from '../suppression/index.js';
 import { generateHash } from '../crypto/index.js';
 
+const debug = createDebugger('drift');
 const execFileAsync = promisify(execFile);
 
 export interface CaptureOptions {
@@ -42,7 +44,8 @@ async function getGitRef(workspaceRoot: string): Promise<string | undefined> {
   try {
     const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot });
     return stdout.trim();
-  } catch {
+  } catch (err) {
+    debug('failed to get git ref for workspace: %s', err);
     return undefined;
   }
 }
@@ -222,7 +225,8 @@ export class SnapshotCaptureService {
         try {
           const content = await fs.readFile(fullPath, 'utf-8');
           return { path: filePath, content };
-        } catch {
+        } catch (err) {
+          debug('failed to read file for snapshot capture: %s', err);
           return null;
         }
       })

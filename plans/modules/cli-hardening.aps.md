@@ -9,13 +9,15 @@ See: apps/anvil-cli/REVIEW.md, packages/anvil/core/REVIEW.md, apps/anvil-api/REV
 
 | ID                                       | Owner | Status      |
 | ---------------------------------------- | ----- | ----------- |
-| CLIH, CORE, API, MCP, RT, POL, ADP, APS, VSIX, PLAT | — | In Progress |
+| CLIH, CORE, API, MCP, RT, POL, ADP, APS, VSIX, PLAT | — | Complete |
 
 ## Branch Status
 
 > **Note:** Branch `hardening/wave-0-foundation` (commit `333a291`) implemented
 > 47 of 66 tasks. Additional P2 tasks completed on 2026-02-15: CLIH-009,
-> CLIH-010, CORE-007, CORE-009, API-007, APS-PKG-002 (53 of 66 total).
+> CLIH-010, CORE-007, CORE-009, API-007, APS-PKG-002. P3/Optional tasks
+> completed on 2026-02-15: CLIH-011, 013-016, 018; CORE-010-014; API-009-012;
+> MCP-006; MCPH-004-009. **All 66 tasks complete.**
 
 ## Purpose
 
@@ -311,7 +313,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CLIH-012: Upgrade ora to ESM-native version
 
@@ -340,7 +342,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CLIH-014: Log warning when ANVIL_SKIP_GATES/HOOKS is active
 
@@ -354,7 +356,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CLIH-015: Implement YAML export or remove --to yaml option
 
@@ -367,7 +369,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CLIH-016: Add timeout to execFileSync git calls in policy diff
 
@@ -379,7 +381,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CLIH-017: Split policy.ts into smaller modules
 
@@ -409,7 +411,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ---
 
@@ -563,7 +565,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CORE-011: Batch getAuthorshipStats commit processing
 
@@ -576,7 +578,7 @@ Change status to **Ready** when:
 - **Dependencies:** CORE-002 (exec migration should happen first)
 - **Confidence:** medium
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CORE-012: Add input validation to expandLineRanges
 
@@ -589,7 +591,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### CORE-013: Complete architecture violations detection
 
@@ -619,7 +621,7 @@ Change status to **Ready** when:
 - **Priority:** P3
 - **Notes:** Redaction heuristics can produce false positives. Keep the approach
   simple (e.g., redact values longer than 20 chars that look like hex/base64).
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ---
 
@@ -761,7 +763,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### API-010: Document TOKEN_PEPPER rotation procedure
 
@@ -774,7 +776,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### API-011: Gate setClient() behind NODE_ENV check
 
@@ -786,7 +788,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ### API-012: Remove server timestamp from health endpoint
 
@@ -799,7 +801,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ---
 
@@ -880,7 +882,7 @@ Change status to **Ready** when:
 - **Dependencies:** MCP-001
 - **Confidence:** high
 - **Priority:** P3
-- **Status:** Optional
+- **Status:** Complete (2026-02-15)
 
 ---
 

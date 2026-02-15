@@ -150,6 +150,29 @@ export interface AnalyzeResult {
   suppressionStats?: SuppressionStats;
 }
 
+/**
+ * Creates a minimal valid PlanData object for use in planless/full-codebase
+ * gate runs where no real plan exists. Avoids unsafe double type-casts.
+ */
+export function createEmptyPlan(): PlanData {
+  return {
+    schema_version: '0.1.0',
+    id: 'aps-00000000',
+    hash: '0'.repeat(64),
+    intent: 'Full codebase quality gate run (no plan)',
+    proposed_changes: [],
+    provenance: {
+      timestamp: new Date().toISOString(),
+      source: 'automation',
+      version: '0.0.1',
+    },
+    validations: {
+      required_checks: [],
+      skip_checks: [],
+    },
+  };
+}
+
 export class GateRunner {
   private checks: Map<string, Check> = new Map();
   private defaultCache: CacheProvider = new NullCacheProvider();

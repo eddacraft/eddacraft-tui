@@ -14,7 +14,7 @@ export function generateVscodeConfig(options: McpConfigOptions = {}): McpConfig 
       content: {
         servers: {
           [SERVER_NAME]: {
-            type: 'sse',
+            type: 'http',
             url: `http://localhost:${port}/mcp`,
           },
         },

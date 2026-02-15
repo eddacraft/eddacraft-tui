@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { PlanData } from '@eddacraft/anvil-runtime';
+import { createEmptyPlan } from '@eddacraft/anvil-runtime';
 import { validateWorkspaceRootAgainstServer } from '../utils/validate-workspace.js';
 
 /**
@@ -68,24 +68,7 @@ export function registerGateTool(server: McpServer, serverRoot?: string): void {
         // Full gate run with config
         const configManager = new GateConfigManager(workspaceRoot);
         const config = configManager.loadConfig();
-        // Minimal valid plan for planless full-codebase gate runs
-        const emptyPlan: PlanData = {
-          schema_version: '0.1.0',
-          id: 'aps-00000000',
-          hash: '0'.repeat(64),
-          intent: 'Full codebase quality gate run (MCP)',
-          proposed_changes: [],
-          provenance: {
-            timestamp: new Date().toISOString(),
-            source: 'automation',
-            version: '0.0.1',
-          },
-          validations: {
-            required_checks: [],
-            skip_checks: [],
-          },
-        };
-        const result = await runner.runGate(emptyPlan, config, workspaceRoot, {
+        const result = await runner.runGate(createEmptyPlan(), config, workspaceRoot, {
           skipChecks,
           failFast,
         });

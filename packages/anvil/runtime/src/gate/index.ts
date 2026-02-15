@@ -1,4 +1,4 @@
-export { GateRunner } from './gate-runner.js';
+export { GateRunner, createEmptyPlan } from './gate-runner.js';
 export type {
   AnalyzeOptions,
   AnalyzeResult,

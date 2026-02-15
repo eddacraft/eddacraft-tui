@@ -5,7 +5,7 @@
 
 | Scope    | Owner | Priority | Status |
 | -------- | ----- | -------- | ------ |
-| KINDLING | —     | medium   | Draft  |
+| KINDLING | —     | medium   | In Progress |
 
 ## Purpose
 
@@ -177,7 +177,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** —
 - **Validation:** `nx test kindling-integration --testNamePattern="KindlingService"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-002: Configuration schema and loading
 
@@ -192,7 +192,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-001
 - **Validation:** `nx test kindling-integration --testNamePattern="config"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 ### Phase B: Observation Emission (Write-Only)
 
@@ -210,7 +210,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-001, KINDLING-002
 - **Validation:** `anvil check && verify session observation in .anvil/kindling.db`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-004: Gate evaluation observations
 
@@ -225,7 +225,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-003
 - **Validation:** `nx test kindling-integration --testNamePattern="gate-emitter" && anvil check --verify-observations`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-005: Action execution observations
 
@@ -240,7 +240,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-003
 - **Validation:** `nx test kindling-integration --testNamePattern="action-emitter"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-006: Plan lifecycle observations
 
@@ -255,7 +255,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-003
 - **Validation:** `nx test kindling-integration --testNamePattern="plan-emitter"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-007: Human input and constraint observations
 
@@ -270,7 +270,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-003
 - **Validation:** `nx test kindling-integration --testNamePattern="human|constraint"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-008: Error observations
 
@@ -285,7 +285,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-003
 - **Validation:** `nx test kindling-integration --testNamePattern="error-emitter"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 ### Phase C: Query API (Read-Only)
 
@@ -301,7 +301,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-001
 - **Validation:** `nx test kindling-integration --testNamePattern="QueryService"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-010: Query limits and throttling
 
@@ -316,7 +316,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-009
 - **Validation:** `nx test kindling-integration --testNamePattern="query-limits"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-011: Malicious AI test suite
 
@@ -329,7 +329,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-009, KINDLING-010
 - **Validation:** `nx test kindling-integration --testNamePattern="malicious-ai"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 ### Phase D: CLI Commands
 
@@ -345,7 +345,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-009
 - **Validation:** `anvil run show <id> --json | jq '.observations | length'`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-013: Plan, gate, action query commands
 
@@ -360,7 +360,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-009, KINDLING-012
 - **Validation:** `anvil plan trace <id> && anvil gate show <id> && anvil action show <id>`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 ### Phase E: Integration & Polish
 
@@ -375,7 +375,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-001
 - **Validation:** `anvil status | grep -A5 "Kindling"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-015: Sensitive data validation
 
@@ -390,7 +390,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-003 through KINDLING-008
 - **Validation:** `nx test kindling-integration --testNamePattern="sensitive-data"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-016: Retention and pruning
 
@@ -404,7 +404,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-001, KINDLING-002
 - **Validation:** `nx test kindling-integration --testNamePattern="retention"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-017: Performance benchmarking
 
@@ -417,7 +417,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-003 through KINDLING-008
 - **Validation:** `pnpm bench --filter kindling-integration`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-018: Documentation and examples
 
@@ -432,7 +432,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-012, KINDLING-013
 - **Validation:** Manual review of documentation completeness
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 #### KINDLING-019: OpenAPI spec generation
 
@@ -447,7 +447,7 @@ Make Anvil a credible system of record by integrating Kindling's local-first mem
 - **Dependencies:** KINDLING-001, KINDLING-009
 - **Validation:** `pnpm run generate:openapi && validate openapi.json against OpenAPI 3.1 schema`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete (2026-02-15)
 
 ## Decisions
 

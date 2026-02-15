@@ -6,4 +6,8 @@ export default defineConfig({
     environment: 'node',
     passWithNoTests: true,
   },
+  bench: {
+    globals: true,
+    include: ['benchmarks/**/*.bench.ts'],
+  },
 });

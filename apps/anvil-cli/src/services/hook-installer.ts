@@ -115,7 +115,7 @@ exit 0
 
 # Check for ANVIL_SKIP_HOOKS environment variable
 if [ -n "$ANVIL_SKIP_HOOKS" ]; then
-  echo "Anvil: Skipping hooks (ANVIL_SKIP_HOOKS is set)"
+  echo "Warning: ANVIL_SKIP_HOOKS is set — hook checks are being skipped." >&2
   exit 0
 fi
 

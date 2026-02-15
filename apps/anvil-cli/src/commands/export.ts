@@ -16,6 +16,7 @@ import {
   formatAsPrompt,
 } from '@eddacraft/anvil-runtime';
 import type { ExportOptions } from '../types/command-options.js';
+import { error as printError } from '../utils/output.js';
 
 export function createExportCommand(): Command {
   return new Command('export')
@@ -38,7 +39,7 @@ export function createExportCommand(): Command {
 
         // Handle plan conversion (--to aps, json, yaml, speckit)
         if (!options.to) {
-          console.error(chalk.red('Error: Either --format or --to must be specified'));
+          printError('Either --format or --to must be specified');
           console.log(chalk.gray('\nExamples:'));
           console.log(chalk.gray('  Constraint export:'), 'anvil export --format llms.txt');
           console.log(chalk.gray('  Plan conversion:  '), 'anvil export source.md --to json');
@@ -46,7 +47,7 @@ export function createExportCommand(): Command {
         }
 
         if (!sourcePath) {
-          console.error(chalk.red('Error: Source file path is required for plan conversion'));
+          printError('Source file path is required for plan conversion');
           process.exit(1);
         }
 
@@ -187,12 +188,9 @@ export function createExportCommand(): Command {
           } else {
             throw new Error(`Unsupported target format: ${options.to}`);
           }
-        } catch (error) {
+        } catch (err) {
           spinner.fail(chalk.red('Export failed'));
-          console.error(
-            chalk.red('Error:'),
-            error instanceof Error ? error.message : String(error)
-          );
+          printError(err instanceof Error ? err.message : String(err));
           process.exit(1);
         }
       }
@@ -286,9 +284,9 @@ async function exportConstraints(
     }
 
     console.log(chalk.green('\n✓ Export complete'));
-  } catch (error) {
+  } catch (err) {
     spinner.fail(chalk.red('Export failed'));
-    console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
+    printError(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
 }
@@ -343,8 +341,7 @@ function generateDefaultOutput(sourcePath: string, targetExt: string): string {
   return join(dir, `${base}.aps.${targetExt}`);
 }
 
-async function formatAsYaml(_plan: unknown): Promise<string> {
-  throw new Error(
-    'YAML export is not yet implemented. Use --format json instead, or install the yaml package.'
-  );
+async function formatAsYaml(plan: unknown): Promise<string> {
+  const { stringify } = await import('yaml');
+  return stringify(plan);
 }

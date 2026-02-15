@@ -254,6 +254,12 @@ behavior, but it means the consumer must inspect the response JSON to detect
 errors rather than relying on HTTP status codes. This is fine for MCP protocol
 compliance but worth noting.
 
+> **Note (2026-02-15):** This is standard MCP protocol behavior. The MCP
+> specification requires that tool and resource errors are conveyed in the
+> JSON-RPC response body, not via HTTP status codes. The HTTP layer is only a
+> transport; the application-level success/failure semantics live in the
+> JSON-RPC `result` or `error` fields. No change needed.
+
 #### 11. `server.test.ts` — tests 1 and 2 in `createAnvilMcpServer` describe block are redundant
 
 **File**: `server.test.ts:87-114`

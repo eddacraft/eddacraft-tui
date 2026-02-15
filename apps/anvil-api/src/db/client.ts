@@ -17,5 +17,8 @@ export function getClient(): NeonClient {
 
 /** Override the client (for testing). */
 export function setClient(client: NeonClient): void {
+  if (process.env.NODE_ENV !== 'test') {
+    throw new Error('setClient() is only available in test environment');
+  }
   _client = client;
 }

@@ -17,6 +17,66 @@
     "./observation": {
       "types": "./dist/observation-contract.d.ts",
       "import": "./dist/observation-contract.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    },
+    "./service": {
+      "types": "./dist/kindling-service.d.ts",
+      "import": "./dist/kindling-service.js"
+    },
+    "./emitters": {
+      "types": "./dist/emitters/index.d.ts",
+      "import": "./dist/emitters/index.js"
+    },
+    "./emitters/session": {
+      "types": "./dist/emitters/session-emitter.d.ts",
+      "import": "./dist/emitters/session-emitter.js"
+    },
+    "./emitters/gate": {
+      "types": "./dist/emitters/gate-emitter.d.ts",
+      "import": "./dist/emitters/gate-emitter.js"
+    },
+    "./emitters/action": {
+      "types": "./dist/emitters/action-emitter.d.ts",
+      "import": "./dist/emitters/action-emitter.js"
+    },
+    "./emitters/plan": {
+      "types": "./dist/emitters/plan-emitter.d.ts",
+      "import": "./dist/emitters/plan-emitter.js"
+    },
+    "./emitters/human-input": {
+      "types": "./dist/emitters/human-input-emitter.d.ts",
+      "import": "./dist/emitters/human-input-emitter.js"
+    },
+    "./emitters/constraint": {
+      "types": "./dist/emitters/constraint-emitter.d.ts",
+      "import": "./dist/emitters/constraint-emitter.js"
+    },
+    "./emitters/error": {
+      "types": "./dist/emitters/error-emitter.d.ts",
+      "import": "./dist/emitters/error-emitter.js"
+    },
+    "./query-service": {
+      "types": "./dist/query-service.d.ts",
+      "import": "./dist/query-service.js"
+    },
+    "./query-limits": {
+      "types": "./dist/query-limits.d.ts",
+      "import": "./dist/query-limits.js"
+    },
+    "./sensitive-data": {
+      "types": "./dist/sensitive-data-validator.d.ts",
+      "import": "./dist/sensitive-data-validator.js"
+    },
+    "./retention": {
+      "types": "./dist/retention.d.ts",
+      "import": "./dist/retention.js"
+    },
+    "./status": {
+      "types": "./dist/status.d.ts",
+      "import": "./dist/status.js"
     }
   },
   "files": [
@@ -26,6 +86,8 @@
   "scripts": {
     "build": "tsc",
     "test": "vitest",
+    "bench": "vitest bench",
+    "generate:openapi": "tsx scripts/generate-openapi.ts",
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {

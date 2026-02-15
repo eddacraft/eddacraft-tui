@@ -51,6 +51,7 @@ export function registerCheckTool(server: McpServer, serverRoot?: string): void 
                     severity: w.severity,
                     title: w.title,
                     message: w.message,
+                    explanation: w.explanation,
                     nudge: w.nudge,
                     suggestion: w.suggestion,
                     location: w.location,

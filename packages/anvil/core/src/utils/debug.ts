@@ -20,6 +20,9 @@ type DebugNamespace =
   | 'validation'
   | 'adapter'
   | 'architecture'
+  | 'edge-detector'
+  | 'entry-detector'
+  | 'drift'
   | 'policy'
   | 'git-ai-notes'
   | 'agent'
@@ -61,6 +64,33 @@ export function isDebugEnabled(namespace?: DebugNamespace): boolean {
  * @param data - Optional additional data to log
  */
 
+/**
+ * Redact values that look like tokens, keys, or secrets before logging.
+ *
+ * Patterns redacted:
+ * - Hex tokens (40+ hex characters, e.g. SHA tokens, API keys)
+ * - Base64 tokens (20+ chars of base64 alphabet)
+ * - Common secret prefixes: sk-, ghp_, ghu_, Bearer
+ *
+ * @param value - The string to sanitize
+ * @returns The sanitized string with secrets replaced by [REDACTED]
+ */
+export function sanitizeForLog(value: string): string {
+  // Redact strings starting with common secret prefixes
+  let sanitized = value.replace(/\b(sk-|ghp_|ghu_)[A-Za-z0-9_-]+/g, '[REDACTED]');
+
+  // Redact "Bearer <token>" patterns
+  sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9_.+/=-]+/g, 'Bearer [REDACTED]');
+
+  // Redact hex tokens (40+ hex chars, typical of SHA1/SHA256 tokens)
+  sanitized = sanitized.replace(/\b[0-9a-fA-F]{40,}\b/g, '[REDACTED]');
+
+  // Redact base64 tokens (20+ chars of base64 alphabet, ending with optional padding)
+  sanitized = sanitized.replace(/\b[A-Za-z0-9+/]{20,}={0,3}\b/g, '[REDACTED]');
+
+  return sanitized;
+}
+
 export function debug(namespace: DebugNamespace, message: string, data?: unknown): void {
   if (!isDebugEnabled(namespace)) {
     return;
@@ -68,19 +98,22 @@ export function debug(namespace: DebugNamespace, message: string, data?: unknown
 
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [anvil:${namespace}]`;
+  const sanitizedMessage = sanitizeForLog(message);
 
   /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
-      console.debug(`${prefix} ${message}:`, data.message);
+      console.debug(`${prefix} ${sanitizedMessage}:`, sanitizeForLog(data.message));
       if (data.stack) {
-        console.debug(`${prefix} Stack:`, data.stack);
+        console.debug(`${prefix} Stack:`, sanitizeForLog(data.stack));
       }
+    } else if (typeof data === 'string') {
+      console.debug(`${prefix} ${sanitizedMessage}:`, sanitizeForLog(data));
     } else {
-      console.debug(`${prefix} ${message}:`, data);
+      console.debug(`${prefix} ${sanitizedMessage}:`, data);
     }
   } else {
-    console.debug(`${prefix} ${message}`);
+    console.debug(`${prefix} ${sanitizedMessage}`);
   }
   /* eslint-enable no-console */
 }

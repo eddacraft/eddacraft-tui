@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import { auth } from './routes/auth.js';
 import { admin } from './routes/admin.js';
 import { rateLimiter } from './middleware/rate-limit.js';
+import { getClient } from './db/client.js';
 
 const app = new Hono().basePath('/api/v1');
 
@@ -26,8 +27,14 @@ app.use(
 
 app.use('*', rateLimiter());
 
-app.get('/health', (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/health', async (c) => {
+  try {
+    const sql = getClient();
+    await sql`SELECT 1`;
+    return c.json({ status: 'ok' });
+  } catch {
+    return c.json({ status: 'degraded', db: 'unreachable' }, 503);
+  }
 });
 
 app.route('/auth', auth);

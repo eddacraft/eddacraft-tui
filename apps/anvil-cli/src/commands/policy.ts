@@ -634,7 +634,7 @@ export function createPolicyCommand(): Command {
           const configDiff = execFileSync(
             'git',
             ['diff', '--name-status', 'HEAD', '--', configPath],
-            { cwd: workspaceRoot, encoding: 'utf-8' }
+            { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
           ).trim();
 
           if (configDiff) {
@@ -664,7 +664,7 @@ export function createPolicyCommand(): Command {
           const policyDiff = execFileSync(
             'git',
             ['diff', '--name-status', 'HEAD', '--', policyDir],
-            { cwd: workspaceRoot, encoding: 'utf-8' }
+            { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
           ).trim();
 
           if (policyDiff) {
@@ -694,7 +694,7 @@ export function createPolicyCommand(): Command {
           const untracked = execFileSync(
             'git',
             ['ls-files', '--others', '--exclude-standard', '--', policyDir, configPath],
-            { cwd: workspaceRoot, encoding: 'utf-8' }
+            { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
           ).trim();
 
           if (untracked) {
@@ -764,11 +764,14 @@ export function createPolicyCommand(): Command {
         const workspaceRoot = getWorkspaceRoot();
         const configMgr = new PolicyConfigManager(workspaceRoot);
 
-        const enforcement = options.enforcement as EnforcementLevel;
-        if (!['block', 'warn', 'info', 'off'].includes(enforcement)) {
-          error(`Invalid enforcement level: ${options.enforcement}`);
+        const validEnforcementLevels: readonly string[] = ['block', 'warn', 'info', 'off'];
+        if (!validEnforcementLevels.includes(options.enforcement)) {
+          error(
+            `Invalid enforcement level '${options.enforcement}'. Must be one of: ${validEnforcementLevels.join(', ')}`
+          );
           process.exit(1);
         }
+        const enforcement = options.enforcement as EnforcementLevel;
 
         configMgr.enablePolicy(name, enforcement);
         success(`Enabled policy '${name}' with enforcement: ${formatEnforcement(enforcement)}`);

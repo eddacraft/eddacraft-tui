@@ -7,6 +7,9 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, basename, dirname } from 'node:path';
 import type { EntryPoint, EntryPointType, DetectionConfidence } from './types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('entry-detector');
 
 /**
  * Entry point pattern with detection rules
@@ -183,8 +186,8 @@ export class EntryPointDetector {
           }
         }
       }
-    } catch {
-      // Ignore parse errors
+    } catch (err) {
+      debug('failed to parse package.json bin entries', err);
     }
 
     return null;
@@ -251,8 +254,8 @@ export class EntryPointDetector {
         const exportEntry = checkExports(pkg.exports);
         if (exportEntry) return exportEntry;
       }
-    } catch {
-      // Ignore parse errors
+    } catch (err) {
+      debug('failed to parse package.json main/exports', err);
     }
 
     return null;

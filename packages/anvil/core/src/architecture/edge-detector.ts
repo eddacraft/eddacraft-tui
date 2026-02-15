@@ -16,6 +16,9 @@ import { createHash } from 'node:crypto';
 import type { DependencyEdge, BaselineViolation } from './types.js';
 import { createViolationId } from './types.js';
 import { extractHtmlEdges, extractCssEdges } from './edge-detector-web.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('edge-detector');
 
 /**
  * Import edge extracted from source code
@@ -113,7 +116,8 @@ export function extractImports(
   try {
     const fullPath = workspaceRoot ? join(workspaceRoot, filePath) : filePath;
     content = readFileSync(fullPath, 'utf-8');
-  } catch {
+  } catch (err) {
+    debug('failed to read file for import extraction: %s', err);
     return edges;
   }
 

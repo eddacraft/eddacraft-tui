@@ -103,6 +103,7 @@ function convertToTUIGateResult(
 function parseSkipGatesEnv(): string[] {
   const envValue = process.env.ANVIL_SKIP_GATES;
   if (!envValue) return [];
+  process.stderr.write('Warning: ANVIL_SKIP_GATES is set — gate checks are being skipped.\n');
   return envValue
     .split(',')
     .map((s) => s.trim())

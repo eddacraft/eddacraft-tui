@@ -327,8 +327,13 @@ export async function getAuthorshipStats(
     const commits = stdout.trim().split('\n').filter(Boolean);
     stats.totalCommits = commits.length;
 
-    // Check each commit for authorship notes
-    for (const commit of commits) {
+    // Batch: get all commits that have authorship notes in a single git command
+    const notedCommits = new Set(await listAuthorshipNotes(workspaceRoot));
+
+    // Only read notes for commits that are both in the range AND have notes
+    const commitsWithNotes = commits.filter((commit) => notedCommits.has(commit));
+
+    for (const commit of commitsWithNotes) {
       const log = await readAuthorshipNote(commit, workspaceRoot);
       if (log) {
         stats.commitsWithAI++;

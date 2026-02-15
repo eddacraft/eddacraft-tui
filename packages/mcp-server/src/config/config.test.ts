@@ -125,12 +125,12 @@ describe('generateVscodeConfig', () => {
     expect(servers['anvil']['args']).toEqual(['@eddacraft/anvil-mcp-server']);
   });
 
-  it('generates HTTP config with type "sse"', () => {
+  it('generates HTTP config with type "http"', () => {
     const config = generateVscodeConfig({ transport: 'http' });
 
     const servers = config.content['servers'] as Record<string, Record<string, unknown>>;
     expect(servers['anvil']).toBeDefined();
-    expect(servers['anvil']['type']).toBe('sse');
+    expect(servers['anvil']['type']).toBe('http');
     expect(servers['anvil']['url']).toBe('http://localhost:3000/mcp');
     expect(servers['anvil']).not.toHaveProperty('command');
   });

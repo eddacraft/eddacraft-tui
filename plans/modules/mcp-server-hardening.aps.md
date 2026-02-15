@@ -9,7 +9,7 @@ See: packages/mcp-server/REVIEW.md
 
 | ID   | Owner | Status      |
 | ---- | ----- | ----------- |
-| MCPH | —     | In Progress |
+| MCPH | —     | Complete |
 
 ## Purpose
 
@@ -126,6 +126,7 @@ Change status to **Ready** when:
 - **Priority:** P2
 - **Notes:** Requires coordinated change across two packages. The runtime
   currently tolerates missing fields but this is undocumented internal behavior.
+- **Status:** Complete (2026-02-15)
 
 ### MCPH-005: Add Content-Type validation to HTTP transport
 
@@ -140,6 +141,7 @@ Change status to **Ready** when:
 - **Priority:** P2
 - **Notes:** Express 5's `express.json()` silently passes non-JSON requests.
   Add explicit middleware check before JSON parsing.
+- **Status:** Complete (already implemented at lines 59-72 of streamable-http.ts)
 
 ### MCPH-006: Include explanation field in check tool output
 
@@ -152,6 +154,7 @@ Change status to **Ready** when:
 - **Confidence:** high
 - **Priority:** P3
 - **Notes:** One-line change to include `explanation` in the warning mapping.
+- **Status:** Complete (2026-02-15)
 
 ### MCPH-007: Verify VS Code MCP config type
 
@@ -166,6 +169,7 @@ Change status to **Ready** when:
 - **Notes:** Current config uses `type: "sse"` which may be outdated. Need to
   check VS Code MCP extension docs for current schema. May need to be `"http"`
   or `"streamable-http"`.
+- **Status:** Complete (2026-02-15)
 
 ### MCPH-008: Document MCP protocol error semantics
 
@@ -180,6 +184,7 @@ Change status to **Ready** when:
 - **Priority:** P3
 - **Notes:** This is standard MCP behavior, not a bug. Documentation prevents
   future confusion.
+- **Status:** Complete (2026-02-15)
 
 ### MCPH-009: Add rate limiting for non-localhost HTTP deployments
 
@@ -195,6 +200,7 @@ Change status to **Ready** when:
 - **Notes:** Only needed if server is exposed beyond localhost. Current scope
   is localhost-only, so this is low priority. Consider express-rate-limit
   middleware.
+- **Status:** Complete (2026-02-15)
 
 ## Risks
 

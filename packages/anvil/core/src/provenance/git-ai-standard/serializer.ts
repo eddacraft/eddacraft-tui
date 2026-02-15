@@ -173,6 +173,9 @@ export function isAuthorshipLog(content: string): boolean {
 /**
  * Parse line ranges into an array of line numbers
  *
+ * Validates each part and skips invalid entries with a warning rather than
+ * throwing. Empty parts, NaN values, and ranges where start > end are skipped.
+ *
  * @param ranges - Line range string (e.g., "1-10,15,20-25")
  * @returns Array of individual line numbers
  */
@@ -180,13 +183,45 @@ export function expandLineRanges(ranges: string): number[] {
   const lines: number[] = [];
 
   for (const part of ranges.split(',')) {
-    if (part.includes('-')) {
-      const [start, end] = part.split('-').map(Number);
+    const trimmed = part.trim();
+
+    // Skip empty parts (e.g., trailing commas, double commas)
+    if (trimmed === '') {
+      continue;
+    }
+
+    if (trimmed.includes('-')) {
+      const segments = trimmed.split('-');
+      if (segments.length !== 2) {
+        console.warn(`[anvil] expandLineRanges: skipping invalid range part "${trimmed}"`);
+        continue;
+      }
+
+      const start = Number(segments[0]);
+      const end = Number(segments[1]);
+
+      if (!Number.isInteger(start) || !Number.isInteger(end)) {
+        console.warn(`[anvil] expandLineRanges: skipping non-integer range "${trimmed}"`);
+        continue;
+      }
+
+      if (start > end) {
+        console.warn(`[anvil] expandLineRanges: skipping invalid range "${trimmed}" (start > end)`);
+        continue;
+      }
+
       for (let i = start; i <= end; i++) {
         lines.push(i);
       }
     } else {
-      lines.push(Number(part));
+      const num = Number(trimmed);
+
+      if (!Number.isInteger(num)) {
+        console.warn(`[anvil] expandLineRanges: skipping non-integer value "${trimmed}"`);
+        continue;
+      }
+
+      lines.push(num);
     }
   }
 

@@ -8,12 +8,15 @@
 import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { minimatch } from 'minimatch';
+import { createDebugger } from '../utils/debug.js';
 import { LayerDetector, createLayerDetector } from './layer-detector.js';
 import { EntryPointDetector, createEntryPointDetector } from './entry-detector.js';
 import { BaselineManager, createBaselineManager } from './baseline.js';
+import { extractImportsFromFiles, toDependencyEdge } from './edge-detector.js';
 import {
   type ArchitectureBaseline,
   type Layers,
+  type Boundary,
   type EntryPoint,
   type LayerAssignment,
   type BoundaryViolation,
@@ -22,6 +25,8 @@ import {
   createDefaultLayers,
   createDefaultBoundaries,
 } from './types.js';
+
+const debug = createDebugger('architecture');
 
 /**
  * Analysis result
@@ -87,12 +92,14 @@ const DEFAULT_INCLUDE_PATTERNS = [
  * Architecture analyzer
  */
 export class ArchitectureAnalyzer {
+  private workspaceRoot: string;
   private layerDetector: LayerDetector;
   private entryPointDetector: EntryPointDetector;
   private baselineManager: BaselineManager;
   private options: Required<AnalyzerOptions>;
 
   constructor(workspaceRoot: string, options: AnalyzerOptions = {}) {
+    this.workspaceRoot = workspaceRoot;
     this.options = {
       layers: options.layers ?? createDefaultLayers(),
       includeTests: options.includeTests ?? false,
@@ -129,8 +136,8 @@ export class ArchitectureAnalyzer {
     const layers =
       Object.keys(this.options.layers).length > 0 ? this.options.layers : suggestedLayers;
 
-    // Detect violations (would need dependency graph - placeholder for now)
-    const violations: BoundaryViolation[] = [];
+    // Detect violations by extracting imports and checking against layer boundaries
+    const violations = this.detectViolations(filteredPaths, layers);
 
     // Classify violations as new or existing
     const baseline = this.baselineManager.load();
@@ -212,6 +219,56 @@ export class ArchitectureAnalyzer {
     }
 
     return { newViolations, existingViolations };
+  }
+
+  /**
+   * Detect boundary violations by extracting imports and checking layer rules.
+   *
+   * For each import edge that crosses layer boundaries, checks whether the
+   * dependency is allowed by the layer's `depends_on` rules. Disallowed
+   * cross-layer imports are returned as BoundaryViolations.
+   */
+  private detectViolations(filePaths: string[], layers: Layers): BoundaryViolation[] {
+    const violations: BoundaryViolation[] = [];
+
+    // Extract all import edges from source files
+    const edges = extractImportsFromFiles(filePaths, this.workspaceRoot);
+
+    // Build boundary rules (disallowed layer pairs)
+    const boundaries = createDefaultBoundaries(layers);
+    const boundaryMap = new Map<string, Boundary>();
+    for (const boundary of boundaries) {
+      boundaryMap.set(`${boundary.from}->${boundary.to}`, boundary);
+    }
+
+    // Check each edge against layer rules
+    for (const edge of edges) {
+      const fromAssignment = this.layerDetector.detectLayer(edge.from);
+      const toAssignment = this.layerDetector.detectLayer(edge.to);
+
+      const fromLayer = fromAssignment.layer;
+      const toLayer = toAssignment.layer;
+
+      // Skip if either file has no layer assignment or they're in the same layer
+      if (!fromLayer || !toLayer || fromLayer === toLayer) {
+        continue;
+      }
+
+      // Check if this cross-layer dependency is allowed
+      if (!this.layerDetector.isAllowedDependency(fromLayer, toLayer, layers)) {
+        const boundaryKey = `${fromLayer}->${toLayer}`;
+        const boundary = boundaryMap.get(boundaryKey);
+
+        violations.push({
+          edge: toDependencyEdge(edge, fromLayer, toLayer),
+          boundary,
+          is_new: true, // Will be reclassified by classifyViolations
+        });
+      }
+    }
+
+    debug(`detected ${violations.length} boundary violations from ${edges.length} edges`);
+    return violations;
   }
 
   /**
@@ -350,7 +407,8 @@ function collectSourceFiles(workspaceRoot: string, options?: AnalyzerOptions): s
     let entries: string[];
     try {
       entries = readdirSync(dir);
-    } catch {
+    } catch (err) {
+      debug('skipping directory: %s (read error)', err);
       return;
     }
 
@@ -365,7 +423,8 @@ function collectSourceFiles(workspaceRoot: string, options?: AnalyzerOptions): s
       let stat;
       try {
         stat = statSync(fullPath);
-      } catch {
+      } catch (err) {
+        debug('skipping entry: %s (stat error)', err);
         continue;
       }
 
