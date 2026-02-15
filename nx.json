@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
-  "nxCloudId": "6986f0e3ffffb2287a08a94b",
+  "azure": {
+    "container": "nx-cache",
+    "accountName": "stiacstateprod"
+  },
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "production": [

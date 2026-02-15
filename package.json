@@ -36,6 +36,7 @@
     "@eslint/js": "^9.39.2",
     "@eslint/json": "^1.0.0",
     "@eslint/markdown": "^7.5.1",
+    "@nx/azure-cache": "^5.0.0",
     "@nx/eslint-plugin": "22.5.0",
     "@nx/js": "22.5.0",
     "@playwright/test": "^1.58.2",
