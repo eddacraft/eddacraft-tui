@@ -80,7 +80,10 @@
     "glob": "13.0.0",
     "braces": "3.0.3",
     "micromatch": "4.0.8",
-    "qs": "6.14.1"
+    "qs": ">=6.14.2",
+    "markdown-it": ">=14.1.1",
+    "@isaacs/brace-expansion": ">=5.0.1",
+    "cross-spawn": ">=7.0.6"
   },
   "pnpm": {
     "overrides": {
@@ -88,11 +91,14 @@
       "glob": "13.0.0",
       "braces": "3.0.3",
       "micromatch": "4.0.8",
-      "qs": "6.14.1",
+      "qs": ">=6.14.2",
       "tar": ">=7.5.4",
       "lodash": ">=4.17.23",
       "undici": ">=7.18.2",
-      "diff": ">=4.0.4"
+      "diff": ">=4.0.4",
+      "markdown-it": ">=14.1.1",
+      "@isaacs/brace-expansion": ">=5.0.1",
+      "cross-spawn": ">=7.0.6"
     },
     "onlyBuiltDependencies": [
       "esbuild",
