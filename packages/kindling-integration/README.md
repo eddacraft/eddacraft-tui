@@ -132,10 +132,10 @@ Kindling is opt-in and disabled by default:
 {
   "kindling": {
     "enabled": true,
-    "database": ".anvil/kindling.db",
+    "database_path": ".anvil/kindling.db",
     "retention": {
       "days": 90,
-      "max_observations": 10000
+      "auto_prune": false
     },
     "capture": {
       "sessions": true,
@@ -159,8 +159,7 @@ Kindling is opt-in and disabled by default:
 ```typescript
 import { KindlingService } from '@eddacraft/anvil-kindling-integration';
 
-const kindling = new KindlingService(config);
-await kindling.initialize();
+const kindling = new KindlingService(store, config);
 ```
 
 ## Emitter Usage

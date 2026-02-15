@@ -408,7 +408,7 @@ function collectSourceFiles(workspaceRoot: string, options?: AnalyzerOptions): s
     try {
       entries = readdirSync(dir);
     } catch (err) {
-      debug('skipping directory: %s (read error)', err);
+      debug('skipping directory (read error):', err);
       return;
     }
 
@@ -424,7 +424,7 @@ function collectSourceFiles(workspaceRoot: string, options?: AnalyzerOptions): s
       try {
         stat = statSync(fullPath);
       } catch (err) {
-        debug('skipping entry: %s (stat error)', err);
+        debug('skipping entry (stat error):', err);
         continue;
       }
 

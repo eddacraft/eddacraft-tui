@@ -32,7 +32,7 @@ admin.use('*', adminAuth);
 
 /**
  * Resolve the admin actor identity for audit logging.
- * Checks X-Admin-Actor header first, then falls back to source IP.
+ * Checks X-Admin-Actor header first, then falls back to 'admin'.
  */
 function resolveAdminActor(c: { req: { header: (name: string) => string | undefined } }): string {
   const actor = c.req.header('X-Admin-Actor');

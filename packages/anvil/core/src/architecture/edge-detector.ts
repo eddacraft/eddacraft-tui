@@ -117,7 +117,7 @@ export function extractImports(
     const fullPath = workspaceRoot ? join(workspaceRoot, filePath) : filePath;
     content = readFileSync(fullPath, 'utf-8');
   } catch (err) {
-    debug('failed to read file for import extraction: %s', err);
+    debug('failed to read file for import extraction:', err);
     return edges;
   }
 

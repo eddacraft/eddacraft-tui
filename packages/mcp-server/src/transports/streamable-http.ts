@@ -33,8 +33,10 @@ function getRateLimit(): number {
   return 60; // default: 60 requests per minute
 }
 
-function isLocalhost(ip: string): boolean {
-  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+function isLocalhost(host: string): boolean {
+  return (
+    host === '127.0.0.1' || host === '::1' || host === '::ffff:127.0.0.1' || host === 'localhost'
+  );
 }
 
 function rateLimitMiddleware(req: Request, res: Response, next: NextFunction): void {

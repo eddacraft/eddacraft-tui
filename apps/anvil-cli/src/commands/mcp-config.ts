@@ -39,7 +39,7 @@ function generateMcpConfig(target: McpConfigTarget, options: McpConfigOptions = 
   const serverEntry =
     transport === 'http'
       ? target === 'vscode'
-        ? { type: 'sse', url: httpUrl }
+        ? { type: 'http', url: httpUrl }
         : { url: httpUrl }
       : target === 'vscode'
         ? { type: 'stdio', command: 'npx', args: [PACKAGE_NAME] }
@@ -107,8 +107,11 @@ export function createMcpConfigCommand(): Command {
             const fullPath = resolve(process.cwd(), expandedPath);
 
             // Confirm when writing outside the workspace
+            const { relative: pathRelative, sep } = await import('node:path');
             const cwd = process.cwd();
-            if (!fullPath.startsWith(cwd + '/') && fullPath !== cwd && !options.yes) {
+            const rel = pathRelative(cwd, fullPath);
+            const isOutside = rel.startsWith('..') || rel.startsWith(sep) || /^[A-Za-z]:/.test(rel);
+            if (isOutside && !options.yes) {
               if (!process.stdin.isTTY) {
                 console.error(
                   `Target path is outside workspace: ${fullPath}\n` +

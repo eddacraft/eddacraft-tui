@@ -14,18 +14,26 @@ PLAN_FILES=$(find . \( -name "*.md" -path "*/planning/*" \) -o -name "*-plan.md"
 if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Running quality gates..."
 
-  echo "$PLAN_FILES" | while IFS= read -r file; do
+  GATE_FAILED=0
+  while IFS= read -r file; do
     if [ -f "$file" ]; then
       echo "  Checking: $file"
-      if ! anvil gate "$file" --quiet 2>/dev/null; then
+      if ! anvil gate "$file" 2>/dev/null; then
         echo "  [FAIL] Gate failed: $file"
         echo ""
         echo "Run 'anvil gate $file' to see details."
         echo "To bypass, set ANVIL_SKIP_HOOKS=1"
-        exit 1
+        GATE_FAILED=1
+        break
       fi
     fi
-  done
+  done <<EOF
+$PLAN_FILES
+EOF
+
+  if [ "$GATE_FAILED" = "1" ]; then
+    exit 1
+  fi
 
   echo "  [OK] All gates passed"
 fi

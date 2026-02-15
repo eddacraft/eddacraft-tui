@@ -1,4 +1,4 @@
-import { resolve, isAbsolute } from 'node:path';
+import { resolve, relative, isAbsolute } from 'node:path';
 import { existsSync, statSync, realpathSync } from 'node:fs';
 
 /**
@@ -53,7 +53,8 @@ export function validateWorkspaceRootAgainstServer(
     throw new Error(`workspaceRoot "${clientRoot}" could not be validated against server root`);
   }
 
-  if (realClient !== realServer && !realClient.startsWith(realServer + '/')) {
+  const rel = relative(realServer, realClient);
+  if (realClient !== realServer && (rel.startsWith('..') || isAbsolute(rel))) {
     throw new Error(
       `workspaceRoot "${clientRoot}" is outside the server's allowed root. ` +
         `The server is configured for: ${serverRoot}`

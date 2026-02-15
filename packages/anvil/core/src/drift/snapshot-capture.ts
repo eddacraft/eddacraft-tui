@@ -45,7 +45,7 @@ async function getGitRef(workspaceRoot: string): Promise<string | undefined> {
     const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot });
     return stdout.trim();
   } catch (err) {
-    debug('failed to get git ref for workspace: %s', err);
+    debug('failed to get git ref for workspace', err);
     return undefined;
   }
 }

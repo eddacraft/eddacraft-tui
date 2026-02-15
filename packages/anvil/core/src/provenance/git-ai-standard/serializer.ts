@@ -1,5 +1,8 @@
 import type { AuthorshipLog, FileAttestation } from './types.js';
 import { AuthorshipLogSchema, SCHEMA_VERSION } from './types.js';
+import { createDebugger } from '../../utils/debug.js';
+
+const debug = createDebugger('provenance:serializer');
 
 /**
  * Serialize an AuthorshipLog to Git AI Standard format
@@ -193,7 +196,7 @@ export function expandLineRanges(ranges: string): number[] {
     if (trimmed.includes('-')) {
       const segments = trimmed.split('-');
       if (segments.length !== 2) {
-        console.warn(`[anvil] expandLineRanges: skipping invalid range part "${trimmed}"`);
+        debug(`[anvil] expandLineRanges: skipping invalid range part "${trimmed}"`);
         continue;
       }
 
@@ -201,12 +204,12 @@ export function expandLineRanges(ranges: string): number[] {
       const end = Number(segments[1]);
 
       if (!Number.isInteger(start) || !Number.isInteger(end)) {
-        console.warn(`[anvil] expandLineRanges: skipping non-integer range "${trimmed}"`);
+        debug(`[anvil] expandLineRanges: skipping non-integer range "${trimmed}"`);
         continue;
       }
 
       if (start > end) {
-        console.warn(`[anvil] expandLineRanges: skipping invalid range "${trimmed}" (start > end)`);
+        debug(`[anvil] expandLineRanges: skipping invalid range "${trimmed}" (start > end)`);
         continue;
       }
 
@@ -217,7 +220,7 @@ export function expandLineRanges(ranges: string): number[] {
       const num = Number(trimmed);
 
       if (!Number.isInteger(num)) {
-        console.warn(`[anvil] expandLineRanges: skipping non-integer value "${trimmed}"`);
+        debug(`[anvil] expandLineRanges: skipping non-integer value "${trimmed}"`);
         continue;
       }
 
