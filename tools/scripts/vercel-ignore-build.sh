@@ -10,7 +10,9 @@
 #   bash tools/scripts/vercel-ignore-build.sh apps/docs-site
 #   bash tools/scripts/vercel-ignore-build.sh apps/anvil-api
 #
-# Exit 0 = proceed with build, Exit 1 = skip build
+# Vercel ignoreCommand semantics:
+#   Exit 1 = proceed with build
+#   Exit 0 = skip build (cancel deployment)
 
 set -euo pipefail
 
@@ -26,7 +28,7 @@ cd "$REPO_ROOT"
 # Vercel provides the SHA of the last successful deployment
 if [ -z "${VERCEL_GIT_PREVIOUS_SHA:-}" ]; then
   echo ">> No previous deployment SHA found — building"
-  exit 0
+  exit 1
 fi
 
 CURRENT_SHA="${VERCEL_GIT_COMMIT_SHA:-HEAD}"
@@ -38,22 +40,22 @@ CHANGED_FILES=$(git diff --name-only "$VERCEL_GIT_PREVIOUS_SHA" "$CURRENT_SHA" 2
 
 if [ -z "$CHANGED_FILES" ]; then
   echo ">> No changes detected — skipping build"
-  exit 1
+  exit 0
 fi
 
 # Check if any changed file is in the project directory
 if echo "$CHANGED_FILES" | grep -q "^${PROJECT_DIR}/"; then
   echo ">> Changes detected in $PROJECT_DIR — building"
-  exit 0
+  exit 1
 fi
 
 # Check shared paths
 for path in $SHARED_PATHS; do
   if echo "$CHANGED_FILES" | grep -q "^${path}$"; then
     echo ">> Shared config changed ($path) — building"
-    exit 0
+    exit 1
   fi
 done
 
 echo ">> No relevant changes for $PROJECT_DIR — skipping build"
-exit 1
+exit 0
