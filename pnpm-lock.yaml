@@ -174,18 +174,9 @@ importers:
       '@eddacraft/anvil-core':
         specifier: workspace:*
         version: link:../../packages/anvil/core
-      '@eddacraft/anvil-edda-stack':
-        specifier: workspace:*
-        version: link:../../packages/edda-stack
       '@eddacraft/anvil-kindling-integration':
         specifier: workspace:*
         version: link:../../packages/kindling-integration
-      '@eddacraft/anvil-mcp-server':
-        specifier: workspace:*
-        version: link:../../packages/mcp-server
-      '@eddacraft/anvil-platform-config':
-        specifier: workspace:*
-        version: link:../../packages/platform/config
       '@eddacraft/anvil-runtime':
         specifier: workspace:*
         version: link:../../packages/anvil/runtime
