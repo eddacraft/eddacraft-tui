@@ -246,3 +246,9 @@ export {
   type KindlingStatusConfig,
   type KindlingStatusStore,
 } from './status.js';
+
+// =============================================================================
+// Adapter (Anvil → Kindling Bridge)
+// =============================================================================
+
+export { AnvilKindlingAdapter, type AnvilKindlingAdapterConfig } from './adapter.js';

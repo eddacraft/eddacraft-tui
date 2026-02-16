@@ -19,6 +19,13 @@ import { EvidenceWriter } from '../services/evidence-writer.js';
 import type { GateOptions, GateProfile } from '../types/command-options.js';
 import { success, error, formatGateResults, info, formatGateResultsJSON } from '../utils/output.js';
 import ora from 'ora';
+import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
+import {
+  emitSessionStart,
+  emitSessionEnd,
+  emitGateEvaluated,
+  emitError as emitKindlingError,
+} from '@eddacraft/anvil-kindling-integration';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUIAndWait } from '../tui/utils/renderer.js';
 import { GateExplorer } from '../tui/commands/gate/index.js';
@@ -148,8 +155,27 @@ export function createGateCommand(): Command {
         console.log(chalk.gray('Usage: anvil gate [plan] --profile=dev'));
         process.exit(0);
       }
+
+      const startTime = Date.now();
+      let kindling: KindlingContext | null = null;
+      let sessionId: string | undefined;
+
       try {
         const workspaceRoot = getWorkspaceRoot();
+
+        // Initialize Kindling provenance recording
+        kindling = initKindling(workspaceRoot);
+        if (kindling) {
+          sessionId = emitSessionStart(kindling.service, {
+            working_directory: workspaceRoot,
+            anvil_version: '0.1.0',
+            command: 'gate',
+            args: planArg ? [planArg] : [],
+            environment: process.env.CI ? 'ci' : 'development',
+          });
+          const capsule = kindling.adapter.startSession(sessionId, 'anvil gate');
+          kindling.bridge.setCapsuleId(capsule.id);
+        }
         const configManager = new GateConfigManager(workspaceRoot);
         const gateRunner = new GateRunner();
 
@@ -370,6 +396,28 @@ export function createGateCommand(): Command {
 
         const results = await gateRunner.runGate(plan, config, workspaceRoot, gateOptions);
 
+        // Record gate evaluation in Kindling
+        if (kindling && sessionId) {
+          emitGateEvaluated(kindling.service, {
+            session_id: sessionId,
+            gate_id: plan.id,
+            inputs: {
+              file_count: results.checks.length,
+            },
+            outcome: results.overall ? 'pass' : 'fail',
+            rules_evaluated: results.checks.map((c) => c.check),
+            rules_violated: results.checks
+              .filter((c) => !c.passed && !c.skipped)
+              .map((c) => c.check),
+            enforcement: 'blocking',
+            duration_ms: results.timing?.totalMs ?? 0,
+            violation_count: results.checks.filter((c) => !c.passed && !c.skipped).length,
+            warning_count: results.checks.filter(
+              (c) => c.passed && c.score !== undefined && c.score < 1
+            ).length,
+          });
+        }
+
         if (showProgress) {
           console.log(''); // Add newline after progress
         } else {
@@ -443,6 +491,24 @@ export function createGateCommand(): Command {
           await renderTUIAndWait(GateExplorer, { result: tuiResult });
         }
 
+        // Record session end in Kindling
+        if (kindling && sessionId) {
+          const exitCode = results.overall ? 0 : 1;
+          emitSessionEnd(kindling.service, sessionId, {
+            outcome: results.overall ? 'success' : 'failure',
+            exit_code: exitCode,
+            duration_ms: Date.now() - startTime,
+            summary: {
+              gates_evaluated: results.checks.length,
+              gates_passed: results.checks.filter((c) => c.passed).length,
+              gates_failed: results.checks.filter((c) => !c.passed && !c.skipped).length,
+              actions_executed: 0,
+              errors_encountered: 0,
+            },
+          });
+          kindling.close();
+        }
+
         if (results.overall) {
           success('All quality gates passed!');
           process.exit(0);
@@ -451,6 +517,31 @@ export function createGateCommand(): Command {
           process.exit(1);
         }
       } catch (err) {
+        // Record error and session end in Kindling
+        if (kindling && sessionId) {
+          emitKindlingError(kindling.service, {
+            session_id: sessionId,
+            error_type: 'command_failure',
+            context: { component: 'gate' },
+            error_message: err instanceof Error ? err.message : String(err),
+            exit_code: 1,
+            recoverable: false,
+          });
+          emitSessionEnd(kindling.service, sessionId, {
+            outcome: 'failure',
+            exit_code: 1,
+            duration_ms: Date.now() - startTime,
+            summary: {
+              gates_evaluated: 0,
+              gates_passed: 0,
+              gates_failed: 0,
+              actions_executed: 0,
+              errors_encountered: 1,
+            },
+          });
+          kindling.close();
+        }
+
         error(`Gate execution failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         process.exit(1);
       }

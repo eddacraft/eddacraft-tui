@@ -19,6 +19,13 @@ import {
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
 import { success, error, info } from '../utils/output.js';
+import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
+import {
+  emitSessionStart,
+  emitSessionEnd,
+  emitGateEvaluated,
+  emitError as emitKindlingError,
+} from '@eddacraft/anvil-kindling-integration';
 
 interface CheckOptions {
   verbose?: boolean;
@@ -333,9 +340,26 @@ export function createCheckCommand(): Command {
     )
     .action(async (files: string[], options: CheckOptions) => {
       const spinner = options.json ? null : ora('Analysing files...').start();
+      const startTime = Date.now();
+      let kindling: KindlingContext | null = null;
+      let sessionId: string | undefined;
 
       try {
         const workspaceRoot = getWorkspaceRoot();
+
+        // Initialize Kindling provenance recording (no-op when disabled)
+        kindling = initKindling(workspaceRoot);
+        if (kindling) {
+          sessionId = emitSessionStart(kindling.service, {
+            working_directory: workspaceRoot,
+            anvil_version: '0.1.0',
+            command: 'check',
+            args: files,
+            environment: process.env.CI ? 'ci' : 'development',
+          });
+          const capsule = kindling.adapter.startSession(sessionId, 'anvil check');
+          kindling.bridge.setCapsuleId(capsule.id);
+        }
 
         // Validate --nudge-threshold if provided
         if (options.nudgeThreshold && !isNudgeSeverityThreshold(options.nudgeThreshold)) {
@@ -472,6 +496,29 @@ export function createCheckCommand(): Command {
           checks: ['architecture'],
         });
 
+        // Record gate evaluation in Kindling
+        if (kindling && sessionId) {
+          emitGateEvaluated(kindling.service, {
+            session_id: sessionId,
+            gate_id: 'architecture-check',
+            inputs: {
+              file_count: filesToAnalyse.length,
+              changed_files: filesToAnalyse.slice(0, 50),
+            },
+            outcome: result.hasBlockingWarnings ? 'fail' : 'pass',
+            rules_evaluated: result.checksRun,
+            rules_violated: result.hasBlockingWarnings
+              ? result.warnings.warnings
+                  .filter((w) => w.severity === 'error' && !w.suppressed)
+                  .map((w) => w.id)
+              : undefined,
+            enforcement: 'blocking',
+            duration_ms: result.executionTimeMs,
+            violation_count: result.warnings.summary.errors,
+            warning_count: result.warnings.summary.warnings,
+          });
+        }
+
         try {
           await saveRecentWarnings(workspaceRoot, result.warnings.warnings);
         } catch (saveErr) {
@@ -516,6 +563,25 @@ export function createCheckCommand(): Command {
           }
         }
 
+        const exitCode = result.hasBlockingWarnings ? 1 : 0;
+
+        // Record session end in Kindling
+        if (kindling && sessionId) {
+          emitSessionEnd(kindling.service, sessionId, {
+            outcome: result.hasBlockingWarnings ? 'failure' : 'success',
+            exit_code: exitCode,
+            duration_ms: Date.now() - startTime,
+            summary: {
+              gates_evaluated: 1,
+              gates_passed: result.hasBlockingWarnings ? 0 : 1,
+              gates_failed: result.hasBlockingWarnings ? 1 : 0,
+              actions_executed: 0,
+              errors_encountered: 0,
+            },
+          });
+          kindling.close();
+        }
+
         if (result.hasBlockingWarnings) {
           if (!options.json) {
             error('Blocking warnings found (severity: error)');
@@ -530,6 +596,31 @@ export function createCheckCommand(): Command {
           process.exit(0);
         }
       } catch (err) {
+        // Record error and session end in Kindling
+        if (kindling && sessionId) {
+          emitKindlingError(kindling.service, {
+            session_id: sessionId,
+            error_type: 'command_failure',
+            context: { component: 'check' },
+            error_message: err instanceof Error ? err.message : String(err),
+            exit_code: 1,
+            recoverable: false,
+          });
+          emitSessionEnd(kindling.service, sessionId, {
+            outcome: 'failure',
+            exit_code: 1,
+            duration_ms: Date.now() - startTime,
+            summary: {
+              gates_evaluated: 0,
+              gates_passed: 0,
+              gates_failed: 0,
+              actions_executed: 0,
+              errors_encountered: 1,
+            },
+          });
+          kindling.close();
+        }
+
         spinner?.fail('Analysis failed');
         error(err instanceof Error ? err.message : 'Unknown error');
         process.exit(1);

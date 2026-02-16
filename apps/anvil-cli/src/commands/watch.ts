@@ -21,6 +21,13 @@ import { getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { createWatchOutput } from '../services/watch-output.js';
 import { error } from '../utils/output.js';
+import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
+import {
+  emitSessionStart,
+  emitSessionEnd,
+  emitGateEvaluated,
+  emitError as emitKindlingError,
+} from '@eddacraft/anvil-kindling-integration';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 
 const SOURCE_WATCH_PATTERNS = ['src/**/*.ts', 'src/**/*.tsx', 'lib/**/*.ts', '**/*.ts', '**/*.tsx'];
@@ -111,8 +118,31 @@ export function createWatchCommand(): Command {
     .option('--agent-id <id>', 'Custom agent identifier')
     .option('--no-exclusive', 'Allow multiple watch instances (disable exclusive lock)')
     .action(async (file: string | undefined, options: WatchOptions) => {
+      const startTime = Date.now();
+      let kindling: KindlingContext | null = null;
+      let sessionId: string | undefined;
+      let gatesEvaluated = 0;
+      let gatesPassed = 0;
+      let gatesFailed = 0;
+      let errorsEncountered = 0;
+
       try {
         const workspaceRoot = getWorkspaceRoot();
+
+        // Initialize Kindling provenance recording
+        kindling = initKindling(workspaceRoot);
+        if (kindling) {
+          sessionId = emitSessionStart(kindling.service, {
+            working_directory: workspaceRoot,
+            anvil_version: '0.1.0',
+            command: 'watch',
+            args: file ? [file] : [],
+            environment: process.env.CI ? 'ci' : 'development',
+          });
+          const capsule = kindling.adapter.startSession(sessionId, 'anvil watch');
+          kindling.bridge.setCapsuleId(capsule.id);
+        }
+
         const configManager = new GateConfigManager(workspaceRoot);
 
         const savedConfig = configManager.getWatchConfig();
@@ -325,6 +355,27 @@ export function createWatchCommand(): Command {
               suppressions: true,
             });
 
+            // Record in Kindling
+            gatesEvaluated++;
+            if (result.hasBlockingWarnings) {
+              gatesFailed++;
+            } else {
+              gatesPassed++;
+            }
+            if (kindling && sessionId) {
+              emitGateEvaluated(kindling.service, {
+                session_id: sessionId,
+                gate_id: 'watch-check',
+                inputs: { file_count: files.length, changed_files: files.slice(0, 50) },
+                outcome: result.hasBlockingWarnings ? 'fail' : 'pass',
+                rules_evaluated: result.checksRun,
+                enforcement: 'warning',
+                duration_ms: result.executionTimeMs,
+                violation_count: result.warnings.summary.errors,
+                warning_count: result.warnings.summary.warnings,
+              });
+            }
+
             return {
               success: !result.hasBlockingWarnings,
               action: 'check',
@@ -337,6 +388,16 @@ export function createWatchCommand(): Command {
               },
             };
           } catch (err) {
+            errorsEncountered++;
+            if (kindling && sessionId) {
+              emitKindlingError(kindling.service, {
+                session_id: sessionId,
+                error_type: 'command_failure',
+                context: { component: 'watch-check' },
+                error_message: err instanceof Error ? err.message : String(err),
+                recoverable: true,
+              });
+            }
             return {
               success: false,
               action: 'check',
@@ -350,6 +411,24 @@ export function createWatchCommand(): Command {
         // Handle graceful shutdown
         const shutdown = async () => {
           console.log(chalk.gray('\n  Stopping watch mode...'));
+
+          // Record session end in Kindling
+          if (kindling && sessionId) {
+            emitSessionEnd(kindling.service, sessionId, {
+              outcome: gatesFailed > 0 ? 'partial' : 'success',
+              exit_code: 0,
+              duration_ms: Date.now() - startTime,
+              summary: {
+                gates_evaluated: gatesEvaluated,
+                gates_passed: gatesPassed,
+                gates_failed: gatesFailed,
+                actions_executed: 0,
+                errors_encountered: errorsEncountered,
+              },
+            });
+            kindling.close();
+          }
+
           await orchestrator.stop();
           process.exit(0);
         };
@@ -366,6 +445,31 @@ export function createWatchCommand(): Command {
           // Never resolves - keeps process running until Ctrl+C
         });
       } catch (err) {
+        // Record error and session end in Kindling
+        if (kindling && sessionId) {
+          emitKindlingError(kindling.service, {
+            session_id: sessionId,
+            error_type: 'command_failure',
+            context: { component: 'watch' },
+            error_message: err instanceof Error ? err.message : String(err),
+            exit_code: 1,
+            recoverable: false,
+          });
+          emitSessionEnd(kindling.service, sessionId, {
+            outcome: 'failure',
+            exit_code: 1,
+            duration_ms: Date.now() - startTime,
+            summary: {
+              gates_evaluated: gatesEvaluated,
+              gates_passed: gatesPassed,
+              gates_failed: gatesFailed,
+              actions_executed: 0,
+              errors_encountered: errorsEncountered + 1,
+            },
+          });
+          kindling.close();
+        }
+
         error(`Watch failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
         process.exit(1);
       }

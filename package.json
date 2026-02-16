@@ -106,7 +106,8 @@
     },
     "onlyBuiltDependencies": [
       "esbuild",
-      "nx"
+      "nx",
+      "better-sqlite3"
     ],
     "ignoredBuiltDependencies": [
       "@devm33/node-pty",

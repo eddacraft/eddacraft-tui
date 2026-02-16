@@ -177,6 +177,9 @@ importers:
       '@eddacraft/anvil-edda-stack':
         specifier: workspace:*
         version: link:../../packages/edda-stack
+      '@eddacraft/anvil-kindling-integration':
+        specifier: workspace:*
+        version: link:../../packages/kindling-integration
       '@eddacraft/anvil-mcp-server':
         specifier: workspace:*
         version: link:../../packages/mcp-server
@@ -186,6 +189,15 @@ importers:
       '@eddacraft/anvil-runtime':
         specifier: workspace:*
         version: link:../../packages/anvil/runtime
+      '@eddacraft/kindling-core':
+        specifier: ^0.1.1
+        version: 0.1.1
+      '@eddacraft/kindling-provider-local':
+        specifier: ^0.1.1
+        version: 0.1.1
+      '@eddacraft/kindling-store-sqlite':
+        specifier: ^0.1.1
+        version: 0.1.1
       beautiful-mermaid:
         specifier: ^0.1.3
         version: 0.1.3
@@ -566,6 +578,9 @@ importers:
 
   packages/kindling-integration:
     dependencies:
+      '@eddacraft/kindling-core':
+        specifier: ^0.1.1
+        version: 0.1.1
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -2059,6 +2074,15 @@ packages:
   '@docusaurus/utils@3.9.2':
     resolution: {integrity: sha512-lBSBiRruFurFKXr5Hbsl2thmGweAPmddhF3jb99U4EMDA5L+e5Y1rAkOS07Nvrup7HUMBDrCV45meaxZnt28nQ==}
     engines: {node: '>=20.0'}
+
+  '@eddacraft/kindling-core@0.1.1':
+    resolution: {integrity: sha512-quWVFvgdUJIJiPqSpRM9Sb7UkX+HmQrvmCPd4Vf2/RvgscUwWnfY74+Np7l19MWsIy75NtRuLtaYdWFeTdaDcw==}
+
+  '@eddacraft/kindling-provider-local@0.1.1':
+    resolution: {integrity: sha512-o4ipe2gOzeQgFOtPBa2Kp+w2/Sfh/ScA9kDPkWPGTML9CkvmSlF6ObSXRk5fdhPiv1VkctnBR+O0C158iD4xKA==}
+
+  '@eddacraft/kindling-store-sqlite@0.1.1':
+    resolution: {integrity: sha512-OLAfyHrL+yEojjQCEg4LLHEFyppbht5g670WPfx1+zNCnk1qSbGebvl08KPM2Y6U6VZ/jwkFhVW+4e/0s3Zhsw==}
 
   '@emnapi/core@1.8.1':
     resolution: {integrity: sha512-AvT9QFpxK0Zd8J0jopedNm+w/2fIzvtPKPjqyw9jwvBaReTTqPBk9Hixaz7KbjimP+QNz605/XnjFcDAL2pqBg==}
@@ -5119,6 +5143,10 @@ packages:
   beautiful-mermaid@0.1.3:
     resolution: {integrity: sha512-lVEHCnlVLtVRbO03T+D9kY5BZlkpvFU6F18LEu2N2VLB0eo5evG1FJWg3SvREErKY+zZ7j9f+cNsgtiOhYI2Nw==}
 
+  better-sqlite3@12.6.2:
+    resolution: {integrity: sha512-8VYKM3MjCa9WcaSAI3hzwhmyHVlH8tiGFwf0RlTsZPWJ1I5MkzjiudCo4KC4DxOaL/53A5B1sI/IbldNFDbsKA==}
+    engines: {node: 20.x || 22.x || 23.x || 24.x || 25.x}
+
   big.js@5.2.2:
     resolution: {integrity: sha512-vyL2OymJxmarO8gxMr0mhChsO9QGwhynfuu4+MHTAW6czfq9humCB7rKpUjDd9YUiDPU4mzpyupFSvOClAwbmQ==}
 
@@ -5133,6 +5161,9 @@ packages:
   binaryextensions@6.11.0:
     resolution: {integrity: sha512-sXnYK/Ij80TO3lcqZVV2YgfKN5QjUWIRk/XSm2J/4bd/lPko3lvk0O4ZppH6m+6hB2/GTu+ptNwVFe1xh+QLQw==}
     engines: {node: '>=4'}
+
+  bindings@1.5.0:
+    resolution: {integrity: sha512-p2q/t/mhvuOj/UeLlV6566GD/guowlr0hHxClI0W9m7MWYkL1F0hLo+0Aexs9HSPCtR1SXQ0TD3MMKrXZajbiQ==}
 
   bl@4.1.0:
     resolution: {integrity: sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w==}
@@ -6459,6 +6490,9 @@ packages:
     engines: {node: '>= 10.13.0'}
     peerDependencies:
       webpack: ^4.0.0 || ^5.0.0
+
+  file-uri-to-path@1.0.0:
+    resolution: {integrity: sha512-0Zt+s3L7Vf1biwWZ29aARiVYLx7iMGnEUl9x33fbB/j3jR81u/O2LbqK+Bm1CDSNDKVtJ/YjwY7TUd5SkeLQLw==}
 
   filelist@1.0.4:
     resolution: {integrity: sha512-w1cEuf3S+DrLCQL7ET6kz+gmlJdbq9J7yXCSjK/OZCPA+qEN1WyF4ZAf0YYJa4/shHJra2t/d/r8SV4Ji+x+8Q==}
@@ -13418,6 +13452,18 @@ snapshots:
       - uglify-js
       - webpack-cli
 
+  '@eddacraft/kindling-core@0.1.1': {}
+
+  '@eddacraft/kindling-provider-local@0.1.1':
+    dependencies:
+      '@eddacraft/kindling-core': 0.1.1
+      '@eddacraft/kindling-store-sqlite': 0.1.1
+
+  '@eddacraft/kindling-store-sqlite@0.1.1':
+    dependencies:
+      '@eddacraft/kindling-core': 0.1.1
+      better-sqlite3: 12.6.2
+
   '@emnapi/core@1.8.1':
     dependencies:
       '@emnapi/wasi-threads': 1.1.0
@@ -16719,6 +16765,11 @@ snapshots:
     dependencies:
       '@dagrejs/dagre': 1.1.8
 
+  better-sqlite3@12.6.2:
+    dependencies:
+      bindings: 1.5.0
+      prebuild-install: 7.1.3
+
   big.js@5.2.2: {}
 
   bin-links@6.0.0:
@@ -16734,6 +16785,10 @@ snapshots:
   binaryextensions@6.11.0:
     dependencies:
       editions: 6.22.0
+
+  bindings@1.5.0:
+    dependencies:
+      file-uri-to-path: 1.0.0
 
   bl@4.1.0:
     dependencies:
@@ -17029,8 +17084,7 @@ snapshots:
     dependencies:
       readdirp: 5.0.0
 
-  chownr@1.1.4:
-    optional: true
+  chownr@1.1.4: {}
 
   chownr@3.0.0: {}
 
@@ -18200,8 +18254,7 @@ snapshots:
       signal-exit: 3.0.7
       strip-final-newline: 2.0.0
 
-  expand-template@2.0.3:
-    optional: true
+  expand-template@2.0.3: {}
 
   expect-type@1.3.0: {}
 
@@ -18364,6 +18417,8 @@ snapshots:
       loader-utils: 2.0.4
       schema-utils: 3.3.0
       webpack: 5.104.1(@swc/core@1.15.11(@swc/helpers@0.5.18))
+
+  file-uri-to-path@1.0.0: {}
 
   filelist@1.0.4:
     dependencies:
@@ -18551,8 +18606,7 @@ snapshots:
     dependencies:
       strip-ansi: 7.1.2
 
-  github-from-package@0.0.0:
-    optional: true
+  github-from-package@0.0.0: {}
 
   github-slugger@1.5.0: {}
 
@@ -20538,8 +20592,7 @@ snapshots:
     dependencies:
       minipass: 7.1.2
 
-  mkdirp-classic@0.5.3:
-    optional: true
+  mkdirp-classic@0.5.3: {}
 
   mkdirp@1.0.4: {}
 
@@ -20567,8 +20620,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  napi-build-utils@2.0.0:
-    optional: true
+  napi-build-utils@2.0.0: {}
 
   natural-compare@1.4.0: {}
 
@@ -20619,7 +20671,6 @@ snapshots:
   node-abi@3.85.0:
     dependencies:
       semver: 7.7.4
-    optional: true
 
   node-addon-api@4.3.0:
     optional: true
@@ -21696,7 +21747,6 @@ snapshots:
       simple-get: 4.0.1
       tar-fs: 2.1.4
       tunnel-agent: 0.6.0
-    optional: true
 
   prelude-ls@1.2.1: {}
 
@@ -22619,15 +22669,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  simple-concat@1.0.1:
-    optional: true
+  simple-concat@1.0.1: {}
 
   simple-get@4.0.1:
     dependencies:
       decompress-response: 6.0.0
       once: 1.4.0
       simple-concat: 1.0.1
-    optional: true
 
   sirv@2.0.4:
     dependencies:
@@ -23016,7 +23064,6 @@ snapshots:
       mkdirp-classic: 0.5.3
       pump: 3.0.3
       tar-stream: 2.2.0
-    optional: true
 
   tar-stream@2.2.0:
     dependencies:
