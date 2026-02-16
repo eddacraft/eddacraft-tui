@@ -8,7 +8,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@nx/devkit": "^22.5.0"
+    "@nx/devkit": "^22.5.1"
   },
   "devDependencies": {
     "@types/node": "^25.2.2",
