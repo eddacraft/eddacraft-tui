@@ -5,6 +5,7 @@
 
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
+import YAML from 'yaml';
 import { APSValidator } from '@eddacraft/anvil-core';
 import type { APSPlan } from '@eddacraft/anvil-core';
 import { AdapterRegistry } from '@eddacraft/anvil-adapters';
@@ -129,8 +130,12 @@ export class PlanLoader implements PlanLoaderService {
       // Try parsing as JSON first
       data = JSON.parse(content);
     } catch {
-      // If JSON parse fails, could try YAML here in the future
-      throw new PlanLoadErrorImpl('Invalid APS format: must be valid JSON');
+      try {
+        // Fall back to YAML
+        data = YAML.parse(content);
+      } catch {
+        throw new PlanLoadErrorImpl('Invalid APS format: must be valid JSON or YAML');
+      }
     }
 
     // Validate APS schema

@@ -1,5 +1,5 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { resolve, relative } from 'node:path';
+import { resolve, relative, sep } from 'node:path';
 import { realpathSync } from 'node:fs';
 
 /**
@@ -51,7 +51,7 @@ export function registerFileWarningsResource(
         try {
           const realRoot = realpathSync(workspaceRoot);
           const realAbs = realpathSync(absPath);
-          if (!realAbs.startsWith(realRoot + '/') && realAbs !== realRoot) {
+          if (!realAbs.startsWith(realRoot + sep) && realAbs !== realRoot) {
             return {
               contents: [
                 {

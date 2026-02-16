@@ -65,12 +65,12 @@ export interface ValidationResult {
   timestamp: Date;
   /** Path to the validated plan */
   planPath: string;
-  /** Overall pass/fail status */
-  passed: boolean;
-  /** Number of checks that passed */
-  passedChecks: number;
-  /** Total number of checks run */
-  totalChecks: number;
+  /** Overall pass/fail status (undefined if cache unreadable) */
+  passed?: boolean;
+  /** Number of checks that passed (undefined if cache unreadable) */
+  passedChecks?: number;
+  /** Total number of checks run (undefined if cache unreadable) */
+  totalChecks?: number;
   /** Brief summary message */
   summary?: string;
 }

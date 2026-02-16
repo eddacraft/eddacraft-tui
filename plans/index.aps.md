@@ -354,6 +354,7 @@ graph TD
 | [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | 0.1.0   | monorepo-migration                                        |
 | [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | In Progress | 0.1.x   | antipattern-library                                       |
 | [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | In Progress | 0.1.x   | —                                                         |
+| [code-review-backlog](./modules/code-review-backlog.aps.md)             | CRB      | Draft       | 0.1.x   | —                                                         |
 
 ### Task Status — 0.1.0 (Core Engine)
 
@@ -892,6 +893,39 @@ Ember (interpretation), and Edda (canonical memory).
 | IAC-018 | iac    | Update CI workflow for self-managed backend | Draft | high   |
 | IAC-019 | iac    | Migrate state from Pulumi Cloud to Azure Blob | Draft | high |
 | IAC-020 | iac    | Update infra README for new backend      | Draft    | medium   |
+
+### Task Status — 0.1.x (Code Review Backlog)
+
+Architectural recommendations from the 2026-02-16 code review. Non-urgent
+improvements tracked for future work.
+
+| Task    | Module | Description                                         | Status | Priority |
+| ------- | ------ | --------------------------------------------------- | ------ | -------- |
+| CRB-001 | crb    | Standardise stderr/stdout policy across CLI         | Draft  | Medium   |
+| CRB-002 | crb    | Consolidate hook scripts to single source           | Draft  | Medium   |
+| CRB-003 | crb    | Add Zod validation to runtime YAML parsers          | Draft  | Medium   |
+| CRB-004 | crb    | OPA binary manager safer PATH + shared logger       | Draft  | Low      |
+| CRB-005 | crb    | Dependency audit — surface errors deterministically | Draft  | Medium   |
+| CRB-006 | crb    | Monorepo-wide vitest config strategy                | Draft  | Low      |
+| CRB-007 | crb    | Move process.exit from library code to CLI layer    | Draft  | High     |
+| CRB-008 | crb    | Consistent workspace root containment for output    | Draft  | High     |
+| CRB-009 | crb    | OPA checksum table contains placeholder hashes      | Draft  | High     |
+| CRB-010 | crb    | APS task locking is not atomic (race condition)     | Draft  | Medium   |
+| CRB-011 | crb    | APS loader maxDepth parameter ignored               | Draft  | Low      |
+| CRB-012 | crb    | Config loader placeholder vs Complete status drift  | Draft  | Low      |
+| CRB-013 | crb    | MCP server tests not in vitest include globs        | Draft  | Medium   |
+| CRB-014 | crb    | Add tests for git command composition safety        | Draft  | Medium   |
+| CRB-015 | crb    | Add symlink escape tests to file-storage            | Draft  | Medium   |
+| CRB-016 | crb    | Add Windows separator tests to MCP path guards      | Draft  | Low      |
+| CRB-017 | crb    | Add tests for platform/core config loaders          | Draft  | Low      |
+| CRB-018 | crb    | Standardise works-from-repo-root workflow           | Draft  | Medium   |
+| CRB-019 | crb    | Consistent logging/output conventions               | Draft  | Medium   |
+| CRB-020 | crb    | Option parsing/validation inconsistency             | Draft  | Low      |
+| CRB-021 | crb    | Duplicated implementations and naming drift         | Draft  | Low      |
+| CRB-022 | crb    | Large command modules need decomposition            | Draft  | Low      |
+| CRB-023 | crb    | Silent fallbacks without visibility                 | Draft  | Medium   |
+| CRB-024 | crb    | Subprocess calls without timeouts in CI             | Draft  | Medium   |
+| CRB-025 | crb    | Docs and scripts drifting from reality              | Draft  | Low      |
 
 ### Task Status — Post-1.0.0 (Multi-Language Placeholders)
 

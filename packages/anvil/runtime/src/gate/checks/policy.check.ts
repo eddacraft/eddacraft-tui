@@ -2,7 +2,7 @@
  * Policy Check - Evaluate OPA/Rego policies against plans
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
 import {
@@ -329,9 +329,9 @@ export class PolicyCheck extends BaseCheck {
    */
   private getGitContext(workspaceRoot: string): OPAInput['context']['git'] | undefined {
     try {
-      const execGit = (cmd: string): string | undefined => {
+      const execGit = (args: string[]): string | undefined => {
         try {
-          return execSync(cmd, {
+          return execFileSync('git', args, {
             cwd: workspaceRoot,
             encoding: 'utf-8',
             stdio: ['pipe', 'pipe', 'pipe'],
@@ -341,18 +341,18 @@ export class PolicyCheck extends BaseCheck {
         }
       };
 
-      const branch = execGit('git rev-parse --abbrev-ref HEAD');
+      const branch = execGit(['rev-parse', '--abbrev-ref', 'HEAD']);
       if (!branch) return undefined; // Not a git repository
 
-      const commitSha = execGit('git rev-parse HEAD');
-      const author = execGit('git log -1 --format=%an');
-      const authorEmail = execGit('git log -1 --format=%ae');
+      const commitSha = execGit(['rev-parse', 'HEAD']);
+      const author = execGit(['log', '-1', '--format=%an']);
+      const authorEmail = execGit(['log', '-1', '--format=%ae']);
 
       // Try to get base branch (for PRs)
       let baseBranch: string | undefined;
 
       // First try origin/HEAD which points to the default branch
-      const originHeadRef = execGit('git symbolic-ref refs/remotes/origin/HEAD');
+      const originHeadRef = execGit(['symbolic-ref', 'refs/remotes/origin/HEAD']);
       if (originHeadRef) {
         const match = originHeadRef.match(/^refs\/remotes\/origin\/(.+)$/);
         if (match?.[1]) {
@@ -364,7 +364,7 @@ export class PolicyCheck extends BaseCheck {
       if (!baseBranch) {
         const defaultBranches = ['main', 'master', 'develop'];
         for (const defaultBranch of defaultBranches) {
-          const exists = execGit(`git rev-parse --verify ${defaultBranch}`);
+          const exists = execGit(['rev-parse', '--verify', defaultBranch]);
           if (exists) {
             baseBranch = defaultBranch;
             break;

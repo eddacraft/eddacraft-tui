@@ -4,13 +4,11 @@
  * Scans git commit diffs to find secrets that may have been committed in the past.
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { SECRET_PATTERNS, PatternMatcher } from './secret-patterns.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Secret finding from git history
@@ -48,21 +46,38 @@ export class GitScanner {
     config: GitScannerConfig
   ): Promise<GitHistoryFinding[]> {
     const findings: GitHistoryFinding[] = [];
-    const depth = config.git_history_depth;
+    // Clamp depth to a sane range (1–1000)
+    const depth = Math.max(1, Math.min(1000, Math.floor(config.git_history_depth)));
 
     try {
-      // Check if we're in a git repository
-      const isGitRepo = existsSync(join(workspaceRoot, '.git'));
-      if (!isGitRepo) {
+      // Check if we're in a git repository (handles worktrees where .git is a file)
+      try {
+        await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: workspaceRoot });
+      } catch {
         return findings;
       }
 
       // Get recent commit diffs
-      const { stdout } = await execAsync(
-        `git log -p -${depth} --all --diff-filter=A -- '*.ts' '*.js' '*.json' '*.env*' '*.yaml' '*.yml'`,
+      const { stdout } = await execFileAsync(
+        'git',
+        [
+          'log',
+          '-p',
+          `-${depth}`,
+          '--all',
+          '--diff-filter=A',
+          '--',
+          '*.ts',
+          '*.js',
+          '*.json',
+          '*.env*',
+          '*.yaml',
+          '*.yml',
+        ],
         {
           cwd: workspaceRoot,
           maxBuffer: 10 * 1024 * 1024,
+          timeout: 60_000,
         }
       );
 

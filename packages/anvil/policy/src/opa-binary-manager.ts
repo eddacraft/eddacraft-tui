@@ -12,12 +12,12 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { homedir, platform, arch } from 'node:os';
-import { execSync, exec } from 'node:child_process';
+import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import https from 'node:https';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Default OPA version to download
@@ -229,8 +229,11 @@ export class OPABinaryManager {
    */
   private findInPath(): string | null {
     try {
-      const cmd = platform() === 'win32' ? 'where opa' : 'which opa';
-      const result = execSync(cmd, { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] });
+      const cmd = platform() === 'win32' ? 'where' : 'which';
+      const result = execFileSync(cmd, ['opa'], {
+        encoding: 'utf-8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
       const path = result.trim().split('\n')[0];
       return path && existsSync(path) ? path : null;
     } catch {
@@ -243,7 +246,7 @@ export class OPABinaryManager {
    */
   private async verifyVersion(binaryPath: string): Promise<boolean> {
     try {
-      const { stdout } = await execAsync(`"${binaryPath}" version`);
+      const { stdout } = await execFileAsync(binaryPath, ['version']);
       // OPA version output format: "Version: 0.60.0"
       const match = stdout.match(/Version:\s*(\d+\.\d+\.\d+)/);
       if (!match) {

@@ -8,7 +8,7 @@ import {
   unlinkSync,
   existsSync,
 } from 'node:fs';
-import { resolve, relative, dirname } from 'node:path';
+import { resolve, relative, dirname, sep } from 'node:path';
 
 /** Simple file lock for preventing concurrent file modifications */
 async function withFileLock<T>(lockPath: string, fn: () => T | Promise<T>): Promise<T> {
@@ -137,7 +137,7 @@ export function registerFixTool(server: McpServer, getWorkspaceRoot: () => strin
         // Resolve symlinks to prevent escaping via symlink targets
         const realRoot = realpathSync(workspaceRoot);
         const realAbs = realpathSync(absPath);
-        if (!realAbs.startsWith(realRoot + '/') && realAbs !== realRoot) {
+        if (!realAbs.startsWith(realRoot + sep) && realAbs !== realRoot) {
           return {
             content: [
               {

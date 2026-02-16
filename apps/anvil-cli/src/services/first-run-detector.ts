@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isEnvTrue } from '../utils/env.js';
+import { getWorkspaceRoot } from '../utils/file-io.js';
 
 const ANVIL_DIR = '.anvil';
 const FIRST_RUN_MARKER = 'first-run';
@@ -14,14 +15,14 @@ export function isFirstRun(options: FirstRunOptions = {}): boolean {
     return false;
   }
 
-  const projectRoot = options.projectRoot ?? process.cwd();
+  const projectRoot = options.projectRoot ?? getWorkspaceRoot();
   const markerPath = join(projectRoot, ANVIL_DIR, FIRST_RUN_MARKER);
 
   return !existsSync(markerPath);
 }
 
 export function markFirstRunComplete(options: FirstRunOptions = {}): void {
-  const projectRoot = options.projectRoot ?? process.cwd();
+  const projectRoot = options.projectRoot ?? getWorkspaceRoot();
   const anvilDir = join(projectRoot, ANVIL_DIR);
   const markerPath = join(anvilDir, FIRST_RUN_MARKER);
 
@@ -46,6 +47,6 @@ export function isWelcomeSkipped(): boolean {
 }
 
 export function getMarkerPath(options: FirstRunOptions = {}): string {
-  const projectRoot = options.projectRoot ?? process.cwd();
+  const projectRoot = options.projectRoot ?? getWorkspaceRoot();
   return join(projectRoot, ANVIL_DIR, FIRST_RUN_MARKER);
 }

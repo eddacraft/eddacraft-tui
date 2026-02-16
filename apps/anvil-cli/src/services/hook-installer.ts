@@ -99,12 +99,26 @@ PLAN_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\\.(md|y
 
 if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Validating planning documents..."
+  FAILED=0
 
-  for file in $PLAN_FILES; do
-    if anvil validate "$file" --quiet 2>/dev/null; then
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    if anvil validate "$file" 2>/dev/null; then
       echo "  [OK] $file"
+    else
+      echo "  [FAIL] $file"
+      FAILED=1
     fi
-  done
+  done <<EOF
+$PLAN_FILES
+EOF
+
+  if [ "$FAILED" -ne 0 ]; then
+    echo ""
+    echo "Commit blocked: one or more plan files failed validation."
+    echo "Run 'anvil validate <file>' to see details."
+    exit 1
+  fi
 fi
 
 exit 0
@@ -124,19 +138,28 @@ PLAN_FILES=$(find . \\( -name "*.md" -path "*/planning/*" \\) -o -name "*-plan.m
 
 if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Running quality gates..."
+  FAILED=0
 
-  echo "$PLAN_FILES" | while IFS= read -r file; do
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
     if [ -f "$file" ]; then
       echo "  Checking: $file"
-      if ! anvil gate "$file" --quiet 2>/dev/null; then
+      if ! anvil gate "$file" 2>/dev/null; then
         echo "  [FAIL] Gate failed: $file"
-        echo ""
-        echo "Run 'anvil gate $file' to see details."
-        echo "To bypass, set ANVIL_SKIP_HOOKS=1"
-        exit 1
+        FAILED=1
       fi
     fi
-  done
+  done <<EOF
+$PLAN_FILES
+EOF
+
+  if [ "$FAILED" -ne 0 ]; then
+    echo ""
+    echo "Push blocked: one or more gates failed."
+    echo "Run 'anvil gate <file>' to see details."
+    echo "To bypass, set ANVIL_SKIP_HOOKS=1"
+    exit 1
+  fi
 
   echo "  [OK] All gates passed"
 fi

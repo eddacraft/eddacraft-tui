@@ -16,10 +16,16 @@ export function createBetaCommand(): Command {
     .option('--name <name>', 'User display name')
     .option('--notes <notes>', 'Internal notes about this user')
     .action(async (options: { email: string; days: string; name?: string; notes?: string }) => {
+      const days = parseInt(options.days, 10);
+      if (Number.isNaN(days) || days <= 0) {
+        error('--days must be a positive integer');
+        process.exit(1);
+      }
+
       try {
         const result = await adminInvite({
           email: options.email,
-          days: parseInt(options.days, 10),
+          days,
           name: options.name,
           notes: options.notes,
         });

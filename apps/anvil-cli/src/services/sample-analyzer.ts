@@ -106,12 +106,8 @@ export class SampleAnalyzer {
    */
   private async isGitAvailable(): Promise<boolean> {
     try {
-      const gitDir = join(this.projectRoot, '.git');
-      if (!existsSync(gitDir)) {
-        return false;
-      }
-
-      await execAsync('git --version', { cwd: this.projectRoot });
+      // Use git rev-parse which handles worktrees (.git as file) correctly
+      await execAsync('git rev-parse --git-dir', { cwd: this.projectRoot });
       return true;
     } catch {
       return false;

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import type {
   StatusData,
@@ -89,13 +89,55 @@ function isAnvilManagedHook(hookPath: string): boolean {
   }
 }
 
+/**
+ * Resolve the actual .git directory, handling worktrees where .git is a file.
+ */
+function resolveGitDir(projectRoot: string): string | null {
+  const gitPath = join(projectRoot, '.git');
+  if (!existsSync(gitPath)) return null;
+
+  try {
+    const stat = statSync(gitPath);
+    if (stat.isDirectory()) return gitPath;
+
+    // Worktree: .git is a file containing "gitdir: <path>"
+    const content = readFileSync(gitPath, 'utf-8').trim();
+    const match = content.match(/^gitdir:\s+(.+)$/);
+    if (!match) return null;
+
+    const gitDir = resolve(projectRoot, match[1]);
+    return existsSync(gitDir) ? gitDir : null;
+  } catch {
+    return null;
+  }
+}
+
 export function gatherHooksStatus(projectRoot: string): HooksStatus {
   const huskyDir = join(projectRoot, HUSKY_DIR);
   const huskyInstalled = existsSync(huskyDir);
 
+  // Resolve .git/hooks directory (handles worktrees)
+  const gitDir = resolveGitDir(projectRoot);
+  const gitHooksDir = gitDir ? join(gitDir, 'hooks') : null;
+
   const hooks: HookInfo[] = KNOWN_HOOKS.map((name) => {
-    const hookPath = join(huskyDir, name);
-    const state = huskyInstalled ? detectHookState(hookPath) : 'missing';
+    // Check .husky first, then .git/hooks
+    const huskyHookPath = join(huskyDir, name);
+    const gitHookPath = gitHooksDir ? join(gitHooksDir, name) : null;
+
+    const hookPath =
+      huskyInstalled && existsSync(huskyHookPath)
+        ? huskyHookPath
+        : gitHookPath && existsSync(gitHookPath)
+          ? gitHookPath
+          : huskyHookPath; // fallback for state detection
+
+    const state =
+      huskyInstalled && existsSync(huskyHookPath)
+        ? detectHookState(huskyHookPath)
+        : gitHookPath && existsSync(gitHookPath)
+          ? detectHookState(gitHookPath)
+          : 'missing';
 
     return {
       name,
@@ -108,7 +150,7 @@ export function gatherHooksStatus(projectRoot: string): HooksStatus {
 
   return {
     huskyInstalled,
-    hooksDir: huskyDir,
+    hooksDir: huskyInstalled ? huskyDir : (gitHooksDir ?? huskyDir),
     hooks,
   };
 }
@@ -208,16 +250,40 @@ export function gatherRecentResults(projectRoot: string, limit = 5): RecentResul
     const results: ValidationResult[] = entries
       .filter(([key]) => key.startsWith('gate:') || key.startsWith('validate:'))
       .map(([key, entry]) => {
-        const parts = key.split(':');
+        // Split on first colon only to preserve Windows drive-letter paths (e.g. "gate:C:\foo")
+        const colonIdx = key.indexOf(':');
+        const planPath = colonIdx >= 0 ? key.slice(colonIdx + 1) : 'unknown';
+
+        // Try to read actual result from cache file
+        let passed: boolean | undefined;
+        let passedChecks: number | undefined;
+        let totalChecks: number | undefined;
+
+        const cacheFilePath = join(cacheDir, entry.file);
+        try {
+          if (existsSync(cacheFilePath)) {
+            const cached = JSON.parse(readFileSync(cacheFilePath, 'utf-8'));
+            passed = cached.overall ?? cached.valid;
+            if (cached.summary) {
+              passedChecks = cached.summary.passed;
+              totalChecks = cached.summary.total;
+            }
+          }
+        } catch {
+          // Cache file unreadable — leave fields undefined
+        }
+
         return {
           id: entry.file.replace('.json', ''),
           timestamp: new Date(entry.created_at),
-          planPath: parts[parts.length - 1] ?? 'unknown',
-          passed: true,
-          passedChecks: 1,
-          totalChecks: 1,
+          planPath,
+          passed,
+          passedChecks,
+          totalChecks,
         };
       })
+      // Exclude entries where cache was unreadable (avoids undefined/undefined in output)
+      .filter((r) => r.passed !== undefined)
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, limit);
 

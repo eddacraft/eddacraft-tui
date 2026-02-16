@@ -44,7 +44,7 @@ function formatAsJson(result: ValidationResult, filePath: string): string {
 export function createValidateSubcommand(): Command {
   return new Command('validate')
     .description('Validate an APS planning document')
-    .argument('[path]', 'Path to planning document', 'docs/planning/APS.md')
+    .argument('[path]', 'Path to planning document', 'docs/plans/APS.md')
     .option('--json', 'Output as JSON')
     .action(async (path: string, options: ValidateOptions) => {
       const filePath = resolve(path);

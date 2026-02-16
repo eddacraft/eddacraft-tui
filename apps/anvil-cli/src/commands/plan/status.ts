@@ -125,11 +125,11 @@ export function createStatusSubcommand(): Command {
   return new Command('status')
     .description('Show task states across the plan')
     .argument('[task]', 'Optional task ID to check specific task')
-    .option('--plan <path>', 'Path to planning document', 'docs/planning/APS.md')
+    .option('--plan <path>', 'Path to planning document', 'docs/plans/APS.md')
     .option('--json', 'Output as JSON')
     .option('--summary', 'Show summary only')
     .action(async (taskId: string | undefined, options: StatusOptions) => {
-      const planPath = resolve(options.plan || 'docs/planning/APS.md');
+      const planPath = resolve(options.plan || 'docs/plans/APS.md');
       const projectRoot = process.cwd();
 
       if (options.json) {

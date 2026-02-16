@@ -5,13 +5,42 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  unlinkSync,
+  chmodSync,
+  statSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
 
 /** Marker comment to identify Anvil-managed hooks */
 const ANVIL_MARKER = '# Anvil-managed hook';
+
+/**
+ * Resolve the .git directory, handling worktrees where .git is a file
+ * containing "gitdir: <path>".
+ * Returns the path to the actual .git directory, or null if not a git repo.
+ */
+function resolveGitDir(workspaceRoot: string): string | null {
+  const gitPath = join(workspaceRoot, '.git');
+  if (!existsSync(gitPath)) return null;
+
+  // If .git is a directory, use it directly
+  if (statSync(gitPath).isDirectory()) return gitPath;
+
+  // Worktree: .git is a file with "gitdir: <path>"
+  const content = readFileSync(gitPath, 'utf-8').trim();
+  const match = content.match(/^gitdir:\s+(.+)$/);
+  if (!match) return null;
+
+  const gitDir = resolve(workspaceRoot, match[1]);
+  return existsSync(gitDir) ? gitDir : null;
+}
 
 /**
  * Check if a hook file contains the Anvil marker
@@ -33,12 +62,26 @@ PLAN_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\\.(md|y
 
 if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Validating planning documents..."
+  FAILED=0
 
-  for file in $PLAN_FILES; do
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
     if anvil validate "$file" 2>/dev/null; then
       echo "  [OK] $file"
+    else
+      echo "  [FAIL] $file"
+      FAILED=1
     fi
-  done
+  done <<EOF
+$PLAN_FILES
+EOF
+
+  if [ "$FAILED" -ne 0 ]; then
+    echo ""
+    echo "Commit blocked: one or more plan files failed validation."
+    echo "Run 'anvil validate <file>' to see details."
+    exit 1
+  fi
 fi
 
 exit 0
@@ -62,19 +105,28 @@ PLAN_FILES=$(find . \\( -name "*.md" -path "*/planning/*" \\) -o -name "*-plan.m
 
 if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Running quality gates..."
+  FAILED=0
 
-  echo "$PLAN_FILES" | while IFS= read -r file; do
+  while IFS= read -r file; do
+    [ -z "$file" ] && continue
     if [ -f "$file" ]; then
       echo "  Checking: $file"
       if ! anvil gate "$file" 2>/dev/null; then
         echo "  [FAIL] Gate failed: $file"
-        echo ""
-        echo "Run 'anvil gate $file' to see details."
-        echo "To bypass, set ANVIL_SKIP_HOOKS=1"
-        exit 1
+        FAILED=1
       fi
     fi
-  done
+  done <<EOF
+$PLAN_FILES
+EOF
+
+  if [ "$FAILED" -ne 0 ]; then
+    echo ""
+    echo "Push blocked: one or more gates failed."
+    echo "Run 'anvil gate <file>' to see details."
+    echo "To bypass, set ANVIL_SKIP_HOOKS=1"
+    exit 1
+  fi
 
   echo "  [OK] All gates passed"
 fi
@@ -225,9 +277,9 @@ export function createHooksCommand(): Command {
             );
           }
 
-          // Check for Git repository
-          const gitDir = join(workspaceRoot, '.git');
-          if (!existsSync(gitDir)) {
+          // Check for Git repository (handles worktrees where .git is a file)
+          const gitDir = resolveGitDir(workspaceRoot);
+          if (!gitDir) {
             spinner.fail(chalk.red('Not a Git repository'));
             error('Run this command from a Git repository root');
             process.exit(1);
@@ -323,9 +375,9 @@ export function createHooksCommand(): Command {
 
       try {
         const workspaceRoot = getWorkspaceRoot();
-        const gitDir = join(workspaceRoot, '.git');
+        const gitDir = resolveGitDir(workspaceRoot);
 
-        if (!existsSync(gitDir)) {
+        if (!gitDir) {
           spinner.fail(chalk.red('Not a Git repository'));
           process.exit(1);
         }
@@ -388,9 +440,9 @@ export function createHooksCommand(): Command {
     .action(async () => {
       try {
         const workspaceRoot = getWorkspaceRoot();
-        const gitDir = join(workspaceRoot, '.git');
+        const gitDir = resolveGitDir(workspaceRoot);
 
-        if (!existsSync(gitDir)) {
+        if (!gitDir) {
           error('Not a Git repository');
           process.exit(1);
         }

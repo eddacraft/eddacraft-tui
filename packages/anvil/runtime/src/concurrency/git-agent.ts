@@ -5,7 +5,7 @@
  * Supports reading and writing agent identification through commit trailers.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createAgentInfo } from './agent.js';
 import type { AgentType, AgentInfo } from './types.js';
@@ -142,7 +142,7 @@ export function extractAgentInfo(trailers: Record<string, string>): CommitAgentI
  */
 export function getCommitAgentInfo(commitRef: string, cwd?: string): CommitAgentInfo | null {
   try {
-    const message = execSync(`git log -1 --format=%B ${commitRef}`, {
+    const message = execFileSync('git', ['log', '-1', '--format=%B', commitRef], {
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -166,7 +166,7 @@ export function getRecentCommitsAgentInfo(
   const results: Array<{ hash: string; info: CommitAgentInfo }> = [];
 
   try {
-    const hashes = execSync(`git log -${count} --format=%H`, {
+    const hashes = execFileSync('git', ['log', `-${count}`, '--format=%H'], {
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -387,10 +387,11 @@ export function getAgentContributions(
   const contributions = new Map<string, AgentContributionSummary>();
 
   try {
-    const sinceArg = sinceRef ? `${sinceRef}..HEAD` : '';
-    const format = '%H|%aI'; // hash|timestamp
+    const args = ['log'];
+    if (sinceRef) args.push(`${sinceRef}..HEAD`);
+    args.push('--format=%H|%aI');
 
-    const output = execSync(`git log ${sinceArg} --format="${format}"`, {
+    const output = execFileSync('git', args, {
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -438,10 +439,11 @@ export function getAgentContributions(
  */
 export function getAiCommitPercentage(sinceRef?: string, cwd?: string): number {
   try {
-    const sinceArg = sinceRef ? `${sinceRef}..HEAD` : '';
+    const revListArgs = ['rev-list', '--count'];
+    revListArgs.push(sinceRef ? `${sinceRef}..HEAD` : 'HEAD');
 
     const totalCount = parseInt(
-      execSync(`git rev-list --count ${sinceArg || 'HEAD'}`, {
+      execFileSync('git', revListArgs, {
         cwd,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],

@@ -546,10 +546,11 @@ export function createCheckCommand(): Command {
         try {
           await saveRecentWarnings(workspaceRoot, result.warnings.warnings);
         } catch (saveErr) {
-          info(
-            `Failed to save recent warnings: ${
+          // Write to stderr to avoid polluting --json stdout output
+          process.stderr.write(
+            `ℹ Failed to save recent warnings: ${
               saveErr instanceof Error ? saveErr.message : String(saveErr)
-            }`
+            }\n`
           );
         }
 

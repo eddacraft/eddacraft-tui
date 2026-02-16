@@ -167,7 +167,7 @@ function isValidConfidenceArray(arr: string[]): arr is Array<'low' | 'medium' | 
 export function createLoadSubcommand(): Command {
   return new Command('load')
     .description('Load and filter an APS planning document')
-    .argument('[path]', 'Path to planning document', 'docs/planning/APS.md')
+    .argument('[path]', 'Path to planning document', 'docs/plans/APS.md')
     .option('--scope <scopes...>', 'Filter by scope (e.g., AUTH, PAY)')
     .option('--module <modules...>', 'Filter by module ID (e.g., auth, payments)')
     .option('--task <tasks...>', 'Filter by task ID (e.g., AUTH-001)')

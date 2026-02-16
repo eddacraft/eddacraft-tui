@@ -284,6 +284,7 @@ export class DependencyCheck extends BaseCheck {
       const { stdout } = await execAsync(auditCommand, {
         cwd: workspaceRoot,
         maxBuffer: 10 * 1024 * 1024,
+        timeout: 120_000,
       });
 
       return this.normaliseAuditOutput(stdout, packageManager);

@@ -5,7 +5,7 @@
  * to only unstaged changes.
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { relative, resolve } from 'node:path';
 import type { GitFileStatus } from './types.js';
@@ -13,7 +13,7 @@ import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('gate');
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Git status checker for filtering watched files
@@ -26,7 +26,7 @@ export class GitStatusChecker {
    */
   async isGitRepository(): Promise<boolean> {
     try {
-      await execAsync('git rev-parse --git-dir', {
+      await execFileAsync('git', ['rev-parse', '--git-dir'], {
         cwd: this.workspaceRoot,
       });
       return true;
@@ -46,7 +46,7 @@ export class GitStatusChecker {
     const relativePath = this.toRelativePath(filePath);
 
     try {
-      const { stdout } = await execAsync(`git status --porcelain -- "${relativePath}"`, {
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain', '--', relativePath], {
         cwd: this.workspaceRoot,
       });
 
@@ -85,7 +85,7 @@ export class GitStatusChecker {
    */
   async getUnstagedFiles(): Promise<string[]> {
     try {
-      const { stdout } = await execAsync('git status --porcelain', {
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: this.workspaceRoot,
       });
 
@@ -111,7 +111,7 @@ export class GitStatusChecker {
    */
   async getUntrackedFiles(): Promise<string[]> {
     try {
-      const { stdout } = await execAsync('git status --porcelain', {
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: this.workspaceRoot,
       });
 
@@ -268,7 +268,7 @@ export async function getChangedFiles(
 
   try {
     if (since) {
-      const { stdout } = await execAsync(`git diff --name-only ${since}`, {
+      const { stdout } = await execFileAsync('git', ['diff', '--name-only', since], {
         cwd: workspaceRoot,
       });
       const diffFiles = stdout.trim().split('\n').filter(Boolean);
@@ -276,7 +276,7 @@ export async function getChangedFiles(
         files.add(resolve(workspaceRoot, file));
       }
     } else {
-      const { stdout } = await execAsync('git status --porcelain', {
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: workspaceRoot,
       });
 

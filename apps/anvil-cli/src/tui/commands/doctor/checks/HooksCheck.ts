@@ -82,27 +82,64 @@ export class PreCommitHookCheck implements DiagnosticCheck {
   readonly name = 'Pre-commit Hook';
   readonly description = 'Verifies pre-commit hook exists and is executable';
 
+  /**
+   * Resolve the git hooks directory, handling worktrees where .git is a file.
+   */
+  private resolveGitHooksDir(projectRoot: string): string | null {
+    const gitPath = path.join(projectRoot, '.git');
+    if (!fs.existsSync(gitPath)) return null;
+
+    try {
+      const stat = fs.statSync(gitPath);
+      if (stat.isDirectory()) return path.join(gitPath, 'hooks');
+
+      // Worktree: .git is a file containing "gitdir: <path>"
+      const content = fs.readFileSync(gitPath, 'utf-8').trim();
+      const match = content.match(/^gitdir:\s+(.+)$/);
+      if (!match) return null;
+
+      const gitDir = path.resolve(projectRoot, match[1]);
+      return fs.existsSync(gitDir) ? path.join(gitDir, 'hooks') : null;
+    } catch {
+      return null;
+    }
+  }
+
   async run(context: DiagnosticContext): Promise<DiagnosticResult> {
+    // Check .husky first, then fall back to .git/hooks
     const huskyDir = path.join(context.projectRoot, '.husky');
-    if (!fs.existsSync(huskyDir)) {
-      return {
-        checkId: this.id,
-        name: this.name,
-        status: 'skip',
-        message: 'Skipped (no .husky directory)',
-        fixable: false,
-      };
+    const gitHooksDir = this.resolveGitHooksDir(context.projectRoot);
+
+    let hookPath: string | null = null;
+
+    if (fs.existsSync(huskyDir)) {
+      const huskyHook = path.join(huskyDir, 'pre-commit');
+      if (fs.existsSync(huskyHook)) hookPath = huskyHook;
     }
 
-    const hookPath = path.join(huskyDir, 'pre-commit');
-    if (!fs.existsSync(hookPath)) {
+    if (!hookPath && gitHooksDir) {
+      const gitHook = path.join(gitHooksDir, 'pre-commit');
+      if (fs.existsSync(gitHook)) hookPath = gitHook;
+    }
+
+    if (!hookPath) {
+      if (!fs.existsSync(huskyDir) && !gitHooksDir) {
+        return {
+          checkId: this.id,
+          name: this.name,
+          status: 'skip',
+          message: 'Skipped (no hooks directory found)',
+          fixable: false,
+        };
+      }
+
       return {
         checkId: this.id,
         name: this.name,
         status: 'warn',
         message: 'pre-commit hook missing',
         fixable: true,
-        suggestion: 'Create pre-commit hook with lint-staged',
+        suggestion: 'Run: anvil hooks install',
       };
     }
 
@@ -117,7 +154,7 @@ export class PreCommitHookCheck implements DiagnosticCheck {
           status: 'warn',
           message: 'pre-commit hook not executable',
           fixable: true,
-          suggestion: 'Run: chmod +x .husky/pre-commit',
+          suggestion: `Run: chmod +x ${hookPath}`,
         };
       }
 

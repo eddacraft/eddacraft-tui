@@ -4,6 +4,7 @@
  * Real-time output formatting for watch mode.
  */
 
+import { basename } from 'node:path';
 import chalk from 'chalk';
 import type { WatchStatusEvent, WatchActionResult } from '@eddacraft/anvil-runtime';
 
@@ -118,7 +119,7 @@ export class WatchOutput {
   }
 
   private onActionStart(event: Extract<WatchStatusEvent, { type: 'action:start' }>): void {
-    const files = event.files.map((f: string) => f.split('/').pop()).join(', ');
+    const files = event.files.map((f: string) => basename(f)).join(', ');
     console.log(`${formatTime()} ${chalk.cyan(files)} changed`);
     console.log(chalk.gray(`  Running ${event.action}...`));
   }

@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 
 import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult } from '../types.js';
 
@@ -49,7 +49,7 @@ export class GitCheck implements DiagnosticCheck {
 
   async run(_context: DiagnosticContext): Promise<DiagnosticResult> {
     try {
-      const output = execSync('git --version', {
+      const output = execFileSync('git', ['--version'], {
         encoding: 'utf8',
         stdio: ['pipe', 'pipe', 'pipe'],
       });

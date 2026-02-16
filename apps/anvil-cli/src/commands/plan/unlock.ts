@@ -25,10 +25,10 @@ export function createUnlockSubcommand(): Command {
   return new Command('unlock')
     .description('Unlock (cancel) a locked task')
     .argument('<task>', 'Task ID to unlock (e.g., AUTH-001)')
-    .option('--plan <path>', 'Path to planning document', 'docs/planning/APS.md')
+    .option('--plan <path>', 'Path to planning document', 'docs/plans/APS.md')
     .option('--json', 'Output as JSON')
     .action(async (taskId: string, options: UnlockOptions) => {
-      const planPath = resolve(options.plan || 'docs/planning/APS.md');
+      const planPath = resolve(options.plan || 'docs/plans/APS.md');
       const projectRoot = process.cwd();
 
       if (options.json) {

@@ -27,12 +27,12 @@ export function createLockSubcommand(): Command {
   return new Command('lock')
     .description('Lock a task for execution')
     .argument('<task>', 'Task ID to lock (e.g., AUTH-001)')
-    .option('--plan <path>', 'Path to planning document', 'docs/planning/APS.md')
+    .option('--plan <path>', 'Path to planning document', 'docs/plans/APS.md')
     .option('--user <name>', 'User name for provenance')
     .option('--skip-validation', 'Skip planning document validation')
     .option('--json', 'Output as JSON')
     .action(async (taskId: string, options: LockOptions) => {
-      const planPath = resolve(options.plan || 'docs/planning/APS.md');
+      const planPath = resolve(options.plan || 'docs/plans/APS.md');
       const projectRoot = process.cwd();
 
       if (options.json) {

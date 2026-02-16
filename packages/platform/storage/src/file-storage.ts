@@ -4,7 +4,7 @@
  * Implements IStorageProvider for file system operations.
  */
 
-import { promises as fs } from 'node:fs';
+import { promises as fs, realpathSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 import type { IStorageProvider } from '@eddacraft/anvil-ports';
 
@@ -53,8 +53,51 @@ export class FileStorage implements IStorageProvider {
     const resolvedBase = resolve(this.baseDir);
     const resolvedTarget = resolve(resolvedBase, filePath);
 
+    // Lexical check first (catches ../ traversal before the file exists)
     if (resolvedTarget !== resolvedBase && !resolvedTarget.startsWith(resolvedBase + sep)) {
       throw new Error(`Path escapes base directory: ${filePath}`);
+    }
+
+    // Symlink check: canonicalise and re-verify to catch symlink escapes
+    try {
+      const realBase = realpathSync(resolvedBase);
+      const realTarget = realpathSync(resolvedTarget);
+      if (realTarget !== realBase && !realTarget.startsWith(realBase + sep)) {
+        throw new Error(`Path escapes base directory (symlink): ${filePath}`);
+      }
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
+      ) {
+        // Target doesn't exist yet (common for writes). Canonicalise the
+        // nearest existing parent to catch symlinked intermediate directories.
+        const realBase = realpathSync(resolvedBase);
+        let parent = resolvedTarget;
+        // Walk up until we find an existing directory
+        while (parent !== resolvedBase) {
+          parent = dirname(parent);
+          try {
+            const realParent = realpathSync(parent);
+            if (realParent !== realBase && !realParent.startsWith(realBase + sep)) {
+              throw new Error(`Path escapes base directory (symlink): ${filePath}`);
+            }
+            break; // found existing parent, it's inside base — OK
+          } catch (parentErr) {
+            if (
+              parentErr instanceof Error &&
+              'code' in parentErr &&
+              (parentErr as NodeJS.ErrnoException).code === 'ENOENT'
+            ) {
+              continue; // parent doesn't exist either, keep walking up
+            }
+            throw parentErr;
+          }
+        }
+        return resolvedTarget;
+      }
+      throw err;
     }
 
     return resolvedTarget;

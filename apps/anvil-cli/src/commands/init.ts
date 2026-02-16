@@ -755,12 +755,25 @@ async function runDetectAndApplyInit(
     generator.updateGitignore();
   }
 
-  // Step 5: Install hooks
+  // Step 5: Install hooks (worktree-aware)
+  let hooksInstalled = false;
   if (env.hasGit) {
     try {
       const hookInstaller = new HookInstaller();
-      hookInstaller.installHook(projectRoot, 'pre-commit', '.git/hooks');
-      hookInstaller.installHook(projectRoot, 'pre-push', '.git/hooks');
+      // Use git rev-parse to find the hooks directory (works in worktrees)
+      let hooksDir = '.git/hooks';
+      try {
+        const { execFileSync } = await import('node:child_process');
+        hooksDir = execFileSync('git', ['rev-parse', '--git-path', 'hooks'], {
+          cwd: projectRoot,
+          encoding: 'utf-8',
+        }).trim();
+      } catch {
+        // Fall back to .git/hooks if git command fails
+      }
+      hookInstaller.installHook(projectRoot, 'pre-commit', hooksDir);
+      hookInstaller.installHook(projectRoot, 'pre-push', hooksDir);
+      hooksInstalled = true;
     } catch {
       // Non-fatal: hooks are nice-to-have
     }
@@ -773,8 +786,10 @@ async function runDetectAndApplyInit(
   );
   success(`Applied starter profile: ${profile.name}`);
   success(`${teamPolicies.length} policies active (${teamPolicies.map((p) => p.name).join(', ')})`);
-  if (env.hasGit) {
+  if (hooksInstalled) {
     success('Hooks installed');
+  } else if (env.hasGit) {
+    info('Hook installation skipped (non-fatal)');
   }
   info(`Org source: ${orgSource}`);
 
