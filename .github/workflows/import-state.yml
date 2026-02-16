@@ -1,0 +1,94 @@
+# One-time workflow to import existing cloud resources into Pulumi state.
+# Trigger manually from the GitHub Actions UI after merging to main.
+# Delete this workflow after a successful import.
+
+name: Import Pulumi State
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+env:
+  PULUMI_STACK: prod
+
+jobs:
+  import:
+    name: Import Existing Resources
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Pulumi CLI
+        run: curl -fsSL https://get.pulumi.com | sh && echo "$HOME/.pulumi/bin" >> "$GITHUB_PATH"
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+
+      - name: Fetch Vercel token from Key Vault
+        run: |
+          VERCEL_TOKEN=$(az keyvault secret show --vault-name kv-iac-anvil --name vercel-token --query value -o tsv)
+          echo "::add-mask::$VERCEL_TOKEN"
+          echo "VERCEL_TOKEN=$VERCEL_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Generate import JSON
+        run: bash infra/scripts/generate-import-json.sh
+        env:
+          VERCEL_API_TOKEN: ${{ env.VERCEL_TOKEN }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Show import plan
+        run:
+          cat infra/import.json | jq '.resources[] | {type, name, logicalName, id, parent,
+          component}'
+
+      - name: Import resources into Pulumi state
+        working-directory: infra
+        run: |
+          pulumi login azblob://pulumi-state
+          pulumi stack select ${{ env.PULUMI_STACK }}
+          pulumi import --file import.json \
+            --generate-code=false \
+            --yes \
+            --protect=false
+        env:
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          VERCEL_API_TOKEN: ${{ env.VERCEL_TOKEN }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Verify clean state
+        working-directory: infra
+        run: pulumi up --yes --skip-preview
+        env:
+          AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+          AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          VERCEL_API_TOKEN: ${{ env.VERCEL_TOKEN }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}

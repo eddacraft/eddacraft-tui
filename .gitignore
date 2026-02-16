@@ -61,6 +61,7 @@ gha-creds-*.json
 /.serena
 .vercel
 .env*.local
+infra/import.json
 
 # Root-level tsc build artifacts
 /vitest.config.js
