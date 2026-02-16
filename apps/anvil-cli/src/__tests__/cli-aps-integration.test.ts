@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, existsSync, writeFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -29,6 +29,8 @@ describe('CLI + APS Integration Tests', () => {
     tempDir = join(tmpdir(), 'anvil-cli-test', Math.random().toString(36).substring(7));
     plansDir = join(tempDir, '.anvil', 'plans');
     mkdirSync(plansDir, { recursive: true });
+    tempDir = realpathSync(tempDir);
+    plansDir = join(tempDir, '.anvil', 'plans');
 
     // Create package.json to make it look like a workspace
     writeFileSync(

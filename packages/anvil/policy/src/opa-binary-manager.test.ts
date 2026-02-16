@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OPABinaryManager } from './opa-binary-manager.js';
 import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, platform, arch } from 'node:os';
 
 describe('OPABinaryManager', () => {
   let manager: OPABinaryManager;
@@ -134,7 +134,16 @@ describe('OPABinaryManager', () => {
 
   describe('forceDownload', () => {
     it('should remove existing cached binary before re-downloading', async () => {
-      const binaryPath = join(tempCacheDir, 'opa-0.60.0-linux-amd64');
+      const PLATFORM_MAP: Record<string, string> = {
+        darwin: 'darwin',
+        linux: 'linux',
+        win32: 'windows',
+      };
+      const ARCH_MAP: Record<string, string> = { x64: 'amd64', arm64: 'arm64' };
+      const plat = PLATFORM_MAP[platform()] || platform();
+      const architecture = ARCH_MAP[arch()] || arch();
+      const ext = plat === 'windows' ? '.exe' : '';
+      const binaryPath = join(tempCacheDir, `opa-0.60.0-${plat}-${architecture}${ext}`);
       writeFileSync(binaryPath, 'mock binary');
 
       expect(existsSync(binaryPath)).toBe(true);

@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { writeFile, mkdir, mkdtemp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, platform } from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import type { LoadedPolicy } from './policy-loader.js';
 
@@ -190,7 +190,7 @@ function spawnAsync(
     const child = spawn(command, args, {
       cwd: options.cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      shell: false,
+      shell: platform() === 'win32',
     });
 
     let stdout = '';

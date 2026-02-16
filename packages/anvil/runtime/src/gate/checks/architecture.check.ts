@@ -312,7 +312,9 @@ export class ArchitectureCheck extends BaseCheck {
   }
 
   private matchesGlobPattern(filePath: string, pattern: string): boolean {
-    return minimatch(filePath, pattern, { dot: true });
+    // Normalise to forward slashes for consistent cross-platform matching
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    return minimatch(normalizedPath, pattern, { dot: true });
   }
 
   /**

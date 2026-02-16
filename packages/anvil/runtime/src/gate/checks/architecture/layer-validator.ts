@@ -204,6 +204,9 @@ export class LayerValidator {
    * Simple glob pattern matching (for common patterns)
    */
   private matchesGlobPattern(filePath: string, pattern: string): boolean {
+    // Normalise to forward slashes for consistent cross-platform matching
+    const normalizedPath = filePath.replace(/\\/g, '/');
+
     // Convert glob to regex (simplified)
     const regexPattern = pattern
       .replace(/\*\*/g, '{{GLOBSTAR}}')
@@ -212,7 +215,7 @@ export class LayerValidator {
       .replace(/\?/g, '.');
 
     const regex = new RegExp(regexPattern);
-    return regex.test(filePath);
+    return regex.test(normalizedPath);
   }
 
   /**

@@ -9,6 +9,9 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+/** Normalise path to forward slashes for cross-platform assertions */
+const toForwardSlash = (p: string): string => p.replace(/\\/g, '/');
+
 const createMockPlan = (changes: Array<{ type: string; path: string }>): APSPlan => ({
   id: 'aps-12345678',
   hash: 'a'.repeat(64),
@@ -681,8 +684,8 @@ describe('ArchitectureCheck', () => {
       // Should analyze affected files
       const callArgs = analyzeSpy.mock.calls[0][0];
       expect(callArgs).toHaveLength(2);
-      expect(callArgs.some((p: string) => p.endsWith('src/index.ts'))).toBe(true);
-      expect(callArgs.some((p: string) => p.endsWith('src/utils.ts'))).toBe(true);
+      expect(callArgs.some((p: string) => toForwardSlash(p).endsWith('src/index.ts'))).toBe(true);
+      expect(callArgs.some((p: string) => toForwardSlash(p).endsWith('src/utils.ts'))).toBe(true);
     });
 
     it('should use full scope when configured', async () => {
@@ -754,9 +757,9 @@ describe('ArchitectureCheck', () => {
       await check.run(context);
 
       const callArgs = analyzeSpy.mock.calls[0][0];
-      expect(callArgs.some((p: string) => p.endsWith('src/index.ts'))).toBe(true);
-      expect(callArgs.some((p: string) => p.endsWith('src/utils.js'))).toBe(true);
-      expect(callArgs.every((p: string) => !p.endsWith('README.md'))).toBe(true);
+      expect(callArgs.some((p: string) => toForwardSlash(p).endsWith('src/index.ts'))).toBe(true);
+      expect(callArgs.some((p: string) => toForwardSlash(p).endsWith('src/utils.js'))).toBe(true);
+      expect(callArgs.every((p: string) => !toForwardSlash(p).endsWith('README.md'))).toBe(true);
     });
 
     it('should respect exclude patterns', async () => {
@@ -787,9 +790,11 @@ describe('ArchitectureCheck', () => {
       await check.run(context);
 
       const callArgs = analyzeSpy.mock.calls[0][0];
-      expect(callArgs.some((p: string) => p.endsWith('src/component.ts'))).toBe(true);
-      expect(callArgs.every((p: string) => !p.endsWith('.test.ts'))).toBe(true);
-      expect(callArgs.every((p: string) => !p.endsWith('.spec.ts'))).toBe(true);
+      expect(callArgs.some((p: string) => toForwardSlash(p).endsWith('src/component.ts'))).toBe(
+        true
+      );
+      expect(callArgs.every((p: string) => !toForwardSlash(p).endsWith('.test.ts'))).toBe(true);
+      expect(callArgs.every((p: string) => !toForwardSlash(p).endsWith('.spec.ts'))).toBe(true);
     });
 
     it('should return success when no analysable files exist', async () => {

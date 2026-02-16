@@ -23,10 +23,10 @@ describe('OPAExecutor', () => {
     mkdirSync(tempDir, { recursive: true });
 
     // Create a mock OPA binary that returns valid JSON
-    mockBinaryPath = join(tempDir, platform() === 'win32' ? 'opa.exe' : 'opa');
+    mockBinaryPath = join(tempDir, platform() === 'win32' ? 'opa.cmd' : 'opa');
     const mockScript =
       platform() === 'win32'
-        ? '@echo {"result":[{"expressions":[{"value":{}}]}]}'
+        ? '@echo off\necho {"result":[{"expressions":[{"value":{}}]}]}'
         : '#!/bin/sh\necho \'{"result":[{"expressions":[{"value":{}}]}]}\'';
 
     writeFileSync(mockBinaryPath, mockScript);
@@ -151,7 +151,7 @@ violation[msg] {
   describe('violation detection', () => {
     it('should parse string violations from violation field', async () => {
       // Create a mock binary that returns string violations
-      const violationBinary = join(tempDir, platform() === 'win32' ? 'opa-viol.exe' : 'opa-viol');
+      const violationBinary = join(tempDir, platform() === 'win32' ? 'opa-viol.cmd' : 'opa-viol');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -170,7 +170,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(violationBinary, script);
@@ -191,7 +191,7 @@ violation[msg] {
     it('should parse string violations from violations field', async () => {
       const violationsBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-viols.exe' : 'opa-viols'
+        platform() === 'win32' ? 'opa-viols.cmd' : 'opa-viols'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -211,7 +211,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(violationsBinary, script);
@@ -230,7 +230,7 @@ violation[msg] {
     it('should parse structured violation objects', async () => {
       const violationBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-struct.exe' : 'opa-struct'
+        platform() === 'win32' ? 'opa-struct.cmd' : 'opa-struct'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -258,7 +258,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(violationBinary, script);
@@ -279,7 +279,7 @@ violation[msg] {
     });
 
     it('should parse deny arrays', async () => {
-      const denyBinary = join(tempDir, platform() === 'win32' ? 'opa-deny.exe' : 'opa-deny');
+      const denyBinary = join(tempDir, platform() === 'win32' ? 'opa-deny.cmd' : 'opa-deny');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -298,7 +298,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(denyBinary, script);
@@ -315,7 +315,7 @@ violation[msg] {
     });
 
     it('should parse denies arrays', async () => {
-      const deniesBinary = join(tempDir, platform() === 'win32' ? 'opa-denies.exe' : 'opa-denies');
+      const deniesBinary = join(tempDir, platform() === 'win32' ? 'opa-denies.cmd' : 'opa-denies');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -334,7 +334,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(deniesBinary, script);
@@ -350,7 +350,7 @@ violation[msg] {
     });
 
     it('should parse warn arrays', async () => {
-      const warnBinary = join(tempDir, platform() === 'win32' ? 'opa-warn.exe' : 'opa-warn');
+      const warnBinary = join(tempDir, platform() === 'win32' ? 'opa-warn.cmd' : 'opa-warn');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -369,7 +369,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(warnBinary, script);
@@ -388,7 +388,7 @@ violation[msg] {
     it('should parse warnings arrays', async () => {
       const warningsBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-warnings.exe' : 'opa-warnings'
+        platform() === 'win32' ? 'opa-warnings.cmd' : 'opa-warnings'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -408,7 +408,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(warningsBinary, script);
@@ -426,7 +426,7 @@ violation[msg] {
     it('should include violation fingerprints', async () => {
       const violationBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-finger.exe' : 'opa-finger'
+        platform() === 'win32' ? 'opa-finger.cmd' : 'opa-finger'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -446,7 +446,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(violationBinary, script);
@@ -465,7 +465,7 @@ violation[msg] {
     it('should generate consistent fingerprints', async () => {
       const violationBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-consist.exe' : 'opa-consist'
+        platform() === 'win32' ? 'opa-consist.cmd' : 'opa-consist'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -496,7 +496,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(violationBinary, script);
@@ -514,7 +514,7 @@ violation[msg] {
     it('should infer security category from policy names', async () => {
       const securityBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-security.exe' : 'opa-security'
+        platform() === 'win32' ? 'opa-security.cmd' : 'opa-security'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -534,7 +534,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(securityBinary, script);
@@ -557,7 +557,7 @@ violation[msg] {
     });
 
     it('should infer architecture category from policy names', async () => {
-      const archBinary = join(tempDir, platform() === 'win32' ? 'opa-arch.exe' : 'opa-arch');
+      const archBinary = join(tempDir, platform() === 'win32' ? 'opa-arch.cmd' : 'opa-arch');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -576,7 +576,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(archBinary, script);
@@ -599,7 +599,7 @@ violation[msg] {
     });
 
     it('should infer coverage category from policy names', async () => {
-      const coverageBinary = join(tempDir, platform() === 'win32' ? 'opa-cov.exe' : 'opa-cov');
+      const coverageBinary = join(tempDir, platform() === 'win32' ? 'opa-cov.cmd' : 'opa-cov');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -618,7 +618,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(coverageBinary, script);
@@ -641,7 +641,7 @@ violation[msg] {
     });
 
     it('should default to custom category for unknown types', async () => {
-      const customBinary = join(tempDir, platform() === 'win32' ? 'opa-custom.exe' : 'opa-custom');
+      const customBinary = join(tempDir, platform() === 'win32' ? 'opa-custom.cmd' : 'opa-custom');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -660,7 +660,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(customBinary, script);
@@ -683,7 +683,7 @@ violation[msg] {
     });
 
     it('should parse msg field as message', async () => {
-      const msgBinary = join(tempDir, platform() === 'win32' ? 'opa-msg.exe' : 'opa-msg');
+      const msgBinary = join(tempDir, platform() === 'win32' ? 'opa-msg.cmd' : 'opa-msg');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -706,7 +706,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(msgBinary, script);
@@ -721,7 +721,7 @@ violation[msg] {
     });
 
     it('should include documentation_url in violations', async () => {
-      const docBinary = join(tempDir, platform() === 'win32' ? 'opa-doc.exe' : 'opa-doc');
+      const docBinary = join(tempDir, platform() === 'win32' ? 'opa-doc.cmd' : 'opa-doc');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -745,7 +745,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(docBinary, script);
@@ -788,10 +788,10 @@ violation[msg] {
 
     it('should handle timeout errors', async () => {
       // Create a binary that sleeps longer than timeout
-      const slowBinary = join(tempDir, platform() === 'win32' ? 'opa-slow.exe' : 'opa-slow');
+      const slowBinary = join(tempDir, platform() === 'win32' ? 'opa-slow.cmd' : 'opa-slow');
       const script =
         platform() === 'win32'
-          ? '@timeout /t 10 >nul\n@echo {"result":[]}'
+          ? '@echo off\nping -n 11 127.0.0.1 >nul\necho {"result":[]}'
           : '#!/bin/sh\nsleep 10\necho \'{"result":[]}\'';
 
       writeFileSync(slowBinary, script);
@@ -819,8 +819,8 @@ violation[msg] {
     });
 
     it('should handle OPA binary that returns non-zero exit code', async () => {
-      const errorBinary = join(tempDir, platform() === 'win32' ? 'opa-error.exe' : 'opa-error');
-      const script = platform() === 'win32' ? '@exit 1' : '#!/bin/sh\nexit 1';
+      const errorBinary = join(tempDir, platform() === 'win32' ? 'opa-error.cmd' : 'opa-error');
+      const script = platform() === 'win32' ? '@echo off\nexit /b 1' : '#!/bin/sh\nexit 1';
 
       writeFileSync(errorBinary, script);
       if (platform() !== 'win32') {
@@ -837,10 +837,12 @@ violation[msg] {
     it('should handle OPA binary that outputs invalid JSON', async () => {
       const badJsonBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-badjson.exe' : 'opa-badjson'
+        platform() === 'win32' ? 'opa-badjson.cmd' : 'opa-badjson'
       );
       const script =
-        platform() === 'win32' ? '@echo {invalid json}' : '#!/bin/sh\necho "{invalid json}"';
+        platform() === 'win32'
+          ? '@echo off\necho {invalid json}'
+          : '#!/bin/sh\necho "{invalid json}"';
 
       writeFileSync(badJsonBinary, script);
       if (platform() !== 'win32') {
@@ -855,10 +857,10 @@ violation[msg] {
     });
 
     it('should handle stderr output', async () => {
-      const stderrBinary = join(tempDir, platform() === 'win32' ? 'opa-stderr.exe' : 'opa-stderr');
+      const stderrBinary = join(tempDir, platform() === 'win32' ? 'opa-stderr.cmd' : 'opa-stderr');
       const script =
         platform() === 'win32'
-          ? '@echo Error message 1>&2\n@exit 1'
+          ? '@echo off\necho Error message 1>&2\nexit /b 1'
           : '#!/bin/sh\necho "Error message" >&2\nexit 1';
 
       writeFileSync(stderrBinary, script);
@@ -874,8 +876,8 @@ violation[msg] {
     });
 
     it('should handle empty OPA output', async () => {
-      const emptyBinary = join(tempDir, platform() === 'win32' ? 'opa-empty.exe' : 'opa-empty');
-      const script = platform() === 'win32' ? '@echo.' : '#!/bin/sh\necho ""';
+      const emptyBinary = join(tempDir, platform() === 'win32' ? 'opa-empty.cmd' : 'opa-empty');
+      const script = platform() === 'win32' ? '@echo off\necho.' : '#!/bin/sh\necho ""';
 
       writeFileSync(emptyBinary, script);
       if (platform() !== 'win32') {
@@ -892,11 +894,11 @@ violation[msg] {
     it('should handle malformed OPA output structure', async () => {
       const malformedBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-malformed.exe' : 'opa-malformed'
+        platform() === 'win32' ? 'opa-malformed.cmd' : 'opa-malformed'
       );
       const script =
         platform() === 'win32'
-          ? '@echo {"unexpected":"structure"}'
+          ? '@echo off\necho {"unexpected":"structure"}'
           : '#!/bin/sh\necho \'{"unexpected":"structure"}\'';
 
       writeFileSync(malformedBinary, script);
@@ -915,7 +917,7 @@ violation[msg] {
     it('should handle empty expressions array', async () => {
       const emptyExprBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-emptyexpr.exe' : 'opa-emptyexpr'
+        platform() === 'win32' ? 'opa-emptyexpr.cmd' : 'opa-emptyexpr'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -927,7 +929,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(emptyExprBinary, script);
@@ -945,7 +947,7 @@ violation[msg] {
     it('should handle expressions with non-object value', async () => {
       const nonObjValBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-nonobjval.exe' : 'opa-nonobjval'
+        platform() === 'win32' ? 'opa-nonobjval.cmd' : 'opa-nonobjval'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -961,7 +963,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(nonObjValBinary, script);
@@ -977,7 +979,7 @@ violation[msg] {
     });
 
     it('should handle non-object policy result', async () => {
-      const nonObjBinary = join(tempDir, platform() === 'win32' ? 'opa-nonobj.exe' : 'opa-nonobj');
+      const nonObjBinary = join(tempDir, platform() === 'win32' ? 'opa-nonobj.cmd' : 'opa-nonobj');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -994,7 +996,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(nonObjBinary, script);
@@ -1012,7 +1014,7 @@ violation[msg] {
     it('should handle non-string, non-object violations gracefully', async () => {
       const badViolBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-badviol.exe' : 'opa-badviol'
+        platform() === 'win32' ? 'opa-badviol.cmd' : 'opa-badviol'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -1032,7 +1034,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(badViolBinary, script);
@@ -1052,7 +1054,7 @@ violation[msg] {
     it('should convert array violations to JSON strings', async () => {
       const arrayViolBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-arrayviol.exe' : 'opa-arrayviol'
+        platform() === 'win32' ? 'opa-arrayviol.cmd' : 'opa-arrayviol'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -1072,7 +1074,7 @@ violation[msg] {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(arrayViolBinary, script);
@@ -1105,11 +1107,11 @@ violation[msg] {
       // Create binary that returns 0 but has stderr
       const warnBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-checkwarn.exe' : 'opa-checkwarn'
+        platform() === 'win32' ? 'opa-checkwarn.cmd' : 'opa-checkwarn'
       );
       const script =
         platform() === 'win32'
-          ? '@echo Warning: unused variable 1>&2\n@exit 0'
+          ? '@echo off\necho Warning: unused variable 1>&2\nexit /b 0'
           : '#!/bin/sh\necho "Warning: unused variable" >&2\nexit 0';
 
       writeFileSync(warnBinary, script);
@@ -1129,11 +1131,11 @@ violation[msg] {
       // Create binary that returns syntax error
       const errorBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-checkerr.exe' : 'opa-checkerr'
+        platform() === 'win32' ? 'opa-checkerr.cmd' : 'opa-checkerr'
       );
       const script =
         platform() === 'win32'
-          ? '@echo policy.rego:2: error: syntax error 1>&2\n@exit 1'
+          ? '@echo off\necho policy.rego:2: error: syntax error 1>&2\nexit /b 1'
           : '#!/bin/sh\necho "policy.rego:2: error: syntax error" >&2\nexit 1';
 
       writeFileSync(errorBinary, script);
@@ -1153,11 +1155,11 @@ violation[msg] {
       // Create binary that returns non-zero without matching error format
       const failBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-checkfail.exe' : 'opa-checkfail'
+        platform() === 'win32' ? 'opa-checkfail.cmd' : 'opa-checkfail'
       );
       const script =
         platform() === 'win32'
-          ? '@echo Something went wrong 1>&2\n@exit 1'
+          ? '@echo off\necho Something went wrong 1>&2\nexit /b 1'
           : '#!/bin/sh\necho "Something went wrong" >&2\nexit 1';
 
       writeFileSync(failBinary, script);
@@ -1178,10 +1180,12 @@ violation[msg] {
       // Create binary that sleeps
       const slowBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-checkslow.exe' : 'opa-checkslow'
+        platform() === 'win32' ? 'opa-checkslow.cmd' : 'opa-checkslow'
       );
       const script =
-        platform() === 'win32' ? '@timeout /t 10 >nul\n@exit 0' : '#!/bin/sh\nsleep 10\nexit 0';
+        platform() === 'win32'
+          ? '@echo off\nping -n 11 127.0.0.1 >nul\nexit /b 0'
+          : '#!/bin/sh\nsleep 10\nexit 0';
 
       writeFileSync(slowBinary, script);
       if (platform() !== 'win32') {
@@ -1231,7 +1235,7 @@ test_example {
       // Create a mock binary that returns test failures
       const testBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-testfail.exe' : 'opa-testfail'
+        platform() === 'win32' ? 'opa-testfail.cmd' : 'opa-testfail'
       );
       const outputJson = JSON.stringify([
         {
@@ -1249,7 +1253,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(testBinary, script);
@@ -1311,7 +1315,7 @@ test_example {
   describe('severity parsing', () => {
     it('should default severity to error for deny/violation rules', async () => {
       // Create a mock binary that returns violations from a deny rule
-      const denyBinary = join(tempDir, platform() === 'win32' ? 'opa-deny.exe' : 'opa-deny');
+      const denyBinary = join(tempDir, platform() === 'win32' ? 'opa-deny.cmd' : 'opa-deny');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -1330,7 +1334,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(denyBinary, script);
@@ -1355,7 +1359,7 @@ test_example {
 
     it('should default severity to warning for warn rules', async () => {
       // Create a mock binary that returns violations from a warn rule
-      const warnBinary = join(tempDir, platform() === 'win32' ? 'opa-warn.exe' : 'opa-warn');
+      const warnBinary = join(tempDir, platform() === 'win32' ? 'opa-warn.cmd' : 'opa-warn');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -1374,7 +1378,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(warnBinary, script);
@@ -1400,7 +1404,7 @@ test_example {
 
   describe('category inference', () => {
     it('should infer scope category from policy name', async () => {
-      const scopeBinary = join(tempDir, platform() === 'win32' ? 'opa-scope.exe' : 'opa-scope');
+      const scopeBinary = join(tempDir, platform() === 'win32' ? 'opa-scope.cmd' : 'opa-scope');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -1419,7 +1423,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(scopeBinary, script);
@@ -1444,7 +1448,7 @@ test_example {
     it('should infer quality category from policy name', async () => {
       const qualityBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-quality.exe' : 'opa-quality'
+        platform() === 'win32' ? 'opa-quality.cmd' : 'opa-quality'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -1464,7 +1468,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(qualityBinary, script);
@@ -1489,7 +1493,7 @@ test_example {
     it('should infer compliance category from policy name', async () => {
       const complianceBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-compliance.exe' : 'opa-compliance'
+        platform() === 'win32' ? 'opa-compliance.cmd' : 'opa-compliance'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -1509,7 +1513,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(complianceBinary, script);
@@ -1534,7 +1538,7 @@ test_example {
 
   describe('severity parsing', () => {
     it('should parse error severity', async () => {
-      const errorBinary = join(tempDir, platform() === 'win32' ? 'opa-err.exe' : 'opa-err');
+      const errorBinary = join(tempDir, platform() === 'win32' ? 'opa-err.cmd' : 'opa-err');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -1556,7 +1560,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(errorBinary, script);
@@ -1574,7 +1578,7 @@ test_example {
     it('should parse warning severity', async () => {
       const warnBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-warnparse.exe' : 'opa-warnparse'
+        platform() === 'win32' ? 'opa-warnparse.cmd' : 'opa-warnparse'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -1597,7 +1601,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(warnBinary, script);
@@ -1613,7 +1617,7 @@ test_example {
     });
 
     it('should parse info severity', async () => {
-      const infoBinary = join(tempDir, platform() === 'win32' ? 'opa-info.exe' : 'opa-info');
+      const infoBinary = join(tempDir, platform() === 'win32' ? 'opa-info.cmd' : 'opa-info');
       const outputJson = JSON.stringify({
         result: [
           {
@@ -1632,7 +1636,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(infoBinary, script);
@@ -1649,7 +1653,7 @@ test_example {
     it('should use default severity for invalid values', async () => {
       const invalidBinary = join(
         tempDir,
-        platform() === 'win32' ? 'opa-invalidsev.exe' : 'opa-invalidsev'
+        platform() === 'win32' ? 'opa-invalidsev.cmd' : 'opa-invalidsev'
       );
       const outputJson = JSON.stringify({
         result: [
@@ -1669,7 +1673,7 @@ test_example {
 
       const script =
         platform() === 'win32'
-          ? `@echo ${outputJson.replace(/"/g, '\\"')}`
+          ? `@echo off\necho ${outputJson}`
           : `#!/bin/sh\necho '${outputJson}'`;
 
       writeFileSync(invalidBinary, script);

@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 const mockFs = vi.hoisted(() => ({
