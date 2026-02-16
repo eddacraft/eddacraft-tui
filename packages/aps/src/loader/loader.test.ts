@@ -106,7 +106,8 @@ describe('loadPlan', () => {
 });
 
 describe('resolvePath', () => {
-  const toFwd = (p: string): string => p.replace(/\\/g, '/');
+  // On Windows, path.resolve('/project/plan', ...) prepends the drive letter (e.g. 'D:')
+  const toFwd = (p: string): string => p.replace(/\\/g, '/').replace(/^[A-Z]:/, '');
 
   it('should resolve relative paths', () => {
     expect(toFwd(resolvePath('./modules/auth.aps.md', '/project/plan'))).toBe(
