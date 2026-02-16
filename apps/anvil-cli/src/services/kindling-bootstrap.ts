@@ -140,36 +140,41 @@ export function initKindling(workspaceRoot: string): KindlingContext | null {
     return null;
   }
 
-  // Resolve database path (relative to workspace root)
-  const dbPath = resolve(workspaceRoot, config.database_path);
+  try {
+    // Resolve database path (relative to workspace root)
+    const dbPath = resolve(workspaceRoot, config.database_path);
 
-  // Ensure parent directory exists
-  mkdirSync(dirname(dbPath), { recursive: true });
+    // Ensure parent directory exists
+    mkdirSync(dirname(dbPath), { recursive: true });
 
-  // Open SQLite database with migrations
-  const db = openDatabase({ path: dbPath });
+    // Open SQLite database with migrations
+    const db = openDatabase({ path: dbPath });
 
-  // Create kindling-core store + provider + service
-  const coreStore = new SqliteKindlingStore(db) as unknown as CoreKindlingStore;
-  const provider = new LocalFtsProvider(db);
-  const coreService = new CoreKindlingService({ store: coreStore, provider });
+    // Create kindling-core store + provider + service
+    const coreStore = new SqliteKindlingStore(db) as unknown as CoreKindlingStore;
+    const provider = new LocalFtsProvider(db);
+    const coreService = new CoreKindlingService({ store: coreStore, provider });
 
-  // Create bridge: IKindlingStore → kindling-core
-  const bridge = new KindlingCoreBridge(coreService, workspaceRoot);
+    // Create bridge: IKindlingStore → kindling-core
+    const bridge = new KindlingCoreBridge(coreService, workspaceRoot);
 
-  // Create Anvil's KindlingService wrapping the bridge
-  const service = createKindlingService(config, bridge);
+    // Create Anvil's KindlingService wrapping the bridge
+    const service = createKindlingService(config, bridge);
 
-  // Create adapter for capsule lifecycle
-  const adapter = new AnvilKindlingAdapter({ service: coreService, repoId: workspaceRoot });
+    // Create adapter for capsule lifecycle
+    const adapter = new AnvilKindlingAdapter({ service: coreService, repoId: workspaceRoot });
 
-  return {
-    service,
-    adapter,
-    bridge,
-    config,
-    close: () => {
-      closeDatabase(db);
-    },
-  };
+    return {
+      service,
+      adapter,
+      bridge,
+      config,
+      close: () => {
+        closeDatabase(db);
+      },
+    };
+  } catch {
+    // Bootstrap failure must never break CLI commands — degrade gracefully
+    return null;
+  }
 }

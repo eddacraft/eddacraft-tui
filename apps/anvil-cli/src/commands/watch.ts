@@ -121,6 +121,7 @@ export function createWatchCommand(): Command {
       const startTime = Date.now();
       let kindling: KindlingContext | null = null;
       let sessionId: string | undefined;
+      let capsuleId: string | undefined;
       let gatesEvaluated = 0;
       let gatesPassed = 0;
       let gatesFailed = 0;
@@ -140,7 +141,8 @@ export function createWatchCommand(): Command {
             environment: process.env.CI ? 'ci' : 'development',
           });
           const capsule = kindling.adapter.startSession(sessionId, 'anvil watch');
-          kindling.bridge.setCapsuleId(capsule.id);
+          capsuleId = capsule.id;
+          kindling.bridge.setCapsuleId(capsuleId);
         }
 
         const configManager = new GateConfigManager(workspaceRoot);
@@ -325,6 +327,29 @@ export function createWatchCommand(): Command {
               gateOptions
             );
 
+            // Record in Kindling
+            gatesEvaluated++;
+            if (results.overall) {
+              gatesPassed++;
+            } else {
+              gatesFailed++;
+            }
+            if (kindling && sessionId) {
+              emitGateEvaluated(kindling.service, {
+                session_id: sessionId,
+                gate_id: loadResult.plan.id ?? 'watch-gate',
+                inputs: { file_count: files.length, changed_files: files.slice(0, 50) },
+                outcome: results.overall ? 'pass' : 'fail',
+                rules_evaluated: results.checks.map((c) => c.check),
+                enforcement: 'blocking',
+                duration_ms: results.timing?.totalMs ?? 0,
+                violation_count: results.checks.filter((c) => !c.passed && !c.skipped).length,
+                warning_count: results.checks.filter(
+                  (c) => c.passed && c.score !== undefined && c.score < 1
+                ).length,
+              });
+            }
+
             return {
               success: results.overall,
               action: 'gate',
@@ -337,6 +362,16 @@ export function createWatchCommand(): Command {
               },
             };
           } catch (err) {
+            errorsEncountered++;
+            if (kindling && sessionId) {
+              emitKindlingError(kindling.service, {
+                session_id: sessionId,
+                error_type: 'command_failure',
+                context: { component: 'watch-gate' },
+                error_message: err instanceof Error ? err.message : String(err),
+                recoverable: true,
+              });
+            }
             return {
               success: false,
               action: 'gate',
@@ -426,6 +461,7 @@ export function createWatchCommand(): Command {
                 errors_encountered: errorsEncountered,
               },
             });
+            if (capsuleId) kindling.adapter.endSession(capsuleId);
             kindling.close();
           }
 
@@ -467,6 +503,7 @@ export function createWatchCommand(): Command {
               errors_encountered: errorsEncountered + 1,
             },
           });
+          if (capsuleId) kindling.adapter.endSession(capsuleId);
           kindling.close();
         }
 

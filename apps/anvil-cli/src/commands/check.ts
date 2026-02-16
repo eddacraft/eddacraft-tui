@@ -343,23 +343,10 @@ export function createCheckCommand(): Command {
       const startTime = Date.now();
       let kindling: KindlingContext | null = null;
       let sessionId: string | undefined;
+      let capsuleId: string | undefined;
 
       try {
         const workspaceRoot = getWorkspaceRoot();
-
-        // Initialize Kindling provenance recording (no-op when disabled)
-        kindling = initKindling(workspaceRoot);
-        if (kindling) {
-          sessionId = emitSessionStart(kindling.service, {
-            working_directory: workspaceRoot,
-            anvil_version: '0.1.0',
-            command: 'check',
-            args: files,
-            environment: process.env.CI ? 'ci' : 'development',
-          });
-          const capsule = kindling.adapter.startSession(sessionId, 'anvil check');
-          kindling.bridge.setCapsuleId(capsule.id);
-        }
 
         // Validate --nudge-threshold if provided
         if (options.nudgeThreshold && !isNudgeSeverityThreshold(options.nudgeThreshold)) {
@@ -481,6 +468,21 @@ export function createCheckCommand(): Command {
           process.exit(1);
         }
 
+        // Initialize Kindling provenance recording (after arg validation, no-op when disabled)
+        kindling = initKindling(workspaceRoot);
+        if (kindling) {
+          sessionId = emitSessionStart(kindling.service, {
+            working_directory: workspaceRoot,
+            anvil_version: '0.1.0',
+            command: 'check',
+            args: filesToAnalyse,
+            environment: process.env.CI ? 'ci' : 'development',
+          });
+          const capsule = kindling.adapter.startSession(sessionId, 'anvil check');
+          capsuleId = capsule.id;
+          kindling.bridge.setCapsuleId(capsuleId);
+        }
+
         const gateRunner = new GateRunner();
 
         const cacheDisabled = options.cache === false;
@@ -579,6 +581,7 @@ export function createCheckCommand(): Command {
               errors_encountered: 0,
             },
           });
+          if (capsuleId) kindling.adapter.endSession(capsuleId);
           kindling.close();
         }
 
@@ -618,6 +621,7 @@ export function createCheckCommand(): Command {
               errors_encountered: 1,
             },
           });
+          if (capsuleId) kindling.adapter.endSession(capsuleId);
           kindling.close();
         }
 
