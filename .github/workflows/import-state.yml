@@ -80,9 +80,15 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
-      - name: Verify clean state
+      - name: Verify clean state (preview only, no mutations)
         working-directory: infra
-        run: pulumi up --yes --skip-preview
+        run: |
+          pulumi preview --expect-no-changes 2>&1 | tee /tmp/preview.log
+          if grep -q "no changes" /tmp/preview.log; then
+            echo "State is clean — no changes detected"
+          else
+            echo "::warning::Preview shows pending changes — review output above"
+          fi
         env:
           AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
           AZURE_STORAGE_KEY: ${{ secrets.AZURE_STORAGE_KEY }}

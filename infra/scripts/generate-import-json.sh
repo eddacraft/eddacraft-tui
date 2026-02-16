@@ -29,10 +29,25 @@ echo "Fetching Vercel env var IDs for website..."
 website_envs=$(curl -fsS -H "Authorization: Bearer $VERCEL_API_TOKEN" \
   "https://api.vercel.com/v10/projects/$website_prj/env")
 
-website_env_db=$(echo "$website_envs" | jq -r '.envs[] | select(.key == "DATABASE_URL") | .id')
+require_single_id() {
+  local key="$1" ids="$2"
+  local count
+  count=$(echo "$ids" | grep -c . || true)
+  if [ "$count" -eq 0 ] || [ -z "$ids" ]; then
+    echo "Error: No env var found for key '$key'" >&2; exit 1
+  elif [ "$count" -gt 1 ]; then
+    echo "Error: Multiple env vars found for key '$key' — expected exactly 1:" >&2
+    echo "$ids" >&2; exit 1
+  fi
+  echo "$ids"
+}
+
+website_env_db_raw=$(echo "$website_envs" | jq -r '.envs[] | select(.key == "DATABASE_URL") | .id')
+website_env_db=$(require_single_id "DATABASE_URL" "$website_env_db_raw")
 echo "  DATABASE_URL: $website_env_db"
 
-website_env_unosend=$(echo "$website_envs" | jq -r '.envs[] | select(.key == "UNOSEND_API_KEY") | .id')
+website_env_unosend_raw=$(echo "$website_envs" | jq -r '.envs[] | select(.key == "UNOSEND_API_KEY") | .id')
+website_env_unosend=$(require_single_id "UNOSEND_API_KEY" "$website_env_unosend_raw")
 echo "  UNOSEND_API_KEY: $website_env_unosend"
 
 echo "Constructing Azure DNS resource IDs..."
