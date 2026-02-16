@@ -10,6 +10,7 @@ export interface VercelAppArgs {
   envVars?: Record<string, pulumi.Input<string>>;
   buildCommand?: string;
   installCommand?: string;
+  ignoreCommand?: string;
 }
 
 export class VercelApp extends pulumi.ComponentResource {
@@ -19,6 +20,9 @@ export class VercelApp extends pulumi.ComponentResource {
   constructor(name: string, args: VercelAppArgs, opts?: pulumi.ComponentResourceOptions) {
     super('anvil:vercel:App', name, {}, opts);
 
+    // Default ignore command: skip build when only unrelated files changed
+    const defaultIgnoreCommand = `bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}`;
+
     this.project = new vercel.Project(
       name,
       {
@@ -27,6 +31,7 @@ export class VercelApp extends pulumi.ComponentResource {
         rootDirectory: args.rootDirectory,
         buildCommand: args.buildCommand,
         installCommand: args.installCommand,
+        ignoreCommand: args.ignoreCommand ?? defaultIgnoreCommand,
         gitRepository: {
           type: 'github',
           repo: args.gitRepo,
