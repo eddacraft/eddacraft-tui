@@ -68,13 +68,16 @@ describe('HookInstaller', () => {
       expect(existsSync(join(tempDir, customHooksDir))).toBe(true);
     });
 
-    it('should set executable permissions on hook file', () => {
-      installer.installHook(tempDir, 'pre-commit', hooksDir);
-      const hookPath = join(tempDir, hooksDir, 'pre-commit');
-      const stat = statSync(hookPath);
-      // Check owner execute bit (0o100)
-      expect(stat.mode & 0o111).toBeGreaterThan(0);
-    });
+    it.skipIf(process.platform === 'win32')(
+      'should set executable permissions on hook file',
+      () => {
+        installer.installHook(tempDir, 'pre-commit', hooksDir);
+        const hookPath = join(tempDir, hooksDir, 'pre-commit');
+        const stat = statSync(hookPath);
+        // Check owner execute bit (0o100)
+        expect(stat.mode & 0o111).toBeGreaterThan(0);
+      }
+    );
 
     it('should install pre-push hook', () => {
       installer.installHook(tempDir, 'pre-push', hooksDir);

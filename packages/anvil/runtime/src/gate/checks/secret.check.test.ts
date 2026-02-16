@@ -144,6 +144,8 @@ describe('SecretCheck', () => {
   });
 
   it('should provide file and line information', async () => {
+    const toFwd = (p: string): string => p.replace(/\\/g, '/');
+
     writeFileSync(
       join(tempDir, 'test.js'),
       'console.log("line 1");\nconst apiKey = "sk-1234567890abcdef";\nconsole.log("line 3");'
@@ -152,7 +154,7 @@ describe('SecretCheck', () => {
     const result = await secretCheck.run(context);
 
     expect((result.details?.findings as SecretFinding[])[0].line).toBe(2);
-    expect((result.details?.findings as SecretFinding[])[0].file).toBe('/test.js');
+    expect(toFwd((result.details?.findings as SecretFinding[])[0].file)).toBe('/test.js');
   });
 
   it('should handle multiple secrets in one file', async () => {

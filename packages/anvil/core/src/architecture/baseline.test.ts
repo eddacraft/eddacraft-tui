@@ -24,18 +24,20 @@ import {
 import type { ArchitectureBaseline, BaselineViolation } from './types.js';
 
 describe('Baseline Path Utilities', () => {
+  const toFwd = (p: string): string => p.replace(/\\/g, '/');
+
   describe('getBaselinePath', () => {
     it('should return correct path', () => {
       const path = getBaselinePath('/workspace');
 
-      expect(path).toBe(`/workspace/${ANVIL_DIR}/${BASELINE_FILENAME}`);
+      expect(toFwd(path)).toBe(`/workspace/${ANVIL_DIR}/${BASELINE_FILENAME}`);
     });
 
     it('should handle trailing slash', () => {
       const path = getBaselinePath('/workspace/');
 
-      expect(path).toBe(`/workspace/${ANVIL_DIR}/${BASELINE_FILENAME}`);
-      expect(path).not.toContain('//');
+      expect(toFwd(path)).toBe(`/workspace/${ANVIL_DIR}/${BASELINE_FILENAME}`);
+      expect(toFwd(path)).not.toContain('//');
     });
   });
 

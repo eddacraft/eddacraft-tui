@@ -155,12 +155,14 @@ describe('State File Operations', () => {
   });
 
   describe('getStateFilePath / getExecutionsDir', () => {
+    const toFwd = (p: string): string => p.replace(/\\/g, '/');
+
     it('should return correct paths', () => {
       const statePath = getStateFilePath('/project');
       const execDir = getExecutionsDir('/project');
 
-      expect(statePath).toBe('/project/.anvil/state.json');
-      expect(execDir).toBe('/project/.anvil/executions');
+      expect(toFwd(statePath)).toBe('/project/.anvil/state.json');
+      expect(toFwd(execDir)).toBe('/project/.anvil/executions');
     });
   });
 });

@@ -101,13 +101,15 @@ describe('first-run-detector', () => {
   });
 
   describe('getMarkerPath', () => {
+    const toFwd = (p: string): string => p.replace(/\\/g, '/');
+
     it('returns correct path for given project root', () => {
-      expect(getMarkerPath({ projectRoot: '/foo/bar' })).toBe('/foo/bar/.anvil/first-run');
+      expect(toFwd(getMarkerPath({ projectRoot: '/foo/bar' }))).toBe('/foo/bar/.anvil/first-run');
     });
 
     it('uses cwd when no project root provided', () => {
       const path = getMarkerPath();
-      expect(path).toContain('.anvil/first-run');
+      expect(toFwd(path)).toContain('.anvil/first-run');
     });
   });
 });

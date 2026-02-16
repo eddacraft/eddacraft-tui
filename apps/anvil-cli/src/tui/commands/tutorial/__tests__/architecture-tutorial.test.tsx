@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import path from 'node:path';
 
 // Use vi.hoisted to create mock functions before vi.mock hoisting
 const { mockExistsSyncFn } = vi.hoisted(() => ({
@@ -207,9 +208,11 @@ describe('DetectStep', () => {
   });
 
   it('shows detected directories when found', async () => {
-    mockExistsSyncFn.mockImplementation((path: string) => {
-      if (typeof path === 'string' && path.endsWith('src/services')) return true;
-      if (typeof path === 'string' && path.endsWith('src/utils')) return true;
+    const servicesPath = path.join('src', 'services');
+    const utilsPath = path.join('src', 'utils');
+    mockExistsSyncFn.mockImplementation((p: string) => {
+      if (typeof p === 'string' && p.endsWith(servicesPath)) return true;
+      if (typeof p === 'string' && p.endsWith(utilsPath)) return true;
       return false;
     });
 

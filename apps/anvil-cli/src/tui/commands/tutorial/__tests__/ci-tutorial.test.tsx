@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import path from 'node:path';
 
 // Use vi.hoisted to create mock functions before vi.mock hoisting
 const { mockExistsSyncFn } = vi.hoisted(() => ({
@@ -207,8 +208,9 @@ describe('DetectStep', () => {
   });
 
   it('shows detected CI system when found', async () => {
-    mockExistsSyncFn.mockImplementation((path: string) => {
-      if (typeof path === 'string' && path.endsWith('.github/workflows')) return true;
+    const ghWorkflows = path.join('.github', 'workflows');
+    mockExistsSyncFn.mockImplementation((p: string) => {
+      if (typeof p === 'string' && p.endsWith(ghWorkflows)) return true;
       return false;
     });
 
@@ -220,9 +222,10 @@ describe('DetectStep', () => {
   });
 
   it('shows multiple detected CI systems', async () => {
-    mockExistsSyncFn.mockImplementation((path: string) => {
-      if (typeof path === 'string' && path.endsWith('.github/workflows')) return true;
-      if (typeof path === 'string' && path.endsWith('.gitlab-ci.yml')) return true;
+    const ghWorkflows = path.join('.github', 'workflows');
+    mockExistsSyncFn.mockImplementation((p: string) => {
+      if (typeof p === 'string' && p.endsWith(ghWorkflows)) return true;
+      if (typeof p === 'string' && p.endsWith('.gitlab-ci.yml')) return true;
       return false;
     });
 

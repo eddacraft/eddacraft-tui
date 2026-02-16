@@ -80,7 +80,7 @@ describe('auth-store', () => {
       expect(parsed.user.email).toBe('test@example.com');
     });
 
-    it('sets restrictive file permissions (0o600)', () => {
+    it.skipIf(process.platform === 'win32')('sets restrictive file permissions (0o600)', () => {
       saveAuth(makeAuth());
       const authPath = join(tempDir, 'auth.json');
       const stats = statSync(authPath);

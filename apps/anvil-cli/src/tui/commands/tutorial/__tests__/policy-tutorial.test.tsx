@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import path from 'node:path';
 
 // Use vi.hoisted to create mock functions before vi.mock hoisting
 const { mockExistsSyncFn, mockMkdirSyncFn, mockWriteFileSyncFn } = vi.hoisted(() => ({
@@ -226,9 +227,10 @@ describe('CreateDirStep', () => {
     render(<CreateDirStep />);
 
     await vi.waitFor(() => {
-      expect(mockMkdirSyncFn).toHaveBeenCalledWith('/mock/workspace/.anvil/policies', {
-        recursive: true,
-      });
+      expect(mockMkdirSyncFn).toHaveBeenCalledWith(
+        path.join('/mock/workspace', '.anvil', 'policies'),
+        { recursive: true }
+      );
     });
   });
 
@@ -287,7 +289,7 @@ describe('WritePolicyStep', () => {
 
     await vi.waitFor(() => {
       expect(mockWriteFileSyncFn).toHaveBeenCalledWith(
-        '/mock/workspace/.anvil/policies/max_file_length.rego',
+        path.join('/mock/workspace', '.anvil', 'policies', 'max_file_length.rego'),
         expect.stringContaining('package anvil.policies.max_file_length'),
         'utf-8'
       );

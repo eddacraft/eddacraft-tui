@@ -230,16 +230,19 @@ describe('HooksChecks', () => {
       expect(result.fixable).toBe(true);
     });
 
-    it('should pass when pre-commit hook exists and is executable', async () => {
-      const huskyDir = path.join(tempDir, '.husky');
-      fs.mkdirSync(huskyDir);
-      const hookPath = path.join(huskyDir, 'pre-commit');
-      fs.writeFileSync(hookPath, '#!/bin/sh\necho test', { mode: 0o755 });
+    it.skipIf(process.platform === 'win32')(
+      'should pass when pre-commit hook exists and is executable',
+      async () => {
+        const huskyDir = path.join(tempDir, '.husky');
+        fs.mkdirSync(huskyDir);
+        const hookPath = path.join(huskyDir, 'pre-commit');
+        fs.writeFileSync(hookPath, '#!/bin/sh\necho test', { mode: 0o755 });
 
-      const check = new PreCommitHookCheck();
-      const result = await check.run({ projectRoot: tempDir, verbose: false });
-      expect(result.status).toBe('pass');
-    });
+        const check = new PreCommitHookCheck();
+        const result = await check.run({ projectRoot: tempDir, verbose: false });
+        expect(result.status).toBe('pass');
+      }
+    );
   });
 });
 

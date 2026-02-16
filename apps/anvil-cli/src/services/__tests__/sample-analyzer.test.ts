@@ -22,6 +22,8 @@ import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
+const toFwd = (p: string): string => p.replace(/\\/g, '/');
+
 describe('SampleAnalyzer', () => {
   let workspace: TestWorkspace;
   let analyzer: SampleAnalyzer;
@@ -42,10 +44,11 @@ describe('SampleAnalyzer', () => {
       writeFileSync(join(workspace.root, 'src', 'utils.ts'), 'export const utils = 1;', 'utf-8');
 
       const selection = await analyzer.selectFiles();
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files.length).toBe(2);
-      expect(selection.files).toContain('src/app.ts');
-      expect(selection.files).toContain('src/utils.ts');
+      expect(files.length).toBe(2);
+      expect(files).toContain('src/app.ts');
+      expect(files).toContain('src/utils.ts');
       expect(selection.strategy).toBe('filesystem');
     });
 
@@ -69,10 +72,11 @@ describe('SampleAnalyzer', () => {
       writeFileSync(join(workspace.root, 'src', 'app.spec.ts'), 'content', 'utf-8');
 
       const selection = await analyzer.selectFiles();
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/app.ts');
-      expect(selection.files).not.toContain('src/app.test.ts');
-      expect(selection.files).not.toContain('src/app.spec.ts');
+      expect(files).toContain('src/app.ts');
+      expect(files).not.toContain('src/app.test.ts');
+      expect(files).not.toContain('src/app.spec.ts');
     });
 
     it('should exclude node_modules directory', async () => {
@@ -83,9 +87,10 @@ describe('SampleAnalyzer', () => {
       writeFileSync(join(workspace.root, 'node_modules', 'pkg', 'index.ts'), 'content', 'utf-8');
 
       const selection = await analyzer.selectFiles();
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/app.ts');
-      expect(selection.files).not.toContain('node_modules/pkg/index.ts');
+      expect(files).toContain('src/app.ts');
+      expect(files).not.toContain('node_modules/pkg/index.ts');
     });
 
     it('should exclude build directories', async () => {
@@ -98,10 +103,11 @@ describe('SampleAnalyzer', () => {
       writeFileSync(join(workspace.root, 'build', 'app.js'), 'content', 'utf-8');
 
       const selection = await analyzer.selectFiles();
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/app.ts');
-      expect(selection.files.some((f) => f.includes('dist'))).toBe(false);
-      expect(selection.files.some((f) => f.includes('build'))).toBe(false);
+      expect(files).toContain('src/app.ts');
+      expect(files.some((f) => f.includes('dist'))).toBe(false);
+      expect(files.some((f) => f.includes('build'))).toBe(false);
     });
 
     it('should limit files to maxFiles', async () => {
@@ -123,8 +129,9 @@ describe('SampleAnalyzer', () => {
       writeFileSync(join(workspace.root, 'src', 'Component.tsx'), 'content', 'utf-8');
 
       const selection = await analyzer.selectFiles();
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/Component.tsx');
+      expect(files).toContain('src/Component.tsx');
     });
 
     it('should include JavaScript files', async () => {
@@ -133,9 +140,10 @@ describe('SampleAnalyzer', () => {
       writeFileSync(join(workspace.root, 'src', 'Component.jsx'), 'content', 'utf-8');
 
       const selection = await analyzer.selectFiles();
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/app.js');
-      expect(selection.files).toContain('src/Component.jsx');
+      expect(files).toContain('src/app.js');
+      expect(files).toContain('src/Component.jsx');
     });
   });
 
@@ -202,9 +210,10 @@ describe('SampleAnalyzer', () => {
       const selection = await analyzer.selectFiles({
         includePatterns: ['.ts', '.json'],
       });
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/app.ts');
-      expect(selection.files).toContain('src/data.json');
+      expect(files).toContain('src/app.ts');
+      expect(files).toContain('src/data.json');
     });
 
     it('should respect custom exclude patterns', async () => {
@@ -215,9 +224,10 @@ describe('SampleAnalyzer', () => {
       const selection = await analyzer.selectFiles({
         excludePatterns: ['generated'],
       });
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/app.ts');
-      expect(selection.files).not.toContain('src/generated.ts');
+      expect(files).toContain('src/app.ts');
+      expect(files).not.toContain('src/generated.ts');
     });
   });
 
@@ -262,13 +272,14 @@ describe('SampleAnalyzer', () => {
       }
 
       const selection = await analyzer.selectFiles({ maxFiles: 10 });
+      const files = selection.files.map(toFwd);
 
       // Should get files from different parts of the list
       // Not just the first 10
-      expect(selection.files.length).toBe(10);
+      expect(files.length).toBe(10);
 
       // Check that files are distributed (not all from the start)
-      const allFromStart = selection.files.every((f) => fileNames.slice(0, 20).includes(f));
+      const allFromStart = files.every((f) => fileNames.slice(0, 20).includes(f));
       expect(allFromStart).toBe(false);
     });
   });
@@ -283,8 +294,9 @@ describe('SampleAnalyzer', () => {
       );
 
       const selection = await analyzer.selectFiles();
+      const files = selection.files.map(toFwd);
 
-      expect(selection.files).toContain('src/components/ui/Button.tsx');
+      expect(files).toContain('src/components/ui/Button.tsx');
     });
 
     it('should respect depth limit', async () => {

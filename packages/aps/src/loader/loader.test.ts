@@ -106,14 +106,16 @@ describe('loadPlan', () => {
 });
 
 describe('resolvePath', () => {
+  const toFwd = (p: string): string => p.replace(/\\/g, '/');
+
   it('should resolve relative paths', () => {
-    expect(resolvePath('./modules/auth.aps.md', '/project/plan')).toBe(
+    expect(toFwd(resolvePath('./modules/auth.aps.md', '/project/plan'))).toBe(
       '/project/plan/modules/auth.aps.md'
     );
   });
 
   it('should handle paths without ./', () => {
-    expect(resolvePath('modules/auth.aps.md', '/project/plan')).toBe(
+    expect(toFwd(resolvePath('modules/auth.aps.md', '/project/plan'))).toBe(
       '/project/plan/modules/auth.aps.md'
     );
   });

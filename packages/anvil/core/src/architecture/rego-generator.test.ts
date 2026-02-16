@@ -52,9 +52,11 @@ describe('rego-generator', () => {
   };
 
   describe('getRegoPath', () => {
+    const toFwd = (p: string): string => p.replace(/\\/g, '/');
+
     it('returns correct path', () => {
       const path = getRegoPath('/workspace');
-      expect(path).toBe(`/workspace/${GENERATED_POLICIES_DIR}/${REGO_FILENAME}`);
+      expect(toFwd(path)).toBe(`/workspace/${GENERATED_POLICIES_DIR}/${REGO_FILENAME}`);
     });
   });
 
