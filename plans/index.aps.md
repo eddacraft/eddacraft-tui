@@ -884,6 +884,14 @@ Ember (interpretation), and Edda (canonical memory).
 | IAC-010 | iac    | Import existing Vercel resources         | Complete | high     |
 | IAC-011 | iac    | Document IaC setup and contributor guide | Complete | medium   |
 | IAC-012 | iac    | Document rollback procedures             | Complete | medium   |
+| IAC-013 | iac    | Bootstrap Azure storage + KeyVault (CLI script) | Draft | high |
+| IAC-014 | iac    | Migrate Pulumi backend to Azure Blob Storage | Draft | high |
+| IAC-015 | iac    | Add Azure KeyVault SDK helper module     | Draft    | high     |
+| IAC-016 | iac    | Migrate secrets from Pulumi config to KeyVault | Draft | high |
+| IAC-017 | iac    | Update tests for KeyVault mocking        | Draft    | medium   |
+| IAC-018 | iac    | Update CI workflow for self-managed backend | Draft | high   |
+| IAC-019 | iac    | Migrate state from Pulumi Cloud to Azure Blob | Draft | high |
+| IAC-020 | iac    | Update infra README for new backend      | Draft    | medium   |
 
 ### Task Status — Post-1.0.0 (Multi-Language Placeholders)
 
