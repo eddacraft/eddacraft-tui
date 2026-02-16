@@ -1,8 +1,25 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import { GateRunner } from './gate-runner.js';
 import { GateConfig, PlanData, CheckContext, GateResult } from '../types/gate.types.js';
 import { BaseCheck } from './check.interface.js';
 import type { Warning, WarningResult } from '@eddacraft/anvil-core/antipattern';
+
+// Mock provenance to avoid filesystem side effects in tests
+const { mockSave, mockCreateRecord, mockCreateStore } = vi.hoisted(() => {
+  const mockSave = vi.fn();
+  const mockCreateRecord = vi.fn().mockResolvedValue({ id: 'prov-test-123' });
+  const mockCreateStore = vi.fn().mockReturnValue({ save: mockSave });
+  return { mockSave, mockCreateRecord, mockCreateStore };
+});
+
+vi.mock('@eddacraft/anvil-core', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    createProvenanceRecord: mockCreateRecord,
+    createProvenanceStore: mockCreateStore,
+  };
+});
 
 class MockCheck extends BaseCheck {
   name = 'mock';
@@ -87,6 +104,10 @@ describe('GateRunner', () => {
   let gateRunner: GateRunner;
   let mockPlan: PlanData;
   let mockConfig: GateConfig;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
 
   beforeEach(() => {
     gateRunner = new GateRunner();
@@ -233,6 +254,10 @@ describe('GateRunner', () => {
 describe('GateRunner.analyzeFiles', () => {
   let gateRunner: GateRunner;
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   beforeEach(() => {
     gateRunner = new GateRunner();
     gateRunner.unregisterCheck('architecture');
@@ -325,5 +350,164 @@ describe('GateRunner.analyzeFiles', () => {
 
     const uniquePatterns = new Set(result.warnings.patterns_checked);
     expect(uniquePatterns.size).toBe(result.warnings.patterns_checked.length);
+  });
+
+  it('should record provenance when enabled', async () => {
+    mockSave.mockClear();
+    mockCreateRecord.mockClear();
+    mockCreateStore.mockClear();
+
+    const files = ['src/clean-file.ts'];
+    const result = await gateRunner.analyzeFiles(files, '/workspace', {
+      provenance: {
+        enabled: true,
+        trigger: 'manual',
+        scope: 'files',
+      },
+    });
+
+    expect(mockCreateRecord).toHaveBeenCalledOnce();
+    expect(mockCreateStore).toHaveBeenCalledWith('/workspace');
+    expect(mockSave).toHaveBeenCalledOnce();
+    expect(result.provenance_id).toBe('prov-test-123');
+  });
+
+  it('should skip provenance when disabled', async () => {
+    mockCreateRecord.mockClear();
+
+    const files = ['src/clean-file.ts'];
+    const result = await gateRunner.analyzeFiles(files, '/workspace', {
+      provenance: {
+        enabled: false,
+        trigger: 'manual',
+        scope: 'files',
+      },
+    });
+
+    expect(mockCreateRecord).not.toHaveBeenCalled();
+    expect(result.provenance_id).toBeUndefined();
+  });
+
+  it('should reflect failed checks in provenance record', async () => {
+    mockCreateRecord.mockClear();
+
+    const files = ['src/error-boundary.ts'];
+    await gateRunner.analyzeFiles(files, '/workspace', {
+      provenance: {
+        enabled: true,
+        trigger: 'manual',
+        scope: 'files',
+      },
+    });
+
+    expect(mockCreateRecord).toHaveBeenCalledOnce();
+    const callArgs = mockCreateRecord.mock.calls[0][0];
+    // Overall is false because of blocking error-severity warnings
+    expect(callArgs.results.overall).toBe(false);
+    expect(callArgs.results.score).toBe(0);
+    // The architecture check itself passed (it returned warnings, not a check failure)
+    // but the overall result reflects blocking warnings
+    expect(callArgs.results.checks.length).toBeGreaterThan(0);
+  });
+
+  it('should not throw when provenance recording fails', async () => {
+    mockCreateRecord.mockRejectedValueOnce(new Error('Storage failure'));
+
+    const files = ['src/clean-file.ts'];
+    const result = await gateRunner.analyzeFiles(files, '/workspace', {
+      provenance: {
+        enabled: true,
+        trigger: 'manual',
+        scope: 'files',
+      },
+    });
+
+    // Should complete without throwing
+    expect(result.checksRun).toContain('architecture');
+    expect(result.provenance_id).toBeUndefined();
+  });
+});
+
+describe('GateRunner.runGate provenance', () => {
+  let gateRunner: GateRunner;
+  let mockPlan: PlanData;
+  let mockConfig: GateConfig;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  beforeEach(() => {
+    gateRunner = new GateRunner();
+    mockPlan = {
+      id: 'aps-test123',
+      intent: 'Test plan',
+      proposed_changes: [
+        {
+          type: 'file',
+          target: 'src/test.ts',
+          action: 'create',
+          content: 'console.log("test");',
+        },
+      ],
+      provenance: {
+        created_at: '2024-01-01T00:00:00Z',
+        created_by: 'test@example.com',
+        version: '1.0.0',
+      },
+    };
+    mockConfig = {
+      version: 1,
+      checks: [
+        {
+          name: 'mock',
+          description: 'Mock check',
+          enabled: true,
+          config: {},
+        },
+      ],
+      thresholds: {
+        overall_score: 80,
+      },
+    };
+  });
+
+  it('should record provenance with planId when enabled', async () => {
+    mockSave.mockClear();
+    mockCreateRecord.mockClear();
+    mockCreateStore.mockClear();
+
+    const mockCheck = new MockCheck();
+    gateRunner.registerCheck(mockCheck);
+
+    const result = await gateRunner.runGate(mockPlan, mockConfig, '/workspace', {
+      provenance: {
+        enabled: true,
+        trigger: 'manual',
+        scope: 'plan',
+        planId: 'aps-test123',
+        filesChecked: ['src/test.ts'],
+      },
+    });
+
+    expect(mockCreateRecord).toHaveBeenCalledOnce();
+    const callArgs = mockCreateRecord.mock.calls[0][0];
+    expect(callArgs.planId).toBe('aps-test123');
+    expect(callArgs.filesChecked).toEqual(['src/test.ts']);
+    expect(mockCreateStore).toHaveBeenCalledWith('/workspace');
+    expect(mockSave).toHaveBeenCalledOnce();
+    expect(result.provenance_id).toBe('prov-test-123');
+  });
+
+  it('should skip provenance when not configured', async () => {
+    mockCreateRecord.mockClear();
+
+    const mockCheck = new MockCheck();
+    gateRunner.registerCheck(mockCheck);
+
+    const result = await gateRunner.runGate(mockPlan, mockConfig, '/workspace');
+
+    expect(mockCreateRecord).not.toHaveBeenCalled();
+    expect(result.provenance_id).toBeUndefined();
   });
 });

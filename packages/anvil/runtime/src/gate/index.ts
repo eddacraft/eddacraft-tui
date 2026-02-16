@@ -4,6 +4,7 @@ export type {
   AnalyzeResult,
   GateRunOptions,
   GateRunResultWithCache,
+  ProvenanceOptions,
   ProgressCallback,
   ProgressEvent,
   ProgressEventType,

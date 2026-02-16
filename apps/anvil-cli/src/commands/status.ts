@@ -6,6 +6,7 @@ import { renderTUI } from '../tui/utils/renderer.js';
 import { StatusDashboard } from '../tui/commands/status/index.js';
 import { theme } from '../tui/utils/theme.js';
 import type { StatusData } from '../tui/commands/status/types.js';
+import { createProvenanceStore } from '@eddacraft/anvil-core';
 
 interface StatusOptions {
   json?: boolean;
@@ -13,7 +14,10 @@ interface StatusOptions {
   tui?: boolean;
 }
 
-function formatJsonOutput(data: StatusData): string {
+function formatJsonOutput(data: StatusData, projectRoot: string): string {
+  const store = createProvenanceStore(projectRoot);
+  const provenanceStats = store.isInitialised() ? store.getStatistics() : null;
+
   return JSON.stringify(
     {
       projectRoot: data.projectRoot,
@@ -49,13 +53,26 @@ function formatJsonOutput(data: StatusData): string {
           totalChecks: r.totalChecks,
         })),
       },
+      ...(provenanceStats
+        ? {
+            provenance: {
+              total: provenanceStats.total,
+              passed: provenanceStats.passed,
+              failed: provenanceStats.failed,
+              passRate: Math.round(provenanceStats.passRate * 10) / 10,
+              lastCheck: provenanceStats.lastCheck,
+              lastPass: provenanceStats.lastPass,
+              lastFail: provenanceStats.lastFail,
+            },
+          }
+        : {}),
     },
     null,
     2
   );
 }
 
-function printPlainTextStatus(data: StatusData): void {
+function printPlainTextStatus(data: StatusData, projectRoot: string): void {
   console.log(chalk.bold('\nANVIL STATUS\n'));
   console.log(chalk.hex(theme.colours.smoke)(`Project: ${data.projectName ?? data.projectRoot}`));
   console.log('');
@@ -119,6 +136,34 @@ function printPlainTextStatus(data: StatusData): void {
     }
   }
   console.log('');
+
+  // Provenance history
+  const store = createProvenanceStore(projectRoot);
+  if (store.isInitialised()) {
+    const stats = store.getStatistics();
+    console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} PROVENANCE`));
+    if (stats.total === 0) {
+      console.log(
+        chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No provenance records yet`)
+      );
+    } else {
+      const passRateStr = `${Math.round(stats.passRate)}%`;
+      const passColour =
+        stats.passRate >= 80
+          ? chalk.hex(theme.colours.steel)
+          : stats.passRate >= 50
+            ? chalk.hex(theme.colours.molten)
+            : chalk.hex(theme.colours.slag);
+      console.log(chalk.hex(theme.colours.smoke)(`  Total runs: ${stats.total}`));
+      console.log(
+        passColour(`  Pass rate: ${passRateStr} (${stats.passed} passed, ${stats.failed} failed)`)
+      );
+      if (stats.lastCheck) {
+        console.log(chalk.hex(theme.colours.smoke)(`  Last check: ${stats.lastCheck}`));
+      }
+    }
+    console.log('');
+  }
 }
 
 export function createStatusCommand(): Command {
@@ -134,7 +179,7 @@ export function createStatusCommand(): Command {
       const data = gatherStatusData(projectRoot);
 
       if (options.json) {
-        console.log(formatJsonOutput(data));
+        console.log(formatJsonOutput(data, projectRoot));
         return;
       }
 
@@ -145,7 +190,7 @@ export function createStatusCommand(): Command {
           renderTUI(StatusDashboard, { data, onQuit: resolve });
         });
       } else {
-        printPlainTextStatus(data);
+        printPlainTextStatus(data, projectRoot);
       }
     });
 

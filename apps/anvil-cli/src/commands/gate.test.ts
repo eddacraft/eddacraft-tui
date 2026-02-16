@@ -149,4 +149,11 @@ describe('gate command', () => {
 
     expect(skipSafetyOpt).toBeDefined();
   });
+
+  it('should have --no-provenance option', () => {
+    const command = createGateCommand();
+    const provenanceOpt = command.options.find((o) => o.long === '--no-provenance');
+
+    expect(provenanceOpt).toBeDefined();
+  });
 });

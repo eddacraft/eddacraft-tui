@@ -95,7 +95,7 @@
     "lint": "eslint src --ext .ts"
   },
   "dependencies": {
-    "@eddacraft/kindling-core": "^0.1.2",
+    "@eddacraft/kindling-core": "0.1.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

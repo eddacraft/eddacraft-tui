@@ -48,6 +48,7 @@ interface JSONCheckOutput {
   hasBlockingWarnings: boolean;
   executionTimeMs: number;
   checksRun: string[];
+  provenance_id?: string;
   warnings: Array<{
     id: string;
     category: string;
@@ -236,6 +237,7 @@ function formatResultsJSON(files: string[], result: AnalyzeResult): void {
     hasBlockingWarnings: result.hasBlockingWarnings,
     executionTimeMs: result.executionTimeMs,
     checksRun: result.checksRun,
+    ...(result.provenance_id ? { provenance_id: result.provenance_id } : {}),
     warnings: result.warnings.warnings.map((w) => ({
       id: w.id,
       category: w.category,
@@ -492,10 +494,30 @@ export function createCheckCommand(): Command {
           disabled: cacheDisabled,
         });
 
+        // Determine provenance scope
+        const provenanceScope = options.staged
+          ? ('staged' as const)
+          : options.changed
+            ? ('files' as const)
+            : options.all
+              ? ('directory' as const)
+              : ('files' as const);
+
+        const provenanceTrigger = process.env.CI
+          ? ('ci' as const)
+          : process.env.ANVIL_TRIGGER === 'pre-commit'
+            ? ('pre-commit' as const)
+            : ('manual' as const);
+
         const result = await gateRunner.analyzeFiles(filesToAnalyse, workspaceRoot, {
           cache,
           noCache: cacheDisabled,
           checks: ['architecture'],
+          provenance: {
+            enabled: true,
+            trigger: provenanceTrigger,
+            scope: provenanceScope,
+          },
         });
 
         // Record gate evaluation in Kindling
@@ -545,6 +567,10 @@ export function createCheckCommand(): Command {
 
           if (options.verbose) {
             info(`Checks run: ${result.checksRun.join(', ')}`);
+          }
+
+          if (result.provenance_id) {
+            console.log(chalk.gray(`\nProvenance: ${result.provenance_id}`));
           }
         }
 

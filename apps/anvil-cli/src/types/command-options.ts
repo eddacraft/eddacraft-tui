@@ -67,6 +67,8 @@ export interface GateOptions {
   tui?: boolean;
   /** Skip command safety check (convenience flag) */
   skipCommandSafety?: boolean;
+  /** Disable provenance recording (Commander.js --no-provenance sets this to false) */
+  provenance?: boolean;
 }
 
 /**

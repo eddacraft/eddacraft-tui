@@ -9,6 +9,11 @@ import {
 } from '../types/gate.types.js';
 import type { ArchitectureContext } from '@eddacraft/anvil-core/architecture';
 import { createDebugger } from '@eddacraft/anvil-core';
+import {
+  createProvenanceRecord,
+  createProvenanceStore,
+  type ProvenanceRecord,
+} from '@eddacraft/anvil-core';
 
 const debug = createDebugger('gate');
 import { ESLintCheck } from './checks/eslint.check.js';
@@ -67,6 +72,23 @@ export interface ProgressEvent {
 export type ProgressCallback = (event: ProgressEvent) => void;
 
 /**
+ * Provenance recording options — controls whether gate execution
+ * creates a persistent provenance record in the .anvil directory
+ */
+export interface ProvenanceOptions {
+  /** Enable provenance recording (default: false) */
+  enabled: boolean;
+  /** What triggered this gate run */
+  trigger: 'manual' | 'pre-commit' | 'ci' | 'watch' | 'api';
+  /** Scope of the check */
+  scope: 'directory' | 'staged' | 'files' | 'plan';
+  /** Files being checked (for the provenance record) */
+  filesChecked?: string[];
+  /** Associated plan ID if plan-driven */
+  planId?: string;
+}
+
+/**
  * Options for running gates
  */
 export interface GateRunOptions {
@@ -86,6 +108,8 @@ export interface GateRunOptions {
   onProgress?: ProgressCallback;
   /** Full codebase scan mode (no plan-based scoping) */
   fullScan?: boolean;
+  /** Provenance recording options */
+  provenance?: ProvenanceOptions;
 }
 
 /**
@@ -108,6 +132,10 @@ export interface GateRunResultWithCache extends GateRunResult {
     /** Per-check timing */
     checks: Record<string, number>;
   };
+  /** Provenance record ID (present when provenance recording is enabled) */
+  provenance_id?: string;
+  /** Full provenance record (present when provenance recording is enabled) */
+  provenanceRecord?: ProvenanceRecord;
 }
 
 /**
@@ -132,6 +160,8 @@ export interface AnalyzeOptions {
   suppressions?: boolean;
   /** Pre-configured suppression store (created internally if not provided) */
   suppressionStore?: SuppressionStore;
+  /** Provenance recording options */
+  provenance?: ProvenanceOptions;
 }
 
 /**
@@ -148,6 +178,8 @@ export interface AnalyzeResult {
   hasBlockingWarnings: boolean;
   /** Suppression statistics (only present if suppressions enabled) */
   suppressionStats?: SuppressionStats;
+  /** Provenance record ID (present when provenance recording is enabled) */
+  provenance_id?: string;
 }
 
 /**
@@ -214,6 +246,7 @@ export class GateRunner {
     const allWarnings: Warning[] = [];
     const patternsChecked: string[] = [];
     const checksRun: string[] = [];
+    const checkResults: Array<{ name: string; passed: boolean; error?: string }> = [];
 
     const minimalConfig: GateConfig = {
       version: 1,
@@ -281,6 +314,11 @@ export class GateRunner {
         checksRun.push(checkName);
       }
 
+      // Track all check outcomes for provenance (passed and failed)
+      if (result) {
+        checkResults.push({ name: checkName, passed: result.passed, error: result.error });
+      }
+
       const checkWarnings = result.details?.warnings;
       if (checkWarnings) {
         allWarnings.push(...checkWarnings.warnings);
@@ -328,6 +366,48 @@ export class GateRunner {
       hasBlockingWarnings: hasBlocking,
       suppressionStats,
     };
+
+    // Record provenance if enabled
+    if (options?.provenance?.enabled) {
+      try {
+        const passedCount = checkResults.filter((c) => c.passed).length;
+        const failedCount = checkResults.filter((c) => !c.passed).length;
+
+        const gateRunResult: GateRunResult = {
+          overall: !hasBlocking,
+          score: hasBlocking ? 0 : 100,
+          checks: checkResults.map((c) => ({
+            check: c.name,
+            passed: c.passed,
+            message: c.error ?? `${c.name} analysis completed`,
+          })),
+          summary: {
+            total: checkResults.length,
+            passed: passedCount,
+            failed: failedCount,
+            skipped: 0,
+          },
+        };
+
+        const provenanceRecord = await createProvenanceRecord({
+          workspaceRoot,
+          filesChecked: files,
+          scope: options.provenance.scope,
+          results: gateRunResult,
+          trigger: options.provenance.trigger,
+          startTime,
+        });
+
+        const store = createProvenanceStore(workspaceRoot);
+        store.save(provenanceRecord);
+
+        result.provenance_id = provenanceRecord.id;
+
+        debug('Provenance record saved (analyze): %s', provenanceRecord.id);
+      } catch (provError) {
+        debug('Failed to save provenance record in analyzeFiles (non-fatal)', provError);
+      }
+    }
 
     options?.onResult?.(result);
 
@@ -436,7 +516,7 @@ export class GateRunner {
       skipped: allResults.filter((r) => r.skipped).length,
     };
 
-    return {
+    const result: GateRunResultWithCache = {
       overall: overallPassed,
       score: overallScore,
       checks: allResults,
@@ -447,6 +527,33 @@ export class GateRunner {
         checks: timing,
       },
     };
+
+    // Record provenance if enabled
+    if (options?.provenance?.enabled) {
+      try {
+        const provenanceRecord = await createProvenanceRecord({
+          workspaceRoot,
+          filesChecked: options.provenance.filesChecked ?? [],
+          scope: options.provenance.scope,
+          results: result,
+          trigger: options.provenance.trigger,
+          startTime,
+          planId: options.provenance.planId,
+        });
+
+        const store = createProvenanceStore(workspaceRoot);
+        store.save(provenanceRecord);
+
+        result.provenance_id = provenanceRecord.id;
+        result.provenanceRecord = provenanceRecord;
+
+        debug('Provenance record saved: %s', provenanceRecord.id);
+      } catch (provError) {
+        debug('Failed to save provenance record (non-fatal)', provError);
+      }
+    }
+
+    return result;
   }
 
   private async executeChecks(

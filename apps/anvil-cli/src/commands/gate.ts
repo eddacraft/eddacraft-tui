@@ -140,6 +140,7 @@ export function createGateCommand(): Command {
     .option('--tui', 'Show interactive explorer after gate execution')
     .option('--no-tui', 'Force plain text mode')
     .option('--skip-command-safety', 'Skip command safety validation check')
+    .option('--no-provenance', 'Disable provenance recording')
     .action(async (planArg: string | undefined, options: GateOptions) => {
       // Handle --list-profiles
       if (options.listProfiles) {
@@ -329,6 +330,28 @@ export function createGateCommand(): Command {
           gateOptions.failFast = true;
         }
 
+        // Configure provenance recording (on by default)
+        if (options.provenance !== false) {
+          const trigger = process.env.CI
+            ? ('ci' as const)
+            : process.env.ANVIL_TRIGGER === 'pre-commit'
+              ? ('pre-commit' as const)
+              : ('manual' as const);
+
+          const scope = isFullScan ? ('directory' as const) : ('plan' as const);
+
+          // Extract file paths from proposed_changes for provenance
+          const filesChecked = plan.proposed_changes.map((c) => c.path);
+
+          gateOptions.provenance = {
+            enabled: true,
+            trigger,
+            scope,
+            planId: plan.id !== 'aps-00000000' ? plan.id : undefined,
+            filesChecked,
+          };
+        }
+
         // Initialize Kindling provenance recording (after arg validation, no-op when disabled)
         kindling = initKindling(workspaceRoot);
         if (kindling) {
@@ -449,6 +472,11 @@ export function createGateCommand(): Command {
               console.log(chalk.gray(`  ${checkName}: ${timeMs}ms`));
             }
           }
+        }
+
+        // Show provenance ID
+        if (results.provenance_id && options.output !== 'json') {
+          console.log(chalk.gray(`\nProvenance: ${results.provenance_id}`));
         }
 
         // Evidence injection
