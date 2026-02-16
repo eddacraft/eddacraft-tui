@@ -21,7 +21,8 @@ export class VercelApp extends pulumi.ComponentResource {
     super('anvil:vercel:App', name, {}, opts);
 
     // Default ignore command: skip build when only unrelated files changed
-    const defaultIgnoreCommand = `bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}`;
+    // cd to repo root first — Vercel may run this from the rootDirectory
+    const defaultIgnoreCommand = `cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}`;
 
     this.project = new vercel.Project(
       name,
