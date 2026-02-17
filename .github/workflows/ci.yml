@@ -73,9 +73,11 @@ jobs:
               CODE_CHANGED=true
 
               # Source code — triggers cross-platform matrix
-              # (files under apps/ or packages/ that aren't docs)
+              # (workspace directories that contain platform-sensitive code)
               if [[ "$file" =~ ^apps/ ]] || \
-                 [[ "$file" =~ ^packages/ ]]; then
+                 [[ "$file" =~ ^packages/ ]] || \
+                 [[ "$file" =~ ^tools/ ]] || \
+                 [[ "$file" =~ ^infra/ ]]; then
                 SOURCE_CHANGED=true
               fi
 
