@@ -22,6 +22,7 @@ jobs:
     outputs:
       docs-only: ${{ steps.filter.outputs.docs-only }}
       code-changed: ${{ steps.filter.outputs.code-changed }}
+      source-changed: ${{ steps.filter.outputs.source-changed }}
       e2e-changed: ${{ steps.filter.outputs.e2e-changed }}
     steps:
       - name: Checkout repository
@@ -51,29 +52,41 @@ jobs:
             fi
           fi
 
-          # Check if only docs changed
+          # Classify changed files into categories
           DOCS_ONLY=true
           CODE_CHANGED=false
+          SOURCE_CHANGED=false
           E2E_CHANGED=false
 
           while IFS= read -r file; do
             if [[ -n "$file" ]]; then
-              # Docs-only patterns
+              # Docs/metadata — never triggers any code jobs
               if [[ "$file" =~ \.(md|txt)$ ]] || \
                  [[ "$file" =~ ^docs/ ]] || \
                  [[ "$file" =~ ^plans/ ]] || \
-                 [[ "$file" == "README.md" ]] || \
-                 [[ "$file" == "AGENTS.md" ]] || \
-                 [[ "$file" == "CLAUDE.md" ]] || \
                  [[ "$file" == "LICENSE" ]]; then
                 continue
-              else
-                DOCS_ONLY=false
-                CODE_CHANGED=true
+              fi
+
+              # Anything beyond docs is at least a code change
+              DOCS_ONLY=false
+              CODE_CHANGED=true
+
+              # Source code — triggers cross-platform matrix
+              # (files under apps/ or packages/ that aren't docs)
+              if [[ "$file" =~ ^apps/ ]] || \
+                 [[ "$file" =~ ^packages/ ]]; then
+                SOURCE_CHANGED=true
+              fi
+
+              # Lockfile/dependency changes — also cross-platform
+              if [[ "$file" == "pnpm-lock.yaml" ]] || \
+                 [[ "$file" == "package.json" ]]; then
+                SOURCE_CHANGED=true
               fi
 
               # E2E-related patterns
-              if [[ "$file" =~ ^e2e/ ]] || \
+              if [[ "$file" =~ ^apps/e2e/ ]] || \
                  [[ "$file" == "playwright.config.ts" ]]; then
                 E2E_CHANGED=true
               fi
@@ -82,11 +95,13 @@ jobs:
 
           echo "docs-only=$DOCS_ONLY" >> $GITHUB_OUTPUT
           echo "code-changed=$CODE_CHANGED" >> $GITHUB_OUTPUT
+          echo "source-changed=$SOURCE_CHANGED" >> $GITHUB_OUTPUT
           echo "e2e-changed=$E2E_CHANGED" >> $GITHUB_OUTPUT
 
           echo "📊 Change Detection Results:"
           echo "  Docs only: $DOCS_ONLY"
           echo "  Code changed: $CODE_CHANGED"
+          echo "  Source changed: $SOURCE_CHANGED"
           echo "  E2E changed: $E2E_CHANGED"
 
   # Docs-only job: just linting
@@ -178,23 +193,16 @@ jobs:
       - name: Run type check
         run: pnpm run typecheck
 
-  # ── Job 3: Unit Tests (matrix: Node 20 + 22, OS: ubuntu + macos + windows) ──
+  # ── Job 3a: Unit Tests — Ubuntu (always runs when code changes) ──
   test:
-    name: Unit Tests (Node ${{ matrix.node-version }}, ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Unit Tests (Node ${{ matrix.node-version }}, ubuntu-latest)
+    runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.code-changed == 'true'
     strategy:
       fail-fast: false
       matrix:
         node-version: [20.x, 22.x]
-        os: [ubuntu-latest]
-        include:
-          # Cross-platform smoke: run on macOS and Windows with Node 20 only
-          - os: macos-latest
-            node-version: 20.x
-          - os: windows-latest
-            node-version: 20.x
 
     steps:
       - name: Checkout repository
@@ -216,11 +224,41 @@ jobs:
         run: pnpm run test -- --run --coverage
 
       - name: Upload coverage reports
-        if: matrix.node-version == '20.x' && matrix.os == 'ubuntu-latest'
+        if: matrix.node-version == '20.x'
         uses: actions/upload-artifact@v6
         with:
           name: coverage-report
           path: coverage/
+
+  # ── Job 3b: Cross-platform smoke (only when source/deps change) ──
+  test-cross-platform:
+    name: Unit Tests (Node 20.x, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.source-changed == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run unit tests
+        run: pnpm run test -- --run
 
   # ── Job 4: Build (matrix: Node 20 + 22, uses Azure remote cache) ──
   build:
