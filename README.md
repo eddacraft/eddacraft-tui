@@ -111,7 +111,7 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> Last measured: 2026-02-17 · commit `7f7c30e` · 166 test files · 3,982 tests
+> Last measured: 2026-02-17 · commit `7f7c30e` · 163 test files · 3,982 tests
 > passing
 
 Coverage reflects unit and integration tests only (v8 provider). E2E tests (CLI
