@@ -17,22 +17,22 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Security — Critical Findings (REVIEW.md)
 
-- [ ] **C1 — MCP workspace root validation.** Validate `workspaceRoot` against
-  a server-configured allowlist in all 4 MCP tools (`check.tool.ts`,
-  `gate.tool.ts`, `query-boundary.tool.ts`, `status.tool.ts`). Prevents
-  arbitrary directory access from malicious MCP clients.
-- [ ] **C2 — MCP newline injection.** Strip `\r` and `\n` from `reason`
-  parameter in `suppress.tool.ts:87` before interpolating into source comments.
-  Prevents code injection.
-- [ ] **C3 — MCP HTTP authentication.** Add API key or mutual TLS
-  authentication plus CORS restrictions to
-  `streamable-http.ts:41-105`. Prevents unauthenticated tool invocation.
+- [ ] **C1 — MCP workspace root validation.** Verify
+  `validateWorkspaceRootAgainstServer()` in `validate-workspace.ts` is called in
+  all 4 MCP tools (`check.tool.ts`, `gate.tool.ts`, `query-boundary.tool.ts`,
+  `status.tool.ts`). Already implemented — needs verification testing.
+- [ ] **C2 — MCP newline injection.** Verify `\r`/`\n` stripping in
+  `suppress.tool.ts:91` (`.replace(/[\r\n]+/g, ' ').trim()`). Already
+  implemented — needs verification testing.
+- [ ] **C3 — MCP HTTP authentication.** Verify API key middleware via
+  `ANVIL_MCP_API_KEY` in `streamable-http.ts:123-138`. Already implemented —
+  needs verification testing.
 
 #### Security — High Severity (Top 5)
 
-- [ ] **H1-runtime — OPA binary path override.** Validate `ANVIL_OPA_PATH` is a
-  regular file (not symlink) with expected permissions, or remove the env var
-  override entirely (`opa-binary-manager.ts:95-102`).
+- [ ] **H1-runtime — OPA binary path override.** Verify `isFile()` +
+  `accessSync` validation at `opa-binary-manager.ts:101-111`. Already
+  implemented — needs verification testing.
 - [ ] **H2-runtime — Policy directory traversal.** Validate `policyDir` from
   config cannot escape `workspaceRoot` (`policy-loader.ts:71-72`).
 - [ ] **H1-storage — FileStorage path traversal.** Harden
@@ -61,9 +61,9 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Build & Test
 
-- [ ] **CI green on all 3 platforms.** `ci.yml` matrix passes on
-  `ubuntu-latest`, `macos-latest`, `windows-latest` for Node 20 and 22.
-- [ ] **All 3,982+ tests pass.** `pnpm test -- --run` exits 0.
+- [ ] **CI green on all 3 platforms.** `ci.yml` matrix passes: Node 20 + 22 on
+  `ubuntu-latest`; Node 20 on `macos-latest` and `windows-latest`.
+- [ ] **All tests pass.** `pnpm test -- --run` exits 0.
 - [ ] **Lint clean.** `pnpm run lint:check` exits 0.
 - [ ] **Type check clean.** `pnpm run typecheck` exits 0.
 - [ ] **Build succeeds.** `pnpm build` produces `apps/anvil-cli/dist/` with a
@@ -269,9 +269,10 @@ Pushing the `v0.1.0` tag triggers `.github/workflows/publish.yml` which:
 If a critical issue is found post-publish:
 
 ```
-1.  Unpublish (within 72 hours of publish):
+1.  Attempt to unpublish (only guaranteed within 72 hours of publish
+    AND if this version has no dependants):
       npm unpublish @eddacraft/anvil-cli@0.1.0
-    OR deprecate (after 72 hours):
+    If unpublish is blocked or after 72 hours, deprecate instead:
       npm deprecate @eddacraft/anvil-cli@0.1.0 "Critical issue found, use 0.1.1"
 
 2.  Fix the issue on main
@@ -334,8 +335,8 @@ the publish — but any Azure-dependent build steps will be skipped.
 
 | Category       | Blocking Items | Status |
 | -------------- | -------------- | ------ |
-| Security (C)   | 3 critical MCP fixes | [ ] |
-| Security (H)   | 5 high-severity fixes | [ ] |
+| Security (C)   | 3 critical MCP verifications | [ ] |
+| Security (H)   | 5 high-severity fixes/verifications | [ ] |
 | Core CLI       | 7 functional checks | [ ] |
 | Build & Test   | 5 CI/build checks | [ ] |
 | Packaging      | 6 distribution checks | [ ] |
