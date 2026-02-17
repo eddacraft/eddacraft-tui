@@ -4,7 +4,7 @@ import { getSecret } from './keyvault.js';
 const gitRepo = 'EddaCraft/anvil-001';
 
 const websiteDatabaseUrl = getSecret('website-database-url');
-const unosendApiKey = getSecret('unosend-api-key');
+const resendApiKey = getSecret('resend-api-key');
 
 // IAC-003: Website (Next.js)
 export const website = new VercelApp('website', {
@@ -15,7 +15,7 @@ export const website = new VercelApp('website', {
   domains: ['eddacraft.ai'],
   envVars: {
     DATABASE_URL: websiteDatabaseUrl,
-    UNOSEND_API_KEY: unosendApiKey,
+    RESEND_API_KEY: resendApiKey,
   },
 });
 

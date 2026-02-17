@@ -5,7 +5,7 @@ vi.mock('../../src/keyvault.js', () => ({
   getSecret: (name: string) => {
     const secrets: Record<string, string> = {
       'website-database-url': 'mock-database-url',
-      'unosend-api-key': 'mock-unosend-key',
+      'resend-api-key': 'mock-resend-key',
     };
     const value = secrets[name];
     if (value === undefined) {
@@ -66,7 +66,7 @@ describe('Vercel resources', () => {
     const dbUrl = envVars.find((e) => e.inputs.key === 'DATABASE_URL');
     expect(dbUrl).toBeDefined();
 
-    const unosend = envVars.find((e) => e.inputs.key === 'UNOSEND_API_KEY');
-    expect(unosend).toBeDefined();
+    const resend = envVars.find((e) => e.inputs.key === 'RESEND_API_KEY');
+    expect(resend).toBeDefined();
   });
 });

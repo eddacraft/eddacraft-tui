@@ -36,11 +36,13 @@ describe('DNS resources', () => {
   it('creates DNS RecordSet resources for eddacraft.ai', () => {
     const recordSets = resources.filter((r) => r.type === 'azure-native:dns:RecordSet');
 
-    expect(recordSets.length).toBe(3);
+    expect(recordSets.length).toBe(5);
 
     const names = recordSets.map((r) => r.name);
     expect(names).toContain('root-txt-eddacraft-ai');
     expect(names).toContain('dmarc-eddacraft-ai');
-    expect(names).toContain('unosend-dkim-eddacraft-ai');
+    expect(names).toContain('resend-dkim-eddacraft-ai');
+    expect(names).toContain('mx-send-updates-eddacraft-ai');
+    expect(names).toContain('txt-send-updates-eddacraft-ai');
   });
 });

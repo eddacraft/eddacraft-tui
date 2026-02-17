@@ -1,17 +1,17 @@
-import { Unosend } from '@unosend/node';
+import { Resend } from 'resend';
 
-let client: Unosend | null = null;
+let client: Resend | null = null;
 
-function getClient(): Unosend | null {
-  const apiKey = process.env.UNOSEND_API_KEY;
+function getClient(): Resend | null {
+  const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return null;
   if (!client) {
-    client = new Unosend(apiKey);
+    client = new Resend(apiKey);
   }
   return client;
 }
 
-const FROM_ADDRESS = 'Josh at EddaCraft <anvil@send.eddacraft.ai>';
+const FROM_ADDRESS = 'Josh at EddaCraft <anvil@updates.eddacraft.ai>';
 const REPLY_TO = 'josh@eddacraft.ai';
 
 function escapeHtml(str: string): string {
@@ -23,18 +23,18 @@ function escapeHtml(str: string): string {
 }
 
 export async function sendWaitlistConfirmation(email: string): Promise<void> {
-  const unosend = getClient();
-  if (!unosend) {
-    console.warn('UNOSEND_API_KEY not configured — skipping confirmation email');
+  const resend = getClient();
+  if (!resend) {
+    console.warn('RESEND_API_KEY not configured — skipping confirmation email');
     return;
   }
 
   const safeEmail = escapeHtml(email);
-  const unsubscribeMailto = `mailto:anvil@send.eddacraft.ai?subject=Unsubscribe&body=Please remove ${email} from the waitlist.`;
+  const unsubscribeMailto = `mailto:anvil@updates.eddacraft.ai?subject=Unsubscribe&body=Please remove ${email} from the waitlist.`;
 
-  const { error } = await unosend.emails.send({
+  const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
-    replyTo: REPLY_TO,
+    reply_to: REPLY_TO,
     to: email,
     subject: "You're on the Anvil waitlist",
     headers: {

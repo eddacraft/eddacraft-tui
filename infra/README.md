@@ -45,7 +45,7 @@ GitHub Secret (`AZURE_STORAGE_KEY`).
 ```bash
 az keyvault secret set --vault-name kv-iac-anvil --name vercel-token --value '<VERCEL_TOKEN>'
 az keyvault secret set --vault-name kv-iac-anvil --name website-database-url --value '<DATABASE_URL>'
-az keyvault secret set --vault-name kv-iac-anvil --name unosend-api-key --value '<UNOSEND_API_KEY>'
+az keyvault secret set --vault-name kv-iac-anvil --name resend-api-key --value '<RESEND_API_KEY>'
 ```
 
 ### Local development
@@ -122,7 +122,7 @@ secret values in stack config files.
 | ---------------------- | --------------- | ------------------ |
 | `vercel-token`         | CI workflow     | Vercel API auth    |
 | `website-database-url` | `src/vercel.ts` | Neon DB connection |
-| `unosend-api-key`      | `src/vercel.ts` | Unosend email API  |
+| `resend-api-key`       | `src/vercel.ts` | Resend email API   |
 
 To add a new secret:
 
