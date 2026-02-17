@@ -64,9 +64,9 @@ website_env_db_raw=$(echo "$website_envs" | jq -r '.envs[] | select(.key == "DAT
 website_env_db=$(require_single_id "DATABASE_URL" "$website_env_db_raw")
 echo "  DATABASE_URL: $website_env_db"
 
-website_env_unosend_raw=$(echo "$website_envs" | jq -r '.envs[] | select(.key == "UNOSEND_API_KEY") | .id')
-website_env_unosend=$(require_single_id "UNOSEND_API_KEY" "$website_env_unosend_raw")
-echo "  UNOSEND_API_KEY: $website_env_unosend"
+website_env_resend_raw=$(echo "$website_envs" | jq -r '.envs[] | select(.key == "RESEND_API_KEY") | .id')
+website_env_resend=$(require_single_id "RESEND_API_KEY" "$website_env_resend_raw")
+echo "  RESEND_API_KEY: $website_env_resend"
 
 echo "Constructing Azure DNS resource IDs..."
 
@@ -120,9 +120,9 @@ cat > "$OUTPUT" <<ENDJSON
     },
     {
       "type": "vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable",
-      "name": "website-unosend-env",
-      "logicalName": "website-unosend-api-key",
-      "id": "$website_prj/$website_env_unosend",
+      "name": "website-resend-env",
+      "logicalName": "website-resend-api-key",
+      "id": "$website_prj/$website_env_resend",
       "parent": "website-app"
     },
 
@@ -153,23 +153,18 @@ cat > "$OUTPUT" <<ENDJSON
     },
     {
       "type": "azure-native:dns:RecordSet",
-      "name": "mx-send-eddacraft-ai",
-      "id": "$DNS_BASE/MX/send"
+      "name": "mx-send-updates-eddacraft-ai",
+      "id": "$DNS_BASE/MX/send.updates"
     },
     {
       "type": "azure-native:dns:RecordSet",
-      "name": "txt-send-eddacraft-ai",
-      "id": "$DNS_BASE/TXT/send"
+      "name": "txt-send-updates-eddacraft-ai",
+      "id": "$DNS_BASE/TXT/send.updates"
     },
     {
       "type": "azure-native:dns:RecordSet",
-      "name": "dmarc-send-eddacraft-ai",
-      "id": "$DNS_BASE/TXT/_dmarc.send"
-    },
-    {
-      "type": "azure-native:dns:RecordSet",
-      "name": "unosend-dkim-eddacraft-ai",
-      "id": "$DNS_BASE/TXT/unosend._domainkey"
+      "name": "resend-dkim-eddacraft-ai",
+      "id": "$DNS_BASE/TXT/resend._domainkey.updates"
     }
   ]
 }
@@ -180,4 +175,4 @@ echo ""
 echo "Generated $OUTPUT with $(jq '.resources | length' "$OUTPUT") resources"
 echo "  - 2 VercelApp components"
 echo "  - 6 Vercel child resources (2 projects, 2 domains, 2 env vars)"
-echo "  - 6 Azure DNS RecordSets"
+echo "  - 5 Azure DNS RecordSets"

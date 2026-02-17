@@ -30,7 +30,9 @@ export async function sendWaitlistConfirmation(email: string): Promise<void> {
   }
 
   const safeEmail = escapeHtml(email);
-  const unsubscribeMailto = `mailto:anvil@updates.eddacraft.ai?subject=Unsubscribe&body=Please remove ${email} from the waitlist.`;
+  const subject = encodeURIComponent('Unsubscribe');
+  const body = encodeURIComponent(`Please remove ${email} from the waitlist.`);
+  const unsubscribeMailto = `mailto:anvil@updates.eddacraft.ai?subject=${subject}&body=${body}`;
 
   const { error } = await resend.emails.send({
     from: FROM_ADDRESS,
