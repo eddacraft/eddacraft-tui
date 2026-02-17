@@ -109,38 +109,60 @@ pnpm link:cli
 NX is used under the hood — you can also use `npx nx` commands directly for
 targeted builds, affected-only runs, and task graph visualisation.
 
-## Test Coverage Matrix
+## Test Coverage
 
-Use the following command pattern to generate coverage per project:
+> Last measured: 2026-02-17 · commit `7f7c30e` · 166 test files · 3,982 tests
+> passing
+
+Coverage reflects unit and integration tests only (v8 provider). E2E tests (CLI
+E2E, TUI E2E) run separately and do not contribute to line coverage.
+
+| Project                                 |     Lines |    Branch |                     Test Files | Types                  |
+| --------------------------------------- | --------: | --------: | -----------------------------: | ---------------------- |
+| `@eddacraft/anvil-cli`                  |     54.5% |     47.6% | 36 unit, 3 integ, 2 e2e, 3 tui | Unit, Integration, E2E |
+| `@eddacraft/anvil-api`                  |     90.5% |     70.4% |                              3 | Unit                   |
+| `@eddacraft/anvil-aps`                  |     96.6% |     85.0% |                              8 | Unit                   |
+| `@eddacraft/anvil-adapters`             |     83.3% |     70.8% |                             12 | Unit                   |
+| `@eddacraft/anvil-edda-stack`           |     42.8% |     25.8% |                              5 | Unit                   |
+| `@eddacraft/anvil-kindling-integration` |     44.4% |     22.8% |                              1 | Unit                   |
+| `@eddacraft/anvil-mcp-server`           |      --^1 |      --^1 |                             11 | Unit                   |
+| `anvil-vscode`                          |     62.9% |     45.2% |                              7 | Unit                   |
+| `eslint-plugin-anvil`                   |      100% |     93.1% |                              3 | Unit                   |
+| `contracts`                             |      100% |      100% |                              1 | Unit                   |
+| `ports`                                 |     N/A^2 |     N/A^2 |                              0 | --                     |
+| `core`                                  |     82.8% |     72.6% |                             35 | Unit                   |
+| `runtime`                               |     59.1% |     52.8% |               24 unit, 2 integ | Unit, Integration      |
+| `policy`                                |     76.0% |     67.4% |                              5 | Unit                   |
+| `platform-config`                       |      100% |      100% |                              1 | Unit                   |
+| `platform-storage`                      |      100% |      100% |                              1 | Unit                   |
+| `platform-crypto`                       |      0%^3 |      0%^3 |                              0 | --                     |
+| **Monorepo total**                      | **65.3%** | **55.5%** |                        **163** |                        |
+
+^1 `mcp-server` has pre-existing test failures preventing coverage collection.
+^2 `ports` contains pure interface definitions — no executable code to cover. ^3
+`platform-crypto` has no tests yet.
+
+### Test type breakdown
+
+| Type        | Files | Description                                            |
+| ----------- | ----: | ------------------------------------------------------ |
+| Unit        |   153 | Co-located `*.test.ts` — mocked deps, fast             |
+| Integration |     5 | `*-integration.test.ts` — multi-module, in-process     |
+| CLI E2E     |     2 | `*.e2e.test.ts` — `execFile`/`spawn`-based CLI testing |
+| TUI E2E     |     3 | `*.tuistory.e2e.test.ts` — Ink pseudo-terminal testing |
+
+### Running coverage
 
 ```bash
+# Per project
 pnpm nx test <project-name> --coverage
+
+# Full monorepo
+pnpm test -- --run --coverage
 ```
 
-| Project                                 | Scope   | Directory                       | Coverage command example                                        |
-| --------------------------------------- | ------- | ------------------------------- | --------------------------------------------------------------- |
-| `@eddacraft/anvil-cli`                  | App     | `apps/anvil-cli`                | `pnpm nx test @eddacraft/anvil-cli --coverage`                  |
-| `@eddacraft/anvil-api`                  | App     | `apps/anvil-api`                | `pnpm nx test @eddacraft/anvil-api --coverage`                  |
-| `@eddacraft/anvil-aps`                  | Package | `packages/aps`                  | `pnpm nx test @eddacraft/anvil-aps --coverage`                  |
-| `@eddacraft/anvil-adapters`             | Package | `packages/adapters`             | `pnpm nx test @eddacraft/anvil-adapters --coverage`             |
-| `@eddacraft/anvil-edda-stack`           | Package | `packages/edda-stack`           | `pnpm nx test @eddacraft/anvil-edda-stack --coverage`           |
-| `@eddacraft/anvil-kindling-integration` | Package | `packages/kindling-integration` | `pnpm nx test @eddacraft/anvil-kindling-integration --coverage` |
-| `@eddacraft/anvil-mcp-server`           | Package | `packages/mcp-server`           | `pnpm nx test @eddacraft/anvil-mcp-server --coverage`           |
-| `anvil-vscode`                          | Package | `packages/vscode-extension`     | `pnpm nx test anvil-vscode --coverage`                          |
-| `eslint-plugin-anvil`                   | Package | `packages/eslint-plugin-anvil`  | `pnpm nx test eslint-plugin-anvil --coverage`                   |
-| `contracts`                             | Package | `packages/anvil/contracts`      | `pnpm nx test contracts --coverage`                             |
-| `ports`                                 | Package | `packages/anvil/ports`          | `pnpm nx test ports --coverage`                                 |
-| `core`                                  | Package | `packages/anvil/core`           | `pnpm nx test core --coverage`                                  |
-| `runtime`                               | Package | `packages/anvil/runtime`        | `pnpm nx test runtime --coverage`                               |
-| `policy`                                | Package | `packages/anvil/policy`         | `pnpm nx test policy --coverage`                                |
-| `platform-config`                       | Package | `packages/platform/config`      | `pnpm nx test platform-config --coverage`                       |
-| `platform-storage`                      | Package | `packages/platform/storage`     | `pnpm nx test platform-storage --coverage`                      |
-| `platform-crypto`                       | Package | `packages/platform/crypto`      | `pnpm nx test platform-crypto --coverage`                       |
-| `@eddacraft/anvil-source`               | Root    | `.`                             | `pnpm nx test @eddacraft/anvil-source --coverage`               |
-
-Coverage output is written to the root `coverage/` directory (e.g.
-`coverage/coverage-summary.json`), which is the path used by the built-in
-coverage gate check.
+Coverage output is written to the root `coverage/` directory (HTML, JSON, and
+JSON summary), which is the path used by the built-in coverage gate check.
 
 ## Deployment
 
