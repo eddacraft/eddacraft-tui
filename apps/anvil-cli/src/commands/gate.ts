@@ -145,11 +145,10 @@ export function createGateCommand(): Command {
     .option('--skip-command-safety', 'Skip command safety validation check')
     .option('--no-provenance', 'Disable provenance recording')
     .action(async (planArg: string | undefined, options: GateOptions) => {
-      log(
-        'gate command entered: plan=%s profile=%s',
-        planArg ?? '(full scan)',
-        options.profile ?? 'none'
-      );
+      log(`gate command entered`, {
+        plan: planArg ?? '(full scan)',
+        profile: options.profile ?? 'none',
+      });
 
       // Handle --list-profiles
       if (options.listProfiles) {
@@ -429,13 +428,12 @@ export function createGateCommand(): Command {
           spinner.start('Running quality gates...');
         }
 
-        log(
-          'running gate with options: skipChecks=%o onlyChecks=%o failFast=%s fullScan=%s',
-          gateOptions.skipChecks,
-          gateOptions.onlyChecks,
-          gateOptions.failFast,
-          gateOptions.fullScan
-        );
+        log('running gate with options', {
+          skipChecks: gateOptions.skipChecks,
+          onlyChecks: gateOptions.onlyChecks,
+          failFast: gateOptions.failFast,
+          fullScan: gateOptions.fullScan,
+        });
         const results = await gateRunner.runGate(plan, config, workspaceRoot, gateOptions);
 
         // Record gate evaluation in Kindling
@@ -558,16 +556,15 @@ export function createGateCommand(): Command {
         }
 
         if (results.overall) {
-          log('gate result: PASSED score=%d', results.score);
+          log(`gate result: PASSED score=${results.score}`);
           success('All quality gates passed!');
           process.exit(0);
         } else {
-          log(
-            'gate result: FAILED score=%d passed=%d failed=%d',
-            results.score,
-            results.summary.passed,
-            results.summary.failed
-          );
+          log('gate result: FAILED', {
+            score: results.score,
+            passed: results.summary.passed,
+            failed: results.summary.failed,
+          });
           error('Quality gates failed');
           process.exit(1);
         }

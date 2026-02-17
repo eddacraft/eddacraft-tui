@@ -128,7 +128,7 @@ export class WatchOrchestrator {
    * Start watching
    */
   async start(): Promise<void> {
-    debug('orchestrator start: workspace=%s action=%s', this.workspaceRoot, this.config.action);
+    debug(`orchestrator start`, { workspace: this.workspaceRoot, action: this.config.action });
     if (this.isRunning) {
       throw new Error('Watch orchestrator is already running');
     }
@@ -141,7 +141,7 @@ export class WatchOrchestrator {
 
     // Check if we're in a git repository
     this.isGitRepo = await this.gitChecker.isGitRepository();
-    debug('orchestrator start: isGitRepo=%s', this.isGitRepo);
+    debug(`orchestrator start: isGitRepo=${this.isGitRepo}`);
 
     if (!this.isGitRepo && this.config.git.unstagedOnly) {
       console.warn(
@@ -244,7 +244,7 @@ export class WatchOrchestrator {
    * Stop watching
    */
   async stop(): Promise<void> {
-    debug('orchestrator stop: running=%s', this.isRunning);
+    debug(`orchestrator stop: running=${this.isRunning}`);
     if (!this.isRunning) {
       return;
     }
@@ -290,11 +290,11 @@ export class WatchOrchestrator {
   private handleFileChange(event: WatchChangeEvent): void {
     // Only process add and change events (not unlink)
     if (event.type === 'unlink') {
-      debug('orchestrator: ignoring unlink event for %s', event.path);
+      debug(`orchestrator: ignoring unlink event for ${event.path}`);
       return;
     }
 
-    debug('orchestrator: file %s %s', event.type, event.path);
+    debug(`orchestrator: file ${event.type} ${event.path}`);
     this.stats.changesDetected++;
     this.debouncer.add(event.path);
   }
@@ -303,7 +303,7 @@ export class WatchOrchestrator {
    * Handle debounced batch of changes
    */
   private async handleDebouncedChanges(changes: DebouncedChanges): Promise<void> {
-    debug('orchestrator: debounced batch of %d files', changes.files.length);
+    debug(`orchestrator: debounced batch of ${changes.files.length} files`);
     let filesToProcess = changes.files;
 
     // Apply git filter if enabled and in git repo
@@ -340,7 +340,7 @@ export class WatchOrchestrator {
    */
   private async runAction(files: string[]): Promise<void> {
     const action = this.config.action;
-    debug('orchestrator runAction: action=%s files=%d', action, files.length);
+    debug(`orchestrator runAction`, { action, files: files.length });
     let handler: ActionHandler | undefined;
 
     switch (action) {
@@ -431,7 +431,7 @@ export class WatchOrchestrator {
     handler: ActionHandler,
     files: string[]
   ): Promise<void> {
-    debug('orchestrator runDirectAction: action=%s files=%d', action, files.length);
+    debug(`orchestrator runDirectAction`, { action, files: files.length });
     this.stats.actionsRun++;
 
     this.emitEvent({
@@ -447,10 +447,10 @@ export class WatchOrchestrator {
 
       if (result.success) {
         this.stats.actionsPassed++;
-        debug('orchestrator action passed: action=%s elapsed=%dms', action, result.executionTimeMs);
+        debug(`orchestrator action passed`, { action, elapsed: result.executionTimeMs });
       } else {
         this.stats.actionsFailed++;
-        debug('orchestrator action failed: action=%s elapsed=%dms', action, result.executionTimeMs);
+        debug(`orchestrator action failed`, { action, elapsed: result.executionTimeMs });
       }
 
       this.emitEvent({
@@ -460,9 +460,8 @@ export class WatchOrchestrator {
     } catch (error) {
       this.stats.actionsFailed++;
       debug(
-        'orchestrator action error: action=%s error=%s',
-        action,
-        error instanceof Error ? error.message : String(error)
+        `orchestrator action error: action=${action}`,
+        error instanceof Error ? error : String(error)
       );
 
       this.emitEvent({
