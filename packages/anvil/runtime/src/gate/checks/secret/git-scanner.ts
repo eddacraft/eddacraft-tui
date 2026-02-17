@@ -49,9 +49,7 @@ export class GitScanner {
     config: GitScannerConfig
   ): Promise<GitHistoryFinding[]> {
     log(
-      'git-scanner: starting git history scan, workspace=%s, depth=%d',
-      workspaceRoot,
-      config.git_history_depth
+      `git-scanner: starting git history scan, workspace=${workspaceRoot}, depth=${config.git_history_depth}`
     );
     const findings: GitHistoryFinding[] = [];
     // Clamp depth to a sane range (1–1000)
@@ -92,7 +90,7 @@ export class GitScanner {
 
       // Parse git diff output
       const commitBlocks = stdout.split(/^commit /m).slice(1);
-      log('git-scanner: scanning %d commit blocks', commitBlocks.length);
+      log(`git-scanner: scanning ${commitBlocks.length} commit blocks`);
 
       for (const block of commitBlocks) {
         const commitMatch = block.match(/^([a-f0-9]+)/);
@@ -128,7 +126,7 @@ export class GitScanner {
       // Silently skip git history scanning
     }
 
-    log('git-scanner: scan complete, found %d findings', findings.length);
+    log(`git-scanner: scan complete, found ${findings.length} findings`);
     return findings;
   }
 }

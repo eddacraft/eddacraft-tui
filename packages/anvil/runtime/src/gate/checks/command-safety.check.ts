@@ -151,7 +151,7 @@ export class CommandSafetyCheck extends BaseCheck {
   }
 
   async run(context: CheckContext): Promise<GateResult> {
-    log('command-safety check starting, workspace=%s', context.workspace_root);
+    log(`command-safety check starting, workspace=${context.workspace_root}`);
     const config = this.getConfig(context);
 
     if (!config.enabled) {
@@ -169,13 +169,11 @@ export class CommandSafetyCheck extends BaseCheck {
     }
 
     log(
-      'command-safety check: analysing %d command source(s), strict=%s',
-      commandSources.length,
-      config.strict
+      `command-safety check: analysing ${commandSources.length} command source(s), strict=${config.strict}`
     );
 
     const rules = loadRules(config);
-    log('command-safety check: loaded %d rules', rules.length);
+    log(`command-safety check: loaded ${rules.length} rules`);
     const blocked: CommandSafetyFinding[] = [];
     const warnings: CommandSafetyFinding[] = [];
     let allowed = 0;
@@ -237,15 +235,14 @@ export class CommandSafetyCheck extends BaseCheck {
     const passed = blocked.length === 0;
     const score = this.calculateScore(summary);
 
-    log(
-      'command-safety check result: passed=%s, score=%d, total=%d, blocked=%d, warned=%d, allowed=%d',
+    log('command-safety check result', {
       passed,
       score,
-      totalAnalysed,
-      blocked.length,
-      warnings.length,
-      allowed
-    );
+      total: totalAnalysed,
+      blocked: blocked.length,
+      warned: warnings.length,
+      allowed,
+    });
 
     let message: string;
     if (passed && warnings.length === 0) {

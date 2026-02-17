@@ -42,12 +42,12 @@ export class CoverageCheck extends BaseCheck {
   description = 'Check test coverage thresholds';
 
   async run(context: CheckContext): Promise<GateResult> {
-    log('coverage check starting, workspace=%s', context.workspace_root);
+    log(`coverage check starting, workspace=${context.workspace_root}`);
     try {
       const coveragePath = join(context.workspace_root, 'coverage', 'coverage-summary.json');
 
       if (!existsSync(coveragePath)) {
-        log('coverage check: coverage report not found at %s', coveragePath);
+        log(`coverage check: coverage report not found at ${coveragePath}`);
         return this.createFailure('Coverage report not found', 'Run tests with coverage first');
       }
 
@@ -64,7 +64,7 @@ export class CoverageCheck extends BaseCheck {
           ? (context.check_config.thresholds as Record<string, number>)
           : defaultThresholds;
 
-      log('coverage check: thresholds=%o', thresholds);
+      log('coverage check: thresholds', { thresholds });
 
       const results = this.analyzeCoverage(coverageData, thresholds);
       const overallScore = results.overall;
@@ -72,13 +72,12 @@ export class CoverageCheck extends BaseCheck {
         typeof context.check_config.min_score === 'number' ? context.check_config.min_score : 80;
       const passed = overallScore >= minScore;
 
-      log(
-        'coverage check result: passed=%s, overall=%.1f%%, minScore=%d, failedChecks=%o',
+      log('coverage check result', {
         passed,
-        overallScore,
+        overall: overallScore,
         minScore,
-        results.failed_checks
-      );
+        failedChecks: results.failed_checks,
+      });
 
       const message = passed
         ? `Coverage passed: ${overallScore.toFixed(1)}% overall`
@@ -86,7 +85,7 @@ export class CoverageCheck extends BaseCheck {
 
       return this.createResult(passed, message, overallScore, results);
     } catch (error) {
-      log('coverage check error: %s', error instanceof Error ? error.message : 'Unknown error');
+      log(`coverage check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return this.createFailure(
         'Coverage check failed',
         error instanceof Error ? error.message : 'Unknown error'

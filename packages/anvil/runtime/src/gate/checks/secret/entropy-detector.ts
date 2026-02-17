@@ -98,11 +98,7 @@ export class EntropyDetector {
         const entropy = this.calculateEntropy(candidate);
         if (entropy >= threshold) {
           log(
-            'entropy-detector: high entropy string found in %s:%d (entropy=%.2f, threshold=%.1f)',
-            file,
-            lineNumber,
-            entropy,
-            threshold
+            `entropy-detector: high entropy string found in ${file}:${lineNumber} (entropy=${entropy.toFixed(2)}, threshold=${threshold})`
           );
           findings.push({
             file,

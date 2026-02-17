@@ -58,10 +58,7 @@ export class EvidenceWriter {
    */
   async writeEvidence(options: EvidenceWriteOptions): Promise<EvidenceWriteResult> {
     log(
-      'EvidenceWriter.writeEvidence: format=%s file=%s mode=%s',
-      options.format,
-      options.filePath,
-      options.mode ?? 'append'
+      `EvidenceWriter.writeEvidence: format=${options.format} file=${options.filePath} mode=${options.mode ?? 'append'}`
     );
     try {
       // Create evidence bundle from gate results
@@ -78,7 +75,7 @@ export class EvidenceWriter {
           log('EvidenceWriter: using BMAD format');
           return await this.writeBMADEvidence(options, evidence);
         default:
-          log('EvidenceWriter: unsupported format=%s', options.format);
+          log(`EvidenceWriter: unsupported format=${options.format}`);
           return {
             success: false,
             error: `Evidence injection not supported for format: ${options.format}. Supported formats: speckit, bmad`,

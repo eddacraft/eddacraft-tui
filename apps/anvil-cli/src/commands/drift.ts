@@ -74,7 +74,7 @@ function formatMetadata(meta: SnapshotMetadata): string {
 }
 
 async function handleSnapshot(options: SnapshotOptions): Promise<void> {
-  log('drift snapshot: name=%s', options.name ?? '(auto)');
+  log(`drift snapshot: name=${options.name ?? '(auto)'}`);
   const spinner = options.json ? null : ora('Capturing snapshot...').start();
 
   try {
@@ -120,7 +120,7 @@ async function handleCompare(
   snapshot2: string,
   options: CompareOptions
 ): Promise<void> {
-  log('drift compare: %s vs %s', snapshot1, snapshot2);
+  log(`drift compare: ${snapshot1} vs ${snapshot2}`);
   const spinner = options.json ? null : ora('Loading snapshots...').start();
 
   try {
@@ -180,7 +180,7 @@ async function handleCompare(
 }
 
 async function handleReport(options: ReportOptions): Promise<void> {
-  log('drift report: since=%s', options.since ?? '(latest)');
+  log(`drift report: since=${options.since ?? '(latest)'}`);
   const spinner = options.json ? null : ora('Generating report...').start();
 
   try {
@@ -243,7 +243,7 @@ async function handleReport(options: ReportOptions): Promise<void> {
 }
 
 async function handleList(options: ListOptions): Promise<void> {
-  log('drift list: limit=%s', options.limit ?? '(all)');
+  log(`drift list: limit=${options.limit ?? '(all)'}`);
   const spinner = options.json ? null : ora('Loading snapshots...').start();
 
   try {

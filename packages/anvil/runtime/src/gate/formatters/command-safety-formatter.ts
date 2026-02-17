@@ -23,7 +23,7 @@ export function formatBlockedCommands(
   blocked: CommandSafetyFinding[],
   options?: FormatOptions | CommandSafetyOutputConfig
 ): string {
-  debug('formatBlockedCommands: count=%d', blocked.length);
+  debug(`formatBlockedCommands: count=${blocked.length}`);
   if (blocked.length === 0) {
     return '';
   }
@@ -53,7 +53,7 @@ export function formatWarningCommands(
   warnings: CommandSafetyFinding[],
   options?: FormatOptions | CommandSafetyOutputConfig
 ): string {
-  debug('formatWarningCommands: count=%d', warnings.length);
+  debug(`formatWarningCommands: count=${warnings.length}`);
   if (warnings.length === 0) {
     return '';
   }
@@ -78,10 +78,7 @@ export function formatWarningCommands(
 
 export function formatSummary(summary: CommandAnalysisSummary): string {
   debug(
-    'formatSummary: total=%d blocked=%d warned=%d',
-    summary.total,
-    summary.blocked,
-    summary.warned
+    `formatSummary: total=${summary.total} blocked=${summary.blocked} warned=${summary.warned}`
   );
   const { total, blocked, warned } = summary;
 

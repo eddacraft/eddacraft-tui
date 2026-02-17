@@ -16,7 +16,7 @@ const debug = createDebugger('cache');
  * Where combined_hash = SHA256(plan_hash + config_hash + workspace_root + extra)
  */
 export function generateCacheKey(input: GateCacheKeyInput): string {
-  debug('generateCacheKey: check=%s plan_hash=%s', input.check_name, input.plan_hash);
+  debug(`generateCacheKey: check=${input.check_name} plan_hash=${input.plan_hash}`);
   const hash = createHash('sha256');
 
   // Add all inputs in deterministic order
@@ -34,7 +34,7 @@ export function generateCacheKey(input: GateCacheKeyInput): string {
 
   const combinedHash = hash.digest('hex').slice(0, 16);
   const key = `gate:check:${input.check_name}:${combinedHash}`;
-  debug('generateCacheKey: result=%s', key);
+  debug(`generateCacheKey: result=${key}`);
   return key;
 }
 
@@ -47,7 +47,7 @@ export function hashCheckConfig(config: Record<string, unknown>): string {
   // Canonicalise JSON for deterministic hashing
   hash.update(JSON.stringify(sortObjectKeys(config)));
   const result = hash.digest('hex').slice(0, 16);
-  debug('hashCheckConfig: keys=%o hash=%s', Object.keys(config), result);
+  debug('hashCheckConfig', { keys: Object.keys(config), hash: result });
   return result;
 }
 
@@ -69,7 +69,7 @@ export function hashGateConfig(checks: GateCheck[]): string {
 
   hash.update(JSON.stringify(enabledChecks));
   const result = hash.digest('hex').slice(0, 16);
-  debug('hashGateConfig: enabledChecks=%d hash=%s', enabledChecks.length, result);
+  debug(`hashGateConfig: enabledChecks=${enabledChecks.length} hash=${result}`);
   return result;
 }
 
@@ -94,10 +94,10 @@ export function parseCacheKey(key: string): {
 } | null {
   const parts = key.split(':');
   if (parts.length !== 4) {
-    debug('parseCacheKey: invalid key format (expected 4 parts, got %d)', parts.length);
+    debug(`parseCacheKey: invalid key format (expected 4 parts, got ${parts.length})`);
     return null;
   }
-  debug('parseCacheKey: type=%s name=%s', parts[0], parts[2]);
+  debug(`parseCacheKey: type=${parts[0]} name=${parts[2]}`);
   return {
     type: parts[0],
     subtype: parts[1],

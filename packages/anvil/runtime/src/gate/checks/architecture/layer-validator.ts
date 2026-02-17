@@ -124,9 +124,7 @@ export class LayerValidator {
     config: Required<ArchitectureCheckConfig>
   ): ScoreResult {
     log(
-      'layer-validator: calculating score for %d violations (threshold=%s)',
-      violations.length,
-      config.severity_threshold
+      `layer-validator: calculating score for ${violations.length} violations (threshold=${config.severity_threshold})`
     );
     const violationsByType: Record<string, number> = {
       circular: 0,
@@ -175,14 +173,13 @@ export class LayerValidator {
     const score = Math.max(0, 100 - totalPenalty);
     const passed = !hasBlockingViolation;
 
-    log(
-      'layer-validator: score=%d, passed=%s, penalty=%d, blocking=%s, byType=%o',
+    log('layer-validator result', {
       score,
       passed,
-      totalPenalty,
-      hasBlockingViolation,
-      violationsByType
-    );
+      penalty: totalPenalty,
+      blocking: hasBlockingViolation,
+      violationsByType,
+    });
 
     return { score, passed, violationsByType };
   }

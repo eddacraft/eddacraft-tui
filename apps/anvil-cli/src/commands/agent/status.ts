@@ -23,11 +23,11 @@ export function createAgentStatusCommand(): Command {
     .description('Show current agent status and identification')
     .option('--json', 'Output as JSON')
     .action(async (options: StatusOptions) => {
-      log('agent status: json=%s', options.json);
+      log(`agent status: json=${options.json}`);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const agent = createAgentInfo();
-        log('agent status: id=%s type=%s', agent.id, agent.type);
+        log(`agent status: id=${agent.id} type=${agent.type}`);
         const manager = createAgentManager({ workspaceRoot });
 
         // Get registration status

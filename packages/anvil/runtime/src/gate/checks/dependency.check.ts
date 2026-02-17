@@ -159,7 +159,7 @@ export class DependencyCheck extends BaseCheck {
   description = 'Scan for dependency vulnerabilities using npm/yarn/pnpm audit';
 
   async run(context: CheckContext): Promise<GateResult> {
-    log('dependency check starting, workspace=%s', context.workspace_root);
+    log(`dependency check starting, workspace=${context.workspace_root}`);
     try {
       // Check if package.json exists
       const packageJsonPath = join(context.workspace_root, 'package.json');
@@ -175,7 +175,7 @@ export class DependencyCheck extends BaseCheck {
         return this.createSuccess('No lock file found, skipping dependency check', 100);
       }
 
-      log('dependency check: detected package manager=%s', packageManager);
+      log(`dependency check: detected package manager=${packageManager}`);
 
       // Determine severity threshold from config (default: moderate)
       const minSeverity = (context.check_config.min_severity as string) || 'moderate';
@@ -192,15 +192,14 @@ export class DependencyCheck extends BaseCheck {
       const advisories = Object.values(auditResult.advisories);
       const metadata = auditResult.metadata.vulnerabilities;
 
-      log(
-        'dependency check: found %d advisories, total=%d (critical=%d, high=%d, moderate=%d, low=%d)',
-        advisories.length,
-        metadata.total,
-        metadata.critical,
-        metadata.high,
-        metadata.moderate,
-        metadata.low
-      );
+      log('dependency check: found advisories', {
+        count: advisories.length,
+        total: metadata.total,
+        critical: metadata.critical,
+        high: metadata.high,
+        moderate: metadata.moderate,
+        low: metadata.low,
+      });
 
       // Filter vulnerabilities by severity threshold
       const relevantVulns = advisories.filter((advisory) => {
@@ -238,11 +237,7 @@ export class DependencyCheck extends BaseCheck {
         !(failOnModerate && hasModerate);
 
       log(
-        'dependency check result: passed=%s, score=%d, relevant=%d, minSeverity=%s',
-        passed,
-        score,
-        relevantVulns.length,
-        minSeverity
+        `dependency check result: passed=${passed}, score=${score}, relevant=${relevantVulns.length}, minSeverity=${minSeverity}`
       );
 
       const totalRelevant = relevantVulns.length;
@@ -277,7 +272,7 @@ export class DependencyCheck extends BaseCheck {
     } catch (error) {
       // If audit command fails, it might be due to no vulnerabilities or command error
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      log('dependency check error: %s', errorMessage);
+      log(`dependency check error: ${errorMessage}`);
 
       // pnpm audit exits with code 1 if vulnerabilities are found
       // Check if it's a legitimate error or just vulnerabilities found

@@ -10,11 +10,7 @@ export class ESLintCheck extends BaseCheck {
   description = 'Run ESLint code quality checks';
 
   async run(context: CheckContext): Promise<GateResult> {
-    log(
-      'eslint check starting, workspace=%s, fullScan=%s',
-      context.workspace_root,
-      context.fullScan
-    );
+    log(`eslint check starting, workspace=${context.workspace_root}, fullScan=${context.fullScan}`);
     try {
       const eslint = new ESLint({
         cwd: context.workspace_root,
@@ -30,7 +26,7 @@ export class ESLintCheck extends BaseCheck {
         return this.createSuccess('No files to lint', 100);
       }
 
-      log('eslint check: linting %d file(s)', files.length);
+      log(`eslint check: linting ${files.length} file(s)`);
 
       const results = await eslint.lintFiles(files);
 
@@ -49,15 +45,14 @@ export class ESLintCheck extends BaseCheck {
         typeof context.check_config.min_score === 'number' ? context.check_config.min_score : 80;
       const passed = errorCount === 0 && score >= minScore;
 
-      log(
-        'eslint check result: passed=%s, score=%d, errors=%d, warnings=%d, fixable=%d, filesLinted=%d',
+      log('eslint check result', {
         passed,
         score,
-        errorCount,
-        warningCount,
-        fixableCount,
-        results.length
-      );
+        errors: errorCount,
+        warnings: warningCount,
+        fixable: fixableCount,
+        filesLinted: results.length,
+      });
 
       const message = passed
         ? `ESLint passed: ${errorCount} errors, ${warningCount} warnings`
@@ -75,7 +70,7 @@ export class ESLintCheck extends BaseCheck {
         })),
       });
     } catch (error) {
-      log('eslint check error: %s', error instanceof Error ? error.message : 'Unknown error');
+      log(`eslint check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return this.createFailure(
         'ESLint check failed',
         error instanceof Error ? error.message : 'Unknown error'

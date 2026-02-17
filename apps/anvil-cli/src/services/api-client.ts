@@ -46,7 +46,7 @@ interface ApiRequestOptions {
  */
 export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
   const url = `${getApiUrl()}${options.path}`;
-  log('apiRequest: %s %s operation=%s', options.method, url, options.operationName);
+  log(`apiRequest: ${options.method} ${url} operation=${options.operationName}`);
   const headers: Record<string, string> = {};
 
   if (options.body !== undefined) {
@@ -65,10 +65,10 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
 
   if (!res.ok) {
     const body = await res.text();
-    log('apiRequest: FAILED %s status=%d', options.operationName, res.status);
+    log(`apiRequest: FAILED ${options.operationName} status=${res.status}`);
     throw new Error(`${options.operationName} failed: ${res.status} ${body}`);
   }
 
-  log('apiRequest: OK %s status=%d', options.operationName, res.status);
+  log(`apiRequest: OK ${options.operationName} status=${res.status}`);
   return (await res.json()) as T;
 }

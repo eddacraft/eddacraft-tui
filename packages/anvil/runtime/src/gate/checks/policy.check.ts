@@ -68,7 +68,7 @@ export class PolicyCheck extends BaseCheck {
   }
 
   async run(context: CheckContext): Promise<GateResult> {
-    log('policy check starting, workspace=%s', context.workspace_root);
+    log(`policy check starting, workspace=${context.workspace_root}`);
     const config = this.parseConfig(context.check_config);
 
     // Policy check requires a plan
@@ -87,11 +87,10 @@ export class PolicyCheck extends BaseCheck {
 
       try {
         binaryPath = await binaryManager.ensureBinary();
-        log('policy check: OPA binary available at %s', binaryPath);
+        log(`policy check: OPA binary available at ${binaryPath}`);
       } catch (error) {
         log(
-          'policy check: OPA binary not available: %s',
-          error instanceof Error ? error.message : 'unknown'
+          `policy check: OPA binary not available: ${error instanceof Error ? error.message : 'unknown'}`
         );
         return this.createFailure(
           'OPA binary not available',
@@ -101,7 +100,7 @@ export class PolicyCheck extends BaseCheck {
 
       // Step 2: Load policies
       const policyDir = config.policy_dir || DEFAULT_POLICY_DIR;
-      log('policy check: loading policies from %s', policyDir);
+      log(`policy check: loading policies from ${policyDir}`);
       const discoveryResult = await this.policyLoader.loadPolicies(context.workspace_root, {
         policyDir,
         enabledPolicies: config.enabled_policies,
@@ -111,7 +110,7 @@ export class PolicyCheck extends BaseCheck {
       // Check for policy loading errors
       if (discoveryResult.errors.length > 0) {
         const errorMessages = discoveryResult.errors.map((e) => `${e.path}: ${e.error}`).join('; ');
-        log('policy check: policy loading errors: %s', errorMessages);
+        log(`policy check: policy loading errors: ${errorMessages}`);
         return this.createFailure(`Failed to load some policies: ${errorMessages}`, undefined, {
           loadErrors: discoveryResult.errors,
         });
@@ -119,14 +118,14 @@ export class PolicyCheck extends BaseCheck {
 
       // No policies found
       if (discoveryResult.policies.length === 0) {
-        log('policy check: no policies configured in %s', policyDir);
+        log(`policy check: no policies configured in ${policyDir}`);
         return this.createSuccess('No policies configured', 100, {
           policyDir: discoveryResult.directory,
           policyCount: 0,
         });
       }
 
-      log('policy check: loaded %d policies', discoveryResult.policies.length);
+      log(`policy check: loaded ${discoveryResult.policies.length} policies`);
 
       // Step 3: Run policy tests if required
       if (config.require_policy_tests) {
@@ -139,7 +138,7 @@ export class PolicyCheck extends BaseCheck {
         );
 
         if (!testResult.passed) {
-          log('policy check: policy tests failed (%d/%d)', testResult.failed, testResult.total);
+          log(`policy check: policy tests failed (${testResult.failed}/${testResult.total})`);
           return this.createFailure(
             `${testResult.failed} of ${testResult.total} policy tests failed`,
             testResult.details.join('; '),
@@ -164,7 +163,7 @@ export class PolicyCheck extends BaseCheck {
       const result = await executor.evaluate(discoveryResult.policies, input);
 
       if (!result.success) {
-        log('policy check: evaluation failed: %s', result.error);
+        log(`policy check: evaluation failed: ${result.error}`);
         return this.createFailure('Policy evaluation failed', result.error, {
           policyCount: discoveryResult.policies.length,
           executionTimeMs: result.metadata.execution_time_ms,
@@ -179,14 +178,13 @@ export class PolicyCheck extends BaseCheck {
 
       const message = this.buildMessage(result.violations, discoveryResult.policies, passed);
 
-      log(
-        'policy check result: passed=%s, score=%d, violations=%d, policies=%d, executionTimeMs=%d',
+      log('policy check result', {
         passed,
         score,
-        result.violations.length,
-        discoveryResult.policies.length,
-        result.metadata.execution_time_ms
-      );
+        violations: result.violations.length,
+        policies: discoveryResult.policies.length,
+        executionTimeMs: result.metadata.execution_time_ms,
+      });
 
       return this.createResult(passed, message, score, {
         policyCount: discoveryResult.policies.length,
@@ -201,7 +199,7 @@ export class PolicyCheck extends BaseCheck {
         })),
       });
     } catch (error) {
-      log('policy check error: %s', error instanceof Error ? error.message : 'Unknown error');
+      log(`policy check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return this.createFailure(
         'Policy check failed unexpectedly',
         error instanceof Error ? error.message : 'Unknown error'

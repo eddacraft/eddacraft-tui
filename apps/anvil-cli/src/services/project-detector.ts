@@ -98,7 +98,7 @@ export class ProjectDetector {
    * Detect all project characteristics
    */
   public detect(): ProjectContext {
-    log('ProjectDetector.detect: root=%s', this.projectRoot);
+    log(`ProjectDetector.detect: root=${this.projectRoot}`);
     const framework = this.detectFramework();
     const monorepo = this.detectMonorepo();
     const packageManager = detectPackageManager(this.projectRoot);
@@ -119,11 +119,7 @@ export class ProjectDetector {
       workspacePackages,
     };
     log(
-      'ProjectDetector.detect result: framework=%s monorepo=%s size=%s files=%d',
-      context.framework,
-      context.monorepo,
-      context.size,
-      context.fileCount
+      `ProjectDetector.detect result: framework=${context.framework} monorepo=${context.monorepo} size=${context.size} files=${context.fileCount}`
     );
     return context;
   }

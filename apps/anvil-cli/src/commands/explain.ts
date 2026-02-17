@@ -209,10 +209,7 @@ export function createExplainCommand(): Command {
     .option('--json', 'Output as JSON')
     .action(async (warningId: string | undefined, options: ExplainOptions) => {
       log(
-        'explain command entered: warningId=%s list=%s rules=%s',
-        warningId ?? '(none)',
-        options.list,
-        options.rules
+        `explain command entered: warningId=${warningId ?? '(none)'} list=${options.list} rules=${options.rules}`
       );
       if (options.rules) {
         listExplainableRules(options.json ?? false);

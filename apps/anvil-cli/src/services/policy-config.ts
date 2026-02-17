@@ -154,7 +154,7 @@ export class PolicyConfigManager {
 
   /** Load and parse .anvil/config.yml. Returns empty config if missing. */
   load(): AnvilConfig {
-    log('PolicyConfigManager.load: path=%s', this.configPath);
+    log(`PolicyConfigManager.load: path=${this.configPath}`);
     if (!this.exists()) {
       log('PolicyConfigManager.load: config file not found, returning empty');
       return {};
@@ -258,9 +258,7 @@ export class PolicyConfigManager {
 
     const resolved = Array.from(map.values());
     log(
-      'PolicyConfigManager.resolvePolicies: %d policies resolved (%d active)',
-      resolved.length,
-      resolved.filter((p) => p.active).length
+      `PolicyConfigManager.resolvePolicies: ${resolved.length} policies resolved (${resolved.filter((p) => p.active).length} active)`
     );
     return resolved;
   }
@@ -271,7 +269,7 @@ export class PolicyConfigManager {
 
   /** Disable a policy by setting enforcement to 'off' in local overrides */
   disablePolicy(policyName: string): AnvilConfig {
-    log('PolicyConfigManager.disablePolicy: %s', policyName);
+    log(`PolicyConfigManager.disablePolicy: ${policyName}`);
     const config = this.load();
     if (!config.policies) {
       config.policies = {};
@@ -297,7 +295,7 @@ export class PolicyConfigManager {
 
   /** Enable a policy by removing the local 'off' override or setting enforcement level */
   enablePolicy(policyName: string, enforcement: EnforcementLevel = 'block'): AnvilConfig {
-    log('PolicyConfigManager.enablePolicy: %s enforcement=%s', policyName, enforcement);
+    log(`PolicyConfigManager.enablePolicy: ${policyName} enforcement=${enforcement}`);
     const config = this.load();
     if (!config.policies) {
       config.policies = {};

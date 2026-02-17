@@ -45,7 +45,7 @@ export class ChangeDebouncer {
    * @param filePath - Absolute file path
    */
   add(filePath: string): void {
-    debug('debouncer add: path=%s pending=%d', filePath, this.pendingFiles.size + 1);
+    debug(`debouncer add: path=${filePath} pending=${this.pendingFiles.size + 1}`);
     this.pendingFiles.add(filePath);
     this.resetTimer();
   }
@@ -77,7 +77,7 @@ export class ChangeDebouncer {
     }
 
     const files = Array.from(this.pendingFiles);
-    debug('debouncer flush: dispatching batch of %d files', files.length);
+    debug(`debouncer flush: dispatching batch of ${files.length} files`);
     this.pendingFiles.clear();
 
     this.onFlush({
@@ -90,7 +90,7 @@ export class ChangeDebouncer {
    * Cancel pending flush and clear accumulated files
    */
   cancel(): void {
-    debug('debouncer cancel: discarding %d pending files', this.pendingFiles.size);
+    debug(`debouncer cancel: discarding ${this.pendingFiles.size} pending files`);
     this.clearTimer();
     this.pendingFiles.clear();
   }

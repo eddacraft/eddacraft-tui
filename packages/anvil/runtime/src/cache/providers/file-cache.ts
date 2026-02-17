@@ -137,12 +137,12 @@ export class FileCacheProvider implements CacheProvider {
   }
 
   async get<T>(key: string): Promise<CacheEntry<T> | null> {
-    debug('file-cache get: key=%s', key);
+    debug(`file-cache get: key=${key}`);
     const index = await this.loadIndex();
 
     const entryMeta = index.entries[key];
     if (!entryMeta) {
-      debug('file-cache miss: key=%s (not in index)', key);
+      debug(`file-cache miss: key=${key} (not in index)`);
       index.stats.misses++;
       this.indexDirty = true;
       await this.saveIndex();
@@ -151,7 +151,7 @@ export class FileCacheProvider implements CacheProvider {
 
     // Check expiration
     if (entryMeta.expires_at && Date.now() > entryMeta.expires_at) {
-      debug('file-cache miss: key=%s (expired)', key);
+      debug(`file-cache miss: key=${key} (expired)`);
       await this.invalidate(key);
       index.stats.misses++;
       this.indexDirty = true;
@@ -191,7 +191,7 @@ export class FileCacheProvider implements CacheProvider {
       }
       const entry = parseResult.data as CacheEntry<T>;
 
-      debug('file-cache hit: key=%s', key);
+      debug(`file-cache hit: key=${key}`);
       index.stats.hits++;
       this.indexDirty = true;
       await this.saveIndex();
@@ -208,7 +208,7 @@ export class FileCacheProvider implements CacheProvider {
   }
 
   async set<T>(key: string, value: T, options: CacheSetOptions): Promise<void> {
-    debug('file-cache set: key=%s ttl=%s', key, options.ttl ?? this.defaultTtl);
+    debug(`file-cache set: key=${key} ttl=${options.ttl ?? this.defaultTtl}`);
     await this.ensureCacheDir();
     const index = await this.loadIndex();
 
@@ -250,12 +250,12 @@ export class FileCacheProvider implements CacheProvider {
   }
 
   async invalidate(key: string): Promise<boolean> {
-    debug('file-cache invalidate: key=%s', key);
+    debug(`file-cache invalidate: key=${key}`);
     const index = await this.loadIndex();
 
     const entryMeta = index.entries[key];
     if (!entryMeta) {
-      debug('file-cache invalidate: key=%s not found', key);
+      debug(`file-cache invalidate: key=${key} not found`);
       return false;
     }
 
@@ -276,12 +276,12 @@ export class FileCacheProvider implements CacheProvider {
   }
 
   async invalidatePattern(pattern: string): Promise<number> {
-    debug('file-cache invalidatePattern: pattern=%s', pattern);
+    debug(`file-cache invalidatePattern: pattern=${pattern}`);
     const index = await this.loadIndex();
     const regex = this.patternToRegex(pattern);
 
     const keysToInvalidate = Object.keys(index.entries).filter((key) => regex.test(key));
-    debug('file-cache invalidatePattern: matched %d entries', keysToInvalidate.length);
+    debug(`file-cache invalidatePattern: matched ${keysToInvalidate.length} entries`);
 
     for (const key of keysToInvalidate) {
       await this.invalidate(key);
@@ -339,7 +339,7 @@ export class FileCacheProvider implements CacheProvider {
       .filter(([, meta]) => meta.expires_at && meta.expires_at < now)
       .map(([key]) => key);
 
-    debug('file-cache cleanup: found %d expired entries', expiredKeys.length);
+    debug(`file-cache cleanup: found ${expiredKeys.length} expired entries`);
     for (const key of expiredKeys) {
       await this.invalidate(key);
     }

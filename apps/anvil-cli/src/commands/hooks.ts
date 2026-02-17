@@ -265,11 +265,7 @@ export function createHooksCommand(): Command {
         husky?: boolean;
       }) => {
         log(
-          'hooks install: force=%s husky=%s preCommitOnly=%s prePushOnly=%s',
-          options.force,
-          options.husky,
-          options.preCommitOnly,
-          options.prePushOnly
+          `hooks install: force=${options.force} husky=${options.husky} preCommitOnly=${options.preCommitOnly} prePushOnly=${options.prePushOnly}`
         );
         const spinner = ora('Installing Git hooks...').start();
 
@@ -382,9 +378,7 @@ export function createHooksCommand(): Command {
     .option('--pre-push-only', 'Only remove pre-push hook')
     .action(async (options: { preCommitOnly?: boolean; prePushOnly?: boolean }) => {
       log(
-        'hooks uninstall: preCommitOnly=%s prePushOnly=%s',
-        options.preCommitOnly,
-        options.prePushOnly
+        `hooks uninstall: preCommitOnly=${options.preCommitOnly} prePushOnly=${options.prePushOnly}`
       );
       const spinner = ora('Removing Git hooks...').start();
 

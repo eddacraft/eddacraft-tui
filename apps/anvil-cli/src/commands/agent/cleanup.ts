@@ -29,7 +29,7 @@ export function createAgentCleanupCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--dry-run', 'Show what would be cleaned without actually cleaning')
     .action(async (options: CleanupOptions) => {
-      log('agent cleanup: dryRun=%s json=%s', options.dryRun, options.json);
+      log(`agent cleanup: dryRun=${options.dryRun} json=${options.json}`);
       try {
         const workspaceRoot = getWorkspaceRoot();
 
@@ -67,10 +67,7 @@ export function createAgentCleanupCommand(): Command {
         }
 
         log(
-          'agent cleanup result: staleAgents=%d expiredLocks=%d timedOutQueue=%d',
-          results.staleAgents.length,
-          results.expiredLocks,
-          results.timedOutQueueEntries
+          `agent cleanup result: staleAgents=${results.staleAgents.length} expiredLocks=${results.expiredLocks} timedOutQueue=${results.timedOutQueueEntries}`
         );
         const totalCleaned =
           results.staleAgents.length + results.expiredLocks + results.timedOutQueueEntries;

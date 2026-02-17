@@ -90,16 +90,11 @@ export class ArchitectureCheck extends BaseCheck {
 
   async run(context: CheckContext): Promise<GateResult> {
     log(
-      'architecture check starting, workspace=%s, fullScan=%s',
-      context.workspace_root,
-      context.fullScan
+      `architecture check starting, workspace=${context.workspace_root}, fullScan=${context.fullScan}`
     );
     const config = this.validator.parseConfig(context.check_config);
     log(
-      'architecture config: scope=%s, severity_threshold=%s, fail_on_circular=%s',
-      config.scope,
-      config.severity_threshold,
-      config.fail_on_circular
+      `architecture config: scope=${config.scope}, severity_threshold=${config.severity_threshold}, fail_on_circular=${config.fail_on_circular}`
     );
 
     try {
@@ -127,7 +122,7 @@ export class ArchitectureCheck extends BaseCheck {
 
       if (!cruiseOptions) {
         if (existsSync(configPath)) {
-          log('architecture check: config file exists but failed to load: %s', config.config_file);
+          log(`architecture check: config file exists but failed to load: ${config.config_file}`);
           return this.createFailure(
             `Failed to load dependency-cruiser config: ${config.config_file}`,
             'Config file exists but could not be loaded'
@@ -149,21 +144,21 @@ export class ArchitectureCheck extends BaseCheck {
         });
       }
 
-      log('architecture check: analysing %d files/patterns', filesToCruise.length);
+      log(`architecture check: analysing ${filesToCruise.length} files/patterns`);
 
       // Step 4: Run dependency analysis
       const analysisResult = await this.analyzer.analyze(filesToCruise, cruiseOptions);
 
       if (!analysisResult.success || !analysisResult.result) {
         if (analysisResult.skipped) {
-          log('architecture check: analysis skipped, reason=%s', analysisResult.reason);
+          log(`architecture check: analysis skipped, reason=${analysisResult.reason}`);
           return this.createSuccess(analysisResult.reason || 'Analysis skipped', 100, {
             skipped: true,
             reason: analysisResult.reason,
             warnings: createWarningResult([], []),
           });
         }
-        log('architecture check: analysis failed, error=%s', analysisResult.error);
+        log(`architecture check: analysis failed, error=${analysisResult.error}`);
         return this.createFailure(
           'Dependency analysis failed',
           analysisResult.error || 'Unknown error'
@@ -175,10 +170,7 @@ export class ArchitectureCheck extends BaseCheck {
       // Step 5: Load baseline if exists (for new-only mode)
       const baseline = loadBaseline(context.workspace_root);
       log(
-        'architecture check: baseline loaded=%s, totalCruised=%d, violations=%d',
-        baseline !== null,
-        output.summary.totalCruised,
-        output.summary.violations.length
+        `architecture check: baseline loaded=${baseline !== null}, totalCruised=${output.summary.totalCruised}, violations=${output.summary.violations.length}`
       );
 
       // Step 6: Convert ALL violations to Warning format with drift info
@@ -211,14 +203,13 @@ export class ArchitectureCheck extends BaseCheck {
         config
       );
 
-      log(
-        'architecture check result: passed=%s, score=%d, totalViolations=%d, newViolations=%d, byType=%o',
+      log('architecture check result', {
         passed,
         score,
-        allViolations.length,
-        effectiveViolations.length,
-        violationsByType
-      );
+        totalViolations: allViolations.length,
+        newViolations: effectiveViolations.length,
+        violationsByType,
+      });
 
       return this.createResult(passed, message, score, {
         warnings: warningResult,
@@ -242,7 +233,7 @@ export class ArchitectureCheck extends BaseCheck {
         architectureContext,
       });
     } catch (error) {
-      log('architecture check error: %s', error instanceof Error ? error.message : 'Unknown error');
+      log(`architecture check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return this.createFailure(
         'Architecture check failed unexpectedly',
         error instanceof Error ? error.message : 'Unknown error'

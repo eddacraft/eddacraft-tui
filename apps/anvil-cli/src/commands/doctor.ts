@@ -193,11 +193,7 @@ export function createDoctorCommand(): Command {
     .option('-v, --verbose', 'Show detailed information')
     .action(async (options: DoctorOptions) => {
       log(
-        'doctor command entered: fix=%s json=%s tui=%s verbose=%s',
-        options.fix,
-        options.json,
-        options.tui,
-        options.verbose
+        `doctor command entered: fix=${options.fix} json=${options.json} tui=${options.tui} verbose=${options.verbose}`
       );
       const projectRoot = process.cwd();
       const checks = getAllChecks();
@@ -210,10 +206,7 @@ export function createDoctorCommand(): Command {
         log('doctor: running in JSON mode');
         const data = await runChecksPlain(checks, context, options.fix ?? false);
         log(
-          'doctor result: passed=%d failed=%d warnings=%d',
-          data.summary.passed,
-          data.summary.failed,
-          data.summary.warnings
+          `doctor result: passed=${data.summary.passed} failed=${data.summary.failed} warnings=${data.summary.warnings}`
         );
         console.log(formatJsonOutput(data));
         process.exit(data.summary.healthy ? 0 : 1);
@@ -221,7 +214,7 @@ export function createDoctorCommand(): Command {
       }
 
       const useTUI = isTUIAvailable({ tui: options.tui });
-      log('doctor: useTUI=%s checks=%d', useTUI, checks.length);
+      log(`doctor: useTUI=${useTUI} checks=${checks.length}`);
 
       if (useTUI) {
         let exitCode = 0;

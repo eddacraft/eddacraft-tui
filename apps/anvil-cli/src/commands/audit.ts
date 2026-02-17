@@ -249,11 +249,7 @@ export function createAuditCommand(): Command {
     .option('--max-commits <count>', 'Maximum commits to analyse', '100')
     .action(async (options: ScanOptions) => {
       log(
-        'audit command entered: json=%s verbose=%s skipHistorical=%s daysBack=%s',
-        options.json,
-        options.verbose,
-        options.skipHistorical,
-        options.daysBack
+        `audit command entered: json=${options.json} verbose=${options.verbose} skipHistorical=${options.skipHistorical} daysBack=${options.daysBack}`
       );
       const spinner = options.json ? null : ora('Starting repository audit...').start();
 
@@ -302,10 +298,7 @@ export function createAuditCommand(): Command {
         }
 
         log(
-          'audit complete: warnings=%d blocking=%s duration=%dms',
-          result.currentIssues.totalWarnings,
-          result.currentIssues.hasBlockingWarnings,
-          result.totalDurationMs
+          `audit complete: warnings=${result.currentIssues.totalWarnings} blocking=${result.currentIssues.hasBlockingWarnings} duration=${result.totalDurationMs}ms`
         );
 
         // Exit with appropriate code

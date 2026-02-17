@@ -137,7 +137,7 @@ const log = createDebugger('service');
  * @returns KindlingContext, or null if Kindling is disabled
  */
 export function initKindling(workspaceRoot: string): KindlingContext | null {
-  log('initKindling: root=%s', workspaceRoot);
+  log(`initKindling: root=${workspaceRoot}`);
   const config = loadKindlingConfig(workspaceRoot);
 
   if (!config.enabled) {
@@ -169,7 +169,7 @@ export function initKindling(workspaceRoot: string): KindlingContext | null {
     // Create adapter for capsule lifecycle
     const adapter = new AnvilKindlingAdapter({ service: coreService, repoId: workspaceRoot });
 
-    log('initKindling: stack initialized dbPath=%s', dbPath);
+    log(`initKindling: stack initialized dbPath=${dbPath}`);
     return {
       service,
       adapter,

@@ -48,13 +48,10 @@ export class AntipatternCheck extends BaseCheck {
   description = 'Detect AI escape hatches and code quality anti-patterns';
 
   async run(context: CheckContext): Promise<GateResult> {
-    log('antipattern check starting, workspace=%s', context.workspace_root);
+    log(`antipattern check starting, workspace=${context.workspace_root}`);
     const config = this.parseConfig(context.check_config);
     log(
-      'antipattern config: severityThreshold=%s, patterns=%d, includeOptIn=%s',
-      config.severityThreshold,
-      config.patterns.length,
-      config.includeOptIn
+      `antipattern config: severityThreshold=${config.severityThreshold}, patterns=${config.patterns.length}, includeOptIn=${config.includeOptIn}`
     );
 
     try {
@@ -70,7 +67,7 @@ export class AntipatternCheck extends BaseCheck {
         });
       }
 
-      log('antipattern check: scanning %d files', files.length);
+      log(`antipattern check: scanning ${files.length} files`);
 
       const scanOptions: ScanOptions = {
         patterns: config.patterns.length > 0 ? config.patterns : undefined,
@@ -104,11 +101,7 @@ export class AntipatternCheck extends BaseCheck {
       const message = this.buildMessage(warningResult, filesScanned, passed);
 
       log(
-        'antipattern check result: passed=%s, score=%d, warnings=%d, filesScanned=%d',
-        passed,
-        score,
-        allWarnings.length,
-        filesScanned
+        `antipattern check result: passed=${passed}, score=${score}, warnings=${allWarnings.length}, filesScanned=${filesScanned}`
       );
 
       return this.createResult(passed, message, score, {
@@ -117,7 +110,7 @@ export class AntipatternCheck extends BaseCheck {
         patternsChecked: Array.from(allPatternsChecked),
       });
     } catch (error) {
-      log('antipattern check error: %s', error instanceof Error ? error.message : 'Unknown error');
+      log(`antipattern check error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return this.createFailure(
         'Anti-pattern check failed unexpectedly',
         error instanceof Error ? error.message : 'Unknown error'

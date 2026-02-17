@@ -23,10 +23,7 @@ export function createValidateCommand(): Command {
     .option('--validate-hash', 'Validate hash integrity', true)
     .action(async (planPathOrId: string, options: ValidateOptions) => {
       log(
-        'validate command entered: plan=%s native=%s validateHash=%s',
-        planPathOrId,
-        options.native,
-        options.validateHash
+        `validate command entered: plan=${planPathOrId} native=${options.native} validateHash=${options.validateHash}`
       );
       const spinner = ora('Loading plan...').start();
 
@@ -167,7 +164,7 @@ export function createValidateCommand(): Command {
           });
         }
 
-        log('validate result: PASSED plan=%s', plan.id);
+        log(`validate result: PASSED plan=${plan.id}`);
         console.log(chalk.green('\n✓ All validation checks passed'));
       } catch (error) {
         spinner.fail(chalk.red('Validation failed'));

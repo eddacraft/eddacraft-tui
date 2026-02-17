@@ -345,11 +345,7 @@ export function createCheckCommand(): Command {
     )
     .action(async (files: string[], options: CheckOptions) => {
       log(
-        'check command entered: files=%d all=%s changed=%s staged=%s',
-        files.length,
-        options.all,
-        options.changed,
-        options.staged
+        `check command entered: files=${files.length} all=${options.all} changed=${options.changed} staged=${options.staged}`
       );
       const spinner = options.json ? null : ora('Analysing files...').start();
       const startTime = Date.now();
@@ -519,7 +515,7 @@ export function createCheckCommand(): Command {
             ? ('pre-commit' as const)
             : ('manual' as const);
 
-        log('check: analysing %d files with scope=%s', filesToAnalyse.length, provenanceScope);
+        log(`check: analysing ${filesToAnalyse.length} files with scope=${provenanceScope}`);
         const result = await gateRunner.analyzeFiles(filesToAnalyse, workspaceRoot, {
           cache,
           noCache: cacheDisabled,
@@ -530,12 +526,11 @@ export function createCheckCommand(): Command {
             scope: provenanceScope,
           },
         });
-        log(
-          'check result: warnings=%d blocking=%s checksRun=%o',
-          result.warnings.warnings.length,
-          result.hasBlockingWarnings,
-          result.checksRun
-        );
+        log('check result', {
+          warnings: result.warnings.warnings.length,
+          blocking: result.hasBlockingWarnings,
+          checksRun: result.checksRun,
+        });
 
         // Record gate evaluation in Kindling
         if (kindling && sessionId) {

@@ -102,7 +102,7 @@ export class PatternMatcher {
     for (const pattern of customAllowlist) {
       try {
         if (new RegExp(pattern, 'i').test(str)) {
-          log('secret-patterns: string allowlisted by custom pattern: %s', pattern);
+          log(`secret-patterns: string allowlisted by custom pattern: ${pattern}`);
           return true;
         }
       } catch {

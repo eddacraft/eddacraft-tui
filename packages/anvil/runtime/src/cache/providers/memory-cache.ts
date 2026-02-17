@@ -45,18 +45,18 @@ export class MemoryCacheProvider implements CacheProvider {
   }
 
   async get<T>(key: string): Promise<CacheEntry<T> | null> {
-    debug('memory-cache get: key=%s size=%d', key, this.cache.size);
+    debug(`memory-cache get: key=${key} size=${this.cache.size}`);
     const entry = this.cache.get(key) as CacheEntry<T> | undefined;
 
     if (!entry) {
-      debug('memory-cache miss: key=%s (not found)', key);
+      debug(`memory-cache miss: key=${key} (not found)`);
       this.stats.misses++;
       return null;
     }
 
     // Check expiration
     if (entry.expires_at && Date.now() > entry.expires_at) {
-      debug('memory-cache miss: key=%s (expired)', key);
+      debug(`memory-cache miss: key=${key} (expired)`);
       await this.invalidate(key);
       this.stats.misses++;
       return null;
@@ -64,14 +64,14 @@ export class MemoryCacheProvider implements CacheProvider {
 
     // Update access order (move to end)
     this.updateAccessOrder(key);
-    debug('memory-cache hit: key=%s', key);
+    debug(`memory-cache hit: key=${key}`);
     this.stats.hits++;
 
     return entry;
   }
 
   async set<T>(key: string, value: T, options: CacheSetOptions): Promise<void> {
-    debug('memory-cache set: key=%s size=%d/%d', key, this.cache.size, this.maxEntries);
+    debug(`memory-cache set: key=${key} size=${this.cache.size}/${this.maxEntries}`);
     const now = Date.now();
     const expiresAt = options.ttl ? now + options.ttl : now + this.defaultTtl;
 
@@ -85,7 +85,7 @@ export class MemoryCacheProvider implements CacheProvider {
 
     // Check if we need to evict
     if (!this.cache.has(key) && this.cache.size >= this.maxEntries) {
-      debug('memory-cache set: evicting LRU (at capacity %d)', this.maxEntries);
+      debug(`memory-cache set: evicting LRU (at capacity ${this.maxEntries})`);
       this.evictLRU();
     }
 
@@ -94,7 +94,7 @@ export class MemoryCacheProvider implements CacheProvider {
   }
 
   async invalidate(key: string): Promise<boolean> {
-    debug('memory-cache invalidate: key=%s', key);
+    debug(`memory-cache invalidate: key=${key}`);
     const existed = this.cache.has(key);
     this.cache.delete(key);
     this.removeFromAccessOrder(key);
@@ -102,7 +102,7 @@ export class MemoryCacheProvider implements CacheProvider {
   }
 
   async invalidatePattern(pattern: string): Promise<number> {
-    debug('memory-cache invalidatePattern: pattern=%s', pattern);
+    debug(`memory-cache invalidatePattern: pattern=${pattern}`);
     const regex = this.patternToRegex(pattern);
     const keysToDelete: string[] = [];
 
@@ -112,7 +112,7 @@ export class MemoryCacheProvider implements CacheProvider {
       }
     }
 
-    debug('memory-cache invalidatePattern: matched %d entries', keysToDelete.length);
+    debug(`memory-cache invalidatePattern: matched ${keysToDelete.length} entries`);
     for (const key of keysToDelete) {
       await this.invalidate(key);
     }
@@ -155,7 +155,7 @@ export class MemoryCacheProvider implements CacheProvider {
    * Clean up expired entries
    */
   async cleanup(): Promise<number> {
-    debug('memory-cache cleanup: scanning %d entries', this.cache.size);
+    debug(`memory-cache cleanup: scanning ${this.cache.size} entries`);
     const now = Date.now();
     const expiredKeys: string[] = [];
 
@@ -165,7 +165,7 @@ export class MemoryCacheProvider implements CacheProvider {
       }
     }
 
-    debug('memory-cache cleanup: removing %d expired entries', expiredKeys.length);
+    debug(`memory-cache cleanup: removing ${expiredKeys.length} expired entries`);
     for (const key of expiredKeys) {
       await this.invalidate(key);
     }

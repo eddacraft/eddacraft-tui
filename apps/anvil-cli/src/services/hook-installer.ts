@@ -68,7 +68,7 @@ export class HookInstaller {
    * Load hook script content from file or fallback to embedded content
    */
   loadHookScript(hookName: string): string {
-    log('loadHookScript: hookName=%s', hookName);
+    log(`loadHookScript: hookName=${hookName}`);
     try {
       const scriptsPath = this.getScriptsPath();
       const hookConfig = AVAILABLE_HOOKS.find((h) => h.name === hookName);
@@ -193,7 +193,7 @@ exit 0
    * Install a hook
    */
   installHook(workspaceRoot: string, hookName: string, gitHooksDir: string): void {
-    log('installHook: hookName=%s dir=%s', hookName, gitHooksDir);
+    log(`installHook: hookName=${hookName} dir=${gitHooksDir}`);
     const hookPath = join(workspaceRoot, gitHooksDir, hookName);
     const hookContent = this.loadHookScript(hookName);
 
@@ -218,7 +218,7 @@ exit 0
    * Uninstall a hook
    */
   uninstallHook(workspaceRoot: string, hookName: string, gitHooksDir: string): boolean {
-    log('uninstallHook: hookName=%s dir=%s', hookName, gitHooksDir);
+    log(`uninstallHook: hookName=${hookName} dir=${gitHooksDir}`);
     const hookPath = join(workspaceRoot, gitHooksDir, hookName);
 
     if (!existsSync(hookPath)) {

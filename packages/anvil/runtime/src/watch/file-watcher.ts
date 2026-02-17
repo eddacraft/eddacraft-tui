@@ -73,12 +73,11 @@ export class FileWatcher extends EventEmitter {
    * @param options - Watcher options
    */
   async start(options: FileWatcherOptions): Promise<void> {
-    debug(
-      'file-watcher start: patterns=%o exclude=%o cwd=%s',
-      options.patterns,
-      options.exclude,
-      options.cwd
-    );
+    debug('file-watcher start', {
+      patterns: options.patterns,
+      exclude: options.exclude,
+      cwd: options.cwd,
+    });
     if (this.watcher) {
       throw new Error('Watcher already started. Call stop() first.');
     }
@@ -130,7 +129,7 @@ export class FileWatcher extends EventEmitter {
    * Stop watching files
    */
   async stop(): Promise<void> {
-    debug('file-watcher stop: running=%s', this.watcher !== null);
+    debug(`file-watcher stop: running=${this.watcher !== null}`);
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
@@ -156,7 +155,7 @@ export class FileWatcher extends EventEmitter {
    * Emit normalised change event
    */
   private emitChange(type: 'add' | 'change' | 'unlink', path: string, cwd: string): void {
-    debug('file-watcher event: type=%s path=%s', type, path);
+    debug(`file-watcher event: type=${type} path=${path}`);
     // Convert relative path to absolute if needed
     const absolutePath = path.startsWith('/') ? path : `${cwd}/${path}`;
 

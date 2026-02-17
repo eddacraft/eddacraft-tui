@@ -25,13 +25,13 @@ export class NullCacheProvider implements CacheProvider {
   };
 
   async get<T>(_key: string): Promise<CacheEntry<T> | null> {
-    debug('null-cache get: key=%s (always miss)', _key);
+    debug(`null-cache get: key=${_key} (always miss)`);
     this.stats.misses++;
     return null;
   }
 
   async set<T>(_key: string, _value: T, _options: CacheSetOptions): Promise<void> {
-    debug('null-cache set: key=%s (no-op)', _key);
+    debug(`null-cache set: key=${_key} (no-op)`);
   }
 
   async invalidate(_key: string): Promise<boolean> {

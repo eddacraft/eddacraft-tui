@@ -331,11 +331,11 @@ function parseFromTokens(tokens: string[], rawCmd: string, wrappers: string[]): 
 }
 
 export function parseCommand(cmd: string): ParsedCommand {
-  debug('parseCommand: raw=%s', cmd);
+  debug(`parseCommand: raw=${cmd}`);
   const { unwrapped, wrappers } = unwrapCommand(cmd);
 
   if (wrappers.length > 0) {
-    debug('parseCommand: unwrapped through %o', wrappers);
+    debug('parseCommand: unwrapped through', { wrappers });
   }
 
   const tokens = tokenise(unwrapped);
@@ -362,7 +362,7 @@ export function parseCommand(cmd: string): ParsedCommand {
   const subcommand = extractSubcommand(command, args);
   const remainingArgs = subcommand ? args.slice(1) : args;
 
-  debug('parseCommand: command=%s subcommand=%s flags=%o', command, subcommand, flags);
+  debug('parseCommand result', { command, subcommand, flags });
   return {
     raw: cmd,
     command,
@@ -381,7 +381,7 @@ export interface CompoundCommandResult {
 }
 
 export function parseCompoundCommand(cmd: string): CompoundCommandResult {
-  debug('parseCompoundCommand: raw=%s', cmd);
+  debug(`parseCompoundCommand: raw=${cmd}`);
   const { unwrapped, wrappers } = unwrapCommand(cmd);
   const { isCompound, subCommands } = tokeniseWithOperators(unwrapped);
 
@@ -394,7 +394,7 @@ export function parseCompoundCommand(cmd: string): CompoundCommandResult {
     };
   }
 
-  debug('parseCompoundCommand: compound with %d sub-commands', subCommands.length);
+  debug(`parseCompoundCommand: compound with ${subCommands.length} sub-commands`);
 
   const commands: ParsedCommand[] = [];
   const operators: string[] = [];

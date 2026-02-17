@@ -28,7 +28,7 @@ export class GateConfigManager {
   constructor(workspaceRoot: string) {
     this.workspaceRoot = workspaceRoot;
     this.configPath = this.findConfigFile();
-    debug('GateConfigManager: workspace=%s configPath=%s', workspaceRoot, this.configPath);
+    debug(`GateConfigManager: workspace=${workspaceRoot} configPath=${this.configPath}`);
   }
 
   /**
@@ -38,7 +38,7 @@ export class GateConfigManager {
     for (const location of CONFIG_LOCATIONS) {
       const fullPath = join(this.workspaceRoot, location);
       if (existsSync(fullPath)) {
-        debug('findConfigFile: found %s', fullPath);
+        debug(`findConfigFile: found ${fullPath}`);
         return fullPath;
       }
     }
@@ -69,7 +69,7 @@ export class GateConfigManager {
    * Load configuration with detailed result including path and validation errors
    */
   loadConfigWithDetails(): ConfigLoadResult {
-    debug('loadConfigWithDetails: path=%s', this.configPath);
+    debug(`loadConfigWithDetails: path=${this.configPath}`);
     if (!this.configPath) {
       debug('loadConfigWithDetails: using default config');
       return {
@@ -85,9 +85,7 @@ export class GateConfigManager {
       const rawConfig = JSON.parse(content);
       const { config, errors } = this.validateAndNormalizeConfigWithErrors(rawConfig);
       debug(
-        'loadConfigWithDetails: loaded %d checks, %d errors',
-        config.checks.length,
-        errors.length
+        `loadConfigWithDetails: loaded ${config.checks.length} checks, ${errors.length} errors`
       );
 
       return {
@@ -114,7 +112,7 @@ export class GateConfigManager {
 
   saveConfig(config: GateConfig): void {
     const savePath = this.getConfigPath();
-    debug('saveConfig: path=%s checks=%d', savePath, config.checks.length);
+    debug(`saveConfig: path=${savePath} checks=${config.checks.length}`);
     const content = JSON.stringify(config, null, 2);
     // Ensure directory exists before writing file
     const dir = dirname(savePath);

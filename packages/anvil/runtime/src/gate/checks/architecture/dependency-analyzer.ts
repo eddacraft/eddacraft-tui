@@ -108,16 +108,16 @@ export class DependencyAnalyzer {
     const configPath = join(workspaceRoot, configFile);
 
     if (!existsSync(configPath)) {
-      log('dependency-analyzer: config file not found at %s', configPath);
+      log(`dependency-analyzer: config file not found at ${configPath}`);
       return null;
     }
 
     try {
       const configModule = await import(configPath);
-      log('dependency-analyzer: config loaded from %s', configPath);
+      log(`dependency-analyzer: config loaded from ${configPath}`);
       return configModule.default || configModule;
     } catch {
-      log('dependency-analyzer: failed to load config from %s', configPath);
+      log(`dependency-analyzer: failed to load config from ${configPath}`);
       return null;
     }
   }
@@ -175,7 +175,7 @@ export class DependencyAnalyzer {
       };
     }
 
-    log('dependency-analyzer: analysing %d files/patterns', filesToCruise.length);
+    log(`dependency-analyzer: analysing ${filesToCruise.length} files/patterns`);
     try {
       const cruiseResult = await this.cruiseFn(filesToCruise, {
         ...cruiseOptions,
@@ -183,14 +183,13 @@ export class DependencyAnalyzer {
       });
 
       const summary = cruiseResult.output.summary;
-      log(
-        'dependency-analyzer: analysis complete, totalCruised=%d, violations=%d (error=%d, warn=%d, info=%d)',
-        summary.totalCruised,
-        summary.violations.length,
-        summary.error,
-        summary.warn,
-        summary.info
-      );
+      log('dependency-analyzer: analysis complete', {
+        totalCruised: summary.totalCruised,
+        violations: summary.violations.length,
+        error: summary.error,
+        warn: summary.warn,
+        info: summary.info,
+      });
 
       return {
         success: true,
@@ -198,8 +197,7 @@ export class DependencyAnalyzer {
       };
     } catch (error) {
       log(
-        'dependency-analyzer: analysis failed: %s',
-        error instanceof Error ? error.message : 'Unknown error'
+        `dependency-analyzer: analysis failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
       return {
         success: false,

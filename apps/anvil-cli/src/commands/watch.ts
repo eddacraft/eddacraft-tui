@@ -122,11 +122,7 @@ export function createWatchCommand(): Command {
     .option('--no-exclusive', 'Allow multiple watch instances (disable exclusive lock)')
     .action(async (file: string | undefined, options: WatchOptions) => {
       log(
-        'watch command entered: file=%s source=%s plans=%s all=%s',
-        file ?? '(none)',
-        options.source,
-        options.plans,
-        options.all
+        `watch command entered: file=${file ?? '(none)'} source=${options.source} plans=${options.plans} all=${options.all}`
       );
       const startTime = Date.now();
       let kindling: KindlingContext | null = null;
@@ -484,12 +480,7 @@ export function createWatchCommand(): Command {
         process.on('SIGTERM', shutdown);
 
         // Start watching
-        log(
-          'watch: starting orchestrator mode=%s action=%s patterns=%o',
-          watchMode,
-          action,
-          patterns
-        );
+        log('watch: starting orchestrator', { mode: watchMode, action, patterns });
         await orchestrator.start();
         output.showWatching();
 

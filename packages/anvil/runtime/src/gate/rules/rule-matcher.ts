@@ -218,10 +218,7 @@ export function findMatchingRule(
   context?: MatcherContext
 ): CommandRule | undefined {
   debug(
-    'findMatchingRule: command=%s subcommand=%s rules=%d',
-    parsed.command,
-    parsed.subcommand,
-    rules.length
+    `findMatchingRule: command=${parsed.command} subcommand=${parsed.subcommand} rules=${rules.length}`
   );
   const sorted = [...rules].sort((a, b) => {
     const scoreA = calculateSpecificity(a);
@@ -231,7 +228,7 @@ export function findMatchingRule(
 
   for (const rule of sorted) {
     if (matchRule(parsed, rule, context)) {
-      debug('findMatchingRule: matched rule=%s action=%s', rule.id, rule.action);
+      debug(`findMatchingRule: matched rule=${rule.id} action=${rule.action}`);
       return rule;
     }
   }
@@ -246,7 +243,7 @@ export function analyseCommand(
   rules: CommandRule[],
   context?: MatcherContext
 ): CommandAnalysisResult {
-  debug('analyseCommand: command=%s', command);
+  debug(`analyseCommand: command=${command}`);
   const matchedRule = findMatchingRule(parsed, rules, context);
 
   if (!matchedRule) {
@@ -260,10 +257,7 @@ export function analyseCommand(
   }
 
   debug(
-    'analyseCommand: result action=%s severity=%s rule=%s',
-    matchedRule.action,
-    matchedRule.severity,
-    matchedRule.id
+    `analyseCommand: result action=${matchedRule.action} severity=${matchedRule.severity} rule=${matchedRule.id}`
   );
   return {
     command,

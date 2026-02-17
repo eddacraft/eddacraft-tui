@@ -42,7 +42,7 @@ function createCreateSubcommand(): Command {
     .option('-f, --format <format>', 'Output format (json|yaml)', 'json')
     .option('-o, --output <path>', 'Output file path')
     .action(async (intent: string, options: { format: string; output?: string }) => {
-      log('plan create: intent length=%d format=%s', intent.length, options.format);
+      log(`plan create: intent length=${intent.length} format=${options.format}`);
       const spinner = ora('Creating plan...').start();
 
       try {
@@ -102,7 +102,7 @@ function createCreateSubcommand(): Command {
         // Save the plan
         savePlan(completePlan, outputPath);
 
-        log('plan created: id=%s path=%s', planId, outputPath);
+        log(`plan created: id=${planId} path=${outputPath}`);
         spinner.succeed(chalk.green(`✓ Plan created successfully`));
         console.log(chalk.gray('  ID:     '), chalk.cyan(planId));
         console.log(chalk.gray('  Hash:   '), chalk.cyan(hash.substring(0, 16) + '...'));

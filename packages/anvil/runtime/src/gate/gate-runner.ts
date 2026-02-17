@@ -547,7 +547,7 @@ export class GateRunner {
         result.provenance_id = provenanceRecord.id;
         result.provenanceRecord = provenanceRecord;
 
-        debug('Provenance record saved: %s', provenanceRecord.id);
+        debug(`Provenance record saved: ${provenanceRecord.id}`);
       } catch (provError) {
         debug('Failed to save provenance record (non-fatal)', provError);
       }

@@ -26,13 +26,13 @@ export function createAgentListCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--all', 'Include stale and terminated agents')
     .action(async (options: ListOptions) => {
-      log('agent list: all=%s json=%s', options.all, options.json);
+      log(`agent list: all=${options.all} json=${options.json}`);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const manager = createAgentManager({ workspaceRoot });
 
         const allAgents = await manager.getAllAgents();
-        log('agent list: found %d agents total', allAgents.length);
+        log(`agent list: found ${allAgents.length} agents total`);
 
         // Filter based on options
         let agents = allAgents;

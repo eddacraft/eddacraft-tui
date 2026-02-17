@@ -359,7 +359,7 @@ export function createPolicyCommand(): Command {
     .option('-a, --all', 'Include disabled and pending policies')
     .option('--json', 'Output as JSON')
     .action(async (options: { dir: string; all?: boolean; json?: boolean }) => {
-      log('policy list: dir=%s all=%s', options.dir, options.all);
+      log(`policy list: dir=${options.dir} all=${options.all}`);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const policyDir = options.dir;
@@ -481,7 +481,7 @@ export function createPolicyCommand(): Command {
     .command('explain <name>')
     .description('Show detailed explanation for a policy')
     .action(async (name: string) => {
-      log('policy explain: name=%s', name);
+      log(`policy explain: name=${name}`);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const configMgr = new PolicyConfigManager(workspaceRoot);

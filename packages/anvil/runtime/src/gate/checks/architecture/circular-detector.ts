@@ -66,7 +66,7 @@ export class CircularDetector {
       violationsByType[type]++;
     }
 
-    log('circular-detector: violation counts by type: %o', violationsByType);
+    log('circular-detector: violation counts by type', { violationsByType });
     return violationsByType;
   }
 
@@ -78,16 +78,13 @@ export class CircularDetector {
     baseline: ArchitectureBaseline | null
   ): CruiserViolation[] {
     if (!baseline) {
-      log('circular-detector: no baseline, all %d violations treated as new', violations.length);
+      log(`circular-detector: no baseline, all ${violations.length} violations treated as new`);
       return violations;
     }
 
     const newViolations = violations.filter((v) => this.isNewViolation(v, baseline));
     log(
-      'circular-detector: filtered %d violations to %d new (baseline has %d)',
-      violations.length,
-      newViolations.length,
-      baseline.baseline_snapshot.violations.length
+      `circular-detector: filtered ${violations.length} violations to ${newViolations.length} new (baseline has ${baseline.baseline_snapshot.violations.length})`
     );
     return newViolations;
   }

@@ -26,13 +26,13 @@ export function loadCommandSafetyRules(config: CommandSafetyConfig): CommandRule
   let rules: CommandRule[] = [...DEFAULT_GIT_RULES, ...DEFAULT_FILESYSTEM_RULES];
 
   if (config.rules?.disabled && config.rules.disabled.length > 0) {
-    debug('loadCommandSafetyRules: disabling %d rules', config.rules.disabled.length);
+    debug(`loadCommandSafetyRules: disabling ${config.rules.disabled.length} rules`);
     const disabledSet = new Set(config.rules.disabled);
     rules = rules.filter((r) => !disabledSet.has(r.id));
   }
 
   if (config.rules?.overrides && config.rules.overrides.length > 0) {
-    debug('loadCommandSafetyRules: applying %d overrides', config.rules.overrides.length);
+    debug(`loadCommandSafetyRules: applying ${config.rules.overrides.length} overrides`);
     for (const override of config.rules.overrides) {
       const ruleIndex = rules.findIndex((r) => r.id === override.id);
       if (ruleIndex !== -1) {
@@ -50,11 +50,11 @@ export function loadCommandSafetyRules(config: CommandSafetyConfig): CommandRule
   }
 
   if (config.rules?.custom && config.rules.custom.length > 0) {
-    debug('loadCommandSafetyRules: adding %d custom rules', config.rules.custom.length);
+    debug(`loadCommandSafetyRules: adding ${config.rules.custom.length} custom rules`);
     rules.push(...config.rules.custom);
   }
 
-  debug('loadCommandSafetyRules: total rules=%d', rules.length);
+  debug(`loadCommandSafetyRules: total rules=${rules.length}`);
   return rules;
 }
 
@@ -63,9 +63,7 @@ export function resolveCommandSafetyConfig(
 ): ResolvedCommandSafetyConfig {
   const config = userConfig ?? {};
   debug(
-    'resolveCommandSafetyConfig: enabled=%s strict=%s',
-    config.enabled ?? true,
-    config.strict ?? false
+    `resolveCommandSafetyConfig: enabled=${config.enabled ?? true} strict=${config.strict ?? false}`
   );
 
   return {

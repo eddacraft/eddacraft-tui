@@ -121,7 +121,7 @@ function printTemplatePreview(template: ArchitectureTemplate): void {
 
 /** Run the interactive architecture wizard */
 async function runInteractiveWizard(options: { force?: boolean }): Promise<void> {
-  log('architecture: interactive wizard started force=%s', options.force);
+  log(`architecture: interactive wizard started force=${options.force}`);
   const projectRoot = process.cwd();
   const yamlPath = getArchitectureYamlPath(projectRoot);
   const exists = architectureYamlExists(projectRoot);
@@ -503,10 +503,7 @@ function createInitSubcommand(): Command {
     .option('--non-interactive', 'Skip prompts, use defaults or --template')
     .action(async (options: { template?: string; force?: boolean; nonInteractive?: boolean }) => {
       log(
-        'architecture init: template=%s force=%s nonInteractive=%s',
-        options.template,
-        options.force,
-        options.nonInteractive
+        `architecture init: template=${options.template} force=${options.force} nonInteractive=${options.nonInteractive}`
       );
       const projectRoot = process.cwd();
       const yamlPath = getArchitectureYamlPath(projectRoot);
@@ -575,10 +572,7 @@ function createGenerateSubcommand(): Command {
     .option('--skip-rego', 'Skip Rego policy generation')
     .action(async (options: { force?: boolean; skipDc?: boolean; skipRego?: boolean }) => {
       log(
-        'architecture generate: force=%s skipDc=%s skipRego=%s',
-        options.force,
-        options.skipDc,
-        options.skipRego
+        `architecture generate: force=${options.force} skipDc=${options.skipDc} skipRego=${options.skipRego}`
       );
       const projectRoot = process.cwd();
 
