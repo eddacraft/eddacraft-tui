@@ -6,8 +6,11 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { createAgentManager } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+
+const log = createDebugger('cli');
 
 interface ListOptions {
   json?: boolean;
@@ -23,11 +26,13 @@ export function createAgentListCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--all', 'Include stale and terminated agents')
     .action(async (options: ListOptions) => {
+      log('agent list: all=%s json=%s', options.all, options.json);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const manager = createAgentManager({ workspaceRoot });
 
         const allAgents = await manager.getAllAgents();
+        log('agent list: found %d agents total', allAgents.length);
 
         // Filter based on options
         let agents = allAgents;

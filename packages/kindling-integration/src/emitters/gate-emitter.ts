@@ -9,6 +9,9 @@
 import { randomUUID } from 'node:crypto';
 import type { KindlingService } from '../kindling-service.js';
 import type { GateEvaluatedObservation } from '../observation-contract.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Input Types
@@ -48,6 +51,11 @@ export interface GateResult {
  */
 export function emitGateEvaluated(service: KindlingService, gateResult: GateResult): string {
   const gateEvalId = randomUUID();
+  debug('emitting gate_evaluated', {
+    gateId: gateResult.gate_id,
+    outcome: gateResult.outcome,
+    gateEvalId,
+  });
 
   const observation: GateEvaluatedObservation = {
     kind: 'gate_evaluated',

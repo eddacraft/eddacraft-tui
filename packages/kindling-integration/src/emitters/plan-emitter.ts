@@ -13,6 +13,9 @@ import type {
   PlanApprovedObservation,
   PlanRejectedObservation,
 } from '../observation-contract.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Input Types
@@ -70,6 +73,7 @@ export interface PlanRejectedInput {
  */
 export function emitPlanCreated(service: KindlingService, plan: PlanCreatedInput): string {
   const planId = plan.plan_id ?? randomUUID();
+  debug('emitting plan_created', { planId, createdBy: plan.created_by });
 
   const observation: PlanCreatedObservation = {
     kind: 'plan_created',
@@ -99,6 +103,8 @@ export function emitPlanCreated(service: KindlingService, plan: PlanCreatedInput
  * @returns The plan_id
  */
 export function emitPlanEdited(service: KindlingService, edit: PlanEditedInput): string {
+  debug('emitting plan_edited', { planId: edit.plan_id, editedBy: edit.edited_by });
+
   const observation: PlanEditedObservation = {
     kind: 'plan_edited',
     session_id: edit.session_id,
@@ -128,6 +134,8 @@ export function emitPlanEdited(service: KindlingService, edit: PlanEditedInput):
  * @returns The plan_id
  */
 export function emitPlanApproved(service: KindlingService, approval: PlanApprovedInput): string {
+  debug('emitting plan_approved', { planId: approval.plan_id, approvedBy: approval.approved_by });
+
   const observation: PlanApprovedObservation = {
     kind: 'plan_approved',
     session_id: approval.session_id,
@@ -154,6 +162,8 @@ export function emitPlanApproved(service: KindlingService, approval: PlanApprove
  * @returns The plan_id
  */
 export function emitPlanRejected(service: KindlingService, rejection: PlanRejectedInput): string {
+  debug('emitting plan_rejected', { planId: rejection.plan_id, rejectedBy: rejection.rejected_by });
+
   const observation: PlanRejectedObservation = {
     kind: 'plan_rejected',
     session_id: rejection.session_id,

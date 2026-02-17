@@ -4,6 +4,10 @@
  * Contains regex patterns for detecting various types of secrets and sensitive data.
  */
 
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const log = createDebugger('check');
+
 /**
  * Secret pattern definition
  */
@@ -88,13 +92,19 @@ export class PatternMatcher {
   isAllowlisted(str: string, customAllowlist: string[]): boolean {
     // Check default allowlist
     for (const pattern of DEFAULT_ALLOWLIST) {
-      if (pattern.test(str)) return true;
+      if (pattern.test(str)) {
+        log('secret-patterns: string allowlisted by default pattern');
+        return true;
+      }
     }
 
     // Check custom allowlist
     for (const pattern of customAllowlist) {
       try {
-        if (new RegExp(pattern, 'i').test(str)) return true;
+        if (new RegExp(pattern, 'i').test(str)) {
+          log('secret-patterns: string allowlisted by custom pattern: %s', pattern);
+          return true;
+        }
       } catch {
         continue;
       }

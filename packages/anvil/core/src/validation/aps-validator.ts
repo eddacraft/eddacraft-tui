@@ -14,6 +14,9 @@ import {
   formatValidationErrors,
   createValidationSummary,
 } from './errors.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('validation');
 
 export interface ValidationResult {
   valid: boolean;
@@ -60,6 +63,7 @@ export class APSValidator {
    * Validate an APS plan
    */
   async validate(plan: unknown, options: ValidationOptions = {}): Promise<ValidationResult> {
+    debug('validating APS plan', { validateHash: options.validateHash, strict: options.strict });
     const { validateHash = false, strict = true, format = 'cli' } = options;
 
     const issues: ValidationIssue[] = [];
@@ -67,6 +71,7 @@ export class APSValidator {
     // Step 1: Schema validation
     const schemaResult = await this.validateSchema(plan);
     if (!schemaResult.valid) {
+      debug('schema validation failed', { issueCount: schemaResult.issues?.length });
       issues.push(...(schemaResult.issues || []));
     }
 
@@ -87,6 +92,7 @@ export class APSValidator {
     }
 
     // Create final result
+    debug('validation complete', { issueCount: issues.length });
     const isValid = issues.length === 0;
     const result = this.createResult(
       isValid,

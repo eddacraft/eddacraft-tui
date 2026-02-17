@@ -6,6 +6,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import YAML from 'yaml';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   type ArchitectureTemplate,
   type ArchitectureDefinition,
@@ -24,6 +25,8 @@ import {
   getDefaultOptions,
 } from '@eddacraft/anvil-core';
 import { renderMermaidAscii, renderMermaid } from 'beautiful-mermaid';
+
+const log = createDebugger('cli');
 
 /** Template metadata for display */
 const TEMPLATE_INFO: Record<
@@ -118,6 +121,7 @@ function printTemplatePreview(template: ArchitectureTemplate): void {
 
 /** Run the interactive architecture wizard */
 async function runInteractiveWizard(options: { force?: boolean }): Promise<void> {
+  log('architecture: interactive wizard started force=%s', options.force);
   const projectRoot = process.cwd();
   const yamlPath = getArchitectureYamlPath(projectRoot);
   const exists = architectureYamlExists(projectRoot);
@@ -498,6 +502,12 @@ function createInitSubcommand(): Command {
     .option('--force', 'Overwrite existing architecture.yaml')
     .option('--non-interactive', 'Skip prompts, use defaults or --template')
     .action(async (options: { template?: string; force?: boolean; nonInteractive?: boolean }) => {
+      log(
+        'architecture init: template=%s force=%s nonInteractive=%s',
+        options.template,
+        options.force,
+        options.nonInteractive
+      );
       const projectRoot = process.cwd();
       const yamlPath = getArchitectureYamlPath(projectRoot);
 
@@ -564,6 +574,12 @@ function createGenerateSubcommand(): Command {
     .option('--skip-dc', 'Skip dependency-cruiser config generation')
     .option('--skip-rego', 'Skip Rego policy generation')
     .action(async (options: { force?: boolean; skipDc?: boolean; skipRego?: boolean }) => {
+      log(
+        'architecture generate: force=%s skipDc=%s skipRego=%s',
+        options.force,
+        options.skipDc,
+        options.skipRego
+      );
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {

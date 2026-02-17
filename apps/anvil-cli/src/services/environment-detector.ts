@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   detectEslint,
   detectPrettier,
@@ -40,6 +41,8 @@ export interface EnvironmentInfo {
 /**
  * Detects development environment and available tools
  */
+const log = createDebugger('service');
+
 export class EnvironmentDetector {
   constructor(private readonly projectRoot: string = process.cwd()) {}
 
@@ -47,6 +50,7 @@ export class EnvironmentDetector {
    * Detect all available tools and configurations in the project
    */
   public detect(): EnvironmentInfo {
+    log('EnvironmentDetector.detect: root=%s', this.projectRoot);
     return {
       hasGit: existsSync(join(this.projectRoot, '.git')),
       hasPackageJson: existsSync(join(this.projectRoot, 'package.json')),
@@ -65,6 +69,12 @@ export class EnvironmentDetector {
    * Get recommended gate checks based on detected tools
    */
   public getRecommendedChecks(env: EnvironmentInfo): string[] {
+    log(
+      'EnvironmentDetector.getRecommendedChecks: eslint=%s vitest=%s jest=%s',
+      env.hasEslint,
+      env.hasVitest,
+      env.hasJest
+    );
     const checks: string[] = [];
 
     if (env.hasEslint) {

@@ -8,6 +8,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   existsSync,
   mkdirSync,
@@ -37,6 +38,8 @@ import {
   type ResolvedPolicy,
   type EnforcementLevel,
 } from '../services/policy-config.js';
+
+const log = createDebugger('cli');
 
 /**
  * Default policy directory relative to workspace root
@@ -356,6 +359,7 @@ export function createPolicyCommand(): Command {
     .option('-a, --all', 'Include disabled and pending policies')
     .option('--json', 'Output as JSON')
     .action(async (options: { dir: string; all?: boolean; json?: boolean }) => {
+      log('policy list: dir=%s all=%s', options.dir, options.all);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const policyDir = options.dir;
@@ -477,6 +481,7 @@ export function createPolicyCommand(): Command {
     .command('explain <name>')
     .description('Show detailed explanation for a policy')
     .action(async (name: string) => {
+      log('policy explain: name=%s', name);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const configMgr = new PolicyConfigManager(workspaceRoot);

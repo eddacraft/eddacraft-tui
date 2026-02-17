@@ -8,6 +8,9 @@ import {
   generateNamedSnapshotFilename,
 } from './snapshot-schema.js';
 import { sanitizeIdentifier } from '../utils/path-safety.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('drift');
 
 export const SNAPSHOTS_DIR = 'snapshots';
 export const ANVIL_DIR = '.anvil';
@@ -27,6 +30,7 @@ export async function saveSnapshot(
   snapshot: DriftSnapshot,
   name?: string
 ): Promise<string> {
+  debug('saving snapshot', { name: name ?? snapshot.name });
   const snapshotsPath = await ensureSnapshotsDir(workspaceRoot);
 
   const filename = name
@@ -71,6 +75,7 @@ export async function loadSnapshot(
   workspaceRoot: string,
   nameOrFilename: string
 ): Promise<DriftSnapshot | null> {
+  debug('loading snapshot', nameOrFilename);
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
   const filename = resolveSnapshotFilename(nameOrFilename);
   const filePath = path.join(snapshotsPath, filename);
@@ -81,13 +86,16 @@ export async function loadSnapshot(
     const result = DriftSnapshotSchema.safeParse(parsed);
 
     if (result.success) {
+      debug('snapshot loaded', { name: result.data.name });
       return result.data;
     }
 
+    debug('invalid snapshot format', result.error.format());
     console.error('Invalid snapshot format:', result.error.format());
     return null;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      debug('snapshot file not found', filePath);
       return null;
     }
     throw error;
@@ -95,6 +103,7 @@ export async function loadSnapshot(
 }
 
 export async function listSnapshots(workspaceRoot: string): Promise<SnapshotMetadata[]> {
+  debug('listing snapshots');
   const snapshotsPath = getSnapshotsPath(workspaceRoot);
 
   try {

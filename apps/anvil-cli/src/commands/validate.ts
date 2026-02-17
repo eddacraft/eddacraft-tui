@@ -5,11 +5,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { verifyHash } from '@eddacraft/anvil-core';
+import { verifyHash, createDebugger } from '@eddacraft/anvil-core';
 import { loadPlan } from '../utils/file-io.js';
 import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import type { ValidateOptions } from '../types/command-options.js';
+
+const log = createDebugger('cli');
 
 export function createValidateCommand(): Command {
   return new Command('validate')
@@ -20,6 +22,12 @@ export function createValidateCommand(): Command {
     .option('--native', 'Skip format detection and treat as native APS')
     .option('--validate-hash', 'Validate hash integrity', true)
     .action(async (planPathOrId: string, options: ValidateOptions) => {
+      log(
+        'validate command entered: plan=%s native=%s validateHash=%s',
+        planPathOrId,
+        options.native,
+        options.validateHash
+      );
       const spinner = ora('Loading plan...').start();
 
       try {
@@ -159,6 +167,7 @@ export function createValidateCommand(): Command {
           });
         }
 
+        log('validate result: PASSED plan=%s', plan.id);
         console.log(chalk.green('\n✓ All validation checks passed'));
       } catch (error) {
         spinner.fail(chalk.red('Validation failed'));

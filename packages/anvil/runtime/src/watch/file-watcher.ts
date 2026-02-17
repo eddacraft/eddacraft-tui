@@ -7,6 +7,9 @@
 
 import { EventEmitter } from 'node:events';
 import type { WatchChangeEvent } from './types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('watch');
 
 // Chokidar types (dynamically imported)
 type ChokidarWatcher = {
@@ -70,6 +73,12 @@ export class FileWatcher extends EventEmitter {
    * @param options - Watcher options
    */
   async start(options: FileWatcherOptions): Promise<void> {
+    debug(
+      'file-watcher start: patterns=%o exclude=%o cwd=%s',
+      options.patterns,
+      options.exclude,
+      options.cwd
+    );
     if (this.watcher) {
       throw new Error('Watcher already started. Call stop() first.');
     }
@@ -121,6 +130,7 @@ export class FileWatcher extends EventEmitter {
    * Stop watching files
    */
   async stop(): Promise<void> {
+    debug('file-watcher stop: running=%s', this.watcher !== null);
     if (this.watcher) {
       await this.watcher.close();
       this.watcher = null;
@@ -146,6 +156,7 @@ export class FileWatcher extends EventEmitter {
    * Emit normalised change event
    */
   private emitChange(type: 'add' | 'change' | 'unlink', path: string, cwd: string): void {
+    debug('file-watcher event: type=%s path=%s', type, path);
     // Convert relative path to absolute if needed
     const absolutePath = path.startsWith('/') ? path : `${cwd}/${path}`;
 

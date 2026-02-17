@@ -6,10 +6,13 @@ import {
   parseWarningId,
   isExplainable,
   getExplainableRules,
+  createDebugger,
   type WarningExplanation,
 } from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { loadRecentWarnings } from '../services/recent-warnings-store.js';
+
+const log = createDebugger('cli');
 
 interface ExplainOptions {
   list?: boolean;
@@ -205,6 +208,12 @@ export function createExplainCommand(): Command {
     .option('--rules', 'List all explainable rules')
     .option('--json', 'Output as JSON')
     .action(async (warningId: string | undefined, options: ExplainOptions) => {
+      log(
+        'explain command entered: warningId=%s list=%s rules=%s',
+        warningId ?? '(none)',
+        options.list,
+        options.rules
+      );
       if (options.rules) {
         listExplainableRules(options.json ?? false);
         return;

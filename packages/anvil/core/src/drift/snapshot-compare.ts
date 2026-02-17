@@ -5,6 +5,9 @@ import type {
   SnapshotSuppression,
   SnapshotMetrics,
 } from './snapshot-schema.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('drift');
 
 export interface ItemChange<T> {
   added: T[];
@@ -182,6 +185,10 @@ function determineOverallTrend(metrics: MetricsComparison): 'improving' | 'stabl
 }
 
 export function compareSnapshots(before: DriftSnapshot, after: DriftSnapshot): SnapshotComparison {
+  debug('comparing snapshots', {
+    before: before.name ?? before.created_at,
+    after: after.name ?? after.created_at,
+  });
   const metrics = compareMetrics(before.metrics, after.metrics);
   const violations = compareViolations(before.violations, after.violations);
   const antipatterns = compareAntiPatterns(before.antipatterns, after.antipatterns);

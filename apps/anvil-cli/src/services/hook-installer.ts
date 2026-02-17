@@ -7,6 +7,9 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const log = createDebugger('service');
 
 /** Marker comment to identify Anvil-managed hooks */
 export const ANVIL_MARKER = '# Anvil-managed hook';
@@ -65,6 +68,7 @@ export class HookInstaller {
    * Load hook script content from file or fallback to embedded content
    */
   loadHookScript(hookName: string): string {
+    log('loadHookScript: hookName=%s', hookName);
     try {
       const scriptsPath = this.getScriptsPath();
       const hookConfig = AVAILABLE_HOOKS.find((h) => h.name === hookName);
@@ -189,6 +193,7 @@ exit 0
    * Install a hook
    */
   installHook(workspaceRoot: string, hookName: string, gitHooksDir: string): void {
+    log('installHook: hookName=%s dir=%s', hookName, gitHooksDir);
     const hookPath = join(workspaceRoot, gitHooksDir, hookName);
     const hookContent = this.loadHookScript(hookName);
 
@@ -213,6 +218,7 @@ exit 0
    * Uninstall a hook
    */
   uninstallHook(workspaceRoot: string, hookName: string, gitHooksDir: string): boolean {
+    log('uninstallHook: hookName=%s dir=%s', hookName, gitHooksDir);
     const hookPath = join(workspaceRoot, gitHooksDir, hookName);
 
     if (!existsSync(hookPath)) {

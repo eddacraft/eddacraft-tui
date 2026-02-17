@@ -5,6 +5,9 @@
  */
 
 import { PatternMatcher } from './secret-patterns.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const log = createDebugger('check');
 
 /**
  * Secret finding from entropy detection
@@ -94,6 +97,13 @@ export class EntropyDetector {
 
         const entropy = this.calculateEntropy(candidate);
         if (entropy >= threshold) {
+          log(
+            'entropy-detector: high entropy string found in %s:%d (entropy=%.2f, threshold=%.1f)',
+            file,
+            lineNumber,
+            entropy,
+            threshold
+          );
           findings.push({
             file,
             line: lineNumber,

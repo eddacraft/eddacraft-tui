@@ -6,12 +6,15 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   createAgentManager,
   createLockManager,
   createQueueManager,
 } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+
+const log = createDebugger('cli');
 
 interface CleanupOptions {
   json?: boolean;
@@ -26,6 +29,7 @@ export function createAgentCleanupCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--dry-run', 'Show what would be cleaned without actually cleaning')
     .action(async (options: CleanupOptions) => {
+      log('agent cleanup: dryRun=%s json=%s', options.dryRun, options.json);
       try {
         const workspaceRoot = getWorkspaceRoot();
 
@@ -62,6 +66,12 @@ export function createAgentCleanupCommand(): Command {
           }
         }
 
+        log(
+          'agent cleanup result: staleAgents=%d expiredLocks=%d timedOutQueue=%d',
+          results.staleAgents.length,
+          results.expiredLocks,
+          results.timedOutQueueEntries
+        );
         const totalCleaned =
           results.staleAgents.length + results.expiredLocks + results.timedOutQueueEntries;
 

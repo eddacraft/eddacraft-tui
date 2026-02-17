@@ -9,6 +9,9 @@ import { join } from 'node:path';
 import { tmpdir, platform } from 'node:os';
 import { randomUUID, createHash } from 'node:crypto';
 import type { LoadedPolicy } from './policy-loader.js';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('policy');
 
 /**
  * OPA evaluation input structure
@@ -248,6 +251,7 @@ export class OPAExecutor {
     this.timeout = config.timeout ?? DEFAULT_TIMEOUT;
     this.includeRawOutput = config.includeRawOutput ?? false;
     this.query = config.query ?? DEFAULT_QUERY;
+    debug('OPAExecutor created', { binaryPath, timeout: this.timeout, query: this.query });
   }
 
   /**
@@ -255,8 +259,10 @@ export class OPAExecutor {
    */
   async evaluate(policies: LoadedPolicy[], input: OPAInput): Promise<OPAEvaluationResult> {
     const startTime = Date.now();
+    debug('evaluating policies', { policyCount: policies.length, planId: input.plan.id });
 
     if (policies.length === 0) {
+      debug('no policies to evaluate, returning empty result');
       return {
         success: true,
         violations: [],
@@ -275,6 +281,11 @@ export class OPAExecutor {
       const result = await this.runOPA(tempDir);
       const violations = this.parseViolations(result, policies);
 
+      debug('evaluation complete', {
+        violationCount: violations.length,
+        elapsed: Date.now() - startTime,
+      });
+
       return {
         success: true,
         violations,
@@ -285,6 +296,7 @@ export class OPAExecutor {
         raw_output: this.includeRawOutput ? result : undefined,
       };
     } catch (error) {
+      debug('evaluation failed', error instanceof Error ? error : undefined);
       return {
         success: false,
         violations: [],

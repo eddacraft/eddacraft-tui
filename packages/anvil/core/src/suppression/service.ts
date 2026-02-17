@@ -4,6 +4,9 @@ import { parseSuppressions, findMatchingSuppression } from './parser.js';
 import type { ParsedSuppression } from './parser.js';
 import { SuppressionStore } from './store.js';
 import type { Warning, Suppression } from '../antipattern/types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('suppression');
 
 export interface SuppressionStats {
   total: number;
@@ -42,6 +45,7 @@ export class SuppressionService {
   }
 
   async initialize(): Promise<void> {
+    debug('initializing SuppressionService', { workspaceRoot: this.workspaceRoot });
     await this.store.load();
   }
 
@@ -100,6 +104,7 @@ export class SuppressionService {
   }
 
   async processFiles(files: string[]): Promise<FileSuppressions[]> {
+    debug('processing files for suppressions', { fileCount: files.length });
     const results: FileSuppressions[] = [];
 
     for (const file of files) {

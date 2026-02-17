@@ -50,6 +50,7 @@ Thumbs.db
 docs/analysis/claude-code-safety-net-review.md
 .anvil/tutorial-progress.json
 .anvil/cache/
+.anvil/logs/
 
 # Claude (local)
 .claude/settings.local.json

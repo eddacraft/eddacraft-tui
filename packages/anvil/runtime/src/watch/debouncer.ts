@@ -7,6 +7,9 @@
  */
 
 import type { DebouncedChanges } from './types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('watch');
 
 /**
  * Callback type for debounced flush
@@ -42,6 +45,7 @@ export class ChangeDebouncer {
    * @param filePath - Absolute file path
    */
   add(filePath: string): void {
+    debug('debouncer add: path=%s pending=%d', filePath, this.pendingFiles.size + 1);
     this.pendingFiles.add(filePath);
     this.resetTimer();
   }
@@ -68,10 +72,12 @@ export class ChangeDebouncer {
     this.clearTimer();
 
     if (this.pendingFiles.size === 0) {
+      debug('debouncer flush: nothing pending');
       return;
     }
 
     const files = Array.from(this.pendingFiles);
+    debug('debouncer flush: dispatching batch of %d files', files.length);
     this.pendingFiles.clear();
 
     this.onFlush({
@@ -84,6 +90,7 @@ export class ChangeDebouncer {
    * Cancel pending flush and clear accumulated files
    */
   cancel(): void {
+    debug('debouncer cancel: discarding %d pending files', this.pendingFiles.size);
     this.clearTimer();
     this.pendingFiles.clear();
   }

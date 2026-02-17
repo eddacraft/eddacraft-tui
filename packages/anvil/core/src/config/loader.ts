@@ -6,6 +6,9 @@
  */
 
 import type { ConfigLoaderOptions, ConfigEntry, ConfigSource } from './types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('config');
 
 /**
  * Configuration loader class
@@ -25,6 +28,10 @@ export class ConfigLoader {
         'anvil.config.js',
       ],
     };
+    debug('ConfigLoader created', {
+      baseDir: this._options.baseDir,
+      envPrefix: this._options.envPrefix,
+    });
   }
 
   get options(): Required<ConfigLoaderOptions> {
@@ -57,6 +64,7 @@ export class ConfigLoader {
    * Set a configuration value
    */
   set<T>(key: string, value: T, source: ConfigSource = 'default'): void {
+    debug('config set', { key, source });
     this.config.set(key, { value, source });
   }
 

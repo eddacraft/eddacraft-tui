@@ -1,4 +1,7 @@
 import { neon } from '@neondatabase/serverless';
+import { createDebugger } from '../lib/debug.js';
+
+const debug = createDebugger('api');
 
 export type NeonClient = ReturnType<typeof neon>;
 
@@ -10,6 +13,7 @@ export function getClient(): NeonClient {
     if (!url) {
       throw new Error('DATABASE_URL environment variable is required');
     }
+    debug('creating Neon database client');
     _client = neon(url);
   }
   return _client;

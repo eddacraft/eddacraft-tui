@@ -13,7 +13,13 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { APSPlan, generatePlanId, generateHash, APS_SCHEMA_VERSION } from '@eddacraft/anvil-core';
+import {
+  APSPlan,
+  generatePlanId,
+  generateHash,
+  APS_SCHEMA_VERSION,
+  createDebugger,
+} from '@eddacraft/anvil-core';
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'node:path';
 import {
@@ -23,6 +29,8 @@ import {
   createUnlockSubcommand,
   createStatusSubcommand,
 } from './plan/index.js';
+
+const log = createDebugger('cli');
 
 /**
  * Legacy create command (for backward compatibility)
@@ -34,6 +42,7 @@ function createCreateSubcommand(): Command {
     .option('-f, --format <format>', 'Output format (json|yaml)', 'json')
     .option('-o, --output <path>', 'Output file path')
     .action(async (intent: string, options: { format: string; output?: string }) => {
+      log('plan create: intent length=%d format=%s', intent.length, options.format);
       const spinner = ora('Creating plan...').start();
 
       try {
@@ -93,6 +102,7 @@ function createCreateSubcommand(): Command {
         // Save the plan
         savePlan(completePlan, outputPath);
 
+        log('plan created: id=%s path=%s', planId, outputPath);
         spinner.succeed(chalk.green(`✓ Plan created successfully`));
         console.log(chalk.gray('  ID:     '), chalk.cyan(planId));
         console.log(chalk.gray('  Hash:   '), chalk.cyan(hash.substring(0, 16) + '...'));

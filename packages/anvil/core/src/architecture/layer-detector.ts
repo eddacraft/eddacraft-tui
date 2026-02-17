@@ -7,6 +7,9 @@
 
 import { minimatch } from 'minimatch';
 import type { Layers, LayerAssignment, DetectionConfidence } from './types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('architecture');
 
 /**
  * Layer detection pattern with priority
@@ -162,8 +165,10 @@ export class LayerDetector {
     if (customLayers) {
       this.customLayers = customLayers;
       this.patterns = this.layersToPatterns(customLayers);
+      debug('LayerDetector created with custom layers', Object.keys(customLayers));
     } else {
       this.patterns = DEFAULT_LAYER_PATTERNS;
+      debug('LayerDetector created with default patterns');
     }
   }
 

@@ -18,8 +18,10 @@ import {
   type Warning,
   type WarningResult,
 } from '@eddacraft/anvil-core/antipattern';
-import { parseSeverity } from '@eddacraft/anvil-core';
+import { parseSeverity, createDebugger } from '@eddacraft/anvil-core';
 import { DEFAULT_ANALYSABLE_EXTENSIONS } from '@eddacraft/anvil-core';
+
+const log = createDebugger('check');
 
 export interface AntipatternCheckConfig {
   patterns?: string[];
@@ -46,7 +48,14 @@ export class AntipatternCheck extends BaseCheck {
   description = 'Detect AI escape hatches and code quality anti-patterns';
 
   async run(context: CheckContext): Promise<GateResult> {
+    log('antipattern check starting, workspace=%s', context.workspace_root);
     const config = this.parseConfig(context.check_config);
+    log(
+      'antipattern config: severityThreshold=%s, patterns=%d, includeOptIn=%s',
+      config.severityThreshold,
+      config.patterns.length,
+      config.includeOptIn
+    );
 
     try {
       const files = getFilesFromContext(context, {
@@ -54,11 +63,14 @@ export class AntipatternCheck extends BaseCheck {
       });
 
       if (files.length === 0) {
+        log('antipattern check: no scannable files found, returning success');
         return this.createSuccess('No files to scan for anti-patterns', 100, {
           warnings: createWarningResult([], []),
           filesScanned: 0,
         });
       }
+
+      log('antipattern check: scanning %d files', files.length);
 
       const scanOptions: ScanOptions = {
         patterns: config.patterns.length > 0 ? config.patterns : undefined,
@@ -91,12 +103,21 @@ export class AntipatternCheck extends BaseCheck {
       const { score, passed } = this.calculateScore(allWarnings, config);
       const message = this.buildMessage(warningResult, filesScanned, passed);
 
+      log(
+        'antipattern check result: passed=%s, score=%d, warnings=%d, filesScanned=%d',
+        passed,
+        score,
+        allWarnings.length,
+        filesScanned
+      );
+
       return this.createResult(passed, message, score, {
         warnings: warningResult,
         filesScanned,
         patternsChecked: Array.from(allPatternsChecked),
       });
     } catch (error) {
+      log('antipattern check error: %s', error instanceof Error ? error.message : 'Unknown error');
       return this.createFailure(
         'Anti-pattern check failed unexpectedly',
         error instanceof Error ? error.message : 'Unknown error'

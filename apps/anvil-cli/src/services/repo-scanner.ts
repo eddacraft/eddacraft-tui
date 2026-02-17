@@ -1,6 +1,9 @@
 import { glob } from 'glob';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { GateRunner, createCacheProvider, type AnalyzeResult } from '@eddacraft/anvil-runtime';
 import { ProjectDetector, type ProjectContext } from './project-detector.js';
+
+const log = createDebugger('service');
 import { HistoricalAnalyzer, type HistoricalAnalysis } from './historical-analyser.js';
 
 const ANALYSABLE_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs'];
@@ -94,6 +97,7 @@ export class RepoScanner {
    * Perform a full repository scan
    */
   async scan(options: RepoScanOptions = {}): Promise<RepoScanResult> {
+    log('RepoScanner.scan: root=%s', this.projectRoot);
     const startTime = Date.now();
     const {
       historicalDaysBack = 30,
@@ -136,6 +140,13 @@ export class RepoScanner {
     }
 
     const totalDurationMs = Date.now() - startTime;
+    log(
+      'RepoScanner.scan complete: files=%d warnings=%d historical=%d duration=%dms',
+      currentIssues.filesScanned,
+      currentIssues.totalWarnings,
+      historical.totalViolations,
+      totalDurationMs
+    );
 
     return {
       project,

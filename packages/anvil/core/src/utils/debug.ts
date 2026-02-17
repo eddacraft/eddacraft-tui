@@ -29,7 +29,19 @@ type DebugNamespace =
   | 'atomic'
   | 'git-agent'
   | 'lock'
-  | 'queue';
+  | 'queue'
+  | 'check'
+  | 'watch'
+  | 'cli'
+  | 'kindling'
+  | 'api'
+  | 'service'
+  | 'export'
+  | 'explain'
+  | 'suppression'
+  | 'config'
+  | 'secret'
+  | 'compiler';
 
 /**
  * Check if debug logging is enabled

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   detectEslint,
   detectPrettier,
@@ -88,6 +89,8 @@ export interface ProjectContext {
 /**
  * Detects comprehensive project characteristics for smart defaults generation
  */
+const log = createDebugger('service');
+
 export class ProjectDetector {
   constructor(private readonly projectRoot: string = process.cwd()) {}
 
@@ -95,13 +98,14 @@ export class ProjectDetector {
    * Detect all project characteristics
    */
   public detect(): ProjectContext {
+    log('ProjectDetector.detect: root=%s', this.projectRoot);
     const framework = this.detectFramework();
     const monorepo = this.detectMonorepo();
     const packageManager = detectPackageManager(this.projectRoot);
     const fileCount = this.estimateFileCount();
     const workspacePackages = this.detectWorkspacePackages();
 
-    return {
+    const context: ProjectContext = {
       framework,
       monorepo,
       tsStrictness: this.detectTypeScriptStrictness(),
@@ -114,6 +118,14 @@ export class ProjectDetector {
       projectRoot: this.projectRoot,
       workspacePackages,
     };
+    log(
+      'ProjectDetector.detect result: framework=%s monorepo=%s size=%s files=%d',
+      context.framework,
+      context.monorepo,
+      context.size,
+      context.fileCount
+    );
+    return context;
   }
 
   /**

@@ -9,6 +9,9 @@ import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve, sep, isAbsolute, normalize } from 'node:path';
 import { createHash, createVerify, timingSafeEqual } from 'node:crypto';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('policy');
 
 /**
  * Supported signature algorithms
@@ -126,6 +129,7 @@ export class BundleVerifier {
    * @returns Verification result with details
    */
   async verifyBundle(bundlePath: string): Promise<VerificationResult> {
+    debug('verifying bundle', bundlePath);
     const result: VerificationResult = {
       verified: false,
       errors: [],
@@ -134,6 +138,7 @@ export class BundleVerifier {
 
     // Check if bundle path exists
     if (!existsSync(bundlePath)) {
+      debug('bundle path does not exist', bundlePath);
       result.errors.push(`Bundle path does not exist: ${bundlePath}`);
       return result;
     }
@@ -143,10 +148,12 @@ export class BundleVerifier {
 
     if (!manifest) {
       if (this.requireSignature) {
+        debug('no signature manifest found but signatures required');
         result.errors.push('No signature manifest found and signatures are required');
         return result;
       }
       // No signatures found but not required - consider verified
+      debug('no signature manifest, signatures not required - verified');
       result.verified = true;
       return result;
     }
@@ -156,6 +163,7 @@ export class BundleVerifier {
       const blockResult = await this.verifySignatureBlock(bundlePath, sigBlock);
 
       if (blockResult.verified) {
+        debug('bundle verified with key', sigBlock.keyid);
         result.verified = true;
         result.keyId = sigBlock.keyid;
         result.fileResults = blockResult.fileResults;

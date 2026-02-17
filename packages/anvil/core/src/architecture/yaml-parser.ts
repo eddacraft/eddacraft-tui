@@ -9,6 +9,9 @@ import {
   type LayerDefinition,
   getDefaultOptions,
 } from './definition-schema.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('compiler');
 
 export const ARCHITECTURE_YAML_FILENAME = 'architecture.yaml';
 export const ANVIL_DIR = '.anvil';
@@ -25,6 +28,7 @@ export async function parseArchitectureDefinition(
   workspaceRoot: string
 ): Promise<ArchitectureDefinition> {
   const yamlPath = getArchitectureYamlPath(workspaceRoot);
+  debug('parsing architecture definition', yamlPath);
   if (!existsSync(yamlPath)) {
     throw new Error(`Architecture YAML not found: ${yamlPath}`);
   }
@@ -32,8 +36,13 @@ export async function parseArchitectureDefinition(
   const raw = YAML.parse(content);
   const result = ArchitectureDefinitionSchema.safeParse(raw);
   if (!result.success) {
+    debug('architecture.yaml validation failed', result.error.message);
     throw new Error(`Invalid architecture.yaml: ${result.error.message}`);
   }
+  debug('architecture definition parsed', {
+    template: result.data.template,
+    layerCount: Object.keys(result.data.layers).length,
+  });
   return applyDefaults(result.data);
 }
 

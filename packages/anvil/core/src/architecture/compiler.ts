@@ -3,6 +3,9 @@ import {
   parseArchitectureDefinition,
   mergeWithTemplate,
 } from './yaml-parser.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('compiler');
 import {
   needsRegeneration,
   writeDCConfig,
@@ -33,12 +36,17 @@ export async function compileArchitecture(
   workspaceRoot: string,
   options: CompileOptions = {}
 ): Promise<CompileResult> {
+  debug('compiling architecture', { workspaceRoot, options });
   if (!architectureYamlExists(workspaceRoot)) {
     throw new Error('No architecture.yaml found. Run: anvil architecture init');
   }
 
   const definition = await parseArchitectureDefinition(workspaceRoot);
   const merged = mergeWithTemplate(definition);
+  debug('definition parsed', {
+    template: merged.template,
+    layerCount: Object.keys(merged.layers).length,
+  });
 
   const result: CompileResult = {
     dcConfig: { path: getDCConfigPath(workspaceRoot), regenerated: false },
@@ -52,6 +60,7 @@ export async function compileArchitecture(
       !dcConfigExists(workspaceRoot) ||
       (await needsRegeneration(workspaceRoot, merged));
     if (needsDC) {
+      debug('regenerating dependency-cruiser config');
       result.dcConfig.path = await writeDCConfig(workspaceRoot, merged);
       result.dcConfig.regenerated = true;
     }
@@ -63,11 +72,16 @@ export async function compileArchitecture(
       !regoExists(workspaceRoot) ||
       (await needsRegoRegeneration(workspaceRoot, merged));
     if (needsRego) {
+      debug('regenerating Rego policy');
       result.regoPolicy.path = await writeRegoPolicy(workspaceRoot, merged);
       result.regoPolicy.regenerated = true;
     }
   }
 
+  debug('compilation complete', {
+    dcRegenerated: result.dcConfig.regenerated,
+    regoRegenerated: result.regoPolicy.regenerated,
+  });
   return result;
 }
 

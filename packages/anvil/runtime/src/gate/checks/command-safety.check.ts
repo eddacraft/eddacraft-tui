@@ -1,7 +1,10 @@
 import { BaseCheck } from '../check.interface.js';
 import type { CheckContext, GateResult } from '../../types/gate.types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { CommandParser } from '../parsers/command-parser.js';
 import { findMatchingRule, DEFAULT_GIT_RULES, DEFAULT_FILESYSTEM_RULES } from '../rules/index.js';
+
+const log = createDebugger('check');
 import type {
   CommandRule,
   CommandSafetyConfig,
@@ -148,21 +151,31 @@ export class CommandSafetyCheck extends BaseCheck {
   }
 
   async run(context: CheckContext): Promise<GateResult> {
+    log('command-safety check starting, workspace=%s', context.workspace_root);
     const config = this.getConfig(context);
 
     if (!config.enabled) {
+      log('command-safety check disabled via config');
       return this.createResult(true, 'Command safety check disabled', 100, { skipped: true });
     }
 
     const commandSources = extractCommandsFromPlan(context);
 
     if (commandSources.length === 0) {
+      log('command-safety check: no commands found in plan');
       return this.createSuccess('No commands to analyse', 100, {
         summary: { total: 0, blocked: 0, warned: 0, allowed: 0 } as CommandAnalysisSummary,
       });
     }
 
+    log(
+      'command-safety check: analysing %d command source(s), strict=%s',
+      commandSources.length,
+      config.strict
+    );
+
     const rules = loadRules(config);
+    log('command-safety check: loaded %d rules', rules.length);
     const blocked: CommandSafetyFinding[] = [];
     const warnings: CommandSafetyFinding[] = [];
     let allowed = 0;
@@ -223,6 +236,16 @@ export class CommandSafetyCheck extends BaseCheck {
 
     const passed = blocked.length === 0;
     const score = this.calculateScore(summary);
+
+    log(
+      'command-safety check result: passed=%s, score=%d, total=%d, blocked=%d, warned=%d, allowed=%d',
+      passed,
+      score,
+      totalAnalysed,
+      blocked.length,
+      warnings.length,
+      allowed
+    );
 
     let message: string;
     if (passed && warnings.length === 0) {

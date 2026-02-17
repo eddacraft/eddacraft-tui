@@ -1,8 +1,11 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { RepoScanner, type RepoScanResult } from '../services/repo-scanner.js';
 import { success, error, info } from '../utils/output.js';
+
+const log = createDebugger('cli');
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
@@ -245,6 +248,13 @@ export function createAuditCommand(): Command {
     .option('--days-back <days>', 'Days to look back for historical analysis', '30')
     .option('--max-commits <count>', 'Maximum commits to analyse', '100')
     .action(async (options: ScanOptions) => {
+      log(
+        'audit command entered: json=%s verbose=%s skipHistorical=%s daysBack=%s',
+        options.json,
+        options.verbose,
+        options.skipHistorical,
+        options.daysBack
+      );
       const spinner = options.json ? null : ora('Starting repository audit...').start();
 
       try {
@@ -290,6 +300,13 @@ export function createAuditCommand(): Command {
         } else {
           formatResultsHuman(result, options.verbose ?? false);
         }
+
+        log(
+          'audit complete: warnings=%d blocking=%s duration=%dms',
+          result.currentIssues.totalWarnings,
+          result.currentIssues.hasBlockingWarnings,
+          result.totalDurationMs
+        );
 
         // Exit with appropriate code
         if (result.currentIssues.hasBlockingWarnings) {

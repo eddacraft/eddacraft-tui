@@ -15,6 +15,9 @@
  */
 
 import { containsSensitiveData, type Observation } from './observation-contract.js';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Sensitive Patterns
@@ -123,6 +126,13 @@ export function validateNoSensitiveData(observation: Observation): SensitiveData
     }
   }
 
+  if (issues.length > 0) {
+    debug('sensitive data detected in observation', {
+      issueCount: issues.length,
+      patterns: issues,
+    });
+  }
+
   return {
     hasSensitiveData: issues.length > 0,
     issues,
@@ -144,6 +154,7 @@ export function validateNoSensitiveData(observation: Observation): SensitiveData
  * @returns A new observation with sensitive values replaced
  */
 export function redactSensitiveFields(observation: Observation): Observation {
+  debug('redacting sensitive fields from observation', { kind: observation.kind });
   let serialized = JSON.stringify(observation);
 
   for (const { pattern, replacement } of SENSITIVE_PATTERNS) {

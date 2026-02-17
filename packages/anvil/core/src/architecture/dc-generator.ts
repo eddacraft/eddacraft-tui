@@ -3,6 +3,9 @@ import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { ArchitectureDefinition } from './definition-schema.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('compiler');
 
 export const DC_CONFIG_FILENAME = 'dependency-cruiser.js';
 export const ANVIL_DIR = '.anvil';
@@ -42,6 +45,7 @@ export async function writeDCConfig(
   definition: ArchitectureDefinition
 ): Promise<string> {
   const configPath = getDCConfigPath(workspaceRoot);
+  debug('writing dependency-cruiser config', configPath);
   const configDir = dirname(configPath);
   if (!existsSync(configDir)) {
     await mkdir(configDir, { recursive: true });

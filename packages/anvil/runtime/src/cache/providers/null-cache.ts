@@ -4,6 +4,9 @@
  */
 
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('cache');
 
 /**
  * Null cache provider - disables caching
@@ -22,12 +25,13 @@ export class NullCacheProvider implements CacheProvider {
   };
 
   async get<T>(_key: string): Promise<CacheEntry<T> | null> {
+    debug('null-cache get: key=%s (always miss)', _key);
     this.stats.misses++;
     return null;
   }
 
   async set<T>(_key: string, _value: T, _options: CacheSetOptions): Promise<void> {
-    // No-op
+    debug('null-cache set: key=%s (no-op)', _key);
   }
 
   async invalidate(_key: string): Promise<boolean> {

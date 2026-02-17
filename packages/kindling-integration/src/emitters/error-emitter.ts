@@ -8,6 +8,9 @@
 import { randomUUID } from 'node:crypto';
 import type { KindlingService } from '../kindling-service.js';
 import type { ErrorObservation } from '../observation-contract.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Input Types
@@ -49,6 +52,12 @@ export interface ErrorDetails {
  */
 export function emitError(service: KindlingService, errorDetails: ErrorDetails): string {
   const errorId = randomUUID();
+  debug('emitting error observation', {
+    errorId,
+    errorType: errorDetails.error_type,
+    component: errorDetails.context.component,
+    recoverable: errorDetails.recoverable,
+  });
 
   const observation: ErrorObservation = {
     kind: 'error',

@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('suppression');
 
 export type SuppressionScope = 'line' | 'statement' | 'file';
 
@@ -190,6 +193,7 @@ function parseSuppression(
 }
 
 export function parseSuppressions(content: string, _filePath?: string): ParseResult {
+  debug('parsing suppressions', { filePath: _filePath, contentLength: content.length });
   const lines = content.split('\n');
   const suppressions: ParsedSuppression[] = [];
   const errors: SuppressionParseError[] = [];
@@ -227,6 +231,10 @@ export function parseSuppressions(content: string, _filePath?: string): ParseRes
 
     previousLineHasCode = previousLineHasCode || hasCode(lineContent, insideHtmlComment);
     insideHtmlComment = updateHtmlCommentState(lineContent, insideHtmlComment);
+  }
+
+  if (suppressions.length > 0 || errors.length > 0) {
+    debug('suppressions parsed', { found: suppressions.length, errors: errors.length });
   }
 
   return { suppressions, errors };

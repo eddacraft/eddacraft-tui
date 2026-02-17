@@ -6,6 +6,9 @@
 
 import type { CruiserViolation } from './dependency-analyzer.js';
 import type { ArchitectureBaseline } from '@eddacraft/anvil-core/architecture';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const log = createDebugger('check');
 
 /**
  * Categorized violation types
@@ -63,6 +66,7 @@ export class CircularDetector {
       violationsByType[type]++;
     }
 
+    log('circular-detector: violation counts by type: %o', violationsByType);
     return violationsByType;
   }
 
@@ -74,9 +78,17 @@ export class CircularDetector {
     baseline: ArchitectureBaseline | null
   ): CruiserViolation[] {
     if (!baseline) {
+      log('circular-detector: no baseline, all %d violations treated as new', violations.length);
       return violations;
     }
 
-    return violations.filter((v) => this.isNewViolation(v, baseline));
+    const newViolations = violations.filter((v) => this.isNewViolation(v, baseline));
+    log(
+      'circular-detector: filtered %d violations to %d new (baseline has %d)',
+      violations.length,
+      newViolations.length,
+      baseline.baseline_snapshot.violations.length
+    );
+    return newViolations;
   }
 }

@@ -5,6 +5,9 @@
  */
 
 import type { CruiserViolation } from './dependency-analyzer.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const log = createDebugger('check');
 
 /**
  * Configuration for architecture check
@@ -120,6 +123,11 @@ export class LayerValidator {
     violations: CruiserViolation[],
     config: Required<ArchitectureCheckConfig>
   ): ScoreResult {
+    log(
+      'layer-validator: calculating score for %d violations (threshold=%s)',
+      violations.length,
+      config.severity_threshold
+    );
     const violationsByType: Record<string, number> = {
       circular: 0,
       orphan: 0,
@@ -166,6 +174,15 @@ export class LayerValidator {
 
     const score = Math.max(0, 100 - totalPenalty);
     const passed = !hasBlockingViolation;
+
+    log(
+      'layer-validator: score=%d, passed=%s, penalty=%d, blocking=%s, byType=%o',
+      score,
+      passed,
+      totalPenalty,
+      hasBlockingViolation,
+      violationsByType
+    );
 
     return { score, passed, violationsByType };
   }

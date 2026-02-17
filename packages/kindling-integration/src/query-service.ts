@@ -19,6 +19,9 @@ import type {
   OutputFormat,
 } from './query-contract.js';
 import { enforceQueryLimits, limitsFromConfig } from './query-limits.js';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Query Options
@@ -96,6 +99,7 @@ export class KindlingQueryService {
    * @returns Query response with session observations
    */
   async querySession(sessionId: string, options: SessionQueryOptions = {}): Promise<QueryResponse> {
+    debug('querySession', { sessionId, shape: options.shape });
     const request: SessionQuery = {
       scope: 'session',
       session_id: sessionId,
@@ -124,6 +128,7 @@ export class KindlingQueryService {
    * @returns Query response with plan observations
    */
   async queryPlan(planId: string, options: PlanQueryOptions = {}): Promise<QueryResponse> {
+    debug('queryPlan', { planId, shape: options.shape });
     const request: PlanQuery = {
       scope: 'plan',
       plan_id: planId,
@@ -152,6 +157,7 @@ export class KindlingQueryService {
    * @returns Query response with gate observations
    */
   async queryGate(gateEvalId: string, options: QueryOptions = {}): Promise<QueryResponse> {
+    debug('queryGate', { gateEvalId });
     const request: GateQuery = {
       scope: 'gate',
       gate_eval_id: gateEvalId,
@@ -179,6 +185,7 @@ export class KindlingQueryService {
    * @returns Query response with action observations
    */
   async queryAction(actionId: string, options: ActionQueryOptions = {}): Promise<QueryResponse> {
+    debug('queryAction', { actionId });
     const request: ActionQuery = {
       scope: 'action',
       action_id: actionId,

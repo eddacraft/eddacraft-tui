@@ -12,6 +12,7 @@ import {
   type ProgressEvent,
   type GateRunResultWithCache,
 } from '@eddacraft/anvil-runtime';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { loadPlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
@@ -33,6 +34,8 @@ import type {
   GateResult as TUIGateResult,
   CheckResult as TUICheckResult,
 } from '../tui/commands/gate/types.js';
+
+const log = createDebugger('cli');
 
 /**
  * Predefined gate profiles for different environments
@@ -142,6 +145,12 @@ export function createGateCommand(): Command {
     .option('--skip-command-safety', 'Skip command safety validation check')
     .option('--no-provenance', 'Disable provenance recording')
     .action(async (planArg: string | undefined, options: GateOptions) => {
+      log(
+        'gate command entered: plan=%s profile=%s',
+        planArg ?? '(full scan)',
+        options.profile ?? 'none'
+      );
+
       // Handle --list-profiles
       if (options.listProfiles) {
         console.log(chalk.bold('\nAvailable Gate Profiles:\n'));
@@ -175,6 +184,7 @@ export function createGateCommand(): Command {
 
         // Handle case when no plan is provided (full codebase scan)
         if (!planArg) {
+          log('no plan argument provided, using full codebase scan mode');
           spinner.text = 'Running full codebase scan...';
           isFullScan = true;
 
@@ -419,6 +429,13 @@ export function createGateCommand(): Command {
           spinner.start('Running quality gates...');
         }
 
+        log(
+          'running gate with options: skipChecks=%o onlyChecks=%o failFast=%s fullScan=%s',
+          gateOptions.skipChecks,
+          gateOptions.onlyChecks,
+          gateOptions.failFast,
+          gateOptions.fullScan
+        );
         const results = await gateRunner.runGate(plan, config, workspaceRoot, gateOptions);
 
         // Record gate evaluation in Kindling
@@ -541,9 +558,16 @@ export function createGateCommand(): Command {
         }
 
         if (results.overall) {
+          log('gate result: PASSED score=%d', results.score);
           success('All quality gates passed!');
           process.exit(0);
         } else {
+          log(
+            'gate result: FAILED score=%d passed=%d failed=%d',
+            results.score,
+            results.summary.passed,
+            results.summary.failed
+          );
           error('Quality gates failed');
           process.exit(1);
         }

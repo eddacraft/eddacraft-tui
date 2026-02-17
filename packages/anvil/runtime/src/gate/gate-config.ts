@@ -2,6 +2,9 @@ import { GateConfig, GateCheck, PolicyConfig, StackConfig } from '../types/gate.
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { WatchConfigSchema, type WatchConfig } from '../watch/types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('gate');
 
 /**
  * Configuration file locations in priority order
@@ -25,6 +28,7 @@ export class GateConfigManager {
   constructor(workspaceRoot: string) {
     this.workspaceRoot = workspaceRoot;
     this.configPath = this.findConfigFile();
+    debug('GateConfigManager: workspace=%s configPath=%s', workspaceRoot, this.configPath);
   }
 
   /**
@@ -34,9 +38,11 @@ export class GateConfigManager {
     for (const location of CONFIG_LOCATIONS) {
       const fullPath = join(this.workspaceRoot, location);
       if (existsSync(fullPath)) {
+        debug('findConfigFile: found %s', fullPath);
         return fullPath;
       }
     }
+    debug('findConfigFile: no config found, will use defaults');
     return null;
   }
 
@@ -63,7 +69,9 @@ export class GateConfigManager {
    * Load configuration with detailed result including path and validation errors
    */
   loadConfigWithDetails(): ConfigLoadResult {
+    debug('loadConfigWithDetails: path=%s', this.configPath);
     if (!this.configPath) {
+      debug('loadConfigWithDetails: using default config');
       return {
         config: this.getDefaultConfig(),
         path: null,
@@ -76,6 +84,11 @@ export class GateConfigManager {
       const content = readFileSync(this.configPath, 'utf-8');
       const rawConfig = JSON.parse(content);
       const { config, errors } = this.validateAndNormalizeConfigWithErrors(rawConfig);
+      debug(
+        'loadConfigWithDetails: loaded %d checks, %d errors',
+        config.checks.length,
+        errors.length
+      );
 
       return {
         config,
@@ -101,6 +114,7 @@ export class GateConfigManager {
 
   saveConfig(config: GateConfig): void {
     const savePath = this.getConfigPath();
+    debug('saveConfig: path=%s checks=%d', savePath, config.checks.length);
     const content = JSON.stringify(config, null, 2);
     // Ensure directory exists before writing file
     const dir = dirname(savePath);

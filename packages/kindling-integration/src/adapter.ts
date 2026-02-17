@@ -12,6 +12,9 @@ import { randomUUID } from 'node:crypto';
 import type { KindlingService, Capsule, ID } from '@eddacraft/kindling-core';
 import type { Observation as AnvilObservation } from './observation-contract.js';
 import { OBSERVATION_CONTRACT_VERSION } from './observation-contract.js';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 /** Map Anvil observation kinds to Kindling's generic observation kinds */
 const KIND_MAP: Record<AnvilObservation['kind'], string> = {
@@ -52,6 +55,7 @@ export class AnvilKindlingAdapter {
   constructor(config: AnvilKindlingAdapterConfig) {
     this.service = config.service;
     this.repoId = config.repoId;
+    debug('AnvilKindlingAdapter created', { repoId: config.repoId });
   }
 
   /**
@@ -59,6 +63,7 @@ export class AnvilKindlingAdapter {
    * Call this when a CLI command starts.
    */
   startSession(sessionId: string, intent: string): Capsule {
+    debug('starting session', { sessionId, intent });
     return this.service.openCapsule({
       type: 'session',
       intent,
@@ -74,6 +79,7 @@ export class AnvilKindlingAdapter {
    * Call this when a CLI command ends.
    */
   endSession(capsuleId: ID, summaryContent?: string): Capsule {
+    debug('ending session', { capsuleId });
     return this.service.closeCapsule(capsuleId, {
       generateSummary: !!summaryContent,
       summaryContent,
@@ -86,6 +92,7 @@ export class AnvilKindlingAdapter {
    * is preserved in provenance for filtering.
    */
   emit(observation: AnvilObservation, capsuleId?: ID): void {
+    debug('emitting observation via adapter', { kind: observation.kind, capsuleId });
     const kindlingObs = {
       id: randomUUID(),
       kind: KIND_MAP[observation.kind] as 'message' | 'command' | 'error',

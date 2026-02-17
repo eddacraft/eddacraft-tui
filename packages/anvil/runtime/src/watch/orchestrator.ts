@@ -27,6 +27,9 @@ import {
   createAgentInfo,
   type ConcurrencyContext,
 } from '../concurrency/index.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('watch');
 
 /**
  * Action handler type
@@ -125,17 +128,20 @@ export class WatchOrchestrator {
    * Start watching
    */
   async start(): Promise<void> {
+    debug('orchestrator start: workspace=%s action=%s', this.workspaceRoot, this.config.action);
     if (this.isRunning) {
       throw new Error('Watch orchestrator is already running');
     }
 
     // Initialize multi-agent coordination if enabled
     if (this.multiAgentConfig.enabled) {
+      debug('orchestrator start: initializing multi-agent coordination');
       await this.initializeMultiAgent();
     }
 
     // Check if we're in a git repository
     this.isGitRepo = await this.gitChecker.isGitRepository();
+    debug('orchestrator start: isGitRepo=%s', this.isGitRepo);
 
     if (!this.isGitRepo && this.config.git.unstagedOnly) {
       console.warn(
@@ -238,6 +244,7 @@ export class WatchOrchestrator {
    * Stop watching
    */
   async stop(): Promise<void> {
+    debug('orchestrator stop: running=%s', this.isRunning);
     if (!this.isRunning) {
       return;
     }
@@ -283,9 +290,11 @@ export class WatchOrchestrator {
   private handleFileChange(event: WatchChangeEvent): void {
     // Only process add and change events (not unlink)
     if (event.type === 'unlink') {
+      debug('orchestrator: ignoring unlink event for %s', event.path);
       return;
     }
 
+    debug('orchestrator: file %s %s', event.type, event.path);
     this.stats.changesDetected++;
     this.debouncer.add(event.path);
   }
@@ -294,6 +303,7 @@ export class WatchOrchestrator {
    * Handle debounced batch of changes
    */
   private async handleDebouncedChanges(changes: DebouncedChanges): Promise<void> {
+    debug('orchestrator: debounced batch of %d files', changes.files.length);
     let filesToProcess = changes.files;
 
     // Apply git filter if enabled and in git repo
@@ -330,6 +340,7 @@ export class WatchOrchestrator {
    */
   private async runAction(files: string[]): Promise<void> {
     const action = this.config.action;
+    debug('orchestrator runAction: action=%s files=%d', action, files.length);
     let handler: ActionHandler | undefined;
 
     switch (action) {
@@ -420,6 +431,7 @@ export class WatchOrchestrator {
     handler: ActionHandler,
     files: string[]
   ): Promise<void> {
+    debug('orchestrator runDirectAction: action=%s files=%d', action, files.length);
     this.stats.actionsRun++;
 
     this.emitEvent({
@@ -435,8 +447,10 @@ export class WatchOrchestrator {
 
       if (result.success) {
         this.stats.actionsPassed++;
+        debug('orchestrator action passed: action=%s elapsed=%dms', action, result.executionTimeMs);
       } else {
         this.stats.actionsFailed++;
+        debug('orchestrator action failed: action=%s elapsed=%dms', action, result.executionTimeMs);
       }
 
       this.emitEvent({
@@ -445,6 +459,11 @@ export class WatchOrchestrator {
       });
     } catch (error) {
       this.stats.actionsFailed++;
+      debug(
+        'orchestrator action error: action=%s error=%s',
+        action,
+        error instanceof Error ? error.message : String(error)
+      );
 
       this.emitEvent({
         type: 'action:error',

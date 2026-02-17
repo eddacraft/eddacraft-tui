@@ -5,6 +5,9 @@
 import { createHash } from 'node:crypto';
 import type { GateCacheKeyInput } from './types.js';
 import type { GateCheck } from '../types/gate.types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('cache');
 
 /**
  * Generate a deterministic cache key for gate check results
@@ -13,6 +16,7 @@ import type { GateCheck } from '../types/gate.types.js';
  * Where combined_hash = SHA256(plan_hash + config_hash + workspace_root + extra)
  */
 export function generateCacheKey(input: GateCacheKeyInput): string {
+  debug('generateCacheKey: check=%s plan_hash=%s', input.check_name, input.plan_hash);
   const hash = createHash('sha256');
 
   // Add all inputs in deterministic order
@@ -29,7 +33,9 @@ export function generateCacheKey(input: GateCacheKeyInput): string {
   }
 
   const combinedHash = hash.digest('hex').slice(0, 16);
-  return `gate:check:${input.check_name}:${combinedHash}`;
+  const key = `gate:check:${input.check_name}:${combinedHash}`;
+  debug('generateCacheKey: result=%s', key);
+  return key;
 }
 
 /**
@@ -40,7 +46,9 @@ export function hashCheckConfig(config: Record<string, unknown>): string {
   const hash = createHash('sha256');
   // Canonicalise JSON for deterministic hashing
   hash.update(JSON.stringify(sortObjectKeys(config)));
-  return hash.digest('hex').slice(0, 16);
+  const result = hash.digest('hex').slice(0, 16);
+  debug('hashCheckConfig: keys=%o hash=%s', Object.keys(config), result);
+  return result;
 }
 
 /**
@@ -60,7 +68,9 @@ export function hashGateConfig(checks: GateCheck[]): string {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   hash.update(JSON.stringify(enabledChecks));
-  return hash.digest('hex').slice(0, 16);
+  const result = hash.digest('hex').slice(0, 16);
+  debug('hashGateConfig: enabledChecks=%d hash=%s', enabledChecks.length, result);
+  return result;
 }
 
 /**
@@ -84,8 +94,10 @@ export function parseCacheKey(key: string): {
 } | null {
   const parts = key.split(':');
   if (parts.length !== 4) {
+    debug('parseCacheKey: invalid key format (expected 4 parts, got %d)', parts.length);
     return null;
   }
+  debug('parseCacheKey: type=%s name=%s', parts[0], parts[2]);
   return {
     type: parts[0],
     subtype: parts[1],

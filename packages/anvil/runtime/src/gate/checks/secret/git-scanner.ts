@@ -6,7 +6,10 @@
 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { SECRET_PATTERNS, PatternMatcher } from './secret-patterns.js';
+
+const log = createDebugger('check');
 
 const execFileAsync = promisify(execFile);
 
@@ -45,6 +48,11 @@ export class GitScanner {
     workspaceRoot: string,
     config: GitScannerConfig
   ): Promise<GitHistoryFinding[]> {
+    log(
+      'git-scanner: starting git history scan, workspace=%s, depth=%d',
+      workspaceRoot,
+      config.git_history_depth
+    );
     const findings: GitHistoryFinding[] = [];
     // Clamp depth to a sane range (1–1000)
     const depth = Math.max(1, Math.min(1000, Math.floor(config.git_history_depth)));
@@ -54,6 +62,7 @@ export class GitScanner {
       try {
         await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: workspaceRoot });
       } catch {
+        log('git-scanner: not a git repository, skipping');
         return findings;
       }
 
@@ -83,6 +92,7 @@ export class GitScanner {
 
       // Parse git diff output
       const commitBlocks = stdout.split(/^commit /m).slice(1);
+      log('git-scanner: scanning %d commit blocks', commitBlocks.length);
 
       for (const block of commitBlocks) {
         const commitMatch = block.match(/^([a-f0-9]+)/);
@@ -113,10 +123,12 @@ export class GitScanner {
         }
       }
     } catch {
+      log('git-scanner: git command failed, skipping history scan');
       // Git command failed, likely not a git repo or git not available
       // Silently skip git history scanning
     }
 
+    log('git-scanner: scan complete, found %d findings', findings.length);
     return findings;
   }
 }

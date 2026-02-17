@@ -1,7 +1,10 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+
+const log = createDebugger('check');
 
 interface CoverageMetric {
   total: number;
@@ -39,10 +42,12 @@ export class CoverageCheck extends BaseCheck {
   description = 'Check test coverage thresholds';
 
   async run(context: CheckContext): Promise<GateResult> {
+    log('coverage check starting, workspace=%s', context.workspace_root);
     try {
       const coveragePath = join(context.workspace_root, 'coverage', 'coverage-summary.json');
 
       if (!existsSync(coveragePath)) {
+        log('coverage check: coverage report not found at %s', coveragePath);
         return this.createFailure('Coverage report not found', 'Run tests with coverage first');
       }
 
@@ -59,11 +64,21 @@ export class CoverageCheck extends BaseCheck {
           ? (context.check_config.thresholds as Record<string, number>)
           : defaultThresholds;
 
+      log('coverage check: thresholds=%o', thresholds);
+
       const results = this.analyzeCoverage(coverageData, thresholds);
       const overallScore = results.overall;
       const minScore =
         typeof context.check_config.min_score === 'number' ? context.check_config.min_score : 80;
       const passed = overallScore >= minScore;
+
+      log(
+        'coverage check result: passed=%s, overall=%.1f%%, minScore=%d, failedChecks=%o',
+        passed,
+        overallScore,
+        minScore,
+        results.failed_checks
+      );
 
       const message = passed
         ? `Coverage passed: ${overallScore.toFixed(1)}% overall`
@@ -71,6 +86,7 @@ export class CoverageCheck extends BaseCheck {
 
       return this.createResult(passed, message, overallScore, results);
     } catch (error) {
+      log('coverage check error: %s', error instanceof Error ? error.message : 'Unknown error');
       return this.createFailure(
         'Coverage check failed',
         error instanceof Error ? error.message : 'Unknown error'

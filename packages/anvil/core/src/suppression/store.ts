@@ -3,6 +3,9 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { SuppressionRecordSchema } from '../antipattern/types.js';
 import type { ParsedSuppression } from './parser.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('suppression');
 
 export type SuppressionRecord = z.infer<typeof SuppressionRecordSchema>;
 
@@ -38,12 +41,14 @@ export class SuppressionStore {
   }
 
   async load(): Promise<void> {
+    debug('loading suppression store from', this.filePath);
     try {
       const content = await fs.readFile(this.filePath, 'utf-8');
       const parsed = JSON.parse(content);
       const result = SuppressionStoreDataSchema.safeParse(parsed);
 
       if (result.success) {
+        debug('suppression store loaded', { count: result.data.suppressions.length });
         this.data = result.data;
       } else {
         this.data = {
@@ -64,6 +69,7 @@ export class SuppressionStore {
   }
 
   async save(): Promise<void> {
+    debug('saving suppression store', { count: this.data.suppressions.length });
     this.data.lastUpdated = new Date().toISOString();
 
     const dir = path.dirname(this.filePath);

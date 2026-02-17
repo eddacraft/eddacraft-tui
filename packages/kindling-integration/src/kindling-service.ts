@@ -19,6 +19,9 @@ import { QueryRequestSchema } from './query-contract.js';
 import type { KindlingConfig } from './config.js';
 import { DEFAULT_KINDLING_CONFIG, shouldCapture } from './config.js';
 import { validateNoSensitiveData, redactSensitiveFields } from './sensitive-data-validator.js';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Store Interface (Abstract Adapter)
@@ -124,6 +127,7 @@ export class KindlingService {
   constructor(store: IKindlingStore, config: KindlingConfig) {
     this.store = store;
     this.config = config;
+    debug('KindlingService created', { enabled: config.enabled });
   }
 
   /**
@@ -157,17 +161,20 @@ export class KindlingService {
    */
   async emit(observation: Observation): Promise<void> {
     if (this.closed) {
+      debug('emit skipped: service is closed');
       return;
     }
 
     // Check if this kind should be captured
     if (!shouldCapture(this.config, observation.kind)) {
+      debug('emit skipped: kind not captured', observation.kind);
       return;
     }
 
     // Validate against the contract schema
     const validation = validateObservation(observation);
     if (!validation.success) {
+      debug('emit validation failed', validation.error);
       throw new ObservationValidationError(`Invalid observation: ${validation.error}`, [
         validation.error ?? 'Unknown validation error',
       ]);
@@ -178,10 +185,12 @@ export class KindlingService {
     let safeObservation = observation;
 
     if (sensitiveCheck.hasSensitiveData) {
+      debug('sensitive data detected, redacting', sensitiveCheck.issues);
       safeObservation = redactSensitiveFields(observation);
     }
 
     // Delegate to store (async, non-blocking from caller's perspective)
+    debug('emitting observation', { kind: observation.kind, session_id: observation.session_id });
     await this.store.emit(safeObservation);
   }
 
@@ -197,16 +206,20 @@ export class KindlingService {
    */
   async query(request: QueryRequest): Promise<QueryResponse> {
     if (this.closed) {
+      debug('query rejected: service is closed');
       throw new QueryValidationError('Service is closed');
     }
 
     // Validate the request
     const validation = QueryRequestSchema.safeParse(request);
     if (!validation.success) {
+      debug('query validation failed', validation.error.format());
       throw new QueryValidationError(
         `Invalid query request: ${validation.error.format()._errors.join(', ')}`
       );
     }
+
+    debug('executing query', { scope: request.scope });
 
     // Enforce configured query limits (use config defaults if request has higher values)
     const limitedRequest = {
@@ -229,6 +242,7 @@ export class KindlingService {
     if (this.closed) {
       return;
     }
+    debug('closing KindlingService');
     this.closed = true;
     await this.store.close();
   }
@@ -253,5 +267,6 @@ export function createKindlingService(
   store?: IKindlingStore
 ): KindlingService {
   const effectiveStore = store ?? new NoOpKindlingStore();
+  debug('creating KindlingService', { enabled: config.enabled, hasStore: !!store });
   return new KindlingService(effectiveStore, config);
 }

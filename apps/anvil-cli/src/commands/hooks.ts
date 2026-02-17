@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   existsSync,
   readFileSync,
@@ -17,6 +18,8 @@ import {
 import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
+
+const log = createDebugger('cli');
 
 /** Marker comment to identify Anvil-managed hooks */
 const ANVIL_MARKER = '# Anvil-managed hook';
@@ -261,6 +264,13 @@ export function createHooksCommand(): Command {
         prePushOnly?: boolean;
         husky?: boolean;
       }) => {
+        log(
+          'hooks install: force=%s husky=%s preCommitOnly=%s prePushOnly=%s',
+          options.force,
+          options.husky,
+          options.preCommitOnly,
+          options.prePushOnly
+        );
         const spinner = ora('Installing Git hooks...').start();
 
         try {
@@ -371,6 +381,11 @@ export function createHooksCommand(): Command {
     .option('--pre-commit-only', 'Only remove pre-commit hook')
     .option('--pre-push-only', 'Only remove pre-push hook')
     .action(async (options: { preCommitOnly?: boolean; prePushOnly?: boolean }) => {
+      log(
+        'hooks uninstall: preCommitOnly=%s prePushOnly=%s',
+        options.preCommitOnly,
+        options.prePushOnly
+      );
       const spinner = ora('Removing Git hooks...').start();
 
       try {
@@ -438,6 +453,7 @@ export function createHooksCommand(): Command {
     .command('status')
     .description('Show status of Anvil Git hooks')
     .action(async () => {
+      log('hooks status');
       try {
         const workspaceRoot = getWorkspaceRoot();
         const gitDir = resolveGitDir(workspaceRoot);

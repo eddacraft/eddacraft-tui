@@ -3,6 +3,9 @@ import type {
   CommandAnalysisSummary,
   CommandSafetyOutputConfig,
 } from '../rules/types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('gate');
 
 export interface FormatOptions {
   verbose?: boolean;
@@ -20,6 +23,7 @@ export function formatBlockedCommands(
   blocked: CommandSafetyFinding[],
   options?: FormatOptions | CommandSafetyOutputConfig
 ): string {
+  debug('formatBlockedCommands: count=%d', blocked.length);
   if (blocked.length === 0) {
     return '';
   }
@@ -49,6 +53,7 @@ export function formatWarningCommands(
   warnings: CommandSafetyFinding[],
   options?: FormatOptions | CommandSafetyOutputConfig
 ): string {
+  debug('formatWarningCommands: count=%d', warnings.length);
   if (warnings.length === 0) {
     return '';
   }
@@ -72,6 +77,12 @@ export function formatWarningCommands(
 }
 
 export function formatSummary(summary: CommandAnalysisSummary): string {
+  debug(
+    'formatSummary: total=%d blocked=%d warned=%d',
+    summary.total,
+    summary.blocked,
+    summary.warned
+  );
   const { total, blocked, warned } = summary;
 
   if (total === 0) {

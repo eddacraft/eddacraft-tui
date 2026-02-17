@@ -1,4 +1,7 @@
 import type { SnapshotComparison } from './snapshot-compare.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('drift');
 
 export interface ReportOptions {
   format?: 'text' | 'json';
@@ -234,6 +237,11 @@ export function generateReport(
   comparison: SnapshotComparison,
   options: ReportOptions = {}
 ): DriftReport {
+  debug('generating drift report', {
+    format: options.format,
+    includeDetails: options.includeDetails,
+    trend: comparison.overall_trend,
+  });
   const { includeDetails = true } = options;
   const effectiveOptions = { ...options, includeDetails };
 

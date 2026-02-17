@@ -6,8 +6,11 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { createAgentManager, createAgentInfo } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+
+const log = createDebugger('cli');
 
 interface StatusOptions {
   json?: boolean;
@@ -20,9 +23,11 @@ export function createAgentStatusCommand(): Command {
     .description('Show current agent status and identification')
     .option('--json', 'Output as JSON')
     .action(async (options: StatusOptions) => {
+      log('agent status: json=%s', options.json);
       try {
         const workspaceRoot = getWorkspaceRoot();
         const agent = createAgentInfo();
+        log('agent status: id=%s type=%s', agent.id, agent.type);
         const manager = createAgentManager({ workspaceRoot });
 
         // Get registration status

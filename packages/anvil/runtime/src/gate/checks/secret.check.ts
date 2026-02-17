@@ -1,10 +1,13 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { readFileSync, existsSync } from 'node:fs';
 import { z } from 'zod';
 import { SECRET_PATTERNS, PatternMatcher } from './secret/secret-patterns.js';
 import { EntropyDetector } from './secret/entropy-detector.js';
 import { GitScanner } from './secret/git-scanner.js';
+
+const log = createDebugger('check');
 
 export interface SecretFinding {
   file: string;
@@ -65,11 +68,26 @@ export class SecretCheck extends BaseCheck {
   private gitScanner = new GitScanner();
 
   async run(context: CheckContext): Promise<GateResult> {
+    log(
+      'secret check starting, workspace=%s, fullScan=%s',
+      context.workspace_root,
+      context.fullScan
+    );
     try {
       const config = this.getConfig(context);
+      log(
+        'secret check config: entropy=%s, threshold=%.1f, gitHistory=%s, depth=%d',
+        config.enable_entropy,
+        config.entropy_threshold,
+        config.scan_git_history,
+        config.git_history_depth
+      );
+
       const files = context.fullScan
         ? await this.getFilesForFullScan(context.workspace_root, config)
         : this.getFilesFromPlan(context);
+
+      log('secret check: scanning %d files', files.length);
       const findings: SecretFinding[] = [];
 
       // Scan files for pattern-based secrets
@@ -87,6 +105,7 @@ export class SecretCheck extends BaseCheck {
 
       // Scan git history if enabled
       if (config.scan_git_history) {
+        log('secret check: scanning git history (depth=%d)', config.git_history_depth ?? 10);
         const historyFindings = await this.gitScanner.scanGitHistory(context.workspace_root, {
           git_history_depth: config.git_history_depth ?? 10,
           allowlist: config.allowlist ?? [],
@@ -101,6 +120,15 @@ export class SecretCheck extends BaseCheck {
       const patternCount = uniqueFindings.filter((f) => f.source === 'pattern').length;
       const entropyCount = uniqueFindings.filter((f) => f.source === 'entropy').length;
       const gitHistoryCount = uniqueFindings.filter((f) => f.source === 'git-history').length;
+
+      log(
+        'secret check result: passed=%s, total=%d (pattern=%d, entropy=%d, git=%d)',
+        passed,
+        uniqueFindings.length,
+        patternCount,
+        entropyCount,
+        gitHistoryCount
+      );
 
       let message: string;
       if (passed) {
@@ -128,6 +156,7 @@ export class SecretCheck extends BaseCheck {
         }
       );
     } catch (error) {
+      log('secret check error: %s', error instanceof Error ? error.message : 'Unknown error');
       return this.createFailure(
         'Secret scan failed',
         error instanceof Error ? error.message : 'Unknown error'

@@ -1,8 +1,12 @@
 import type { ExplanationTemplate, ExplanationContext, WarningExplanation } from './types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('explain');
 
 const templateRegistry = new Map<string, ExplanationTemplate>();
 
 export function registerTemplate(template: ExplanationTemplate): void {
+  debug('registering template', template.ruleId);
   templateRegistry.set(template.ruleId, template);
 }
 
@@ -24,6 +28,7 @@ export function renderExplanation(
 ): WarningExplanation | null {
   const template = templateRegistry.get(ruleId);
   if (!template) {
+    debug('no template found for rule', ruleId);
     return null;
   }
   return template.render(context);

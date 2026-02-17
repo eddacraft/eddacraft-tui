@@ -1,5 +1,8 @@
 import { parse as shellParse } from 'shell-quote';
 import type { ParsedCommand } from '../rules/types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('gate');
 
 const MAX_UNWRAP_DEPTH = 5;
 
@@ -328,10 +331,17 @@ function parseFromTokens(tokens: string[], rawCmd: string, wrappers: string[]): 
 }
 
 export function parseCommand(cmd: string): ParsedCommand {
+  debug('parseCommand: raw=%s', cmd);
   const { unwrapped, wrappers } = unwrapCommand(cmd);
+
+  if (wrappers.length > 0) {
+    debug('parseCommand: unwrapped through %o', wrappers);
+  }
+
   const tokens = tokenise(unwrapped);
 
   if (tokens.length === 0) {
+    debug('parseCommand: empty command after tokenisation');
     return {
       raw: cmd,
       command: '',
@@ -352,6 +362,7 @@ export function parseCommand(cmd: string): ParsedCommand {
   const subcommand = extractSubcommand(command, args);
   const remainingArgs = subcommand ? args.slice(1) : args;
 
+  debug('parseCommand: command=%s subcommand=%s flags=%o', command, subcommand, flags);
   return {
     raw: cmd,
     command,
@@ -370,16 +381,20 @@ export interface CompoundCommandResult {
 }
 
 export function parseCompoundCommand(cmd: string): CompoundCommandResult {
+  debug('parseCompoundCommand: raw=%s', cmd);
   const { unwrapped, wrappers } = unwrapCommand(cmd);
   const { isCompound, subCommands } = tokeniseWithOperators(unwrapped);
 
   if (!isCompound || subCommands.length <= 1) {
+    debug('parseCompoundCommand: single command');
     return {
       isCompound: false,
       commands: [parseCommand(cmd)],
       operators: [],
     };
   }
+
+  debug('parseCompoundCommand: compound with %d sub-commands', subCommands.length);
 
   const commands: ParsedCommand[] = [];
   const operators: string[] = [];

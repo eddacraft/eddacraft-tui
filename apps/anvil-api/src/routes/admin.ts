@@ -5,6 +5,9 @@ import { adminAuth } from '../middleware/admin-auth.js';
 import { getClient } from '../db/client.js';
 import { findUserWithTokens } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
+import { createDebugger } from '../lib/debug.js';
+
+const debug = createDebugger('api');
 
 const ALLOWED_SCOPES = ['beta', 'preview', 'internal'] as const;
 
@@ -51,6 +54,7 @@ function resolveAdminActor(c: { req: { header: (name: string) => string | undefi
  */
 admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
   const { email, name, notes, days, scopes } = c.req.valid('json');
+  debug('POST /admin/invite', { email, scopes, days });
   const sql = getClient();
   const actor = resolveAdminActor(c);
 
@@ -100,6 +104,7 @@ admin.post('/invite', zValidator('json', inviteSchema), async (c) => {
  */
 admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
   const { email, token } = c.req.valid('json');
+  debug('POST /admin/revoke', { hasEmail: !!email, hasToken: !!token });
   const sql = getClient();
   const actor = resolveAdminActor(c);
 
@@ -144,6 +149,7 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
  * Lookup a user and their token info.
  */
 admin.get('/user/:email', async (c) => {
+  debug('GET /admin/user/:email');
   const rawEmail = c.req.param('email');
   const emailResult = z.string().email().max(254).safeParse(rawEmail);
   if (!emailResult.success) {

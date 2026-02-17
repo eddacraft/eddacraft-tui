@@ -16,36 +16,56 @@
 
 set -euo pipefail
 
+# Source logging library if available
+REPO_ROOT=$(git rev-parse --show-toplevel)
+_LOG_LIB="${REPO_ROOT}/.claude/hooks/lib/log.sh"
+if [ -f "$_LOG_LIB" ]; then
+  export ANVIL_LOG_TAG="vercel-ignore-build"
+  source "$_LOG_LIB"
+fi
+
+type log_enter >/dev/null 2>&1 && log_enter "$@"
+
 PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh <project-dir>}"
 
 # Shared paths that should trigger a rebuild for any project
 SHARED_PATHS="pnpm-lock.yaml package.json"
 
 # Ensure we work from the repo root regardless of where Vercel invokes us
-REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
+type log_debug >/dev/null 2>&1 && log_debug "project_dir='${PROJECT_DIR}' repo_root='${REPO_ROOT}'"
 
 # Vercel provides the SHA of the last successful deployment
 if [ -z "${VERCEL_GIT_PREVIOUS_SHA:-}" ]; then
   echo ">> No previous deployment SHA found — building"
+  type log_info >/dev/null 2>&1 && log_info "no previous SHA, triggering build"
+  type log_exit >/dev/null 2>&1 && log_exit 1
   exit 1
 fi
 
 CURRENT_SHA="${VERCEL_GIT_COMMIT_SHA:-HEAD}"
+type log_debug >/dev/null 2>&1 && log_debug "prev_sha=${VERCEL_GIT_PREVIOUS_SHA:0:8} current_sha=${CURRENT_SHA:0:8}"
 
 echo ">> Checking for changes in '$PROJECT_DIR' between ${VERCEL_GIT_PREVIOUS_SHA:0:8} and ${CURRENT_SHA:0:8}"
 
 # Get list of changed files between last deploy and current commit
 CHANGED_FILES=$(git diff --name-only "$VERCEL_GIT_PREVIOUS_SHA" "$CURRENT_SHA" 2>/dev/null || true)
+CHANGED_COUNT=$(echo "$CHANGED_FILES" | grep -c . 2>/dev/null || echo "0")
+type log_debug >/dev/null 2>&1 && log_debug "total changed files: ${CHANGED_COUNT}"
 
 if [ -z "$CHANGED_FILES" ]; then
   echo ">> No changes detected — skipping build"
+  type log_info >/dev/null 2>&1 && log_info "no changes detected, skipping build"
+  type log_exit >/dev/null 2>&1 && log_exit 0
   exit 0
 fi
 
 # Check if any changed file is in the project directory
 if echo "$CHANGED_FILES" | grep -q "^${PROJECT_DIR}/"; then
   echo ">> Changes detected in $PROJECT_DIR — building"
+  type log_info >/dev/null 2>&1 && log_info "changes in project dir, triggering build"
+  type log_trace >/dev/null 2>&1 && log_trace "matching files: $(echo "$CHANGED_FILES" | grep "^${PROJECT_DIR}/" | head -5)"
+  type log_exit >/dev/null 2>&1 && log_exit 1
   exit 1
 fi
 
@@ -53,9 +73,13 @@ fi
 for path in $SHARED_PATHS; do
   if echo "$CHANGED_FILES" | grep -q "^${path}$"; then
     echo ">> Shared config changed ($path) — building"
+    type log_info >/dev/null 2>&1 && log_info "shared config '${path}' changed, triggering build"
+    type log_exit >/dev/null 2>&1 && log_exit 1
     exit 1
   fi
 done
 
 echo ">> No relevant changes for $PROJECT_DIR — skipping build"
+type log_info >/dev/null 2>&1 && log_info "no relevant changes, skipping build"
+type log_exit >/dev/null 2>&1 && log_exit 0
 exit 0

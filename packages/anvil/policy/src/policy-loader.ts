@@ -5,6 +5,9 @@
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join, basename, extname, sep, resolve } from 'node:path';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('policy');
 
 /**
  * Default policy directory relative to workspace root
@@ -70,6 +73,7 @@ export class PolicyLoader {
   ): Promise<PolicyDiscoveryResult> {
     const policyDir = config.policyDir || DEFAULT_POLICY_DIR;
     const fullPolicyDir = join(workspaceRoot, policyDir);
+    debug('loading policies from directory', fullPolicyDir);
 
     const result: PolicyDiscoveryResult = {
       policies: [],
@@ -86,6 +90,7 @@ export class PolicyLoader {
 
     // Check if policy directory exists
     if (!existsSync(fullPolicyDir)) {
+      debug('policy directory does not exist', fullPolicyDir);
       return result;
     }
 
@@ -102,6 +107,10 @@ export class PolicyLoader {
           result.policies.push(policy);
         }
       } catch (error) {
+        debug('failed to load policy', {
+          path: filePath,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
         result.errors.push({
           path: filePath,
           error: error instanceof Error ? error.message : 'Unknown error',
@@ -109,6 +118,7 @@ export class PolicyLoader {
       }
     }
 
+    debug('policies loaded', { count: result.policies.length, errors: result.errors.length });
     return result;
   }
 

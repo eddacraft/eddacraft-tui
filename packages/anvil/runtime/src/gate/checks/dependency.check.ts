@@ -1,10 +1,13 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
+
+const log = createDebugger('check');
 
 const execAsync = promisify(exec);
 
@@ -156,18 +159,23 @@ export class DependencyCheck extends BaseCheck {
   description = 'Scan for dependency vulnerabilities using npm/yarn/pnpm audit';
 
   async run(context: CheckContext): Promise<GateResult> {
+    log('dependency check starting, workspace=%s', context.workspace_root);
     try {
       // Check if package.json exists
       const packageJsonPath = join(context.workspace_root, 'package.json');
       if (!existsSync(packageJsonPath)) {
+        log('dependency check: no package.json found, skipping');
         return this.createSuccess('No package.json found, skipping dependency check', 100);
       }
 
       // Detect package manager
       const packageManager = this.detectPackageManager(context.workspace_root);
       if (!packageManager) {
+        log('dependency check: no lock file found, skipping');
         return this.createSuccess('No lock file found, skipping dependency check', 100);
       }
+
+      log('dependency check: detected package manager=%s', packageManager);
 
       // Determine severity threshold from config (default: moderate)
       const minSeverity = (context.check_config.min_severity as string) || 'moderate';
@@ -177,11 +185,22 @@ export class DependencyCheck extends BaseCheck {
       const auditResult = await this.runAudit(context.workspace_root, packageManager);
 
       if (!auditResult) {
+        log('dependency check: no vulnerabilities found');
         return this.createSuccess('No vulnerabilities found', 100);
       }
 
       const advisories = Object.values(auditResult.advisories);
       const metadata = auditResult.metadata.vulnerabilities;
+
+      log(
+        'dependency check: found %d advisories, total=%d (critical=%d, high=%d, moderate=%d, low=%d)',
+        advisories.length,
+        metadata.total,
+        metadata.critical,
+        metadata.high,
+        metadata.moderate,
+        metadata.low
+      );
 
       // Filter vulnerabilities by severity threshold
       const relevantVulns = advisories.filter((advisory) => {
@@ -218,6 +237,14 @@ export class DependencyCheck extends BaseCheck {
         !(failOnHigh && hasHigh) &&
         !(failOnModerate && hasModerate);
 
+      log(
+        'dependency check result: passed=%s, score=%d, relevant=%d, minSeverity=%s',
+        passed,
+        score,
+        relevantVulns.length,
+        minSeverity
+      );
+
       const totalRelevant = relevantVulns.length;
       const message = passed
         ? `Dependency check passed: ${metadata.total} vulnerabilities found (${criticalCount} critical, ${highCount} high, ${moderateCount} moderate, ${lowCount} low)`
@@ -250,6 +277,7 @@ export class DependencyCheck extends BaseCheck {
     } catch (error) {
       // If audit command fails, it might be due to no vulnerabilities or command error
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      log('dependency check error: %s', errorMessage);
 
       // pnpm audit exits with code 1 if vulnerabilities are found
       // Check if it's a legitimate error or just vulnerabilities found

@@ -12,7 +12,10 @@ import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { minimatch } from 'minimatch';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { loadBaseline } from '@eddacraft/anvil-core/architecture';
+
+const log = createDebugger('check');
 import type { ArchitectureBaseline } from '@eddacraft/anvil-core/architecture';
 import {
   createContextBuilder,
@@ -86,12 +89,24 @@ export class ArchitectureCheck extends BaseCheck {
   private validator = new LayerValidator();
 
   async run(context: CheckContext): Promise<GateResult> {
+    log(
+      'architecture check starting, workspace=%s, fullScan=%s',
+      context.workspace_root,
+      context.fullScan
+    );
     const config = this.validator.parseConfig(context.check_config);
+    log(
+      'architecture config: scope=%s, severity_threshold=%s, fail_on_circular=%s',
+      config.scope,
+      config.severity_threshold,
+      config.fail_on_circular
+    );
 
     try {
       // Step 1: Load dependency-cruiser
       const loadResult = await this.analyzer.loadCruiser();
       if (!loadResult.success) {
+        log('architecture check: dependency-cruiser not installed, skipping');
         return this.createSuccess(
           'dependency-cruiser not installed. Run `npm install -D dependency-cruiser` to enable architecture checks.',
           100,
@@ -112,11 +127,13 @@ export class ArchitectureCheck extends BaseCheck {
 
       if (!cruiseOptions) {
         if (existsSync(configPath)) {
+          log('architecture check: config file exists but failed to load: %s', config.config_file);
           return this.createFailure(
             `Failed to load dependency-cruiser config: ${config.config_file}`,
             'Config file exists but could not be loaded'
           );
         }
+        log('architecture check: no config file found, using built-in defaults');
         // Use default rules for circular dependency and orphan detection
         cruiseOptions = this.analyzer.getDefaultCruiseOptions();
       }
@@ -126,22 +143,27 @@ export class ArchitectureCheck extends BaseCheck {
       const filesToCruise = this.getFilesToCruise(context, effectiveConfig);
 
       if (filesToCruise.length === 0) {
+        log('architecture check: no files to analyse');
         return this.createSuccess('No files to analyse for architecture violations', 100, {
           warnings: createWarningResult([], []),
         });
       }
+
+      log('architecture check: analysing %d files/patterns', filesToCruise.length);
 
       // Step 4: Run dependency analysis
       const analysisResult = await this.analyzer.analyze(filesToCruise, cruiseOptions);
 
       if (!analysisResult.success || !analysisResult.result) {
         if (analysisResult.skipped) {
+          log('architecture check: analysis skipped, reason=%s', analysisResult.reason);
           return this.createSuccess(analysisResult.reason || 'Analysis skipped', 100, {
             skipped: true,
             reason: analysisResult.reason,
             warnings: createWarningResult([], []),
           });
         }
+        log('architecture check: analysis failed, error=%s', analysisResult.error);
         return this.createFailure(
           'Dependency analysis failed',
           analysisResult.error || 'Unknown error'
@@ -152,6 +174,12 @@ export class ArchitectureCheck extends BaseCheck {
 
       // Step 5: Load baseline if exists (for new-only mode)
       const baseline = loadBaseline(context.workspace_root);
+      log(
+        'architecture check: baseline loaded=%s, totalCruised=%d, violations=%d',
+        baseline !== null,
+        output.summary.totalCruised,
+        output.summary.violations.length
+      );
 
       // Step 6: Convert ALL violations to Warning format with drift info
       const allViolations = output.summary.violations;
@@ -183,6 +211,15 @@ export class ArchitectureCheck extends BaseCheck {
         config
       );
 
+      log(
+        'architecture check result: passed=%s, score=%d, totalViolations=%d, newViolations=%d, byType=%o',
+        passed,
+        score,
+        allViolations.length,
+        effectiveViolations.length,
+        violationsByType
+      );
+
       return this.createResult(passed, message, score, {
         warnings: warningResult,
         totalModulesCruised: output.summary.totalCruised,
@@ -205,6 +242,7 @@ export class ArchitectureCheck extends BaseCheck {
         architectureContext,
       });
     } catch (error) {
+      log('architecture check error: %s', error instanceof Error ? error.message : 'Unknown error');
       return this.createFailure(
         'Architecture check failed unexpectedly',
         error instanceof Error ? error.message : 'Unknown error'

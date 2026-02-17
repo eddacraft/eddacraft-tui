@@ -3,6 +3,9 @@ import { existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { ArchitectureDefinition } from './definition-schema.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('compiler');
 
 export const GENERATED_POLICIES_DIR = '.anvil/policies/.generated';
 export const REGO_FILENAME = 'architecture.rego';
@@ -55,6 +58,7 @@ export async function writeRegoPolicy(
   definition: ArchitectureDefinition
 ): Promise<string> {
   const regoPath = getRegoPath(workspaceRoot);
+  debug('writing Rego policy', regoPath);
   const regoDir = dirname(regoPath);
   if (!existsSync(regoDir)) {
     await mkdir(regoDir, { recursive: true });

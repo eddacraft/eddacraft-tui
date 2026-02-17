@@ -9,6 +9,9 @@
 import { randomUUID } from 'node:crypto';
 import type { KindlingService } from '../kindling-service.js';
 import type { SessionStartObservation, SessionEndObservation } from '../observation-contract.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Input Types
@@ -60,6 +63,11 @@ export interface SessionEndOutcome {
  */
 export function emitSessionStart(service: KindlingService, context: SessionStartContext): string {
   const sessionId = randomUUID();
+  debug('emitting session_start', {
+    sessionId,
+    command: context.command,
+    environment: context.environment,
+  });
 
   const observation: SessionStartObservation = {
     kind: 'session_start',
@@ -98,6 +106,12 @@ export function emitSessionEnd(
   sessionId: string,
   outcome: SessionEndOutcome
 ): string {
+  debug('emitting session_end', {
+    sessionId,
+    outcome: outcome.outcome,
+    duration_ms: outcome.duration_ms,
+  });
+
   const observation: SessionEndObservation = {
     kind: 'session_end',
     session_id: sessionId,

@@ -3,6 +3,16 @@
 # Idempotent — safe to re-run. Requires Azure CLI and ARM_CLIENT_ID env var.
 set -euo pipefail
 
+# Source logging library if available
+_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_LOG_LIB="$(git rev-parse --show-toplevel 2>/dev/null || echo "${_SCRIPT_DIR}/../..")/.claude/hooks/lib/log.sh"
+if [ -f "$_LOG_LIB" ]; then
+  export ANVIL_LOG_TAG="infra:bootstrap"
+  source "$_LOG_LIB"
+fi
+
+type log_enter >/dev/null 2>&1 && log_enter "$@"
+
 # --- Configuration ---
 LOCATION="uksouth"
 # Allow override via AZURE_SUBSCRIPTION_ID for portability; default preserves existing behaviour.
@@ -22,18 +32,27 @@ KEY_NAME="pulumi-secrets-key"
 
 SP_CLIENT_ID="${ARM_CLIENT_ID:?ARM_CLIENT_ID must be set}"
 
+type log_debug >/dev/null 2>&1 && log_debug "location=${LOCATION} subscription=${SUBSCRIPTION_ID:0:8}..."
+type log_debug >/dev/null 2>&1 && log_debug "rg=${RG_NAME} storage=${STORAGE_ACCOUNT} kv=${KV_NAME}"
+type log_trace >/dev/null 2>&1 && log_trace "SP_CLIENT_ID=${SP_CLIENT_ID:0:8}..."
+
 echo "=== Bootstrapping Pulumi backend infrastructure ==="
 echo "Subscription: $SUBSCRIPTION_ID"
 echo "Location:     $LOCATION"
 echo ""
 
+type log_debug >/dev/null 2>&1 && log_debug "setting subscription..."
 az account set --subscription "$SUBSCRIPTION_ID"
+type log_debug >/dev/null 2>&1 && log_debug "subscription set"
 
 # 1. Resource group
 echo "--- Creating resource group: $RG_NAME ---"
+type log_debug >/dev/null 2>&1 && log_debug "creating resource group: ${RG_NAME}"
 az group create --name "$RG_NAME" --location "$LOCATION" --output none
+type log_debug >/dev/null 2>&1 && log_debug "resource group created"
 
 # 2. Storage account
+type log_debug >/dev/null 2>&1 && log_debug "creating storage account: ${STORAGE_ACCOUNT}"
 echo "--- Creating storage account: $STORAGE_ACCOUNT ---"
 az storage account create \
   --name "$STORAGE_ACCOUNT" \
@@ -53,7 +72,9 @@ if ! az storage container create \
   --auth-mode login \
   --output none 2>&1; then
   echo "WARNING: blob container creation returned an error (may already exist)" >&2
+  type log_warn >/dev/null 2>&1 && log_warn "blob container creation error (may already exist)"
 fi
+type log_debug >/dev/null 2>&1 && log_debug "blob container step complete"
 
 # 4. Key Vault (RBAC authorization)
 echo "--- Creating Key Vault: $KV_NAME ---"
@@ -74,7 +95,9 @@ if ! az keyvault key create \
   --size 2048 \
   --output none 2>&1; then
   echo "WARNING: encryption key creation returned an error (may already exist)" >&2
+  type log_warn >/dev/null 2>&1 && log_warn "encryption key creation error (may already exist)"
 fi
+type log_debug >/dev/null 2>&1 && log_debug "encryption key step complete"
 
 # 6. RBAC assignments for service principal
 echo "--- Configuring RBAC for service principal ---"
@@ -84,6 +107,7 @@ KV_SCOPE="/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG_NAME/providers/Micr
 
 assign_role() {
   local role="$1" scope="$2"
+  type log_debug >/dev/null 2>&1 && log_debug "assigning role '${role}' to SP"
   if ! az role assignment create \
     --assignee-object-id "$SP_OBJECT_ID" \
     --assignee-principal-type ServicePrincipal \
@@ -91,6 +115,9 @@ assign_role() {
     --scope "$scope" \
     --output none 2>&1; then
     echo "WARNING: role assignment '$role' returned an error (may already exist)" >&2
+    type log_warn >/dev/null 2>&1 && log_warn "role assignment '${role}' error (may already exist)"
+  else
+    type log_debug >/dev/null 2>&1 && log_debug "role '${role}' assigned successfully"
   fi
 }
 
@@ -104,6 +131,7 @@ assign_role "Key Vault Crypto User" "$KV_SCOPE"
 assign_role "Key Vault Secrets User" "$KV_SCOPE"
 
 # 7. Output storage account key
+type log_info >/dev/null 2>&1 && log_info "bootstrap complete"
 echo ""
 echo "=== Bootstrap complete ==="
 echo ""

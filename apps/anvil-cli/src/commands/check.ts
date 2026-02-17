@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { glob } from 'glob';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   GateRunner,
   createCacheProvider,
@@ -68,6 +69,8 @@ interface JSONCheckOutput {
     suppressed: number;
   };
 }
+
+const log = createDebugger('cli');
 
 /** Pattern IDs that have deterministic fixes available */
 const FIXABLE_PATTERNS = new Set(['AP-001', 'AP-004']);
@@ -341,6 +344,13 @@ export function createCheckCommand(): Command {
       'Minimum severity for nudges: error, warning, info (default: warning)'
     )
     .action(async (files: string[], options: CheckOptions) => {
+      log(
+        'check command entered: files=%d all=%s changed=%s staged=%s',
+        files.length,
+        options.all,
+        options.changed,
+        options.staged
+      );
       const spinner = options.json ? null : ora('Analysing files...').start();
       const startTime = Date.now();
       let kindling: KindlingContext | null = null;
@@ -509,6 +519,7 @@ export function createCheckCommand(): Command {
             ? ('pre-commit' as const)
             : ('manual' as const);
 
+        log('check: analysing %d files with scope=%s', filesToAnalyse.length, provenanceScope);
         const result = await gateRunner.analyzeFiles(filesToAnalyse, workspaceRoot, {
           cache,
           noCache: cacheDisabled,
@@ -519,6 +530,12 @@ export function createCheckCommand(): Command {
             scope: provenanceScope,
           },
         });
+        log(
+          'check result: warnings=%d blocking=%s checksRun=%o',
+          result.warnings.warnings.length,
+          result.hasBlockingWarnings,
+          result.checksRun
+        );
 
         // Record gate evaluation in Kindling
         if (kindling && sessionId) {

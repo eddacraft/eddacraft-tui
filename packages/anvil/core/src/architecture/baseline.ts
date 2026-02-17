@@ -16,6 +16,9 @@ import {
   createDefaultLayers,
   createDefaultBoundaries,
 } from './types.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('architecture');
 
 /**
  * Default baseline file path
@@ -44,10 +47,12 @@ export function loadBaseline(workspaceRoot: string): ArchitectureBaseline | null
   const path = getBaselinePath(workspaceRoot);
 
   if (!existsSync(path)) {
+    debug('no baseline file found', path);
     return null;
   }
 
   try {
+    debug('loading baseline from', path);
     const content = readFileSync(path, 'utf-8');
     const data = JSON.parse(content);
 
@@ -55,12 +60,18 @@ export function loadBaseline(workspaceRoot: string): ArchitectureBaseline | null
     const result = ArchitectureBaselineSchema.safeParse(data);
 
     if (!result.success) {
+      debug('invalid baseline schema', result.error.format());
       console.error('Invalid architecture baseline:', result.error.format());
       return null;
     }
 
+    debug('baseline loaded', {
+      modules: result.data.baseline_snapshot.module_count,
+      violations: result.data.baseline_snapshot.violations.length,
+    });
     return result.data;
   } catch (error) {
+    debug('failed to load baseline', error instanceof Error ? error : undefined);
     console.error('Failed to load architecture baseline:', error);
     return null;
   }
@@ -70,6 +81,7 @@ export function loadBaseline(workspaceRoot: string): ArchitectureBaseline | null
  * Save the architecture baseline
  */
 export function saveBaseline(workspaceRoot: string, baseline: ArchitectureBaseline): void {
+  debug('saving baseline', { modules: baseline.baseline_snapshot.module_count });
   const path = getBaselinePath(workspaceRoot);
   const dir = dirname(path);
 

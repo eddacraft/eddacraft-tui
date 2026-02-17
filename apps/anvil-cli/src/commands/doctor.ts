@@ -1,6 +1,9 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
+
+const log = createDebugger('cli');
 import { renderTUI } from '../tui/utils/renderer.js';
 import { Diagnostics } from '../tui/commands/doctor/Diagnostics.js';
 import { theme } from '../tui/utils/theme.js';
@@ -189,6 +192,13 @@ export function createDoctorCommand(): Command {
     .option('--no-tui', 'Use plain text output instead of TUI')
     .option('-v, --verbose', 'Show detailed information')
     .action(async (options: DoctorOptions) => {
+      log(
+        'doctor command entered: fix=%s json=%s tui=%s verbose=%s',
+        options.fix,
+        options.json,
+        options.tui,
+        options.verbose
+      );
       const projectRoot = process.cwd();
       const checks = getAllChecks();
       const context: DiagnosticContext = {
@@ -197,13 +207,21 @@ export function createDoctorCommand(): Command {
       };
 
       if (options.json) {
+        log('doctor: running in JSON mode');
         const data = await runChecksPlain(checks, context, options.fix ?? false);
+        log(
+          'doctor result: passed=%d failed=%d warnings=%d',
+          data.summary.passed,
+          data.summary.failed,
+          data.summary.warnings
+        );
         console.log(formatJsonOutput(data));
         process.exit(data.summary.healthy ? 0 : 1);
         return;
       }
 
       const useTUI = isTUIAvailable({ tui: options.tui });
+      log('doctor: useTUI=%s checks=%d', useTUI, checks.length);
 
       if (useTUI) {
         let exitCode = 0;

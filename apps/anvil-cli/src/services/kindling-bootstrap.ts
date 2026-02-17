@@ -13,6 +13,7 @@
 import { resolve, dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   KindlingService as CoreKindlingService,
   type KindlingStore as CoreKindlingStore,
@@ -127,6 +128,8 @@ export interface KindlingContext {
   close: () => void;
 }
 
+const log = createDebugger('service');
+
 /**
  * Initialize the Kindling stack for a CLI command.
  *
@@ -134,9 +137,11 @@ export interface KindlingContext {
  * @returns KindlingContext, or null if Kindling is disabled
  */
 export function initKindling(workspaceRoot: string): KindlingContext | null {
+  log('initKindling: root=%s', workspaceRoot);
   const config = loadKindlingConfig(workspaceRoot);
 
   if (!config.enabled) {
+    log('initKindling: disabled by config');
     return null;
   }
 
@@ -164,17 +169,20 @@ export function initKindling(workspaceRoot: string): KindlingContext | null {
     // Create adapter for capsule lifecycle
     const adapter = new AnvilKindlingAdapter({ service: coreService, repoId: workspaceRoot });
 
+    log('initKindling: stack initialized dbPath=%s', dbPath);
     return {
       service,
       adapter,
       bridge,
       config,
       close: () => {
+        log('initKindling: closing database');
         closeDatabase(db);
       },
     };
   } catch {
     // Bootstrap failure must never break CLI commands — degrade gracefully
+    log('initKindling: bootstrap failed, degrading gracefully');
     return null;
   }
 }

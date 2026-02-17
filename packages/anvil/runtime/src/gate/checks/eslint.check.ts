@@ -1,12 +1,20 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult, getFilesFromContext } from '../../types/gate.types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { ESLint } from 'eslint';
+
+const log = createDebugger('check');
 
 export class ESLintCheck extends BaseCheck {
   name = 'eslint';
   description = 'Run ESLint code quality checks';
 
   async run(context: CheckContext): Promise<GateResult> {
+    log(
+      'eslint check starting, workspace=%s, fullScan=%s',
+      context.workspace_root,
+      context.fullScan
+    );
     try {
       const eslint = new ESLint({
         cwd: context.workspace_root,
@@ -18,8 +26,11 @@ export class ESLintCheck extends BaseCheck {
         : this.getFilesFromPlan(context);
 
       if (files.length === 0) {
+        log('eslint check: no lintable files found');
         return this.createSuccess('No files to lint', 100);
       }
+
+      log('eslint check: linting %d file(s)', files.length);
 
       const results = await eslint.lintFiles(files);
 
@@ -38,6 +49,16 @@ export class ESLintCheck extends BaseCheck {
         typeof context.check_config.min_score === 'number' ? context.check_config.min_score : 80;
       const passed = errorCount === 0 && score >= minScore;
 
+      log(
+        'eslint check result: passed=%s, score=%d, errors=%d, warnings=%d, fixable=%d, filesLinted=%d',
+        passed,
+        score,
+        errorCount,
+        warningCount,
+        fixableCount,
+        results.length
+      );
+
       const message = passed
         ? `ESLint passed: ${errorCount} errors, ${warningCount} warnings`
         : `ESLint failed: ${errorCount} errors, ${warningCount} warnings`;
@@ -54,6 +75,7 @@ export class ESLintCheck extends BaseCheck {
         })),
       });
     } catch (error) {
+      log('eslint check error: %s', error instanceof Error ? error.message : 'Unknown error');
       return this.createFailure(
         'ESLint check failed',
         error instanceof Error ? error.message : 'Unknown error'

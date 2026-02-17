@@ -5,6 +5,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   GateRunner,
   GateConfigManager,
@@ -29,6 +30,8 @@ import {
   emitError as emitKindlingError,
 } from '@eddacraft/anvil-kindling-integration';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
+
+const log = createDebugger('cli');
 
 const SOURCE_WATCH_PATTERNS = ['src/**/*.ts', 'src/**/*.tsx', 'lib/**/*.ts', '**/*.ts', '**/*.tsx'];
 const SOURCE_EXCLUDE_PATTERNS = [
@@ -118,6 +121,13 @@ export function createWatchCommand(): Command {
     .option('--agent-id <id>', 'Custom agent identifier')
     .option('--no-exclusive', 'Allow multiple watch instances (disable exclusive lock)')
     .action(async (file: string | undefined, options: WatchOptions) => {
+      log(
+        'watch command entered: file=%s source=%s plans=%s all=%s',
+        file ?? '(none)',
+        options.source,
+        options.plans,
+        options.all
+      );
       const startTime = Date.now();
       let kindling: KindlingContext | null = null;
       let sessionId: string | undefined;
@@ -151,6 +161,7 @@ export function createWatchCommand(): Command {
         const defaultConfig = getDefaultWatchConfig();
 
         // Determine watch mode
+        log('watch: determining watch mode');
         let watchMode: WatchMode;
         const hasExplicitMode =
           options.source || options.plans || options.all || options.patterns || file;
@@ -473,6 +484,12 @@ export function createWatchCommand(): Command {
         process.on('SIGTERM', shutdown);
 
         // Start watching
+        log(
+          'watch: starting orchestrator mode=%s action=%s patterns=%o',
+          watchMode,
+          action,
+          patterns
+        );
         await orchestrator.start();
         output.showWatching();
 

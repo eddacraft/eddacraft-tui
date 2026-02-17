@@ -5,7 +5,10 @@
  * admin-client.ts and auth-client.ts.
  */
 
+import { createDebugger } from '@eddacraft/anvil-core';
 import { requireEnv, getEnv } from '../utils/env.js';
+
+const log = createDebugger('service');
 
 const DEFAULT_API_URL = 'https://eddacraft-api-eddacraft.vercel.app';
 
@@ -43,6 +46,7 @@ interface ApiRequestOptions {
  */
 export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
   const url = `${getApiUrl()}${options.path}`;
+  log('apiRequest: %s %s operation=%s', options.method, url, options.operationName);
   const headers: Record<string, string> = {};
 
   if (options.body !== undefined) {
@@ -61,8 +65,10 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
 
   if (!res.ok) {
     const body = await res.text();
+    log('apiRequest: FAILED %s status=%d', options.operationName, res.status);
     throw new Error(`${options.operationName} failed: ${res.status} ${body}`);
   }
 
+  log('apiRequest: OK %s status=%d', options.operationName, res.status);
   return (await res.json()) as T;
 }

@@ -15,6 +15,9 @@ import {
   getWarningIds,
 } from '../warnings/warning-id.js';
 import { getPattern } from '../antipattern/patterns.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('explain');
 
 let templatesInitialised = false;
 
@@ -55,6 +58,11 @@ function buildContext(warning: Warning, allWarnings?: Warning[]): ExplanationCon
 }
 
 export function explainWarning(warning: Warning, allWarnings?: Warning[]): WarningExplanation {
+  debug('explaining warning', {
+    id: warning.id,
+    file: warning.location.file,
+    line: warning.location.line,
+  });
   ensureTemplatesInitialised();
 
   const context = buildContext(warning, allWarnings);
@@ -70,10 +78,12 @@ export function explainWarning(warning: Warning, allWarnings?: Warning[]): Warni
 }
 
 export function explainById(warningId: string, warnings: Warning[]): WarningExplanation | null {
+  debug('explaining by id', warningId);
   ensureTemplatesInitialised();
 
   const parsed = parseWarningId(warningId);
   if (!parsed) {
+    debug('invalid warning id format', warningId);
     return null;
   }
 

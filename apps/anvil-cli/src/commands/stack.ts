@@ -14,12 +14,16 @@
  */
 
 import { Command } from 'commander';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { createStatusSubcommand, createValidateSubcommand } from './stack/index.js';
+
+const log = createDebugger('cli');
 
 /**
  * Create the stack command with subcommands
  */
 export function createStackCommand(): Command {
+  log('registering stack command');
   const stackCommand = new Command('stack')
     .description('Manage Edda Stack configuration and state')
     .addCommand(createStatusSubcommand())

@@ -8,8 +8,11 @@
  */
 
 import { writeFile, readFile } from 'node:fs/promises';
+import { createDebugger } from '@eddacraft/anvil-core';
 import type { APSPlan, Evidence } from '@eddacraft/anvil-core';
 import type { GateRunResult } from '@eddacraft/anvil-core';
+
+const log = createDebugger('service');
 
 /**
  * Options for evidence injection
@@ -54,6 +57,12 @@ export class EvidenceWriter {
    * @returns Write result
    */
   async writeEvidence(options: EvidenceWriteOptions): Promise<EvidenceWriteResult> {
+    log(
+      'EvidenceWriter.writeEvidence: format=%s file=%s mode=%s',
+      options.format,
+      options.filePath,
+      options.mode ?? 'append'
+    );
     try {
       // Create evidence bundle from gate results
       const evidence = this.createEvidenceBundle(options.gateResults);
@@ -63,10 +72,13 @@ export class EvidenceWriter {
         case 'speckit':
         case 'spec-kit':
         case 'spec.md':
+          log('EvidenceWriter: using SpecKit format');
           return await this.writeSpecKitEvidence(options, evidence);
         case 'bmad':
+          log('EvidenceWriter: using BMAD format');
           return await this.writeBMADEvidence(options, evidence);
         default:
+          log('EvidenceWriter: unsupported format=%s', options.format);
           return {
             success: false,
             error: `Evidence injection not supported for format: ${options.format}. Supported formats: speckit, bmad`,

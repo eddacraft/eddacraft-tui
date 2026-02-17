@@ -1,6 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Source logging library if available
+_SCRIPT_SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_LOG_LIB="$(git rev-parse --show-toplevel 2>/dev/null || echo "${_SCRIPT_SELF_DIR}/../..")/.claude/hooks/lib/log.sh"
+if [ -f "$_LOG_LIB" ]; then
+  export ANVIL_LOG_TAG="infra:gen-import"
+  source "$_LOG_LIB"
+fi
+
+type log_enter >/dev/null 2>&1 && log_enter "$@"
+
 # Generates import.json for pulumi import --file
 # Queries Vercel API for project/domain/env-var IDs and constructs Azure DNS resource IDs
 #
@@ -14,17 +24,25 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUTPUT="${SCRIPT_DIR}/../import.json"
 
+type log_info >/dev/null 2>&1 && log_info "generating import.json"
+type log_debug >/dev/null 2>&1 && log_debug "output=${OUTPUT}"
+
 echo "Fetching Vercel project IDs..."
 
+type log_debug >/dev/null 2>&1 && log_debug "fetching website project ID..."
 website_prj=$(curl -fsS -H "Authorization: Bearer $VERCEL_API_TOKEN" \
   "https://api.vercel.com/v9/projects/website" | jq -r '.id')
 echo "  website: $website_prj"
+type log_debug >/dev/null 2>&1 && log_debug "website_prj=${website_prj}"
 
+type log_debug >/dev/null 2>&1 && log_debug "fetching docs-site project ID..."
 docs_prj=$(curl -fsS -H "Authorization: Bearer $VERCEL_API_TOKEN" \
   "https://api.vercel.com/v9/projects/docs-site" | jq -r '.id')
 echo "  docs-site: $docs_prj"
+type log_debug >/dev/null 2>&1 && log_debug "docs_prj=${docs_prj}"
 
 echo "Fetching Vercel env var IDs for website..."
+type log_debug >/dev/null 2>&1 && log_debug "fetching env vars for website..."
 
 website_envs=$(curl -fsS -H "Authorization: Bearer $VERCEL_API_TOKEN" \
   "https://api.vercel.com/v10/projects/$website_prj/env")
@@ -157,6 +175,7 @@ cat > "$OUTPUT" <<ENDJSON
 }
 ENDJSON
 
+type log_info >/dev/null 2>&1 && log_info "import.json generated at ${OUTPUT}"
 echo ""
 echo "Generated $OUTPUT with $(jq '.resources | length' "$OUTPUT") resources"
 echo "  - 2 VercelApp components"

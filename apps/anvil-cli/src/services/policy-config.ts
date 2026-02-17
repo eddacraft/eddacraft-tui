@@ -12,6 +12,9 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 
 import { join, dirname } from 'node:path';
 import YAML from 'yaml';
 import { z } from 'zod';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const log = createDebugger('service');
 
 // ---------------------------------------------------------------------------
 // Zod schemas for config.yml validation
@@ -151,7 +154,9 @@ export class PolicyConfigManager {
 
   /** Load and parse .anvil/config.yml. Returns empty config if missing. */
   load(): AnvilConfig {
+    log('PolicyConfigManager.load: path=%s', this.configPath);
     if (!this.exists()) {
+      log('PolicyConfigManager.load: config file not found, returning empty');
       return {};
     }
 
@@ -191,6 +196,7 @@ export class PolicyConfigManager {
    * layer's entry wins.
    */
   resolvePolicies(config?: AnvilConfig): ResolvedPolicy[] {
+    log('PolicyConfigManager.resolvePolicies');
     const cfg = config ?? this.load();
     const map = new Map<string, ResolvedPolicy>();
 
@@ -250,7 +256,13 @@ export class PolicyConfigManager {
       }
     }
 
-    return Array.from(map.values());
+    const resolved = Array.from(map.values());
+    log(
+      'PolicyConfigManager.resolvePolicies: %d policies resolved (%d active)',
+      resolved.length,
+      resolved.filter((p) => p.active).length
+    );
+    return resolved;
   }
 
   // -----------------------------------------------------------------------
@@ -259,6 +271,7 @@ export class PolicyConfigManager {
 
   /** Disable a policy by setting enforcement to 'off' in local overrides */
   disablePolicy(policyName: string): AnvilConfig {
+    log('PolicyConfigManager.disablePolicy: %s', policyName);
     const config = this.load();
     if (!config.policies) {
       config.policies = {};
@@ -284,6 +297,7 @@ export class PolicyConfigManager {
 
   /** Enable a policy by removing the local 'off' override or setting enforcement level */
   enablePolicy(policyName: string, enforcement: EnforcementLevel = 'block'): AnvilConfig {
+    log('PolicyConfigManager.enablePolicy: %s enforcement=%s', policyName, enforcement);
     const config = this.load();
     if (!config.policies) {
       config.policies = {};

@@ -16,6 +16,9 @@ import { execFileSync, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createHash } from 'node:crypto';
 import https from 'node:https';
+import { createDebugger } from './utils/debug.js';
+
+const debug = createDebugger('policy');
 
 const execFileAsync = promisify(execFile);
 
@@ -86,15 +89,22 @@ export class OPABinaryManager {
     this.version = process.env.ANVIL_OPA_VERSION || config.version || DEFAULT_OPA_VERSION;
     this.cacheDir = config.cacheDir || DEFAULT_CACHE_DIR;
     this.autoDownload = config.autoDownload ?? true;
+    debug('OPABinaryManager created', {
+      version: this.version,
+      cacheDir: this.cacheDir,
+      autoDownload: this.autoDownload,
+    });
   }
 
   /**
    * Ensure OPA binary is available, downloading if necessary
    */
   async ensureBinary(): Promise<string> {
+    debug('ensuring OPA binary is available');
     // Check environment override first
     const envPath = process.env.ANVIL_OPA_PATH;
     if (envPath) {
+      debug('using ANVIL_OPA_PATH override', envPath);
       if (!existsSync(envPath)) {
         throw new Error(`ANVIL_OPA_PATH specified but file not found: ${envPath}`);
       }
@@ -115,6 +125,7 @@ export class OPABinaryManager {
 
     // Check if already cached
     if (this.cachedBinaryPath && existsSync(this.cachedBinaryPath)) {
+      debug('using cached binary path', this.cachedBinaryPath);
       return this.cachedBinaryPath;
     }
 
@@ -142,6 +153,7 @@ export class OPABinaryManager {
 
     // Auto-download if enabled
     if (this.autoDownload) {
+      debug('auto-downloading OPA binary');
       await this.downloadBinary();
       this.cachedBinaryPath = binaryPath;
       return binaryPath;

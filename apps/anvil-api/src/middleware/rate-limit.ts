@@ -1,4 +1,7 @@
 import type { Context, Next, MiddlewareHandler } from 'hono';
+import { createDebugger } from '../lib/debug.js';
+
+const debug = createDebugger('api');
 
 interface RateLimitEntry {
   count: number;
@@ -12,6 +15,7 @@ interface RateLimitEntry {
 export function rateLimiter(opts?: { windowMs?: number; max?: number }): MiddlewareHandler {
   const windowMs = opts?.windowMs ?? 60_000;
   const max = opts?.max ?? 60;
+  debug('rate limiter initialized', { windowMs, max });
   const store = new Map<string, RateLimitEntry>();
 
   // Periodic cleanup to prevent memory growth
@@ -41,6 +45,7 @@ export function rateLimiter(opts?: { windowMs?: number; max?: number }): Middlew
     c.res.headers.set('X-RateLimit-Reset', String(Math.ceil(entry.resetAt / 1000)));
 
     if (entry.count > max) {
+      debug('rate limit exceeded', { ip, count: entry.count, max });
       return c.json({ error: 'Too many requests, please try again later' }, 429);
     }
 

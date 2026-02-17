@@ -8,6 +8,9 @@
 import { randomUUID } from 'node:crypto';
 import type { KindlingService } from '../kindling-service.js';
 import type { ActionExecutedObservation } from '../observation-contract.js';
+import { createDebugger } from '../utils/debug.js';
+
+const debug = createDebugger('kindling');
 
 // =============================================================================
 // Input Types
@@ -51,6 +54,11 @@ export interface ActionDetails {
  */
 export function emitActionExecuted(service: KindlingService, actionDetails: ActionDetails): string {
   const actionId = randomUUID();
+  debug('emitting action_executed', {
+    actionId,
+    actionType: actionDetails.action_type,
+    outcome: actionDetails.outcome,
+  });
 
   const observation: ActionExecutedObservation = {
     kind: 'action_executed',

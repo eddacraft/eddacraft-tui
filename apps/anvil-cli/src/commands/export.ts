@@ -5,7 +5,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { createDebugger } from '@eddacraft/anvil-core';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+
+const log = createDebugger('cli');
 import { dirname, extname, basename, join } from 'node:path';
 import { PlanLoader } from '../services/plan-loader.js';
 import { AdapterRegistry } from '@eddacraft/anvil-adapters';
@@ -32,8 +35,15 @@ export function createExportCommand(): Command {
     .option('--compact', 'Compact JSON output (no pretty-printing)', false)
     .action(
       async (sourcePath: string | undefined, options: ExportOptions & { format?: string }) => {
+        log(
+          'export command entered: source=%s to=%s format=%s',
+          sourcePath ?? '(none)',
+          options.to ?? '(none)',
+          options.format ?? '(none)'
+        );
         // Handle constraint export (--format llms.txt, mcp-resource, prompt-fragment)
         if (options.format) {
+          log('export: constraint export mode format=%s', options.format);
           return await exportConstraints(options.format, options.output, options.compact);
         }
 
@@ -87,6 +97,11 @@ export function createExportCommand(): Command {
 
           // Normalize target format
           const targetFormat = normalizeTargetFormat(options.to);
+          log(
+            'export: plan conversion sourceFormat=%s targetFormat=%s',
+            sourceFormat.format,
+            targetFormat
+          );
 
           // Export to target format
           spinner.start(`Converting to ${targetFormat}...`);

@@ -4,6 +4,9 @@ import type {
   CommandAnalysisResult,
   WorkingDirectoryConfig,
 } from './types.js';
+import { createDebugger } from '@eddacraft/anvil-core';
+
+const debug = createDebugger('gate');
 
 export interface MatcherContext {
   strict?: boolean;
@@ -214,6 +217,12 @@ export function findMatchingRule(
   rules: CommandRule[],
   context?: MatcherContext
 ): CommandRule | undefined {
+  debug(
+    'findMatchingRule: command=%s subcommand=%s rules=%d',
+    parsed.command,
+    parsed.subcommand,
+    rules.length
+  );
   const sorted = [...rules].sort((a, b) => {
     const scoreA = calculateSpecificity(a);
     const scoreB = calculateSpecificity(b);
@@ -222,10 +231,12 @@ export function findMatchingRule(
 
   for (const rule of sorted) {
     if (matchRule(parsed, rule, context)) {
+      debug('findMatchingRule: matched rule=%s action=%s', rule.id, rule.action);
       return rule;
     }
   }
 
+  debug('findMatchingRule: no rule matched');
   return undefined;
 }
 
@@ -235,9 +246,11 @@ export function analyseCommand(
   rules: CommandRule[],
   context?: MatcherContext
 ): CommandAnalysisResult {
+  debug('analyseCommand: command=%s', command);
   const matchedRule = findMatchingRule(parsed, rules, context);
 
   if (!matchedRule) {
+    debug('analyseCommand: allowed (no matching rule)');
     return {
       command,
       parsedCommand: parsed,
@@ -246,6 +259,12 @@ export function analyseCommand(
     };
   }
 
+  debug(
+    'analyseCommand: result action=%s severity=%s rule=%s',
+    matchedRule.action,
+    matchedRule.severity,
+    matchedRule.id
+  );
   return {
     command,
     parsedCommand: parsed,

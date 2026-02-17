@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora, { type Ora } from 'ora';
 import { glob } from 'glob';
+import { createDebugger } from '@eddacraft/anvil-core';
 import {
   SnapshotStore,
   SnapshotCaptureService,
@@ -14,6 +15,8 @@ import {
 } from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { error, info } from '../utils/output.js';
+
+const log = createDebugger('cli');
 
 function updateSpinner(spinner: Ora | null, text: string): void {
   if (spinner) {
@@ -71,6 +74,7 @@ function formatMetadata(meta: SnapshotMetadata): string {
 }
 
 async function handleSnapshot(options: SnapshotOptions): Promise<void> {
+  log('drift snapshot: name=%s', options.name ?? '(auto)');
   const spinner = options.json ? null : ora('Capturing snapshot...').start();
 
   try {
@@ -116,6 +120,7 @@ async function handleCompare(
   snapshot2: string,
   options: CompareOptions
 ): Promise<void> {
+  log('drift compare: %s vs %s', snapshot1, snapshot2);
   const spinner = options.json ? null : ora('Loading snapshots...').start();
 
   try {
@@ -175,6 +180,7 @@ async function handleCompare(
 }
 
 async function handleReport(options: ReportOptions): Promise<void> {
+  log('drift report: since=%s', options.since ?? '(latest)');
   const spinner = options.json ? null : ora('Generating report...').start();
 
   try {
@@ -237,6 +243,7 @@ async function handleReport(options: ReportOptions): Promise<void> {
 }
 
 async function handleList(options: ListOptions): Promise<void> {
+  log('drift list: limit=%s', options.limit ?? '(all)');
   const spinner = options.json ? null : ora('Loading snapshots...').start();
 
   try {
