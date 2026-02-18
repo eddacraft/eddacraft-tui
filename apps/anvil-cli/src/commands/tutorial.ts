@@ -18,14 +18,14 @@ interface TutorialOptions {
 
 function printTutorialTTYError(options: TutorialOptions): never {
   if (options.tui === false) {
-    console.log(
+    console.error(
       chalk.hex(theme.colours.molten)(
-        'Tutorial plain-text mode is not available yet. Remove --no-tui and run in a TTY terminal.'
+        'Tutorial plain-text mode is not available yet. Remove --no-tui to use the interactive tutorial (which requires a TTY).'
       )
     );
   } else {
-    console.log(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
-    console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
+    console.error(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
+    console.error(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
   }
 
   process.exit(1);
