@@ -129,9 +129,9 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Publish Workflow
 
-- [ ] **publish.yml uses `actions/create-release@v1`** which is deprecated.
+- [x] **publish.yml uses `actions/create-release@v1`** which is deprecated.
   Migrate to `softprops/action-gh-release@v2` or `gh release create`.
-- [ ] **publish.yml should set `prerelease: true`** for beta tags. Currently
+- [x] **publish.yml should set `prerelease: true`** for beta tags. Currently
   creates a non-prerelease GitHub Release for all `v*` tags.
 
 ---
