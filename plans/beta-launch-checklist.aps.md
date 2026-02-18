@@ -143,6 +143,7 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 - [ ] VS Code extension marketplace listing
 - [x] Docs site live on Vercel (currently configured but not verified)
 - [x] Website live on Vercel
+- [x] CLI medium security findings (M1-M4) from Codex/OpenCode reviews
 - [ ] Remaining 15 HIGH security findings from REVIEW.md
 - [ ] Branch protection rules on `main` requiring CI pass
 - [ ] npm 2FA / automation token best practices documented

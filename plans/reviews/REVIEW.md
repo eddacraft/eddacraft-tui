@@ -26,7 +26,7 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 | aps              | 0     | 1 (1✓) | 7      | 4      | 1 HIGH fixed     |
 | vscode-extension | 0     | 3      | 4      | 3      | Open             |
 | platform/storage | 0     | ~~1~~  | 0      | 0      | HIGH fixed       |
-| **anvil-cli**    | **0** | **0**  | **4**  | **5**  | **New (Codex/OC)**|
+| **anvil-cli**    | **0** | **0**  | ~~4~~  | **5**  | **MED fixed**     |
 | website          | 0     | 0      | 1      | 1      | Open             |
 | contracts        | 0     | 0      | 2      | 0      | Open             |
 | eslint-plugin    | 0     | 0      | 0      | 0      | Clean            |
@@ -227,44 +227,32 @@ checking they're within the workspace. Can open arbitrary files.
 - Kindling integration with session start/end observability
 - Proper TTY detection before rendering Ink components
 
-### M1. `policy scaffold --out` path traversal
+### ~~M1. `policy scaffold --out` path traversal~~ ✅
 
 **File:** `src/commands/policy.ts`
 
-`join(workspaceRoot, options.out)` without validation for absolute paths or
-`../` escapes. A user (or scripted invocation) can write scaffold output
-anywhere on the filesystem.
+**Fixed:** `resolve()` + `startsWith()` validation rejects paths that escape
+workspace root.
 
-**Recommendation:** Validate with `validateRelativePath()` and/or require
-`--yes` confirmation for paths outside workspace.
-
-### M2. `audit` command unvalidated numeric arguments
+### ~~M2. `audit` command unvalidated numeric arguments~~ ✅
 
 **File:** `src/commands/audit.ts`
 
-`--days-back` and `--max-commits` are parsed with `parseInt` but never validated
-for NaN or negative values. These flow into `RepoScanner.scan` and can cause
-unexpected behaviour.
+**Fixed:** `Number.isNaN()` and `<= 0` bounds checking with early exit.
 
-**Recommendation:** Add bounds checking after parseInt.
-
-### M3. Hardcoded API URL
+### ~~M3. Hardcoded API URL~~ ✅
 
 **File:** `src/services/api-client.ts:13`
 
-```typescript
-const DEFAULT_API_URL = 'https://eddacraft-api-eddacraft.vercel.app';
-```
+**Fixed:** Default changed to `https://api.eddacraft.com`. Still overridable via
+`ANVIL_API_URL` environment variable.
 
-Should use an environment variable or production domain.
+### ~~M4. Missing email validation in beta command~~ ✅
 
-### M4. Missing email validation in beta command
+**File:** `src/commands/beta.ts`
 
-**File:** `src/commands/beta.ts:18-23`
-
-`--email` required option has no format validation before sending to API.
-
-**Recommendation:** Add email format validation.
+**Fixed:** Email format validation added to both `invite` and `revoke`
+subcommands.
 
 ### L1. `plan create` hardcoded provenance
 
