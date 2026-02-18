@@ -100,6 +100,18 @@ export interface SignatureManifest {
 const DEFAULT_ALLOWED_ALGORITHMS: SignatureAlgorithm[] = ['RS256', 'ES256', 'Ed25519'];
 
 /**
+ * Allowed environment variable name prefixes for key resolution.
+ * Restricts env var access to prevent exfiltration of sensitive variables.
+ */
+const ALLOWED_ENV_VAR_PREFIXES = [
+  'ANVIL_BUNDLE_',
+  'ANVIL_POLICY_',
+  'ANVIL_VERIFY_',
+  'OPA_BUNDLE_',
+  'OPA_VERIFY_',
+];
+
+/**
  * Signature file name in OPA bundles
  */
 const SIGNATURES_FILE = '.signatures.json';
@@ -412,6 +424,16 @@ export class BundleVerifier {
         // Validate env var name is a safe identifier (alphanumeric + underscore)
         if (!/^[A-Z_][A-Z0-9_]*$/i.test(keyConfig.key)) {
           throw new Error(`Invalid environment variable name: ${keyConfig.key}`);
+        }
+        // Restrict to allowlisted prefixes to prevent exfiltration of sensitive env vars
+        const isAllowed = ALLOWED_ENV_VAR_PREFIXES.some((prefix) =>
+          keyConfig.key.startsWith(prefix)
+        );
+        if (!isAllowed) {
+          throw new Error(
+            `Environment variable '${keyConfig.key}' not in allowlist. ` +
+              `Allowed prefixes: ${ALLOWED_ENV_VAR_PREFIXES.join(', ')}`
+          );
         }
         const envValue = process.env[keyConfig.key];
         if (!envValue) {

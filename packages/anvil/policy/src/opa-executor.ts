@@ -7,7 +7,7 @@ import { writeFile, mkdir, mkdtemp } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, platform } from 'node:os';
-import { randomUUID, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { LoadedPolicy } from './policy-loader.js';
 import { createDebugger } from './utils/debug.js';
 
@@ -433,9 +433,9 @@ export class OPAExecutor {
     // Write test files if provided
     if (testFiles) {
       const { readFile } = await import('node:fs/promises');
-      for (const testFile of testFiles) {
-        const content = await readFile(testFile, 'utf-8');
-        const testPath = join(tempDir, `${randomUUID()}_test.rego`);
+      for (let i = 0; i < testFiles.length; i++) {
+        const content = await readFile(testFiles[i], 'utf-8');
+        const testPath = join(tempDir, `test_${i}.rego`);
         await writeFile(testPath, content, 'utf-8');
       }
     }

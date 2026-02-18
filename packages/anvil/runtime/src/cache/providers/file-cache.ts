@@ -6,7 +6,7 @@
 import { existsSync, unlinkSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { readFile, rm, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createHash, createHmac, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { homedir } from 'node:os';
 import { z } from 'zod';
 import type { CacheProvider, CacheEntry, CacheSetOptions, CacheStats } from '../types.js';
@@ -167,17 +167,26 @@ export class FileCacheProvider implements CacheProvider {
       const storedHmac = newlineIndex >= 0 ? raw.slice(0, newlineIndex) : '';
       const content = newlineIndex >= 0 ? raw.slice(newlineIndex + 1) : raw;
 
-      // Verify HMAC if present (skip for legacy entries without HMAC)
-      if (storedHmac && storedHmac.length === 64) {
-        const expectedHmac = this.computeHmac(content);
-        if (storedHmac !== expectedHmac) {
-          debug('Cache entry HMAC verification failed, possible tampering', { key });
-          await this.invalidate(key);
-          index.stats.misses++;
-          this.indexDirty = true;
-          await this.saveIndex();
-          return null;
-        }
+      // Verify HMAC integrity (mandatory — reject entries without valid HMAC)
+      if (!storedHmac || storedHmac.length !== 64) {
+        debug('Cache entry missing HMAC, rejecting to prevent injection', { key });
+        await this.invalidate(key);
+        index.stats.misses++;
+        this.indexDirty = true;
+        await this.saveIndex();
+        return null;
+      }
+
+      const expectedHmac = this.computeHmac(content);
+      if (
+        !timingSafeEqual(Buffer.from(storedHmac, 'hex'), Buffer.from(expectedHmac, 'hex'))
+      ) {
+        debug('Cache entry HMAC verification failed, possible tampering', { key });
+        await this.invalidate(key);
+        index.stats.misses++;
+        this.indexDirty = true;
+        await this.saveIndex();
+        return null;
       }
 
       const parseResult = CacheEntrySchema.safeParse(JSON.parse(content));
