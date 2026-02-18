@@ -27,6 +27,14 @@ launch.
 
 ## Install
 
+:::info Sign up first
+
+Don't have access yet?
+[Request an invite](https://eddacraft.ai/#waitlist) to join the next beta
+cohort.
+
+:::
+
 ```bash
 # Using pnpm (recommended)
 pnpm add -D @eddacraft/anvil-cli

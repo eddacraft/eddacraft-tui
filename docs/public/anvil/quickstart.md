@@ -18,6 +18,13 @@ minutes.
 
 ## Install
 
+:::info Closed beta
+
+Anvil is currently in closed beta. You need to
+[request access](https://eddacraft.ai/#waitlist) before you can install.
+
+:::
+
 ```bash
 # Using pnpm (recommended)
 pnpm add -D @eddacraft/anvil-cli

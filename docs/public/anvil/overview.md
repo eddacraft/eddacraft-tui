@@ -105,4 +105,5 @@ Anvil catches _structural_ and _architectural_ issues that other tools miss.
 
 ---
 
-**Ready to start?** [Install Anvil →](/anvil/quickstart)
+**Ready to start?** [Request access](https://eddacraft.ai/#waitlist) or
+[go to the quickstart →](/anvil/quickstart) if you already have an invite.

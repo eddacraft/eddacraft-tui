@@ -16,6 +16,14 @@ Get Kindling running on your system.
 
 ## Installation
 
+:::info Closed beta
+
+Kindling is part of the Edda stack and currently in closed beta.
+[Request access](https://eddacraft.ai/#waitlist) if you don't have an invite
+yet.
+
+:::
+
 ### Global Install (Recommended)
 
 ```bash
