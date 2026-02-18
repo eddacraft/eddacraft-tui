@@ -56,5 +56,5 @@ export function validateRelativePath(relPath: string): string {
     throw new Error(`Path escapes parent directory: ${relPath}`);
   }
 
-  return normalized;
+  return normalized.replaceAll('\\', '/');
 }
