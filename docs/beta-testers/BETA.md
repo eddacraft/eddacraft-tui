@@ -1,6 +1,6 @@
 # Anvil Beta Release
 
-> **Version:** 0.1.0-beta.1 **Status:** Pre-release for testing
+> **Version:** 0.1.0 **Status:** Pre-release for testing
 
 Thank you for trying Anvil! This is an early beta release intended for testing
 and gathering feedback. Your input is invaluable in shaping the future of this
@@ -65,15 +65,16 @@ We're especially interested in:
 
 ## Getting Help
 
-- **Documentation**: See [README.md](./README.md) for usage instructions
-- **Contributing**: See [CONTRIBUTING.md](./CONTRIBUTING.md) to contribute
+- **Documentation**: See [docs.eddacraft.com](https://docs.eddacraft.com) for
+  usage instructions
+- **Contributing**: See [CONTRIBUTING.md](../../CONTRIBUTING.md) to contribute
 - **Discussions**: Open an issue for questions
 
 ## Roadmap to 1.0
 
 The following features are planned before the stable 1.0 release:
 
-- [ ] Comprehensive documentation site
+- [x] Documentation site (live at docs.eddacraft.com)
 - [ ] Additional format adapters
 - [ ] Enhanced VS Code extension features
 - [ ] Performance optimisations for large codebases

@@ -6,7 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-01-27
+## [Unreleased]
+
+### Planned for 0.2.0 — Web Dashboard
+
+- Browser-based dashboard for exploring Anvil data
+- Overview, gates history, warnings, architecture graphs
+- AI builder interface with json-render
+- Operations and administration views
+
+### Planned for 0.3.0 — Organisational Policy Governance
+
+- OPA enhancements (YAML-first rules, policy library, debugger)
+- Multi-level org → team → project policy hierarchy
+- Policy lifecycle management (versioning, canary rollout)
+- Compliance reporting (SOC 2, ISO 27001 mapping)
+- Policy federation and fleet sync
+
+### Planned for 0.4.0 — Edda Stack (Memory System)
+
+- Kindling (observation layer)
+- Ember (interpretive layer)
+- Edda (canonical memory)
+
+## [0.1.0] - 2026-02-19
 
 Initial pre-release of Anvil - the deterministic development automation platform
 that makes AI-generated code safe to merge by catching architecture boundary
@@ -92,6 +115,17 @@ violations and anti-patterns at save time.
 
 ### Security
 
+- 3 critical MCP server vulnerabilities resolved (workspace root validation,
+  newline injection, HTTP authentication)
+- 10 high-severity fixes across runtime, MCP, adapters, storage, APS, and VS
+  Code extension (path traversal, TOCTOU races, cache integrity, prompt
+  injection, symlink following)
+- 4 medium CLI findings resolved (path traversal in scaffold, numeric arg
+  validation, API URL hardening, email validation)
+- OPA binary SHA-256 checksum verification with HTTPS-only downloads
+- Auth token storage with `0o600`/`0o700` permissions
+- API response validation with Zod schemas throughout
+- `shell: false` on all subprocess spawns (no shell injection)
 - Resolved Dependabot alerts via pnpm overrides:
   - tar >= 7.5.4
   - lodash >= 4.17.23
@@ -147,28 +181,5 @@ violations and anti-patterns at save time.
 - Azure DNS zone and record management
 - CI/CD pipeline with preview on PR, apply on merge
 
-## [Unreleased]
-
-### Planned for 0.2.0 — Web Dashboard
-
-- Browser-based dashboard for exploring Anvil data
-- Overview, gates history, warnings, architecture graphs
-- AI builder interface with json-render
-- Operations and administration views
-
-### Planned for 0.3.0 — Organisational Policy Governance
-
-- OPA enhancements (YAML-first rules, policy library, debugger)
-- Multi-level org → team → project policy hierarchy
-- Policy lifecycle management (versioning, canary rollout)
-- Compliance reporting (SOC 2, ISO 27001 mapping)
-- Policy federation and fleet sync
-
-### Planned for 0.4.0 — Edda Stack (Memory System)
-
-- Kindling (observation layer)
-- Ember (interpretive layer)
-- Edda (canonical memory)
-
-[0.1.0]: https://github.com/EddaCraft/anvil/releases/tag/v0.1.0
-[Unreleased]: https://github.com/EddaCraft/anvil/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.0...HEAD

@@ -13,11 +13,8 @@ you to test. Your feedback helps shape Anvil before public release.
 
 ## Installation
 
-<!-- TODO: Finalise npm package availability -->
-
 ```bash
-# Installation instructions coming soon
-# Check with the team for the current install method
+npm install -g @eddacraft/anvil-cli
 ```
 
 ---

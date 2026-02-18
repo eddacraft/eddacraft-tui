@@ -11,13 +11,11 @@ format detection and works seamlessly with your existing planning documents.
 
 ## Installation
 
-### For Users (Future)
-
 ```bash
 npm install -g @eddacraft/anvil-cli
 ```
 
-### For Contributors (Current)
+### For Contributors
 
 ```bash
 # From anvil root directory
@@ -748,4 +746,4 @@ anvil gate spec.md --skip-checks coverage
 
 ---
 
-**Version:** 0.0.0 (Pre-release) **Last Updated:** 2026-01-19
+**Version:** 0.1.0 (Beta) **Last Updated:** 2026-02-19
