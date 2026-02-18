@@ -17,30 +17,30 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Security — Critical Findings (REVIEW.md)
 
-- [ ] **C1 — MCP workspace root validation.** Verify
+- [x] **C1 — MCP workspace root validation.** Verify
   `validateWorkspaceRootAgainstServer()` in `validate-workspace.ts` is called in
   all 4 MCP tools (`check.tool.ts`, `gate.tool.ts`, `query-boundary.tool.ts`,
   `status.tool.ts`). Already implemented — needs verification testing.
-- [ ] **C2 — MCP newline injection.** Verify `\r`/`\n` stripping in
+- [x] **C2 — MCP newline injection.** Verify `\r`/`\n` stripping in
   `suppress.tool.ts:91` (`.replace(/[\r\n]+/g, ' ').trim()`). Already
   implemented — needs verification testing.
-- [ ] **C3 — MCP HTTP authentication.** Verify API key middleware via
+- [x] **C3 — MCP HTTP authentication.** Verify API key middleware via
   `ANVIL_MCP_API_KEY` in `streamable-http.ts:123-138`. Already implemented —
   needs verification testing.
 
 #### Security — High Severity (Top 5)
 
-- [ ] **H1-runtime — OPA binary path override.** Verify `isFile()` +
+- [x] **H1-runtime — OPA binary path override.** Verify `isFile()` +
   `accessSync` validation at `opa-binary-manager.ts:101-111`. Already
   implemented — needs verification testing.
-- [ ] **H2-runtime — Policy directory traversal.** Validate `policyDir` from
+- [x] **H2-runtime — Policy directory traversal.** Validate `policyDir` from
   config cannot escape `workspaceRoot` (`policy-loader.ts:71-72`).
-- [ ] **H1-storage — FileStorage path traversal.** Harden
+- [x] **H1-storage — FileStorage path traversal.** Harden
   `FileStorage.resolvePath()` against `../` escapes (already has tests from
   TEST-002 — verify the fix is deployed).
 - [ ] **H1-adapters — Path traversal via external adapters.** Validate adapter
   output paths are confined to the workspace.
-- [ ] **H2-policy — Tar extraction path traversal.** Validate tar entry paths
+- [x] **H2-policy — Tar extraction path traversal.** Validate tar entry paths
   during bundle extraction to prevent writes outside target directory.
 
 #### Core CLI Functionality
@@ -74,12 +74,12 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 - [ ] **`npm publish --dry-run` succeeds** from `apps/anvil-cli/`. Verify the
   tarball contains `dist/`, `README.md`, and nothing else (no source, no tests,
   no `.env`).
-- [ ] **`files` field in package.json is correct.** Currently `["dist",
+- [x] **`files` field in package.json is correct.** Currently `["dist",
   "README.md"]` — confirm no sensitive files leak.
 - [ ] **`bin.anvil` resolves.** After `npm pack && npm install -g
   eddacraft-anvil-cli-0.1.0.tgz`, the `anvil` command is available and prints
   help.
-- [ ] **`engines.node >= 20.0.0` is enforced.** Attempting install on Node 18
+- [x] **`engines.node >= 20.0.0` is enforced.** Attempting install on Node 18
   produces a clear error (or at minimum a warning).
 - [ ] **workspace:* dependencies resolve.** pnpm's `publishConfig` or the
   publish workflow correctly replaces `workspace:*` with real versions in the
@@ -104,20 +104,20 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Security — High Severity (Remaining)
 
-- [ ] **H3-runtime — Cache integrity.** Add HMAC to cache entries in
+- [x] **H3-runtime — Cache integrity.** Add HMAC to cache entries in
   `file-cache.ts:142-166` to prevent injection of false results.
-- [ ] **H4-runtime — OPA temp dir TOCTOU.** Replace `randomUUID()` temp dirs
+- [x] **H4-runtime — OPA temp dir TOCTOU.** Replace `randomUUID()` temp dirs
   with `fs.mkdtemp()` in `opa-executor.ts:271,310`.
-- [ ] **H5-runtime — Bundle verifier env var exfiltration.** Restrict allowed
+- [x] **H5-runtime — Bundle verifier env var exfiltration.** Restrict allowed
   env var names in `bundle-verifier.ts:380-389` to an explicit allowlist.
-- [ ] **H1-mcp — TOCTOU race in fix/suppress tools.** Add file locking or
+- [x] **H1-mcp — TOCTOU race in fix/suppress tools.** Add file locking or
   compare-and-swap to prevent concurrent modification.
-- [ ] **H2-mcp — Prompt injection.** Escape user inputs in prompt templates
+- [x] **H2-mcp — Prompt injection.** Escape user inputs in prompt templates
   (`fix-violation.prompt.ts:29`, `suppress-violation.prompt.ts:29`).
 
 #### Test Coverage Gaps
 
-- [ ] **TEST-007 — Config loader tests.** `packages/platform/config/src/
+- [x] **TEST-007 — Config loader tests.** `packages/platform/config/src/
   loader.ts` has zero coverage.
 - [ ] **TEST-008 — Init error path tests.** `apps/anvil-cli/src/commands/
   init.ts` only has happy-path coverage.
@@ -335,7 +335,7 @@ the publish — but any Azure-dependent build steps will be skipped.
 
 | Category       | Blocking Items | Status |
 | -------------- | -------------- | ------ |
-| Security (C)   | 3 critical MCP verifications | [ ] |
+| Security (C)   | 3 critical MCP verifications | [x] |
 | Security (H)   | 5 high-severity fixes/verifications | [ ] |
 | Core CLI       | 7 functional checks | [ ] |
 | Build & Test   | 5 CI/build checks | [ ] |

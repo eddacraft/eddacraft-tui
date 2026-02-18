@@ -19,7 +19,6 @@
 | Action | Checkpoint | Observable state | Implementation steps |
 
 ## Module Statuses
-
 Modules progress through these statuses:
 
 | Status | Meaning | Tasks Executable? |
