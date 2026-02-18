@@ -236,6 +236,82 @@ describe('anvil_suppress tool', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // C2 — Newline injection prevention
+  // ---------------------------------------------------------------------------
+  describe('newline injection prevention (C2)', () => {
+    it('strips \\n from the reason field to prevent comment injection', async () => {
+      const filePath = 'src/newline.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, 'const x = 1;\nconst y = 2;\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_suppress',
+        arguments: {
+          filePath,
+          warningId: 'AP-003',
+          line: 1,
+          reason: 'line one\nline two\nline three',
+        },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['suppressed']).toBe(true);
+
+      const content = readFileSync(absPath, 'utf-8');
+      const commentLine = content.split('\n')[0];
+      // The comment must be a single line — no embedded newlines
+      expect(commentLine).toContain('line one line two line three');
+      expect(commentLine).not.toContain('\n');
+    });
+
+    it('strips \\r\\n from the reason field', async () => {
+      const filePath = 'src/crlf.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, 'const x = 1;\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_suppress',
+        arguments: {
+          filePath,
+          warningId: 'AP-003',
+          line: 1,
+          reason: 'before\r\nafter',
+        },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['suppressed']).toBe(true);
+
+      const content = readFileSync(absPath, 'utf-8');
+      const commentLine = content.split('\n')[0];
+      expect(commentLine).toContain('before after');
+    });
+
+    it('strips bare \\r from the reason field', async () => {
+      const filePath = 'src/cr.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, 'const x = 1;\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_suppress',
+        arguments: {
+          filePath,
+          warningId: 'AP-003',
+          line: 1,
+          reason: 'before\rafter',
+        },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['suppressed']).toBe(true);
+
+      const content = readFileSync(absPath, 'utf-8');
+      const commentLine = content.split('\n')[0];
+      expect(commentLine).toContain('before after');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // Idempotency
   // ---------------------------------------------------------------------------
   describe('idempotency', () => {

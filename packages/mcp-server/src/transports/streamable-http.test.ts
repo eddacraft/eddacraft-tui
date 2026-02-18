@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
@@ -227,7 +228,102 @@ describe('Streamable HTTP Transport', () => {
   });
 
   // -----------------------------------------------------------------------
-  // 8. Session cleanup on DELETE
+  // 8. API key authentication (C3)
+  // -----------------------------------------------------------------------
+  describe('API key authentication (C3)', () => {
+    let authHandle: HttpServerHandle;
+    let authBaseUrl: string;
+
+    beforeEach(async () => {
+      process.env['ANVIL_MCP_API_KEY'] = 'test-secret-key-12345';
+      authHandle = await startHttpServer({ port: 0, host: '127.0.0.1' });
+      const addr = authHandle.httpServer.address();
+      if (typeof addr === 'string' || addr === null) {
+        throw new Error('Unexpected server address type');
+      }
+      authBaseUrl = `http://127.0.0.1:${String(addr.port)}`;
+    });
+
+    afterEach(async () => {
+      await authHandle.close();
+      delete process.env['ANVIL_MCP_API_KEY'];
+    });
+
+    it('rejects POST /mcp without Authorization header (401)', async () => {
+      const res = await fetch(`${authBaseUrl}/mcp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1.0.0' },
+          },
+          id: 1,
+        }),
+      });
+
+      expect(res.status).toBe(401);
+      const body = (await res.json()) as { error?: { message: string } };
+      expect(body.error?.message).toContain('Unauthorized');
+    });
+
+    it('rejects POST /mcp with wrong Bearer token (401)', async () => {
+      const res = await fetch(`${authBaseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer wrong-key',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1.0.0' },
+          },
+          id: 1,
+        }),
+      });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('accepts POST /mcp with correct Bearer token', async () => {
+      const res = await fetch(`${authBaseUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          Authorization: 'Bearer test-secret-key-12345',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          params: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+            clientInfo: { name: 'test', version: '1.0.0' },
+          },
+          id: 1,
+        }),
+      });
+
+      // Should succeed (200) — the initialize request should be processed
+      expect(res.status).toBe(200);
+    });
+
+    it('allows GET /health without auth (health is outside /mcp)', async () => {
+      const res = await fetch(`${authBaseUrl}/health`);
+      expect(res.status).toBe(200);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // 9. Session cleanup on DELETE
   // -----------------------------------------------------------------------
   describe('session termination', () => {
     it('terminates a session via DELETE', async () => {

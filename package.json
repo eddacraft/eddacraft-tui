@@ -21,6 +21,7 @@
     "test:e2e:core": "pnpm --filter @eddacraft/anvil-e2e test:core",
     "prelint": "pnpm -F eslint-plugin-anvil build",
     "lint": "eslint . --fix && markdownlint --ignore-path .markdownlintignore . --fix",
+    "prelint:check": "pnpm -F eslint-plugin-anvil build",
     "lint:check": "eslint . && markdownlint --ignore-path .markdownlintignore .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
