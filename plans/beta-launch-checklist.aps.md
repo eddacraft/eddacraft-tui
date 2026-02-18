@@ -138,8 +138,8 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 ### NICE TO HAVE (0.1.1 Follow-Up)
 
-- [ ] Changeset-based versioning (`@changesets/cli` is configured but unused)
-- [ ] Provenance attestation on npm publish (`--provenance` flag)
+- [x] Changeset-based versioning (`@changesets/cli` is configured but unused)
+- [x] Provenance attestation on npm publish (`--provenance` flag)
 - [ ] VS Code extension marketplace listing
 - [ ] Docs site live on Vercel (currently configured but not verified)
 - [ ] Website live on Vercel
