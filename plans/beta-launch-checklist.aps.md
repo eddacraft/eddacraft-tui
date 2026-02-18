@@ -144,7 +144,8 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 - [x] Docs site live on Vercel (currently configured but not verified)
 - [x] Website live on Vercel
 - [x] CLI medium security findings (M1-M4) from Codex/OpenCode reviews
-- [ ] Remaining 15 HIGH security findings from REVIEW.md
+- [ ] Remaining HIGH security findings from REVIEW.md (VS Code H1-H3 fixed;
+  policy H1, adapters H2-H3, APS H2, runtime H6 still open)
 - [ ] Branch protection rules on `main` requiring CI pass
 - [ ] npm 2FA / automation token best practices documented
 
