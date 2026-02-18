@@ -31,6 +31,14 @@ vi.mock('../../../../utils/file-io.js', () => ({
   getWorkspaceRoot: () => '/mock/workspace',
 }));
 
+// Replace ink-spinner with a static component so its internal setInterval
+// doesn't interfere with fake timer advancement in hint-level tests.
+vi.mock('ink-spinner', () => ({
+  default: function MockSpinner() {
+    return null;
+  },
+}));
+
 // Import after mocks are set up
 import { WatchStep } from '../steps/WatchStep.js';
 import { createTutorialWatcher } from '../steps/watch-project.js';
@@ -337,14 +345,12 @@ describe('WatchStep', () => {
     mockReadyResolve();
     await vi.advanceTimersByTimeAsync(0);
 
-    // Step through each hint tier with multiple flush cycles
-    // (Spinner interval timers compete for state update batching)
+    // Step through each hint tier with flush cycles between
     for (let i = 0; i < 3; i++) {
       await vi.advanceTimersByTimeAsync(10_000);
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(0);
     }
-    // Extra flush for the final render after hintLevel reaches 3
     await vi.advanceTimersByTimeAsync(0);
 
     expect(lastFrame()).toContain('skip this step');
@@ -364,13 +370,12 @@ describe('WatchStep', () => {
     stdin.write('s');
     expect(onComplete).not.toHaveBeenCalled();
 
-    // Advance to 30s using the same stepping pattern as the hint tests
+    // Advance to 30s
     for (let i = 0; i < 3; i++) {
       await vi.advanceTimersByTimeAsync(10_000);
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(0);
     }
-    // Extra flush so hintLevel=3 is rendered before stdin input
     await vi.advanceTimersByTimeAsync(0);
 
     // After 30s (hint level >= 3), pressing "s" should trigger completion
