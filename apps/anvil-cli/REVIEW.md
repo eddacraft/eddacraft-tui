@@ -169,7 +169,7 @@ a re-export alias if both spellings are needed.
 
 ---
 
-### M4. Duplicate embedded shell scripts
+### ~~M4. Duplicate embedded shell scripts~~ ✅
 
 **Files:**
 
@@ -183,8 +183,8 @@ that tries to load from `scripts/` files first, falling back to embedded. The
 `hooks.ts` command ignores the service entirely and uses its own standalone
 functions.
 
-**Recommendation:** The `hooks` command should use the `HookInstaller` service
-instead of reimplementing hook management inline.
+**Fixed:** `hooks` now loads scripts via `HookInstaller`, removing duplicate
+embedded scripts in the command.
 
 ---
 
@@ -269,7 +269,7 @@ workspace root.
 
 ---
 
-### M9. `policy scaffold --out` creates directories and files outside workspace
+### ~~M9. `policy scaffold --out` creates directories and files outside workspace~~ ✅
 
 **File:** `src/commands/policy.ts:823`
 
@@ -277,8 +277,8 @@ workspace root.
 const outDir = join(workspaceRoot, options.out);
 ```
 
-Same issue as M6. The `--out` option is not validated and can escape the
-workspace root.
+**Fixed:** `--out` now resolves and validates against the workspace root before
+creating directories/files.
 
 ---
 

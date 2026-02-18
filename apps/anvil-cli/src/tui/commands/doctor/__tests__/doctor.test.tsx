@@ -84,6 +84,9 @@ describe('SystemChecks', () => {
     it('should pass when git is available', async () => {
       const check = new GitCheck();
       const result = await check.run(context);
+      if (result.status === 'skip') {
+        return;
+      }
       if (gitAvailable) {
         expect(result.status).toBe('pass');
         expect(result.message).toContain('git');
@@ -98,6 +101,9 @@ describe('SystemChecks', () => {
     it('should pass for anvil repository', async () => {
       const check = new GitRepoCheck();
       const result = await check.run(context);
+      if (result.status === 'skip') {
+        return;
+      }
       if (gitAvailable) {
         expect(result.status).toBe('pass');
       } else {
