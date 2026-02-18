@@ -10,7 +10,9 @@ import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs
 import { join } from 'node:path';
 import { tmpdir, platform, arch } from 'node:os';
 
-describe('OPABinaryManager', () => {
+// Windows CI runners are slower with filesystem operations in temp dirs;
+// bump the per-test timeout to prevent flaky timeouts on ensureBinary().
+describe('OPABinaryManager', { timeout: 15_000 }, () => {
   let manager: OPABinaryManager;
   let tempCacheDir: string;
   let originalEnv: NodeJS.ProcessEnv;
