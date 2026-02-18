@@ -38,7 +38,7 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 - [x] **H1-storage — FileStorage path traversal.** Harden
   `FileStorage.resolvePath()` against `../` escapes (already has tests from
   TEST-002 — verify the fix is deployed).
-- [ ] **H1-adapters — Path traversal via external adapters.** Validate adapter
+- [x] **H1-adapters — Path traversal via external adapters.** Validate adapter
   output paths are confined to the workspace.
 - [x] **H2-policy — Tar extraction path traversal.** Validate tar entry paths
   during bundle extraction to prevent writes outside target directory.
