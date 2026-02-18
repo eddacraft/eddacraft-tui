@@ -2,7 +2,7 @@
  * Tests for FileCacheProvider
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -73,29 +73,37 @@ describe('FileCacheProvider', () => {
 
   describe('expiration', () => {
     it('returns null for expired entries', async () => {
-      const shortTtlCache = new FileCacheProvider(testDir, { defaultTtl: 10 }); // 10ms
+      const shortTtlCache = new FileCacheProvider(testDir, { defaultTtl: 5000 });
 
       await shortTtlCache.set('expires-soon', 'value', { input_hash: 'hash' });
 
-      // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 20));
-
-      const entry = await shortTtlCache.get('expires-soon');
-      expect(entry).toBeNull();
+      // Advance past TTL using fake timers so Date.now() moves without real I/O races
+      vi.useFakeTimers({ now: Date.now() });
+      try {
+        vi.advanceTimersByTime(6000);
+        const entry = await shortTtlCache.get('expires-soon');
+        expect(entry).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('respects custom TTL', async () => {
-      await cache.set('custom-ttl', 'value', { input_hash: 'hash', ttl: 10 });
+      await cache.set('custom-ttl', 'value', { input_hash: 'hash', ttl: 5000 });
 
-      // Should exist immediately
+      // Should exist immediately — no fake timers needed, real time hasn't advanced 5s
       let entry = await cache.get('custom-ttl');
       expect(entry).not.toBeNull();
 
-      // Wait for expiration
-      await new Promise((resolve) => setTimeout(resolve, 20));
-
-      entry = await cache.get('custom-ttl');
-      expect(entry).toBeNull();
+      // Advance past TTL using fake timers
+      vi.useFakeTimers({ now: Date.now() });
+      try {
+        vi.advanceTimersByTime(6000);
+        entry = await cache.get('custom-ttl');
+        expect(entry).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
