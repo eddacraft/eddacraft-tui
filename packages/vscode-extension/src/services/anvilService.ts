@@ -270,8 +270,8 @@ export class AnvilService {
       return false;
     }
 
-    const stats = fs.statSync(cliPath);
-    if (!stats.isFile()) {
+    const stats = fs.lstatSync(cliPath);
+    if (!stats.isFile() || stats.isSymbolicLink()) {
       return false;
     }
 
@@ -454,7 +454,25 @@ export class AnvilService {
             status: this.normalizeGateStatus(typeof g.status === 'string' ? g.status : undefined),
             message: typeof g.message === 'string' ? g.message : undefined,
             duration: typeof g.duration === 'number' ? g.duration : undefined,
-            details: Array.isArray(g.details) ? (g.details as GateDetail[]) : undefined,
+            details: Array.isArray(g.details)
+              ? g.details
+                  .filter(
+                    (d: unknown): d is Record<string, unknown> =>
+                      typeof d === 'object' &&
+                      d !== null &&
+                      typeof (d as Record<string, unknown>).message === 'string'
+                  )
+                  .map((d) => ({
+                    type:
+                      d.type === 'error' || d.type === 'warning' || d.type === 'info'
+                        ? (d.type as GateDetail['type'])
+                        : 'info',
+                    message: d.message as string,
+                    file: typeof d.file === 'string' ? d.file : undefined,
+                    line: typeof d.line === 'number' ? d.line : undefined,
+                    column: typeof d.column === 'number' ? d.column : undefined,
+                  }))
+              : undefined,
           };
         }),
         timestamp:

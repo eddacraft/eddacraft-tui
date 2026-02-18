@@ -440,11 +440,14 @@ class ArchViolationItem extends vscode.TreeItem {
       ? violation.from
       : path.join(workspaceRoot, violation.from);
 
-    this.command = {
-      command: 'vscode.open',
-      title: 'Open File',
-      arguments: [vscode.Uri.file(absolutePath)],
-    };
+    const normalised = path.resolve(absolutePath);
+    if (normalised.startsWith(workspaceRoot + path.sep) || normalised === workspaceRoot) {
+      this.command = {
+        command: 'vscode.open',
+        title: 'Open File',
+        arguments: [vscode.Uri.file(normalised)],
+      };
+    }
   }
 
   private buildTooltip(violation: ArchitectureViolation, suggestion: string): string {
