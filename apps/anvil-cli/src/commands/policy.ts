@@ -830,10 +830,16 @@ export function createPolicyCommand(): Command {
     .action(async (options: { org: string; out: string }) => {
       try {
         const workspaceRoot = getWorkspaceRoot();
+
+        // Validate --out does not escape workspace
+        const outDir = resolve(workspaceRoot, options.out);
+        if (!outDir.startsWith(workspaceRoot + '/') && outDir !== workspaceRoot) {
+          error(`--out path escapes workspace: ${options.out}`);
+          process.exit(1);
+        }
+
         const configMgr = new PolicyConfigManager(workspaceRoot);
         const spinner = ora(`Scaffolding org policies for ${options.org}...`).start();
-
-        const outDir = join(workspaceRoot, options.out);
 
         // Create org directory structure
         mkdirSync(join(outDir, '.anvil', 'policies'), { recursive: true });

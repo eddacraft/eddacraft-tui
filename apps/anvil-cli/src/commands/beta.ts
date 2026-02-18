@@ -22,6 +22,11 @@ export function createBetaCommand(): Command {
         process.exit(1);
       }
 
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(options.email)) {
+        error('--email must be a valid email address');
+        process.exit(1);
+      }
+
       try {
         const result = await adminInvite({
           email: options.email,
@@ -51,6 +56,11 @@ export function createBetaCommand(): Command {
     .description('Revoke all beta access tokens for a user')
     .requiredOption('--email <email>', 'User email address')
     .action(async (options: { email: string }) => {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(options.email)) {
+        error('--email must be a valid email address');
+        process.exit(1);
+      }
+
       try {
         const result = await adminRevoke(options.email);
 
