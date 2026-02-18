@@ -24,7 +24,7 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 | anvil/policy     | 0     | 1 (1✓) | 8      | 5      | 1 HIGH fixed     |
 | adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed     |
 | aps              | 0     | 1 (1✓) | 7      | 4      | 1 HIGH fixed     |
-| vscode-extension | 0     | 3      | 4      | 3      | Open             |
+| vscode-extension | 0     | ~~3~~  | 4      | 3      | HIGH fixed       |
 | platform/storage | 0     | ~~1~~  | 0      | 0      | HIGH fixed       |
 | **anvil-cli**    | **0** | **0**  | ~~4~~  | **5**  | **MED fixed**     |
 | website          | 0     | 0      | 1      | 1      | Open             |
@@ -189,26 +189,26 @@ missing task existence check, field parsing too permissive.
 
 ## VS Code Extension (packages/vscode-extension)
 
-### H1. Symlink following in CLI path validation
+### ~~H1. Symlink following in CLI path validation~~ ✅
 
 **File:** `src/services/anvilService.ts:262-285`
 
-Uses `statSync()` (follows symlinks) instead of `lstatSync()`. Symlink to
-malicious binary accepted as valid CLI path.
+**Fixed:** Replaced `statSync` with `lstatSync` and added explicit
+`isSymbolicLink()` rejection.
 
-### H2. Untrusted JSON from CLI parsed without schema validation
+### ~~H2. Untrusted JSON from CLI parsed without schema validation~~ ✅
 
 **File:** `src/services/anvilService.ts:371-443`
 
-Gate/validation output is `JSON.parse()`'d and spread into objects without Zod
-validation. Compromised CLI output can inject arbitrary properties.
+**Fixed:** Gate detail entries individually validated with per-field type checks
+instead of unsafe cast to `GateDetail[]`.
 
-### H3. Gate output file paths not workspace-bounded
+### ~~H3. Gate output file paths not workspace-bounded~~ ✅
 
 **File:** `src/providers/gateResultsProvider.ts:422-430`
 
-Violation file paths from gate output are passed to `vscode.Uri.file()` without
-checking they're within the workspace. Can open arbitrary files.
+**Fixed:** Violation paths resolved and bounded to workspace root before creating
+`vscode.Uri.file()`. Out-of-workspace paths silently ignored.
 
 ---
 
