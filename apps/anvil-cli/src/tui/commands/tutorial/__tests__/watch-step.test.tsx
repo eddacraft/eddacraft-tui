@@ -299,8 +299,9 @@ describe('WatchStep', () => {
     // Should not show the hint initially
     expect(lastFrame()).not.toContain('Still waiting');
 
-    // Advance past the 10s mark + flush React state update
+    // Advance past the 10s mark + double flush for Spinner setInterval batching
     await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(0);
 
     expect(lastFrame()).toContain('Still waiting');
@@ -319,7 +320,9 @@ describe('WatchStep', () => {
     // Step through in increments so each timer's state update flushes
     await vi.advanceTimersByTimeAsync(10_000);
     await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(0);
     await vi.advanceTimersByTimeAsync(0);
 
     expect(lastFrame()).toContain("Make sure you're editing a file inside");
@@ -341,8 +344,38 @@ describe('WatchStep', () => {
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(0);
     }
+    // Extra flush for the final render after hintLevel reaches 3
+    await vi.advanceTimersByTimeAsync(0);
 
     expect(lastFrame()).toContain('skip this step');
+  });
+
+  it('only skips via "s" after 30s', async () => {
+    vi.useFakeTimers();
+
+    const onComplete = vi.fn();
+    const { stdin } = render(<WatchStep onComplete={onComplete} />);
+
+    // Resolve ready synchronously for fake timers
+    mockReadyResolve();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Before 30s, pressing "s" should NOT complete the step
+    stdin.write('s');
+    expect(onComplete).not.toHaveBeenCalled();
+
+    // Advance to 30s using the same stepping pattern as the hint tests
+    for (let i = 0; i < 3; i++) {
+      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(0);
+    }
+    // Extra flush so hintLevel=3 is rendered before stdin input
+    await vi.advanceTimersByTimeAsync(0);
+
+    // After 30s (hint level >= 3), pressing "s" should trigger completion
+    stdin.write('s');
+    expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
   // --- Cleanup ---

@@ -61,6 +61,8 @@ export function FixStep({
 
     // FixStep doesn't need to wait for ready — it watches a single known file
     // and the watcher is set up before the user is told to edit.
+    // Suppress unhandled rejection if the watcher errors during init.
+    void watcher.ready.catch(() => {});
 
     return () => {
       watcher.close();

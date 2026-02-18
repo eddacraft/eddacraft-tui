@@ -51,15 +51,19 @@ export function WatchStep({
 
     // Wait for chokidar to finish its initial scan before telling the user
     // to edit files — edits before ready may be silently missed.
-    watcher.ready
-      .then(() => setPhase('watching'))
-      .catch(() => {
-        // Watcher failed to initialise — fall through to watching phase
-        // so the user can still skip if needed.
-        setPhase('watching');
-      });
+    // Guard: only transition initialising → watching so a file event that
+    // arrives before ready doesn't get overwritten back to 'watching'.
+    let cancelled = false;
+    const transitionToWatching = () => {
+      if (!cancelled) {
+        setPhase((prev) => (prev === 'initialising' ? 'watching' : prev));
+      }
+    };
+
+    watcher.ready.then(transitionToWatching).catch(transitionToWatching);
 
     return () => {
+      cancelled = true;
       watcher.close();
     };
   }, [watchTriggered]);
@@ -78,6 +82,7 @@ export function WatchStep({
   // Allow pressing 's' to skip when stuck.
   useInput((input) => {
     if (input === 's' && phase === 'watching' && hintLevel >= 3) {
+      setPhase('detected');
       onCompleteRef.current();
     }
   });
