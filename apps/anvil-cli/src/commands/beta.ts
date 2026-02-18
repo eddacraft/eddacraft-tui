@@ -1,7 +1,10 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { z } from 'zod';
 import { adminInvite, adminRevoke } from '../services/admin-client.js';
 import { success, error, info } from '../utils/output.js';
+
+const emailSchema = z.string().email();
 
 export function createBetaCommand(): Command {
   const command = new Command('beta');
@@ -22,7 +25,7 @@ export function createBetaCommand(): Command {
         process.exit(1);
       }
 
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(options.email)) {
+      if (!emailSchema.safeParse(options.email).success) {
         error('--email must be a valid email address');
         process.exit(1);
       }
@@ -56,7 +59,7 @@ export function createBetaCommand(): Command {
     .description('Revoke all beta access tokens for a user')
     .requiredOption('--email <email>', 'User email address')
     .action(async (options: { email: string }) => {
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(options.email)) {
+      if (!emailSchema.safeParse(options.email).success) {
         error('--email must be a valid email address');
         process.exit(1);
       }

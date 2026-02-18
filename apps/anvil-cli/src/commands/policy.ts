@@ -8,7 +8,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
-import { createDebugger } from '@eddacraft/anvil-core';
+import { createDebugger, validatePathWithinRoot } from '@eddacraft/anvil-core';
 import {
   existsSync,
   mkdirSync,
@@ -832,8 +832,10 @@ export function createPolicyCommand(): Command {
         const workspaceRoot = getWorkspaceRoot();
 
         // Validate --out does not escape workspace
-        const outDir = resolve(workspaceRoot, options.out);
-        if (!outDir.startsWith(workspaceRoot + '/') && outDir !== workspaceRoot) {
+        let outDir: string;
+        try {
+          outDir = validatePathWithinRoot(options.out, workspaceRoot);
+        } catch {
           error(`--out path escapes workspace: ${options.out}`);
           process.exit(1);
         }

@@ -257,17 +257,19 @@ export function createAuditCommand(): Command {
         const workspaceRoot = getWorkspaceRoot();
         const scanner = new RepoScanner(workspaceRoot);
 
-        const daysBack = options.daysBack ? parseInt(options.daysBack.toString(), 10) : 30;
-        const maxCommits = options.maxCommits ? parseInt(options.maxCommits.toString(), 10) : 100;
+        const rawDaysBack = options.daysBack ? Number(options.daysBack) : 30;
+        const rawMaxCommits = options.maxCommits ? Number(options.maxCommits) : 100;
 
-        if (Number.isNaN(daysBack) || daysBack <= 0) {
-          error('--days-back must be a positive integer');
+        if (!Number.isInteger(rawDaysBack) || rawDaysBack <= 0 || rawDaysBack > 730) {
+          error('--days-back must be a positive integer (max 730)');
           process.exit(1);
         }
-        if (Number.isNaN(maxCommits) || maxCommits <= 0) {
-          error('--max-commits must be a positive integer');
+        if (!Number.isInteger(rawMaxCommits) || rawMaxCommits <= 0 || rawMaxCommits > 10000) {
+          error('--max-commits must be a positive integer (max 10000)');
           process.exit(1);
         }
+        const daysBack = rawDaysBack;
+        const maxCommits = rawMaxCommits;
 
         const result = await scanner.scan({
           historicalDaysBack: daysBack,
