@@ -1,4 +1,4 @@
-import { execSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult } from '../types.js';
 
@@ -92,7 +92,7 @@ export class GitRepoCheck implements DiagnosticCheck {
 
   async run(context: DiagnosticContext): Promise<DiagnosticResult> {
     try {
-      execSync('git rev-parse --git-dir', {
+      execFileSync('git', ['rev-parse', '--git-dir'], {
         encoding: 'utf8',
         cwd: context.projectRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -131,7 +131,7 @@ export class GitRepoCheck implements DiagnosticCheck {
     context: DiagnosticContext
   ): Promise<{ success: boolean; message: string; commandsRun?: string[] }> {
     try {
-      execSync('git init', {
+      execFileSync('git', ['init'], {
         cwd: context.projectRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
       });

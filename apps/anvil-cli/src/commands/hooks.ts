@@ -18,11 +18,9 @@ import {
 import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
+import { HookInstaller, ANVIL_MARKER } from '../services/hook-installer.js';
 
 const log = createDebugger('cli');
-
-/** Marker comment to identify Anvil-managed hooks */
-const ANVIL_MARKER = '# Anvil-managed hook';
 
 /**
  * Resolve the .git directory, handling worktrees where .git is a file
@@ -52,90 +50,6 @@ function isAnvilManagedHook(hookPath: string): boolean {
   if (!existsSync(hookPath)) return false;
   const content = readFileSync(hookPath, 'utf-8');
   return content.includes(ANVIL_MARKER);
-}
-
-/** Hook script content for pre-commit (loaded from file or embedded) */
-function getPreCommitHook(): string {
-  return `#!/bin/sh
-# Anvil pre-commit hook
-# Validates planning documents before commit
-
-# Find modified plan files
-PLAN_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\\.(md|yaml|yml|json)$' || true)
-
-if [ -n "$PLAN_FILES" ]; then
-  echo "Anvil: Validating planning documents..."
-  FAILED=0
-
-  while IFS= read -r file; do
-    [ -z "$file" ] && continue
-    if anvil validate "$file" 2>/dev/null; then
-      echo "  [OK] $file"
-    else
-      echo "  [FAIL] $file"
-      FAILED=1
-    fi
-  done <<EOF
-$PLAN_FILES
-EOF
-
-  if [ "$FAILED" -ne 0 ]; then
-    echo ""
-    echo "Commit blocked: one or more plan files failed validation."
-    echo "Run 'anvil validate <file>' to see details."
-    exit 1
-  fi
-fi
-
-exit 0
-`;
-}
-
-/** Hook script content for pre-push (loaded from file or embedded) */
-function getPrePushHook(): string {
-  return `#!/bin/sh
-# Anvil pre-push hook
-# Runs quality gates before push
-
-# Check for ANVIL_SKIP_HOOKS environment variable
-if [ -n "$ANVIL_SKIP_HOOKS" ]; then
-  echo "Anvil: Skipping hooks (ANVIL_SKIP_HOOKS is set)"
-  exit 0
-fi
-
-# Find plan files in the repository
-PLAN_FILES=$(find . \\( -name "*.md" -path "*/planning/*" \\) -o -name "*-plan.md" -o -name "*-prd.md" 2>/dev/null | head -5)
-
-if [ -n "$PLAN_FILES" ]; then
-  echo "Anvil: Running quality gates..."
-  FAILED=0
-
-  while IFS= read -r file; do
-    [ -z "$file" ] && continue
-    if [ -f "$file" ]; then
-      echo "  Checking: $file"
-      if ! anvil gate "$file" 2>/dev/null; then
-        echo "  [FAIL] Gate failed: $file"
-        FAILED=1
-      fi
-    fi
-  done <<EOF
-$PLAN_FILES
-EOF
-
-  if [ "$FAILED" -ne 0 ]; then
-    echo ""
-    echo "Push blocked: one or more gates failed."
-    echo "Run 'anvil gate <file>' to see details."
-    echo "To bypass, set ANVIL_SKIP_HOOKS=1"
-    exit 1
-  fi
-
-  echo "  [OK] All gates passed"
-fi
-
-exit 0
-`;
 }
 
 /**
@@ -325,16 +239,27 @@ export function createHooksCommand(): Command {
           }
 
           const results: Array<{ hook: string; result: ReturnType<typeof installHook> }> = [];
+          const hookInstaller = new HookInstaller();
 
           // Install pre-commit hook
           if (!options.prePushOnly) {
-            const result = installHook(hooksDir, 'pre-commit', getPreCommitHook(), !!options.force);
+            const result = installHook(
+              hooksDir,
+              'pre-commit',
+              hookInstaller.loadHookScript('pre-commit'),
+              !!options.force
+            );
             results.push({ hook: 'pre-commit', result });
           }
 
           // Install pre-push hook
           if (!options.preCommitOnly) {
-            const result = installHook(hooksDir, 'pre-push', getPrePushHook(), !!options.force);
+            const result = installHook(
+              hooksDir,
+              'pre-push',
+              hookInstaller.loadHookScript('pre-push'),
+              !!options.force
+            );
             results.push({ hook: 'pre-push', result });
           }
 
