@@ -29,9 +29,8 @@ launch.
 
 :::info Sign up first
 
-Don't have access yet?
-[Request an invite](https://eddacraft.ai/#waitlist) to join the next beta
-cohort.
+Don't have access yet? [Request an invite](https://eddacraft.ai/#waitlist) to
+join the next beta cohort.
 
 :::
 
