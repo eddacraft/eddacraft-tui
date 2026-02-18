@@ -14,7 +14,17 @@ you to test. Your feedback helps shape Anvil before public release.
 ## Installation
 
 ```bash
+# npm
 npm install -g @eddacraft/anvil-cli
+
+# pnpm
+pnpm add -g @eddacraft/anvil-cli
+
+# yarn
+yarn global add @eddacraft/anvil-cli
+
+# or run without installing
+npx @eddacraft/anvil-cli --help
 ```
 
 ---

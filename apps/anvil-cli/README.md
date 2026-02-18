@@ -12,7 +12,17 @@ format detection and works seamlessly with your existing planning documents.
 ## Installation
 
 ```bash
+# npm
 npm install -g @eddacraft/anvil-cli
+
+# pnpm
+pnpm add -g @eddacraft/anvil-cli
+
+# yarn
+yarn global add @eddacraft/anvil-cli
+
+# or run without installing
+npx @eddacraft/anvil-cli --help
 ```
 
 ### For Contributors
