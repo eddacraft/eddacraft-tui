@@ -87,7 +87,8 @@ async function main(): Promise<void> {
     if (isAuthenticated()) return;
 
     console.error(
-      '\x1b[31m✗\x1b[0m Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.'
+      '\x1b[31m✗\x1b[0m Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
+        '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).'
     );
     process.exit(1);
   });

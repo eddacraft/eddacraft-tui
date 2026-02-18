@@ -16,6 +16,21 @@ interface TutorialOptions {
   tui?: boolean;
 }
 
+function printTutorialTTYError(options: TutorialOptions): never {
+  if (options.tui === false) {
+    console.log(
+      chalk.hex(theme.colours.molten)(
+        'Tutorial plain-text mode is not available yet. Remove --no-tui and run in a TTY terminal.'
+      )
+    );
+  } else {
+    console.log(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
+    console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
+  }
+
+  process.exit(1);
+}
+
 function getProgressFilePath(workspaceRoot: string): string {
   return join(workspaceRoot, '.anvil', 'tutorial-progress.json');
 }
@@ -174,11 +189,7 @@ export function createTutorialCommand(): Command {
           const useTUI = isTUIAvailable({ tui: options.tui });
 
           if (!useTUI) {
-            console.log(
-              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
-            );
-            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
-            process.exit(1);
+            printTutorialTTYError(options);
           }
 
           const { PolicyTutorial } =
@@ -209,11 +220,7 @@ export function createTutorialCommand(): Command {
           const useTUI = isTUIAvailable({ tui: options.tui });
 
           if (!useTUI) {
-            console.log(
-              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
-            );
-            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
-            process.exit(1);
+            printTutorialTTYError(options);
           }
 
           const { ArchitectureTutorial } =
@@ -231,11 +238,7 @@ export function createTutorialCommand(): Command {
           const useTUI = isTUIAvailable({ tui: options.tui });
 
           if (!useTUI) {
-            console.log(
-              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
-            );
-            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
-            process.exit(1);
+            printTutorialTTYError(options);
           }
 
           const { DriftTutorial } =
@@ -253,11 +256,7 @@ export function createTutorialCommand(): Command {
           const useTUI = isTUIAvailable({ tui: options.tui });
 
           if (!useTUI) {
-            console.log(
-              chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.')
-            );
-            console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
-            process.exit(1);
+            printTutorialTTYError(options);
           }
 
           const { CITutorial } = await import('../tui/commands/tutorial/features/CITutorial.js');
@@ -300,9 +299,7 @@ export function createTutorialCommand(): Command {
       const useTUI = isTUIAvailable({ tui: options.tui });
 
       if (!useTUI) {
-        console.log(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
-        console.log(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
-        process.exit(1);
+        printTutorialTTYError(options);
       }
 
       ensureTutorialDir(workspaceRoot);
