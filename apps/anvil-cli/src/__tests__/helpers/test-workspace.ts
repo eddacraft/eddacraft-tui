@@ -34,7 +34,7 @@ export function createTestWorkspace(): TestWorkspace {
     anvilDir,
     cleanup: () => {
       if (existsSync(root)) {
-        rmSync(root, { recursive: true, force: true });
+        rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
       }
     },
   };

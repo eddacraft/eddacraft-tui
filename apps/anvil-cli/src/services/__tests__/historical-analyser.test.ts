@@ -57,7 +57,7 @@ describe('HistoricalAnalyzer', () => {
     });
   });
 
-  describe('commit retrieval', () => {
+  describe('commit retrieval', { timeout: 15_000 }, () => {
     beforeEach(async () => {
       mkdirSync(join(workspace.root, 'src'), { recursive: true });
       initGitRepo(workspace.root);

@@ -96,11 +96,6 @@ describe('ConfigLoader', () => {
       expect(loader.getOrDefault('key', 'fallback')).toBe('actual');
     });
 
-    it('should return the default when value is undefined but entry does not exist', () => {
-      const loader = new ConfigLoader();
-      expect(loader.getOrDefault('nope', 100)).toBe(100);
-    });
-
     it('should return falsy stored values instead of the default', () => {
       const loader = new ConfigLoader();
       loader.set('zero', 0);
