@@ -240,7 +240,7 @@ separators. Add a test that verifies template patterns match correctly on
 Windows-style paths.
 
 **Confidence:** Medium
-**Status:** Open
+**Status:** Done
 **Tags:** cross-platform, windows, architecture
 **Files:** packages/anvil/core/src/architecture/yaml-parser.ts, packages/anvil/core/src/architecture/layer-detector.ts
 
@@ -262,4 +262,4 @@ Windows-style paths.
 | XPLAT-002 | Replace UTF-8 symbols | P0 | Done |
 | XPLAT-003 | Windows hook installation | P1 | Done |
 | XPLAT-004 | CI matrix for macOS/Windows | P1 | Done |
-| XPLAT-005 | Glob patterns and Windows paths | P2 | Open |
+| XPLAT-005 | Glob patterns and Windows paths | P2 | Done |

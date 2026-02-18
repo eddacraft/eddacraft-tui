@@ -124,7 +124,7 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Cross-Platform
 
-- [ ] **XPLAT-005 — Windows glob patterns.** Audit glob consumers for
+- [x] **XPLAT-005 — Windows glob patterns.** Audit glob consumers for
   separator normalisation. Add a test with Windows-style paths.
 
 #### Publish Workflow
