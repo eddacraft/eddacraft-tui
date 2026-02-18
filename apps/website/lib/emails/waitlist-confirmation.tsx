@@ -42,16 +42,16 @@ export function WaitlistConfirmation({
           <Section style={content}>
             <Text style={okBadge}>[ OK ] Access request received</Text>
             <Text style={bodyText}>
-              Your email <strong style={emailHighlight}>{email}</strong> has
-              been added to the Anvil waitlist.
+              Your email <strong style={emailHighlight}>{email}</strong> has been added to the Anvil
+              waitlist.
             </Text>
             <Text style={muted}>
-              We&apos;re onboarding engineering teams in controlled cohorts.
-              You&apos;ll hear from us when your slot opens.
+              We&apos;re onboarding engineering teams in controlled cohorts. You&apos;ll hear from
+              us when your slot opens.
             </Text>
             <Text style={muted}>
-              If you have any questions or feedback, just reply to this email
-              &mdash; I personally respond to each one.
+              If you have any questions or feedback, just reply to this email &mdash; I personally
+              respond to each one.
             </Text>
           </Section>
 

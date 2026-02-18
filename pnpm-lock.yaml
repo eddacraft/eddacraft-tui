@@ -351,9 +351,6 @@ importers:
       react-dom:
         specifier: 19.2.4
         version: 19.2.4(react@19.2.4)
-      react-email:
-        specifier: ^5.2.8
-        version: 5.2.8
       resend:
         specifier: ^4.0.0
         version: 4.8.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -376,6 +373,9 @@ importers:
       postcss:
         specifier: ^8.5
         version: 8.5.6
+      react-email:
+        specifier: ^5.2.8
+        version: 5.2.8
       tailwindcss:
         specifier: ^4.1.9
         version: 4.1.18
