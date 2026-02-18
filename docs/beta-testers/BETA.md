@@ -65,7 +65,7 @@ We're especially interested in:
 
 ## Getting Help
 
-- **Documentation**: See [docs.eddacraft.com](https://docs.eddacraft.com) for
+- **Documentation**: See [docs.eddacraft.ai](https://docs.eddacraft.ai) for
   usage instructions
 - **Contributing**: See [CONTRIBUTING.md](../../CONTRIBUTING.md) to contribute
 - **Discussions**: Open an issue for questions
@@ -74,7 +74,7 @@ We're especially interested in:
 
 The following features are planned before the stable 1.0 release:
 
-- [x] Documentation site (live at docs.eddacraft.com)
+- [x] Documentation site (live at docs.eddacraft.ai)
 - [ ] Additional format adapters
 - [ ] Enhanced VS Code extension features
 - [ ] Performance optimisations for large codebases
