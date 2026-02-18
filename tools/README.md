@@ -56,6 +56,18 @@ pnpm codemod:imports
   - `@eddacraft/anvil-core/cache` -> `@eddacraft/anvil-runtime`
   - etc.
 
+## Local agent runner (QoL)
+
+Use the local Codex helper for unattended tasks with logs + completion wake event:
+
+```bash
+pnpm agent:run "<task prompt>"
+# or
+bash tools/local-agent-run.sh "<task prompt>"
+```
+
+Logs are written to `plans/agent-runs/`.
+
 ## Migration Status
 
 | Directory  | Status   | Source          |

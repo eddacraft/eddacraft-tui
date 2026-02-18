@@ -33,7 +33,8 @@
     "codemod:imports": "tsx tools/codemods/src/cli.ts imports",
     "codemod:imports:dry": "tsx tools/codemods/src/cli.ts imports --dry-run",
     "generate:package": "nx g @eddacraft/anvil-generators:package",
-    "generate:anvil-package": "nx g @eddacraft/anvil-generators:anvil-package"
+    "generate:anvil-package": "nx g @eddacraft/anvil-generators:anvil-package",
+    "agent:run": "bash tools/local-agent-run.sh"
   },
   "private": true,
   "devDependencies": {
