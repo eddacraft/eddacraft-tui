@@ -1,132 +1,107 @@
-# Adversarial Code Review: Remaining Packages
+# Adversarial Code Review: All Packages
 
-**Date:** 2026-02-06 **Reviewer:** Claude (automated adversarial review)
-**Scope:** 11 packages not covered by prior CLI/Core/API reviews
+**Date:** 2026-02-06 (updated 2026-02-19)
+**Reviewers:** Claude (adversarial review), Codex (CLI review), OpenCode (CLI
+review)
+**Scope:** 11 library packages + CLI app (~347k LOC total)
 
 ---
 
 ## Executive Summary
 
-This review covers the remaining 11 packages (~57k LOC total). The most critical
-findings are in the **MCP server** (3 critical: unvalidated workspace root,
-newline injection, missing HTTP auth), **anvil/runtime** (6 high: OPA binary
-path override, policy dir traversal, cache poisoning, temp dir TOCTOU, env var
-exfiltration, command parser weakness), and **anvil/policy** (2 high: tarball
-path traversal, bundle manifest path traversal). The **platform/storage**
-package has a classic path traversal vulnerability, and the **adapters** and
-**aps** packages have unvalidated path handling from external input.
+This review covers the full monorepo. The most critical findings were in the
+**MCP server** (3 critical — all fixed), **anvil/runtime** (6 high — all fixed),
+and **anvil/policy** (2 high — 1 fixed). The **CLI** package has 2 medium
+security findings (path traversal in `policy scaffold`, unvalidated numeric
+args). Several lower-severity quality and UX issues remain across the CLI.
 
 ### Aggregate Severity Counts
 
-| Package          | CRIT  | HIGH   | MED    | LOW    |
-| ---------------- | ----- | ------ | ------ | ------ |
-| anvil/runtime    | 0     | 6      | 7      | 6      |
-| anvil/policy     | 0     | 2      | 8      | 5      |
-| mcp-server       | 3     | 3      | 3      | 3      |
-| adapters         | 0     | 3      | 4      | 3      |
-| aps              | 0     | 2      | 7      | 4      |
-| vscode-extension | 0     | 3      | 4      | 3      |
-| platform/storage | 0     | 1      | 0      | 0      |
-| website          | 0     | 0      | 1      | 1      |
-| contracts        | 0     | 0      | 2      | 0      |
-| eslint-plugin    | 0     | 0      | 0      | 0      |
-| anvil/ports      | 0     | 0      | 0      | 0      |
-| **TOTAL**        | **3** | **20** | **36** | **25** |
+| Package          | CRIT  | HIGH   | MED    | LOW    | Status           |
+| ---------------- | ----- | ------ | ------ | ------ | ---------------- |
+| mcp-server       | ~~3~~ | ~~3~~  | 3      | 3      | CRIT/HIGH fixed  |
+| anvil/runtime    | 0     | ~~6~~  | 7      | 6      | HIGH fixed       |
+| anvil/policy     | 0     | 1 (1✓) | 8      | 5      | 1 HIGH fixed     |
+| adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed     |
+| aps              | 0     | 1 (1✓) | 7      | 4      | 1 HIGH fixed     |
+| vscode-extension | 0     | 3      | 4      | 3      | Open             |
+| platform/storage | 0     | ~~1~~  | 0      | 0      | HIGH fixed       |
+| **anvil-cli**    | **0** | **0**  | **4**  | **5**  | **New (Codex/OC)**|
+| website          | 0     | 0      | 1      | 1      | Open             |
+| contracts        | 0     | 0      | 2      | 0      | Open             |
+| eslint-plugin    | 0     | 0      | 0      | 0      | Clean            |
+| anvil/ports      | 0     | 0      | 0      | 0      | Clean            |
 
 ---
 
 ## MCP Server (packages/mcp-server)
 
-### C1. Unvalidated workspace root — arbitrary directory access
+### ~~C1. Unvalidated workspace root — arbitrary directory access~~ ✅
 
 **Files:** `src/tools/check.tool.ts:31`, `gate.tool.ts:37`,
 `query-boundary.tool.ts:32`, `status.tool.ts:26`
 
-Four tools accept `workspaceRoot` directly from MCP client requests without
-validation. A malicious client can pass arbitrary absolute paths to analyse any
-directory on the server filesystem. Response metadata leaks filesystem
-structure.
+**Fixed:** `validateWorkspaceRootAgainstServer()` added in
+`validate-workspace.ts`, called in all 4 tools.
 
-**Recommendation:** Validate `workspaceRoot` against a server-configured allowed
-root.
-
-### C2. Newline injection in suppress tool
+### ~~C2. Newline injection in suppress tool~~ ✅
 
 **File:** `src/tools/suppress.tool.ts:87`
 
-The `reason` parameter is interpolated into a source file comment without
-escaping newlines. A client can inject
-`reason: "valid\n*/ malicious_code(); /*"` to inject arbitrary code into the
-source file.
+**Fixed:** `.replace(/[\r\n]+/g, ' ').trim()` at `suppress.tool.ts:91`.
 
-**Recommendation:** Strip `\r\n` from `reason` before interpolation.
-
-### C3. Missing authentication on HTTP transport
+### ~~C3. Missing authentication on HTTP transport~~ ✅
 
 **File:** `src/transports/streamable-http.ts:41-105`
 
-The HTTP transport has no authentication, no CORS validation, no rate limiting.
-Any HTTP client can connect and invoke all MCP tools including file-modifying
-ones.
+**Fixed:** API key middleware via `ANVIL_MCP_API_KEY` at
+`streamable-http.ts:123-138`.
 
-**Recommendation:** Add authentication (API keys/mutual TLS) and CORS
-restrictions.
+### ~~H1. Race condition in file modification (fix/suppress tools)~~ ✅
 
-### H1. Race condition in file modification (fix/suppress tools)
+**Fixed:** File locking / compare-and-swap added.
 
-TOCTOU between read and write. Concurrent requests can overwrite each other's
-changes.
-
-### H2. Prompt injection via template interpolation
+### ~~H2. Prompt injection via template interpolation~~ ✅
 
 **File:** `src/prompts/fix-violation.prompt.ts:29`,
 `suppress-violation.prompt.ts:29`
 
-User inputs (`warningId`, `filePath`, `message`) are interpolated into prompts
-without escaping. Malicious clients can inject instructions.
+**Fixed:** User inputs escaped in prompt templates.
 
 ---
 
 ## Runtime (packages/anvil/runtime)
 
-### H1. ANVIL_OPA_PATH allows executing arbitrary binary
+### ~~H1. ANVIL_OPA_PATH allows executing arbitrary binary~~ ✅
 
 **File:** `src/gate/policy/opa-binary-manager.ts:95-102`
 
-The `ANVIL_OPA_PATH` environment variable is used directly without validation.
-An attacker who can set env vars can point to a trojanised binary.
+**Fixed:** `isFile()` + `accessSync` validation at
+`opa-binary-manager.ts:101-111`.
 
-**Recommendation:** Validate path is a regular file (not symlink), has correct
-permissions, or remove the env var override.
-
-### H2. Policy directory path traversal
+### ~~H2. Policy directory path traversal~~ ✅
 
 **File:** `src/gate/policy/policy-loader.ts:71-72`
 
-`policyDir` from config is joined with `workspaceRoot` without validation. A
-config value of `../../../etc/` loads `.rego` files from system directories.
+**Fixed:** `policyDir` validated against `workspaceRoot`.
 
-### H3. Cache entries have no integrity protection (HMAC)
+### ~~H3. Cache entries have no integrity protection (HMAC)~~ ✅
 
 **File:** `src/cache/providers/file-cache.ts:142-166`
 
-Cache entries are loaded and trusted without integrity verification. An attacker
-with write access to `.anvil/cache/` can inject false pass/fail results.
+**Fixed:** HMAC added to cache entries.
 
-### H4. OPA temp directory TOCTOU race condition
+### ~~H4. OPA temp directory TOCTOU race condition~~ ✅
 
 **File:** `src/gate/policy/opa-executor.ts:271, 310`
 
-Temp dirs created with `randomUUID()` at `/tmp/anvil-opa-{uuid}`. Between
-creation and population, another process could replace files. Use `fs.mkdtemp()`
-instead.
+**Fixed:** Replaced `randomUUID()` with `fs.mkdtemp()`.
 
-### H5. Bundle verifier env var exfiltration
+### ~~H5. Bundle verifier env var exfiltration~~ ✅
 
 **File:** `src/gate/policy/bundle-verifier.ts:380-389`
 
-When `keyConfig.source === 'env'`, any env var name is accepted. An attacker who
-controls the config can specify `AWS_SECRET_ACCESS_KEY` and exfiltrate values.
+**Fixed:** Env var names restricted to explicit allowlist.
 
 ### H6. Command parser regex-based detection is incomplete
 
@@ -147,26 +122,27 @@ security.
 `join(bundleDir, fileEntry.name)` where `fileEntry.name` comes from parsed
 `.signatures.json`. Attacker controls the manifest → path traversal.
 
-### H2. Tar archive extraction without path validation
+### ~~H2. Tar archive extraction without path validation~~ ✅
 
 **File:** `src/bundle-manager.ts:666-674`
 
-Tarball extraction uses `tar` library with `{ cwd: destDir }` but no path
-validation. Malicious tarballs with `../../` entries extract outside `destDir`.
+**Fixed:** Tar entry paths validated during extraction.
 
-### M1-M8. URL validation, credential handling, silent failures, policy path validation, test file paths, credential leakage, version verification, error suppression.
+### M1-M8
+
+URL validation, credential handling, silent failures, policy path validation,
+test file paths, credential leakage, version verification, error suppression.
 
 ---
 
 ## Adapters (packages/adapters)
 
-### H1. Unvalidated path extraction from external formats
+### ~~H1. Unvalidated path extraction from external formats~~ ✅
 
 **Files:** `bmad/parser.ts:62`, `speckit/parser.ts:277`, `generic/parser.ts:37`
 
-File paths extracted from user-controlled markdown content without validation
-for path traversal. Paths like `../../etc/passwd` flow into downstream
-operations.
+**Fixed:** `validateRelativePath()` applied to all extracted/constructed paths.
+Format adapter `inferPathFromDescription` fallback also validated.
 
 ### H2. No file size limits — DoS via massive content
 
@@ -174,6 +150,9 @@ operations.
 
 No limits on input content size. `split('\n')` creates unbounded arrays.
 Recursive markdown parsing has no depth limit.
+
+**Note:** `MAX_INPUT_SIZE` (2MB) was added to SpecKit and BMAD parsers. Generic
+parser and file-discovery still lack limits.
 
 ### H3. Regex DoS vulnerabilities
 
@@ -186,13 +165,12 @@ backtracking.
 
 ## APS (packages/aps)
 
-### H1. Path traversal via module path resolution
+### ~~H1. Path traversal via module path resolution~~ ✅
 
-**File:** `src/loader/index.ts:235-244`
+**File:** `src/loader/index.ts:236-253`
 
-`resolvePath()` passes absolute paths through untouched and doesn't validate
-`../` sequences in relative paths. Malicious index files can read arbitrary
-files.
+**Fixed:** `resolvePath()` rejects absolute paths and validates resolved paths
+stay within `baseDir`. Tracked as APS-PKG-001 in cli-hardening.aps.md.
 
 ### H2. Information disclosure via validator file probing
 
@@ -201,7 +179,11 @@ files.
 Validator uses `accessSync()` to check linked files. Malicious index files can
 probe whether files like `/etc/passwd` or `~/.ssh/id_rsa` exist.
 
-### M1-M7. Hash computed but never verified, missing input size limits, unbounded recursive directory scanning, task ID validation too permissive, path normalization gaps, missing task existence check, field parsing too permissive.
+### M1-M7
+
+Hash computed but never verified, missing input size limits, unbounded recursive
+directory scanning, task ID validation too permissive, path normalisation gaps,
+missing task existence check, field parsing too permissive.
 
 ---
 
@@ -230,20 +212,116 @@ checking they're within the workspace. Can open arbitrary files.
 
 ---
 
+## CLI (apps/anvil-cli)
+
+**Reviewed by:** Codex + OpenCode (2026-02-19)
+**Scope:** 254 source files (~290k LOC), 66 test files
+
+### Security — Positive
+
+- Auth token storage uses `0o600` permissions with `chmodSync` fallback
+- Auth directory uses `0o700` permissions
+- Path traversal protection in `file-io.ts:53-65`
+- API responses validated with Zod schemas throughout
+- `execFileSync` used in most places (no shell injection)
+- Kindling integration with session start/end observability
+- Proper TTY detection before rendering Ink components
+
+### M1. `policy scaffold --out` path traversal
+
+**File:** `src/commands/policy.ts`
+
+`join(workspaceRoot, options.out)` without validation for absolute paths or
+`../` escapes. A user (or scripted invocation) can write scaffold output
+anywhere on the filesystem.
+
+**Recommendation:** Validate with `validateRelativePath()` and/or require
+`--yes` confirmation for paths outside workspace.
+
+### M2. `audit` command unvalidated numeric arguments
+
+**File:** `src/commands/audit.ts`
+
+`--days-back` and `--max-commits` are parsed with `parseInt` but never validated
+for NaN or negative values. These flow into `RepoScanner.scan` and can cause
+unexpected behaviour.
+
+**Recommendation:** Add bounds checking after parseInt.
+
+### M3. Hardcoded API URL
+
+**File:** `src/services/api-client.ts:13`
+
+```typescript
+const DEFAULT_API_URL = 'https://eddacraft-api-eddacraft.vercel.app';
+```
+
+Should use an environment variable or production domain.
+
+### M4. Missing email validation in beta command
+
+**File:** `src/commands/beta.ts:18-23`
+
+`--email` required option has no format validation before sending to API.
+
+**Recommendation:** Add email format validation.
+
+### L1. `plan create` hardcoded provenance
+
+**File:** `src/commands/plan.ts`
+
+Provenance written with `branch: 'main'` and `commit: ''` (TODOs). Undermines
+provenance integrity for beta users.
+
+### L2. Unimplemented flags still in help
+
+**Files:** `src/commands/stack/validate.ts`, `src/commands/watch.ts`
+
+`stack validate --fix` and `watch --tui` are declared but only warn and proceed.
+Misleading UX — should implement or remove from help.
+
+### L3. `export --to yaml` blocked but function exists
+
+**File:** `src/commands/export.ts`
+
+`formatAsYaml` exists but `--to yaml` is explicitly blocked. Confusing for users
+and looks unfinished.
+
+### L4. `execSync` with string commands in doctor checks
+
+**File:** `src/tui/commands/doctor/checks/SystemCheck.ts`
+
+`execSync` used for `git rev-parse`, `git init`. Not currently user-influenced,
+but `execFileSync` would remove shell exposure and align with codebase patterns.
+
+### L5. Inconsistent output handling
+
+**Files:** `src/commands/whoami.ts`, `src/commands/plan.ts`, others
+
+Commands write directly to `console.log`/`console.error` instead of
+`utils/output.ts`, conflicting with the CLI's own anti-pattern rules.
+
+### Missing Test Coverage
+
+- No tests for `audit` command argument validation
+- No tests for `policy scaffold` output path handling
+- `init.ts` and `watch.ts` lack unit tests (have E2E only)
+
+### Code Quality Note
+
+`policy.ts` is 1536+ lines. Recommend splitting bundle commands into
+`commands/policy/bundle.ts` post-beta.
+
+---
+
 ## Platform Storage (packages/platform/storage)
 
-### H1. Classic path traversal in FileStorage
+### ~~H1. Classic path traversal in FileStorage~~ ✅
 
 **File:** `src/file-storage.ts:52-57`
 
-```typescript
-private resolvePath(path: string): string {
-  if (path.startsWith('/')) return path;        // absolute paths bypass baseDir
-  return `${this.baseDir}/${path}`;             // no normalization of ../
-}
-```
-
-Both absolute paths and `../` sequences escape the `baseDir` sandbox.
+**Fixed:** `resolvePath()` hardened against `../` escapes (verified by TEST-002
+tests).
 
 ---
 
@@ -293,3 +371,7 @@ Same file. Keys like `__proto__` or `constructor` accepted in metadata records.
 8. **APS Zod validation** — Strong schema validation on state files
 9. **Adapters adapter pattern** — Clean FormatAdapter interface
 10. **Contracts strict mode** — Top-level Zod `.strict()` on schemas
+11. **CLI auth storage** — `0o600`/`0o700` permissions with fallback
+12. **CLI Zod API validation** — Responses validated with schemas
+13. **CLI factory pattern** — Consistent `create{Name}Command()` pattern
+14. **CLI exit codes** — Consistent 0/1 with `--json` support for CI/CD
