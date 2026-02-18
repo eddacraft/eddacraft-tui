@@ -186,6 +186,67 @@ describe('FileCacheProvider', () => {
     });
   });
 
+  describe('HMAC integrity', () => {
+    it('rejects cache entries with tampered content', async () => {
+      await cache.set('tampered', { secret: 'data' }, { input_hash: 'h1' });
+
+      // Tamper with the entry file on disk
+      const { readdirSync, readFileSync, writeFileSync } = await import('node:fs');
+      const entriesDir = join(testDir, '.anvil', 'cache', 'entries');
+      const files = readdirSync(entriesDir);
+      expect(files.length).toBeGreaterThan(0);
+
+      const filePath = join(entriesDir, files[0]);
+      const raw = readFileSync(filePath, 'utf-8');
+      const newlineIdx = raw.indexOf('\n');
+      const hmac = raw.slice(0, newlineIdx);
+      // Replace content but keep original HMAC
+      writeFileSync(filePath, `${hmac}\n{"value":"injected","created_at":0,"key":"tampered"}`);
+
+      const entry = await cache.get('tampered');
+      expect(entry).toBeNull();
+    });
+
+    it('rejects cache entries without HMAC', async () => {
+      await cache.set('no-hmac', 'value', { input_hash: 'h1' });
+
+      // Overwrite the file with content only (no HMAC line)
+      const { readdirSync, writeFileSync } = await import('node:fs');
+      const entriesDir = join(testDir, '.anvil', 'cache', 'entries');
+      const files = readdirSync(entriesDir);
+      const filePath = join(entriesDir, files[0]);
+      writeFileSync(filePath, '{"value":"bare","created_at":0,"key":"no-hmac"}');
+
+      const entry = await cache.get('no-hmac');
+      expect(entry).toBeNull();
+    });
+
+    it('rejects cache entries with invalid hex in HMAC', async () => {
+      await cache.set('bad-hex', 'value', { input_hash: 'h1' });
+
+      const { readdirSync, readFileSync, writeFileSync } = await import('node:fs');
+      const entriesDir = join(testDir, '.anvil', 'cache', 'entries');
+      const files = readdirSync(entriesDir);
+      const filePath = join(entriesDir, files[0]);
+      const raw = readFileSync(filePath, 'utf-8');
+      const content = raw.slice(raw.indexOf('\n') + 1);
+      // Replace HMAC with non-hex characters of correct length
+      const badHmac = 'zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz';
+      writeFileSync(filePath, `${badHmac}\n${content}`);
+
+      const entry = await cache.get('bad-hex');
+      expect(entry).toBeNull();
+    });
+
+    it('accepts valid untampered entries', async () => {
+      await cache.set('valid', { data: 'ok' }, { input_hash: 'h1' });
+
+      const entry = await cache.get<{ data: string }>('valid');
+      expect(entry).not.toBeNull();
+      expect(entry?.value).toEqual({ data: 'ok' });
+    });
+  });
+
   describe('name', () => {
     it('returns "file"', () => {
       expect(cache.name).toBe('file');

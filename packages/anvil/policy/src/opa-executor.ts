@@ -435,7 +435,7 @@ export class OPAExecutor {
       const { readFile } = await import('node:fs/promises');
       for (let i = 0; i < testFiles.length; i++) {
         const content = await readFile(testFiles[i], 'utf-8');
-        const testPath = join(tempDir, `test_${i}.rego`);
+        const testPath = join(tempDir, `_anvil_test_${i}.rego`);
         await writeFile(testPath, content, 'utf-8');
       }
     }

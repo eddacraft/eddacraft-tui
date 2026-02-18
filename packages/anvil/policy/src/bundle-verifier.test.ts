@@ -602,7 +602,7 @@ describe('BundleVerifier', () => {
 
   describe('key sources', () => {
     it('should load key from environment variable', async () => {
-      const envKeyName = 'TEST_PUBLIC_KEY_' + Math.random().toString(36).slice(2);
+      const envKeyName = 'ANVIL_VERIFY_KEY_' + Math.random().toString(36).slice(2);
       process.env[envKeyName] = rsaKeyPair.publicKey;
 
       try {
@@ -656,7 +656,7 @@ describe('BundleVerifier', () => {
           {
             id: 'missing-env-key',
             algorithm: 'RS256',
-            key: 'NON_EXISTENT_ENV_VAR_' + Math.random().toString(36).slice(2),
+            key: 'ANVIL_VERIFY_MISSING_' + Math.random().toString(36).slice(2),
             source: 'env',
           },
         ],
@@ -684,6 +684,129 @@ describe('BundleVerifier', () => {
 
       expect(result.verified).toBe(false);
       expect(result.errors.some((e) => e.includes('Environment variable not found'))).toBe(true);
+    });
+  });
+
+  describe('env var allowlist', () => {
+    it('should reject env vars with disallowed prefixes', async () => {
+      const envVerifier = new BundleVerifier({
+        keys: [
+          {
+            id: 'blocked-key',
+            algorithm: 'RS256',
+            key: 'SECRET_KEY',
+            source: 'env',
+          },
+        ],
+        require_signature: true,
+      });
+
+      const policyContent = 'package test\nallow = true';
+      writeFileSync(join(bundleDir, 'policy.rego'), policyContent);
+
+      const hash = createHash('sha256').update(policyContent).digest('hex');
+      const manifest: SignatureManifest = {
+        signatures: [
+          {
+            files: [{ name: 'policy.rego', hash: `sha256:${hash}` }],
+            algorithm: 'RS256',
+            keyid: 'blocked-key',
+            signatures: ['fakesig'],
+          },
+        ],
+      };
+
+      writeFileSync(join(bundleDir, '.signatures.json'), JSON.stringify(manifest));
+
+      const result = await envVerifier.verifyBundle(bundleDir);
+
+      expect(result.verified).toBe(false);
+      expect(result.errors.some((e) => e.includes('not in allowlist'))).toBe(true);
+    });
+
+    it('should reject AWS-style env vars', async () => {
+      const envVerifier = new BundleVerifier({
+        keys: [
+          {
+            id: 'aws-key',
+            algorithm: 'RS256',
+            key: 'AWS_SECRET_ACCESS_KEY',
+            source: 'env',
+          },
+        ],
+        require_signature: true,
+      });
+
+      const policyContent = 'package test\nallow = true';
+      writeFileSync(join(bundleDir, 'policy.rego'), policyContent);
+
+      const hash = createHash('sha256').update(policyContent).digest('hex');
+      const manifest: SignatureManifest = {
+        signatures: [
+          {
+            files: [{ name: 'policy.rego', hash: `sha256:${hash}` }],
+            algorithm: 'RS256',
+            keyid: 'aws-key',
+            signatures: ['fakesig'],
+          },
+        ],
+      };
+
+      writeFileSync(join(bundleDir, '.signatures.json'), JSON.stringify(manifest));
+
+      const result = await envVerifier.verifyBundle(bundleDir);
+
+      expect(result.verified).toBe(false);
+      expect(result.errors.some((e) => e.includes('not in allowlist'))).toBe(true);
+    });
+
+    it('should accept env vars with allowed prefixes', async () => {
+      const envKeyName = 'ANVIL_BUNDLE_PUBLIC_KEY_' + Math.random().toString(36).slice(2);
+      process.env[envKeyName] = rsaKeyPair.publicKey;
+
+      try {
+        const envVerifier = new BundleVerifier({
+          keys: [
+            {
+              id: 'allowed-key',
+              algorithm: 'RS256',
+              key: envKeyName,
+              source: 'env',
+            },
+          ],
+          require_signature: true,
+        });
+
+        const policyContent = 'package test\nallow = true';
+        writeFileSync(join(bundleDir, 'policy.rego'), policyContent);
+
+        const hash = createHash('sha256').update(policyContent).digest('hex');
+        const files = [{ name: 'policy.rego', hash: `sha256:${hash}` }];
+        const signedData = JSON.stringify([...files].sort((a, b) => a.name.localeCompare(b.name)));
+
+        const signer = createSign('RSA-SHA256');
+        signer.update(signedData);
+        const signature = signer.sign(rsaKeyPair.privateKey, 'base64');
+
+        const manifest: SignatureManifest = {
+          signatures: [
+            {
+              files,
+              algorithm: 'RS256',
+              keyid: 'allowed-key',
+              signatures: [signature],
+            },
+          ],
+        };
+
+        writeFileSync(join(bundleDir, '.signatures.json'), JSON.stringify(manifest));
+
+        const result = await envVerifier.verifyBundle(bundleDir);
+
+        expect(result.verified).toBe(true);
+      } finally {
+        delete process.env[envKeyName];
+      }
     });
   });
 

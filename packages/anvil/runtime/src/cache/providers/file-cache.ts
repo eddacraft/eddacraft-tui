@@ -168,7 +168,7 @@ export class FileCacheProvider implements CacheProvider {
       const content = newlineIndex >= 0 ? raw.slice(newlineIndex + 1) : raw;
 
       // Verify HMAC integrity (mandatory — reject entries without valid HMAC)
-      if (!storedHmac || storedHmac.length !== 64) {
+      if (!storedHmac || !/^[0-9a-f]{64}$/i.test(storedHmac)) {
         debug('Cache entry missing HMAC, rejecting to prevent injection', { key });
         await this.invalidate(key);
         index.stats.misses++;
@@ -178,9 +178,7 @@ export class FileCacheProvider implements CacheProvider {
       }
 
       const expectedHmac = this.computeHmac(content);
-      if (
-        !timingSafeEqual(Buffer.from(storedHmac, 'hex'), Buffer.from(expectedHmac, 'hex'))
-      ) {
+      if (!timingSafeEqual(Buffer.from(storedHmac, 'hex'), Buffer.from(expectedHmac, 'hex'))) {
         debug('Cache entry HMAC verification failed, possible tampering', { key });
         await this.invalidate(key);
         index.stats.misses++;
