@@ -14,7 +14,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInitCommand } from '../init.js';
-import { analyseProjectArchitecture } from '../../services/architecture-service.js';
+import {
+  analyseProjectArchitecture,
+  layersToMermaid,
+  formatLayerDiagram,
+} from '../../services/architecture-service.js';
 import { isTUIAvailable } from '../../tui/utils/tty-detection.js';
 import { renderTUI } from '../../tui/utils/renderer.js';
 import {
@@ -28,6 +32,7 @@ import {
   type TestWorkspace,
 } from '../../__tests__/helpers/test-workspace.js';
 import { TemplateGenerator } from '../../services/template-generator.js';
+import { HookInstaller } from '../../services/hook-installer.js';
 
 // Mock dependencies
 vi.mock('../../services/architecture-service.js', () => ({
@@ -742,6 +747,94 @@ describe('init command', () => {
         expect(exitCode).toBe(1);
         const errorOutput = consoleErrors.join('\n');
         expect(errorOutput).toContain('Disk full');
+      });
+    });
+
+    describe('mermaid rendering fallback', () => {
+      it('should fall back to box diagram when mermaid rendering throws', async () => {
+        vi.mocked(layersToMermaid).mockImplementationOnce(() => {
+          throw new Error('invalid mermaid syntax');
+        });
+        vi.mocked(formatLayerDiagram).mockClear();
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive'], { from: 'user' });
+
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Anvil is ready to use');
+        expect(formatLayerDiagram).toHaveBeenCalled();
+      });
+    });
+
+    describe('TUI wizard failure', () => {
+      it('should exit with error when TUI wizard cannot render', async () => {
+        vi.mocked(isTUIAvailable).mockReturnValueOnce(true);
+        const inquirerMod = await import('inquirer');
+        vi.mocked(inquirerMod.default.prompt).mockResolvedValueOnce({ archAction: 'skip' });
+        vi.mocked(renderTUI).mockReturnValueOnce(null);
+
+        const command = createInitCommand();
+        await expect(async () => {
+          await command.parseAsync([], { from: 'user' });
+        }).rejects.toThrow('process.exit(1)');
+
+        expect(exitCode).toBe(1);
+        const errorOutput = consoleErrors.join('\n');
+        expect(errorOutput).toContain('Could not start TUI wizard');
+      });
+
+      it('should exit with error when user cancels the wizard', async () => {
+        vi.mocked(isTUIAvailable).mockReturnValueOnce(true);
+        const inquirerMod = await import('inquirer');
+        vi.mocked(inquirerMod.default.prompt).mockResolvedValueOnce({ archAction: 'skip' });
+        vi.mocked(renderTUI).mockImplementationOnce(
+          (_Component: unknown, props: Record<string, unknown>) => {
+            (props as { onCancel: () => void }).onCancel();
+            return { waitUntilExit: () => Promise.resolve() } as ReturnType<typeof renderTUI>;
+          }
+        );
+
+        const command = createInitCommand();
+        await expect(async () => {
+          await command.parseAsync([], { from: 'user' });
+        }).rejects.toThrow('process.exit(1)');
+
+        expect(exitCode).toBe(1);
+        const errorOutput = consoleErrors.join('\n');
+        expect(errorOutput).toContain('Setup cancelled by user');
+      });
+    });
+
+    describe('--org hook installation errors', () => {
+      it('should show info and continue when hook installation throws', async () => {
+        initGitRepo(workspace.root);
+        vi.spyOn(HookInstaller.prototype, 'installHook').mockImplementation(() => {
+          throw new Error('EACCES: permission denied');
+        });
+
+        const command = createInitCommand();
+        await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Hook installation skipped');
+        expect(output).toContain('starter profile');
+      });
+    });
+
+    describe('--quick analysis failure', () => {
+      it('should warn and continue when quick analysis throws', async () => {
+        const SampleAnalyzerModule = await import('../../services/sample-analyzer.js');
+        vi.spyOn(
+          SampleAnalyzerModule.SampleAnalyzer.prototype,
+          'selectFiles'
+        ).mockRejectedValueOnce(new Error('Cannot read directory'));
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive', '--quick'], { from: 'user' });
+
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Anvil is ready to use');
+        expect(output).toContain('Reason: Cannot read directory');
       });
     });
   });

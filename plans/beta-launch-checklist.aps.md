@@ -119,7 +119,7 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 - [x] **TEST-007 — Config loader tests.** `packages/platform/config/src/
   loader.ts` has zero coverage.
-- [ ] **TEST-008 — Init error path tests.** `apps/anvil-cli/src/commands/
+- [x] **TEST-008 — Init error path tests.** `apps/anvil-cli/src/commands/
   init.ts` only has happy-path coverage.
 
 #### Cross-Platform

@@ -153,7 +153,7 @@ fails, hook installation errors, config file write failures.
 Verify graceful degradation and useful error messages.
 
 **Confidence:** Medium
-**Status:** Open
+**Status:** Done
 **Tags:** testing, cli, init
 **Files:** apps/anvil-cli/src/commands/init.ts
 
@@ -257,7 +257,7 @@ Windows-style paths.
 | TEST-005 | yaml-parser + schema tests | P1 | Done |
 | TEST-006 | concurrency lock-manager tests | P1 | Done |
 | TEST-007 | config loader tests | P2 | Open |
-| TEST-008 | init error path tests | P2 | Open |
+| TEST-008 | init error path tests | P2 | Done |
 | XPLAT-001 | Fix pre-push.sh find/quoting | P0 | Done |
 | XPLAT-002 | Replace UTF-8 symbols | P0 | Done |
 | XPLAT-003 | Windows hook installation | P1 | Done |
