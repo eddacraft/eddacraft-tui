@@ -21,6 +21,10 @@ interface ParsedSpecKit {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * Validate and sanitize a file path to prevent path traversal attacks.
+ * Returns undefined if the path is invalid (absolute, contains null bytes, or escapes parent directory).
+ */
 function safePath(raw: string | undefined): string | undefined {
   if (!raw) return undefined;
   try {

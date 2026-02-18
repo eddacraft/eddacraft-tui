@@ -24,6 +24,10 @@ import { createError, createWarning, generateDeterministicPlanId } from '../base
  * @param content - BMAD markdown content
  * @returns Parsed document
  */
+/**
+ * Validate and sanitize a file path to prevent path traversal attacks.
+ * Falls back to stripping special characters if validation fails.
+ */
 function safePath(raw: string): string {
   try {
     return validateRelativePath(raw);

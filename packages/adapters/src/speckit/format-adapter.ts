@@ -145,7 +145,7 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
           try {
             safePath = validateRelativePath(rawPath);
           } catch {
-            safePath = 'src/generated-file.ts';
+            continue;
           }
           changes.push({
             type: changeType,

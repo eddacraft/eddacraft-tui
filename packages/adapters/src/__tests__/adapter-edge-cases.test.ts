@@ -788,7 +788,7 @@ Path traversal test
       expect(result.success).toBe(true);
       if (result.success && result.data) {
         const paths = result.data.proposed_changes.map((c) => c.path);
-        // Traversal and absolute paths should be stripped (undefined)
+        // Traversal and absolute paths should be dropped from changes
         expect(paths).not.toContain('../../../etc/passwd');
         expect(paths).not.toContain('/etc/shadow');
         // Safe path should be preserved
