@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Box, Text, useInput, useApp } from 'ink';
 import { Header } from '../../../components/Header.js';
 import { ProgressBar } from '../../../components/ProgressBar.js';
@@ -85,24 +85,16 @@ export function DriftTutorial({ onComplete, onCleanup }: DriftTutorialProps): Re
   const { exit } = useApp();
   const [currentStep, setCurrentStep] = useState<DriftStepId>('intro');
   const [cleanedUp, setCleanedUp] = useState(false);
-
-  const goToStep = useCallback((step: DriftStepId) => {
-    setCurrentStep(step);
-  }, []);
+  const currentStepRef = useRef(currentStep);
+  currentStepRef.current = currentStep;
 
   const handleNext = useCallback(() => {
-    const next = getNextStep(currentStep);
-    if (next) {
-      goToStep(next);
-    }
-  }, [currentStep, goToStep]);
+    setCurrentStep((prev) => getNextStep(prev) ?? prev);
+  }, []);
 
   const handleBack = useCallback(() => {
-    const prev = getPreviousStep(currentStep);
-    if (prev) {
-      goToStep(prev);
-    }
-  }, [currentStep, goToStep]);
+    setCurrentStep((prev) => getPreviousStep(prev) ?? prev);
+  }, []);
 
   const handleCleanup = useCallback(() => {
     setCleanedUp(true);
@@ -115,22 +107,24 @@ export function DriftTutorial({ onComplete, onCleanup }: DriftTutorialProps): Re
   }, [onComplete, exit]);
 
   useInput((input, key) => {
+    const step = currentStepRef.current;
+
     if (input === 'q' || (key.ctrl && input === 'c')) {
       handleFinish();
       return;
     }
 
-    if (key.return && !isLastStep(currentStep)) {
+    if (key.return && !isLastStep(step)) {
       handleNext();
       return;
     }
 
-    if (key.leftArrow && canGoBack(currentStep)) {
+    if (key.leftArrow && canGoBack(step)) {
       handleBack();
       return;
     }
 
-    if (isLastStep(currentStep)) {
+    if (isLastStep(step)) {
       if (input === 'c' && !cleanedUp) {
         handleCleanup();
       }
