@@ -32,6 +32,8 @@ export default typescriptEslint.config(
       '.claude/',
       'eslint.config.mts',
       '**/*.md',
+      'vitest.config.js',
+      'playwright.config.js',
     ],
   },
   {
@@ -46,7 +48,7 @@ export default typescriptEslint.config(
   // Nx dependency checks for package.json files
   {
     files: ['**/package.json'],
-    ignores: ['node_modules/**', 'apps/e2e/package.json'],
+    ignores: ['node_modules/**', 'apps/e2e/package.json', 'apps/website/package.json'],
     plugins: {
       '@nx': nxPlugin,
     },
