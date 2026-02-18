@@ -22,7 +22,7 @@ vi.mock('../steps/scan-project.js', () => ({
 
 // Mock watch-project to prevent real filesystem watchers
 vi.mock('../steps/watch-project.js', () => ({
-  createTutorialWatcher: vi.fn(() => ({ close: vi.fn() })),
+  createTutorialWatcher: vi.fn(() => ({ close: vi.fn(), ready: Promise.resolve() })),
   WATCHED_PATTERNS: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
 }));
 

@@ -118,7 +118,11 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
           <ScanStep onComplete={handleScanComplete} scanResults={state.scanResults} />
         )}
         {state.currentStep === 'watch' && (
-          <WatchStep onComplete={handleWatchComplete} watchTriggered={state.watchTriggered} />
+          <WatchStep
+            onComplete={handleWatchComplete}
+            watchTriggered={state.watchTriggered}
+            scanResults={state.scanResults}
+          />
         )}
         {state.currentStep === 'fix' && (
           <FixStep

@@ -12,7 +12,7 @@ const mockClose = vi.fn();
 vi.mock('../steps/watch-project.js', () => ({
   createTutorialWatcher: vi.fn((_workspaceRoot: string, onEvent: (event: WatchEvent) => void) => {
     capturedOnEvent = onEvent;
-    return { close: mockClose };
+    return { close: mockClose, ready: Promise.resolve() };
   }),
   WATCHED_PATTERNS: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
 }));

@@ -59,6 +59,9 @@ export function FixStep({
       }
     });
 
+    // FixStep doesn't need to wait for ready — it watches a single known file
+    // and the watcher is set up before the user is told to edit.
+
     return () => {
       watcher.close();
     };
