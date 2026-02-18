@@ -71,3 +71,6 @@ infra/import.json
 /playwright.config.js
 /playwright.config.d.ts
 /playwright.config.d.ts.map
+
+# Morgan local agent helper logs
+/plans/agent-runs/
