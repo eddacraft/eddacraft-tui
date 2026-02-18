@@ -200,15 +200,19 @@ missing task existence check, field parsing too permissive.
 
 **File:** `src/services/anvilService.ts:371-443`
 
-**Fixed:** Gate detail entries individually validated with per-field type checks
-instead of unsafe cast to `GateDetail[]`.
+**Fixed:** Gate detail entries reconstructed as fresh `GateDetail` objects from
+per-field validated properties instead of using an unsafe cast to `GateDetail[]`.
 
 ### ~~H3. Gate output file paths not workspace-bounded~~ ✅
 
 **File:** `src/providers/gateResultsProvider.ts:422-430`
 
 **Fixed:** Violation paths resolved and bounded to workspace root before creating
-`vscode.Uri.file()`. Out-of-workspace paths silently ignored.
+`vscode.Uri.file()`. Out-of-workspace paths that fall outside the workspace root
+are discarded without user-facing notification or logging (by design, to avoid
+leaking information about non-workspace paths). A future enhancement could add
+opt-in debug logging to help diagnose missed violations in submodules or linked
+directories.
 
 ---
 

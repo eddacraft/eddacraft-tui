@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'node:path';
+import { validatePathWithinRoot } from '@eddacraft/anvil-core';
 import type { AnvilService, GateResults, GateResult } from '../services/anvilService.js';
 
 type TreeItem =
@@ -436,17 +437,15 @@ class ArchViolationItem extends vscode.TreeItem {
     this.iconPath = this.getIcon(violation.severity);
     this.contextValue = 'archViolation';
 
-    const absolutePath = path.isAbsolute(violation.from)
-      ? violation.from
-      : path.join(workspaceRoot, violation.from);
-
-    const normalised = path.resolve(absolutePath);
-    if (normalised.startsWith(workspaceRoot + path.sep) || normalised === workspaceRoot) {
+    try {
+      const normalised = validatePathWithinRoot(violation.from, workspaceRoot);
       this.command = {
         command: 'vscode.open',
         title: 'Open File',
         arguments: [vscode.Uri.file(normalised)],
       };
+    } catch {
+      // Out-of-workspace path — skip command binding
     }
   }
 

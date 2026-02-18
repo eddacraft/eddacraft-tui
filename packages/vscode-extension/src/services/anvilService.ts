@@ -271,7 +271,7 @@ export class AnvilService {
     }
 
     const stats = fs.lstatSync(cliPath);
-    if (!stats.isFile() || stats.isSymbolicLink()) {
+    if (!stats.isFile()) {
       return false;
     }
 
