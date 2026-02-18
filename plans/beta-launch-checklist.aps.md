@@ -89,14 +89,14 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Documentation
 
-- [ ] **BETA-TESTER-QUICKSTART.md has real install instructions.** The current
-  file has a `<!-- TODO: Finalise npm package availability -->` placeholder at
-  line 16. Replace with `npm install -g @eddacraft/anvil-cli`.
-- [ ] **BETA.md known limitations are accurate.** Review against current state.
-- [ ] **CHANGELOG.md reflects shipped features.** Verify nothing is listed that
-  doesn't actually work.
-- [ ] **README.md install section works.** A new user can copy-paste commands
-  and get a working install.
+- [x] **BETA-TESTER-QUICKSTART.md has real install instructions.** TODO
+  placeholder replaced with `npm install -g @eddacraft/anvil-cli`.
+- [x] **BETA.md known limitations are accurate.** Reviewed — version corrected,
+  docs site marked live, broken links fixed.
+- [x] **CHANGELOG.md reflects shipped features.** Reviewed — structure fixed,
+  security hardening summary added, repo URLs corrected.
+- [x] **README.md install section works.** "For Users (Future)" hedging removed,
+  version updated to 0.1.0.
 
 ---
 
@@ -338,11 +338,11 @@ the publish — but any Azure-dependent build steps will be skipped.
 | Category       | Blocking Items | Status |
 | -------------- | -------------- | ------ |
 | Security (C)   | 3 critical MCP verifications | [x] |
-| Security (H)   | 5 high-severity fixes/verifications | [ ] |
+| Security (H)   | 5 high-severity fixes/verifications | [x] |
 | Core CLI       | 7 functional checks | [ ] |
 | Build & Test   | 5 CI/build checks | [ ] |
 | Packaging      | 6 distribution checks | [ ] |
-| Documentation  | 4 doc updates | [ ] |
+| Documentation  | 4 doc updates | [x] |
 | **Total**      | **30 blocking items** | |
 
 No tag is cut until all 30 items are checked off.
