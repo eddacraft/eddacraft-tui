@@ -148,7 +148,7 @@ const AP004_TS_IGNORE: AntiPattern = {
     'mismatch directly.',
   enabled: true,
   optIn: false,
-  allowlist: ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'],
+  allowlist: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**'],
 };
 
 /**
