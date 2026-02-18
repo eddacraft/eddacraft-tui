@@ -101,6 +101,14 @@ Agents communicate via `.claude/agent-bus/`:
 - Trigger format in agent output: `TRIGGER:agent-name:context` (disabled by
   default)
 
+## Git Commits
+
+Sign all commits with:
+
+```
+Authored-By: aneki (aneki@eddacraft.ai)
+```
+
 ## Gotchas
 
 - `mcp.json` and `settings.json` both define MCP servers — `settings.json` takes
