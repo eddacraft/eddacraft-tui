@@ -45,7 +45,7 @@ describe('runInteractiveReview', () => {
   });
 
   it('should call prompt for each non-suppressed warning', async () => {
-    const warnings = [makeWarning(), makeWarning({ id: 'AP-004', title: '@ts-ignore' })];
+    const warnings = [makeWarning(), makeWarning({ id: 'AP-004', title: 'ts-ignore directive' })];
     const promptFn = vi.fn().mockResolvedValue('skip');
 
     const results = await runInteractiveReview(warnings, promptFn);
@@ -71,7 +71,7 @@ describe('runInteractiveReview', () => {
     // AP-004 is fixable, AP-003 is not
     const warnings = [
       makeWarning({ id: 'AP-003' }),
-      makeWarning({ id: 'AP-004', title: '@ts-ignore' }),
+      makeWarning({ id: 'AP-004', title: 'ts-ignore directive' }),
     ];
 
     const capturedChoices: Array<Array<{ name: string; value: string }>> = [];
@@ -110,7 +110,7 @@ describe('runInteractiveReview', () => {
 
   it('should record fix and suppress actions', async () => {
     const warnings = [
-      makeWarning({ id: 'AP-004', title: '@ts-ignore' }),
+      makeWarning({ id: 'AP-004', title: 'ts-ignore directive' }),
       makeWarning({ id: 'AP-003' }),
     ];
 

@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { withSpinner, createSpinner } from './spinner.js';
-import ora from 'ora';
+import ora, { type Ora } from 'ora';
 
 vi.mock('ora');
 
 describe('spinner utilities', () => {
-  let mockSpinner: any;
+  let mockSpinner: Pick<Ora, 'start' | 'succeed' | 'fail' | 'text'>;
 
   beforeEach(() => {
     mockSpinner = {

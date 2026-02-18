@@ -116,7 +116,7 @@ const AP003_ANY_TYPE: AntiPattern = {
     'with type guards before use.',
   enabled: true,
   optIn: false,
-  allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts'],
+  allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts', '**/__tests__/**'],
 };
 
 /**
@@ -148,6 +148,7 @@ const AP004_TS_IGNORE: AntiPattern = {
     'mismatch directly.',
   enabled: true,
   optIn: false,
+  allowlist: ['**/__tests__/**', '**/*.test.ts', '**/*.spec.ts'],
 };
 
 /**
