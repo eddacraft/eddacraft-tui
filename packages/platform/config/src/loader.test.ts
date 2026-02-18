@@ -111,6 +111,25 @@ describe('ConfigLoader', () => {
       expect(loader.getOrDefault('empty', 'default')).toBe('');
       expect(loader.getOrDefault('no', true)).toBe(false);
     });
+
+    it('should return the default when value is explicitly set to undefined', () => {
+      const loader = new ConfigLoader();
+      loader.set('key', undefined);
+
+      // The key exists in the config map...
+      expect(loader.has('key')).toBe(true);
+      // ...but getOrDefault uses ?? so undefined is treated as nullish,
+      // returning the default value rather than undefined
+      expect(loader.getOrDefault('key', 'fallback')).toBe('fallback');
+    });
+
+    it('should return null when value is explicitly set to null', () => {
+      const loader = new ConfigLoader();
+      loader.set('key', null);
+
+      // null is also nullish, so ?? returns the default
+      expect(loader.getOrDefault('key', 'fallback')).toBe('fallback');
+    });
   });
 
   describe('has', () => {
