@@ -141,8 +141,8 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 - [x] Changeset-based versioning (`@changesets/cli` is configured but unused)
 - [x] Provenance attestation on npm publish (`--provenance` flag)
 - [ ] VS Code extension marketplace listing
-- [ ] Docs site live on Vercel (currently configured but not verified)
-- [ ] Website live on Vercel
+- [x] Docs site live on Vercel (currently configured but not verified)
+- [x] Website live on Vercel
 - [ ] Remaining 15 HIGH security findings from REVIEW.md
 - [ ] Branch protection rules on `main` requiring CI pass
 - [ ] npm 2FA / automation token best practices documented
@@ -241,9 +241,9 @@ Pushing the `v0.1.0` tag triggers `.github/workflows/publish.yml` which:
 4.  Verify GitHub Release exists:
       gh release view v0.1.0
       # Should show release notes and tag
-5.  Verify docs site is live (if deployed):
+5.  Verify docs site is live:
       curl -s https://docs.eddacraft.com | head -1
-6.  Verify website is live (if deployed):
+6.  Verify website is live:
       curl -s https://anvil.eddacraft.com | head -1
 ```
 
