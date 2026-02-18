@@ -4,7 +4,7 @@
  * Parses BMAD format documents (PRD, Architecture, Epics, Stories) into APS plans.
  */
 
-import type { APSPlan, Change } from '@eddacraft/anvil-core';
+import { type APSPlan, type Change, validateRelativePath } from '@eddacraft/anvil-core';
 import type { ParseContext, AdapterError, AdapterWarning } from '../base/types.js';
 import { BMADDocument, BMADRequirement, BMADUserStory, RequirementType } from './types.js';
 import {
@@ -24,6 +24,14 @@ import { createError, createWarning, generateDeterministicPlanId } from '../base
  * @param content - BMAD markdown content
  * @returns Parsed document
  */
+function safePath(raw: string): string {
+  try {
+    return validateRelativePath(raw);
+  } catch {
+    return raw.replace(/[^a-z0-9/._-]/gi, '').replace(/\.{2,}/g, '');
+  }
+}
+
 /** Maximum input size for BMAD parsing (2MB) */
 const MAX_INPUT_SIZE = 2 * 1024 * 1024;
 
@@ -65,7 +73,7 @@ function requirementToChange(requirement: BMADRequirement): Change {
       // FR typically means creating or updating files
       return {
         type: 'file_create',
-        path: `features/${requirement.id.toLowerCase()}.ts`,
+        path: safePath(`features/${requirement.id.toLowerCase()}.ts`),
         description: `${requirement.id}: ${requirement.description}`,
       };
 
@@ -81,14 +89,14 @@ function requirementToChange(requirement: BMADRequirement): Change {
       // US typically means creating feature files
       return {
         type: 'file_create',
-        path: `features/stories/${requirement.id.toLowerCase()}.ts`,
+        path: safePath(`features/stories/${requirement.id.toLowerCase()}.ts`),
         description: `${requirement.id}: ${requirement.description}`,
       };
 
     default:
       return {
         type: 'file_create',
-        path: `requirements/${requirement.id.toLowerCase()}.md`,
+        path: safePath(`requirements/${requirement.id.toLowerCase()}.md`),
         description: requirement.description,
       };
   }
@@ -113,7 +121,7 @@ function userStoryToChange(story: BMADUserStory): Change {
 
   return {
     type: 'file_create',
-    path: `features/stories/${story.id.toLowerCase()}.ts`,
+    path: safePath(`features/stories/${story.id.toLowerCase()}.ts`),
     description,
   };
 }

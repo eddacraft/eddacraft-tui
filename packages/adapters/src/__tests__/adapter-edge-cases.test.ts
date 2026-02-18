@@ -761,6 +761,131 @@ Minimal context
     });
   });
 
+  describe('Path Traversal Prevention', () => {
+    it('should strip traversal paths from SpecKit backtick extraction', async () => {
+      const content = `# Specification
+
+## Intent
+
+Path traversal test
+
+## Changes
+
+### Create malicious file
+
+\`../../../etc/passwd\`
+
+### Update safe file
+
+\`src/app.ts\`
+
+### Absolute path attempt
+
+\`/etc/shadow\``;
+
+      const result = await speckitAdapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success && result.data) {
+        const paths = result.data.proposed_changes.map((c) => c.path);
+        // Traversal and absolute paths should be stripped (undefined)
+        expect(paths).not.toContain('../../../etc/passwd');
+        expect(paths).not.toContain('/etc/shadow');
+        // Safe path should be preserved
+        expect(paths).toContain('src/app.ts');
+      }
+    });
+
+    it('should strip traversal paths from SpecKit list items', async () => {
+      const content = `# Specification
+
+## Intent
+
+List item path traversal test
+
+## Changes
+
+- Create file \`../../secrets/key.pem\` for credentials
+- Update \`src/config.ts\` with new settings
+- Delete \`/absolute/path/file.ts\` permanently`;
+
+      const result = await speckitAdapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success && result.data) {
+        const paths = result.data.proposed_changes.map((c) => c.path);
+        expect(paths).not.toContain('../../secrets/key.pem');
+        expect(paths).not.toContain('/absolute/path/file.ts');
+        expect(paths).toContain('src/config.ts');
+      }
+    });
+
+    it('should handle null bytes in paths - SpecKit', async () => {
+      const content = `# Specification
+
+## Intent
+
+Null byte test
+
+## Changes
+
+### Create file
+
+\`src/app\x00.ts\``;
+
+      const result = await speckitAdapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success && result.data) {
+        const paths = result.data.proposed_changes.map((c) => c.path);
+        expect(paths).not.toContain('src/app\x00.ts');
+      }
+    });
+
+    it('should sanitise BMAD requirement ID-based paths', async () => {
+      const content = `---
+name: Path Traversal Test
+---
+
+FR-01: Valid requirement
+FR-../../etc/passwd: Malicious requirement`;
+
+      const result = await bmadAdapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success && result.data) {
+        for (const change of result.data.proposed_changes) {
+          if (change.path) {
+            expect(change.path).not.toContain('..');
+            expect(change.path.startsWith('/')).toBe(false);
+          }
+        }
+      }
+    });
+
+    it('should sanitise Generic parser generated paths', async () => {
+      const content = `# Project Plan
+
+## Tasks
+
+- ../../../etc/passwd
+- Normal task description
+- /absolute/path/attack`;
+
+      const result = await genericAdapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success && result.data) {
+        for (const change of result.data.proposed_changes) {
+          if (change.path) {
+            expect(change.path).not.toContain('..');
+            expect(change.path.startsWith('/')).toBe(false);
+          }
+        }
+      }
+    });
+  });
+
   describe('File Extension and Format Detection', () => {
     it('should detect format from content when extension is ambiguous', () => {
       const speckitContent = `# Specification

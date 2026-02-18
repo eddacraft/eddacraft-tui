@@ -14,6 +14,7 @@ import {
   type ValidationResult,
   type Change,
   createPlan,
+  validateRelativePath,
 } from '@eddacraft/anvil-core';
 import {
   BaseFormatAdapter,
@@ -139,9 +140,16 @@ export class SpecKitFormatAdapter extends BaseFormatAdapter {
       if (parsed.changes && parsed.changes.length > 0) {
         for (const change of parsed.changes) {
           const changeType = this.inferChangeType(change.type);
+          const rawPath = change.path || this.inferPathFromDescription(change.description);
+          let safePath: string;
+          try {
+            safePath = validateRelativePath(rawPath);
+          } catch {
+            safePath = 'src/generated-file.ts';
+          }
           changes.push({
             type: changeType,
-            path: change.path || this.inferPathFromDescription(change.description),
+            path: safePath,
             description: change.description,
             content: change.content,
           });

@@ -1,3 +1,5 @@
+import { validateRelativePath } from '@eddacraft/anvil-core';
+
 interface MarkdownSection {
   title: string;
   level: number;
@@ -17,6 +19,15 @@ interface ParsedSpecKit {
     content?: string;
   }>;
   metadata?: Record<string, unknown>;
+}
+
+function safePath(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  try {
+    return validateRelativePath(raw);
+  } catch {
+    return undefined;
+  }
 }
 
 export class SpecKitParser {
@@ -280,7 +291,7 @@ export class SpecKitParser {
       const firstLine = section.content.split('\n')[0];
       pathMatch = firstLine.match(/`([^`]+)`/);
     }
-    const path = pathMatch ? pathMatch[1] : undefined;
+    const path = safePath(pathMatch?.[1]);
 
     const codeBlockMatch = section.content.match(/```[\w]*\n([\s\S]*?)```/);
     const content = codeBlockMatch ? codeBlockMatch[1].trim() : undefined;
@@ -325,7 +336,7 @@ export class SpecKitParser {
     }
 
     const pathMatch = item.match(/`([^`]+)`/);
-    const path = pathMatch ? pathMatch[1] : undefined;
+    const path = safePath(pathMatch?.[1]);
 
     return {
       type,

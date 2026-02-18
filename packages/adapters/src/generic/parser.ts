@@ -4,7 +4,7 @@
  * Parses generic markdown documents into APS plans.
  */
 
-import type { APSPlan, Change } from '@eddacraft/anvil-core';
+import { type APSPlan, type Change, validateRelativePath } from '@eddacraft/anvil-core';
 import type { ParseContext } from '../base/types.js';
 import type { GenericDocument } from './types.js';
 import { generateDeterministicPlanId } from '../base/utils.js';
@@ -40,9 +40,17 @@ function itemToChange(item: string, type: 'requirement' | 'task' | 'feature'): C
     .replace(/\s+/g, '-')
     .substring(0, 50);
 
+  const rawPath = `${pathPrefix}/${slug}.ts`;
+  let safePath: string;
+  try {
+    safePath = validateRelativePath(rawPath);
+  } catch {
+    safePath = rawPath.replace(/\.{2,}/g, '');
+  }
+
   return {
     type: changeType,
-    path: `${pathPrefix}/${slug}.ts`,
+    path: safePath,
     description: item,
   };
 }
