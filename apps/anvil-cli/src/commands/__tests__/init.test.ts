@@ -14,6 +14,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInitCommand } from '../init.js';
+import { analyseProjectArchitecture } from '../../services/architecture-service.js';
+import { isTUIAvailable } from '../../tui/utils/tty-detection.js';
+import { renderTUI } from '../../tui/utils/renderer.js';
 import {
   createTestWorkspace,
   createPackageJson,
@@ -24,8 +27,38 @@ import {
   createLockfile,
   type TestWorkspace,
 } from '../../__tests__/helpers/test-workspace.js';
+import { TemplateGenerator } from '../../services/template-generator.js';
 
 // Mock dependencies
+vi.mock('../../services/architecture-service.js', () => ({
+  analyseProjectArchitecture: vi.fn().mockResolvedValue({
+    moduleCount: 0,
+    entryPoints: [],
+    layers: {},
+    layerAssignments: new Map(),
+  }),
+  formatEntryPointsSummary: vi.fn().mockReturnValue(''),
+  formatEntryPoints: vi.fn().mockReturnValue([]),
+  formatLayerDiagram: vi.fn().mockReturnValue([]),
+  layersToMermaid: vi.fn().mockReturnValue('graph TD'),
+  generateArchitectureExplanation: vi.fn().mockReturnValue({
+    templateName: 'basic',
+    insights: [],
+    nextSteps: [],
+  }),
+  formatArchitectureExplanation: vi.fn().mockReturnValue([]),
+  saveArchitectureBaseline: vi.fn(),
+  hasExistingBaseline: vi.fn().mockReturnValue(false),
+}));
+
+vi.mock('../../tui/utils/tty-detection.js', () => ({
+  isTUIAvailable: vi.fn().mockReturnValue(false),
+}));
+
+vi.mock('../../tui/utils/renderer.js', () => ({
+  renderTUI: vi.fn().mockReturnValue(null),
+}));
+
 vi.mock('inquirer', () => ({
   default: {
     prompt: vi.fn(),
@@ -37,6 +70,7 @@ vi.mock('ora', () => ({
     start: vi.fn().mockReturnThis(),
     succeed: vi.fn().mockReturnThis(),
     fail: vi.fn().mockReturnThis(),
+    warn: vi.fn().mockReturnThis(),
     text: '',
   })),
 }));
@@ -62,6 +96,7 @@ describe('init command', () => {
   let originalExit: typeof process.exit;
   let exitCode: number | null = null;
   let consoleOutput: string[] = [];
+  let consoleErrors: string[] = [];
 
   beforeEach(() => {
     // Create test workspace
@@ -76,10 +111,14 @@ describe('init command', () => {
       throw new Error(`process.exit(${exitCode})`);
     }) as unknown as typeof process.exit;
 
-    // Mock console.log to capture output
+    // Mock console.log and console.error to capture output
     consoleOutput = [];
+    consoleErrors = [];
     vi.spyOn(console, 'log').mockImplementation((...args) => {
       consoleOutput.push(args.map((arg) => String(arg)).join(' '));
+    });
+    vi.spyOn(console, 'error').mockImplementation((...args) => {
+      consoleErrors.push(args.map((arg) => String(arg)).join(' '));
     });
 
     exitCode = null;
@@ -535,6 +574,175 @@ describe('init command', () => {
 
       const output = consoleOutput.join('\n');
       expect(output).toContain('Anvil is ready to use');
+    });
+  });
+
+  describe('error paths', () => {
+    describe('architecture analysis failure', () => {
+      it('should warn and continue when architecture analysis throws an Error', async () => {
+        vi.mocked(analyseProjectArchitecture).mockRejectedValueOnce(
+          new Error('No source files found')
+        );
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive'], { from: 'user' });
+
+        // Init should still succeed despite the architecture failure
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Anvil is ready to use');
+        expect(output).toContain('Reason: No source files found');
+      });
+
+      it('should warn and continue when architecture analysis throws a non-Error', async () => {
+        vi.mocked(analyseProjectArchitecture).mockRejectedValueOnce('unexpected string error');
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive'], { from: 'user' });
+
+        // Init should still succeed
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Anvil is ready to use');
+        // Non-Error values don't produce a "Reason:" line
+        expect(output).not.toContain('Reason:');
+      });
+
+      it('should skip baseline creation when architecture analysis fails', async () => {
+        vi.mocked(analyseProjectArchitecture).mockRejectedValueOnce(new Error('analysis failed'));
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive'], { from: 'user' });
+
+        const output = consoleOutput.join('\n');
+        // architecture.json should not be listed in created files
+        expect(output).not.toContain('architecture.json');
+      });
+    });
+
+    describe('template generator failure', () => {
+      it('should exit with code 1 when createAnvilDirectory throws', async () => {
+        vi.spyOn(TemplateGenerator.prototype, 'createAnvilDirectory').mockImplementationOnce(() => {
+          throw new Error('EACCES: permission denied');
+        });
+
+        const command = createInitCommand();
+        await expect(async () => {
+          await command.parseAsync(['--non-interactive'], { from: 'user' });
+        }).rejects.toThrow('process.exit(1)');
+
+        expect(exitCode).toBe(1);
+        const errorOutput = consoleErrors.join('\n');
+        expect(errorOutput).toContain('EACCES: permission denied');
+      });
+
+      it('should exit with code 1 when generateAnvilrc throws', async () => {
+        vi.spyOn(TemplateGenerator.prototype, 'generateAnvilrc').mockImplementationOnce(() => {
+          throw new Error('Failed to write .anvilrc');
+        });
+
+        const command = createInitCommand();
+        await expect(async () => {
+          await command.parseAsync(['--non-interactive'], { from: 'user' });
+        }).rejects.toThrow('process.exit(1)');
+
+        expect(exitCode).toBe(1);
+        const errorOutput = consoleErrors.join('\n');
+        expect(errorOutput).toContain('Failed to write .anvilrc');
+      });
+
+      it('should format non-Error throws as Unknown error', async () => {
+        vi.spyOn(TemplateGenerator.prototype, 'createAnvilDirectory').mockImplementationOnce(() => {
+          throw 'raw string error';
+        });
+
+        const command = createInitCommand();
+        await expect(async () => {
+          await command.parseAsync(['--non-interactive'], { from: 'user' });
+        }).rejects.toThrow('process.exit(1)');
+
+        expect(exitCode).toBe(1);
+        const errorOutput = consoleErrors.join('\n');
+        expect(errorOutput).toContain('Unknown error');
+      });
+    });
+
+    describe('intelligent analysis failure', () => {
+      it('should warn and show next steps when analysis throws an Error', async () => {
+        // Mock RepoScanner to throw during analysis
+        const RepoScannerModule = await import('../../services/repo-scanner.js');
+        vi.spyOn(RepoScannerModule.RepoScanner.prototype, 'scan').mockRejectedValueOnce(
+          new Error('Git repository not found')
+        );
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive'], { from: 'user' });
+
+        const output = consoleOutput.join('\n');
+        // Should still succeed overall
+        expect(output).toContain('Anvil is ready to use');
+        // Should display the error reason
+        expect(output).toContain('Reason: Git repository not found');
+        // Should show next steps (fallback from dashboard)
+        expect(output).toContain('Next steps:');
+      });
+
+      it('should warn and continue when analysis throws a non-Error', async () => {
+        const RepoScannerModule = await import('../../services/repo-scanner.js');
+        vi.spyOn(RepoScannerModule.RepoScanner.prototype, 'scan').mockRejectedValueOnce(42);
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive'], { from: 'user' });
+
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Anvil is ready to use');
+        // Non-Error values don't produce a "Reason:" line
+        expect(output).not.toContain('Reason:');
+      });
+    });
+
+    describe('--no-analysis flag', () => {
+      it('should skip analysis entirely when --no-analysis is passed', async () => {
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive', '--no-analysis'], { from: 'user' });
+
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Skipping automatic analysis');
+        expect(output).toContain('Anvil is ready to use');
+      });
+    });
+
+    describe('TUI rendering failure for results dashboard', () => {
+      it('should warn and show next steps when renderTUI returns null', async () => {
+        vi.mocked(isTUIAvailable).mockReturnValueOnce(true);
+        vi.mocked(renderTUI).mockReturnValueOnce(null);
+
+        const command = createInitCommand();
+        await command.parseAsync(['--non-interactive'], { from: 'user' });
+
+        // The renderTUI null is caught by the analysis catch block, not outer catch
+        // Init should still succeed
+        const output = consoleOutput.join('\n');
+        expect(output).toContain('Anvil is ready to use');
+        expect(output).toContain('Reason: Could not render results dashboard');
+        // Next steps should be shown since dashboard wasn't displayed
+        expect(output).toContain('Next steps:');
+      });
+    });
+
+    describe('--org flow error paths', () => {
+      it('should exit with code 1 when template generator fails in --org mode', async () => {
+        vi.spyOn(TemplateGenerator.prototype, 'createAnvilDirectory').mockImplementationOnce(() => {
+          throw new Error('Disk full');
+        });
+
+        const command = createInitCommand();
+        await expect(async () => {
+          await command.parseAsync(['--org', 'my-org'], { from: 'user' });
+        }).rejects.toThrow('process.exit(1)');
+
+        expect(exitCode).toBe(1);
+        const errorOutput = consoleErrors.join('\n');
+        expect(errorOutput).toContain('Disk full');
+      });
     });
   });
 });
