@@ -77,6 +77,20 @@ function detectHusky(workspaceRoot: string): { detected: boolean; huskyDir: stri
 /**
  * Install a Git hook
  */
+/**
+ * Inject the Anvil marker into hook content, placing it after the shebang
+ * line (if present) so the shebang remains on line 1.
+ */
+function injectMarker(hookContent: string): string {
+  if (hookContent.startsWith('#!')) {
+    const newlineIdx = hookContent.indexOf('\n');
+    if (newlineIdx !== -1) {
+      return `${hookContent.slice(0, newlineIdx)}\n${ANVIL_MARKER}${hookContent.slice(newlineIdx)}`;
+    }
+  }
+  return `${ANVIL_MARKER}\n${hookContent}`;
+}
+
 function installHook(
   hooksDir: string,
   hookName: string,
@@ -84,6 +98,7 @@ function installHook(
   force: boolean
 ): { success: boolean; message: string; action: 'created' | 'updated' | 'skipped' } {
   const hookPath = join(hooksDir, hookName);
+  const markedContent = injectMarker(hookContent);
 
   // Check if hook already exists
   if (existsSync(hookPath)) {
@@ -91,7 +106,7 @@ function installHook(
 
     // If it's already an Anvil hook, update it
     if (existingContent.includes(ANVIL_MARKER)) {
-      writeFileSync(hookPath, `${ANVIL_MARKER}\n${hookContent}`, 'utf-8');
+      writeFileSync(hookPath, markedContent, 'utf-8');
       chmodSync(hookPath, 0o755);
       return { success: true, message: `Updated ${hookName}`, action: 'updated' };
     }
@@ -101,7 +116,7 @@ function installHook(
       // Backup existing hook
       const backupPath = `${hookPath}.anvil-backup`;
       writeFileSync(backupPath, existingContent, 'utf-8');
-      writeFileSync(hookPath, `${ANVIL_MARKER}\n${hookContent}`, 'utf-8');
+      writeFileSync(hookPath, markedContent, 'utf-8');
       chmodSync(hookPath, 0o755);
       return {
         success: true,
@@ -119,7 +134,7 @@ function installHook(
   }
 
   // Create new hook
-  writeFileSync(hookPath, `${ANVIL_MARKER}\n${hookContent}`, 'utf-8');
+  writeFileSync(hookPath, markedContent, 'utf-8');
   chmodSync(hookPath, 0o755);
   return { success: true, message: `Created ${hookName}`, action: 'created' };
 }

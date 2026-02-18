@@ -85,6 +85,8 @@ describe('SystemChecks', () => {
       const check = new GitCheck();
       const result = await check.run(context);
       if (result.status === 'skip') {
+        // Environment blocks process spawning — assert skip is intentional
+        expect(result.message).toBeDefined();
         return;
       }
       if (gitAvailable) {
@@ -102,6 +104,8 @@ describe('SystemChecks', () => {
       const check = new GitRepoCheck();
       const result = await check.run(context);
       if (result.status === 'skip') {
+        // Environment blocks process spawning — assert skip is intentional
+        expect(result.message).toBeDefined();
         return;
       }
       if (gitAvailable) {

@@ -45,20 +45,17 @@ describe('HookInstaller', () => {
   });
 
   describe('installHook', () => {
-    it('should create hook file with Anvil marker', () => {
+    it('should create hook file with Anvil marker after shebang', () => {
       installer.installHook(tempDir, 'pre-commit', hooksDir);
       const hookPath = join(tempDir, hooksDir, 'pre-commit');
 
       expect(existsSync(hookPath)).toBe(true);
       const content = readFileSync(hookPath, 'utf-8');
-      expect(content.startsWith(ANVIL_MARKER)).toBe(true);
-    });
-
-    it('should create hook file with shebang', () => {
-      installer.installHook(tempDir, 'pre-commit', hooksDir);
-      const hookPath = join(tempDir, hooksDir, 'pre-commit');
-      const content = readFileSync(hookPath, 'utf-8');
-      expect(content).toContain('#!/bin/sh');
+      expect(content).toContain(ANVIL_MARKER);
+      // Shebang must be on line 1, marker on line 2
+      const lines = content.split('\n');
+      expect(lines[0]).toMatch(/^#!/);
+      expect(lines[1]).toBe(ANVIL_MARKER);
     });
 
     it('should create hooks directory if it does not exist', () => {

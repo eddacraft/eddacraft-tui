@@ -21,6 +21,7 @@ type log_debug >/dev/null 2>&1 && log_debug "plan_files_count=$(echo "$PLAN_FILE
 if [ -n "$PLAN_FILES" ]; then
   echo "Anvil: Validating planning documents..."
   type log_info >/dev/null 2>&1 && log_info "validating planning documents"
+  FAILED=0
 
   for file in $PLAN_FILES; do
     type log_trace >/dev/null 2>&1 && log_trace "validating: $file"
@@ -28,9 +29,19 @@ if [ -n "$PLAN_FILES" ]; then
       echo "  [OK] $file"
       type log_debug >/dev/null 2>&1 && log_debug "validated OK: $file"
     else
-      type log_trace >/dev/null 2>&1 && log_trace "validation skipped (anvil not available or file not a plan): $file"
+      echo "  [FAIL] $file"
+      type log_debug >/dev/null 2>&1 && log_debug "validated FAIL: $file"
+      FAILED=1
     fi
   done
+
+  if [ "$FAILED" -ne 0 ]; then
+    echo ""
+    echo "Commit blocked: one or more plan files failed validation."
+    echo "Run 'anvil validate <file>' to see details."
+    type log_exit >/dev/null 2>&1 && log_exit 1
+    exit 1
+  fi
 
   type log_info >/dev/null 2>&1 && log_info "planning document validation complete"
 fi

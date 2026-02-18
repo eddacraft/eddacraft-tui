@@ -203,8 +203,11 @@ exit 0
       mkdirSync(hooksDir, { recursive: true });
     }
 
-    // Write hook file with Anvil marker
-    writeFileSync(hookPath, `${ANVIL_MARKER}\n${hookContent}`, { mode: 0o755 });
+    // Write hook file with Anvil marker (after shebang if present)
+    const markedContent = hookContent.startsWith('#!')
+      ? hookContent.replace('\n', `\n${ANVIL_MARKER}\n`)
+      : `${ANVIL_MARKER}\n${hookContent}`;
+    writeFileSync(hookPath, markedContent, { mode: 0o755 });
 
     // Make executable
     try {
