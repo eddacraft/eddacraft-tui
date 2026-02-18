@@ -24,7 +24,8 @@ const execAsync = promisify(exec);
 
 const toFwd = (p: string): string => p.replace(/\\/g, '/');
 
-describe('SampleAnalyzer', () => {
+// Git operations in temp dirs are slower on Windows CI runners.
+describe('SampleAnalyzer', { timeout: 30_000 }, () => {
   let workspace: TestWorkspace;
   let analyzer: SampleAnalyzer;
 

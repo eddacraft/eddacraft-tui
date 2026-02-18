@@ -23,7 +23,9 @@ import { promisify } from 'node:util';
 
 const execAsync = promisify(exec);
 
-describe('HistoricalAnalyzer', () => {
+// Git operations (init, add, commit, log) in temp dirs are slower on Windows
+// CI runners; bump the per-test timeout to prevent flaky timeouts.
+describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
   let workspace: TestWorkspace;
   let analyzer: HistoricalAnalyzer;
 
