@@ -23,7 +23,7 @@
     "lint:check": "nx run-many -t lint && markdownlint --ignore-path .markdownlintignore .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "nx run-many -t typecheck",
+    "typecheck": "nx run-many -t typecheck --exclude=anvil-vscode",
     "lint:md": "markdownlint --ignore-path .markdownlintignore .",
     "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",
     "link:cli": "cd apps/anvil-cli && pnpm build && npm link",

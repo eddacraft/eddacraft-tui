@@ -355,6 +355,7 @@ graph TD
 | [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | In Progress | 0.1.x   | antipattern-library                                       |
 | [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | In Progress | 0.1.x   | —                                                         |
 | [code-review-backlog](./modules/code-review-backlog.aps.md)             | CRB      | Draft       | 0.1.x   | —                                                         |
+| [nx-task-migration](./modules/nx-task-migration.aps.md)                 | NXTASK   | Ready       | 0.1.x   | —                                                         |
 
 ### Task Status — 0.1.0 (Core Engine)
 
@@ -926,6 +927,20 @@ improvements tracked for future work.
 | CRB-023 | crb    | Silent fallbacks without visibility                 | Draft  | Medium   |
 | CRB-024 | crb    | Subprocess calls without timeouts in CI             | Draft  | Medium   |
 | CRB-025 | crb    | Docs and scripts drifting from reality              | Draft  | Low      |
+
+### Task Status — 0.1.x (Nx Task Migration)
+
+Migrate root-level lint, typecheck, and test scripts from monolithic processes to
+Nx-orchestrated per-project targets.
+
+| Task        | Module | Description                                           | Status | Priority |
+| ----------- | ------ | ----------------------------------------------------- | ------ | -------- |
+| NXTASK-001  | nxtask | Ensure nx sync is clean and TS references are current | Ready  | high     |
+| NXTASK-002  | nxtask | Wire eslint-plugin-anvil as Nx build dependency       | Ready  | high     |
+| NXTASK-003  | nxtask | Migrate root lint scripts to nx run-many              | Ready  | high     |
+| NXTASK-004  | nxtask | Migrate root typecheck script to nx run-many          | Ready  | high     |
+| NXTASK-005  | nxtask | Migrate root test script to nx run-many               | Ready  | medium   |
+| NXTASK-006  | nxtask | Update CI to use nx affected                          | Ready  | high     |
 
 ### Task Status — Post-1.0.0 (Multi-Language Placeholders)
 
