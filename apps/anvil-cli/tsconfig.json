@@ -26,19 +26,13 @@
       "path": "../../packages/anvil/runtime"
     },
     {
-      "path": "../../packages/mcp-server"
-    },
-    {
-      "path": "../../packages/edda-stack"
-    },
-    {
       "path": "../../packages/anvil/core"
     },
     {
       "path": "../../packages/aps"
     },
     {
-      "path": "../../packages/platform/config"
+      "path": "../../packages/kindling-integration"
     },
     {
       "path": "../../packages/adapters"

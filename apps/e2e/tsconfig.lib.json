@@ -7,6 +7,12 @@
   "exclude": ["src/**/*.test.ts", "src/**/*.spec.ts"],
   "references": [
     {
+      "path": "../../packages/anvil/contracts/tsconfig.lib.json"
+    },
+    {
+      "path": "../anvil-api"
+    },
+    {
       "path": "../../packages/edda-stack"
     },
     {
@@ -23,9 +29,6 @@
     },
     {
       "path": "../../packages/anvil/core/tsconfig.lib.json"
-    },
-    {
-      "path": "../../packages/anvil/contracts/tsconfig.lib.json"
     }
   ]
 }
