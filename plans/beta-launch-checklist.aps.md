@@ -45,18 +45,18 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Core CLI Functionality
 
-- [ ] **`anvil init` works end-to-end** on Linux, macOS, and Windows (Git Bash).
+- [x] **`anvil init` works end-to-end** on Linux, macOS, and Windows (Git Bash).
   TUI wizard completes, `.anvilrc` is created, hooks are installed (or skipped
   with a message on Windows without Git Bash).
-- [ ] **`anvil check --all` returns correct results** on a real project. No
+- [x] **`anvil check --all` returns correct results** on a real project. No
   crashes, no false positives from default config, exit codes are correct (0 =
   clean, 1 = violations found).
-- [ ] **`anvil check --changed` and `--staged` work** with current git state.
-- [ ] **`anvil watch --source` starts and stops cleanly.** Ctrl+C exits without
+- [x] **`anvil check --changed` and `--staged` work** with current git state.
+- [x] **`anvil watch --source` starts and stops cleanly.** Ctrl+C exits without
   orphan processes. File changes trigger re-analysis.
-- [ ] **`anvil doctor` and `anvil status` run without errors.**
-- [ ] **`anvil explain <id>` resolves** for all 7 built-in anti-pattern IDs.
-- [ ] **`anvil tutorial` completes** the full scan-watch-fix flow without
+- [x] **`anvil doctor` and `anvil status` run without errors.**
+- [x] **`anvil explain <id>` resolves** for all 7 built-in anti-pattern IDs.
+- [x] **`anvil tutorial` completes** the full scan-watch-fix flow without
   errors.
 
 #### Build & Test
@@ -339,7 +339,7 @@ the publish — but any Azure-dependent build steps will be skipped.
 | -------------- | -------------- | ------ |
 | Security (C)   | 3 critical MCP verifications | [x] |
 | Security (H)   | 5 high-severity fixes/verifications | [x] |
-| Core CLI       | 7 functional checks | [ ] |
+| Core CLI       | 7 functional checks | [x] |
 | Build & Test   | 5 CI/build checks | [ ] |
 | Packaging      | 6 distribution checks | [ ] |
 | Documentation  | 4 doc updates | [x] |
