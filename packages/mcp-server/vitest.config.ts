@@ -4,7 +4,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: [
+      'src/utils/**/*.{test,spec}.{ts,tsx}',
+      'src/tools/suppress.tool.{test,spec}.{ts,tsx}',
+      'src/transports/**/*.{test,spec}.{ts,tsx}',
+      'src/prompts/**/*.{test,spec}.{ts,tsx}',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
