@@ -114,7 +114,7 @@ export function TemplateBrowser({
       return;
     }
 
-    if (key.escape) {
+    if (key.escape || input === 'q') {
       if (view === 'categories') {
         onCancel();
         exit();
@@ -151,6 +151,24 @@ export function TemplateBrowser({
   });
 
   if (view === 'categories') {
+    if (categories.length === 0) {
+      return (
+        <Box flexDirection="column">
+          <Box marginBottom={1}>
+            <Text bold color={theme.colours.warning}>
+              {theme.icons.warning} No templates found
+            </Text>
+          </Box>
+          <Box>
+            <Text dimColor>No templates are available in this workspace.</Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text dimColor>Press Esc to go back</Text>
+          </Box>
+        </Box>
+      );
+    }
+
     return (
       <Box flexDirection="column">
         <Box marginBottom={1}>
@@ -158,20 +176,42 @@ export function TemplateBrowser({
         </Box>
         {categories.map((cat, idx) => (
           <Box key={cat}>
-            <Text color={idx === categoryIndex ? 'cyan' : undefined}>
+            <Text
+              bold={idx === categoryIndex}
+              color={idx === categoryIndex ? theme.colours.ember : undefined}
+              underline={idx === categoryIndex}
+            >
               {idx === categoryIndex ? `${theme.icons.arrow} ` : '  '}
               {cat.toUpperCase()}
             </Text>
           </Box>
         ))}
         <Box marginTop={1}>
-          <Text dimColor>Use arrow keys to navigate, Enter to select, Esc to cancel</Text>
+          <Text dimColor>j/k or arrows to navigate • Enter to select • q/Esc to cancel</Text>
         </Box>
       </Box>
     );
   }
 
   if (view === 'templates') {
+    if (categoryTemplates.length === 0) {
+      return (
+        <Box flexDirection="column">
+          <Box marginBottom={1}>
+            <Text bold color={theme.colours.warning}>
+              {theme.icons.warning} No templates in {selectedCategory}
+            </Text>
+          </Box>
+          <Box>
+            <Text dimColor>This category has no templates yet.</Text>
+          </Box>
+          <Box marginTop={1}>
+            <Text dimColor>Press Esc to go back</Text>
+          </Box>
+        </Box>
+      );
+    }
+
     return (
       <Box flexDirection="column">
         <Box marginBottom={1}>
@@ -179,7 +219,11 @@ export function TemplateBrowser({
         </Box>
         {categoryTemplates.map((template, idx) => (
           <Box key={template.metadata.id} flexDirection="column">
-            <Text color={idx === templateIndex ? 'cyan' : undefined}>
+            <Text
+              bold={idx === templateIndex}
+              color={idx === templateIndex ? theme.colours.ember : undefined}
+              underline={idx === templateIndex}
+            >
               {idx === templateIndex ? `${theme.icons.arrow} ` : '  '}
               {template.metadata.name}
             </Text>
@@ -191,7 +235,7 @@ export function TemplateBrowser({
           </Box>
         ))}
         <Box marginTop={1}>
-          <Text dimColor>Use arrow keys to navigate, Enter to select, Esc to go back</Text>
+          <Text dimColor>j/k or arrows to navigate • Enter to select • Esc to go back</Text>
         </Box>
       </Box>
     );
@@ -208,8 +252,8 @@ export function TemplateBrowser({
       </Box>
       <Box>
         <Text>{currentVar?.name}: </Text>
-        <Text color="cyan">{inputValue}</Text>
-        <Text color="gray">|</Text>
+        <Text color={theme.colours.ember}>{inputValue}</Text>
+        <Text dimColor>|</Text>
       </Box>
       <Box marginTop={1}>
         <Text dimColor>{currentVar?.description}</Text>

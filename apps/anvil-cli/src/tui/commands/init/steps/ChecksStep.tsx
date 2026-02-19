@@ -50,9 +50,9 @@ export function ChecksStep({
   );
 
   useInput((input, key) => {
-    if (key.upArrow) {
+    if (input === 'k' || key.upArrow) {
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : checkOptions.length - 1));
-    } else if (key.downArrow) {
+    } else if (input === 'j' || key.downArrow) {
       setSelectedIndex((prev) => (prev < checkOptions.length - 1 ? prev + 1 : 0));
     } else if (input === ' ') {
       const checkId = checkOptions[selectedIndex].id;
@@ -67,7 +67,7 @@ export function ChecksStep({
       });
     } else if (key.return) {
       onNext({ enabledChecks: Array.from(enabledChecks) });
-    } else if (key.escape) {
+    } else if (key.escape || input === 'q') {
       onCancel();
     } else if (key.leftArrow) {
       onBack();
@@ -88,7 +88,11 @@ export function ChecksStep({
         return (
           <Box key={option.id} flexDirection="column" marginBottom={1}>
             <Box>
-              <Text color={isSelected ? theme.colours.primary : theme.colours.muted}>
+              <Text
+                bold={isSelected}
+                underline={isSelected}
+                color={isSelected ? theme.colours.primary : theme.colours.muted}
+              >
                 {isSelected ? theme.icons.arrow : ' '}{' '}
               </Text>
               <Text color={isEnabled ? theme.colours.success : theme.colours.muted}>
@@ -96,6 +100,7 @@ export function ChecksStep({
               </Text>
               <Text
                 bold={isSelected}
+                underline={isSelected}
                 color={isSelected ? theme.colours.primary : theme.colours.text}
               >
                 {option.label}
@@ -110,7 +115,7 @@ export function ChecksStep({
       })}
 
       <Box marginTop={1}>
-        <Text color={theme.colours.muted}>[Space] Toggle · [Enter] Continue</Text>
+        <Text color={theme.colours.muted}>j/k or arrows · Space to toggle · Enter to continue</Text>
       </Box>
     </Box>
   );

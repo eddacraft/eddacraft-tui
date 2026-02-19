@@ -10,14 +10,14 @@ export function ModeStep({ state, onNext, onCancel }: StepProps): React.ReactEle
   });
 
   useInput((input, key) => {
-    if (key.upArrow) {
+    if (input === 'k' || key.upArrow) {
       setSelectedIndex((prev) => (prev > 0 ? prev - 1 : MODE_OPTIONS.length - 1));
-    } else if (key.downArrow) {
+    } else if (input === 'j' || key.downArrow) {
       setSelectedIndex((prev) => (prev < MODE_OPTIONS.length - 1 ? prev + 1 : 0));
     } else if (key.return) {
       const selected = MODE_OPTIONS[selectedIndex];
       onNext({ configTemplate: selected.value });
-    } else if (key.escape) {
+    } else if (key.escape || input === 'q') {
       onCancel();
     }
   });
@@ -33,11 +33,16 @@ export function ModeStep({ state, onNext, onCancel }: StepProps): React.ReactEle
         return (
           <Box key={option.value} flexDirection="column" marginBottom={1}>
             <Box>
-              <Text color={isSelected ? theme.colours.primary : theme.colours.muted}>
+              <Text
+                bold={isSelected}
+                underline={isSelected}
+                color={isSelected ? theme.colours.primary : theme.colours.muted}
+              >
                 {isSelected ? theme.icons.arrow : ' '}{' '}
               </Text>
               <Text
                 bold={isSelected}
+                underline={isSelected}
                 color={isSelected ? theme.colours.primary : theme.colours.text}
               >
                 {option.label}

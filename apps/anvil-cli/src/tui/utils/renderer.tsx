@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, type Instance } from 'ink';
 import { isTUIAvailable, type TUIDetectionOptions } from './tty-detection.js';
+import { ErrorBoundary } from '../components/ErrorBoundary.js';
 
 export interface RenderResult {
   instance: Instance;
@@ -8,16 +9,31 @@ export interface RenderResult {
   waitUntilExit: () => Promise<void>;
 }
 
+export interface RenderOptions extends TUIDetectionOptions {
+  componentName?: string;
+  onError?: () => void;
+}
+
 export function renderTUI<P extends object>(
   Component: React.ComponentType<P>,
   props: P,
-  options: TUIDetectionOptions = {}
+  options: RenderOptions = {}
 ): RenderResult | null {
   if (!isTUIAvailable(options)) {
     return null;
   }
 
-  const instance = render(React.createElement(Component, props));
+  const { componentName, onError } = options;
+  const wrappedElement = React.createElement(
+    ErrorBoundary,
+    {
+      componentName: componentName || Component.displayName || Component.name,
+      onExit: onError,
+    },
+    React.createElement(Component, props)
+  );
+
+  const instance = render(wrappedElement);
 
   return {
     instance,
@@ -29,7 +45,7 @@ export function renderTUI<P extends object>(
 export async function renderTUIAndWait<P extends object>(
   Component: React.ComponentType<P>,
   props: P,
-  options: TUIDetectionOptions = {}
+  options: RenderOptions = {}
 ): Promise<boolean> {
   const result = renderTUI(Component, props, options);
 

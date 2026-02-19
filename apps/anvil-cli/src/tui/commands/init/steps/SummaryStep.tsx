@@ -10,10 +10,10 @@ export function SummaryStep({
   onBack,
   onCancel,
 }: StepProps): React.ReactElement {
-  useInput((_input, key) => {
+  useInput((input, key) => {
     if (key.return) {
       onNext({});
-    } else if (key.escape) {
+    } else if (key.escape || input === 'q') {
       onCancel();
     } else if (key.leftArrow) {
       onBack();

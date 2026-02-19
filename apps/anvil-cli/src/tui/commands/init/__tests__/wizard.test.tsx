@@ -321,7 +321,7 @@ describe('Init Wizard Steps', () => {
       const props = createMockStepProps();
       const { lastFrame } = render(<ChecksStep {...props} />);
 
-      expect(lastFrame()).toContain('[Space] Toggle');
+      expect(lastFrame()).toContain('Space to toggle');
     });
 
     it('navigates with arrow keys', () => {

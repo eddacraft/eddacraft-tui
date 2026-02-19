@@ -30,11 +30,19 @@ export function Confirm({
   return (
     <Box>
       <Text color={theme.colours.ash}>{message} </Text>
-      <Text color={selected ? theme.colours.steel : theme.colours.smoke} bold={selected}>
+      <Text
+        bold={selected}
+        underline={selected}
+        color={selected ? theme.colours.steel : theme.colours.smoke}
+      >
         Yes
       </Text>
       <Text color={theme.colours.smoke}> / </Text>
-      <Text color={!selected ? theme.colours.slag : theme.colours.smoke} bold={!selected}>
+      <Text
+        bold={!selected}
+        underline={!selected}
+        color={!selected ? theme.colours.slag : theme.colours.smoke}
+      >
         No
       </Text>
       <Text color={theme.colours.smoke}> (y/n)</Text>

@@ -8,3 +8,4 @@ export { Select, type SelectItem } from './Select.js';
 export { TextInput } from './TextInput.js';
 export { Confirm } from './Confirm.js';
 export { MermaidDiagram, type MermaidDiagramProps } from './MermaidDiagram.js';
+export { ErrorBoundary, ErrorFallback } from './ErrorBoundary.js';

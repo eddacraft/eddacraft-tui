@@ -62,7 +62,7 @@ describe('TemplateBrowser', () => {
       <TemplateBrowser templates={mockTemplates} onSelect={onSelect} onCancel={onCancel} />
     );
 
-    expect(lastFrame()).toContain('arrow keys');
+    expect(lastFrame()).toContain('j/k or arrows');
     expect(lastFrame()).toContain('Enter');
     expect(lastFrame()).toContain('Esc');
   });

@@ -71,10 +71,18 @@ export function Welcome({ onSelect, onQuit }: WelcomeProps): React.ReactElement 
           const isSelected = index === selectedIndex;
           return (
             <Box key={option.key} marginLeft={1}>
-              <Text color={isSelected ? theme.colours.ember : theme.colours.smoke}>
+              <Text
+                bold={isSelected}
+                underline={isSelected}
+                color={isSelected ? theme.colours.ember : theme.colours.smoke}
+              >
                 {isSelected ? theme.icons.arrow : ' '}{' '}
               </Text>
-              <Text color={isSelected ? theme.colours.ember : theme.colours.ash}>
+              <Text
+                bold={isSelected}
+                underline={isSelected}
+                color={isSelected ? theme.colours.ember : theme.colours.ash}
+              >
                 {option.label}
               </Text>
               <Text color={theme.colours.smoke}>

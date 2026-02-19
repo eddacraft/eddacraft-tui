@@ -47,7 +47,13 @@ export function Select<V>({
           </Text>
         )}
         itemComponent={({ isSelected, label: itemLabel }) => (
-          <Text color={isSelected ? theme.colours.ember : theme.colours.ash}>{itemLabel}</Text>
+          <Text
+            bold={isSelected}
+            underline={isSelected}
+            color={isSelected ? theme.colours.ember : theme.colours.ash}
+          >
+            {itemLabel}
+          </Text>
         )}
       />
     </Box>
