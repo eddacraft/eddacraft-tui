@@ -58,7 +58,8 @@ pnpm codemod:imports
 
 ## Local agent runner (QoL)
 
-Use the local Codex helper for unattended tasks with logs + completion wake event:
+Use the local Codex helper for unattended tasks with logs + completion wake
+event:
 
 ```bash
 pnpm agent:run "<task prompt>"

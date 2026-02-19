@@ -32,17 +32,17 @@ watching, and fixing issues.
 
 ## Commands
 
-| Command | Description |
-| --- | --- |
-| `anvil tutorial` | Interactive guided tutorial |
-| `anvil init` | Set up Anvil in a project |
-| `anvil check --all` | Scan codebase for issues |
-| `anvil watch --source` | Real-time validation |
-| `anvil gate` | Run quality gates |
-| `anvil doctor` | Diagnostics and troubleshooting |
-| `anvil explain <rule>` | Understand a warning |
-| `anvil status` | Show workspace status |
-| `anvil --help` | See all commands |
+| Command                | Description                     |
+| ---------------------- | ------------------------------- |
+| `anvil tutorial`       | Interactive guided tutorial     |
+| `anvil init`           | Set up Anvil in a project       |
+| `anvil check --all`    | Scan codebase for issues        |
+| `anvil watch --source` | Real-time validation            |
+| `anvil gate`           | Run quality gates               |
+| `anvil doctor`         | Diagnostics and troubleshooting |
+| `anvil explain <rule>` | Understand a warning            |
+| `anvil status`         | Show workspace status           |
+| `anvil --help`         | See all commands                |
 
 ## Requirements
 
