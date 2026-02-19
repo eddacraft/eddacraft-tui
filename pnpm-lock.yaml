@@ -171,6 +171,16 @@ importers:
 
   apps/anvil-cli:
     dependencies:
+      '@eddacraft/kindling-core':
+        specifier: 0.1.1
+        version: 0.1.1
+      '@eddacraft/kindling-provider-local':
+        specifier: 0.1.1
+        version: 0.1.1
+      '@eddacraft/kindling-store-sqlite':
+        specifier: 0.1.1
+        version: 0.1.1
+    devDependencies:
       '@eddacraft/anvil-adapters':
         specifier: workspace:*
         version: link:../../packages/adapters
@@ -186,15 +196,12 @@ importers:
       '@eddacraft/anvil-runtime':
         specifier: workspace:*
         version: link:../../packages/anvil/runtime
-      '@eddacraft/kindling-core':
-        specifier: 0.1.1
-        version: 0.1.1
-      '@eddacraft/kindling-provider-local':
-        specifier: 0.1.1
-        version: 0.1.1
-      '@eddacraft/kindling-store-sqlite':
-        specifier: 0.1.1
-        version: 0.1.1
+      '@types/fs-extra':
+        specifier: ^11.0.4
+        version: 11.0.4
+      '@types/react':
+        specifier: ^19.2.14
+        version: 19.2.14
       beautiful-mermaid:
         specifier: ^0.1.3
         version: 0.1.3
@@ -207,6 +214,9 @@ importers:
       commander:
         specifier: ^14.0.3
         version: 14.0.3
+      esbuild:
+        specifier: ^0.27.3
+        version: 0.27.3
       fs-extra:
         specifier: ^11.3.3
         version: 11.3.3
@@ -222,40 +232,33 @@ importers:
       ink-spinner:
         specifier: ^5.0.0
         version: 5.0.0(ink@6.6.0(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)
+      ink-testing-library:
+        specifier: ^4.0.0
+        version: 4.0.0(@types/react@19.2.14)
       ink-text-input:
         specifier: ^6.0.0
         version: 6.0.0(ink@6.6.0(@types/react@19.2.14)(react@19.2.4))(react@19.2.4)
       inquirer:
         specifier: 13.2.2
         version: 13.2.2(@types/node@25.2.3)
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
       ora:
         specifier: 9.3.0
         version: 9.3.0
       react:
         specifier: 19.2.4
         version: 19.2.4
+      tuistory:
+        specifier: ^0.0.13
+        version: 0.0.13
       yaml:
         specifier: ^2.8.2
         version: 2.8.2
       zod:
         specifier: ^4.3.6
         version: 4.3.6
-    devDependencies:
-      '@types/fs-extra':
-        specifier: ^11.0.4
-        version: 11.0.4
-      '@types/react':
-        specifier: ^19.2.14
-        version: 19.2.14
-      ink-testing-library:
-        specifier: ^4.0.0
-        version: 4.0.0(@types/react@19.2.14)
-      node-pty:
-        specifier: ^1.1.0
-        version: 1.1.0
-      tuistory:
-        specifier: ^0.0.13
-        version: 0.0.13
 
   apps/docs-site:
     dependencies:

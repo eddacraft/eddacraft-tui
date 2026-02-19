@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import { Command } from 'commander';
 import { createAgentCommand } from './commands/agent/index.js';
 import { createArchitectureCommand } from './commands/architecture.js';
@@ -30,17 +28,12 @@ import { createWhoamiCommand } from './commands/whoami.js';
 import { isFirstRun } from './services/first-run-detector.js';
 import { isAuthenticated } from './services/auth-store.js';
 import { showWelcome, createStartCommand } from './commands/welcome.js';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { readJsonFileSync } from './utils/file-io.js';
 import { loadAnvilEnv } from './utils/env.js';
 
 loadAnvilEnv();
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const packageJson =
-  readJsonFileSync<Record<string, string>>(join(__dirname, '..', 'package.json')) ?? {};
-const CLI_VERSION = packageJson.version || '0.0.0-unknown';
+declare const __CLI_VERSION__: string;
+const CLI_VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '0.0.0-dev';
 
 // Commands that don't require authentication
 const AUTH_EXEMPT_COMMANDS = new Set([
