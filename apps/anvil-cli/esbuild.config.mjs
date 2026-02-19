@@ -32,10 +32,10 @@ await esbuild.build({
     __CLI_VERSION__: JSON.stringify(pkg.version),
   },
   external: [
-    // Kindling packages have native deps (better-sqlite3) — keep external
-    '@eddacraft/kindling-core',
-    '@eddacraft/kindling-store-sqlite',
-    '@eddacraft/kindling-provider-local',
+    // Kindling has native deps (better-sqlite3) — keep external.
+    // The meta-package @eddacraft/kindling provides kindling-core,
+    // kindling-store-sqlite, and kindling-provider-local as transitive deps.
+    '@eddacraft/kindling*',
   ],
   alias: {
     // Ink optional dev dep — stub out to avoid missing-module error at runtime
