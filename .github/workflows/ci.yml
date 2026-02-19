@@ -168,7 +168,7 @@ jobs:
       - name: Run lint (affected on PRs, all on push)
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            nx affected -t lint && pnpm run lint:md
+            pnpm exec nx affected -t lint && pnpm run lint:md
           else
             pnpm run lint:check
           fi
@@ -207,7 +207,7 @@ jobs:
       - name: Run type check (affected on PRs, all on push)
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            nx affected -t typecheck
+            pnpm exec nx affected -t typecheck
           else
             pnpm run typecheck
           fi
@@ -247,7 +247,7 @@ jobs:
       - name: Run unit tests (affected on PRs, all on push)
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            nx affected -t test --exclude=@eddacraft/anvil-e2e -- --run --coverage
+            pnpm exec nx affected -t test --exclude=@eddacraft/anvil-e2e -- --run --coverage
           else
             pnpm run test -- --run --coverage
           fi
