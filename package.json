@@ -25,7 +25,7 @@
     "lint:check": "eslint . && markdownlint --ignore-path .markdownlintignore .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "nx run-many -t typecheck",
     "lint:md": "markdownlint --ignore-path .markdownlintignore .",
     "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",
     "link:cli": "cd apps/anvil-cli && pnpm build && npm link",

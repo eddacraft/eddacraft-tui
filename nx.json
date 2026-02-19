@@ -1,5 +1,6 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "sync": { "applyChanges": true },
   "azure": {
     "container": "nx-cache",
     "accountName": "stiacstateprod"
@@ -35,6 +36,7 @@
   ],
   "targetDefaults": {
     "build": { "dependsOn": ["^build"] },
+    "lint": { "dependsOn": ["eslint-plugin-anvil:build"] },
     "watch-deps": { "cache": false },
     "@nx/js:tsc": {
       "cache": true,

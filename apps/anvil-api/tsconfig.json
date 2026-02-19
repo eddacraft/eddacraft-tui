@@ -20,7 +20,8 @@
     "emitDeclarationOnly": false,
     "importHelpers": true,
     "noFallthroughCasesInSwitch": true,
-    "noImplicitOverride": true
+    "noImplicitOverride": true,
+    "composite": true
   },
   "include": ["src/**/*"],
   "exclude": ["**/*.test.ts", "**/__tests__/**"]

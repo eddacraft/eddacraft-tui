@@ -11,6 +11,12 @@
   "exclude": ["node_modules", "dist"],
   "references": [
     {
+      "path": "../../packages/anvil/contracts"
+    },
+    {
+      "path": "../anvil-api"
+    },
+    {
       "path": "../../packages/edda-stack"
     },
     {
@@ -27,9 +33,6 @@
     },
     {
       "path": "../../packages/anvil/core"
-    },
-    {
-      "path": "../../packages/anvil/contracts"
     }
   ]
 }

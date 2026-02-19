@@ -59,6 +59,9 @@
     },
     {
       "path": "./apps/e2e"
+    },
+    {
+      "path": "./apps/anvil-api"
     }
   ]
 }
