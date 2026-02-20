@@ -32,6 +32,7 @@ export default typescriptEslint.config(
       '.claude/',
       'eslint.config.mts',
       '**/*.md',
+      '**/next-env.d.ts',
       'vitest.config.js',
       'playwright.config.js',
     ],
