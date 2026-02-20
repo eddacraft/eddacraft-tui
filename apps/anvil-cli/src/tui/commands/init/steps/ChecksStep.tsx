@@ -115,7 +115,9 @@ export function ChecksStep({
       })}
 
       <Box marginTop={1}>
-        <Text color={theme.colours.muted}>j/k or arrows · Space to toggle · Enter to continue</Text>
+        <Text color={theme.colours.muted}>
+          j/k or arrows · Space to toggle · Enter to continue · q/Esc to cancel · Left to go back
+        </Text>
       </Box>
     </Box>
   );

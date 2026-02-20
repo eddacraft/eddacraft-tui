@@ -1,5 +1,5 @@
 import React, { Component, type ReactNode } from 'react';
-import { Box, Text } from 'ink';
+import { Box, Text, useInput, useApp } from 'ink';
 import { theme } from '../utils/theme.js';
 
 interface Props {
@@ -25,46 +25,26 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
+  componentDidCatch(_error: Error, errorInfo: React.ErrorInfo): void {
     this.setState({ errorInfo });
   }
 
   render(): ReactNode {
     if (this.state.hasError) {
-      const componentName = this.props.componentName || 'component';
-      const errorMessage = this.state.error?.message || 'Unknown error';
-
       return (
-        <Box flexDirection="column" paddingX={2} paddingY={1}>
-          <Box marginBottom={1}>
-            <Text bold color={theme.colours.slag}>
-              {theme.icons.error} Something went wrong
-            </Text>
-          </Box>
-
-          <Box marginBottom={1} flexDirection="column">
-            <Text color={theme.colours.ash}>
-              The {componentName} encountered an unexpected error.
-            </Text>
-          </Box>
-
-          <Box
-            marginBottom={1}
-            paddingX={1}
-            borderStyle="single"
-            borderColor={theme.colours.charcoal}
-          >
-            <Text color={theme.colours.molten}>{errorMessage}</Text>
-          </Box>
-
-          <Box flexDirection="column">
-            {this.props.onRetry && <Text color={theme.colours.smoke}>Press r to retry</Text>}
-            {this.props.onExit && <Text color={theme.colours.smoke}>Press q to exit</Text>}
-            <Text color={theme.colours.smoke}>
-              If this persists, please report: https://github.com/anomalyco/opencode/issues
-            </Text>
-          </Box>
-        </Box>
+        <ErrorFallback
+          error={this.state.error || new Error('Unknown error')}
+          componentName={this.props.componentName}
+          onRetry={
+            this.props.onRetry
+              ? () => {
+                  this.setState({ hasError: false, error: null, errorInfo: null });
+                  this.props.onRetry?.();
+                }
+              : undefined
+          }
+          onExit={this.props.onExit}
+        />
       );
     }
 
@@ -85,6 +65,17 @@ export function ErrorFallback({
   onRetry,
   onExit,
 }: ErrorFallbackProps): React.ReactElement {
+  const { exit } = useApp();
+
+  useInput((input) => {
+    if (input === 'r' && onRetry) {
+      onRetry();
+    } else if (input === 'q') {
+      if (onExit) onExit();
+      exit();
+    }
+  });
+
   return (
     <Box flexDirection="column" paddingX={2} paddingY={1}>
       <Box marginBottom={1}>
@@ -103,9 +94,9 @@ export function ErrorFallback({
 
       <Box flexDirection="column">
         {onRetry && <Text color={theme.colours.smoke}>Press r to retry</Text>}
-        {onExit && <Text color={theme.colours.smoke}>Press q to exit</Text>}
+        <Text color={theme.colours.smoke}>Press q to exit</Text>
         <Text color={theme.colours.smoke}>
-          If this persists, please report: https://github.com/anomalyco/opencode/issues
+          If this persists, please report: https://github.com/EddaCraft/anvil-001/issues
         </Text>
       </Box>
     </Box>

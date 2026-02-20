@@ -28,7 +28,7 @@ export function renderTUI<P extends object>(
     ErrorBoundary,
     {
       componentName: componentName || Component.displayName || Component.name,
-      onExit: onError,
+      onExit: onError, // maps renderTUI's onError callback to ErrorBoundary's exit handler
     },
     React.createElement(Component, props)
   );

@@ -163,7 +163,7 @@ export function TemplateBrowser({
             <Text dimColor>No templates are available in this workspace.</Text>
           </Box>
           <Box marginTop={1}>
-            <Text dimColor>Press Esc to go back</Text>
+            <Text dimColor>Press q/Esc to cancel</Text>
           </Box>
         </Box>
       );
@@ -206,7 +206,7 @@ export function TemplateBrowser({
             <Text dimColor>This category has no templates yet.</Text>
           </Box>
           <Box marginTop={1}>
-            <Text dimColor>Press Esc to go back</Text>
+            <Text dimColor>Press q/Esc to go back</Text>
           </Box>
         </Box>
       );
@@ -235,7 +235,7 @@ export function TemplateBrowser({
           </Box>
         ))}
         <Box marginTop={1}>
-          <Text dimColor>j/k or arrows to navigate • Enter to select • Esc to go back</Text>
+          <Text dimColor>j/k or arrows to navigate • Enter to select • q/Esc to go back</Text>
         </Box>
       </Box>
     );
