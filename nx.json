@@ -36,6 +36,8 @@
   ],
   "targetDefaults": {
     "build": { "dependsOn": ["^build"] },
+    "typecheck": { "dependsOn": ["^build"] },
+    "test": { "dependsOn": ["^build"] },
     "lint": { "dependsOn": ["eslint-plugin-anvil:build"] },
     "watch-deps": { "cache": false },
     "@nx/js:tsc": {
