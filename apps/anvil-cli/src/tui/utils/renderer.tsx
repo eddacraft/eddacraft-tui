@@ -24,13 +24,11 @@ export function renderTUI<P extends object>(
   }
 
   const { componentName, onError } = options;
-  const wrappedElement = React.createElement(
-    ErrorBoundary,
-    {
-      componentName: componentName || Component.displayName || Component.name,
-      onExit: onError, // maps renderTUI's onError callback to ErrorBoundary's exit handler
-    },
-    React.createElement(Component, props)
+  const name = componentName || Component.displayName || Component.name;
+  const wrappedElement = (
+    <ErrorBoundary componentName={name} onExit={onError}>
+      <Component {...props} />
+    </ErrorBoundary>
   );
 
   const instance = render(wrappedElement);
