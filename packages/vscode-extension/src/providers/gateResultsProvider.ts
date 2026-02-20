@@ -33,6 +33,10 @@ interface ExtendedGateResult extends GateResult {
   violationsByPolicy?: Record<string, PolicyViolation[]>;
 }
 
+function isExtendedGateResult(gate: GateResult): gate is ExtendedGateResult {
+  return 'violations' in gate || 'violationsByPolicy' in gate;
+}
+
 export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem>, vscode.Disposable {
   private _onDidChangeTreeData: vscode.EventEmitter<TreeItem | undefined | null | void> =
     new vscode.EventEmitter<TreeItem | undefined | null | void>();
@@ -116,7 +120,7 @@ export class GateResultsProvider implements vscode.TreeDataProvider<TreeItem>, v
       return [];
     }
 
-    return results.gates.map((gate) => new GateTreeItem(gate, filePath, this.workspaceRoot));
+    return results.gates.map((gate) => new GateTreeItem(gate, filePath));
   }
 
   private getGateChildren(gateItem: GateTreeItem): TreeItem[] {
@@ -339,8 +343,7 @@ class FileCategoryItem extends vscode.TreeItem {
 class GateTreeItem extends vscode.TreeItem {
   constructor(
     public readonly gate: GateResult,
-    public readonly filePath: string,
-    private readonly _workspaceRoot: string
+    public readonly filePath: string
   ) {
     const hasChildren = GateTreeItem.hasExpandableContent(gate);
     super(
