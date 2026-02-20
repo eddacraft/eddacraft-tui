@@ -62,6 +62,7 @@ export default typescriptEslint.config(
           ignoredFiles: [
             '{projectRoot}/eslint.config.{js,cjs,mjs,ts,cts,mts}',
             '{projectRoot}/vitest.config.{js,ts,mjs,mts}',
+            '{projectRoot}/esbuild.config.{js,mjs,ts,mts}',
             '{projectRoot}/**/*.test.ts',
             '{projectRoot}/**/*.spec.ts',
             '{projectRoot}/**/__tests__/**',

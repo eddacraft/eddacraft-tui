@@ -92,7 +92,8 @@
     "diff": "^4.0.4",
     "markdown-it": "^14.1.1",
     "@isaacs/brace-expansion": "^5.0.1",
-    "cross-spawn": "^7.0.6"
+    "cross-spawn": "^7.0.6",
+    "@eddacraft/kindling-core": "0.1.2"
   },
   "pnpm": {
     "overrides": {
@@ -107,7 +108,8 @@
       "diff": "^4.0.4",
       "markdown-it": "^14.1.1",
       "@isaacs/brace-expansion": "^5.0.1",
-      "cross-spawn": "^7.0.6"
+      "cross-spawn": "^7.0.6",
+      "@eddacraft/kindling-core": "0.1.2"
     },
     "onlyBuiltDependencies": [
       "esbuild",

@@ -3,7 +3,7 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { theme } from '../utils/theme.js';
 
 interface Props {
-  children: ReactNode;
+  children?: ReactNode;
   componentName?: string;
   onRetry?: () => void;
   onExit?: () => void;
