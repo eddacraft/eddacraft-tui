@@ -15,7 +15,7 @@ allowlist: ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**']
 
 detection:
   type: regex
-  pattern: '\w+!\.\w+'
+  pattern: '[\w.)\]]+!(?=[.\[(\s;,)]|$)'
 
 related: [AP-004]
 enabled: true

@@ -13,7 +13,8 @@ targets: [agent-output, pr-description]
 
 detection:
   type: regex
-  pattern: '(?i)\b(complete[d]?|done|finished|implemented|all\s+requirements?\s+(met|addressed|satisfied))\b'
+  pattern: '\b(complete[d]?|done|finished|implemented|all\s+requirements?\s+(met|addressed|satisfied))\b'
+  flags: i
 
 related: [DD-001, RL-002]
 enabled: true

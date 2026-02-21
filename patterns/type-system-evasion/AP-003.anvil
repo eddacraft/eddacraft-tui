@@ -15,7 +15,7 @@ allowlist: ['*.d.ts', '**/__mocks__/**', '**/test/**/*.ts', '**/__tests__/**']
 
 detection:
   type: regex
-  pattern: ':\s*any\b|<any>'
+  pattern: ':\s*any\b|as\s+any\b|<any>'
 
 related: []
 enabled: true

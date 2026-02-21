@@ -13,7 +13,8 @@ targets: [agent-output, pr-description]
 
 detection:
   type: regex
-  pattern: (?i)(reply\s+only|acknowledged|noted)\s*[|│].*\b(addressed|fixed|resolved)\b
+  pattern: (reply\s+only|acknowledged|noted)\s*[|│].*\b(addressed|fixed|resolved)\b
+  flags: i
 
 related: []
 enabled: true

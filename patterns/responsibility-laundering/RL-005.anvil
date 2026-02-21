@@ -13,7 +13,8 @@ targets: [agent-output, pr-description, commit-message]
 
 detection:
   type: regex
-  pattern: (?i)\b(defer(red)?|follow[\s-]?up|backlog(ged)?)\b(?!.*(issue\s*#|gh\s+issue|TODO|created\s+(issue|ticket)))
+  pattern: \b(defer(red)?|follow[\s-]?up|backlog(ged)?)\b(?!.*(issue\s*#|gh\s+issue|TODO|created\s+(issue|ticket)))
+  flags: i
 
 related: [RL-002]
 enabled: true

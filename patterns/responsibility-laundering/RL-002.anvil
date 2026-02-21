@@ -13,7 +13,8 @@ targets: [agent-output, pr-description, commit-message]
 
 detection:
   type: regex
-  pattern: (?i)\btracked\s+(as\s+)?(a\s+)?follow[\s-]?up\b
+  pattern: \btracked\s+(as\s+)?(a\s+)?follow[\s-]?up\b
+  flags: i
 
 related: [RL-005]
 enabled: true

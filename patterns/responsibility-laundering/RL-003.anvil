@@ -13,7 +13,8 @@ targets: [agent-output, pr-description]
 
 detection:
   type: regex
-  pattern: (?i)\b(all|every)\s+(ci\s+)?(failures?|checks?)\s+(are|is)\s+(pre-existing|unrelated|not\s+related)
+  pattern: \b(all|every)\s+(ci\s+)?(failures?|checks?)\s+(are|is)\s+(pre-existing|unrelated|not\s+related)
+  flags: i
 
 related: [RL-001, RL-004]
 enabled: true

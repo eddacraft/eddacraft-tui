@@ -221,6 +221,7 @@ targets: string[]         # Artifact types this rule scans
 detection:
   type: regex | ast
   pattern: string         # Required if type: regex
+  flags: string           # Optional regex flags (e.g., 'i' for case-insensitive)
   ast_query: string       # Required if type: ast
 
 # File targeting (for source targets only)
