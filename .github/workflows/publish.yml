@@ -18,6 +18,11 @@ on:
         required: false
         type: boolean
         default: true
+      publish-workspace:
+        description: 'Publish internal workspace packages too (non-beta only; default false)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -75,36 +80,67 @@ jobs:
             exit 1
           fi
 
-      - name: Publish workspace packages required by CLI (Dry Run)
+      - name: Select package publish mode
+        id: publish_mode
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_PUBLISH_WORKSPACE: ${{ github.event.inputs.publish-workspace || 'false' }}
+        run: |
+          set -euo pipefail
+
+          CLI_ONLY='@eddacraft/anvil-cli'
+          WORKSPACE_PACKAGES='@eddacraft/anvil-core
+          @eddacraft/anvil-aps
+          @eddacraft/anvil-policy
+          @eddacraft/anvil-runtime
+          @eddacraft/anvil-adapters
+          @eddacraft/anvil-kindling-integration
+          @eddacraft/anvil-cli'
+
+          if [[ "$REF_NAME" == *"-beta"* ]] || [[ "$REF_NAME" == *"-beta."* ]] || [[ "$REF_NAME" == *"-beta-"* ]]; then
+            MODE='beta-tag-cli-only'
+            PACKAGES="$CLI_ONLY"
+          elif [[ "$EVENT_NAME" == 'workflow_dispatch' && "$INPUT_PUBLISH_WORKSPACE" == 'true' ]]; then
+            MODE='manual-workspace'
+            PACKAGES="$WORKSPACE_PACKAGES"
+          else
+            MODE='default-cli-only'
+            PACKAGES="$CLI_ONLY"
+          fi
+
+          {
+            echo "mode=$MODE"
+            echo 'packages<<EOF'
+            echo "$PACKAGES"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Publish mode: $MODE"
+          echo "Packages:"
+          while IFS= read -r pkg; do
+            [[ -z "$pkg" ]] && continue
+            echo " - $pkg"
+          done <<< "$PACKAGES"
+
+      - name: Publish selected packages (Dry Run)
         if: github.event.inputs.dry-run == 'true'
         run: |
-          for pkg in \
-            @eddacraft/anvil-core \
-            @eddacraft/anvil-aps \
-            @eddacraft/anvil-policy \
-            @eddacraft/anvil-runtime \
-            @eddacraft/anvil-adapters \
-            @eddacraft/anvil-kindling-integration \
-            @eddacraft/anvil-cli; do
+          while IFS= read -r pkg; do
+            [ -z "$pkg" ] && continue
             ver=$(pnpm --filter "$pkg" exec node -p "require('./package.json').version")
             echo "Dry-run publish: $pkg@$ver"
             pnpm --filter "$pkg" publish --dry-run --access public --no-git-checks
-          done
+          done <<< "${{ steps.publish_mode.outputs.packages }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish workspace packages required by CLI
+      - name: Publish selected packages
         if: >-
           startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry-run != 'true'
         run: |
-          for pkg in \
-            @eddacraft/anvil-core \
-            @eddacraft/anvil-aps \
-            @eddacraft/anvil-policy \
-            @eddacraft/anvil-runtime \
-            @eddacraft/anvil-adapters \
-            @eddacraft/anvil-kindling-integration \
-            @eddacraft/anvil-cli; do
+          while IFS= read -r pkg; do
+            [ -z "$pkg" ] && continue
             ver=$(pnpm --filter "$pkg" exec node -p "require('./package.json').version")
             if npm view "$pkg@$ver" version >/dev/null 2>&1; then
               echo "Skipping already published $pkg@$ver"
@@ -112,7 +148,7 @@ jobs:
             fi
             echo "Publishing: $pkg@$ver"
             pnpm --filter "$pkg" publish --access public --provenance --no-git-checks
-          done
+          done <<< "${{ steps.publish_mode.outputs.packages }}"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
