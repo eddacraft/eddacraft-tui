@@ -337,6 +337,12 @@ patterns/
     RL-004.anvil             # Unverified "not touched" claim
     RL-005.anvil             # Deferred without artifact
     RL-006.anvil             # Reply disguised as fix
+  deferred-debt/
+    definition.anvil
+    DD-001.anvil             # TODO/FIXME without tracking reference
+    DD-002.anvil             # HACK comment without tracking reference
+    DD-003.anvil             # Temporary code without expiry
+    DD-004.anvil             # Completion claim with outstanding TODOs
 ```
 
 Note: AP-003's `as any` variant (type assertion) is conceptually closer to
@@ -477,8 +483,10 @@ rather than hardcoded on each pattern constant.
 
 1. Write Responsibility Laundering definition.anvil
 2. Add RL-001 through RL-006 rule files
-3. Add Non-null assertion (GS-001) to Guardrail Suppression family
-4. Implement PR description scanning (artifact type: pr-description)
+3. Write Deferred Debt definition.anvil
+4. Add DD-001 through DD-004 rule files
+5. Add Non-null assertion (GS-001) to Guardrail Suppression family
+6. Implement PR description scanning (artifact type: pr-description)
 
 ### Phase 4: Cleanup
 
