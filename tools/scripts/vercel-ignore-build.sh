@@ -49,7 +49,15 @@ type log_debug >/dev/null 2>&1 && log_debug "prev_sha=${VERCEL_GIT_PREVIOUS_SHA:
 echo ">> Checking for changes in '$PROJECT_DIR' between ${VERCEL_GIT_PREVIOUS_SHA:0:8} and ${CURRENT_SHA:0:8}"
 
 # Get list of changed files between last deploy and current commit
-CHANGED_FILES=$(git diff --name-only "$VERCEL_GIT_PREVIOUS_SHA" "$CURRENT_SHA" 2>/dev/null || true)
+# If diff cannot be computed (for example, shallow clone missing previous SHA),
+# fail OPEN and build instead of silently skipping.
+if ! CHANGED_FILES=$(git diff --name-only "$VERCEL_GIT_PREVIOUS_SHA" "$CURRENT_SHA" 2>/dev/null); then
+  echo ">> Could not diff commits (likely shallow clone) — building"
+  type log_warn >/dev/null 2>&1 && log_warn "git diff failed, triggering build"
+  type log_exit >/dev/null 2>&1 && log_exit 1
+  exit 1
+fi
+
 CHANGED_COUNT=$(echo "$CHANGED_FILES" | grep -c . 2>/dev/null || echo "0")
 type log_debug >/dev/null 2>&1 && log_debug "total changed files: ${CHANGED_COUNT}"
 

@@ -1,4 +1,4 @@
 {
   "buildCommand": "npx tsc",
-  "ignoreCommand": "cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh apps/anvil-api"
+  "ignoreCommand": "exit 1"
 }
