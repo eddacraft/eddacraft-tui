@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- Release workflow now defaults to publishing `@eddacraft/anvil-cli` only.
+- Added conditional release mode so beta tags (`v*-beta*`) are always CLI-only.
+- Added `docs/guides/release-runbook.md` with step-by-step release and
+  verification checklist.
+
 ### Planned for 0.2.0 — Web Dashboard
 
 - Browser-based dashboard for exploring Anvil data

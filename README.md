@@ -181,10 +181,10 @@ The repository has several GitHub Actions workflows:
 - **ci.yml** — Lint, typecheck, test, and build on every push and PR. Runs
   against Node.js 20.x and 22.x with smart change detection (docs-only changes
   skip code tests).
-- **publish.yml** — Publishes workspace packages required by
-  `@eddacraft/anvil-cli` to npm on version tags (`v*`) using `pnpm publish`
-  (workspace deps resolved to real versions). Validates tag/package version
-  alignment, runs the full test suite, and creates a GitHub release.
+- **publish.yml** — Publishes `@eddacraft/anvil-cli` to npm on version tags
+  (`v*`) by default (beta tags are forced CLI-only). Workspace package
+  publishing is manual/explicit only. Validates tag/package version alignment,
+  runs the full test suite, and creates a GitHub release.
 - **claude.yml** — Claude Code integration for AI-assisted issue triage and PR
   review.
 
@@ -217,4 +217,5 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 | [Troubleshooting](./apps/docs-site/docs/anvil/operations/troubleshooting.md) | Common issues and solutions |
 | [Configuration](./apps/docs-site/docs/anvil/operations/config.md)            | Configuration options       |
 | [Architecture](./docs/ARCHITECTURE.md)                                       | System design               |
+| [Release Runbook](./docs/guides/release-runbook.md)                          | Safe CLI release checklist  |
 | [Plans](./plans/index.aps.md)                                                | Detailed roadmap            |
