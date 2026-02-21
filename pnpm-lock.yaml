@@ -172,21 +172,6 @@ importers:
 
   apps/anvil-cli:
     dependencies:
-      '@eddacraft/anvil-adapters':
-        specifier: workspace:*
-        version: link:../../packages/adapters
-      '@eddacraft/anvil-aps':
-        specifier: workspace:*
-        version: link:../../packages/aps
-      '@eddacraft/anvil-core':
-        specifier: workspace:*
-        version: link:../../packages/anvil/core
-      '@eddacraft/anvil-kindling-integration':
-        specifier: workspace:*
-        version: link:../../packages/kindling-integration
-      '@eddacraft/anvil-runtime':
-        specifier: workspace:*
-        version: link:../../packages/anvil/runtime
       '@eddacraft/kindling-core':
         specifier: 0.1.2
         version: 0.1.2
@@ -242,6 +227,21 @@ importers:
         specifier: ^4.3.6
         version: 4.3.6
     devDependencies:
+      '@eddacraft/anvil-adapters':
+        specifier: workspace:*
+        version: link:../../packages/adapters
+      '@eddacraft/anvil-aps':
+        specifier: workspace:*
+        version: link:../../packages/aps
+      '@eddacraft/anvil-core':
+        specifier: workspace:*
+        version: link:../../packages/anvil/core
+      '@eddacraft/anvil-kindling-integration':
+        specifier: workspace:*
+        version: link:../../packages/kindling-integration
+      '@eddacraft/anvil-runtime':
+        specifier: workspace:*
+        version: link:../../packages/anvil/runtime
       '@types/fs-extra':
         specifier: ^11.0.4
         version: 11.0.4
