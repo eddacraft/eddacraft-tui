@@ -1,32 +1,58 @@
 import { z } from 'zod';
 import type { NeonClient } from './client.js';
 
+const IdSchema = z.union([z.string(), z.number(), z.bigint()]).transform((v) => String(v));
+
+const DateStringSchema = z
+  .union([z.string(), z.date()])
+  .transform((v) => (v instanceof Date ? v.toISOString() : v));
+
+const TextArraySchema = z.union([z.array(z.string()), z.string()]).transform((v) => {
+  if (Array.isArray(v)) return v;
+
+  // Handle Postgres array text format: {beta} / {"beta","preview"}
+  const raw = v.trim();
+  if (raw.startsWith('{') && raw.endsWith('}')) {
+    const inner = raw.slice(1, -1).trim();
+    if (!inner) return [];
+    return inner.split(',').map((item) => {
+      const unquoted = item.replace(/^"(.*)"$/, '$1');
+      return unquoted.replace(/\\"/g, '"');
+    });
+  }
+
+  // Fallback for unexpected string payloads
+  return [raw];
+});
+
 const BetaUserSchema = z.object({
-  id: z.string(),
+  id: IdSchema,
   email: z.string(),
   name: z.string().nullable(),
   status: z.string(),
   notes: z.string().nullable(),
-  created_at: z.string(),
-  updated_at: z.string(),
+  created_at: DateStringSchema,
+  updated_at: DateStringSchema,
 });
 
 const AccessTokenSchema = z.object({
-  id: z.string(),
-  user_id: z.string(),
+  id: IdSchema,
+  user_id: IdSchema,
   token_hash: z.string(),
-  scopes: z.array(z.string()),
-  expires_at: z.string(),
-  revoked_at: z.string().nullable(),
-  created_at: z.string(),
+  scopes: TextArraySchema,
+  expires_at: DateStringSchema,
+  revoked_at: z.union([DateStringSchema, z.null()]),
+  created_at: DateStringSchema,
 });
 
 const AuditEntrySchema = z.object({
-  id: z.string(),
+  id: IdSchema,
   action: z.string(),
   actor: z.string(),
-  metadata: z.record(z.string(), z.unknown()),
-  created_at: z.string(),
+  metadata: z
+    .union([z.record(z.string(), z.unknown()), z.null(), z.undefined()])
+    .transform((v) => v ?? {}),
+  created_at: DateStringSchema,
 });
 
 export type BetaUser = z.infer<typeof BetaUserSchema>;
@@ -100,7 +126,7 @@ export async function findTokenByHash(
   if (!r[0]) return null;
   const TokenWithUserSchema = AccessTokenSchema.extend({
     email: z.string(),
-    user_status: z.string(),
+    user_status: z.coerce.string(),
   });
   return TokenWithUserSchema.parse(r[0]);
 }
