@@ -168,7 +168,7 @@ JSON summary), which is the path used by the built-in coverage gate check.
 
 | App         | Platform | Trigger                                               |
 | ----------- | -------- | ----------------------------------------------------- |
-| `anvil-cli` | npm      | Git tag (`v*`) via `publish.yml` GitHub Action       |
+| `anvil-cli` | npm      | Git tag (`v*`) via `publish.yml` GitHub Action        |
 | `docs-site` | Vercel   | Push to `main` (automatic via Vercel Git integration) |
 | `website`   | Vercel   | Push to `main` (automatic via Vercel Git integration) |
 | `anvil-api` | —        | Not yet deployed                                      |
@@ -181,10 +181,10 @@ The repository has several GitHub Actions workflows:
 - **ci.yml** — Lint, typecheck, test, and build on every push and PR. Runs
   against Node.js 20.x and 22.x with smart change detection (docs-only changes
   skip code tests).
-- **publish.yml** — Publishes workspace packages required by `@eddacraft/anvil-cli`
-  to npm on version tags (`v*`) using `pnpm publish` (workspace deps resolved to
-  real versions). Validates tag/package version alignment, runs the full test
-  suite, and creates a GitHub release.
+- **publish.yml** — Publishes workspace packages required by
+  `@eddacraft/anvil-cli` to npm on version tags (`v*`) using `pnpm publish`
+  (workspace deps resolved to real versions). Validates tag/package version
+  alignment, runs the full test suite, and creates a GitHub release.
 - **claude.yml** — Claude Code integration for AI-assisted issue triage and PR
   review.
 

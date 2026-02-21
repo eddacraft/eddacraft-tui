@@ -36,8 +36,8 @@ Patch release focused on npm publish/install reliability for
 
 ### Fixed
 
-- Published CLI metadata no longer exposes `workspace:*` runtime dependencies
-  to npm consumers.
+- Published CLI metadata no longer exposes `workspace:*` runtime dependencies to
+  npm consumers.
 - Release workflow publishes CLI-required workspace packages using
   `pnpm publish` and skips already published versions.
 
