@@ -29,6 +29,23 @@ and this project adheres to
 - Ember (interpretive layer)
 - Edda (canonical memory)
 
+## [0.1.1] - 2026-02-21
+
+Patch release focused on npm publish/install reliability for
+`@eddacraft/anvil-cli`.
+
+### Fixed
+
+- Published CLI metadata no longer exposes `workspace:*` runtime dependencies
+  to npm consumers.
+- Release workflow publishes CLI-required workspace packages using
+  `pnpm publish` and skips already published versions.
+
+### Documentation
+
+- Updated release workflow notes in `README.md` to reflect workspace package
+  publishing behaviour.
+
 ## [0.1.0] - 2026-02-19
 
 Initial pre-release of Anvil - the deterministic development automation platform
@@ -181,5 +198,6 @@ violations and anti-patterns at save time.
 - Azure DNS zone and record management
 - CI/CD pipeline with preview on PR, apply on merge
 
+[0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
 [0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.1...HEAD

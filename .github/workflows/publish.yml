@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
 
     steps:
       - name: Checkout
@@ -74,20 +75,44 @@ jobs:
             exit 1
           fi
 
-      - name: Publish to NPM (Dry Run)
+      - name: Publish workspace packages required by CLI (Dry Run)
         if: github.event.inputs.dry-run == 'true'
         run: |
-          cd apps/anvil-cli
-          npm publish --dry-run
+          for pkg in \
+            @eddacraft/anvil-core \
+            @eddacraft/anvil-aps \
+            @eddacraft/anvil-policy \
+            @eddacraft/anvil-runtime \
+            @eddacraft/anvil-adapters \
+            @eddacraft/anvil-kindling-integration \
+            @eddacraft/anvil-cli; do
+            ver=$(pnpm --filter "$pkg" exec node -p "require('./package.json').version")
+            echo "Dry-run publish: $pkg@$ver"
+            pnpm --filter "$pkg" publish --dry-run --access public --no-git-checks
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish to NPM
+      - name: Publish workspace packages required by CLI
         if: >-
           startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry-run != 'true'
         run: |
-          cd apps/anvil-cli
-          npm publish --access public
+          for pkg in \
+            @eddacraft/anvil-core \
+            @eddacraft/anvil-aps \
+            @eddacraft/anvil-policy \
+            @eddacraft/anvil-runtime \
+            @eddacraft/anvil-adapters \
+            @eddacraft/anvil-kindling-integration \
+            @eddacraft/anvil-cli; do
+            ver=$(pnpm --filter "$pkg" exec node -p "require('./package.json').version")
+            if npm view "$pkg@$ver" version >/dev/null 2>&1; then
+              echo "Skipping already published $pkg@$ver"
+              continue
+            fi
+            echo "Publishing: $pkg@$ver"
+            pnpm --filter "$pkg" publish --access public --provenance --no-git-checks
+          done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 

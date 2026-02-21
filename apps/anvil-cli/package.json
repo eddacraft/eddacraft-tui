@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "CLI for Anvil - deterministic development automation platform",
   "type": "module",
   "bin": {
@@ -40,11 +40,6 @@
   "homepage": "https://github.com/EddaCraft/anvil-001#readme",
   "author": "EddaCraft",
   "dependencies": {
-    "@eddacraft/anvil-adapters": "workspace:*",
-    "@eddacraft/anvil-aps": "workspace:*",
-    "@eddacraft/anvil-core": "workspace:*",
-    "@eddacraft/anvil-kindling-integration": "workspace:*",
-    "@eddacraft/anvil-runtime": "workspace:*",
     "@eddacraft/kindling-core": "0.1.2",
     "@eddacraft/kindling-provider-local": "0.1.2",
     "@eddacraft/kindling-store-sqlite": "0.1.2",
@@ -65,6 +60,11 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@eddacraft/anvil-adapters": "workspace:*",
+    "@eddacraft/anvil-aps": "workspace:*",
+    "@eddacraft/anvil-core": "workspace:*",
+    "@eddacraft/anvil-kindling-integration": "workspace:*",
+    "@eddacraft/anvil-runtime": "workspace:*",
     "@types/fs-extra": "^11.0.4",
     "@types/react": "^19.2.14",
     "esbuild": "^0.27.3",
