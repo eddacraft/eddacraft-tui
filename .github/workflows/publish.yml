@@ -24,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
 
     steps:
       - name: Checkout
@@ -88,7 +87,7 @@ jobs:
           startsWith(github.ref, 'refs/tags/v') && github.event.inputs.dry-run != 'true'
         run: |
           cd apps/anvil-cli
-          npm publish --access public --provenance
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
