@@ -13,7 +13,7 @@ describe('api-client', () => {
     it('should return the default URL when env var is not set', () => {
       delete process.env.ANVIL_API_URL;
 
-      expect(getApiUrl()).toBe('https://api.eddacraft.com');
+      expect(getApiUrl()).toBe('https://eddacraft-api.vercel.app');
     });
 
     it('should return the custom URL from env var', () => {
@@ -56,7 +56,7 @@ describe('api-client', () => {
       });
 
       expect(result).toEqual({ data: 'test' });
-      expect(fetch).toHaveBeenCalledWith('https://api.eddacraft.com/api/v1/test', {
+      expect(fetch).toHaveBeenCalledWith('https://eddacraft-api.vercel.app/api/v1/test', {
         method: 'GET',
         headers: {},
         body: undefined,
@@ -76,7 +76,7 @@ describe('api-client', () => {
         operationName: 'Test post',
       });
 
-      expect(fetch).toHaveBeenCalledWith('https://api.eddacraft.com/api/v1/action', {
+      expect(fetch).toHaveBeenCalledWith('https://eddacraft-api.vercel.app/api/v1/action', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

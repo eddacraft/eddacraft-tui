@@ -10,7 +10,7 @@ import { requireEnv, getEnv } from '../utils/env.js';
 
 const log = createDebugger('service');
 
-const DEFAULT_API_URL = 'https://api.eddacraft.com';
+const DEFAULT_API_URL = 'https://eddacraft-api.vercel.app';
 
 /**
  * Get the configured API base URL.
