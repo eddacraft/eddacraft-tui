@@ -6,6 +6,7 @@
 # 3. Push a tag matching v* pattern
 ---
 name: Publish to NPM
+run-name: 'NPM Publish: ${{ github.ref_name }}'
 
 on:
   push:
