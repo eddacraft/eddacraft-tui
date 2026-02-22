@@ -20,19 +20,28 @@ From repo root:
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm -F @eddacraft/anvil-cli test -- --run
-pnpm -F @eddacraft/anvil-cli build
+pnpm run lint:check
+pnpm run typecheck
+pnpm run test -- --run
+pnpm build
+```
+
+Publish dry run (catches missing files, bad metadata):
+
+```bash
+pnpm -F @eddacraft/anvil-cli publish --dry-run --access public --no-git-checks
 ```
 
 CLI package smoke checks:
 
 ```bash
-cd apps/anvil-cli
-npm pack --json > /tmp/anvil-pack.json
-TARBALL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/anvil-pack.json','utf8'))[0].filename)")
-
-# Must run successfully from packed artifact
-npx -y --package "./$TARBALL" anvil --help
+# Run from repo root — uses subshell to avoid changing directory
+(
+  cd apps/anvil-cli
+  npm pack --json > /tmp/anvil-pack.json
+  TARBALL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/anvil-pack.json','utf8'))[0].filename)")
+  npx -y --package "./$TARBALL" anvil --help
+)
 ```
 
 Sanity assertions before release:
@@ -56,21 +65,28 @@ git push origin main
 git push origin vX.Y.Z
 ```
 
-For beta releases, tag as:
+For beta releases, either format works (both are matched by the workflow):
 
 ```bash
-vX.Y.Z-beta.N
+vX.Y.Z-beta      # e.g. v0.1.2-beta
+vX.Y.Z-beta.N    # e.g. v0.1.2-beta.0
 ```
 
 ---
 
 ## 3) Monitor publish workflow
 
-Watch run:
+Watch run in real time:
 
 ```bash
 gh run list --repo EddaCraft/anvil-001 --limit 5
-gh run view <run-id> --repo EddaCraft/anvil-001
+gh run watch <run-id> --repo EddaCraft/anvil-001
+```
+
+Or inspect a completed run:
+
+```bash
+gh run view <run-id> --repo EddaCraft/anvil-001 --log-failed
 ```
 
 Expected behaviour:
@@ -83,9 +99,11 @@ Expected behaviour:
 
 ## 4) Post-release verification (required)
 
+Verify the specific version landed (replace with your version):
+
 ```bash
-npm view @eddacraft/anvil-cli version
-npx -y --package @eddacraft/anvil-cli anvil --help
+npm view @eddacraft/anvil-cli@X.Y.Z version
+npx -y --package @eddacraft/anvil-cli@X.Y.Z anvil --help
 ```
 
 Confirm internal packages were **not** published unintentionally:
@@ -122,9 +140,31 @@ export ANVIL_API_URL=https://eddacraft-api.vercel.app
 2. If within npm window and approved, unpublish (`--force`) intentionally.
 3. Patch workflow/config before next tag.
 
+### If a bad version needs to be retracted
+
+1. Delete the git tag locally and remotely:
+
+```bash
+git tag -d vX.Y.Z
+git push origin :refs/tags/vX.Y.Z
+```
+
+2. Deprecate or unpublish the npm version (see above).
+3. Fix the issue, bump to a new version, and re-release.
+
 ---
 
-## 6) Human comms template
+## 6) Known gotchas
+
+- **`--provenance` requires `id-token: write`** — The publish workflow uses
+  `--provenance` for npm supply chain attestation. This requires the GitHub
+  Actions `id-token: write` permission (already set in the workflow). If
+  provenance fails, check that the repo/org settings allow OIDC token
+  generation.
+
+---
+
+## 7) Human comms template
 
 After successful release, send:
 
