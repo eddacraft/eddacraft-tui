@@ -23,13 +23,11 @@ and variable syntax. The project uses `_bmad/_config` for configuration and
 
 ## Functional Requirements
 
-<!-- prettier-ignore -->
-FR-01: Support `_bmad` folder structure for project configuration
-FR-02: Support `_config` folder for module configuration
-FR-03: Expand `{project-root}` hyphenated variable syntax
+FR-01: Support `_bmad` folder structure for project configuration FR-02: Support
+`_config` folder for module configuration FR-03: Expand `{project-root}`
+hyphenated variable syntax
 
 ## Non-Functional Requirements
 
-<!-- prettier-ignore -->
-NFR-01: Maintain backward compatibility with `.bmad` and `_cfg` folders
-NFR-02: Support both `{project_root}` and `{project-root}` variable formats
+NFR-01: Maintain backward compatibility with `.bmad` and `_cfg` folders NFR-02:
+Support both `{project_root}` and `{project-root}` variable formats
