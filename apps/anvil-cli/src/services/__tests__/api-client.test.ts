@@ -142,7 +142,7 @@ describe('api-client', () => {
       );
     });
 
-    it('should handle network failure without cause', async () => {
+    it('should re-throw non-TypeError fetch failures as-is', async () => {
       global.fetch = vi.fn().mockRejectedValue(new Error('network error'));
 
       await expect(
@@ -151,7 +151,19 @@ describe('api-client', () => {
           path: '/api/v1/test',
           operationName: 'Test',
         })
-      ).rejects.toThrow('Could not connect to https://eddacraft-api.vercel.app');
+      ).rejects.toThrow('network error');
+    });
+
+    it('should handle TypeError without cause', async () => {
+      global.fetch = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
+
+      await expect(
+        apiRequest({
+          method: 'GET',
+          path: '/api/v1/test',
+          operationName: 'Test',
+        })
+      ).rejects.toThrow('Could not connect to https://eddacraft-api.vercel.app.');
     });
 
     it('should use custom API URL from env var', async () => {

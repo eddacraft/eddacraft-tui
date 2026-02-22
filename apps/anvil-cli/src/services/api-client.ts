@@ -57,15 +57,24 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
     headers['Authorization'] = `Bearer ${options.token}`;
   }
 
+  const body = options.body !== undefined ? JSON.stringify(options.body) : undefined;
+
   let res: Response;
   try {
     res = await fetch(url, {
       method: options.method,
       headers,
-      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      body,
     });
   } catch (err) {
-    const cause = err instanceof TypeError && err.cause ? ` (${(err.cause as Error).message})` : '';
+    if (!(err instanceof TypeError)) throw err;
+    let cause = '';
+    if (err.cause != null) {
+      const causeValue = err.cause as unknown;
+      const causeMessage =
+        causeValue instanceof Error ? causeValue.message : String(causeValue);
+      cause = ` (${causeMessage})`;
+    }
     log(`apiRequest: NETWORK ERROR ${options.operationName}${cause}`);
     throw new Error(
       `Could not connect to ${getApiUrl()}${cause}. Check your internet connection and try again.`
