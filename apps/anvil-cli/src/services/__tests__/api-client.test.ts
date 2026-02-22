@@ -124,6 +124,36 @@ describe('api-client', () => {
       ).rejects.toThrow('Admin invite failed: 403 Forbidden: invalid key');
     });
 
+    it('should throw a user-friendly error on network failure', async () => {
+      const cause = new Error('getaddrinfo ENOTFOUND eddacraft-api.vercel.app');
+      const fetchError = new TypeError('fetch failed');
+      (fetchError as unknown as Record<string, unknown>).cause = cause;
+      global.fetch = vi.fn().mockRejectedValue(fetchError);
+
+      await expect(
+        apiRequest({
+          method: 'POST',
+          path: '/api/v1/auth/verify',
+          body: { token: 'test' },
+          operationName: 'Verify token',
+        })
+      ).rejects.toThrow(
+        'Could not connect to https://eddacraft-api.vercel.app (getaddrinfo ENOTFOUND eddacraft-api.vercel.app)'
+      );
+    });
+
+    it('should handle network failure without cause', async () => {
+      global.fetch = vi.fn().mockRejectedValue(new Error('network error'));
+
+      await expect(
+        apiRequest({
+          method: 'GET',
+          path: '/api/v1/test',
+          operationName: 'Test',
+        })
+      ).rejects.toThrow('Could not connect to https://eddacraft-api.vercel.app');
+    });
+
     it('should use custom API URL from env var', async () => {
       process.env.ANVIL_API_URL = 'https://staging.example.com';
       global.fetch = vi.fn().mockResolvedValue({
