@@ -71,8 +71,7 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
     let cause = '';
     if (err.cause != null) {
       const causeValue = err.cause as unknown;
-      const causeMessage =
-        causeValue instanceof Error ? causeValue.message : String(causeValue);
+      const causeMessage = causeValue instanceof Error ? causeValue.message : String(causeValue);
       cause = ` (${causeMessage})`;
     }
     log(`apiRequest: NETWORK ERROR ${options.operationName}${cause}`);
