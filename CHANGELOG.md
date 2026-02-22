@@ -36,6 +36,21 @@ and this project adheres to
 - Ember (interpretive layer)
 - Edda (canonical memory)
 
+## [0.2.1-beta.0] - 2026-02-22
+
+Beta release focused on onboarding/auth UX stability and login error clarity.
+
+### Fixed
+
+- Improved CLI login error messaging to surface actionable network/API failures
+  instead of generic `fetch failed`.
+- Follow-up beta onboarding polish and warning-noise reductions for first-run
+  flows.
+
+### Release
+
+- Shipped via CLI-only beta release flow (`v0.2.1-beta.0`).
+
 ## [0.1.1] - 2026-02-21
 
 Patch release focused on npm publish/install reliability for
