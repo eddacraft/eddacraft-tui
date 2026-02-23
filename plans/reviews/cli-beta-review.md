@@ -57,7 +57,50 @@ src/
 
 ## Critical Issues
 
-### C-1: No token refresh or retry on 401
+### C-1: Shell command injection via `exec` in historical analyser
+
+**File:** `src/services/historical-analyser.ts:160,178-179,259`
+**Severity:** HIGH (CWE-78)
+
+The `HistoricalAnalyser` uses `exec` (which spawns a shell) with string
+interpolation for git commands, rather than `execFile` (which passes args
+directly):
+
+```typescript
+// Line 160: shell interpretation
+await execAsync('git rev-parse --git-dir', { cwd: this.projectRoot });
+
+// Line 178-179: daysBack/maxCommits are user-controlled
+await execAsync(
+  `git log --since="${since}" -${config.maxCommits} ...`,
+  { cwd: this.projectRoot }
+);
+
+// Line 259: commit.hash from parsed git output
+await execAsync(`git show ${commit.hash} --pretty="" --unified=0`, ...);
+```
+
+The `commit.hash` at line 259 is derived from parsing git log output. A
+maliciously crafted git repository could supply content that confuses the
+pipe-delimited parsing at line 200, causing attacker-controlled content to
+appear in the `hash` field and execute via the shell.
+
+By contrast, `release-git.ts` and the `policy diff` command correctly use
+`execFileSync('git', [...args])` which is safe.
+
+**Recommendation:** Replace all `exec`/`execAsync` calls with `execFile`
+throughout `historical-analyser.ts`. This is a straightforward fix:
+
+```typescript
+import { execFile } from 'node:child_process';
+const execFileAsync = promisify(execFile);
+
+await execFileAsync('git', ['show', commit.hash, '--pretty=', '--unified=0'], {
+  cwd: this.projectRoot, maxBuffer: 5 * 1024 * 1024,
+});
+```
+
+### C-2: No token refresh or retry on 401
 
 **File:** `src/services/api-client.ts:82-87`
 
@@ -67,12 +110,10 @@ token refresh, no prompt to re-login, and no retry with backoff. In beta, users
 with expired tokens will see a generic `"failed: 401 ..."` error with no
 guidance.
 
-**Recommendation:** Detect 401 responses and throw a distinct error type (e.g.,
-`AuthExpiredError`) that the caller can catch to prompt `anvil login`. At
-minimum, improve the error message to say "Authentication expired — run `anvil
-login` to re-authenticate."
+**Recommendation:** Detect 401/403 responses, call `clearAuth()`, and throw a
+distinct error: "Authentication expired — run `anvil login` to re-authenticate."
 
-### C-2: `authorship show` uses `process.cwd()` instead of `getWorkspaceRoot()`
+### C-3: `authorship show` uses `process.cwd()` instead of `getWorkspaceRoot()`
 
 **File:** `src/commands/authorship.ts:117`
 
@@ -280,17 +321,28 @@ These helper functions are useful beyond the policy command. They could live in
 - `policy scaffold` validates `--out` path with `validatePathWithinRoot()`
 - `policy doc` validates output path with relative path check
 - Zod schema validation on API responses
-- No shell command construction from user input (uses `execFileSync` with
-  argument arrays, not string interpolation)
+- Most git operations use `execFileSync` with argument arrays (safe)
 - `.env` loading does not override existing env vars
+- No hardcoded secrets anywhere in source
+- Email validation uses Zod (`z.string().email()`) in beta invite
 
 ### Concerns
-- Admin key (`ANVIL_ADMIN_KEY`) passed via environment variable — standard
-  practice but should be documented as sensitive
-- The `beta invite` command prints the token to stdout (necessary but should
-  warn about terminal history)
-- No rate limiting on login attempts (server-side concern, but CLI should
-  handle 429 gracefully)
+- **C-1 (HIGH):** `historical-analyser.ts` uses `exec` with string
+  interpolation for git commands — shell injection vector (see above)
+- `loadAuth()` uses `JSON.parse() as StoredAuth` without Zod validation —
+  a corrupted `~/.anvil/auth.json` could cause unexpected behaviour
+- `login --token` flag exposes token in process list (`ps aux`) and shell
+  history — interactive prompt is the safe path
+- `beta invite` prints token to stdout — consider suppressing when not a TTY
+- `ANVIL_API_URL` override accepts non-HTTPS URLs, enabling SSRF/phishing
+  if an attacker controls `~/.anvil/.env`
+- Full API response body included in error messages (`api-client.ts:84`) —
+  could leak verbose server details
+- `export` command writes to user-provided `--output` path without workspace
+  validation (inconsistent with `policy doc`)
+- `SECURITY.md` documents `--keychain` feature that is not implemented
+- Admin key (`ANVIL_ADMIN_KEY`) via env var — standard but document as
+  sensitive
 
 ---
 
@@ -318,24 +370,34 @@ These helper functions are useful beyond the policy command. They could live in
 
 ## Recommendations for Beta
 
+### Must Fix Immediately
+1. **C-1 (HIGH):** Replace `exec` with `execFile` in `historical-analyser.ts`
+   — shell injection vulnerability
+2. **C-2:** Add 401 detection with actionable error message + `clearAuth()`
+3. **C-3:** Fix `authorship` workspace root (`process.cwd()` → `getWorkspaceRoot()`)
+4. **M-7:** Add request timeout to API calls (`AbortSignal.timeout()`)
+
 ### Must Fix Before GA
-1. **C-1:** Add 401 detection with actionable error message
-2. **C-2:** Fix `authorship` workspace root
-3. **H-1:** Replace `process.exit()` with thrown errors (phased — start with
+5. **H-1:** Replace `process.exit()` with thrown errors (phased — start with
    most-used commands)
-4. **M-4:** Fix hardcoded `branch: 'main'` in plan create
-5. **M-7:** Add request timeout to API calls
+6. **M-4:** Fix hardcoded `branch: 'main'` in plan create
+7. Validate `ANVIL_API_URL` requires HTTPS scheme
+8. Add Zod validation to `loadAuth()` for stored auth integrity
+9. Truncate API error response bodies to prevent information leakage
 
 ### Should Fix During Beta
-6. **H-2:** Clean up barrel export
-7. **M-1:** Document `.env` parser limitations
-8. **M-5:** Add `--json` to remaining commands
-9. Expand test coverage for untested commands
+10. **H-2:** Clean up barrel export
+11. **M-1:** Document `.env` parser limitations
+12. **M-5:** Add `--json` to remaining commands
+13. Expand test coverage for untested commands
+14. Add workspace validation to `export --output` and `new --output`
+15. Remove or document `SECURITY.md` keychain claim
 
 ### Nice to Have
-10. **L-5:** Standardise test file locations
-11. **L-6:** Extract shared utility functions
-12. **H-3:** Normalise number parsing across commands
+16. **L-5:** Standardise test file locations
+17. **L-6:** Extract shared utility functions
+18. **H-3:** Normalise number parsing across commands
+19. Deprecate `login --token` flag in favour of `ANVIL_TOKEN` env var
 
 ---
 
