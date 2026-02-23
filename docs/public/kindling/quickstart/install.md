@@ -11,8 +11,8 @@ Get Kindling running on your system.
 
 ## Requirements
 
-- **Node.js** 20.0.0 or later
-- **pnpm**, **npm**, or **yarn**
+- **Node.js** 20.0.0 or later (or **Bun** 1.0+)
+- **pnpm**, **npm**, **yarn**, or **bun**
 
 ## Installation
 
@@ -35,6 +35,9 @@ npm install -g @eddacraft/kindling
 
 # Using yarn
 yarn global add @eddacraft/kindling
+
+# Using bun
+bun add -g @eddacraft/kindling
 ```
 
 Verify installation:

@@ -12,8 +12,8 @@ minutes.
 
 ## Prerequisites
 
-- **Node.js** 20.0.0 or later
-- **pnpm**, **npm**, or **yarn**
+- **Node.js** 20.0.0 or later (or **Bun** 1.0+)
+- **pnpm**, **npm**, **yarn**, or **bun**
 - A TypeScript or JavaScript project
 
 ## Install
@@ -31,6 +31,9 @@ pnpm add -D @eddacraft/anvil-cli
 
 # Using npm
 npm install -D @eddacraft/anvil-cli
+
+# Using bun
+bun add -D @eddacraft/anvil-cli
 ```
 
 ## Initialise

@@ -21,6 +21,8 @@ The CLI isn't in your PATH.
 pnpm add -g @eddacraft/anvil-cli
 # or
 npm install -g @eddacraft/anvil-cli
+# or
+bun add -g @eddacraft/anvil-cli
 ```
 
 **Solution (local install):**

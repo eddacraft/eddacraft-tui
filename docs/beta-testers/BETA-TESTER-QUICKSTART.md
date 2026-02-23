@@ -7,8 +7,8 @@ you to test. Your feedback helps shape Anvil before public release.
 
 ## Prerequisites
 
-- **Node.js** 20.0.0 or later
-- **pnpm**, **npm**, or **yarn**
+- **Node.js** 20.0.0 or later (or **Bun** 1.0+)
+- **pnpm**, **npm**, **yarn**, or **bun**
 - A TypeScript or JavaScript project to test with
 
 ## Installation
@@ -22,6 +22,9 @@ pnpm add -g @eddacraft/anvil-cli
 
 # yarn
 yarn global add @eddacraft/anvil-cli
+
+# bun
+bun add -g @eddacraft/anvil-cli
 
 # or run without installing
 npx @eddacraft/anvil-cli --help

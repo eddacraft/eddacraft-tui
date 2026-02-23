@@ -21,6 +21,9 @@ pnpm add -g @eddacraft/anvil-cli
 # yarn
 yarn global add @eddacraft/anvil-cli
 
+# bun
+bun add -g @eddacraft/anvil-cli
+
 # or run without installing
 npx @eddacraft/anvil-cli --help
 ```
