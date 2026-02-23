@@ -56,6 +56,7 @@
     "inquirer": "13.2.2",
     "ora": "9.3.0",
     "react": "19.2.4",
+    "semver": "^7.7.4",
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
@@ -67,6 +68,7 @@
     "@eddacraft/anvil-runtime": "workspace:*",
     "@types/fs-extra": "^11.0.4",
     "@types/react": "^19.2.14",
+    "@types/semver": "^7.7.1",
     "esbuild": "^0.27.3",
     "ink-testing-library": "^4.0.0",
     "node-pty": "^1.1.0",

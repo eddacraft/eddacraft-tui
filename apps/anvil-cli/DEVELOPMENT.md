@@ -759,4 +759,4 @@ anvil gate spec.md --skip-checks coverage
 
 ---
 
-**Version:** 0.1.0 (Beta) **Last Updated:** 2026-02-19
+**Last Updated:** 2026-02-23

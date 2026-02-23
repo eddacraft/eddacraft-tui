@@ -9,6 +9,7 @@ export { createGateCommand } from './gate.js';
 export { createGateConfigCommand } from './gate-config.js';
 export { createExportCommand } from './export.js';
 export { createNewCommand } from './new.js';
+export { createReleaseCommand } from './release.js';
 export { createAuditCommand } from './audit.js';
 export { createWatchCommand } from './watch.js';
 export { createStatusCommand } from './status.js';

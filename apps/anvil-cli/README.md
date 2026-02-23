@@ -55,7 +55,7 @@ watching, and fixing issues.
 
 ## Beta
 
-This is `v0.1.0` - an early beta release. We welcome bug reports and feedback:
+This is an early beta release. We welcome bug reports and feedback:
 
 - [Report a bug](https://github.com/EddaCraft/anvil-001/issues/new?template=bug_report.md)
 - [Request a feature](https://github.com/EddaCraft/anvil-001/issues/new?template=feature_request.md)

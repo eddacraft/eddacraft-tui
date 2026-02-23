@@ -22,6 +22,7 @@ import { createWatchCommand } from './commands/watch.js';
 import { createStatusCommand } from './commands/status.js';
 import { createTutorialCommand } from './commands/tutorial.js';
 import { createMcpConfigCommand } from './commands/mcp-config.js';
+import { createReleaseCommand } from './commands/release.js';
 import { createLoginCommand } from './commands/login.js';
 import { createLogoutCommand } from './commands/logout.js';
 import { createWhoamiCommand } from './commands/whoami.js';
@@ -44,6 +45,7 @@ const AUTH_EXEMPT_COMMANDS = new Set([
   'start',
   'help',
   'tutorial',
+  'release',
 ]);
 
 async function main(): Promise<void> {
@@ -116,6 +118,7 @@ async function main(): Promise<void> {
   program.addCommand(createStatusCommand());
   program.addCommand(createTutorialCommand());
   program.addCommand(createMcpConfigCommand());
+  program.addCommand(createReleaseCommand());
 
   await program.parseAsync(process.argv);
 }
