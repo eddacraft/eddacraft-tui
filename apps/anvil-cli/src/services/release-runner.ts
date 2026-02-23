@@ -236,9 +236,23 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
     printStepHeader(stepIndex('verify'), totalSteps, 'Post-release verification');
     updateStepStatus(state, 'verify', 'running');
 
-    await verifyRelease(state.version, config.execute);
+    const verifyResult = await verifyRelease(state.version, config.execute);
 
-    updateStepStatus(state, 'verify', 'passed');
+    if (verifyResult.passed) {
+      updateStepStatus(state, 'verify', 'passed');
+    } else {
+      const failures: string[] = [];
+      if (!verifyResult.npmPublished) failures.push('npm publish not confirmed');
+      if (!verifyResult.smokeCheckPassed) failures.push('smoke check failed');
+      if (verifyResult.internalPackageLeaks > 0)
+        failures.push(`${verifyResult.internalPackageLeaks} internal package(s) leaked`);
+      updateStepStatus(state, 'verify', 'failed', failures.join('; '));
+      saveReleaseState(workspaceRoot, state);
+      console.error(chalk.red(`\n  ✗ Verification failed: ${failures.join('; ')}`));
+      console.log(chalk.dim('  The release was published but verification did not pass.'));
+      console.log(chalk.dim('  Check the failures above and verify manually.\n'));
+      process.exit(1);
+    }
     saveReleaseState(workspaceRoot, state);
     console.log();
   }

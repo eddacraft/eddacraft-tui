@@ -42,14 +42,25 @@ async function pollForVersion(pkg: string, version: string, timeoutMs: number): 
   return false;
 }
 
-export async function verifyRelease(version: string, execute: boolean): Promise<void> {
+export interface VerifyResult {
+  passed: boolean;
+  npmPublished: boolean;
+  smokeCheckPassed: boolean;
+  internalPackageLeaks: number;
+}
+
+export async function verifyRelease(version: string, execute: boolean): Promise<VerifyResult> {
   if (!execute) {
     console.log(`  ${chalk.yellow('[DRY RUN]')} Would verify:`);
     console.log(chalk.dim(`    npm view @eddacraft/anvil-cli@${version} version`));
     console.log(chalk.dim(`    npx -y --package @eddacraft/anvil-cli@${version} anvil --help`));
     console.log(chalk.dim('    Check internal packages not published'));
-    return;
+    return { passed: true, npmPublished: true, smokeCheckPassed: true, internalPackageLeaks: 0 };
   }
+
+  let npmPublished = false;
+  let smokeCheckPassed = false;
+  let internalPackageLeaks = 0;
 
   // Poll for the published version
   const spinner = ora({
@@ -63,35 +74,41 @@ export async function verifyRelease(version: string, execute: boolean): Promise<
     spinner.warn(`@eddacraft/anvil-cli@${version} not found after 2 minutes`);
     console.log(chalk.dim('  Check manually:'));
     console.log(chalk.dim(`    npm view @eddacraft/anvil-cli@${version} version`));
-    return;
+  } else {
+    spinner.succeed(`@eddacraft/anvil-cli@${version} published`);
+    npmPublished = true;
   }
 
-  spinner.succeed(`@eddacraft/anvil-cli@${version} published`);
-
-  // Smoke check from npm
-  const smokeSpinner = ora({ text: 'Running smoke check from npm...', prefixText: '  ' }).start();
-  try {
-    execFileSync('npx', ['-y', '--package', `@eddacraft/anvil-cli@${version}`, 'anvil', '--help'], {
-      encoding: 'utf8',
-      stdio: 'pipe',
-    });
-    smokeSpinner.succeed('anvil --help works from npm');
-  } catch {
-    smokeSpinner.fail('anvil --help failed from npm');
+  // Smoke check from npm (only if published)
+  if (npmPublished) {
+    const smokeSpinner = ora({ text: 'Running smoke check from npm...', prefixText: '  ' }).start();
+    try {
+      execFileSync(
+        'npx',
+        ['-y', '--package', `@eddacraft/anvil-cli@${version}`, 'anvil', '--help'],
+        { encoding: 'utf8', stdio: 'pipe' }
+      );
+      smokeSpinner.succeed('anvil --help works from npm');
+      smokeCheckPassed = true;
+    } catch {
+      smokeSpinner.fail('anvil --help failed from npm');
+    }
   }
 
   // Check internal packages were NOT published
   console.log(chalk.dim('  Checking internal packages not published...'));
-  let leaks = 0;
   for (const pkg of INTERNAL_PACKAGES) {
     const ver = checkNpmExists(pkg);
     if (ver) {
       console.log(`  ${chalk.red('✗')} ${pkg} found on npm (${ver}) — unexpected!`);
-      leaks++;
+      internalPackageLeaks++;
     }
   }
 
-  if (leaks === 0) {
+  if (internalPackageLeaks === 0) {
     console.log(`  ${chalk.green('✓')} No internal packages leaked to npm`);
   }
+
+  const passed = npmPublished && smokeCheckPassed && internalPackageLeaks === 0;
+  return { passed, npmPublished, smokeCheckPassed, internalPackageLeaks };
 }

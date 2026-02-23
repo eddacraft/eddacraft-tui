@@ -19,7 +19,10 @@ interface WorkflowRun {
   headBranch: string;
 }
 
-function findTriggeredRun(workspaceRoot: string): WorkflowRun | null {
+function findTriggeredRun(
+  workspaceRoot: string,
+  tagName: string
+): { run: WorkflowRun; exact: boolean } | null {
   try {
     const output = execFileSync(
       'gh',
@@ -29,15 +32,27 @@ function findTriggeredRun(workspaceRoot: string): WorkflowRun | null {
         '--repo',
         'EddaCraft/anvil-001',
         '--limit',
-        '5',
+        '10',
         '--json',
         'databaseId,status,name,event,headBranch',
       ],
       { cwd: workspaceRoot, encoding: 'utf8', stdio: 'pipe' }
     );
     const runs = JSON.parse(output) as WorkflowRun[];
-    // Find the most recent run triggered by a push (tag push triggers show as 'push' event)
-    return runs.find((r) => r.name === 'Publish to NPM') ?? runs[0] ?? null;
+
+    // Best match: Publish workflow triggered by this tag
+    const exactMatch = runs.find((r) => r.name === 'Publish to NPM' && r.headBranch === tagName);
+    if (exactMatch) return { run: exactMatch, exact: true };
+
+    // Good match: any run on this tag
+    const tagMatch = runs.find((r) => r.headBranch === tagName);
+    if (tagMatch) return { run: tagMatch, exact: true };
+
+    // Fallback: most recent Publish workflow (may not be ours)
+    const publishMatch = runs.find((r) => r.name === 'Publish to NPM');
+    if (publishMatch) return { run: publishMatch, exact: false };
+
+    return null;
   } catch {
     return null;
   }
@@ -68,13 +83,21 @@ export async function monitorWorkflow(
   console.log(chalk.dim('  Waiting for workflow to start...'));
   await sleep(5000);
 
-  const run = findTriggeredRun(workspaceRoot);
-  if (!run) {
+  const result = findTriggeredRun(workspaceRoot, tagName);
+  if (!result) {
     console.log(chalk.dim('  Could not find workflow run. Check manually:'));
     console.log(chalk.dim('    gh run list --repo EddaCraft/anvil-001 --limit 5'));
     return undefined;
   }
 
+  const { run, exact } = result;
+  if (!exact) {
+    console.log(
+      chalk.yellow(
+        `  ⚠ Could not find a run matching tag ${tagName}; showing most recent Publish run`
+      )
+    );
+  }
   console.log(`  ${chalk.green('✓')} Found run #${run.databaseId}: ${run.name} (${run.status})`);
 
   const { watch } = await inquirer.prompt<{ watch: boolean }>([
