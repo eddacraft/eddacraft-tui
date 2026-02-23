@@ -7,9 +7,11 @@ import type { ScanResults } from '../types.js';
 interface NextStepsStepProps {
   startedAt: Date;
   scanResults?: ScanResults;
-  cleanupConfirming: boolean;
-  cleanupRequested: boolean;
-  onFinish: () => void;
+  cleanupConfirming?: boolean;
+  cleanupRequested?: boolean;
+  onFinish?: () => void;
+  /** @deprecated Cleanup is now handled by the parent Tutorial component */
+  onCleanup?: () => void;
 }
 
 interface FeatureTutorial {
@@ -30,17 +32,13 @@ const WHAT_YOU_LEARNED = [
   'Fixed an issue at save-time (the core loop)',
 ];
 
-const CLEANUP_FILES = [
-  '.anvil/tutorial/',
-  '.anvil/tutorial-progress.json',
-  '.anvil/policies/max_file_length.rego',
-];
+const CLEANUP_FILES = ['.anvil/tutorial/', '.anvil/tutorial-progress.json'];
 
 export function NextStepsStep({
   startedAt,
   scanResults,
-  cleanupConfirming,
-  cleanupRequested,
+  cleanupConfirming = false,
+  cleanupRequested = false,
 }: NextStepsStepProps): React.ReactElement {
   const elapsed = formatElapsedTime(startedAt);
 

@@ -63,13 +63,18 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
   }, []);
 
   const handleCleanupConfirm = useCallback(() => {
-    if (!state.cleanupConfirming) {
-      setState((prev) => ({ ...prev, cleanupConfirming: true }));
-      return;
-    }
-    setState((prev) => ({ ...prev, cleanupRequested: true, cleanupConfirming: false }));
-    onCleanup?.();
-  }, [state.cleanupConfirming, onCleanup]);
+    setState((prev) => {
+      if (!prev.cleanupConfirming) {
+        return { ...prev, cleanupConfirming: true };
+      }
+      try {
+        onCleanup?.();
+        return { ...prev, cleanupRequested: true, cleanupConfirming: false };
+      } catch {
+        return { ...prev, cleanupConfirming: false };
+      }
+    });
+  }, [onCleanup]);
 
   const handleFinish = useCallback(() => {
     onComplete?.();

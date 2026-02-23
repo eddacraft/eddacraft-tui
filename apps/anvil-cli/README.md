@@ -47,7 +47,7 @@ watching, and fixing issues.
 
 ## Requirements
 
-- Node.js 20.0.0 or later (or Bun 1.0+)
+- Node.js 20.0.0 or later
 - Git
 
 ## Beta
