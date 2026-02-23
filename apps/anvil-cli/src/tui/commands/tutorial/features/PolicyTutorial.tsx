@@ -3,6 +3,8 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { Header } from '../../../components/Header.js';
 import { ProgressBar } from '../../../components/ProgressBar.js';
 import { theme } from '../../../utils/theme.js';
+import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
+import type { TutorialOption } from '../components/TutorialPicker.js';
 import { IntroStep } from './policy-steps/IntroStep.js';
 import { CreateDirStep } from './policy-steps/CreateDirStep.js';
 import { WritePolicyStep } from './policy-steps/WritePolicyStep.js';
@@ -98,9 +100,16 @@ function getProgressPercentage(current: PolicyStepId): number {
 interface PolicyTutorialProps {
   onComplete?: () => void;
   onCleanup?: () => void;
+  onSelectTutorial?: (topic: string) => void;
+  tutorials?: TutorialOption[];
 }
 
-export function PolicyTutorial({ onComplete, onCleanup }: PolicyTutorialProps): React.ReactElement {
+export function PolicyTutorial({
+  onComplete,
+  onCleanup,
+  onSelectTutorial,
+  tutorials = [],
+}: PolicyTutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [currentStep, setCurrentStep] = useState<PolicyStepId>('intro');
   const [cleanedUp, setCleanedUp] = useState(false);
@@ -146,9 +155,17 @@ export function PolicyTutorial({ onComplete, onCleanup }: PolicyTutorialProps): 
     if (isLastStep(step)) {
       if (input === 'c' && !cleanedUp) {
         handleCleanup();
+        return;
       }
       if (input === 'q') {
         handleFinish();
+        return;
+      }
+
+      const topic = resolveTutorialKey(tutorials, 'policies', input);
+      if (topic) {
+        onSelectTutorial?.(topic);
+        exit();
       }
     }
   });
@@ -180,10 +197,22 @@ export function PolicyTutorial({ onComplete, onCleanup }: PolicyTutorialProps): 
         {currentStep === 'customise' && <CustomiseStep />}
       </Box>
 
+      {isLastStep(currentStep) && tutorials.length > 0 && (
+        <Box marginY={1}>
+          <TutorialPicker tutorials={tutorials} currentTopic="policies" />
+        </Box>
+      )}
+
       <Box marginTop={1}>
         <Text color={theme.colours.smoke}>
           {canGoBack(currentStep) && `${theme.icons.arrow} back `}
           {!isLastStep(currentStep) && 'Enter next '}
+          {isLastStep(currentStep) && (
+            <>
+              <Text color={theme.colours.text}>c</Text>
+              {' clean up  '}
+            </>
+          )}
           {theme.icons.bullet} q quit
         </Text>
       </Box>

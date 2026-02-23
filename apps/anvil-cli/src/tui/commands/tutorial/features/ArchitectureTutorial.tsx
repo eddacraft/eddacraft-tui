@@ -3,6 +3,8 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { Header } from '../../../components/Header.js';
 import { ProgressBar } from '../../../components/ProgressBar.js';
 import { theme } from '../../../utils/theme.js';
+import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
+import type { TutorialOption } from '../components/TutorialPicker.js';
 import { IntroStep } from './architecture-steps/IntroStep.js';
 import { DetectStep } from './architecture-steps/DetectStep.js';
 import { TemplateStep } from './architecture-steps/TemplateStep.js';
@@ -98,11 +100,15 @@ function getProgressPercentage(current: ArchitectureStepId): number {
 interface ArchitectureTutorialProps {
   onComplete?: () => void;
   onCleanup?: () => void;
+  onSelectTutorial?: (topic: string) => void;
+  tutorials?: TutorialOption[];
 }
 
 export function ArchitectureTutorial({
   onComplete,
   onCleanup,
+  onSelectTutorial,
+  tutorials = [],
 }: ArchitectureTutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [currentStep, setCurrentStep] = useState<ArchitectureStepId>('intro');
@@ -149,9 +155,17 @@ export function ArchitectureTutorial({
     if (isLastStep(step)) {
       if (input === 'c' && !cleanedUp) {
         handleCleanup();
+        return;
       }
       if (input === 'q') {
         handleFinish();
+        return;
+      }
+
+      const topic = resolveTutorialKey(tutorials, 'architecture', input);
+      if (topic) {
+        onSelectTutorial?.(topic);
+        exit();
       }
     }
   });
@@ -183,10 +197,22 @@ export function ArchitectureTutorial({
         {currentStep === 'summary' && <SummaryStep />}
       </Box>
 
+      {isLastStep(currentStep) && tutorials.length > 0 && (
+        <Box marginY={1}>
+          <TutorialPicker tutorials={tutorials} currentTopic="architecture" />
+        </Box>
+      )}
+
       <Box marginTop={1}>
         <Text color={theme.colours.smoke}>
           {canGoBack(currentStep) && `${theme.icons.arrow} back `}
           {!isLastStep(currentStep) && 'Enter next '}
+          {isLastStep(currentStep) && (
+            <>
+              <Text color={theme.colours.text}>c</Text>
+              {' clean up  '}
+            </>
+          )}
           {theme.icons.bullet} q quit
         </Text>
       </Box>

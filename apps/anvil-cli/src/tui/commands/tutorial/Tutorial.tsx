@@ -19,12 +19,22 @@ import { WatchStep } from './steps/WatchStep.js';
 import { FixStep } from './steps/FixStep.js';
 import { NextStepsStep } from './steps/NextStepsStep.js';
 
+import { resolveTutorialKey } from './components/TutorialPicker.js';
+import type { TutorialOption } from './components/TutorialPicker.js';
+
 interface TutorialProps {
   onComplete?: () => void;
   onCleanup?: () => void;
+  onSelectTutorial?: (topic: string) => void;
+  tutorials?: TutorialOption[];
 }
 
-export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactElement {
+export function Tutorial({
+  onComplete,
+  onCleanup,
+  onSelectTutorial,
+  tutorials = [],
+}: TutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [state, setState] = useState<TutorialState>(createInitialTutorialState);
 
@@ -100,6 +110,13 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
     if (isLastStep(state.currentStep)) {
       if (input === 'c' && !state.cleanupRequested) {
         handleCleanupConfirm();
+        return;
+      }
+
+      const topic = resolveTutorialKey(tutorials, undefined, input);
+      if (topic) {
+        onSelectTutorial?.(topic);
+        exit();
       }
     }
   });
@@ -146,6 +163,7 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
             scanResults={state.scanResults}
             cleanupConfirming={state.cleanupConfirming}
             cleanupRequested={state.cleanupRequested}
+            tutorials={tutorials}
             onFinish={handleFinish}
           />
         )}

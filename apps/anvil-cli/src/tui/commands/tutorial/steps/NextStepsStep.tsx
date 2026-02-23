@@ -3,28 +3,19 @@ import { Box, Text } from 'ink';
 import { theme } from '../../../utils/theme.js';
 import { formatElapsedTime } from '../types.js';
 import type { ScanResults } from '../types.js';
+import { TutorialPicker } from '../components/TutorialPicker.js';
+import type { TutorialOption } from '../components/TutorialPicker.js';
 
 interface NextStepsStepProps {
   startedAt: Date;
   scanResults?: ScanResults;
   cleanupConfirming?: boolean;
   cleanupRequested?: boolean;
+  tutorials: TutorialOption[];
   onFinish?: () => void;
   /** @deprecated Cleanup is now handled by the parent Tutorial component */
   onCleanup?: () => void;
 }
-
-interface FeatureTutorial {
-  command: string;
-  description: string;
-}
-
-const FEATURE_TUTORIALS: FeatureTutorial[] = [
-  { command: 'anvil tutorial policies', description: 'Write custom OPA/Rego rules' },
-  { command: 'anvil tutorial architecture', description: 'Define architecture boundaries' },
-  { command: 'anvil tutorial drift', description: 'Track architecture drift over time' },
-  { command: 'anvil tutorial ci', description: 'Set up CI integration' },
-];
 
 const WHAT_YOU_LEARNED = [
   'Scanned your project for anti-patterns and architecture issues',
@@ -39,6 +30,7 @@ export function NextStepsStep({
   scanResults,
   cleanupConfirming = false,
   cleanupRequested = false,
+  tutorials,
 }: NextStepsStepProps): React.ReactElement {
   const elapsed = formatElapsedTime(startedAt);
 
@@ -78,22 +70,7 @@ export function NextStepsStep({
 
       {/* Explore further */}
       <Box flexDirection="column" marginBottom={1}>
-        <Box marginBottom={1}>
-          <Text bold color={theme.colours.text}>
-            Explore further
-          </Text>
-        </Box>
-        <Box flexDirection="column" marginLeft={2}>
-          {FEATURE_TUTORIALS.map((tutorial) => (
-            <Box key={tutorial.command}>
-              <Text color={theme.colours.molten}>{tutorial.command}</Text>
-              <Text color={theme.colours.smoke}>
-                {' '}
-                {theme.icons.arrow} {tutorial.description}
-              </Text>
-            </Box>
-          ))}
-        </Box>
+        <TutorialPicker tutorials={tutorials} />
       </Box>
 
       {/* Resources */}
@@ -136,8 +113,9 @@ export function NextStepsStep({
           </Box>
         ) : (
           <Text color={theme.colours.smoke}>
-            Press <Text color={theme.colours.text}>c</Text> to clean up tutorial files,{' '}
-            <Text color={theme.colours.text}>q</Text> to exit
+            Press <Text color={theme.colours.text}>c</Text> to clean up,{' '}
+            <Text color={theme.colours.text}>q</Text> to exit, or a{' '}
+            <Text color={theme.colours.text}>number</Text> to continue
           </Text>
         )}
       </Box>

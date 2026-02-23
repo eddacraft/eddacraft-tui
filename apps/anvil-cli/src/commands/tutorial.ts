@@ -9,6 +9,7 @@ import { theme } from '../tui/utils/theme.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { TutorialProgressSchema } from '../tui/commands/tutorial/types.js';
 import type { TutorialProgress } from '../tui/commands/tutorial/types.js';
+import type { TutorialOption } from '../tui/commands/tutorial/components/TutorialPicker.js';
 
 interface TutorialOptions {
   reset?: boolean;
@@ -124,6 +125,135 @@ const AVAILABLE_TUTORIALS = [
   { topic: 'ci', description: 'Set up CI integration' },
 ];
 
+/** Tutorials list in the shape the TutorialPicker component expects. */
+const TUTORIAL_OPTIONS: TutorialOption[] = [
+  { topic: 'core', description: 'Core tutorial (scan, watch, fix)' },
+  ...AVAILABLE_TUTORIALS,
+];
+
+/**
+ * Render a single tutorial and return the topic the user selected next,
+ * or null if they quit.
+ */
+async function renderTutorial(
+  currentTopic: string | undefined,
+  options: TutorialOptions
+): Promise<string | null> {
+  const useTUI = isTUIAvailable({ tui: options.tui });
+  if (!useTUI) printTutorialTTYError(options);
+
+  let nextTopic: string | null = null;
+  const onSelectTutorial = (topic: string) => {
+    nextTopic = topic;
+  };
+
+  if (!currentTopic || currentTopic === 'core') {
+    // Core tutorial
+    const workspaceRoot = getWorkspaceRoot();
+    ensureTutorialDir(workspaceRoot);
+
+    let cleanedUp = false;
+
+    const handleComplete = () => {
+      const progress: TutorialProgress = {
+        currentStep: 4,
+        totalSteps: 4,
+        completedSteps: ['scan', 'watch', 'fix', 'next-steps'],
+        startedAt: new Date().toISOString(),
+      };
+      saveProgress(workspaceRoot, progress);
+    };
+
+    const handleCleanup = () => {
+      cleanupTutorialFiles(workspaceRoot);
+      cleanedUp = true;
+    };
+
+    await renderTUIAndWait(Tutorial, {
+      onComplete: handleComplete,
+      onCleanup: handleCleanup,
+      onSelectTutorial,
+      tutorials: TUTORIAL_OPTIONS,
+    });
+
+    if (cleanedUp) {
+      console.log(
+        chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial files cleaned up`)
+      );
+    }
+
+    return nextTopic;
+  }
+
+  if (currentTopic === 'policies') {
+    const { PolicyTutorial } = await import('../tui/commands/tutorial/features/PolicyTutorial.js');
+
+    let policyCleanedUp = false;
+
+    await renderTUIAndWait(PolicyTutorial, {
+      onComplete: () => {},
+      onCleanup: () => {
+        const workspaceRoot = getWorkspaceRoot();
+        cleanupPolicyTutorialFile(workspaceRoot);
+        policyCleanedUp = true;
+      },
+      onSelectTutorial,
+      tutorials: TUTORIAL_OPTIONS,
+    });
+
+    if (policyCleanedUp) {
+      console.log(
+        chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial policy file cleaned up`)
+      );
+    }
+
+    return nextTopic;
+  }
+
+  if (currentTopic === 'architecture') {
+    const { ArchitectureTutorial } =
+      await import('../tui/commands/tutorial/features/ArchitectureTutorial.js');
+
+    await renderTUIAndWait(ArchitectureTutorial, {
+      onComplete: () => {},
+      onCleanup: () => {},
+      onSelectTutorial,
+      tutorials: TUTORIAL_OPTIONS,
+    });
+
+    return nextTopic;
+  }
+
+  if (currentTopic === 'drift') {
+    const { DriftTutorial } = await import('../tui/commands/tutorial/features/DriftTutorial.js');
+
+    await renderTUIAndWait(DriftTutorial, {
+      onComplete: () => {},
+      onCleanup: () => {},
+      onSelectTutorial,
+      tutorials: TUTORIAL_OPTIONS,
+    });
+
+    return nextTopic;
+  }
+
+  if (currentTopic === 'ci') {
+    const { CITutorial } = await import('../tui/commands/tutorial/features/CITutorial.js');
+
+    await renderTUIAndWait(CITutorial, {
+      onComplete: () => {},
+      onCleanup: () => {},
+      onSelectTutorial,
+      tutorials: TUTORIAL_OPTIONS,
+    });
+
+    return nextTopic;
+  }
+
+  // Unknown topic
+  return null;
+}
+
 export function createTutorialCommand(): Command {
   const command = new Command('tutorial');
 
@@ -184,153 +314,48 @@ export function createTutorialCommand(): Command {
         return;
       }
 
+      if (!topic) {
+        // No topic: check for --reset on core tutorial
+        const workspaceRoot = getWorkspaceRoot();
+
+        if (options.reset) {
+          cleanupTutorialFiles(workspaceRoot);
+          console.log(
+            chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`)
+          );
+          console.log(chalk.hex(theme.colours.smoke)('Run anvil tutorial to start fresh.'));
+          return;
+        }
+      }
+
+      // Validate topic if provided
       if (topic) {
-        if (topic === 'policies') {
-          const useTUI = isTUIAvailable({ tui: options.tui });
-
-          if (!useTUI) {
-            printTutorialTTYError(options);
-          }
-
-          const { PolicyTutorial } =
-            await import('../tui/commands/tutorial/features/PolicyTutorial.js');
-
-          let policyCleanedUp = false;
-
-          await renderTUIAndWait(PolicyTutorial, {
-            onComplete: () => {},
-            onCleanup: () => {
-              const workspaceRoot = getWorkspaceRoot();
-              cleanupPolicyTutorialFile(workspaceRoot);
-              policyCleanedUp = true;
-            },
-          });
-
-          if (policyCleanedUp) {
+        const validTopics = AVAILABLE_TUTORIALS.map((t) => t.topic);
+        if (!validTopics.includes(topic)) {
+          const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
+          if (known) {
             console.log(
-              chalk.hex(theme.colours.steel)(
-                `\n${theme.icons.success} Tutorial policy file cleaned up`
+              chalk.hex(theme.colours.molten)(
+                `\nTutorial '${topic}' coming soon. Run ${chalk.hex(theme.colours.text)('anvil tutorial')} for the core tutorial.\n`
+              )
+            );
+          } else {
+            console.log(
+              chalk.hex(theme.colours.slag)(
+                `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
               )
             );
           }
           return;
         }
-
-        if (topic === 'architecture') {
-          const useTUI = isTUIAvailable({ tui: options.tui });
-
-          if (!useTUI) {
-            printTutorialTTYError(options);
-          }
-
-          const { ArchitectureTutorial } =
-            await import('../tui/commands/tutorial/features/ArchitectureTutorial.js');
-
-          await renderTUIAndWait(ArchitectureTutorial, {
-            onComplete: () => {},
-            onCleanup: () => {},
-          });
-
-          return;
-        }
-
-        if (topic === 'drift') {
-          const useTUI = isTUIAvailable({ tui: options.tui });
-
-          if (!useTUI) {
-            printTutorialTTYError(options);
-          }
-
-          const { DriftTutorial } =
-            await import('../tui/commands/tutorial/features/DriftTutorial.js');
-
-          await renderTUIAndWait(DriftTutorial, {
-            onComplete: () => {},
-            onCleanup: () => {},
-          });
-
-          return;
-        }
-
-        if (topic === 'ci') {
-          const useTUI = isTUIAvailable({ tui: options.tui });
-
-          if (!useTUI) {
-            printTutorialTTYError(options);
-          }
-
-          const { CITutorial } = await import('../tui/commands/tutorial/features/CITutorial.js');
-
-          await renderTUIAndWait(CITutorial, {
-            onComplete: () => {},
-            onCleanup: () => {},
-          });
-
-          return;
-        }
-
-        const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
-        if (known) {
-          console.log(
-            chalk.hex(theme.colours.molten)(
-              `\nTutorial '${topic}' coming soon. Run ${chalk.hex(theme.colours.text)('anvil tutorial')} for the core tutorial.\n`
-            )
-          );
-        } else {
-          console.log(
-            chalk.hex(theme.colours.slag)(
-              `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
-            )
-          );
-        }
-        return;
-      }
-      const workspaceRoot = getWorkspaceRoot();
-
-      if (options.reset) {
-        cleanupTutorialFiles(workspaceRoot);
-        console.log(
-          chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`)
-        );
-        console.log(chalk.hex(theme.colours.smoke)('Run anvil tutorial to start fresh.'));
-        return;
       }
 
-      const useTUI = isTUIAvailable({ tui: options.tui });
-
-      if (!useTUI) {
-        printTutorialTTYError(options);
-      }
-
-      ensureTutorialDir(workspaceRoot);
-
-      let cleanedUp = false;
-
-      const handleComplete = () => {
-        const progress: TutorialProgress = {
-          currentStep: 4,
-          totalSteps: 4,
-          completedSteps: ['scan', 'watch', 'fix', 'next-steps'],
-          startedAt: new Date().toISOString(),
-        };
-        saveProgress(workspaceRoot, progress);
-      };
-
-      const handleCleanup = () => {
-        cleanupTutorialFiles(workspaceRoot);
-        cleanedUp = true;
-      };
-
-      await renderTUIAndWait(Tutorial, {
-        onComplete: handleComplete,
-        onCleanup: handleCleanup,
-      });
-
-      // Print cleanup message after TUI exits to avoid rendering issues
-      if (cleanedUp) {
-        console.log(
-          chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial files cleaned up`)
-        );
+      // Tutorial loop: render tutorials until the user quits without selecting another
+      let currentTopic = topic ?? undefined;
+      while (true) {
+        const next = await renderTutorial(currentTopic, options);
+        if (!next) break;
+        currentTopic = next;
       }
     });
 

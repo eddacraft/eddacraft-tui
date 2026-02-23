@@ -3,6 +3,8 @@ import { Box, Text, useInput, useApp } from 'ink';
 import { Header } from '../../../components/Header.js';
 import { ProgressBar } from '../../../components/ProgressBar.js';
 import { theme } from '../../../utils/theme.js';
+import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
+import type { TutorialOption } from '../components/TutorialPicker.js';
 import { IntroStep } from './ci-steps/IntroStep.js';
 import { DetectStep } from './ci-steps/DetectStep.js';
 import { WorkflowStep } from './ci-steps/WorkflowStep.js';
@@ -92,9 +94,16 @@ function getProgressPercentage(current: CIStepId): number {
 interface CITutorialProps {
   onComplete?: () => void;
   onCleanup?: () => void;
+  onSelectTutorial?: (topic: string) => void;
+  tutorials?: TutorialOption[];
 }
 
-export function CITutorial({ onComplete, onCleanup }: CITutorialProps): React.ReactElement {
+export function CITutorial({
+  onComplete,
+  onCleanup,
+  onSelectTutorial,
+  tutorials = [],
+}: CITutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [currentStep, setCurrentStep] = useState<CIStepId>('intro');
   const [cleanedUp, setCleanedUp] = useState(false);
@@ -140,9 +149,17 @@ export function CITutorial({ onComplete, onCleanup }: CITutorialProps): React.Re
     if (isLastStep(step)) {
       if (input === 'c' && !cleanedUp) {
         handleCleanup();
+        return;
       }
       if (input === 'q') {
         handleFinish();
+        return;
+      }
+
+      const topic = resolveTutorialKey(tutorials, 'ci', input);
+      if (topic) {
+        onSelectTutorial?.(topic);
+        exit();
       }
     }
   });
@@ -174,10 +191,22 @@ export function CITutorial({ onComplete, onCleanup }: CITutorialProps): React.Re
         {currentStep === 'summary' && <SummaryStep />}
       </Box>
 
+      {isLastStep(currentStep) && tutorials.length > 0 && (
+        <Box marginY={1}>
+          <TutorialPicker tutorials={tutorials} currentTopic="ci" />
+        </Box>
+      )}
+
       <Box marginTop={1}>
         <Text color={theme.colours.smoke}>
           {canGoBack(currentStep) && `${theme.icons.arrow} back `}
           {!isLastStep(currentStep) && 'Enter next '}
+          {isLastStep(currentStep) && (
+            <>
+              <Text color={theme.colours.text}>c</Text>
+              {' clean up  '}
+            </>
+          )}
           {theme.icons.bullet} q quit
         </Text>
       </Box>
