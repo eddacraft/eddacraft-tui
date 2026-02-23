@@ -60,7 +60,7 @@ This is `v0.1.0` - an early beta release. We welcome bug reports and feedback:
 
 ## Documentation
 
-- [Beta Tester Quickstart](https://github.com/EddaCraft/anvil-001/blob/main/docs/beta-testers/BETA-TESTER-QUICKSTART.md)
+- [Beta Quickstart](https://eddacraft.ai/beta)
 - [CLI Command Reference](https://github.com/EddaCraft/anvil-001/blob/main/apps/anvil-cli/DEVELOPMENT.md)
 
 ## Licence
