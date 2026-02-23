@@ -15,6 +15,9 @@ tracking.
 
 ```bash
 npm install @eddacraft/kindling-adapter-pocketflow
+# or: pnpm add @eddacraft/kindling-adapter-pocketflow
+# or: yarn add @eddacraft/kindling-adapter-pocketflow
+# or: bun add @eddacraft/kindling-adapter-pocketflow
 ```
 
 ## KindlingNode

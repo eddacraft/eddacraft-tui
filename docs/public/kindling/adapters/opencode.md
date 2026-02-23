@@ -14,6 +14,9 @@ redaction.
 
 ```bash
 npm install @eddacraft/kindling-adapter-opencode
+# or: pnpm add @eddacraft/kindling-adapter-opencode
+# or: yarn add @eddacraft/kindling-adapter-opencode
+# or: bun add @eddacraft/kindling-adapter-opencode
 ```
 
 ## Session Management

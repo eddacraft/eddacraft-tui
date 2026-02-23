@@ -41,8 +41,14 @@ pnpm add -D @eddacraft/anvil-cli
 # Using npm
 npm install -D @eddacraft/anvil-cli
 
+# Using yarn
+yarn add -D @eddacraft/anvil-cli
+
 # Using bun
 bun add -D @eddacraft/anvil-cli
+
+# Or run without installing
+npx @eddacraft/anvil-cli --help
 ```
 
 Verify the installation:

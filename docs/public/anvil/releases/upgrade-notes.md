@@ -66,6 +66,9 @@ If you're new to Anvil, start with:
 
 ```bash
 pnpm add -D @eddacraft/anvil-cli
+# or: npm install -D @eddacraft/anvil-cli
+# or: yarn add -D @eddacraft/anvil-cli
+# or: bun add -D @eddacraft/anvil-cli
 anvil init
 anvil run
 ```

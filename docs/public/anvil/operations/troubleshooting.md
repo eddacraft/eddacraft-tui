@@ -22,6 +22,8 @@ pnpm add -g @eddacraft/anvil-cli
 # or
 npm install -g @eddacraft/anvil-cli
 # or
+yarn global add @eddacraft/anvil-cli
+# or
 bun add -g @eddacraft/anvil-cli
 ```
 

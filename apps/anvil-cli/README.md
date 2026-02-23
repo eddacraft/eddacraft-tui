@@ -12,6 +12,8 @@ npx @eddacraft/anvil-cli tutorial
 
 # Or install globally
 npm install -g @eddacraft/anvil-cli
+# or: pnpm add -g @eddacraft/anvil-cli
+# or: yarn global add @eddacraft/anvil-cli
 # or: bun add -g @eddacraft/anvil-cli
 anvil tutorial
 ```
@@ -48,6 +50,7 @@ watching, and fixing issues.
 ## Requirements
 
 - Node.js 20.0.0 or later
+- A package manager: **pnpm**, **npm**, **yarn**, or **bun**
 - Git
 
 ## Beta

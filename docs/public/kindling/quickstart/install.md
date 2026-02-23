@@ -38,6 +38,9 @@ yarn global add @eddacraft/kindling
 
 # Using bun
 bun add -g @eddacraft/kindling
+
+# Or run without installing
+npx @eddacraft/kindling --help
 ```
 
 Verify installation:

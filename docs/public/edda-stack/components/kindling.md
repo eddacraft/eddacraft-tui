@@ -45,6 +45,9 @@ Kindling is fully functional:
 ```bash
 # Install
 pnpm add -g @eddacraft/kindling
+# or: npm install -g @eddacraft/kindling
+# or: yarn global add @eddacraft/kindling
+# or: bun add -g @eddacraft/kindling
 
 # Initialise
 kindling init
