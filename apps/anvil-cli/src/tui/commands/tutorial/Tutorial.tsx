@@ -62,10 +62,14 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
     setState((prev) => ({ ...prev, fixConfirmed: true }));
   }, []);
 
-  const handleCleanup = useCallback(() => {
-    setState((prev) => ({ ...prev, cleanupRequested: true }));
+  const handleCleanupConfirm = useCallback(() => {
+    if (!state.cleanupConfirming) {
+      setState((prev) => ({ ...prev, cleanupConfirming: true }));
+      return;
+    }
+    setState((prev) => ({ ...prev, cleanupRequested: true, cleanupConfirming: false }));
     onCleanup?.();
-  }, [onCleanup]);
+  }, [state.cleanupConfirming, onCleanup]);
 
   const handleFinish = useCallback(() => {
     onComplete?.();
@@ -89,8 +93,8 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
     }
 
     if (isLastStep(state.currentStep)) {
-      if (input === 'c') {
-        handleCleanup();
+      if (input === 'c' && !state.cleanupRequested) {
+        handleCleanupConfirm();
       }
     }
   });
@@ -135,7 +139,8 @@ export function Tutorial({ onComplete, onCleanup }: TutorialProps): React.ReactE
           <NextStepsStep
             startedAt={state.startedAt}
             scanResults={state.scanResults}
-            onCleanup={handleCleanup}
+            cleanupConfirming={state.cleanupConfirming}
+            cleanupRequested={state.cleanupRequested}
             onFinish={handleFinish}
           />
         )}

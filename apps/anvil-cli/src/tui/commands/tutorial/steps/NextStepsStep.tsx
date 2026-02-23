@@ -7,7 +7,8 @@ import type { ScanResults } from '../types.js';
 interface NextStepsStepProps {
   startedAt: Date;
   scanResults?: ScanResults;
-  onCleanup: () => void;
+  cleanupConfirming: boolean;
+  cleanupRequested: boolean;
   onFinish: () => void;
 }
 
@@ -29,7 +30,18 @@ const WHAT_YOU_LEARNED = [
   'Fixed an issue at save-time (the core loop)',
 ];
 
-export function NextStepsStep({ startedAt, scanResults }: NextStepsStepProps): React.ReactElement {
+const CLEANUP_FILES = [
+  '.anvil/tutorial/',
+  '.anvil/tutorial-progress.json',
+  '.anvil/policies/max_file_length.rego',
+];
+
+export function NextStepsStep({
+  startedAt,
+  scanResults,
+  cleanupConfirming,
+  cleanupRequested,
+}: NextStepsStepProps): React.ReactElement {
   const elapsed = formatElapsedTime(startedAt);
 
   return (
@@ -105,12 +117,31 @@ export function NextStepsStep({ startedAt, scanResults }: NextStepsStepProps): R
         </Box>
       </Box>
 
-      {/* Footer */}
-      <Box marginTop={1}>
-        <Text color={theme.colours.smoke}>
-          Press <Text color={theme.colours.text}>c</Text> to clean up tutorial files,{' '}
-          <Text color={theme.colours.text}>q</Text> to exit
-        </Text>
+      {/* Cleanup section */}
+      <Box marginTop={1} flexDirection="column">
+        {cleanupRequested ? (
+          <Text color={theme.colours.ember}>{theme.icons.success} Tutorial files cleaned up</Text>
+        ) : cleanupConfirming ? (
+          <Box flexDirection="column">
+            <Text color={theme.colours.molten}>This will remove the following tutorial files:</Text>
+            <Box flexDirection="column" marginLeft={2} marginY={1}>
+              {CLEANUP_FILES.map((file) => (
+                <Text key={file} color={theme.colours.ash}>
+                  {theme.icons.bullet} {file}
+                </Text>
+              ))}
+            </Box>
+            <Text color={theme.colours.smoke}>
+              Press <Text color={theme.colours.text}>c</Text> again to confirm,{' '}
+              <Text color={theme.colours.text}>q</Text> to exit without cleaning
+            </Text>
+          </Box>
+        ) : (
+          <Text color={theme.colours.smoke}>
+            Press <Text color={theme.colours.text}>c</Text> to clean up tutorial files,{' '}
+            <Text color={theme.colours.text}>q</Text> to exit
+          </Text>
+        )}
       </Box>
     </Box>
   );

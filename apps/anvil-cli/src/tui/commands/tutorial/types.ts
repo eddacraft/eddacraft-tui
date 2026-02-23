@@ -61,6 +61,7 @@ export interface TutorialState {
   watchTriggered: boolean;
   fixConfirmed: boolean;
   startedAt: Date;
+  cleanupConfirming: boolean;
   cleanupRequested: boolean;
 }
 
@@ -85,6 +86,7 @@ export function createInitialTutorialState(): TutorialState {
     watchTriggered: false,
     fixConfirmed: false,
     startedAt: new Date(),
+    cleanupConfirming: false,
     cleanupRequested: false,
   };
 }
