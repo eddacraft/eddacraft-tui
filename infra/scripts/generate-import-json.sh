@@ -149,26 +149,6 @@ cat > "$OUTPUT" <<ENDJSON
       "type": "azure-native:dns:RecordSet",
       "name": "root-txt-eddacraft-ai",
       "id": "$DNS_BASE/TXT/@"
-    },
-    {
-      "type": "azure-native:dns:RecordSet",
-      "name": "dmarc-eddacraft-ai",
-      "id": "$DNS_BASE/TXT/_dmarc"
-    },
-    {
-      "type": "azure-native:dns:RecordSet",
-      "name": "mx-send-updates-eddacraft-ai",
-      "id": "$DNS_BASE/MX/send.updates"
-    },
-    {
-      "type": "azure-native:dns:RecordSet",
-      "name": "txt-send-updates-eddacraft-ai",
-      "id": "$DNS_BASE/TXT/send.updates"
-    },
-    {
-      "type": "azure-native:dns:RecordSet",
-      "name": "resend-dkim-eddacraft-ai",
-      "id": "$DNS_BASE/TXT/resend._domainkey.updates"
     }
   ]
 }
@@ -179,4 +159,4 @@ echo ""
 echo "Generated $OUTPUT with $(jq '.resources | length' "$OUTPUT") resources"
 echo "  - 2 VercelApp components"
 echo "  - 6 Vercel child resources (2 projects, 2 domains, 2 env vars)"
-echo "  - 5 Azure DNS RecordSets"
+echo "  - 1 Azure DNS RecordSet (4 Resend records already in state)"
