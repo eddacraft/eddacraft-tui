@@ -1,5 +1,8 @@
 /**
  * Tests for FileWatcher
+ *
+ * chokidar v5 removed glob support, so FileWatcher now watches the cwd
+ * directory and filters events through minimatch include/exclude patterns.
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -46,7 +49,7 @@ describe('FileWatcher', () => {
   });
 
   describe('start', () => {
-    it('initializes chokidar watcher with correct options', async () => {
+    it('watches the cwd directory instead of glob patterns', async () => {
       await watcher.start({
         patterns: ['**/*.ts', '**/*.js'],
         exclude: ['node_modules/**', 'dist/**'],
@@ -54,17 +57,20 @@ describe('FileWatcher', () => {
         depth: 5,
       });
 
-      expect(mockChokidar.watch).toHaveBeenCalledWith(['**/*.ts', '**/*.js'], {
-        ignored: ['node_modules/**', 'dist/**'],
-        persistent: true,
-        ignoreInitial: true,
-        cwd: '/workspace',
-        depth: 5,
-        awaitWriteFinish: {
-          stabilityThreshold: 100,
-          pollInterval: 50,
-        },
-      });
+      // chokidar v5: first arg is the cwd, not the patterns
+      expect(mockChokidar.watch).toHaveBeenCalledWith(
+        '/workspace',
+        expect.objectContaining({
+          ignored: expect.any(Function),
+          persistent: true,
+          ignoreInitial: true,
+          depth: 5,
+          awaitWriteFinish: {
+            stabilityThreshold: 100,
+            pollInterval: 50,
+          },
+        })
+      );
     });
 
     it('uses default depth when not provided', async () => {
@@ -75,7 +81,7 @@ describe('FileWatcher', () => {
       });
 
       expect(mockChokidar.watch).toHaveBeenCalledWith(
-        ['**/*.md'],
+        '/workspace',
         expect.objectContaining({
           depth: 10,
         })
@@ -184,11 +190,12 @@ describe('FileWatcher', () => {
       });
     });
 
-    it('emits change event on file add', () => {
+    it('emits change event for files matching include patterns', () => {
       const addHandler = mockChokidarWatcher.on.mock.calls.find((call) => call[0] === 'add')?.[1];
       expect(addHandler).toBeDefined();
 
-      addHandler('src/file.ts');
+      // chokidar v5 emits absolute paths when watching a directory
+      addHandler('/workspace/src/file.ts');
 
       expect(changeListener).toHaveBeenCalledTimes(1);
       const event: WatchChangeEvent = changeListener.mock.calls[0][0];
@@ -197,13 +204,23 @@ describe('FileWatcher', () => {
       expect(event.timestamp).toBeInstanceOf(Date);
     });
 
+    it('filters out files not matching include patterns', () => {
+      const addHandler = mockChokidarWatcher.on.mock.calls.find((call) => call[0] === 'add')?.[1];
+      expect(addHandler).toBeDefined();
+
+      // .json file doesn't match **/*.ts
+      addHandler('/workspace/src/config.json');
+
+      expect(changeListener).not.toHaveBeenCalled();
+    });
+
     it('emits change event on file change', () => {
       const changeHandler = mockChokidarWatcher.on.mock.calls.find(
         (call) => call[0] === 'change'
       )?.[1];
       expect(changeHandler).toBeDefined();
 
-      changeHandler('src/file.ts');
+      changeHandler('/workspace/src/file.ts');
 
       expect(changeListener).toHaveBeenCalledTimes(1);
       const event: WatchChangeEvent = changeListener.mock.calls[0][0];
@@ -217,7 +234,7 @@ describe('FileWatcher', () => {
       )?.[1];
       expect(unlinkHandler).toBeDefined();
 
-      unlinkHandler('src/file.ts');
+      unlinkHandler('/workspace/src/file.ts');
 
       expect(changeListener).toHaveBeenCalledTimes(1);
       const event: WatchChangeEvent = changeListener.mock.calls[0][0];
@@ -225,24 +242,14 @@ describe('FileWatcher', () => {
       expect(event.path).toBe('/workspace/src/file.ts');
     });
 
-    it('converts relative paths to absolute paths', () => {
+    it('handles paths within workspace', () => {
       const addHandler = mockChokidarWatcher.on.mock.calls.find((call) => call[0] === 'add')?.[1];
       expect(addHandler).toBeDefined();
 
-      addHandler('relative/path/file.ts');
+      addHandler('/workspace/nested/deep/file.ts');
 
       const event: WatchChangeEvent = changeListener.mock.calls[0][0];
-      expect(event.path).toBe('/workspace/relative/path/file.ts');
-    });
-
-    it('preserves absolute paths', () => {
-      const addHandler = mockChokidarWatcher.on.mock.calls.find((call) => call[0] === 'add')?.[1];
-      expect(addHandler).toBeDefined();
-
-      addHandler('/absolute/path/file.ts');
-
-      const event: WatchChangeEvent = changeListener.mock.calls[0][0];
-      expect(event.path).toBe('/absolute/path/file.ts');
+      expect(event.path).toBe('/workspace/nested/deep/file.ts');
     });
 
     it('includes timestamp in events', () => {
@@ -250,7 +257,7 @@ describe('FileWatcher', () => {
       const changeHandler = mockChokidarWatcher.on.mock.calls.find(
         (call) => call[0] === 'change'
       )?.[1];
-      changeHandler('file.ts');
+      changeHandler('/workspace/file.ts');
       const afterEvent = new Date();
 
       const event: WatchChangeEvent = changeListener.mock.calls[0][0];
@@ -355,7 +362,7 @@ describe('FileWatcher', () => {
       });
 
       const addHandler = mockChokidarWatcher.on.mock.calls.find((call) => call[0] === 'add')?.[1];
-      addHandler('file.ts');
+      addHandler('/workspace/file.ts');
 
       expect(listener1).toHaveBeenCalledTimes(1);
       expect(listener2).toHaveBeenCalledTimes(1);
@@ -416,7 +423,7 @@ describe('FileWatcher', () => {
       });
 
       expect(mockChokidar.watch).toHaveBeenCalledWith(
-        expect.anything(),
+        '/workspace',
         expect.objectContaining({
           awaitWriteFinish: {
             stabilityThreshold: 100,
@@ -427,43 +434,44 @@ describe('FileWatcher', () => {
     });
   });
 
-  describe('pattern and exclusion handling', () => {
-    it('accepts single pattern', async () => {
-      await watcher.start({
-        patterns: ['**/*.md'],
-        exclude: [],
-        cwd: '/workspace',
-      });
-
-      expect(mockChokidar.watch).toHaveBeenCalledWith(['**/*.md'], expect.anything());
-    });
-
-    it('accepts multiple patterns', async () => {
-      await watcher.start({
-        patterns: ['**/*.ts', '**/*.tsx', '**/*.js'],
-        exclude: [],
-        cwd: '/workspace',
-      });
-
-      expect(mockChokidar.watch).toHaveBeenCalledWith(
-        ['**/*.ts', '**/*.tsx', '**/*.js'],
-        expect.anything()
-      );
-    });
-
-    it('accepts multiple exclusion patterns', async () => {
+  describe('pattern filtering', () => {
+    it('uses ignored callback to filter by exclude patterns', async () => {
       await watcher.start({
         patterns: ['**/*.ts'],
         exclude: ['node_modules/**', 'dist/**', 'build/**'],
         cwd: '/workspace',
       });
 
-      expect(mockChokidar.watch).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          ignored: ['node_modules/**', 'dist/**', 'build/**'],
-        })
-      );
+      // Extract the ignored function from the chokidar.watch call
+      const opts = mockChokidar.watch.mock.calls[0][1];
+      const ignored = opts.ignored as (path: string) => boolean;
+
+      expect(ignored('/workspace/node_modules/foo/bar.ts')).toBe(true);
+      expect(ignored('/workspace/dist/index.js')).toBe(true);
+      expect(ignored('/workspace/src/index.ts')).toBe(false);
+      // cwd itself should not be ignored (allows traversal)
+      expect(ignored('/workspace')).toBe(false);
+    });
+
+    it('only emits events for files matching include patterns', async () => {
+      const changeListener = vi.fn();
+      watcher.on('change', changeListener);
+
+      await watcher.start({
+        patterns: ['src/**/*.ts'],
+        exclude: [],
+        cwd: '/workspace',
+      });
+
+      const addHandler = mockChokidarWatcher.on.mock.calls.find((call) => call[0] === 'add')?.[1];
+
+      // Matching path
+      addHandler('/workspace/src/file.ts');
+      expect(changeListener).toHaveBeenCalledTimes(1);
+
+      // Non-matching path
+      addHandler('/workspace/lib/file.js');
+      expect(changeListener).toHaveBeenCalledTimes(1); // still 1
     });
   });
 });

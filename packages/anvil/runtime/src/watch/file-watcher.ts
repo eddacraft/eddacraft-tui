@@ -3,9 +3,15 @@
  *
  * Chokidar wrapper with pattern matching and event normalisation.
  * Provides a clean interface for watching file changes.
+ *
+ * NOTE: chokidar v5 removed glob pattern support. We watch the cwd
+ * directory and use minimatch to filter events by the caller's
+ * include/exclude patterns.
  */
 
 import { EventEmitter } from 'node:events';
+import { relative } from 'node:path';
+import { minimatch } from 'minimatch';
 import type { WatchChangeEvent } from './types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
 
@@ -37,9 +43,9 @@ type ChokidarModule = {
  * File watcher options
  */
 export interface FileWatcherOptions {
-  /** Glob patterns to watch */
+  /** Minimatch patterns for files to include (matched against relative paths) */
   patterns: string[];
-  /** Glob patterns to exclude */
+  /** Minimatch patterns for files/dirs to exclude (matched against relative paths) */
   exclude: string[];
   /** Working directory for relative patterns */
   cwd: string;
@@ -91,11 +97,20 @@ export class FileWatcher extends EventEmitter {
 
     const { patterns, exclude, cwd, depth } = options;
 
-    this.watcher = this.chokidar.watch(patterns, {
-      ignored: exclude,
+    // chokidar v5 no longer supports globs — watch the cwd directory
+    // and filter events through minimatch include/exclude patterns.
+    const matchesInclude = (rel: string) => patterns.some((p) => minimatch(rel, p));
+    const matchesExclude = (rel: string) => exclude.some((p) => minimatch(rel, p));
+
+    this.watcher = this.chokidar.watch(cwd, {
+      ignored: (path: string) => {
+        const rel = relative(cwd, path);
+        if (!rel) return false; // cwd itself — allow traversal
+        if (matchesExclude(rel)) return true;
+        return false;
+      },
       persistent: true,
       ignoreInitial: true,
-      cwd,
       depth: depth ?? 10,
       awaitWriteFinish: {
         stabilityThreshold: 100,
@@ -104,15 +119,18 @@ export class FileWatcher extends EventEmitter {
     });
 
     this.watcher.on('add', (path: string) => {
-      this.emitChange('add', path, cwd);
+      const rel = relative(cwd, path);
+      if (rel && matchesInclude(rel)) this.emitChange('add', path, cwd);
     });
 
     this.watcher.on('change', (path: string) => {
-      this.emitChange('change', path, cwd);
+      const rel = relative(cwd, path);
+      if (rel && matchesInclude(rel)) this.emitChange('change', path, cwd);
     });
 
     this.watcher.on('unlink', (path: string) => {
-      this.emitChange('unlink', path, cwd);
+      const rel = relative(cwd, path);
+      if (rel && matchesInclude(rel)) this.emitChange('unlink', path, cwd);
     });
 
     this.watcher.on('error', (error: Error) => {
