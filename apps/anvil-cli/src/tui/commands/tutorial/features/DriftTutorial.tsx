@@ -138,11 +138,6 @@ export function DriftTutorial({
         handleCleanup();
         return;
       }
-      if (input === 'q') {
-        handleFinish();
-        return;
-      }
-
       const topic = resolveTutorialKey(tutorials, 'drift', input);
       if (topic) {
         onSelectTutorial?.(topic);

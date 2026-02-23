@@ -157,11 +157,6 @@ export function ArchitectureTutorial({
         handleCleanup();
         return;
       }
-      if (input === 'q') {
-        handleFinish();
-        return;
-      }
-
       const topic = resolveTutorialKey(tutorials, 'architecture', input);
       if (topic) {
         onSelectTutorial?.(topic);

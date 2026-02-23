@@ -332,20 +332,11 @@ export function createTutorialCommand(): Command {
       if (topic) {
         const validTopics = AVAILABLE_TUTORIALS.map((t) => t.topic);
         if (!validTopics.includes(topic)) {
-          const known = AVAILABLE_TUTORIALS.find((t) => t.topic === topic);
-          if (known) {
-            console.log(
-              chalk.hex(theme.colours.molten)(
-                `\nTutorial '${topic}' coming soon. Run ${chalk.hex(theme.colours.text)('anvil tutorial')} for the core tutorial.\n`
-              )
-            );
-          } else {
-            console.log(
-              chalk.hex(theme.colours.slag)(
-                `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
-              )
-            );
-          }
+          console.log(
+            chalk.hex(theme.colours.slag)(
+              `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
+            )
+          );
           return;
         }
       }

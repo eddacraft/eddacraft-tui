@@ -113,7 +113,7 @@ export function Tutorial({
         return;
       }
 
-      const topic = resolveTutorialKey(tutorials, undefined, input);
+      const topic = resolveTutorialKey(tutorials, 'core', input);
       if (topic) {
         onSelectTutorial?.(topic);
         exit();

@@ -157,11 +157,6 @@ export function PolicyTutorial({
         handleCleanup();
         return;
       }
-      if (input === 'q') {
-        handleFinish();
-        return;
-      }
-
       const topic = resolveTutorialKey(tutorials, 'policies', input);
       if (topic) {
         onSelectTutorial?.(topic);

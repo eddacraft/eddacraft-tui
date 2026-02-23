@@ -151,11 +151,6 @@ export function CITutorial({
         handleCleanup();
         return;
       }
-      if (input === 'q') {
-        handleFinish();
-        return;
-      }
-
       const topic = resolveTutorialKey(tutorials, 'ci', input);
       if (topic) {
         onSelectTutorial?.(topic);

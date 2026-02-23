@@ -70,7 +70,7 @@ export function NextStepsStep({
 
       {/* Explore further */}
       <Box flexDirection="column" marginBottom={1}>
-        <TutorialPicker tutorials={tutorials} />
+        <TutorialPicker tutorials={tutorials} currentTopic="core" />
       </Box>
 
       {/* Resources */}
