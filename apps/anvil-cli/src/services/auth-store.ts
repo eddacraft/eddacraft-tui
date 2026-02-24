@@ -1,14 +1,17 @@
 import { readFileSync, writeFileSync, mkdirSync, unlinkSync, existsSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { z } from 'zod';
 
-export interface StoredAuth {
-  token: string;
-  user: { email: string };
-  scopes: string[];
-  expiresAt: string;
-  verifiedAt: string;
-}
+const StoredAuthSchema = z.object({
+  token: z.string(),
+  user: z.object({ email: z.string() }),
+  scopes: z.array(z.string()),
+  expiresAt: z.string(),
+  verifiedAt: z.string(),
+});
+
+export type StoredAuth = z.infer<typeof StoredAuthSchema>;
 
 /** Override for testing. */
 let _authDirOverride: string | null = null;
@@ -36,7 +39,7 @@ export function loadAuth(): StoredAuth | null {
 
   try {
     const raw = readFileSync(authPath, 'utf-8');
-    const data = JSON.parse(raw) as StoredAuth;
+    const data = StoredAuthSchema.parse(JSON.parse(raw));
 
     // Check local expiry (server is the real authority, but we avoid
     // obviously-expired tokens hitting the network)

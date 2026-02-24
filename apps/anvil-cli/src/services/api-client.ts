@@ -14,9 +14,14 @@ const DEFAULT_API_URL = 'https://eddacraft-api.vercel.app';
 
 /**
  * Get the configured API base URL.
+ * Rejects non-HTTPS URLs to prevent credential leakage.
  */
 export function getApiUrl(): string {
-  return getEnv('ANVIL_API_URL', DEFAULT_API_URL);
+  const url = getEnv('ANVIL_API_URL', DEFAULT_API_URL);
+  if (!url.startsWith('https://')) {
+    throw new Error(`ANVIL_API_URL must use HTTPS (got ${url})`);
+  }
+  return url;
 }
 
 /**
@@ -92,7 +97,8 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
       throw new Error('Authentication expired — run `anvil login` to re-authenticate.');
     }
 
-    throw new Error(`${options.operationName} failed: ${res.status} ${body}`);
+    const truncated = body.length > 200 ? body.slice(0, 200) + '...' : body;
+    throw new Error(`${options.operationName} failed: ${res.status} ${truncated}`);
   }
 
   log(`apiRequest: OK ${options.operationName} status=${res.status}`);

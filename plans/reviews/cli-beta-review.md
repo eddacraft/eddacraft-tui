@@ -382,11 +382,14 @@ These helper functions are useful beyond the policy command. They could live in
 
 ### Must Fix Before GA
 5. **H-1:** Replace `process.exit()` with thrown errors (phased — start with
-   most-used commands)
-6. **M-4:** Fix hardcoded `branch: 'main'` in plan create
-7. Validate `ANVIL_API_URL` requires HTTPS scheme
-8. Add Zod validation to `loadAuth()` for stored auth integrity
-9. Truncate API error response bodies to prevent information leakage
+   most-used commands) — **DEFERRED** to own branch (30+ files, ~140 sites)
+6. ~~**M-4:** Fix hardcoded `branch: 'main'` in plan create~~ **FIXED**
+   (2026-02-24)
+7. ~~Validate `ANVIL_API_URL` requires HTTPS scheme~~ **FIXED** (2026-02-24)
+8. ~~Add Zod validation to `loadAuth()` for stored auth integrity~~ **FIXED**
+   (2026-02-24)
+9. ~~Truncate API error response bodies to prevent information leakage~~
+   **FIXED** (2026-02-24)
 
 ### Should Fix During Beta
 10. **H-2:** Clean up barrel export

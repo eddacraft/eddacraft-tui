@@ -23,6 +23,7 @@ import {
 } from '@eddacraft/anvil-core';
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
 import {
   createValidateSubcommand,
   createLoadSubcommand,
@@ -32,6 +33,18 @@ import {
 } from './plan/index.js';
 
 const log = createDebugger('cli');
+
+/** Read a git field, returning '' on failure (e.g. not a git repo). */
+function gitField(...args: string[]): string {
+  try {
+    return execFileSync('git', args, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
 
 /**
  * Legacy create command (for backward compatibility)
@@ -70,8 +83,8 @@ function createCreateSubcommand(): Command {
             source: 'cli',
             version: '0.0.0',
             repository: process.cwd(),
-            branch: 'main', // TODO: Get from git
-            commit: '', // TODO: Get from git
+            branch: gitField('rev-parse', '--abbrev-ref', 'HEAD'),
+            commit: gitField('rev-parse', '--short', 'HEAD'),
           },
           validations: {
             required_checks: ['lint', 'test', 'coverage', 'secrets'],

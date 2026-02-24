@@ -21,6 +21,12 @@ describe('api-client', () => {
 
       expect(getApiUrl()).toBe('https://custom-api.example.com');
     });
+
+    it('should reject non-HTTPS URLs', () => {
+      process.env.ANVIL_API_URL = 'http://evil.example.com';
+
+      expect(() => getApiUrl()).toThrow('ANVIL_API_URL must use HTTPS');
+    });
   });
 
   describe('getAdminKey', () => {
