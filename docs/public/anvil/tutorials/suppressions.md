@@ -6,11 +6,13 @@ sidebar_position: 6
 
 # Suppressions
 
+<!-- prettier-ignore-start -->
 :::caution CLI commands planned
 The `anvil suppress` CLI commands shown in this tutorial (e.g. `--all`,
 `--list`, `--count`) are planned for a future release. Inline `@anvil-ignore`
 comments and `.anvilrc` file-level suppressions work today.
 :::
+<!-- prettier-ignore-end -->
 
 Not every warning needs fixing right now. Anvil's suppression system lets you
 acknowledge known issues with a mandatory explanation, so nothing is silently
@@ -112,8 +114,12 @@ Run anvil check --all to verify a clean baseline.
 This creates file-level suppressions grouped by rule. New code is held to the
 full standard from day one.
 
-:::caution Bulk suppression is a one-time onboarding tool. Avoid running it
-repeatedly -- it masks new violations alongside old ones. :::
+<!-- prettier-ignore-start -->
+:::caution
+Bulk suppression is a one-time onboarding tool. Avoid running it
+repeatedly -- it masks new violations alongside old ones.
+:::
+<!-- prettier-ignore-end -->
 
 ## Tracking Suppressions Over Time
 
