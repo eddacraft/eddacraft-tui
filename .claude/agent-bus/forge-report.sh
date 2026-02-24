@@ -57,7 +57,7 @@ EOF
 | -- | ---- | -------- | -------- | ----------- | ------ |
 EOF
         # Append each finding as a table row
-        echo "$FINDINGS_JSON" | jq -r '.[] | "| \(.id) | `\(.file):\(.line)` | \(.severity) | \(.category) | \(.description) | \(.status // "pending") |"' 2>/dev/null >> "$REPORT_FILE"
+        echo "$FINDINGS_JSON" | jq -r '.[] | "| \(.id) | `\(.file):\(.line)` | \(.severity) | \(.category) | \(.description) | \(.status // "pending") |"' 2>/dev/null >> "$REPORT_FILE" || true
         echo "" >> "$REPORT_FILE"
         ;;
 

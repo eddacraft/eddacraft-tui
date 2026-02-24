@@ -21,7 +21,13 @@ if [[ "$CLAUDE_TOOL_NAME" != "Bash" ]]; then
 fi
 
 # --- Parse the command from tool input ---
-COMMAND=$(echo "$CLAUDE_TOOL_INPUT" | jq -r '.command // empty' 2>/dev/null)
+COMMAND=$(echo "$CLAUDE_TOOL_INPUT" | jq -r '.command // empty' 2>/dev/null || echo '')
+
+# If we can't parse a command, explicitly allow the operation
+if [[ -z "$COMMAND" ]]; then
+    echo '{"decision":"allow","reason":"Forge: unable to parse command from CLAUDE_TOOL_INPUT"}'
+    exit 0
+fi
 
 # --- Guard: Only trigger on git commit (not amend, not --no-verify) ---
 if [[ ! "$COMMAND" =~ (^|&&|;)[[:space:]]*git[[:space:]]+commit ]] || \
@@ -47,7 +53,16 @@ if [[ $DIFF_SIZE -gt 102400 ]]; then
 fi
 
 # --- Derive session identifiers ---
-FORGE_HASH=$(echo -n "$(date +%s)-$$-${STAGED_DIFF_STAT}" | sha256sum | cut -c1-12)
+HASH_INPUT="$(date +%s)-$$-${STAGED_DIFF_STAT}"
+if command -v shasum >/dev/null 2>&1; then
+    FORGE_HASH=$(printf '%s' "$HASH_INPUT" | shasum -a 256 | awk '{print substr($1,1,12)}')
+elif command -v sha256sum >/dev/null 2>&1; then
+    FORGE_HASH=$(printf '%s' "$HASH_INPUT" | sha256sum | awk '{print substr($1,1,12)}')
+elif command -v md5 >/dev/null 2>&1; then
+    FORGE_HASH=$(printf '%s' "$HASH_INPUT" | md5 | awk '{print substr($1,1,12)}')
+else
+    FORGE_HASH=$(printf '%s' "$HASH_INPUT" | tr -cd '[:alnum:]' | cut -c1-12)
+fi
 FORGE_LOG_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/logs"
 FORGE_LOG="${FORGE_LOG_DIR}/forge-${FORGE_HASH}.md"
 SIGNAL_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/agent-bus/signals"
@@ -63,10 +78,14 @@ STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # --- Staged file list (for scoped review context) ---
 STAGED_FILES=$(git diff --cached --name-only 2>/dev/null | tr '\n' ', ' | sed 's/,$//')
 
-# --- Write the diff to a temp file for the reviewer ---
-DIFF_FILE=$(mktemp)
+# --- Write the diff to a persistent file for the reviewer ---
+# NOTE: Do NOT use a temp file with EXIT trap — the hook exits before the
+# forge-reviewer agent can read it. Persist under agent-bus/diffs/ and let
+# the orchestration command clean up after the session completes.
+DIFF_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/agent-bus/diffs"
+mkdir -p "$DIFF_DIR"
+DIFF_FILE="${DIFF_DIR}/forge-${FORGE_HASH}.diff"
 echo "$STAGED_DIFF" > "$DIFF_FILE"
-trap "rm -f '$DIFF_FILE'" EXIT
 
 # --- Initialize negotiation signal file ---
 cat > "$SIGNAL_FILE" << SIGNAL_EOF

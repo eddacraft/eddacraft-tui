@@ -61,8 +61,8 @@ jobs:
           fi
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
 
-          # Detect current cycle by counting temper summary comments
-          CYCLE_COUNT=$(gh api "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+          # Detect current cycle by counting temper summary comments (paginated)
+          CYCLE_COUNT=$(gh api "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate \
             --jq '[.[] | select(.body | startswith("## Temper"))] | length' 2>/dev/null || echo "0")
           echo "cycle_count=$CYCLE_COUNT" >> "$GITHUB_OUTPUT"
 
@@ -81,15 +81,18 @@ jobs:
         run: |
           if [ "$CYCLE_COUNT" -ge "$MAX_CYCLES" ]; then
             echo "cap_reached=true" >> "$GITHUB_OUTPUT"
-            gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body "## Temper: Cycle Cap Reached
+            gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body "$(cat << EOF
+## Temper: Cycle Cap Reached
 
-          Temper has already completed **${MAX_CYCLES}** cycles on this PR.
-          No further automatic changes will be made.
+Temper has already completed **${MAX_CYCLES}** cycles on this PR.
+No further automatic changes will be made.
 
-          **Remaining unresolved comments** should be addressed manually or deferred to issues.
+**Remaining unresolved comments** should be addressed manually or deferred to issues.
 
-          To run Temper again, increase \`CLAUDE_TEMPER_MAX_CYCLES\` in repo variables
-          or address comments manually."
+To run Temper again, increase \`CLAUDE_TEMPER_MAX_CYCLES\` in repo variables
+or address comments manually.
+EOF
+)"
           else
             echo "cap_reached=false" >> "$GITHUB_OUTPUT"
             CURRENT_CYCLE=$((CYCLE_COUNT + 1))

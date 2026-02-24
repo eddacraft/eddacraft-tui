@@ -2,9 +2,9 @@
 # forge-defer.sh — File deferred findings as GitHub Issues or APS work items
 #
 # Usage:
-#   forge-defer.sh file <finding-json>         File a single deferred finding
-#   forge-defer.sh batch <findings-json-array>  File multiple deferred findings
-#   forge-defer.sh check-dup <file> <line> <desc>  Check for existing duplicate issue
+#   forge-defer.sh file <finding-json>           File a single deferred finding
+#   forge-defer.sh batch <findings-json-array>   File multiple deferred findings
+#   forge-defer.sh check-dup <file> <desc>       Check for existing duplicate issue
 #
 # Requires: gh CLI authenticated
 #
@@ -50,10 +50,13 @@ check_duplicate() {
     local file="$1"
     local description="$2"
 
-    # Search for existing open issues with forge:deferred label matching this file
+    # Search for existing open issues with forge:deferred label matching both
+    # file path and description to avoid false duplicates across findings in
+    # the same file. Uses jq --arg for safe interpolation (no shell injection).
     local existing
-    existing=$(gh issue list --label "forge:deferred" --state open --json title,number \
-        -q ".[] | select(.title | contains(\"$file\")) | .number" 2>/dev/null | head -1)
+    existing=$(gh issue list --label "forge:deferred" --state open --json title,number 2>/dev/null \
+        | jq -r --arg file "$file" --arg desc "$description" \
+        '.[] | select(.title | (contains($file) and contains($desc))) | .number' 2>/dev/null | head -1)
 
     echo "$existing"
 }
@@ -214,7 +217,7 @@ case "$ACTION" in
                 RESULT=$(file_github_issue "$FINDING")
             fi
 
-            RESULTS=$(echo "$RESULTS" | jq ". + [$RESULT]")
+            RESULTS=$(echo "$RESULTS" | jq --argjson result "$RESULT" '. + [$result]')
         done
 
         echo "$RESULTS"

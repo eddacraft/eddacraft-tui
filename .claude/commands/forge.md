@@ -172,8 +172,8 @@ The utility handles:
    ```bash
    .claude/agent-bus/forge-report.sh {hash} complete "consensus" {total_rounds}
    ```
-3. Re-run the original `git commit` command (it will pass through the hook
-   since the signal file now shows completion)
+3. Re-run the original `git commit` command using `--no-verify` to bypass the
+   forge hook, which would otherwise generate a new hash and run again
 
 **Important:** The re-commit should use `--no-verify` to avoid re-triggering
 the forge hook on the same changes. The forge review is already complete.
