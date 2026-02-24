@@ -161,17 +161,26 @@ disagreement.
 
 ## Report Contribution
 
-After each round, append your findings and their outcomes to the forge report
-at `.claude/logs/forge-{hash}.md` using this format:
+Use the `forge-report.sh` utility to append structured content to the forge
+report. The utility is at `.claude/agent-bus/forge-report.sh`.
 
-```markdown
-### Round {n}: Reviewer
+After producing findings, call:
 
-**Findings:** {count}
-**Auto-deferred:** {nit_count} nits
+```bash
+.claude/agent-bus/forge-report.sh {hash} round-start {round} "Reviewer"
+.claude/agent-bus/forge-report.sh {hash} findings {round} '{findings_json}'
+```
 
-| ID    | File              | Severity | Category    | Status       |
-| ----- | ----------------- | -------- | ----------- | ------------ |
-| F-001 | src/auth/login.ts | critical | security    | pending      |
-| F-002 | src/utils.ts      | nit      | style       | auto-deferred|
+After the author responds, the main session calls:
+
+```bash
+.claude/agent-bus/forge-report.sh {hash} responses {round} '{responses_json}'
+.claude/agent-bus/forge-report.sh {hash} round-summary {round} "CONSENSUS|COUNTER"
+```
+
+At session end:
+
+```bash
+.claude/agent-bus/forge-report.sh {hash} deferred '{deferred_json}'
+.claude/agent-bus/forge-report.sh {hash} complete "consensus|deferred" {total_rounds}
 ```
