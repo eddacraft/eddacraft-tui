@@ -1,8 +1,6 @@
 name: Temper - Auto-Address PR Reviews
-
 # Temper self-healing workflow: auto-addresses CI review comments on PRs.
 # Max 2 cycles, then defers remaining findings to issues.
-#
 # Auto mode: Fires on pull_request_review when forge:tempered label is present
 # Manual mode: workflow_dispatch with PR number (works on any PR)
 

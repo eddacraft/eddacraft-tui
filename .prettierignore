@@ -6,3 +6,5 @@
 /plans
 pnpm-lock.yaml
 **/next-env.d.ts
+# Temper workflow contains large multi-line prompt blocks that break YAML parsing
+.github/workflows/temper.yml

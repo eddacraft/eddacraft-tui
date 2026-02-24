@@ -84,16 +84,16 @@ Output your findings as a JSON array in a markdown code block:
 
 ### Fields
 
-| Field          | Type    | Required | Values                                                       |
-| -------------- | ------- | -------- | ------------------------------------------------------------ |
-| `id`           | string  | yes      | Unique within session (F-001, F-002, ...)                    |
-| `file`         | string  | yes      | Relative file path                                           |
-| `line`         | number  | yes      | Line number in the current file                              |
-| `severity`     | string  | yes      | `critical`, `major`, `minor`, `nit`                          |
-| `category`     | string  | yes      | `security`, `correctness`, `edge-case`, `performance`, `style`, `test-coverage` |
-| `description`  | string  | yes      | Clear description of the issue                               |
-| `suggestion`   | string  | yes      | Concrete fix suggestion                                      |
-| `codexAgreed`  | boolean | no       | Whether codex independently flagged this issue               |
+| Field         | Type    | Required | Values                                                                          |
+| ------------- | ------- | -------- | ------------------------------------------------------------------------------- |
+| `id`          | string  | yes      | Unique within session (F-001, F-002, ...)                                       |
+| `file`        | string  | yes      | Relative file path                                                              |
+| `line`        | number  | yes      | Line number in the current file                                                 |
+| `severity`    | string  | yes      | `critical`, `major`, `minor`, `nit`                                             |
+| `category`    | string  | yes      | `security`, `correctness`, `edge-case`, `performance`, `style`, `test-coverage` |
+| `description` | string  | yes      | Clear description of the issue                                                  |
+| `suggestion`  | string  | yes      | Concrete fix suggestion                                                         |
+| `codexAgreed` | boolean | no       | Whether codex independently flagged this issue                                  |
 
 ### Severity Rules
 

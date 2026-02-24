@@ -60,12 +60,12 @@ Parse the reviewer's JSON findings. For each finding, apply the
 
 #### Severity-Action Matrix
 
-| Severity   | Allowed actions        | Notes                                   |
-| ---------- | ---------------------- | --------------------------------------- |
-| `critical` | fix, defer             | Cannot dismiss — must fix or file issue |
-| `major`    | fix, defer             | Cannot dismiss — must fix or file issue |
-| `minor`    | fix, dismiss, defer    | Author decides                          |
-| `nit`      | fix, dismiss, defer    | Auto-deferred if `autoDeferNits=true`   |
+| Severity   | Allowed actions     | Notes                                   |
+| ---------- | ------------------- | --------------------------------------- |
+| `critical` | fix, defer          | Cannot dismiss — must fix or file issue |
+| `major`    | fix, defer          | Cannot dismiss — must fix or file issue |
+| `minor`    | fix, dismiss, defer | Author decides                          |
+| `nit`      | fix, dismiss, defer | Auto-deferred if `autoDeferNits=true`   |
 
 **Auto-defer nits:** If `autoDeferNits` is true, immediately mark all
 nit-severity findings as deferred without negotiation. Log them in the report.
@@ -89,8 +89,16 @@ Build responses JSON:
 ```json
 [
   { "findingId": "F-001", "action": "fix", "reasoning": "Fixed as suggested" },
-  { "findingId": "F-002", "action": "dismiss", "reasoning": "False positive — this path is unreachable" },
-  { "findingId": "F-003", "action": "defer", "reasoning": "Valid but out of scope for this commit" }
+  {
+    "findingId": "F-002",
+    "action": "dismiss",
+    "reasoning": "False positive — this path is unreachable"
+  },
+  {
+    "findingId": "F-003",
+    "action": "defer",
+    "reasoning": "Valid but out of scope for this commit"
+  }
 ]
 ```
 
@@ -161,6 +169,7 @@ FORGE_HASH={hash} FORGE_SOURCE="forge round {round}" \
 ```
 
 The utility handles:
+
 - GitHub Issues with `forge:deferred` + `area:{category}` labels
 - APS work items if branch/commit references an APS module
 - Deduplication against existing open `forge:deferred` issues
@@ -175,8 +184,8 @@ The utility handles:
 3. Re-run the original `git commit` command using `--no-verify` to bypass the
    forge hook, which would otherwise generate a new hash and run again
 
-**Important:** The re-commit should use `--no-verify` to avoid re-triggering
-the forge hook on the same changes. The forge review is already complete.
+**Important:** The re-commit should use `--no-verify` to avoid re-triggering the
+forge hook on the same changes. The forge review is already complete.
 
 ## Quick Reference
 
@@ -193,10 +202,10 @@ Re-commit:      git commit --no-verify -m "{original message}"
 
 ## Error Handling
 
-| Error                          | Action                                     |
-| ------------------------------ | ------------------------------------------ |
-| Reviewer fails to produce JSON | Treat as 0 findings, log error in report   |
-| Codex delegation fails         | Continue with Claude-only review            |
-| Signal file missing            | Abort forge, allow commit to proceed       |
-| Diff file missing              | Abort forge, allow commit to proceed       |
-| Round timeout                  | Auto-defer remaining, complete session     |
+| Error                          | Action                                   |
+| ------------------------------ | ---------------------------------------- |
+| Reviewer fails to produce JSON | Treat as 0 findings, log error in report |
+| Codex delegation fails         | Continue with Claude-only review         |
+| Signal file missing            | Abort forge, allow commit to proceed     |
+| Diff file missing              | Abort forge, allow commit to proceed     |
+| Round timeout                  | Auto-defer remaining, complete session   |

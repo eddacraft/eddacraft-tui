@@ -110,12 +110,11 @@ Agents communicate via `.claude/agent-bus/`:
 
 Autonomous code review pipeline with two complementary phases:
 
-- **Forge** (pre-commit, local): `forge.sh` hook intercepts `git commit`,
-  spawns `forge-reviewer` agent for cross-model review via codex MCP, runs
-  structured negotiation (max 3 rounds). Findings categorized by severity —
-  critical/major must be fixed, minor is author's choice, nits auto-deferred.
-  Deferred findings filed as GH issues (`forge:deferred` label) or APS work
-  items.
+- **Forge** (pre-commit, local): `forge.sh` hook intercepts `git commit`, spawns
+  `forge-reviewer` agent for cross-model review via codex MCP, runs structured
+  negotiation (max 3 rounds). Findings categorized by severity — critical/major
+  must be fixed, minor is author's choice, nits auto-deferred. Deferred findings
+  filed as GH issues (`forge:deferred` label) or APS work items.
 - **Temper** (post-push, GitHub Actions): `temper.yml` workflow auto-addresses
   CI review comments. Max 2 cycles — cycle 1 addresses all fixable findings,
   cycle 2 is scoped to lines changed by cycle-1 fixes. Remaining findings
