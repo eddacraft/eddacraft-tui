@@ -474,7 +474,9 @@ export function createWatchCommand(): Command {
           }
 
           await orchestrator.stop();
-          throw new CliExit();
+          // Signal handlers run outside the main async flow, so CliExit
+          // would become an unhandled rejection. process.exit(0) is correct here.
+          process.exit(0);
         };
 
         process.on('SIGINT', shutdown);

@@ -1,11 +1,7 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createWatchCommand } from './watch.js';
 
 describe('watch command', () => {
-  beforeEach(() => {
-    vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -107,5 +103,35 @@ describe('watch command', () => {
     const noTuiOpt = command.options.find((o) => o.long === '--no-tui');
 
     expect(noTuiOpt).toBeDefined();
+  });
+});
+
+describe('watch signal-handler shutdown', () => {
+  it('shutdown handler uses process.exit(0), not throw (regression)', async () => {
+    // Signal handlers run outside the main async flow. If they throw
+    // CliExit instead of calling process.exit(0), it becomes an
+    // unhandled rejection. This test reads the source to guard against
+    // regression — the shutdown function registered on SIGINT/SIGTERM
+    // must call process.exit(0) directly.
+    const { readFileSync } = await import('node:fs');
+    const { fileURLToPath } = await import('node:url');
+    const { dirname, join } = await import('node:path');
+
+    const thisDir = dirname(fileURLToPath(import.meta.url));
+    const source = readFileSync(join(thisDir, 'watch.ts'), 'utf-8');
+
+    // Find the shutdown handler and the process.on registrations
+    expect(source).toContain("process.on('SIGINT', shutdown)");
+    expect(source).toContain("process.on('SIGTERM', shutdown)");
+
+    // Extract the shutdown function body (between "const shutdown = async () => {"
+    // and the closing of that function before process.on registrations)
+    const shutdownStart = source.indexOf('const shutdown = async () => {');
+    const sigintReg = source.indexOf("process.on('SIGINT'", shutdownStart);
+    const shutdownBody = source.slice(shutdownStart, sigintReg);
+
+    // Must use process.exit(0), not throw CliExit
+    expect(shutdownBody).toContain('process.exit(0)');
+    expect(shutdownBody).not.toMatch(/throw\s+new\s+CliExit/);
   });
 });
