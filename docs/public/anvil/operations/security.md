@@ -175,13 +175,14 @@ Use CODEOWNERS:
 
 ### Track Suppressions
 
-List all suppressions:
+List all suppressions (planned — not yet available in the CLI):
 
 ```bash
 anvil suppress --list
 ```
 
-Review periodically—are they still needed?
+In the meantime, search for `@anvil-ignore` comments and review the
+`suppressions` array in `.anvilrc` to audit active suppressions.
 
 ## CI Security
 

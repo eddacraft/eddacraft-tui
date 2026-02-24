@@ -6,6 +6,12 @@ sidebar_position: 6
 
 # Suppressions
 
+:::caution CLI commands planned
+The `anvil suppress` CLI commands shown in this tutorial (e.g. `--all`,
+`--list`, `--count`) are planned for a future release. Inline `@anvil-ignore`
+comments and `.anvilrc` file-level suppressions work today.
+:::
+
 Not every warning needs fixing right now. Anvil's suppression system lets you
 acknowledge known issues with a mandatory explanation, so nothing is silently
 ignored.

@@ -92,7 +92,9 @@ failed, and when.
 | AP-006 | Empty catch block            | warning  |
 | AP-007 | Console in production code   | info     |
 
-> AP-002 and AP-005 are reserved for future use.
+> AP-002 (rule-specific `eslint-disable`) and AP-005 (`@ts-expect-error` directive)
+> are implemented opt-in patterns. They are disabled by default to reduce noise,
+> but can be enabled explicitly in your Anvil configuration.
 
 ## What Anvil Doesn't Do
 

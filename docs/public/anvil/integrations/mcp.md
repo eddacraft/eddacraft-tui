@@ -44,8 +44,8 @@ Add Anvil to your MCP configuration:
 {
   "mcpServers": {
     "anvil": {
-      "command": "anvil",
-      "args": ["mcp-config"],
+      "command": "npx",
+      "args": ["@eddacraft/anvil-mcp-server"],
       "cwd": "/path/to/your/project"
     }
   }

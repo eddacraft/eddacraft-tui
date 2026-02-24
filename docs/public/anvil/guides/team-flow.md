@@ -96,7 +96,7 @@ Anvil can post results as PR comments:
 
 ```yaml
 - name: Run Anvil
-  run: pnpm anvil check --all --ci --output anvil-results.json
+  run: pnpm anvil check --all --json > anvil-results.json
 
 - name: Comment on PR
   if: github.event_name == 'pull_request'

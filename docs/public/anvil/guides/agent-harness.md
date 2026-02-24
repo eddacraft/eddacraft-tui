@@ -131,7 +131,7 @@ Catch issues before they're committed:
 #!/bin/bash
 # .git/hooks/pre-commit
 
-anvil check --staged
+anvil check --changed --staged
 if [ $? -ne 0 ]; then
   echo "Anvil validation failed. Commit blocked."
   exit 1
