@@ -27,6 +27,7 @@ interface TutorialProps {
   onCleanup?: () => void;
   onSelectTutorial?: (topic: string) => void;
   tutorials?: TutorialOption[];
+  completedTopics?: string[];
 }
 
 export function Tutorial({
@@ -34,6 +35,7 @@ export function Tutorial({
   onCleanup,
   onSelectTutorial,
   tutorials = [],
+  completedTopics = [],
 }: TutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [state, setState] = useState<TutorialState>(createInitialTutorialState);
@@ -113,7 +115,7 @@ export function Tutorial({
         return;
       }
 
-      const topic = resolveTutorialKey(tutorials, 'core', input);
+      const topic = resolveTutorialKey(tutorials, 'core', input, completedTopics);
       if (topic) {
         onSelectTutorial?.(topic);
         exit();
@@ -164,16 +166,29 @@ export function Tutorial({
             cleanupConfirming={state.cleanupConfirming}
             cleanupRequested={state.cleanupRequested}
             tutorials={tutorials}
+            completedTopics={completedTopics}
             onFinish={handleFinish}
           />
         )}
       </Box>
 
       <Box marginTop={1}>
-        <Text color={theme.colours.smoke}>
-          {canGoBack(state.currentStep) && `${theme.icons.arrow} back `}
-          {!isLastStep(state.currentStep) && 'Enter next '}
-          {theme.icons.bullet} q quit
+        <Text color={theme.colours.ash}>
+          {canGoBack(state.currentStep) && (
+            <>
+              <Text color={theme.colours.ember}>{theme.icons.backArrow}</Text>
+              {' back  '}
+            </>
+          )}
+          {!isLastStep(state.currentStep) && 'Enter next  '}
+          {isLastStep(state.currentStep) && !state.cleanupRequested && !state.cleanupConfirming && (
+            <>
+              <Text color={theme.colours.ember}>c</Text>
+              {' clean up tutorial files  '}
+            </>
+          )}
+          <Text color={theme.colours.ember}>q</Text>
+          {' quit'}
         </Text>
       </Box>
     </Box>

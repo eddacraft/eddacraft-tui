@@ -132,14 +132,21 @@ const TUTORIAL_OPTIONS: TutorialOption[] = [
   ...AVAILABLE_TUTORIALS,
 ];
 
+interface RenderResult {
+  nextTopic: string | null;
+  cleanedUp: boolean;
+  completed?: boolean;
+}
+
 /**
  * Render a single tutorial and return the topic the user selected next,
- * or null if they quit.
+ * or null if they quit, plus whether cleanup was performed.
  */
 async function renderTutorial(
   currentTopic: string | undefined,
-  options: TutorialOptions
-): Promise<string | null> {
+  options: TutorialOptions,
+  completedTopics: string[]
+): Promise<RenderResult> {
   const useTUI = isTUIAvailable({ tui: options.tui });
   if (!useTUI) printTutorialTTYError(options);
 
@@ -175,6 +182,7 @@ async function renderTutorial(
       onCleanup: handleCleanup,
       onSelectTutorial,
       tutorials: TUTORIAL_OPTIONS,
+      completedTopics,
     });
 
     if (cleanedUp) {
@@ -183,7 +191,7 @@ async function renderTutorial(
       );
     }
 
-    return nextTopic;
+    return { nextTopic, cleanedUp };
   }
 
   if (currentTopic === 'policies') {
@@ -200,6 +208,7 @@ async function renderTutorial(
       },
       onSelectTutorial,
       tutorials: TUTORIAL_OPTIONS,
+      completedTopics,
     });
 
     if (policyCleanedUp) {
@@ -208,51 +217,63 @@ async function renderTutorial(
       );
     }
 
-    return nextTopic;
+    return { nextTopic, cleanedUp: policyCleanedUp };
   }
 
   if (currentTopic === 'architecture') {
     const { ArchitectureTutorial } =
       await import('../tui/commands/tutorial/features/ArchitectureTutorial.js');
 
+    let completed = false;
+
     await renderTUIAndWait(ArchitectureTutorial, {
-      onComplete: () => {},
-      onCleanup: () => {},
+      onComplete: () => {
+        completed = true;
+      },
       onSelectTutorial,
       tutorials: TUTORIAL_OPTIONS,
+      completedTopics,
     });
 
-    return nextTopic;
+    return { nextTopic, cleanedUp: false, completed };
   }
 
   if (currentTopic === 'drift') {
     const { DriftTutorial } = await import('../tui/commands/tutorial/features/DriftTutorial.js');
 
+    let completed = false;
+
     await renderTUIAndWait(DriftTutorial, {
-      onComplete: () => {},
-      onCleanup: () => {},
+      onComplete: () => {
+        completed = true;
+      },
       onSelectTutorial,
       tutorials: TUTORIAL_OPTIONS,
+      completedTopics,
     });
 
-    return nextTopic;
+    return { nextTopic, cleanedUp: false, completed };
   }
 
   if (currentTopic === 'ci') {
     const { CITutorial } = await import('../tui/commands/tutorial/features/CITutorial.js');
 
+    let completed = false;
+
     await renderTUIAndWait(CITutorial, {
-      onComplete: () => {},
-      onCleanup: () => {},
+      onComplete: () => {
+        completed = true;
+      },
       onSelectTutorial,
       tutorials: TUTORIAL_OPTIONS,
+      completedTopics,
     });
 
-    return nextTopic;
+    return { nextTopic, cleanedUp: false, completed };
   }
 
   // Unknown topic
-  return null;
+  return { nextTopic: null, cleanedUp: false };
 }
 
 export function createTutorialCommand(): Command {
@@ -343,11 +364,33 @@ export function createTutorialCommand(): Command {
       }
 
       // Tutorial loop: render tutorials until the user quits without selecting another
+      const workspaceRoot = getWorkspaceRoot();
+      const progress = loadProgress(workspaceRoot);
+      const completedTopics: string[] = progress?.completedTutorials ?? [];
+
       let currentTopic = topic ?? undefined;
       while (true) {
-        const next = await renderTutorial(currentTopic, options);
-        if (!next) break;
-        currentTopic = next;
+        const result = await renderTutorial(currentTopic, options, completedTopics);
+        // Only persist progress if the tutorial was actually completed (not quit early)
+        // and cleanup wasn't performed
+        if (!result.cleanedUp && result.completed !== false) {
+          const justCompleted = currentTopic ?? 'core';
+          if (!completedTopics.includes(justCompleted)) {
+            completedTopics.push(justCompleted);
+          }
+          const existing = loadProgress(workspaceRoot);
+          saveProgress(workspaceRoot, {
+            ...(existing ?? {
+              currentStep: 0,
+              totalSteps: 0,
+              completedSteps: [],
+              startedAt: new Date().toISOString(),
+            }),
+            completedTutorials: completedTopics,
+          });
+        }
+        if (!result.nextTopic) break;
+        currentTopic = result.nextTopic;
       }
     });
 

@@ -11,6 +11,7 @@ interface NextStepsStepProps {
   scanResults?: ScanResults;
   cleanupConfirming?: boolean;
   cleanupRequested?: boolean;
+  completedTopics?: string[];
   tutorials: TutorialOption[];
   onFinish?: () => void;
   /** @deprecated Cleanup is now handled by the parent Tutorial component */
@@ -30,6 +31,7 @@ export function NextStepsStep({
   scanResults,
   cleanupConfirming = false,
   cleanupRequested = false,
+  completedTopics,
   tutorials,
 }: NextStepsStepProps): React.ReactElement {
   const elapsed = formatElapsedTime(startedAt);
@@ -70,55 +72,32 @@ export function NextStepsStep({
 
       {/* Explore further */}
       <Box flexDirection="column" marginBottom={1}>
-        <TutorialPicker tutorials={tutorials} currentTopic="core" />
+        <TutorialPicker
+          tutorials={tutorials}
+          currentTopic="core"
+          completedTopics={completedTopics}
+        />
       </Box>
 
-      {/* Resources */}
-      <Box flexDirection="column" marginBottom={1}>
-        <Box marginBottom={1}>
-          <Text bold color={theme.colours.text}>
-            Resources
+      {cleanupRequested ? (
+        <Box marginTop={1}>
+          <Text color={theme.colours.steel}>{theme.icons.success} Tutorial files removed</Text>
+        </Box>
+      ) : cleanupConfirming ? (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={theme.colours.molten}>Remove these tutorial files?</Text>
+          <Box flexDirection="column" marginLeft={2} marginY={1}>
+            {CLEANUP_FILES.map((file) => (
+              <Text key={file} color={theme.colours.ash}>
+                {theme.icons.bullet} {file}
+              </Text>
+            ))}
+          </Box>
+          <Text color={theme.colours.ash}>
+            Press <Text color={theme.colours.ember}>c</Text> again to confirm
           </Text>
         </Box>
-        <Box flexDirection="column" marginLeft={2}>
-          <Box>
-            <Text color={theme.colours.ash}>Documentation: </Text>
-            <Text color={theme.colours.molten}>https://anvil.eddacraft.com/docs</Text>
-          </Box>
-          <Box>
-            <Text color={theme.colours.ash}>Help: </Text>
-            <Text color={theme.colours.molten}>anvil --help</Text>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Cleanup section */}
-      <Box marginTop={1} flexDirection="column">
-        {cleanupRequested ? (
-          <Text color={theme.colours.ember}>{theme.icons.success} Tutorial files cleaned up</Text>
-        ) : cleanupConfirming ? (
-          <Box flexDirection="column">
-            <Text color={theme.colours.molten}>This will remove the following tutorial files:</Text>
-            <Box flexDirection="column" marginLeft={2} marginY={1}>
-              {CLEANUP_FILES.map((file) => (
-                <Text key={file} color={theme.colours.ash}>
-                  {theme.icons.bullet} {file}
-                </Text>
-              ))}
-            </Box>
-            <Text color={theme.colours.smoke}>
-              Press <Text color={theme.colours.text}>c</Text> again to confirm,{' '}
-              <Text color={theme.colours.text}>q</Text> to exit without cleaning
-            </Text>
-          </Box>
-        ) : (
-          <Text color={theme.colours.smoke}>
-            Press <Text color={theme.colours.text}>c</Text> to clean up,{' '}
-            <Text color={theme.colours.text}>q</Text> to exit, or a{' '}
-            <Text color={theme.colours.text}>number</Text> to continue
-          </Text>
-        )}
-      </Box>
+      ) : null}
     </Box>
   );
 }

@@ -28,6 +28,7 @@ export const theme = {
     skipped: '○',
     spinner: ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'],
     arrow: '▸',
+    backArrow: '◄',
     check: '◆',
     cross: '✖',
     bullet: '▪',

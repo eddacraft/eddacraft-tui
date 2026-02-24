@@ -339,10 +339,9 @@ describe('CustomiseStep', () => {
     expect(lastFrame()).toContain('Tutorial complete! Your policy is active.');
   });
 
-  it('shows cleanup instructions (c and q keys)', () => {
+  it('does not show inline cleanup instructions (handled by bottom bar)', () => {
     const { lastFrame } = render(<CustomiseStep />);
     const frame = lastFrame();
-    expect(frame).toContain('clean up tutorial files');
-    expect(frame).toContain('exit');
+    expect(frame).not.toContain('clean up tutorial files');
   });
 });

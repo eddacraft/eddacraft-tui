@@ -83,14 +83,6 @@ export function CustomiseStep(): React.ReactElement {
           {theme.icons.success} Tutorial complete! Your policy is active.
         </Text>
       </Box>
-
-      {/* Footer */}
-      <Box marginTop={1}>
-        <Text color={theme.colours.smoke}>
-          Press <Text color={theme.colours.text}>c</Text> to clean up tutorial files,{' '}
-          <Text color={theme.colours.text}>q</Text> to exit
-        </Text>
-      </Box>
     </Box>
   );
 }

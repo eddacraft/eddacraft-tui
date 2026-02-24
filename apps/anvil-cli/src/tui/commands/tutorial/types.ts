@@ -70,6 +70,7 @@ export interface TutorialProgress {
   totalSteps: number;
   completedSteps: string[];
   startedAt: string;
+  completedTutorials?: string[];
 }
 
 export const TutorialProgressSchema = z.object({
@@ -77,6 +78,7 @@ export const TutorialProgressSchema = z.object({
   totalSteps: z.number(),
   completedSteps: z.array(z.string()),
   startedAt: z.string(),
+  completedTutorials: z.array(z.string()).optional(),
 });
 
 export function createInitialTutorialState(): TutorialState {

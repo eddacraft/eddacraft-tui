@@ -93,20 +93,19 @@ function getProgressPercentage(current: CIStepId): number {
 
 interface CITutorialProps {
   onComplete?: () => void;
-  onCleanup?: () => void;
   onSelectTutorial?: (topic: string) => void;
   tutorials?: TutorialOption[];
+  completedTopics?: string[];
 }
 
 export function CITutorial({
   onComplete,
-  onCleanup,
   onSelectTutorial,
   tutorials = [],
+  completedTopics = [],
 }: CITutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [currentStep, setCurrentStep] = useState<CIStepId>('intro');
-  const [cleanedUp, setCleanedUp] = useState(false);
   const currentStepRef = useRef(currentStep);
   currentStepRef.current = currentStep;
 
@@ -118,13 +117,8 @@ export function CITutorial({
     setCurrentStep((prev) => getPreviousStep(prev) ?? prev);
   }, []);
 
-  const handleCleanup = useCallback(() => {
-    setCleanedUp(true);
-    onCleanup?.();
-  }, [onCleanup]);
-
   const handleFinish = useCallback(() => {
-    onComplete?.();
+    if (isLastStep(currentStepRef.current)) onComplete?.();
     exit();
   }, [onComplete, exit]);
 
@@ -147,11 +141,7 @@ export function CITutorial({
     }
 
     if (isLastStep(step)) {
-      if (input === 'c' && !cleanedUp) {
-        handleCleanup();
-        return;
-      }
-      const topic = resolveTutorialKey(tutorials, 'ci', input);
+      const topic = resolveTutorialKey(tutorials, 'ci', input, completedTopics);
       if (topic) {
         onSelectTutorial?.(topic);
         exit();
@@ -188,21 +178,25 @@ export function CITutorial({
 
       {isLastStep(currentStep) && tutorials.length > 0 && (
         <Box marginY={1}>
-          <TutorialPicker tutorials={tutorials} currentTopic="ci" />
+          <TutorialPicker
+            tutorials={tutorials}
+            currentTopic="ci"
+            completedTopics={completedTopics}
+          />
         </Box>
       )}
 
       <Box marginTop={1}>
-        <Text color={theme.colours.smoke}>
-          {canGoBack(currentStep) && `${theme.icons.arrow} back `}
-          {!isLastStep(currentStep) && 'Enter next '}
-          {isLastStep(currentStep) && (
+        <Text color={theme.colours.ash}>
+          {canGoBack(currentStep) && (
             <>
-              <Text color={theme.colours.text}>c</Text>
-              {' clean up  '}
+              <Text color={theme.colours.ember}>{theme.icons.backArrow}</Text>
+              {' back  '}
             </>
           )}
-          {theme.icons.bullet} q quit
+          {!isLastStep(currentStep) && 'Enter next  '}
+          <Text color={theme.colours.ember}>q</Text>
+          {' quit'}
         </Text>
       </Box>
     </Box>

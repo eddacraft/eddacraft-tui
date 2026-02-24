@@ -102,6 +102,7 @@ interface PolicyTutorialProps {
   onCleanup?: () => void;
   onSelectTutorial?: (topic: string) => void;
   tutorials?: TutorialOption[];
+  completedTopics?: string[];
 }
 
 export function PolicyTutorial({
@@ -109,6 +110,7 @@ export function PolicyTutorial({
   onCleanup,
   onSelectTutorial,
   tutorials = [],
+  completedTopics = [],
 }: PolicyTutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [currentStep, setCurrentStep] = useState<PolicyStepId>('intro');
@@ -130,7 +132,7 @@ export function PolicyTutorial({
   }, [onCleanup]);
 
   const handleFinish = useCallback(() => {
-    onComplete?.();
+    if (isLastStep(currentStepRef.current)) onComplete?.();
     exit();
   }, [onComplete, exit]);
 
@@ -157,7 +159,7 @@ export function PolicyTutorial({
         handleCleanup();
         return;
       }
-      const topic = resolveTutorialKey(tutorials, 'policies', input);
+      const topic = resolveTutorialKey(tutorials, 'policies', input, completedTopics);
       if (topic) {
         onSelectTutorial?.(topic);
         exit();
@@ -194,21 +196,37 @@ export function PolicyTutorial({
 
       {isLastStep(currentStep) && tutorials.length > 0 && (
         <Box marginY={1}>
-          <TutorialPicker tutorials={tutorials} currentTopic="policies" />
+          <TutorialPicker
+            tutorials={tutorials}
+            currentTopic="policies"
+            completedTopics={completedTopics}
+          />
+        </Box>
+      )}
+
+      {isLastStep(currentStep) && cleanedUp && (
+        <Box marginTop={1}>
+          <Text color={theme.colours.steel}>{theme.icons.success} Tutorial files removed</Text>
         </Box>
       )}
 
       <Box marginTop={1}>
-        <Text color={theme.colours.smoke}>
-          {canGoBack(currentStep) && `${theme.icons.arrow} back `}
-          {!isLastStep(currentStep) && 'Enter next '}
-          {isLastStep(currentStep) && (
+        <Text color={theme.colours.ash}>
+          {canGoBack(currentStep) && (
             <>
-              <Text color={theme.colours.text}>c</Text>
-              {' clean up  '}
+              <Text color={theme.colours.ember}>{theme.icons.backArrow}</Text>
+              {' back  '}
             </>
           )}
-          {theme.icons.bullet} q quit
+          {!isLastStep(currentStep) && 'Enter next  '}
+          {isLastStep(currentStep) && !cleanedUp && (
+            <>
+              <Text color={theme.colours.ember}>c</Text>
+              {' clean up tutorial files  '}
+            </>
+          )}
+          <Text color={theme.colours.ember}>q</Text>
+          {' quit'}
         </Text>
       </Box>
     </Box>

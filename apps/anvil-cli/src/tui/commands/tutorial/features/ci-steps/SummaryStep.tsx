@@ -44,13 +44,6 @@ export function SummaryStep(): React.ReactElement {
       <Box marginBottom={1}>
         <Text color={theme.colours.steel}>{theme.icons.success} Tutorial complete!</Text>
       </Box>
-
-      <Box marginTop={1}>
-        <Text color={theme.colours.smoke}>
-          Press <Text color={theme.colours.text}>c</Text> to clean up tutorial files,{' '}
-          <Text color={theme.colours.text}>q</Text> to exit
-        </Text>
-      </Box>
     </Box>
   );
 }

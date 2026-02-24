@@ -7,6 +7,7 @@ import type { TutorialOption } from '../components/TutorialPicker.js';
 import { NextStepsStep } from '../steps/NextStepsStep.js';
 
 const MOCK_TUTORIALS: TutorialOption[] = [
+  { topic: 'core', description: 'Core tutorial (scan, watch, fix)' },
   { topic: 'policies', description: 'Write custom OPA/Rego rules' },
   { topic: 'architecture', description: 'Define architecture boundaries' },
   { topic: 'drift', description: 'Track architecture drift over time' },
@@ -144,7 +145,7 @@ describe('NextStepsStep', () => {
     );
 
     const frame = lastFrame();
-    expect(frame).toContain('Continue with another tutorial');
+    expect(frame).toContain("What's next");
     expect(frame).toContain('policies');
     expect(frame).toContain('Write custom OPA/Rego rules');
     expect(frame).toContain('architecture');
@@ -155,38 +156,21 @@ describe('NextStepsStep', () => {
     expect(frame).toContain('Set up CI integration');
   });
 
-  it('shows resources section', () => {
+  it('shows cleanup confirmation when cleanupConfirming is true', () => {
     const { lastFrame } = render(
       <NextStepsStep
         startedAt={makeStartedAt(60)}
         scanResults={mockResultsWithWarnings}
         tutorials={MOCK_TUTORIALS}
+        cleanupConfirming={true}
         onCleanup={vi.fn()}
         onFinish={vi.fn()}
       />
     );
 
     const frame = lastFrame();
-    expect(frame).toContain('Resources');
-    expect(frame).toContain('https://anvil.eddacraft.com/docs');
-    expect(frame).toContain('anvil --help');
-  });
-
-  it('shows cleanup and continuation instructions', () => {
-    const { lastFrame } = render(
-      <NextStepsStep
-        startedAt={makeStartedAt(60)}
-        scanResults={mockResultsWithWarnings}
-        tutorials={MOCK_TUTORIALS}
-        onCleanup={vi.fn()}
-        onFinish={vi.fn()}
-      />
-    );
-
-    const frame = lastFrame();
-    expect(frame).toContain('clean up');
-    expect(frame).toContain('exit');
-    expect(frame).toContain('number');
+    expect(frame).toContain('Remove these tutorial files?');
+    expect(frame).toContain('.anvil/tutorial/');
   });
 
   it('shows elapsed time in seconds when under a minute', () => {
