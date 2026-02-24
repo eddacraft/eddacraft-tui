@@ -9,6 +9,7 @@ import {
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { theme } from '../tui/utils/theme.js';
 import { CliError } from '../utils/cli-error.js';
+import { getWorkspaceRoot } from '../utils/file-io.js';
 
 interface NewCommandOptions {
   list?: boolean;
@@ -126,7 +127,10 @@ async function generateFromTemplate(
 
   const rendered = loader.renderTemplate(template, variables);
 
-  const outputPath = validatePathWithinRoot(options.output || `${templateId}.md`, process.cwd());
+  const outputPath = validatePathWithinRoot(
+    options.output || `${templateId}.md`,
+    getWorkspaceRoot()
+  );
 
   if (existsSync(outputPath) && !options.force) {
     console.error(`${theme.icons.error} File already exists: ${outputPath}`);

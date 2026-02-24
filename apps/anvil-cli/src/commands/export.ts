@@ -9,6 +9,7 @@ import { createDebugger } from '@eddacraft/anvil-core';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, extname, basename, join } from 'node:path';
 import { validatePathWithinRoot } from '@eddacraft/anvil-core';
+import { getWorkspaceRoot } from '../utils/file-io.js';
 
 const log = createDebugger('cli');
 import { PlanLoader } from '../services/plan-loader.js';
@@ -108,7 +109,7 @@ export function createExportCommand(): Command {
             const rawOutput =
               options.output ||
               generateDefaultOutput(sourcePath, targetFormat === 'yaml' ? 'yaml' : 'json');
-            const outputPath = validatePathWithinRoot(rawOutput, process.cwd());
+            const outputPath = validatePathWithinRoot(rawOutput, getWorkspaceRoot());
 
             // Ensure output directory exists
             const outputDir = dirname(outputPath);
