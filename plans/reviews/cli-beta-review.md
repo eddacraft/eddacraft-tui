@@ -394,7 +394,7 @@ These helper functions are useful beyond the policy command. They could live in
 ### Should Fix During Beta
 10. ~~**H-2:** Clean up barrel export~~ **FIXED** (2026-02-24) — removed
     incomplete `commands/index.ts` (no consumers)
-11. **M-1:** Document `.env` parser limitations
+11. ~~**M-1:** Document `.env` parser limitations~~ **FIXED** (2026-02-24)
 12. **M-5:** Add `--json` to remaining commands
 13. Expand test coverage for untested commands
 14. ~~Add workspace validation to `export --output` and `new --output`~~
@@ -404,9 +404,13 @@ These helper functions are useful beyond the policy command. They could live in
 
 ### Nice to Have
 16. **L-5:** Standardise test file locations
-17. **L-6:** Extract shared utility functions
-18. **H-3:** Normalise number parsing across commands
-19. Deprecate `login --token` flag in favour of `ANVIL_TOKEN` env var
+17. **L-6:** Extract shared utility functions — **SKIPPED**, `formatRelativeTime`
+    has different signatures in `policy.ts` (takes `number`) vs `watch/types.ts`
+    (takes `Date`); needs API unification first
+18. ~~**H-3:** Normalise number parsing across commands~~ **N/A** — audit.ts
+    options are typed as `number` in the interface; `Number()` is correct
+19. ~~Deprecate `login --token` flag in favour of `ANVIL_TOKEN` env var~~
+    **FIXED** (2026-02-24) — added deprecation warning on `--token` usage
 
 ---
 

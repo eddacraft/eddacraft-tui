@@ -12,6 +12,12 @@ import { homedir } from 'node:os';
 /**
  * Load environment variables from ~/.anvil/.env if it exists.
  * Does not override variables already set in the environment.
+ *
+ * Supports simple KEY=VALUE syntax only:
+ * - Lines starting with # are comments
+ * - Surrounding single/double quotes are stripped from values
+ * - Multi-line values, escape sequences, variable interpolation,
+ *   and `export` prefixes are NOT supported
  */
 export function loadAnvilEnv(): void {
   const envPath = join(homedir(), '.anvil', '.env');

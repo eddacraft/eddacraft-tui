@@ -30,6 +30,13 @@ export function createLoginCommand(): Command {
 
       let token = options.token;
 
+      if (token) {
+        info(
+          chalk.yellow('Warning: --token exposes the token in shell history and process list.') +
+            '\n         Prefer the interactive prompt or set ANVIL_TOKEN in ~/.anvil/.env.'
+        );
+      }
+
       if (!token) {
         const answers = await inquirer.prompt([
           {
