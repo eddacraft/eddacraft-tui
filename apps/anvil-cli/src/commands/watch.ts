@@ -473,10 +473,14 @@ export function createWatchCommand(): Command {
             kindling.close();
           }
 
-          await orchestrator.stop();
-          // Signal handlers run outside the main async flow, so CliExit
-          // would become an unhandled rejection. process.exit(0) is correct here.
-          process.exit(0);
+          try {
+            await orchestrator.stop();
+          } finally {
+            // Signal handlers run outside the main async flow, so CliExit
+            // would become an unhandled rejection. process.exit(0) is correct here.
+            // try/finally ensures exit even if orchestrator.stop() rejects.
+            process.exit(0);
+          }
         };
 
         process.on('SIGINT', shutdown);

@@ -212,7 +212,6 @@ export function createDoctorCommand(): Command {
         console.log(formatJsonOutput(data));
         if (data.summary.healthy) throw new CliExit();
         throw new CliError('Doctor check failed');
-        return;
       }
 
       const useTUI = isTUIAvailable({ tui: options.tui });
