@@ -10,12 +10,17 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { relative } from 'node:path';
+import { isAbsolute, relative } from 'node:path';
 import { minimatch } from 'minimatch';
 import type { WatchChangeEvent } from './types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('watch');
+
+/** Normalise backslashes to forward slashes for cross-platform minimatch. */
+function toForwardSlash(p: string): string {
+  return p.includes('\\') ? p.replace(/\\/g, '/') : p;
+}
 
 // Chokidar types (dynamically imported)
 type ChokidarWatcher = {
@@ -99,12 +104,15 @@ export class FileWatcher extends EventEmitter {
 
     // chokidar v5 no longer supports globs — watch the cwd directory
     // and filter events through minimatch include/exclude patterns.
+    // Normalise to forward slashes so patterns work cross-platform.
+    const toRel = (p: string) => toForwardSlash(relative(cwd, p));
     const matchesInclude = (rel: string) => patterns.some((p) => minimatch(rel, p));
-    const matchesExclude = (rel: string) => exclude.some((p) => minimatch(rel, p));
+    const matchesExclude = (rel: string) =>
+      exclude.some((p) => minimatch(rel, p) || minimatch(`${rel}/`, p));
 
     this.watcher = this.chokidar.watch(cwd, {
       ignored: (path: string) => {
-        const rel = relative(cwd, path);
+        const rel = toRel(path);
         if (!rel) return false; // cwd itself — allow traversal
         if (matchesExclude(rel)) return true;
         return false;
@@ -119,17 +127,17 @@ export class FileWatcher extends EventEmitter {
     });
 
     this.watcher.on('add', (path: string) => {
-      const rel = relative(cwd, path);
+      const rel = toRel(path);
       if (rel && matchesInclude(rel)) this.emitChange('add', path, cwd);
     });
 
     this.watcher.on('change', (path: string) => {
-      const rel = relative(cwd, path);
+      const rel = toRel(path);
       if (rel && matchesInclude(rel)) this.emitChange('change', path, cwd);
     });
 
     this.watcher.on('unlink', (path: string) => {
-      const rel = relative(cwd, path);
+      const rel = toRel(path);
       if (rel && matchesInclude(rel)) this.emitChange('unlink', path, cwd);
     });
 
@@ -174,8 +182,9 @@ export class FileWatcher extends EventEmitter {
    */
   private emitChange(type: 'add' | 'change' | 'unlink', path: string, cwd: string): void {
     debug(`file-watcher event: type=${type} path=${path}`);
-    // Convert relative path to absolute if needed
-    const absolutePath = path.startsWith('/') ? path : `${cwd}/${path}`;
+    // Convert relative path to absolute if needed (isAbsolute handles both
+    // Unix `/` and Windows `C:\` style paths).
+    const absolutePath = isAbsolute(path) ? path : `${cwd}/${path}`;
 
     const event: WatchChangeEvent = {
       type,

@@ -24,13 +24,22 @@ export interface TutorialWatcher {
  * and filter by extension + ignored directories in this callback.
  */
 function shouldIgnore(path: string): boolean {
-  for (const dir of IGNORE_DIRS) {
-    if (path.includes(`/${dir}/`) || path.includes(`\\${dir}\\`)) return true;
-  }
-  // Only accept files with matching extensions (allow directories through
-  // so chokidar can traverse into them).
+  // Ignore any path containing an ignored directory as a full path segment
+  // (including the directory root itself, so chokidar skips traversal).
+  const segments = path.split(/[/\\]+/);
+  if (segments.some((segment) => IGNORE_DIRS.includes(segment))) return true;
+
+  // Only accept files with matching extensions. Files without an extension
+  // (e.g. Makefile, .eslintrc) are ignored — the original globs only
+  // matched *.ts/*.tsx/*.js/*.jsx. Directories (no extension) are allowed
+  // through so chokidar can traverse into them.
   const ext = extname(path);
-  if (ext && !WATCH_EXTENSIONS.has(ext)) return true;
+  if (!ext) {
+    // Treat paths ending with a separator as directories (allow traversal).
+    if (path.endsWith('/') || path.endsWith('\\')) return false;
+    return true;
+  }
+  if (!WATCH_EXTENSIONS.has(ext)) return true;
   return false;
 }
 

@@ -449,6 +449,10 @@ describe('FileWatcher', () => {
       expect(ignored('/workspace/node_modules/foo/bar.ts')).toBe(true);
       expect(ignored('/workspace/dist/index.js')).toBe(true);
       expect(ignored('/workspace/src/index.ts')).toBe(false);
+      // Directory roots themselves should also be excluded so chokidar
+      // skips traversal entirely (not just files inside them).
+      expect(ignored('/workspace/node_modules')).toBe(true);
+      expect(ignored('/workspace/dist')).toBe(true);
       // cwd itself should not be ignored (allows traversal)
       expect(ignored('/workspace')).toBe(false);
     });
