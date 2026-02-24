@@ -1,5 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createMcpConfigCommand } from '../mcp-config.js';
 
 afterEach(() => {
@@ -67,26 +70,55 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     expect(parsed.mcpServers.anvil).toBeDefined();
   });
 
-  it('uses realpathSync for symlink-safe outside-workspace detection', async () => {
-    // Verify the code imports realpathSync — we test by checking that the
-    // module can handle the --write flag with a target that resolves outside
-    // the workspace (windsurf writes to ~/.codeium/ which is always outside).
+  it('detects outside-workspace for windsurf ~ path (non-TTY)', async () => {
     const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
       throw new Error('process.exit');
     });
     const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    // windsurf config path is ~/.codeium/windsurf/mcp_config.json — outside workspace
     const command = createMcpConfigCommand();
     await expect(
       command.parseAsync(['-t', 'windsurf', '--write'], { from: 'user' })
     ).rejects.toThrow('process.exit');
 
-    // In non-TTY test environment, it should error about needing --yes
     const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
     expect(allStderr).toContain('outside workspace');
     expect(allStderr).toContain('--yes');
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('detects symlink at final path component pointing outside workspace', async () => {
+    // Create a temp "workspace" with .cursor/mcp.json symlinked to an outside file
+    const workspace = mkdtempSync(join(tmpdir(), 'anvil-mcp-test-ws-'));
+    const outsideDir = mkdtempSync(join(tmpdir(), 'anvil-mcp-test-outside-'));
+    const outsideFile = join(outsideDir, 'mcp.json');
+    writeFileSync(outsideFile, '{}');
+
+    mkdirSync(join(workspace, '.cursor'), { recursive: true });
+    symlinkSync(outsideFile, join(workspace, '.cursor', 'mcp.json'));
+
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(workspace);
+
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
+        throw new Error('process.exit');
+      });
+      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const command = createMcpConfigCommand();
+      await expect(
+        command.parseAsync(['-t', 'cursor', '--write'], { from: 'user' })
+      ).rejects.toThrow('process.exit');
+
+      const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
+      expect(allStderr).toContain('outside workspace');
+      expect(exitSpy).toHaveBeenCalledWith(1);
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
   });
 
   it('generates correct stdio config for each target', async () => {

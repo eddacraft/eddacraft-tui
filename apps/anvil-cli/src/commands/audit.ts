@@ -273,7 +273,6 @@ export function createAuditCommand(): Command {
         const workspaceRoot = getWorkspaceRoot();
         const scanner = new RepoScanner(workspaceRoot);
 
-
         const result = await scanner.scan({
           historicalDaysBack: daysBack,
           historicalMaxCommits: maxCommits,

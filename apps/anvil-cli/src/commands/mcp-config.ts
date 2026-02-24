@@ -113,7 +113,10 @@ export function createMcpConfigCommand(): Command {
               : config.configPath;
             const fullPath = resolve(process.cwd(), expandedPath);
 
-            // Resolve symlinks to prevent symlink-based bypass of outside-workspace check
+            // Resolve symlinks to prevent symlink-based bypass of outside-workspace check.
+            // Try the full path first (catches symlinks at the final component, e.g.
+            // .cursor/mcp.json -> /outside/file), then fall back to resolving the parent
+            // directory when the file doesn't exist yet.
             let realCwd: string;
             try {
               realCwd = realpathSync(process.cwd());
@@ -122,9 +125,13 @@ export function createMcpConfigCommand(): Command {
             }
             let realFullPath: string;
             try {
-              realFullPath = resolve(realpathSync(dirname(fullPath)), basename(fullPath));
+              realFullPath = realpathSync(fullPath);
             } catch {
-              realFullPath = fullPath;
+              try {
+                realFullPath = resolve(realpathSync(dirname(fullPath)), basename(fullPath));
+              } catch {
+                realFullPath = fullPath;
+              }
             }
             const rel = pathRelative(realCwd, realFullPath);
             const isOutside = rel.startsWith('..') || rel.startsWith(sep) || /^[A-Za-z]:/.test(rel);
