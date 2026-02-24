@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write
       issues: read
       id-token: write
 
@@ -41,5 +41,6 @@ jobs:
           prompt:
             '/code-review:code-review ${{ github.repository }}/pull/${{
             github.event.pull_request.number }}'
+          allowed_tools: 'Bash(gh api:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Read,Glob,Grep'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
