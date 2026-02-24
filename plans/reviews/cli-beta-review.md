@@ -392,12 +392,15 @@ These helper functions are useful beyond the policy command. They could live in
    **FIXED** (2026-02-24)
 
 ### Should Fix During Beta
-10. **H-2:** Clean up barrel export
+10. ~~**H-2:** Clean up barrel export~~ **FIXED** (2026-02-24) — removed
+    incomplete `commands/index.ts` (no consumers)
 11. **M-1:** Document `.env` parser limitations
 12. **M-5:** Add `--json` to remaining commands
 13. Expand test coverage for untested commands
-14. Add workspace validation to `export --output` and `new --output`
-15. Remove or document `SECURITY.md` keychain claim
+14. ~~Add workspace validation to `export --output` and `new --output`~~
+    **FIXED** (2026-02-24)
+15. ~~Remove or document `SECURITY.md` keychain claim~~ **FIXED** (2026-02-24)
+    — removed unimplemented keychain section
 
 ### Nice to Have
 16. **L-5:** Standardise test file locations

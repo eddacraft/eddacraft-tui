@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { writeFileSync, existsSync } from 'node:fs';
+import { validatePathWithinRoot } from '@eddacraft/anvil-core';
 import {
   createTemplateLoader,
   type Template,
@@ -125,7 +126,7 @@ async function generateFromTemplate(
 
   const rendered = loader.renderTemplate(template, variables);
 
-  const outputPath = options.output || `${templateId}.md`;
+  const outputPath = validatePathWithinRoot(options.output || `${templateId}.md`, process.cwd());
 
   if (existsSync(outputPath) && !options.force) {
     console.error(`${theme.icons.error} File already exists: ${outputPath}`);

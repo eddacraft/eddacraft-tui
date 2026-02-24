@@ -8,6 +8,7 @@ import ora from 'ora';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, extname, basename, join } from 'node:path';
+import { validatePathWithinRoot } from '@eddacraft/anvil-core';
 
 const log = createDebugger('cli');
 import { PlanLoader } from '../services/plan-loader.js';
@@ -104,9 +105,10 @@ export function createExportCommand(): Command {
 
           if (targetFormat === 'aps' || targetFormat === 'json' || targetFormat === 'yaml') {
             // Export to APS
-            const outputPath =
+            const rawOutput =
               options.output ||
               generateDefaultOutput(sourcePath, targetFormat === 'yaml' ? 'yaml' : 'json');
+            const outputPath = validatePathWithinRoot(rawOutput, process.cwd());
 
             // Ensure output directory exists
             const outputDir = dirname(outputPath);
@@ -261,7 +263,8 @@ async function exportConstraints(
     }
 
     // Determine output path
-    const finalOutputPath = outputPath || join(workspaceRoot, defaultFilename);
+    const rawOutputPath = outputPath || join(workspaceRoot, defaultFilename);
+    const finalOutputPath = validatePathWithinRoot(rawOutputPath, workspaceRoot);
 
     // Ensure output directory exists
     const outputDir = dirname(finalOutputPath);
