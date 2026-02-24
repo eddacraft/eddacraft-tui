@@ -252,25 +252,27 @@ export function createAuditCommand(): Command {
       log(
         `audit command entered: json=${options.json} verbose=${options.verbose} skipHistorical=${options.skipHistorical} daysBack=${options.daysBack}`
       );
+      // Validate options before starting spinner to avoid terminal garbling on early exit
+      const rawDaysBack = options.daysBack ? Number(options.daysBack) : 30;
+      const rawMaxCommits = options.maxCommits ? Number(options.maxCommits) : 100;
+
+      if (!Number.isInteger(rawDaysBack) || rawDaysBack <= 0 || rawDaysBack > 730) {
+        error('--days-back must be a positive integer (max 730)');
+        throw new CliError('--days-back must be a positive integer (max 730)');
+      }
+      if (!Number.isInteger(rawMaxCommits) || rawMaxCommits <= 0 || rawMaxCommits > 10000) {
+        error('--max-commits must be a positive integer (max 10000)');
+        throw new CliError('--max-commits must be a positive integer (max 10000)');
+      }
+      const daysBack = rawDaysBack;
+      const maxCommits = rawMaxCommits;
+
       const spinner = options.json ? null : ora('Starting repository audit...').start();
 
       try {
         const workspaceRoot = getWorkspaceRoot();
         const scanner = new RepoScanner(workspaceRoot);
 
-        const rawDaysBack = options.daysBack ? Number(options.daysBack) : 30;
-        const rawMaxCommits = options.maxCommits ? Number(options.maxCommits) : 100;
-
-        if (!Number.isInteger(rawDaysBack) || rawDaysBack <= 0 || rawDaysBack > 730) {
-          error('--days-back must be a positive integer (max 730)');
-          throw new CliError('--days-back must be a positive integer (max 730)');
-        }
-        if (!Number.isInteger(rawMaxCommits) || rawMaxCommits <= 0 || rawMaxCommits > 10000) {
-          error('--max-commits must be a positive integer (max 10000)');
-          throw new CliError('--max-commits must be a positive integer (max 10000)');
-        }
-        const daysBack = rawDaysBack;
-        const maxCommits = rawMaxCommits;
 
         const result = await scanner.scan({
           historicalDaysBack: daysBack,

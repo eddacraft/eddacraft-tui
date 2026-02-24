@@ -98,8 +98,14 @@ export function createMcpConfigCommand(): Command {
           const config = generateMcpConfig(target as McpConfigTarget, { transport, port });
 
           if (options.write) {
-            const { writeFileSync, mkdirSync } = await import('node:fs');
-            const { dirname, resolve } = await import('node:path');
+            const { writeFileSync, mkdirSync, realpathSync } = await import('node:fs');
+            const {
+              dirname,
+              resolve,
+              basename,
+              relative: pathRelative,
+              sep,
+            } = await import('node:path');
             const { homedir } = await import('node:os');
             const { createInterface } = await import('node:readline');
             const expandedPath = config.configPath.startsWith('~/')
@@ -107,10 +113,20 @@ export function createMcpConfigCommand(): Command {
               : config.configPath;
             const fullPath = resolve(process.cwd(), expandedPath);
 
-            // Confirm when writing outside the workspace
-            const { relative: pathRelative, sep } = await import('node:path');
-            const cwd = process.cwd();
-            const rel = pathRelative(cwd, fullPath);
+            // Resolve symlinks to prevent symlink-based bypass of outside-workspace check
+            let realCwd: string;
+            try {
+              realCwd = realpathSync(process.cwd());
+            } catch {
+              realCwd = process.cwd();
+            }
+            let realFullPath: string;
+            try {
+              realFullPath = resolve(realpathSync(dirname(fullPath)), basename(fullPath));
+            } catch {
+              realFullPath = fullPath;
+            }
+            const rel = pathRelative(realCwd, realFullPath);
             const isOutside = rel.startsWith('..') || rel.startsWith(sep) || /^[A-Za-z]:/.test(rel);
             if (isOutside && !options.yes) {
               if (!process.stdin.isTTY) {
