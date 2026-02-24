@@ -11,51 +11,30 @@ afterEach(() => {
 
 describe('mcp-config --write outside-workspace check (M-6)', () => {
   it('rejects unknown target', async () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
-    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createMcpConfigCommand();
     await expect(command.parseAsync(['-t', 'unknown-editor'], { from: 'user' })).rejects.toThrow(
-      'process.exit'
+      'Unknown target'
     );
-
-    const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(allStderr).toContain('Unknown target');
-    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('rejects invalid transport', async () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
-    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createMcpConfigCommand();
     await expect(
       command.parseAsync(['-t', 'cursor', '--transport', 'grpc'], { from: 'user' })
-    ).rejects.toThrow('process.exit');
-
-    const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(allStderr).toContain('Unknown transport');
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    ).rejects.toThrow('Unknown transport');
   });
 
   it('rejects invalid port', async () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
-    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createMcpConfigCommand();
     await expect(
       command.parseAsync(['-t', 'cursor', '--port', '99999'], { from: 'user' })
-    ).rejects.toThrow('process.exit');
-
-    const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(allStderr).toContain('Invalid port');
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    ).rejects.toThrow('Invalid port');
   });
 
   it('prints config JSON to stdout without --write', async () => {
@@ -71,20 +50,12 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
   });
 
   it('detects outside-workspace for windsurf ~ path (non-TTY)', async () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
-    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createMcpConfigCommand();
     await expect(
       command.parseAsync(['-t', 'windsurf', '--write'], { from: 'user' })
-    ).rejects.toThrow('process.exit');
-
-    const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(allStderr).toContain('outside workspace');
-    expect(allStderr).toContain('--yes');
-    expect(exitSpy).toHaveBeenCalledWith(1);
+    ).rejects.toThrow('outside workspace');
   });
 
   it('detects symlink at final path component pointing outside workspace', async () => {
@@ -101,19 +72,12 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     try {
       process.chdir(workspace);
 
-      const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-        throw new Error('process.exit');
-      });
-      const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const command = createMcpConfigCommand();
       await expect(
         command.parseAsync(['-t', 'cursor', '--write'], { from: 'user' })
-      ).rejects.toThrow('process.exit');
-
-      const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
-      expect(allStderr).toContain('outside workspace');
-      expect(exitSpy).toHaveBeenCalledWith(1);
+      ).rejects.toThrow('outside workspace');
     } finally {
       process.chdir(originalCwd);
       rmSync(workspace, { recursive: true, force: true });

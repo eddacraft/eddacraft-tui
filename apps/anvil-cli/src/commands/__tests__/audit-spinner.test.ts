@@ -73,46 +73,35 @@ afterEach(() => {
 
 describe('audit spinner lifecycle (H-4)', () => {
   it('does not create spinner when --days-back is invalid', async () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const command = createAuditCommand();
     await expect(command.parseAsync(['--days-back', '-5'], { from: 'user' })).rejects.toThrow(
-      'process.exit'
+      '--days-back must be a positive integer'
     );
 
     expect(mockOra.oraFn).not.toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('does not create spinner when --max-commits is invalid', async () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const command = createAuditCommand();
     await expect(command.parseAsync(['--max-commits', '0'], { from: 'user' })).rejects.toThrow(
-      'process.exit'
+      '--max-commits must be a positive integer'
     );
 
     expect(mockOra.oraFn).not.toHaveBeenCalled();
-    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('creates spinner only after validation passes', async () => {
-    vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const command = createAuditCommand();
-    // Valid options — spinner should be created and stopped
+    // Valid options — spinner should be created and stopped; CliExit is thrown for clean exit
     await expect(
       command.parseAsync(['--days-back', '30', '--max-commits', '50'], { from: 'user' })
-    ).rejects.toThrow('process.exit');
+    ).rejects.toThrow('Clean exit');
 
     expect(mockOra.oraFn).toHaveBeenCalled();
     expect(mockOra.spinnerInstance.stop).toHaveBeenCalled();
