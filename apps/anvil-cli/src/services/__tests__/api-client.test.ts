@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { apiRequest, getApiUrl, getAdminKey } from '../api-client.js';
 
+vi.mock('../auth-store.js', () => ({
+  clearAuth: vi.fn(),
+}));
+
 describe('api-client', () => {
   const originalEnv = { ...process.env };
 
@@ -25,13 +29,31 @@ describe('api-client', () => {
     it('should reject non-HTTPS URLs', () => {
       process.env.ANVIL_API_URL = 'http://evil.example.com';
 
-      expect(() => getApiUrl()).toThrow('ANVIL_API_URL must use HTTPS');
+      expect(() => getApiUrl()).toThrow('ANVIL_API_URL must use HTTPS, or HTTP only for localhost');
+    });
+
+    it('should reject invalid URLs', () => {
+      process.env.ANVIL_API_URL = 'not-a-url';
+
+      expect(() => getApiUrl()).toThrow('ANVIL_API_URL must be a valid URL');
+    });
+
+    it('should reject http://localhost.evil.com (hostname bypass)', () => {
+      process.env.ANVIL_API_URL = 'http://localhost.evil.com';
+
+      expect(() => getApiUrl()).toThrow('ANVIL_API_URL must use HTTPS, or HTTP only for localhost');
     });
 
     it('should allow http://localhost for local development', () => {
       process.env.ANVIL_API_URL = 'http://localhost:3000';
 
       expect(getApiUrl()).toBe('http://localhost:3000');
+    });
+
+    it('should allow http://127.0.0.1 for local development', () => {
+      process.env.ANVIL_API_URL = 'http://127.0.0.1:3000';
+
+      expect(getApiUrl()).toBe('http://127.0.0.1:3000');
     });
   });
 
@@ -121,6 +143,8 @@ describe('api-client', () => {
     });
 
     it('should clear auth and throw auth-expired on 401 for user routes', async () => {
+      const { clearAuth } = await import('../auth-store.js');
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
@@ -135,9 +159,14 @@ describe('api-client', () => {
           operationName: 'Verify token',
         })
       ).rejects.toThrow('Authentication expired — run `anvil login` to re-authenticate.');
+
+      expect(clearAuth).toHaveBeenCalled();
     });
 
     it('should throw generic error on 403 for admin routes without clearing auth', async () => {
+      const { clearAuth } = await import('../auth-store.js');
+      vi.mocked(clearAuth).mockClear();
+
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 403,
@@ -153,6 +182,8 @@ describe('api-client', () => {
           operationName: 'Admin invite',
         })
       ).rejects.toThrow('Admin invite failed: 403 Forbidden: invalid key');
+
+      expect(clearAuth).not.toHaveBeenCalled();
     });
 
     it('should throw with status and body on non-auth error response', async () => {

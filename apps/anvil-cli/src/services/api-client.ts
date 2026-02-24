@@ -18,9 +18,23 @@ const DEFAULT_API_URL = 'https://eddacraft-api.vercel.app';
  */
 export function getApiUrl(): string {
   const url = getEnv('ANVIL_API_URL', DEFAULT_API_URL);
-  if (!url.startsWith('https://') && !url.startsWith('http://localhost')) {
-    throw new Error(`ANVIL_API_URL must use HTTPS (got ${url})`);
+
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    throw new Error(`ANVIL_API_URL must be a valid URL (got ${url})`);
   }
+
+  const { protocol, hostname } = parsed;
+  const allowedLocalHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  const isHttps = protocol === 'https:';
+  const isLocalHttp = protocol === 'http:' && allowedLocalHosts.has(hostname);
+
+  if (!isHttps && !isLocalHttp) {
+    throw new Error(`ANVIL_API_URL must use HTTPS, or HTTP only for localhost (got ${url})`);
+  }
+
   return url;
 }
 
