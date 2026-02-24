@@ -1,0 +1,288 @@
+name: Temper - Auto-Address PR Reviews
+
+# Temper self-healing workflow: auto-addresses CI review comments on PRs.
+# Max 2 cycles, then defers remaining findings to issues.
+#
+# Auto mode: Fires on pull_request_review when forge:tempered label is present
+# Manual mode: workflow_dispatch with PR number (works on any PR)
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to run Temper on'
+        required: true
+        type: number
+
+# Prevent multiple Temper runs on the same PR
+concurrency:
+  group: temper-${{ github.event.pull_request.number || inputs.pr_number }}
+  cancel-in-progress: false
+
+jobs:
+  temper:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+
+    # Auto mode: only run if forge:tempered label present AND temper enabled
+    # Manual mode: always run (workflow_dispatch bypasses this check)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request_review' &&
+        contains(github.event.pull_request.labels.*.name, 'forge:tempered') &&
+        vars.CLAUDE_TEMPER_ENABLED == 'true'
+      )
+
+    steps:
+      # --- Determine PR number and check cycle cap ---
+      - name: Set PR number
+        id: pr-info
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER_INPUT: ${{ inputs.pr_number }}
+          PR_NUMBER_EVENT: ${{ github.event.pull_request.number }}
+          EVENT_NAME: ${{ github.event_name }}
+          REPOSITORY: ${{ github.repository }}
+          MAX_CYCLES_VAR: ${{ vars.CLAUDE_TEMPER_MAX_CYCLES }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            PR_NUMBER="$PR_NUMBER_INPUT"
+          else
+            PR_NUMBER="$PR_NUMBER_EVENT"
+          fi
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
+          # Detect current cycle by counting temper summary comments
+          CYCLE_COUNT=$(gh api "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq '[.[] | select(.body | startswith("## Temper"))] | length' 2>/dev/null || echo "0")
+          echo "cycle_count=$CYCLE_COUNT" >> "$GITHUB_OUTPUT"
+
+          MAX_CYCLES="${MAX_CYCLES_VAR:-2}"
+          echo "max_cycles=$MAX_CYCLES" >> "$GITHUB_OUTPUT"
+
+      # --- Cycle cap check ---
+      - name: Check cycle cap
+        id: cap-check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr-info.outputs.pr_number }}
+          CYCLE_COUNT: ${{ steps.pr-info.outputs.cycle_count }}
+          MAX_CYCLES: ${{ steps.pr-info.outputs.max_cycles }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          if [ "$CYCLE_COUNT" -ge "$MAX_CYCLES" ]; then
+            echo "cap_reached=true" >> "$GITHUB_OUTPUT"
+            gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body "## Temper: Cycle Cap Reached
+
+          Temper has already completed **${MAX_CYCLES}** cycles on this PR.
+          No further automatic changes will be made.
+
+          **Remaining unresolved comments** should be addressed manually or deferred to issues.
+
+          To run Temper again, increase \`CLAUDE_TEMPER_MAX_CYCLES\` in repo variables
+          or address comments manually."
+          else
+            echo "cap_reached=false" >> "$GITHUB_OUTPUT"
+            CURRENT_CYCLE=$((CYCLE_COUNT + 1))
+            echo "current_cycle=$CURRENT_CYCLE" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --- Get PR branch and checkout ---
+      - name: Get PR details
+        if: steps.cap-check.outputs.cap_reached != 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr-info.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          PR_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" \
+            --json headRefName -q '.headRefName')
+          BASE_BRANCH=$(gh pr view "$PR_NUMBER" --repo "$REPOSITORY" \
+            --json baseRefName -q '.baseRefName')
+          echo "branch=$PR_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE_BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout repository
+        if: steps.cap-check.outputs.cap_reached != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          fetch-depth: 0
+
+      # --- Run Temper cycle via Claude Code ---
+      - name: Run Temper cycle
+        if: steps.cap-check.outputs.cap_reached != 'true'
+        id: temper
+        uses: anthropics/claude-code-action@v1
+        env:
+          PR_NUMBER: ${{ steps.pr-info.outputs.pr_number }}
+          REPO: ${{ github.repository }}
+          CURRENT_CYCLE: ${{ steps.cap-check.outputs.current_cycle }}
+          MAX_CYCLES: ${{ steps.pr-info.outputs.max_cycles }}
+          BASE_BRANCH: ${{ steps.pr.outputs.base }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          additional_permissions: |
+            actions: read
+          prompt: |
+            You are running Temper cycle $CURRENT_CYCLE of $MAX_CYCLES on a PR.
+
+            ## Context
+
+            - Repository: stored in REPO env var
+            - PR number: stored in PR_NUMBER env var
+            - Current cycle: stored in CURRENT_CYCLE env var
+            - Max cycles: stored in MAX_CYCLES env var
+            - Base branch: stored in BASE_BRANCH env var
+
+            ## Instructions
+
+            ### Step 1: Fetch unresolved review threads
+
+            Use GraphQL to fetch all unresolved review threads:
+
+            ```bash
+            OWNER=$(echo "$REPO" | cut -d'/' -f1)
+            REPO_NAME=$(echo "$REPO" | cut -d'/' -f2)
+
+            gh api graphql -f query='
+            query($owner: String!, $repo: String!, $pr: Int!) {
+              repository(owner: $owner, name: $repo) {
+                pullRequest(number: $pr) {
+                  reviewThreads(first: 100) {
+                    nodes {
+                      id
+                      isResolved
+                      isOutdated
+                      path
+                      line
+                      comments(first: 50) {
+                        nodes {
+                          id
+                          databaseId
+                          body
+                          author { login }
+                          createdAt
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }' -f owner="$OWNER" -f repo="$REPO_NAME" -F pr="$PR_NUMBER"
+            ```
+
+            Filter to unresolved threads only (isResolved: false).
+
+            ### Step 2: Categorize each thread
+
+            For each unresolved thread:
+            - **fix**: Code change requested — make the fix
+            - **reply**: Question or explanation needed — reply with reasoning
+            - **defer**: Out of scope or too risky — file as GitHub issue
+
+            Cycle-specific rules:
+            - **Cycle 1**: Address all fixable findings (critical, major, minor).
+              Defer nits. Reply to questions.
+            - **Cycle 2**: ONLY address findings on lines changed by cycle-1 fixes.
+              Defer everything else. Use `git diff HEAD~..HEAD` to identify cycle-1
+              changes and only fix new comments targeting those lines.
+
+            ### Step 3: Apply fixes
+
+            For each "fix" thread:
+            1. Read the file and understand context
+            2. Make the code change
+            3. Stage and commit:
+               ```bash
+               git add {file}
+               git commit -m "fix: {description}
+
+               Addresses review feedback (Temper cycle $CURRENT_CYCLE)"
+               ```
+
+            ### Step 4: Reply to threads
+
+            For each addressed thread, reply using the REST API:
+            ```bash
+            gh api --method POST \
+              "repos/$REPO/pulls/$PR_NUMBER/comments/{top_comment_databaseId}/replies" \
+              -f body="Fixed — {description of change}."
+            ```
+
+            IMPORTANT: Do NOT mention any bot reviewers with @ prefix (copilot,
+            coderabbitai, etc.) in replies, commits, or comments. This re-triggers
+            the bot. Write "copilot" not "@copilot".
+
+            ### Step 5: Resolve threads
+
+            After replying, resolve each addressed thread via GraphQL:
+            ```bash
+            gh api graphql -f query='
+            mutation($threadId: ID!) {
+              resolveReviewThread(input: { threadId: $threadId }) {
+                thread { isResolved }
+              }
+            }' -f threadId="$THREAD_NODE_ID"
+            ```
+
+            ### Step 6: File deferred findings
+
+            For any deferred findings, create GitHub issues:
+            ```bash
+            gh issue create \
+              --title "[forge] {description}" \
+              --label "forge:deferred" \
+              --label "area:{category}" \
+              --body "Source: PR #$PR_NUMBER, Temper cycle $CURRENT_CYCLE
+            File: {path}:{line}
+            Severity: {severity}
+            Description: {description}
+            Reason for deferral: {reasoning}
+
+            Filed automatically by the Temper self-healing workflow."
+            ```
+
+            ### Step 7: Push and post summary
+
+            ```bash
+            git push
+            ```
+
+            Post a summary comment on the PR using gh pr comment. Format:
+
+            ## Temper Cycle {CURRENT_CYCLE} of {MAX_CYCLES}
+
+            ### Fixes Applied
+            - {list each fix with file and description}
+
+            ### Replies (no code change)
+            - {list each reply-only response}
+
+            ### Deferred to Issues
+            - {list each deferred finding with issue link}
+
+            If this is the final cycle, add:
+            "**Temper complete** -- remaining items deferred to issues."
+
+            If not the final cycle, add:
+            "Waiting for CI re-review. If new comments appear, Temper will
+            run cycle {next_cycle}."
+
+            ### Rules
+
+            - Never mention bot reviewers with @ prefix
+            - Cycle 2 is SCOPED — only fix findings on lines changed by cycle 1
+            - File ALL deferred findings as issues — never silently drop them
+            - Be conservative — only fix what is clearly requested
+            - Do not refactor or improve code beyond what reviewers asked for
