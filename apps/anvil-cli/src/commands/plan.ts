@@ -55,79 +55,88 @@ function createCreateSubcommand(): Command {
     .argument('<intent>', 'What you want to achieve (10-500 characters)')
     .option('-f, --format <format>', 'Output format (json|yaml)', 'json')
     .option('-o, --output <path>', 'Output file path')
-    .action(async (intent: string, options: { format: string; output?: string }) => {
-      log(`plan create: intent length=${intent.length} format=${options.format}`);
-      const spinner = ora('Creating plan...').start();
+    .option('--json', 'Output plan as JSON to stdout (no file written)')
+    .action(
+      async (intent: string, options: { format: string; output?: string; json?: boolean }) => {
+        log(`plan create: intent length=${intent.length} format=${options.format}`);
+        const spinner = ora('Creating plan...').start();
 
-      try {
-        // Validate intent length
-        if (intent.length < 10) {
-          throw new Error('Intent must be at least 10 characters long');
+        try {
+          // Validate intent length
+          if (intent.length < 10) {
+            throw new Error('Intent must be at least 10 characters long');
+          }
+          if (intent.length > 500) {
+            throw new Error('Intent must not exceed 500 characters');
+          }
+
+          // Generate plan ID
+          const planId = generatePlanId();
+
+          // Create the plan structure
+          const plan: Omit<APSPlan, 'hash'> = {
+            schema_version: APS_SCHEMA_VERSION,
+            id: planId,
+            intent,
+            proposed_changes: [],
+            provenance: {
+              timestamp: new Date().toISOString(),
+              author: process.env['USER'] || 'unknown',
+              source: 'cli',
+              version: '0.0.0',
+              repository: process.cwd(),
+              branch: gitField('rev-parse', '--abbrev-ref', 'HEAD'),
+              commit: gitField('rev-parse', '--short', 'HEAD'),
+            },
+            validations: {
+              required_checks: ['lint', 'test', 'coverage', 'secrets'],
+              skip_checks: [],
+            },
+            evidence: [],
+            executions: [],
+          };
+
+          // Generate hash (excluding the hash field itself)
+          const hash = generateHash(plan);
+
+          // Add hash to the plan
+          const completePlan: APSPlan = {
+            ...plan,
+            hash,
+          } as APSPlan;
+
+          if (options.json) {
+            spinner.stop();
+            console.log(JSON.stringify(completePlan, null, 2));
+            return;
+          }
+
+          // Determine output path
+          const workspaceRoot = getWorkspaceRoot();
+          const defaultPath = join(
+            workspaceRoot,
+            '.anvil',
+            'executions',
+            `${planId}.${options.format}`
+          );
+          const outputPath = options.output || defaultPath;
+
+          // Save the plan
+          savePlan(completePlan, outputPath);
+
+          log(`plan created: id=${planId} path=${outputPath}`);
+          spinner.succeed(chalk.green(`✓ Plan created successfully`));
+          console.log(chalk.gray('  ID:     '), chalk.cyan(planId));
+          console.log(chalk.gray('  Hash:   '), chalk.cyan(hash.substring(0, 16) + '...'));
+          console.log(chalk.gray('  Path:   '), chalk.cyan(outputPath));
+          console.log(chalk.gray('  Intent: '), chalk.white(intent));
+        } catch (error) {
+          spinner.fail(chalk.red('Failed to create plan'));
+          console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
+          throw new CliError('Failed to create plan');
         }
-        if (intent.length > 500) {
-          throw new Error('Intent must not exceed 500 characters');
-        }
-
-        // Generate plan ID
-        const planId = generatePlanId();
-
-        // Create the plan structure
-        const plan: Omit<APSPlan, 'hash'> = {
-          schema_version: APS_SCHEMA_VERSION,
-          id: planId,
-          intent,
-          proposed_changes: [],
-          provenance: {
-            timestamp: new Date().toISOString(),
-            author: process.env['USER'] || 'unknown',
-            source: 'cli',
-            version: '0.0.0',
-            repository: process.cwd(),
-            branch: gitField('rev-parse', '--abbrev-ref', 'HEAD'),
-            commit: gitField('rev-parse', '--short', 'HEAD'),
-          },
-          validations: {
-            required_checks: ['lint', 'test', 'coverage', 'secrets'],
-            skip_checks: [],
-          },
-          evidence: [],
-          executions: [],
-        };
-
-        // Generate hash (excluding the hash field itself)
-        const hash = generateHash(plan);
-
-        // Add hash to the plan
-        const completePlan: APSPlan = {
-          ...plan,
-          hash,
-        } as APSPlan;
-
-        // Determine output path
-        const workspaceRoot = getWorkspaceRoot();
-        const defaultPath = join(
-          workspaceRoot,
-          '.anvil',
-          'executions',
-          `${planId}.${options.format}`
-        );
-        const outputPath = options.output || defaultPath;
-
-        // Save the plan
-        savePlan(completePlan, outputPath);
-
-        log(`plan created: id=${planId} path=${outputPath}`);
-        spinner.succeed(chalk.green(`✓ Plan created successfully`));
-        console.log(chalk.gray('  ID:     '), chalk.cyan(planId));
-        console.log(chalk.gray('  Hash:   '), chalk.cyan(hash.substring(0, 16) + '...'));
-        console.log(chalk.gray('  Path:   '), chalk.cyan(outputPath));
-        console.log(chalk.gray('  Intent: '), chalk.white(intent));
-      } catch (error) {
-        spinner.fail(chalk.red('Failed to create plan'));
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
-        throw new CliError('Failed to create plan');
       }
-    });
+    );
 }
 
 export function createPlanCommand(): Command {

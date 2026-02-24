@@ -389,7 +389,8 @@ export function createHooksCommand(): Command {
   command
     .command('status')
     .description('Show status of Anvil Git hooks')
-    .action(async () => {
+    .option('--json', 'Output as JSON')
+    .action(async (options: { json?: boolean }) => {
       log('hooks status');
       try {
         const workspaceRoot = getWorkspaceRoot();
@@ -400,8 +401,6 @@ export function createHooksCommand(): Command {
           throw new CliError('Not a Git repository');
         }
 
-        console.log(chalk.bold('\nAnvil Git Hooks Status\n'));
-
         // Check standard hooks directory
         const standardHooksDir = join(gitDir, 'hooks');
         const huskyDir = join(workspaceRoot, '.husky');
@@ -410,6 +409,36 @@ export function createHooksCommand(): Command {
           { dir: standardHooksDir, name: '.git/hooks', exists: existsSync(standardHooksDir) },
           { dir: huskyDir, name: '.husky', exists: existsSync(huskyDir) },
         ];
+
+        const hooks: Array<{
+          location: string;
+          hook: string;
+          installed: boolean;
+          anvilManaged: boolean;
+        }> = [];
+
+        for (const { dir, name, exists } of locations) {
+          if (!exists) continue;
+          for (const hookName of ['pre-commit', 'pre-push']) {
+            const hookPath = join(dir, hookName);
+            const installed = existsSync(hookPath);
+            hooks.push({
+              location: name,
+              hook: hookName,
+              installed,
+              anvilManaged: installed && isAnvilManagedHook(hookPath),
+            });
+          }
+        }
+
+        const husky = detectHusky(workspaceRoot);
+
+        if (options.json) {
+          console.log(JSON.stringify({ hooks, husky }, null, 2));
+          return;
+        }
+
+        console.log(chalk.bold('\nAnvil Git Hooks Status\n'));
 
         for (const { dir, name, exists } of locations) {
           if (!exists) continue;
@@ -431,7 +460,6 @@ export function createHooksCommand(): Command {
         }
 
         // Show Husky detection
-        const husky = detectHusky(workspaceRoot);
         if (husky.detected) {
           console.log(chalk.blue('ℹ Husky detected in this project'));
           if (husky.huskyDir) {

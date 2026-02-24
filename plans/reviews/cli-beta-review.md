@@ -395,7 +395,8 @@ These helper functions are useful beyond the policy command. They could live in
 10. ~~**H-2:** Clean up barrel export~~ **FIXED** (2026-02-24) — removed
     incomplete `commands/index.ts` (no consumers)
 11. ~~**M-1:** Document `.env` parser limitations~~ **FIXED** (2026-02-24)
-12. **M-5:** Add `--json` to remaining commands
+12. ~~**M-5:** Add `--json` to remaining commands~~ **FIXED** (2026-02-24) —
+    added to `hooks status` and `plan create`
 13. Expand test coverage for untested commands
 14. ~~Add workspace validation to `export --output` and `new --output`~~
     **FIXED** (2026-02-24)
@@ -427,12 +428,12 @@ These helper functions are useful beyond the policy command. They could live in
 | `gate` | Yes | Yes | Yes | Yes |
 | `gate-config` | Yes | - | - | No |
 | `validate` | Yes | Yes | - | No |
-| `plan *` | Yes | - | - | Partial |
+| `plan *` | Yes | Partial | - | Partial |
 | `new` | Yes | - | Yes | No |
 | `explain` | Yes | Yes | - | No |
 | `export` | Yes | Yes | - | Yes |
 | `policy *` | Yes | Partial | - | Yes |
-| `hooks *` | Yes | - | - | Yes |
+| `hooks *` | Yes | Partial | - | Yes |
 | `audit` | Yes | Yes | Yes | No |
 | `doctor` | Yes | Yes | Yes | Partial |
 | `drift` | Yes | Yes | - | No |
