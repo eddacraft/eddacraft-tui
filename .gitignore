@@ -55,6 +55,10 @@ docs/analysis/claude-code-safety-net-review.md
 
 # Claude (local)
 .claude/settings.local.json
+.claude/.setup-meta
+.claude/logs/
+.claude/memory.json
+.claude/autonomous-state.json
 apps/anvil-api/.claude/settings.local.json
 
 .gemini/
