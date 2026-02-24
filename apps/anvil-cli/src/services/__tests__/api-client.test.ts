@@ -27,6 +27,12 @@ describe('api-client', () => {
 
       expect(() => getApiUrl()).toThrow('ANVIL_API_URL must use HTTPS');
     });
+
+    it('should allow http://localhost for local development', () => {
+      process.env.ANVIL_API_URL = 'http://localhost:3000';
+
+      expect(getApiUrl()).toBe('http://localhost:3000');
+    });
   });
 
   describe('getAdminKey', () => {
@@ -164,6 +170,23 @@ describe('api-client', () => {
           operationName: 'Server action',
         })
       ).rejects.toThrow('Server action failed: 500 Internal Server Error');
+    });
+
+    it('should truncate long error response bodies', async () => {
+      const longBody = 'x'.repeat(300);
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        text: () => Promise.resolve(longBody),
+      });
+
+      await expect(
+        apiRequest({
+          method: 'GET',
+          path: '/api/v1/test',
+          operationName: 'Bad gateway',
+        })
+      ).rejects.toThrow(`Bad gateway failed: 502 ${'x'.repeat(200)}...`);
     });
 
     it('should throw a user-friendly error on request timeout', async () => {
