@@ -65,6 +65,7 @@ apps/anvil-api/.claude/settings.local.json
 gha-creds-*.json
 
 /.serena
+.worktrees/
 .vercel
 .env*.local
 infra/import.json
