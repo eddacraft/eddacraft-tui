@@ -73,6 +73,13 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
       signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {
+    // AbortSignal.timeout() rejects with a DOMException (TimeoutError)
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      log(`apiRequest: TIMEOUT ${options.operationName}`);
+      throw new Error(
+        `Request timed out for ${options.operationName}. Check your internet connection and try again.`
+      );
+    }
     if (!(err instanceof TypeError)) throw err;
     let cause = '';
     if (err.cause != null) {
@@ -91,7 +98,12 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
     log(`apiRequest: FAILED ${options.operationName} status=${res.status}`);
 
     if (res.status === 401 || res.status === 403) {
-      // Lazy import to avoid circular dependency
+      const isAdminRoute = options.path.includes('/admin/');
+      if (isAdminRoute) {
+        const truncated = body.length > 200 ? body.slice(0, 200) + '...' : body;
+        throw new Error(`${options.operationName} failed: ${res.status} ${truncated}`);
+      }
+      // User-token flow: clear stale credentials and prompt re-login
       const { clearAuth } = await import('./auth-store.js');
       clearAuth();
       throw new Error('Authentication expired — run `anvil login` to re-authenticate.');

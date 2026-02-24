@@ -114,7 +114,24 @@ describe('api-client', () => {
       );
     });
 
-    it('should clear auth and throw auth-expired on 401/403', async () => {
+    it('should clear auth and throw auth-expired on 401 for user routes', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve('Unauthorized'),
+      });
+
+      await expect(
+        apiRequest({
+          method: 'GET',
+          path: '/api/v1/auth/verify',
+          token: 'expired-token',
+          operationName: 'Verify token',
+        })
+      ).rejects.toThrow('Authentication expired — run `anvil login` to re-authenticate.');
+    });
+
+    it('should throw generic error on 403 for admin routes without clearing auth', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 403,
@@ -129,7 +146,7 @@ describe('api-client', () => {
           token: 'bad-key',
           operationName: 'Admin invite',
         })
-      ).rejects.toThrow('Authentication expired — run `anvil login` to re-authenticate.');
+      ).rejects.toThrow('Admin invite failed: 403 Forbidden: invalid key');
     });
 
     it('should throw with status and body on non-auth error response', async () => {
@@ -147,6 +164,22 @@ describe('api-client', () => {
           operationName: 'Server action',
         })
       ).rejects.toThrow('Server action failed: 500 Internal Server Error');
+    });
+
+    it('should throw a user-friendly error on request timeout', async () => {
+      const timeoutError = new DOMException(
+        'The operation was aborted due to timeout',
+        'TimeoutError'
+      );
+      global.fetch = vi.fn().mockRejectedValue(timeoutError);
+
+      await expect(
+        apiRequest({
+          method: 'GET',
+          path: '/api/v1/test',
+          operationName: 'Slow request',
+        })
+      ).rejects.toThrow('Request timed out for Slow request');
     });
 
     it('should throw a user-friendly error on network failure', async () => {
