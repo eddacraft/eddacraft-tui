@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { z } from 'zod';
 import { adminInvite, adminRevoke } from '../services/admin-client.js';
 import { success, error, info } from '../utils/output.js';
+import { CliError } from '../utils/cli-error.js';
 
 const emailSchema = z.string().email();
 
@@ -22,12 +23,12 @@ export function createBetaCommand(): Command {
       const days = parseInt(options.days, 10);
       if (Number.isNaN(days) || days <= 0) {
         error('--days must be a positive integer');
-        process.exit(1);
+        throw new CliError('--days must be a positive integer');
       }
 
       if (!emailSchema.safeParse(options.email).success) {
         error('--email must be a valid email address');
-        process.exit(1);
+        throw new CliError('--email must be a valid email address');
       }
 
       try {
@@ -50,7 +51,7 @@ export function createBetaCommand(): Command {
         console.log('');
       } catch (err) {
         error(err instanceof Error ? err.message : 'Failed to create invite');
-        process.exit(1);
+        throw new CliError('Failed to create invite');
       }
     });
 
@@ -61,7 +62,7 @@ export function createBetaCommand(): Command {
     .action(async (options: { email: string }) => {
       if (!emailSchema.safeParse(options.email).success) {
         error('--email must be a valid email address');
-        process.exit(1);
+        throw new CliError('--email must be a valid email address');
       }
 
       try {
@@ -74,7 +75,7 @@ export function createBetaCommand(): Command {
         }
       } catch (err) {
         error(err instanceof Error ? err.message : 'Failed to revoke tokens');
-        process.exit(1);
+        throw new CliError('Failed to revoke tokens');
       }
     });
 

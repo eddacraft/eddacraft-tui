@@ -12,6 +12,7 @@ import {
   formatValidationIssues,
   type ValidationResult,
 } from '@eddacraft/anvil-aps';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface ValidateOptions {
   json?: boolean;
@@ -54,8 +55,10 @@ export function createValidateSubcommand(): Command {
         try {
           const result = await validatePlanningDoc(filePath);
           console.log(formatAsJson(result, filePath));
-          process.exit(result.valid ? 0 : 1);
+          if (result.valid) throw new CliExit();
+          throw new CliError('Validation failed');
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           console.log(
             JSON.stringify(
               {
@@ -67,7 +70,7 @@ export function createValidateSubcommand(): Command {
               2
             )
           );
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : 'Validation failed');
         }
       } else {
         // Human-readable mode
@@ -94,14 +97,16 @@ export function createValidateSubcommand(): Command {
             console.log(formatValidationIssues(result));
           }
 
-          process.exit(result.valid ? 0 : 1);
+          if (result.valid) throw new CliExit();
+          throw new CliError('Validation failed');
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red('Validation failed'));
           console.error(
             chalk.red('Error:'),
             error instanceof Error ? error.message : String(error)
           );
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : 'Validation failed');
         }
       }
     });

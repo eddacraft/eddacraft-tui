@@ -16,6 +16,7 @@ import {
   type LoadedPlan,
   type FilteredPlan,
 } from '@eddacraft/anvil-aps';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface LoadOptions {
   scope?: string[];
@@ -224,8 +225,9 @@ export function createLoadSubcommand(): Command {
             console.log(formatFilesOnly(filtered));
           }
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           console.error(error instanceof Error ? error.message : String(error));
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : String(error));
         }
       } else {
         // Human-readable mode
@@ -238,12 +240,13 @@ export function createLoadSubcommand(): Command {
           spinner.succeed(chalk.green('Plan loaded'));
           formatSummary(plan, filtered, criteria);
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red('Failed to load plan'));
           console.error(
             chalk.red('Error:'),
             error instanceof Error ? error.message : String(error)
           );
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : 'Failed to load plan');
         }
       }
     });

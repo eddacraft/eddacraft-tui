@@ -9,6 +9,7 @@ import chalk from 'chalk';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { createAgentManager } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 const log = createDebugger('cli');
 
@@ -101,8 +102,9 @@ export function createAgentListCommand(): Command {
         console.log(chalk.gray('    anvil agent status     Show current agent info'));
         console.log('');
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         console.error(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
-        process.exit(1);
+        throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
 

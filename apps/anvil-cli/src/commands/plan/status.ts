@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, formatTaskStatus, type TaskStatusInfo } from '@eddacraft/anvil-aps';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface StatusOptions {
   plan?: string;
@@ -148,7 +149,7 @@ export function createStatusSubcommand(): Command {
               console.log(JSON.stringify(status, null, 2));
             } else {
               console.log(JSON.stringify({ error: `Task ${taskId} not found` }, null, 2));
-              process.exit(1);
+              throw new CliError(`Task ${taskId} not found`);
             }
           } else {
             // All tasks
@@ -157,6 +158,7 @@ export function createStatusSubcommand(): Command {
             console.log(formatAsJson(statuses, summary));
           }
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           console.log(
             JSON.stringify(
               {
@@ -166,7 +168,7 @@ export function createStatusSubcommand(): Command {
               2
             )
           );
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : 'Failed to load status');
         }
       } else {
         // Human-readable mode
@@ -189,7 +191,7 @@ export function createStatusSubcommand(): Command {
               console.log(formatTaskStatus(status));
             } else {
               console.log(chalk.red(`Task ${taskId} not found`));
-              process.exit(1);
+              throw new CliError(`Task ${taskId} not found`);
             }
           } else {
             // All tasks
@@ -206,12 +208,13 @@ export function createStatusSubcommand(): Command {
             }
           }
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red('Failed to load status'));
           console.error(
             chalk.red('Error:'),
             error instanceof Error ? error.message : String(error)
           );
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : 'Failed to load status');
         }
       }
     });

@@ -16,6 +16,7 @@ import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import { StackConfigSchema, isLayerEnabled, getEnabledLayers, type StackConfig } from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { success, error, warning } from '../../utils/output.js';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 /**
  * Validate command options
@@ -335,8 +336,10 @@ export function createValidateSubcommand(): Command {
           const workspaceRoot = getWorkspaceRoot();
           const result = validateStackConfig(workspaceRoot);
           console.log(JSON.stringify(result, null, 2));
-          process.exit(result.valid ? 0 : 1);
+          if (result.valid) throw new CliExit();
+          throw new CliError('Validation failed');
         } catch (err) {
+          if (err instanceof CliError || err instanceof CliExit) throw err;
           console.log(
             JSON.stringify(
               {
@@ -349,7 +352,7 @@ export function createValidateSubcommand(): Command {
               2
             )
           );
-          process.exit(1);
+          throw new CliError(err instanceof Error ? err.message : 'Validation failed');
         }
       } else {
         // Human-readable mode
@@ -363,12 +366,13 @@ export function createValidateSubcommand(): Command {
           displayResult(result);
 
           if (!result.valid) {
-            process.exit(1);
+            throw new CliError('Validation failed');
           }
         } catch (err) {
+          if (err instanceof CliError || err instanceof CliExit) throw err;
           spinner.fail(chalk.red('Validation failed'));
           console.error(chalk.red('Error:'), err instanceof Error ? err.message : String(err));
-          process.exit(1);
+          throw new CliError(err instanceof Error ? err.message : 'Validation failed');
         }
       }
     });

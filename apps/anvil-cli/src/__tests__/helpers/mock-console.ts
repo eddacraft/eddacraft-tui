@@ -48,7 +48,9 @@ export function mockConsole(): ConsoleMock {
 }
 
 /**
- * Mock process.exit to prevent tests from actually exiting
+ * @deprecated CLI commands now throw CliError/CliExit instead of calling
+ * process.exit(). Assert with `toThrow(CliError)` or `toThrow(CliExit)`.
+ * See: src/utils/cli-error.ts
  */
 export function mockProcessExit(): {
   exitCode: number | null;

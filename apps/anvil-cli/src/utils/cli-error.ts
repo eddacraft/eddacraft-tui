@@ -18,3 +18,19 @@ export class CliError extends Error {
     this.name = 'CliError';
   }
 }
+
+/**
+ * Signals clean early termination (exit code 0).
+ *
+ * Thrown instead of calling process.exit(0) — same benefits as CliError
+ * but semantically distinct: the command succeeded, it just wants to
+ * stop execution early (e.g. after printing results).
+ */
+export class CliExit extends Error {
+  readonly exitCode = 0;
+
+  constructor(message = 'Clean exit') {
+    super(message);
+    this.name = 'CliExit';
+  }
+}

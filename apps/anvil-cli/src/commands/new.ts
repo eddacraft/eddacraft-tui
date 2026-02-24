@@ -7,6 +7,7 @@ import {
 } from '../services/template-loader.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { theme } from '../tui/utils/theme.js';
+import { CliError } from '../utils/cli-error.js';
 
 interface NewCommandOptions {
   list?: boolean;
@@ -33,10 +34,11 @@ export function createNewCommand(): Command {
       try {
         await runNewCommand(templateId, options);
       } catch (error) {
+        if (error instanceof CliError) throw error;
         console.error(
           `${theme.icons.error} ${error instanceof Error ? error.message : 'Unknown error'}`
         );
-        process.exit(1);
+        throw new CliError('Command failed');
       }
     });
 
@@ -54,7 +56,7 @@ async function runNewCommand(
 
   if (templates.length === 0) {
     console.error(`${theme.icons.error} No templates found`);
-    process.exit(1);
+    throw new CliError('No templates found');
   }
 
   if (options.list) {
@@ -102,7 +104,7 @@ async function generateFromTemplate(
     loader.getAllTemplates().forEach((t) => {
       console.log(`  ${t.metadata.id} - ${t.metadata.name}`);
     });
-    process.exit(1);
+    throw new CliError('Template not found');
   }
 
   const missingVars = template.metadata.variables
@@ -118,7 +120,7 @@ async function generateFromTemplate(
         const defaultStr = v.default ? ` (default: ${v.default})` : '';
         console.log(`  --var ${v.name}=<value>  ${v.description}${defaultStr}`);
       });
-    process.exit(1);
+    throw new CliError('Missing required variables');
   }
 
   const rendered = loader.renderTemplate(template, variables);
@@ -128,7 +130,7 @@ async function generateFromTemplate(
   if (existsSync(outputPath) && !options.force) {
     console.error(`${theme.icons.error} File already exists: ${outputPath}`);
     console.log('Use --force to overwrite');
-    process.exit(1);
+    throw new CliError('File already exists');
   }
 
   writeFileSync(outputPath, rendered.content, 'utf-8');

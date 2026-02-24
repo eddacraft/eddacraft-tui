@@ -17,6 +17,7 @@ import {
   type NudgeConfig,
   type NudgeSeverityThreshold,
 } from '@eddacraft/anvil-core';
+import { CliError, CliExit } from '../utils/cli-error.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
 import { success, error, info } from '../utils/output.js';
@@ -363,7 +364,7 @@ export function createCheckCommand(): Command {
             `Invalid --nudge-threshold "${options.nudgeThreshold}". ` +
               `Allowed values: error, warning, info`
           );
-          process.exit(1);
+          throw new CliError('Invalid --nudge-threshold value');
         }
 
         // Resolve nudge configuration: CLI flags override defaults
@@ -393,7 +394,7 @@ export function createCheckCommand(): Command {
         if (options.all && options.changed) {
           spinner?.stop();
           error('Cannot use --all and --changed together. Choose one.');
-          process.exit(1);
+          throw new CliError('Cannot use --all and --changed together');
         }
 
         if (options.all) {
@@ -424,7 +425,7 @@ export function createCheckCommand(): Command {
             } else {
               info('No source files found');
             }
-            process.exit(0);
+            throw new CliExit();
           }
 
           filesToAnalyse = allFiles;
@@ -463,7 +464,7 @@ export function createCheckCommand(): Command {
             } else {
               info('No changed files to analyse');
             }
-            process.exit(0);
+            throw new CliExit();
           }
 
           filesToAnalyse = changedFiles;
@@ -473,7 +474,7 @@ export function createCheckCommand(): Command {
         if (filesToAnalyse.length === 0) {
           spinner?.stop();
           error('No files specified. Use --all, --changed, or provide file paths.');
-          process.exit(1);
+          throw new CliError('No files specified');
         }
 
         // Initialize Kindling provenance recording (after arg validation, no-op when disabled)
@@ -628,16 +629,17 @@ export function createCheckCommand(): Command {
           if (!options.json) {
             error('Blocking warnings found (severity: error)');
           }
-          process.exit(1);
+          throw new CliError('Blocking warnings found');
         } else if (result.warnings.warnings.length > 0) {
           if (!options.json) {
             info('Warnings found but none are blocking');
           }
-          process.exit(0);
+          throw new CliExit();
         } else {
-          process.exit(0);
+          throw new CliExit();
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         // Record error and session end in Kindling
         if (kindling && sessionId) {
           emitKindlingError(kindling.service, {
@@ -666,7 +668,7 @@ export function createCheckCommand(): Command {
 
         spinner?.fail('Analysis failed');
         error(err instanceof Error ? err.message : 'Unknown error');
-        process.exit(1);
+        throw new CliError('Analysis failed');
       }
     });
 

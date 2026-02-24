@@ -14,6 +14,7 @@ import {
   type SnapshotMetadata,
 } from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
+import { CliError, CliExit } from '../utils/cli-error.js';
 import { error, info } from '../utils/output.js';
 
 const log = createDebugger('cli');
@@ -109,9 +110,10 @@ async function handleSnapshot(options: SnapshotOptions): Promise<void> {
       }
     }
   } catch (err) {
+    if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner?.fail('Failed to capture snapshot');
     error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
+    throw new CliError('Failed to capture snapshot');
   }
 }
 
@@ -130,13 +132,13 @@ async function handleCompare(
     const before = await store.load(snapshot1);
     if (!before) {
       spinner?.fail(`Snapshot not found: ${snapshot1}`);
-      process.exit(1);
+      throw new CliError(`Snapshot not found: ${snapshot1}`);
     }
 
     const after = await store.load(snapshot2);
     if (!after) {
       spinner?.fail(`Snapshot not found: ${snapshot2}`);
-      process.exit(1);
+      throw new CliError(`Snapshot not found: ${snapshot2}`);
     }
 
     updateSpinner(spinner, 'Comparing snapshots...');
@@ -173,9 +175,10 @@ async function handleCompare(
       console.log(formatReportAsText(report));
     }
   } catch (err) {
+    if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner?.fail('Comparison failed');
     error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
+    throw new CliError('Comparison failed');
   }
 }
 
@@ -194,13 +197,13 @@ async function handleReport(options: ReportOptions): Promise<void> {
       before = await store.load(options.since);
       if (!before) {
         spinner?.fail(`Snapshot not found: ${options.since}`);
-        process.exit(1);
+        throw new CliError(`Snapshot not found: ${options.since}`);
       }
 
       after = await store.getLatest();
       if (!after) {
         spinner?.fail('No current snapshot found. Run `anvil drift snapshot` first.');
-        process.exit(1);
+        throw new CliError('No current snapshot found');
       }
     } else {
       const snapshots = await store.list();
@@ -208,7 +211,7 @@ async function handleReport(options: ReportOptions): Promise<void> {
       if (snapshots.length < 2) {
         spinner?.fail('Need at least 2 snapshots to generate a report');
         info('Run `anvil drift snapshot` to create snapshots');
-        process.exit(1);
+        throw new CliError('Need at least 2 snapshots to generate a report');
       }
 
       after = await store.load(snapshots[0].filename);
@@ -217,7 +220,7 @@ async function handleReport(options: ReportOptions): Promise<void> {
 
     if (!before || !after) {
       spinner?.fail('Could not load snapshots');
-      process.exit(1);
+      throw new CliError('Could not load snapshots');
     }
 
     updateSpinner(spinner, 'Comparing snapshots...');
@@ -236,9 +239,10 @@ async function handleReport(options: ReportOptions): Promise<void> {
       console.log(formatReportAsText(report));
     }
   } catch (err) {
+    if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner?.fail('Report generation failed');
     error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
+    throw new CliError('Report generation failed');
   }
 }
 
@@ -278,9 +282,10 @@ async function handleList(options: ListOptions): Promise<void> {
       console.log(chalk.gray('V=violations, AP=anti-patterns, S=suppressions'));
     }
   } catch (err) {
+    if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner?.fail('Failed to list snapshots');
     error(err instanceof Error ? err.message : String(err));
-    process.exit(1);
+    throw new CliError('Failed to list snapshots');
   }
 }
 

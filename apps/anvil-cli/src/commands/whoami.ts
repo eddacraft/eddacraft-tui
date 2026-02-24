@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadAuth } from '../services/auth-store.js';
 import { error } from '../utils/output.js';
+import { CliError } from '../utils/cli-error.js';
 
 export function createWhoamiCommand(): Command {
   const command = new Command('whoami');
@@ -11,7 +12,7 @@ export function createWhoamiCommand(): Command {
 
     if (!auth) {
       error('Not authenticated. Run `anvil login` to authenticate.');
-      process.exit(1);
+      throw new CliError('Not authenticated');
     }
 
     console.log(chalk.bold('\nSession Info\n'));

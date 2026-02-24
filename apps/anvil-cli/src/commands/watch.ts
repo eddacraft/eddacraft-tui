@@ -22,6 +22,7 @@ import { getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { createWatchOutput } from '../services/watch-output.js';
 import { error } from '../utils/output.js';
+import { CliError, CliExit } from '../utils/cli-error.js';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
 import {
   emitSessionStart,
@@ -473,7 +474,7 @@ export function createWatchCommand(): Command {
           }
 
           await orchestrator.stop();
-          process.exit(0);
+          throw new CliExit();
         };
 
         process.on('SIGINT', shutdown);
@@ -489,6 +490,7 @@ export function createWatchCommand(): Command {
           // Never resolves - keeps process running until Ctrl+C
         });
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         // Record error and session end in Kindling
         if (kindling && sessionId) {
           emitKindlingError(kindling.service, {
@@ -516,7 +518,7 @@ export function createWatchCommand(): Command {
         }
 
         error(`Watch failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
 

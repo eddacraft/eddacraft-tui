@@ -7,6 +7,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import YAML from 'yaml';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { CliError, CliExit } from '../utils/cli-error.js';
 import {
   type ArchitectureTemplate,
   type ArchitectureDefinition,
@@ -278,9 +279,10 @@ async function createArchitectureFile(
     console.log(chalk.cyan('     anvil gate --only-checks architecture'));
     console.log('');
   } catch (err) {
+    if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner.fail('Failed to create architecture configuration');
     console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-    process.exit(1);
+    throw new CliError('Failed to create architecture configuration');
   }
 }
 
@@ -397,7 +399,7 @@ async function validateArchitectureDefinition(projectRoot: string): Promise<void
         console.log(chalk.yellow(`  • ${issue}`));
       }
       console.log('');
-      process.exit(1);
+      throw new CliError('Architecture definition has validation errors');
     }
 
     spinner.succeed(chalk.green('Architecture configuration is valid'));
@@ -407,9 +409,10 @@ async function validateArchitectureDefinition(projectRoot: string): Promise<void
     console.log(chalk.dim(`  Rules:    ${definition.rules.length}`));
     console.log('');
   } catch (err) {
+    if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner.fail('Validation failed');
     console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-    process.exit(1);
+    throw new CliError('Architecture validation failed');
   }
 }
 
@@ -468,9 +471,10 @@ async function generateArchitectureConfigs(
     console.log(chalk.cyan('  anvil gate --only-checks architecture'));
     console.log('');
   } catch (err) {
+    if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner.fail('Failed to generate configs');
     console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-    process.exit(1);
+    throw new CliError('Failed to generate architecture configs');
   }
 }
 
@@ -513,7 +517,7 @@ function createInitSubcommand(): Command {
         console.log(chalk.yellow(`  ${ARCHITECTURE_YAML_FILENAME} already exists.`));
         console.log(chalk.dim('  Use --force to overwrite, or edit the existing file.'));
         console.log('');
-        process.exit(1);
+        throw new CliError('Architecture definition already exists');
       }
 
       let template: ArchitectureTemplate;
@@ -534,7 +538,7 @@ function createInitSubcommand(): Command {
           console.log(chalk.red(`  Invalid template: ${options.template}`));
           console.log(chalk.dim(`  Available templates: ${getAvailableTemplates().join(', ')}`));
           console.log('');
-          process.exit(1);
+          throw new CliError(`Invalid architecture template: ${options.template}`);
         }
         template = validated;
 
@@ -581,7 +585,7 @@ function createGenerateSubcommand(): Command {
         console.log(chalk.red('  No architecture.yaml found.'));
         console.log(chalk.dim('  Run: anvil arch init'));
         console.log('');
-        process.exit(1);
+        throw new CliError('Architecture definition not found for generate');
       }
 
       await generateArchitectureConfigs(projectRoot, options);
@@ -599,7 +603,7 @@ function createValidateSubcommand(): Command {
         console.log(chalk.red('  No architecture.yaml found.'));
         console.log(chalk.dim('  Run: anvil arch init'));
         console.log('');
-        process.exit(1);
+        throw new CliError('Architecture definition not found for validate');
       }
 
       await validateArchitectureDefinition(projectRoot);
@@ -619,14 +623,15 @@ function createShowSubcommand(): Command {
         console.log(chalk.red('  No architecture.yaml found.'));
         console.log(chalk.dim('  Run: anvil arch init'));
         console.log('');
-        process.exit(1);
+        throw new CliError('Architecture definition not found for show');
       }
 
       try {
         await showArchitectureDefinition(projectRoot, options);
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-        process.exit(1);
+        throw new CliError('Failed to show architecture definition');
       }
     });
 }
@@ -646,7 +651,7 @@ function createVisualiseSubcommand(): Command {
         console.log(chalk.red('  No architecture.yaml found.'));
         console.log(chalk.dim('  Run: anvil arch init'));
         console.log('');
-        process.exit(1);
+        throw new CliError('Architecture definition not found for visualise');
       }
 
       try {
@@ -710,8 +715,9 @@ function createVisualiseSubcommand(): Command {
           console.log('');
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
-        process.exit(1);
+        throw new CliError('Architecture visualisation failed');
       }
     });
 }

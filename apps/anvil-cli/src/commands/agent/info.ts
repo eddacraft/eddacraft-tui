@@ -13,6 +13,7 @@ import {
   getDefaultConcurrencyConfig,
 } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 interface InfoOptions {
   json?: boolean;
@@ -142,8 +143,9 @@ export function createAgentInfoCommand(): Command {
         console.log(chalk.gray('    ANVIL_SESSION_ID    Session identifier'));
         console.log('');
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         console.error(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
-        process.exit(1);
+        throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
 

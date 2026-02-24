@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { existsSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { CliError } from '../utils/cli-error.js';
 import { join } from 'node:path';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUIAndWait } from '../tui/utils/renderer.js';
@@ -29,7 +30,7 @@ function printTutorialTTYError(options: TutorialOptions): never {
     console.error(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
   }
 
-  process.exit(1);
+  throw new CliError('Tutorial requires an interactive terminal');
 }
 
 function getProgressFilePath(workspaceRoot: string): string {

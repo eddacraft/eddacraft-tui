@@ -13,6 +13,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { CliError } from '../utils/cli-error.js';
 import {
   APSPlan,
   generatePlanId,
@@ -111,7 +112,7 @@ function createCreateSubcommand(): Command {
       } catch (error) {
         spinner.fail(chalk.red('Failed to create plan'));
         console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
-        process.exit(1);
+        throw new CliError('Failed to create plan');
       }
     });
 }

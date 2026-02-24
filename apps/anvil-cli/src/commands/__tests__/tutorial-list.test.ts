@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { CliError } from '../../utils/cli-error.js';
 
 const mockFs = vi.hoisted(() => ({
   forceExistsSync: false,
@@ -205,36 +206,28 @@ describe('tutorial --reset with topic', () => {
 });
 
 describe('tutorial TTY error handling', () => {
-  let exitSpy: ReturnType<typeof vi.spyOn>;
   let stderrSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    exitSpy = vi.spyOn(process, 'exit').mockImplementation(() => {
-      throw new Error('process.exit');
-    });
     stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   it('prints --no-tui specific message and exits when --no-tui is passed', async () => {
     const command = createTutorialCommand();
-    await expect(command.parseAsync(['--no-tui'], { from: 'user' })).rejects.toThrow(
-      'process.exit'
-    );
+    await expect(command.parseAsync(['--no-tui'], { from: 'user' })).rejects.toThrow(CliError);
 
     const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
     expect(allStderr).toContain('plain-text mode is not available yet');
     expect(allStderr).toContain('Remove --no-tui');
-    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 
   it('prints generic TTY message and exits in non-TTY without --no-tui', async () => {
     const command = createTutorialCommand();
-    await expect(command.parseAsync([], { from: 'user' })).rejects.toThrow('process.exit');
+    await expect(command.parseAsync([], { from: 'user' })).rejects.toThrow(CliError);
 
     const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
     expect(allStderr).toContain('requires an interactive terminal');
     expect(allStderr).toContain('TTY environment');
-    expect(exitSpy).toHaveBeenCalledWith(1);
   });
 });

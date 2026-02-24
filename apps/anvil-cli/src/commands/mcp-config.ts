@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { CliError } from '../utils/cli-error.js';
 
 // ---------------------------------------------------------------------------
 // MCP config generation — inlined from @eddacraft/anvil-mcp-server/config
@@ -79,19 +80,19 @@ export function createMcpConfigCommand(): Command {
           const target = options.target;
           if (!SUPPORTED_TARGETS.includes(target as McpConfigTarget)) {
             console.error(`Unknown target: ${target}. Supported: ${SUPPORTED_TARGETS.join(', ')}`);
-            process.exit(1);
+            throw new CliError(`Unknown target: ${target}`);
           }
 
           const transport = options.transport;
           if (transport !== 'stdio' && transport !== 'http') {
             console.error(`Unknown transport: ${transport}. Supported: stdio, http`);
-            process.exit(1);
+            throw new CliError(`Unknown transport: ${transport}`);
           }
 
           const port = parseInt(options.port, 10);
           if (!Number.isFinite(port) || port < 1 || port > 65535) {
             console.error(`Invalid port: ${options.port}. Must be an integer between 1 and 65535.`);
-            process.exit(1);
+            throw new CliError(`Invalid port: ${options.port}`);
           }
 
           const config = generateMcpConfig(target as McpConfigTarget, { transport, port });
@@ -117,7 +118,7 @@ export function createMcpConfigCommand(): Command {
                   `Target path is outside workspace: ${fullPath}\n` +
                     `Use --yes to skip confirmation in non-interactive mode.`
                 );
-                process.exit(1);
+                throw new CliError('Target path is outside workspace and no TTY available');
               }
               const rl = createInterface({ input: process.stdin, output: process.stdout });
               const answer = await new Promise<string>((res) => {
@@ -137,8 +138,9 @@ export function createMcpConfigCommand(): Command {
             console.log(JSON.stringify(config.content, null, 2));
           }
         } catch (err) {
+          if (err instanceof CliError) throw err;
           console.error('Error:', err instanceof Error ? err.message : String(err));
-          process.exit(1);
+          throw new CliError(err instanceof Error ? err.message : String(err));
         }
       }
     );

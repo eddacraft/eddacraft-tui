@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, type LockResult } from '@eddacraft/anvil-aps';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface LockOptions {
   plan?: string;
@@ -47,8 +48,10 @@ export function createLockSubcommand(): Command {
 
           const result = await locker.lock(taskId);
           console.log(formatAsJson(result));
-          process.exit(result.success ? 0 : 1);
+          if (result.success) throw new CliExit();
+          throw new CliError('Lock failed');
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           console.log(
             JSON.stringify(
               {
@@ -60,7 +63,7 @@ export function createLockSubcommand(): Command {
               2
             )
           );
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : 'Lock failed');
         }
       } else {
         // Human-readable mode
@@ -82,15 +85,18 @@ export function createLockSubcommand(): Command {
           } else {
             spinner.fail(chalk.red(`Failed to lock task ${taskId}`));
             console.error(chalk.red('  Error:'), result.error);
-            process.exit(1);
+            throw new CliError(`Failed to lock task ${taskId}`);
           }
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red(`Failed to lock task ${taskId}`));
           console.error(
             chalk.red('Error:'),
             error instanceof Error ? error.message : String(error)
           );
-          process.exit(1);
+          throw new CliError(
+            error instanceof Error ? error.message : `Failed to lock task ${taskId}`
+          );
         }
       }
     });

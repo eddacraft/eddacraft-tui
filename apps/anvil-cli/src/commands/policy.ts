@@ -9,6 +9,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { createDebugger, validatePathWithinRoot } from '@eddacraft/anvil-core';
+import { CliError, CliExit } from '../utils/cli-error.js';
 import {
   existsSync,
   mkdirSync,
@@ -469,8 +470,9 @@ export function createPolicyCommand(): Command {
           }
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to list policies: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Failed to list policies');
       }
     });
 
@@ -491,7 +493,7 @@ export function createPolicyCommand(): Command {
         if (!policy) {
           error(`Policy '${name}' not found`);
           console.log(chalk.dim('\nRun `anvil policy list --all` to see available policies'));
-          process.exit(1);
+          throw new CliError(`Policy '${name}' not found`);
         }
 
         console.log('');
@@ -559,8 +561,9 @@ export function createPolicyCommand(): Command {
         console.log(chalk.dim(`    anvil gate --skip ${name}       # skip just this once`));
         console.log('');
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to explain policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Failed to explain policy');
       }
     });
 
@@ -595,7 +598,7 @@ export function createPolicyCommand(): Command {
             for (const p of resolved) {
               console.log(chalk.dim(`  • ${p.name}`));
             }
-            process.exit(1);
+            throw new CliError(`Could not match '${violation}' to any known policy`);
           }
 
           // Show all matches
@@ -607,10 +610,11 @@ export function createPolicyCommand(): Command {
 
         printWhyBlock(match);
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(
           `Failed to explain violation: ${err instanceof Error ? err.message : 'Unknown error'}`
         );
-        process.exit(1);
+        throw new CliError('Failed to explain policy violation');
       }
     });
 
@@ -718,8 +722,9 @@ export function createPolicyCommand(): Command {
           info('No policy changes detected');
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to diff policies: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Failed to diff policies');
       }
     });
 
@@ -740,7 +745,7 @@ export function createPolicyCommand(): Command {
 
         if (!policy) {
           error(`Policy '${name}' not found`);
-          process.exit(1);
+          throw new CliError(`Policy '${name}' not found for disable`);
         }
 
         if (!policy.active) {
@@ -752,8 +757,9 @@ export function createPolicyCommand(): Command {
         success(`Disabled policy '${name}'`);
         console.log(chalk.dim(`  To re-enable: anvil policy enable ${name}`));
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to disable policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Failed to disable policy');
       }
     });
 
@@ -774,15 +780,16 @@ export function createPolicyCommand(): Command {
           error(
             `Invalid enforcement level '${options.enforcement}'. Must be one of: ${validEnforcementLevels.join(', ')}`
           );
-          process.exit(1);
+          throw new CliError(`Invalid enforcement level: ${options.enforcement}`);
         }
         const enforcement = options.enforcement as EnforcementLevel;
 
         configMgr.enablePolicy(name, enforcement);
         success(`Enabled policy '${name}' with enforcement: ${formatEnforcement(enforcement)}`);
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to enable policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Failed to enable policy');
       }
     });
 
@@ -803,7 +810,7 @@ export function createPolicyCommand(): Command {
         const rel = relative(workspaceRoot, outputPath);
         if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== outputPath) {
           error(`Output path "${options.output}" resolves outside workspace root`);
-          process.exit(1);
+          throw new CliError('Policy doc output path resolves outside workspace root');
         }
         const outputDir = dirname(outputPath);
         if (!existsSync(outputDir)) {
@@ -814,8 +821,9 @@ export function createPolicyCommand(): Command {
         success(`Generated ${options.output}`);
         console.log(chalk.dim('  Commit this file so the team can read it in any editor.'));
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to generate docs: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Failed to generate policy docs');
       }
     });
 
@@ -837,7 +845,7 @@ export function createPolicyCommand(): Command {
           outDir = validatePathWithinRoot(options.out, workspaceRoot);
         } catch {
           error(`--out path escapes workspace: ${options.out}`);
-          process.exit(1);
+          throw new CliError('Scaffold output path escapes workspace');
         }
 
         const configMgr = new PolicyConfigManager(workspaceRoot);
@@ -908,8 +916,9 @@ export function createPolicyCommand(): Command {
         console.log(chalk.dim('  4. In your project, add the org source to .anvil/config.yml'));
         console.log('');
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to scaffold: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Failed to scaffold org policies');
       }
     });
 
@@ -939,12 +948,13 @@ export function createPolicyCommand(): Command {
           for (const err of result.errors) {
             console.log(chalk.red(`  • ${err}`));
           }
-          process.exit(1);
+          throw new CliError('Policy syntax is invalid');
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner.fail('Validation failed');
         error(err instanceof Error ? err.message : 'Unknown error');
-        process.exit(1);
+        throw new CliError('Policy syntax validation failed');
       }
     });
 
@@ -983,7 +993,7 @@ export function createPolicyCommand(): Command {
           policies = policies.filter((p) => p.name === policy || p.name.includes(policy));
           if (policies.length === 0) {
             spinner.fail(`Policy '${policy}' not found`);
-            process.exit(1);
+            throw new CliError(`Policy '${policy}' not found for testing`);
           }
         }
 
@@ -1033,12 +1043,13 @@ export function createPolicyCommand(): Command {
         }
 
         if (!allPassed) {
-          process.exit(1);
+          throw new CliError('Policy tests failed');
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner.fail('Test run failed');
         error(err instanceof Error ? err.message : 'Unknown error');
-        process.exit(1);
+        throw new CliError('Policy test run failed');
       }
     });
 
@@ -1061,7 +1072,7 @@ export function createPolicyCommand(): Command {
           if (files.length > 0) {
             error(`Policy directory already contains ${files.length} policies`);
             console.log(chalk.dim('\nUse --force to overwrite existing policies'));
-            process.exit(1);
+            throw new CliError('Policy directory already contains policies');
           }
         }
 
@@ -1127,10 +1138,11 @@ export function createPolicyCommand(): Command {
         console.log('');
         success('Policy directory initialised!');
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         error(
           `Failed to initialise policies: ${err instanceof Error ? err.message : 'Unknown error'}`
         );
-        process.exit(1);
+        throw new CliError('Failed to initialise policies');
       }
     });
 
@@ -1365,8 +1377,9 @@ function createBundleListCommand(): Command {
       console.log('');
       success(`${bundles.length} bundle(s) configured`);
     } catch (err) {
+      if (err instanceof CliError || err instanceof CliExit) throw err;
       error(`Failed to list bundles: ${err instanceof Error ? err.message : 'Unknown error'}`);
-      process.exit(1);
+      throw new CliError('Failed to list bundles');
     }
   });
 }
@@ -1421,7 +1434,7 @@ function createBundleAddCommand(): Command {
           if (existingIndex >= 0) {
             spinner.fail(`Bundle '${bundleName}' already exists`);
             console.log(chalk.dim('\nUse a different --name or remove the existing bundle first'));
-            process.exit(1);
+            throw new CliError(`Bundle '${bundleName}' already exists`);
           }
 
           // Build bundle config
@@ -1442,7 +1455,7 @@ function createBundleAddCommand(): Command {
           if (options.key) {
             if (!existsSync(options.key)) {
               spinner.fail(`Key file not found: ${options.key}`);
-              process.exit(1);
+              throw new CliError(`Bundle signature key file not found: ${options.key}`);
             }
             const signatureKey = readFileSync(options.key, 'utf-8').trim();
 
@@ -1510,9 +1523,10 @@ function createBundleAddCommand(): Command {
           console.log('');
           success('Bundle configuration saved to .anvilrc');
         } catch (err) {
+          if (err instanceof CliError || err instanceof CliExit) throw err;
           spinner.fail('Failed to add bundle');
           error(err instanceof Error ? err.message : 'Unknown error');
-          process.exit(1);
+          throw new CliError('Failed to add bundle');
         }
       }
     );
@@ -1568,7 +1582,7 @@ function createBundleRemoveCommand(): Command {
         if (bundleIndex < 0) {
           spinner.fail(`Bundle '${name}' not found`);
           console.log(chalk.dim('\nUse `anvil policy bundle list` to see available bundles'));
-          process.exit(1);
+          throw new CliError(`Bundle '${name}' not found for removal`);
         }
 
         const bundleName = resolveBundleName(bundles[bundleIndex]);
@@ -1591,9 +1605,10 @@ function createBundleRemoveCommand(): Command {
 
         success('Bundle configuration updated');
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner.fail('Failed to remove bundle');
         error(err instanceof Error ? err.message : 'Unknown error');
-        process.exit(1);
+        throw new CliError('Failed to remove bundle');
       }
     });
 }
@@ -1628,7 +1643,7 @@ function createBundleSyncCommand(): Command {
           bundles = bundles.filter((b) => resolveBundleName(b) === options.name);
           if (bundles.length === 0) {
             spinner.fail(`Bundle '${options.name}' not found`);
-            process.exit(1);
+            throw new CliError(`Bundle '${options.name}' not found for sync`);
           }
         }
 
@@ -1691,12 +1706,13 @@ function createBundleSyncCommand(): Command {
           warning(`${successCount} succeeded, ${failCount} failed`);
         } else {
           error(`All ${failCount} bundle(s) failed to sync`);
-          process.exit(1);
+          throw new CliError('All bundles failed to sync');
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner.fail('Bundle sync failed');
         error(err instanceof Error ? err.message : 'Unknown error');
-        process.exit(1);
+        throw new CliError('Bundle sync failed');
       }
     });
 }

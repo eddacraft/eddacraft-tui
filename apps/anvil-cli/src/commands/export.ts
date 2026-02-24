@@ -20,6 +20,7 @@ import {
 } from '@eddacraft/anvil-runtime';
 import type { ExportOptions } from '../types/command-options.js';
 import { error as printError } from '../utils/output.js';
+import { CliError } from '../utils/cli-error.js';
 
 export function createExportCommand(): Command {
   return new Command('export')
@@ -52,12 +53,12 @@ export function createExportCommand(): Command {
           console.log(chalk.gray('\nExamples:'));
           console.log(chalk.gray('  Constraint export:'), 'anvil export --format llms.txt');
           console.log(chalk.gray('  Plan conversion:  '), 'anvil export source.md --to json');
-          process.exit(1);
+          throw new CliError('Either --format or --to must be specified');
         }
 
         if (!sourcePath) {
           printError('Source file path is required for plan conversion');
-          process.exit(1);
+          throw new CliError('Source file path is required for plan conversion');
         }
 
         const spinner = ora('Loading source file...').start();
@@ -199,9 +200,10 @@ export function createExportCommand(): Command {
             throw new Error(`Unsupported target format: ${options.to}`);
           }
         } catch (err) {
+          if (err instanceof CliError) throw err;
           spinner.fail(chalk.red('Export failed'));
           printError(err instanceof Error ? err.message : String(err));
-          process.exit(1);
+          throw new CliError(err instanceof Error ? err.message : String(err));
         }
       }
     );
@@ -295,9 +297,10 @@ async function exportConstraints(
 
     console.log(chalk.green('\n✓ Export complete'));
   } catch (err) {
+    if (err instanceof CliError) throw err;
     spinner.fail(chalk.red('Export failed'));
     printError(err instanceof Error ? err.message : String(err));
-    process.exit(1);
+    throw new CliError(err instanceof Error ? err.message : String(err));
   }
 }
 

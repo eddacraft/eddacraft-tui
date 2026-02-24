@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { CliError, CliExit } from '../utils/cli-error.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 
 const log = createDebugger('cli');
@@ -209,7 +210,8 @@ export function createDoctorCommand(): Command {
           `doctor result: passed=${data.summary.passed} failed=${data.summary.failed} warnings=${data.summary.warnings}`
         );
         console.log(formatJsonOutput(data));
-        process.exit(data.summary.healthy ? 0 : 1);
+        if (data.summary.healthy) throw new CliExit();
+        throw new CliError('Doctor check failed');
         return;
       }
 
@@ -229,11 +231,13 @@ export function createDoctorCommand(): Command {
             onQuit: resolve,
           });
         });
-        process.exit(exitCode);
+        if (exitCode === 0) throw new CliExit();
+        throw new CliError('Doctor check failed');
       } else {
         const data = await runChecksPlain(checks, context, options.fix ?? false);
         printPlainTextDiagnostics(data, options.verbose ?? false);
-        process.exit(data.summary.healthy ? 0 : 1);
+        if (data.summary.healthy) throw new CliExit();
+        throw new CliError('Doctor check failed');
       }
     });
 

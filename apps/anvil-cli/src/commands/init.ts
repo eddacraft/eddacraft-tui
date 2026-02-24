@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { CliError } from '../utils/cli-error.js';
 import { EnvironmentDetector } from '../services/environment-detector.js';
 import {
   TemplateGenerator,
@@ -84,7 +85,7 @@ export function createInitCommand(): Command {
             console.log(
               chalk.dim('\nTip: Run `anvil gate:config --list` to view current configuration')
             );
-            process.exit(1);
+            throw new CliError('.anvilrc already exists');
           }
 
           // Detect environment
@@ -387,8 +388,9 @@ export function createInitCommand(): Command {
             throw err;
           }
         } catch (err) {
+          if (err instanceof CliError) throw err;
           error(`Initialisation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          process.exit(1);
+          throw new CliError('Initialisation failed');
         }
       }
     );
@@ -706,7 +708,7 @@ async function runDetectAndApplyInit(
 
   if (existsSync(anvilrcPath) && !force) {
     error('.anvilrc already exists. Use --force to overwrite.');
-    process.exit(1);
+    throw new CliError('.anvilrc already exists');
   }
 
   // Step 1: Detect project

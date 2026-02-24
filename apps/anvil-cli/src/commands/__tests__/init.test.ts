@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInitCommand } from '../init.js';
+import { CliError } from '../../utils/cli-error.js';
 import {
   analyseProjectArchitecture,
   layersToMermaid,
@@ -98,8 +99,6 @@ vi.mock('chalk', () => ({
 describe('init command', () => {
   let workspace: TestWorkspace;
   let originalCwd: string;
-  let originalExit: typeof process.exit;
-  let exitCode: number | null = null;
   let consoleOutput: string[] = [];
   let consoleErrors: string[] = [];
 
@@ -108,13 +107,6 @@ describe('init command', () => {
     workspace = createTestWorkspace();
     originalCwd = process.cwd();
     process.chdir(workspace.root);
-
-    // Mock process.exit
-    originalExit = process.exit;
-    process.exit = vi.fn((code?: number) => {
-      exitCode = code ?? 0;
-      throw new Error(`process.exit(${exitCode})`);
-    }) as unknown as typeof process.exit;
 
     // Mock console.log and console.error to capture output
     consoleOutput = [];
@@ -125,14 +117,11 @@ describe('init command', () => {
     vi.spyOn(console, 'error').mockImplementation((...args) => {
       consoleErrors.push(args.map((arg) => String(arg)).join(' '));
     });
-
-    exitCode = null;
   });
 
   afterEach(() => {
     process.chdir(originalCwd);
     workspace.cleanup();
-    process.exit = originalExit;
     vi.restoreAllMocks();
   });
 
@@ -157,9 +146,7 @@ describe('init command', () => {
 
       await expect(async () => {
         await command.parseAsync(['--non-interactive'], { from: 'user' });
-      }).rejects.toThrow('process.exit(1)');
-
-      expect(exitCode).toBe(1);
+      }).rejects.toThrow(CliError);
     });
 
     it('should overwrite .anvilrc if force flag is provided', async () => {
@@ -349,9 +336,7 @@ describe('init command', () => {
 
       await expect(async () => {
         await command.parseAsync(['--non-interactive'], { from: 'user' });
-      }).rejects.toThrow('process.exit(1)');
-
-      expect(exitCode).toBe(1);
+      }).rejects.toThrow(CliError);
     });
   });
 
@@ -505,9 +490,7 @@ describe('init command', () => {
 
       await expect(async () => {
         await command.parseAsync(['--org', 'my-org'], { from: 'user' });
-      }).rejects.toThrow('process.exit(1)');
-
-      expect(exitCode).toBe(1);
+      }).rejects.toThrow(CliError);
     });
 
     it('should overwrite if --force is used with --org', async () => {
@@ -632,9 +615,8 @@ describe('init command', () => {
         const command = createInitCommand();
         await expect(async () => {
           await command.parseAsync(['--non-interactive'], { from: 'user' });
-        }).rejects.toThrow('process.exit(1)');
+        }).rejects.toThrow(CliError);
 
-        expect(exitCode).toBe(1);
         const errorOutput = consoleErrors.join('\n');
         expect(errorOutput).toContain('EACCES: permission denied');
       });
@@ -647,9 +629,8 @@ describe('init command', () => {
         const command = createInitCommand();
         await expect(async () => {
           await command.parseAsync(['--non-interactive'], { from: 'user' });
-        }).rejects.toThrow('process.exit(1)');
+        }).rejects.toThrow(CliError);
 
-        expect(exitCode).toBe(1);
         const errorOutput = consoleErrors.join('\n');
         expect(errorOutput).toContain('Failed to write .anvilrc');
       });
@@ -662,9 +643,8 @@ describe('init command', () => {
         const command = createInitCommand();
         await expect(async () => {
           await command.parseAsync(['--non-interactive'], { from: 'user' });
-        }).rejects.toThrow('process.exit(1)');
+        }).rejects.toThrow(CliError);
 
-        expect(exitCode).toBe(1);
         const errorOutput = consoleErrors.join('\n');
         expect(errorOutput).toContain('Unknown error');
       });
@@ -742,9 +722,8 @@ describe('init command', () => {
         const command = createInitCommand();
         await expect(async () => {
           await command.parseAsync(['--org', 'my-org'], { from: 'user' });
-        }).rejects.toThrow('process.exit(1)');
+        }).rejects.toThrow(CliError);
 
-        expect(exitCode).toBe(1);
         const errorOutput = consoleErrors.join('\n');
         expect(errorOutput).toContain('Disk full');
       });
@@ -776,9 +755,8 @@ describe('init command', () => {
         const command = createInitCommand();
         await expect(async () => {
           await command.parseAsync([], { from: 'user' });
-        }).rejects.toThrow('process.exit(1)');
+        }).rejects.toThrow(CliError);
 
-        expect(exitCode).toBe(1);
         const errorOutput = consoleErrors.join('\n');
         expect(errorOutput).toContain('Could not start TUI wizard');
       });
@@ -797,9 +775,8 @@ describe('init command', () => {
         const command = createInitCommand();
         await expect(async () => {
           await command.parseAsync([], { from: 'user' });
-        }).rejects.toThrow('process.exit(1)');
+        }).rejects.toThrow(CliError);
 
-        expect(exitCode).toBe(1);
         const errorOutput = consoleErrors.join('\n');
         expect(errorOutput).toContain('Setup cancelled by user');
       });

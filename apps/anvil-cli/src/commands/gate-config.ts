@@ -3,6 +3,7 @@ import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error } from '../utils/output.js';
 import inquirer from 'inquirer';
+import { CliError } from '../utils/cli-error.js';
 
 export function createGateConfigCommand(): Command {
   const command = new Command('gate:config');
@@ -61,7 +62,7 @@ export function createGateConfigCommand(): Command {
           command.help();
         } catch (err) {
           error(`Configuration failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-          process.exit(1);
+          throw new CliError('Configuration failed');
         }
       }
     );

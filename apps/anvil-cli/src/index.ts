@@ -29,6 +29,7 @@ import { createWhoamiCommand } from './commands/whoami.js';
 import { isFirstRun } from './services/first-run-detector.js';
 import { isAuthenticated } from './services/auth-store.js';
 import { showWelcome, createStartCommand } from './commands/welcome.js';
+import { CliError, CliExit } from './utils/cli-error.js';
 import { loadAnvilEnv } from './utils/env.js';
 
 loadAnvilEnv();
@@ -85,7 +86,7 @@ async function main(): Promise<void> {
       '\x1b[31m✗\x1b[0m Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
         '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).'
     );
-    process.exit(1);
+    throw new CliError('Authentication required');
   });
 
   // Auth commands
@@ -124,6 +125,12 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('Error:', error instanceof Error ? error.message : String(error));
+  if (error instanceof CliExit) {
+    process.exit(0);
+  }
+  if (error instanceof CliError) {
+    process.exit(error.exitCode);
+  }
+  console.error('Unexpected error:', error instanceof Error ? error.message : String(error));
   process.exit(1);
 });

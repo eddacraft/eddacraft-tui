@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, type UnlockResult } from '@eddacraft/anvil-aps';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface UnlockOptions {
   plan?: string;
@@ -42,8 +43,10 @@ export function createUnlockSubcommand(): Command {
 
           const result = await locker.unlock(taskId);
           console.log(formatAsJson(result));
-          process.exit(result.success ? 0 : 1);
+          if (result.success) throw new CliExit();
+          throw new CliError('Unlock failed');
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           console.log(
             JSON.stringify(
               {
@@ -55,7 +58,7 @@ export function createUnlockSubcommand(): Command {
               2
             )
           );
-          process.exit(1);
+          throw new CliError(error instanceof Error ? error.message : 'Unlock failed');
         }
       } else {
         // Human-readable mode
@@ -79,15 +82,18 @@ export function createUnlockSubcommand(): Command {
             if (result.previousStatus) {
               console.log(chalk.gray('  Current status:'), chalk.yellow(result.previousStatus));
             }
-            process.exit(1);
+            throw new CliError(`Failed to unlock task ${taskId}`);
           }
         } catch (error) {
+          if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red(`Failed to unlock task ${taskId}`));
           console.error(
             chalk.red('Error:'),
             error instanceof Error ? error.message : String(error)
           );
-          process.exit(1);
+          throw new CliError(
+            error instanceof Error ? error.message : `Failed to unlock task ${taskId}`
+          );
         }
       }
     });

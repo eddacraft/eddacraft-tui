@@ -4,6 +4,7 @@ import ora from 'ora';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { RepoScanner, type RepoScanResult } from '../services/repo-scanner.js';
 import { success, error, info } from '../utils/output.js';
+import { CliError, CliExit } from '../utils/cli-error.js';
 
 const log = createDebugger('cli');
 import { getWorkspaceRoot } from '../utils/file-io.js';
@@ -262,11 +263,11 @@ export function createAuditCommand(): Command {
 
         if (!Number.isInteger(rawDaysBack) || rawDaysBack <= 0 || rawDaysBack > 730) {
           error('--days-back must be a positive integer (max 730)');
-          process.exit(1);
+          throw new CliError('--days-back must be a positive integer (max 730)');
         }
         if (!Number.isInteger(rawMaxCommits) || rawMaxCommits <= 0 || rawMaxCommits > 10000) {
           error('--max-commits must be a positive integer (max 10000)');
-          process.exit(1);
+          throw new CliError('--max-commits must be a positive integer (max 10000)');
         }
         const daysBack = rawDaysBack;
         const maxCommits = rawMaxCommits;
@@ -318,22 +319,23 @@ export function createAuditCommand(): Command {
           if (!options.json) {
             error('Blocking issues found');
           }
-          process.exit(1);
+          throw new CliError('Blocking issues found');
         } else if (result.currentIssues.totalWarnings > 0) {
           if (!options.json) {
             info('Issues found but none are blocking');
           }
-          process.exit(0);
+          throw new CliExit();
         } else {
           if (!options.json) {
             success('Repository audit complete - no issues found!');
           }
-          process.exit(0);
+          throw new CliExit();
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail('Scan failed');
         error(err instanceof Error ? err.message : 'Unknown error');
-        process.exit(1);
+        throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
 

@@ -10,6 +10,7 @@ import { loadPlan } from '../utils/file-io.js';
 import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import type { ValidateOptions } from '../types/command-options.js';
+import { CliError } from '../utils/cli-error.js';
 
 const log = createDebugger('cli');
 
@@ -94,7 +95,7 @@ export function createValidateCommand(): Command {
             }
           }
 
-          process.exit(1);
+          throw new CliError('Plan validation failed');
         }
 
         // Show warnings if any
@@ -118,7 +119,7 @@ export function createValidateCommand(): Command {
             spinner.fail(chalk.red('✗ Hash verification failed'));
             console.error(chalk.red('\nThe plan hash does not match its content.'));
             console.error(chalk.yellow('This may indicate the plan has been tampered with.'));
-            process.exit(1);
+            throw new CliError('Hash verification failed');
           }
         } else if (options.validateHash && sourceFormat) {
           // External formats: hash is generated during parsing, so we skip validation
@@ -167,9 +168,10 @@ export function createValidateCommand(): Command {
         log(`validate result: PASSED plan=${plan.id}`);
         console.log(chalk.green('\n✓ All validation checks passed'));
       } catch (error) {
+        if (error instanceof CliError) throw error;
         spinner.fail(chalk.red('Validation failed'));
         console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
-        process.exit(1);
+        throw new CliError(error instanceof Error ? error.message : String(error));
       }
     });
 }

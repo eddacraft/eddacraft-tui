@@ -55,9 +55,6 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      // Mock process.exit to prevent test from exiting
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       // Find and execute the install subcommand
       const installCmd = command.commands.find((c) => c.name() === 'install');
       expect(installCmd).toBeDefined();
@@ -71,15 +68,11 @@ describe('hooks command', () => {
       const content = readFileSync(hookPath, 'utf-8');
       expect(content).toContain('# Anvil-managed hook');
       expect(content).toContain('anvil validate');
-
-      mockExit.mockRestore();
     });
 
     it('should create pre-push hook in .git/hooks', async () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
-
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--pre-push-only']);
@@ -91,23 +84,17 @@ describe('hooks command', () => {
       expect(content).toContain('# Anvil-managed hook');
       expect(content).toContain('anvil gate');
       expect(content).toContain('ANVIL_SKIP_HOOKS');
-
-      mockExit.mockRestore();
     });
 
     it('should create both hooks by default', async () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test']);
 
       expect(existsSync(join(tempDir, '.git', 'hooks', 'pre-commit'))).toBe(true);
       expect(existsSync(join(tempDir, '.git', 'hooks', 'pre-push'))).toBe(true);
-
-      mockExit.mockRestore();
     });
 
     it('should skip existing non-Anvil hooks without --force', async () => {
@@ -119,8 +106,6 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--pre-commit-only']);
 
@@ -128,8 +113,6 @@ describe('hooks command', () => {
       const content = readFileSync(join(hooksDir, 'pre-commit'), 'utf-8');
       expect(content).not.toContain('# Anvil-managed hook');
       expect(content).toContain('existing hook');
-
-      mockExit.mockRestore();
     });
 
     it('should overwrite existing hooks with --force and create backup', async () => {
@@ -140,8 +123,6 @@ describe('hooks command', () => {
 
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
-
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--pre-commit-only', '--force']);
@@ -155,8 +136,6 @@ describe('hooks command', () => {
       expect(existsSync(backupPath)).toBe(true);
       const backupContent = readFileSync(backupPath, 'utf-8');
       expect(backupContent).toContain('existing hook');
-
-      mockExit.mockRestore();
     });
 
     it('should update existing Anvil hooks without backup', async () => {
@@ -172,8 +151,6 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--pre-commit-only']);
 
@@ -186,15 +163,11 @@ describe('hooks command', () => {
       // No backup should be created for Anvil hooks
       const backupPath = join(hooksDir, 'pre-commit.anvil-backup');
       expect(existsSync(backupPath)).toBe(false);
-
-      mockExit.mockRestore();
     });
 
     it('should install in .husky directory with --husky flag', async () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
-
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--husky', '--pre-commit-only']);
@@ -204,8 +177,6 @@ describe('hooks command', () => {
 
       const content = readFileSync(hookPath, 'utf-8');
       expect(content).toContain('# Anvil-managed hook');
-
-      mockExit.mockRestore();
     });
 
     it('should detect Husky and use .husky directory automatically', async () => {
@@ -215,16 +186,12 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--pre-commit-only']);
 
       // Should install in .husky, not .git/hooks
       expect(existsSync(join(tempDir, '.husky', 'pre-commit'))).toBe(true);
       expect(existsSync(join(tempDir, '.git', 'hooks', 'pre-commit'))).toBe(false);
-
-      mockExit.mockRestore();
     });
   });
 
@@ -242,15 +209,11 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       const uninstallCmd = command.commands.find((c) => c.name() === 'uninstall');
       await uninstallCmd!.parseAsync(['node', 'test', '--pre-commit-only']);
 
       // Hook should be removed
       expect(existsSync(join(hooksDir, 'pre-commit'))).toBe(false);
-
-      mockExit.mockRestore();
     });
 
     it('should not remove non-Anvil hooks', async () => {
@@ -261,8 +224,6 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       const uninstallCmd = command.commands.find((c) => c.name() === 'uninstall');
       await uninstallCmd!.parseAsync(['node', 'test', '--pre-commit-only']);
 
@@ -270,8 +231,6 @@ describe('hooks command', () => {
       expect(existsSync(join(hooksDir, 'pre-commit'))).toBe(true);
       const content = readFileSync(join(hooksDir, 'pre-commit'), 'utf-8');
       expect(content).toContain('custom hook');
-
-      mockExit.mockRestore();
     });
 
     it('should restore backup when uninstalling', async () => {
@@ -293,8 +252,6 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
-
       const uninstallCmd = command.commands.find((c) => c.name() === 'uninstall');
       await uninstallCmd!.parseAsync(['node', 'test', '--pre-commit-only']);
 
@@ -305,8 +262,6 @@ describe('hooks command', () => {
 
       // Backup should be removed
       expect(existsSync(join(hooksDir, 'pre-commit.anvil-backup'))).toBe(false);
-
-      mockExit.mockRestore();
     });
   });
 
@@ -324,7 +279,6 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       const statusCmd = command.commands.find((c) => c.name() === 'status');
@@ -336,7 +290,6 @@ describe('hooks command', () => {
 
       expect(output).toContain('.git/hooks');
 
-      mockExit.mockRestore();
       consoleSpy.mockRestore();
     });
   });
@@ -357,7 +310,6 @@ describe('hook script content', () => {
       process.chdir(tempDir);
 
       const command = createHooksCommand();
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--pre-commit-only']);
@@ -369,8 +321,6 @@ describe('hook script content', () => {
       expect(content).toContain('git diff --cached');
       expect(content).toContain('anvil validate');
       expect(content).toContain('md|yaml|yml|json'); // Check for file extension pattern
-
-      mockExit.mockRestore();
     } finally {
       process.chdir(originalCwd);
       cleanupTempDir(tempDir);
@@ -388,7 +338,6 @@ describe('hook script content', () => {
 
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
-      const mockExit = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
       const installCmd = command.commands.find((c) => c.name() === 'install');
       await installCmd!.parseAsync(['node', 'test', '--pre-push-only']);
@@ -399,8 +348,6 @@ describe('hook script content', () => {
       // Verify skip hooks support
       expect(content).toContain('ANVIL_SKIP_HOOKS');
       expect(content).toContain('anvil gate');
-
-      mockExit.mockRestore();
     } finally {
       process.chdir(originalCwd);
       cleanupTempDir(tempDir);

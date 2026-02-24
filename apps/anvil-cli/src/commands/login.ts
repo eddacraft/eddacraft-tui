@@ -4,6 +4,7 @@ import inquirer from 'inquirer';
 import { verifyToken } from '../services/auth-client.js';
 import { saveAuth, loadAuth } from '../services/auth-store.js';
 import { success, error, info } from '../utils/output.js';
+import { CliError } from '../utils/cli-error.js';
 
 export function createLoginCommand(): Command {
   const command = new Command('login');
@@ -49,7 +50,7 @@ export function createLoginCommand(): Command {
 
         if (!result.valid || !result.user || !result.scopes || !result.expiresAt) {
           error('Invalid or expired token. Please check your token and try again.');
-          process.exit(1);
+          throw new CliError('Invalid or expired token');
         }
 
         saveAuth({
@@ -64,8 +65,9 @@ export function createLoginCommand(): Command {
         info(`Scopes: ${result.scopes.join(', ')}`);
         info(`Expires: ${new Date(result.expiresAt).toLocaleString()}`);
       } catch (err) {
+        if (err instanceof CliError) throw err;
         error(err instanceof Error ? err.message : 'Failed to verify token');
-        process.exit(1);
+        throw new CliError('Token verification failed');
       }
     });
 

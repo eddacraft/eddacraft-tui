@@ -20,6 +20,7 @@ import {
 } from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { success, info, warning } from '../../utils/output.js';
+import { CliError, CliExit } from '../../utils/cli-error.js';
 
 /**
  * Status command options
@@ -219,6 +220,7 @@ export function createStatusSubcommand(): Command {
           const result = getStackStatus(workspaceRoot);
           console.log(JSON.stringify(result, null, 2));
         } catch (err) {
+          if (err instanceof CliError || err instanceof CliExit) throw err;
           console.log(
             JSON.stringify(
               {
@@ -228,7 +230,7 @@ export function createStatusSubcommand(): Command {
               2
             )
           );
-          process.exit(1);
+          throw new CliError(err instanceof Error ? err.message : 'Unknown error');
         }
       } else {
         // Human-readable mode
@@ -241,9 +243,10 @@ export function createStatusSubcommand(): Command {
           spinner.stop();
           displayStatus(result);
         } catch (err) {
+          if (err instanceof CliError || err instanceof CliExit) throw err;
           spinner.fail(chalk.red('Failed to load stack status'));
           console.error(chalk.red('Error:'), err instanceof Error ? err.message : String(err));
-          process.exit(1);
+          throw new CliError(err instanceof Error ? err.message : 'Failed to load stack status');
         }
       }
     });

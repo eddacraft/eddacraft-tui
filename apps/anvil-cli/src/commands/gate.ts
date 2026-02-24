@@ -13,6 +13,7 @@ import {
   type GateRunResultWithCache,
 } from '@eddacraft/anvil-runtime';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { CliError, CliExit } from '../utils/cli-error.js';
 import { loadPlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
@@ -162,7 +163,7 @@ export function createGateCommand(): Command {
           console.log('');
         }
         console.log(chalk.gray('Usage: anvil gate [plan] --profile=dev'));
-        process.exit(0);
+        throw new CliExit();
       }
 
       const startTime = Date.now();
@@ -213,8 +214,9 @@ export function createGateCommand(): Command {
             const { path: resolvedPath } = resolvePlanPathOrId(planArg, workspaceRoot);
             planPath = resolvedPath;
           } catch (err) {
+            if (err instanceof CliError || err instanceof CliExit) throw err;
             error(err instanceof Error ? err.message : String(err));
-            process.exit(1);
+            throw new CliError('Failed to resolve plan path');
           }
 
           // Load plan with format detection
@@ -268,7 +270,7 @@ export function createGateCommand(): Command {
           parallelLimit = parseInt(options.parallel, 10);
           if (Number.isNaN(parallelLimit) || parallelLimit < 0) {
             error('--parallel must be a non-negative integer');
-            process.exit(1);
+            throw new CliError('Invalid --parallel value');
           }
         }
 
@@ -292,7 +294,7 @@ export function createGateCommand(): Command {
             error(
               `Unknown profile: ${profileName}. Use --list-profiles to see available profiles.`
             );
-            process.exit(1);
+            throw new CliError('Unknown gate profile');
           }
 
           if (profile.skipChecks) {
@@ -558,7 +560,7 @@ export function createGateCommand(): Command {
         if (results.overall) {
           log(`gate result: PASSED score=${results.score}`);
           success('All quality gates passed!');
-          process.exit(0);
+          throw new CliExit();
         } else {
           log('gate result: FAILED', {
             score: results.score,
@@ -566,9 +568,10 @@ export function createGateCommand(): Command {
             failed: results.summary.failed,
           });
           error('Quality gates failed');
-          process.exit(1);
+          throw new CliError('Quality gates failed');
         }
       } catch (err) {
+        if (err instanceof CliError || err instanceof CliExit) throw err;
         // Record error and session end in Kindling
         if (kindling && sessionId) {
           emitKindlingError(kindling.service, {
@@ -596,7 +599,7 @@ export function createGateCommand(): Command {
         }
 
         error(`Gate execution failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError('Gate execution failed');
       }
     });
 

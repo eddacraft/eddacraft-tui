@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { CliError } from '../utils/cli-error.js';
 import {
   explainById,
   explainByRule,
@@ -195,7 +196,7 @@ async function handleExplainWarningId(warningId: string, options: ExplainOptions
   console.log(chalk.gray('Examples:'));
   console.log(chalk.gray('  anvil explain AP-003'));
   console.log(chalk.gray('  anvil explain AP-003-src/utils.ts:42'));
-  process.exit(1);
+  throw new CliError('Unknown warning ID or rule');
 }
 
 export function createExplainCommand(): Command {

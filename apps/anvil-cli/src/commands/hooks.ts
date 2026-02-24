@@ -19,6 +19,7 @@ import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
 import { HookInstaller, ANVIL_MARKER } from '../services/hook-installer.js';
+import { CliError } from '../utils/cli-error.js';
 
 const log = createDebugger('cli');
 
@@ -217,7 +218,7 @@ export function createHooksCommand(): Command {
           if (!gitDir) {
             spinner.fail(chalk.red('Not a Git repository'));
             error('Run this command from a Git repository root');
-            process.exit(1);
+            throw new CliError('Not a Git repository');
           }
 
           // Detect Husky
@@ -303,9 +304,10 @@ export function createHooksCommand(): Command {
           console.log(chalk.gray('To bypass hooks temporarily:'));
           console.log(chalk.cyan('  ANVIL_SKIP_HOOKS=1 git push'));
         } catch (err) {
+          if (err instanceof CliError) throw err;
           spinner.fail(chalk.red('Hook installation failed'));
           error(`${err instanceof Error ? err.message : 'Unknown error'}`);
-          process.exit(1);
+          throw new CliError(err instanceof Error ? err.message : 'Unknown error');
         }
       }
     );
@@ -328,7 +330,7 @@ export function createHooksCommand(): Command {
 
         if (!gitDir) {
           spinner.fail(chalk.red('Not a Git repository'));
-          process.exit(1);
+          throw new CliError('Not a Git repository');
         }
 
         // Check both standard and Husky directories
@@ -376,9 +378,10 @@ export function createHooksCommand(): Command {
 
         success('Anvil hooks removed');
       } catch (err) {
+        if (err instanceof CliError) throw err;
         spinner.fail(chalk.red('Hook removal failed'));
         error(`${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
 
@@ -394,7 +397,7 @@ export function createHooksCommand(): Command {
 
         if (!gitDir) {
           error('Not a Git repository');
-          process.exit(1);
+          throw new CliError('Not a Git repository');
         }
 
         console.log(chalk.bold('\nAnvil Git Hooks Status\n'));
@@ -436,8 +439,9 @@ export function createHooksCommand(): Command {
           }
         }
       } catch (err) {
+        if (err instanceof CliError) throw err;
         error(`${err instanceof Error ? err.message : 'Unknown error'}`);
-        process.exit(1);
+        throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
 

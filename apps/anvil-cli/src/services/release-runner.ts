@@ -16,6 +16,7 @@ import { updateChangelog } from './release-changelog.js';
 import { commitTagPush, isCleanWorkingTree, getCurrentBranch } from './release-git.js';
 import { monitorWorkflow } from './release-monitor.js';
 import { verifyRelease } from './release-verify.js';
+import { CliError } from '../utils/cli-error.js';
 
 function printHeader(state: ReleaseState, profile: ReleaseProfile): void {
   console.log();
@@ -81,10 +82,10 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
     if (config.profile === 'stable' || config.profile === 'hotfix') {
       console.log(chalk.yellow(`\n  Profile '${config.profile}' is not yet implemented.`));
       console.log(chalk.dim('  Only the beta profile is available in this release.\n'));
-      process.exit(1);
+      throw new CliError(`Profile '${config.profile}' is not yet implemented`);
     }
     console.error(chalk.red(`  Unknown profile: ${config.profile}`));
-    process.exit(1);
+    throw new CliError(`Unknown profile: ${config.profile}`);
   }
 
   // ── Monorepo guard ──────────────────────────────────────────────────
@@ -93,19 +94,19 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
     console.error(
       chalk.dim('    Run this command from the workspace root (where nx.json lives).\n')
     );
-    process.exit(1);
+    throw new CliError('Not in the Anvil monorepo root');
   }
 
   const branch = getCurrentBranch(workspaceRoot);
   if (branch !== 'main' && config.execute) {
     console.log(chalk.yellow(`\n  ⚠ On branch '${branch}', not main.`));
     console.log(chalk.dim('    Use --execute only from main. Dry-run is allowed on any branch.\n'));
-    process.exit(1);
+    throw new CliError('--execute requires the main branch');
   }
 
   if (config.execute && !isCleanWorkingTree(workspaceRoot)) {
     console.error(chalk.red('\n  ✗ Working tree is not clean. Commit or stash changes first.\n'));
-    process.exit(1);
+    throw new CliError('Working tree is not clean');
   }
 
   // ── State ───────────────────────────────────────────────────────────
@@ -156,7 +157,7 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
         updateStepStatus(state, 'preflight', 'failed');
         saveReleaseState(workspaceRoot, state);
         console.error(chalk.red('\n  ✗ Preflight failed. Fix issues and run with --resume.\n'));
-        process.exit(1);
+        throw new CliError('Preflight failed');
       }
       saveReleaseState(workspaceRoot, state);
     }
@@ -207,12 +208,13 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
       state.tagName = result.tagName;
       updateStepStatus(state, 'commit-tag-push', 'passed');
     } catch (err) {
+      if (err instanceof CliError) throw err;
       const msg = err instanceof Error ? err.message : String(err);
       updateStepStatus(state, 'commit-tag-push', 'failed', msg);
       saveReleaseState(workspaceRoot, state);
       console.error(chalk.red(`\n  ✗ Git operation failed: ${msg}`));
       console.log(chalk.dim('  Check git status and run with --resume.\n'));
-      process.exit(1);
+      throw new CliError(`Git operation failed: ${msg}`);
     }
     saveReleaseState(workspaceRoot, state);
     console.log();
@@ -251,7 +253,7 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
       console.error(chalk.red(`\n  ✗ Verification failed: ${failures.join('; ')}`));
       console.log(chalk.dim('  The release was published but verification did not pass.'));
       console.log(chalk.dim('  Check the failures above and verify manually.\n'));
-      process.exit(1);
+      throw new CliError(`Verification failed: ${failures.join('; ')}`);
     }
     saveReleaseState(workspaceRoot, state);
     console.log();
