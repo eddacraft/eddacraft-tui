@@ -173,6 +173,24 @@ demonstration.
 | Command Safety  | Validate AI tool commands (CMDSAF)         | Complete |
 | MCP Server      | Real-time validation during AI generation  | Complete |
 
+### 0.1.x — Forge & Temper (Autonomous Code Review Pipeline)
+
+| Feature                  | Description                                         | Status |
+| ------------------------ | --------------------------------------------------- | ------ |
+| Forge Hook & Agent       | Pre-commit hook + reviewer agent with codex delegation | Ready  |
+| Forge Negotiation        | Structured finding/response protocol, round cap, scoped re-review | Ready |
+| Deferred Finding Filing  | Auto-file deferred findings as GH issues or APS work items | Ready |
+| Temper Workflow           | GitHub Actions self-healing loop with 2-cycle cap   | Ready  |
+| Configuration & Docs     | Env vars, settings.json, CLAUDE.md, toggle matrix   | Ready  |
+
+**Why this is 0.1.x:** Forge & Temper builds on the existing agent negotiation
+infrastructure (code-env) and CI integration. It addresses the compounding
+friction of manual review cycles where each fix triggers another review round.
+The pipeline is independently toggleable -- both phases default to disabled until
+proven stable.
+
+**Design doc:** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+
 ### 0.2.0 — Web Dashboard
 
 | Feature                  | Description                                         | Status |
@@ -356,6 +374,11 @@ graph TD
 | [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | In Progress | 0.1.x   | —                                                         |
 | [code-review-backlog](./modules/code-review-backlog.aps.md)             | CRB      | Draft       | 0.1.x   | —                                                         |
 | [nx-task-migration](./modules/nx-task-migration.aps.md)                 | NXTASK   | Ready       | 0.1.x   | —                                                         |
+| [forge-hook-agent](./modules/01-forge-hook-agent.aps.md)               | FORGE    | Ready       | 0.1.x   | —                                                         |
+| [forge-negotiation](./modules/02-forge-negotiation.aps.md)             | FNEG     | Ready       | 0.1.x   | forge-hook-agent                                          |
+| [deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER    | Ready       | 0.1.x   | forge-negotiation                                         |
+| [temper-workflow](./modules/04-temper-workflow.aps.md)                  | TEMPER   | Ready       | 0.1.x   | deferred-finding-filing                                   |
+| [forge-temper-config](./modules/05-forge-temper-config.aps.md)         | FTCFG    | Ready       | 0.1.x   | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
 
 ### Task Status — 0.1.0 (Core Engine)
 
@@ -942,6 +965,63 @@ Nx-orchestrated per-project targets.
 | NXTASK-005  | nxtask | Migrate root test script to nx run-many               | Ready  | medium   |
 | NXTASK-006  | nxtask | Update CI to use nx affected                          | Ready  | high     |
 
+### Task Status — 0.1.x (Forge & Temper: Autonomous Code Review Pipeline)
+
+Pre-commit review (Forge) and post-push self-healing (Temper) pipeline.
+Design doc: [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+
+#### Forge Hook & Agent
+
+| Task      | Module | Description                          | Status | Priority |
+| --------- | ------ | ------------------------------------ | ------ | -------- |
+| FORGE-001 | forge  | Create forge.sh PreToolUse hook      | Ready  | high     |
+| FORGE-002 | forge  | Create forge-reviewer agent spec     | Ready  | high     |
+| FORGE-003 | forge  | Create Forge skill documentation     | Ready  | medium   |
+| FORGE-004 | forge  | Implement Forge report logging       | Ready  | medium   |
+| FORGE-005 | forge  | Integration test for Forge pipeline  | Ready  | high     |
+
+#### Forge Negotiation Protocol
+
+| Task     | Module | Description                              | Status | Priority |
+| -------- | ------ | ---------------------------------------- | ------ | -------- |
+| FNEG-001 | fneg   | Extend agent-bus schema with findings    | Ready  | high     |
+| FNEG-002 | fneg   | Implement round cap enforcement          | Ready  | high     |
+| FNEG-003 | fneg   | Implement scoped re-review for rounds 2+ | Ready  | medium   |
+| FNEG-004 | fneg   | Implement severity-action matrix         | Ready  | high     |
+| FNEG-005 | fneg   | Implement fix-and-restage flow           | Ready  | medium   |
+
+#### Deferred Finding Filing
+
+| Task      | Module | Description                            | Status | Priority |
+| --------- | ------ | -------------------------------------- | ------ | -------- |
+| DEFER-001 | defer  | Implement GitHub Issue filing          | Ready  | high     |
+| DEFER-002 | defer  | Implement category-to-label mapping    | Ready  | medium   |
+| DEFER-003 | defer  | Implement APS context detection/filing | Ready  | medium   |
+| DEFER-004 | defer  | Implement issue deduplication          | Ready  | medium   |
+| DEFER-005 | defer  | Implement batch filing and report      | Ready  | high     |
+
+#### Temper Workflow
+
+| Task       | Module | Description                            | Status | Priority |
+| ---------- | ------ | -------------------------------------- | ------ | -------- |
+| TEMPER-001 | temper | Create temper.yml workflow scaffold    | Ready  | high     |
+| TEMPER-002 | temper | Implement cycle 1 full review          | Ready  | high     |
+| TEMPER-003 | temper | Implement cycle 2 scoped re-review     | Ready  | medium   |
+| TEMPER-004 | temper | Implement cycle cap enforcement        | Ready  | high     |
+| TEMPER-005 | temper | Implement manual dispatch trigger      | Ready  | medium   |
+| TEMPER-006 | temper | Implement PR summary comments          | Ready  | medium   |
+
+#### Forge & Temper Configuration & Documentation
+
+| Task      | Module | Description                               | Status | Priority |
+| --------- | ------ | ----------------------------------------- | ------ | -------- |
+| FTCFG-001 | ftcfg  | Register Forge env vars and hook          | Ready  | high     |
+| FTCFG-002 | ftcfg  | Document Temper GitHub repo variables     | Ready  | medium   |
+| FTCFG-003 | ftcfg  | Update CLAUDE.md hook behavior table      | Ready  | high     |
+| FTCFG-004 | ftcfg  | Update CLAUDE.md env var table            | Ready  | high     |
+| FTCFG-005 | ftcfg  | Document pipeline overview in CLAUDE.md   | Ready  | high     |
+| FTCFG-006 | ftcfg  | Verify toggle combinations                | Ready  | medium   |
+
 ### Task Status — Post-1.0.0 (Multi-Language Placeholders)
 
 Tasks will be defined when each module moves from Placeholder to Ready status.
@@ -961,6 +1041,10 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 | Developers bypass with `--skip` | medium | medium     | Track skip usage; surface in drift reports               |
 | Legacy drift overwhelms users   | medium | high       | Baseline existing violations; focus warnings on new code |
 | Over-claiming blast radius      | medium | medium     | Careful language; surface confidence levels              |
+| Forge loops slow down commits   | high   | medium     | Hard 3-round cap; auto-defer nits; toggle to disable     |
+| Temper creates bad fixes        | high   | low        | 2-cycle cap; scoped re-review; deferred to issues        |
+| Deferred findings pile up       | medium | medium     | Deduplication; category labels; severity-based triage    |
+| Bot review wars in CI           | medium | low        | No bot mentions; label gating; hard cycle cap            |
 
 ## Decisions
 
