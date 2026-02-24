@@ -152,10 +152,18 @@ Log them:
 .claude/agent-bus/forge-report.sh {hash} deferred '{deferred_json}'
 ```
 
-**Filing** (DEFER module, Wave 5 — for now just log them in the report):
+**Filing** via `forge-defer.sh`:
 
-- GitHub Issues: `gh issue create --title "[forge] {description}" --label forge:deferred --label area:{category}`
-- APS Issues: If branch/commit references an APS module, add work item there
+```bash
+# File all deferred findings (auto-detects APS vs GitHub context)
+FORGE_HASH={hash} FORGE_SOURCE="forge round {round}" \
+  .claude/agent-bus/forge-defer.sh batch '{deferred_json}'
+```
+
+The utility handles:
+- GitHub Issues with `forge:deferred` + `area:{category}` labels
+- APS work items if branch/commit references an APS module
+- Deduplication against existing open `forge:deferred` issues
 
 ### Step 8: Complete and Re-commit
 
