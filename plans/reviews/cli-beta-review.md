@@ -371,11 +371,14 @@ These helper functions are useful beyond the policy command. They could live in
 ## Recommendations for Beta
 
 ### Must Fix Immediately
-1. **C-1 (HIGH):** Replace `exec` with `execFile` in `historical-analyser.ts`
-   — shell injection vulnerability
-2. **C-2:** Add 401 detection with actionable error message + `clearAuth()`
-3. **C-3:** Fix `authorship` workspace root (`process.cwd()` → `getWorkspaceRoot()`)
-4. **M-7:** Add request timeout to API calls (`AbortSignal.timeout()`)
+1. ~~**C-1 (HIGH):** Replace `exec` with `execFile` in `historical-analyser.ts`
+   — shell injection vulnerability~~ **FIXED** (2026-02-24)
+2. ~~**C-2:** Add 401 detection with actionable error message + `clearAuth()`~~
+   **FIXED** (2026-02-24)
+3. ~~**C-3:** Fix `authorship` workspace root (`process.cwd()` →
+   `getWorkspaceRoot()`)~~ **FIXED** (2026-02-24)
+4. ~~**M-7:** Add request timeout to API calls (`AbortSignal.timeout()`)~~
+   **FIXED** (2026-02-24)
 
 ### Must Fix Before GA
 5. **H-1:** Replace `process.exit()` with thrown errors (phased — start with

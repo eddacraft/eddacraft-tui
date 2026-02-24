@@ -7,6 +7,7 @@ import {
   type AuthorshipLog,
 } from '@eddacraft/anvil-core';
 import { theme } from '../tui/utils/theme.js';
+import { getWorkspaceRoot } from '../utils/file-io.js';
 
 interface AuthorshipShowOptions {
   json?: boolean;
@@ -114,7 +115,7 @@ export function createAuthorshipCommand(): Command {
     .argument('[commit]', 'Commit SHA or ref (defaults to HEAD)', 'HEAD')
     .option('--json', 'Output as JSON')
     .action(async (commit: string, options: AuthorshipShowOptions) => {
-      const workspaceRoot = process.cwd();
+      const workspaceRoot = getWorkspaceRoot();
 
       const log = await readAuthorshipNote(commit, workspaceRoot);
 
@@ -145,7 +146,7 @@ export function createAuthorshipCommand(): Command {
     .option('-n, --limit <n>', 'Maximum number of commits to show', '10')
     .option('--json', 'Output as JSON')
     .action(async (options: AuthorshipListOptions) => {
-      const workspaceRoot = process.cwd();
+      const workspaceRoot = getWorkspaceRoot();
       const limit = parseInt(options.limit ?? '10', 10);
 
       const commits = await listAuthorshipNotes(workspaceRoot);
@@ -190,7 +191,7 @@ export function createAuthorshipCommand(): Command {
     .argument('[range]', 'Git revision range (e.g., main..HEAD)', 'HEAD~10..HEAD')
     .option('--json', 'Output as JSON')
     .action(async (range: string, options: AuthorshipStatsOptions) => {
-      const workspaceRoot = process.cwd();
+      const workspaceRoot = getWorkspaceRoot();
 
       const stats = await getAuthorshipStats(range, workspaceRoot);
 

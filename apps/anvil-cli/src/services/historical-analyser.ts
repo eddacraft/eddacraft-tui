@@ -1,7 +1,7 @@
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Commit with potential violations
@@ -157,7 +157,7 @@ export class HistoricalAnalyzer {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execAsync('git rev-parse --git-dir', { cwd: this.projectRoot });
+      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
       return true;
     } catch {
       return false;
@@ -175,8 +175,15 @@ export class HistoricalAnalyzer {
     const since = `${config.daysBack}.days.ago`;
 
     // Get commit log
-    const { stdout } = await execAsync(
-      `git log --since="${since}" -${config.maxCommits} --pretty=format:"%H|%an|%at|%s" --name-only`,
+    const { stdout } = await execFileAsync(
+      'git',
+      [
+        'log',
+        `--since=${since}`,
+        `-${config.maxCommits}`,
+        '--pretty=format:%H|%an|%at|%s',
+        '--name-only',
+      ],
       {
         cwd: this.projectRoot,
         maxBuffer: 10 * 1024 * 1024,
@@ -256,10 +263,14 @@ export class HistoricalAnalyzer {
     for (const commit of commits) {
       try {
         // Get the diff for this commit
-        const { stdout } = await execAsync(`git show ${commit.hash} --pretty="" --unified=0`, {
-          cwd: this.projectRoot,
-          maxBuffer: 5 * 1024 * 1024,
-        });
+        const { stdout } = await execFileAsync(
+          'git',
+          ['show', commit.hash, '--pretty=', '--unified=0'],
+          {
+            cwd: this.projectRoot,
+            maxBuffer: 5 * 1024 * 1024,
+          }
+        );
 
         // Estimate violations from diff
         const estimatedViolations = this.estimateViolationsFromDiff(stdout, config.antiPatternIds);

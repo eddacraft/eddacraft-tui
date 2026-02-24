@@ -60,6 +60,7 @@ describe('api-client', () => {
         method: 'GET',
         headers: {},
         body: undefined,
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -82,6 +83,7 @@ describe('api-client', () => {
           'Content-Type': 'application/json',
         },
         body: '{"email":"test@example.com"}',
+        signal: expect.any(AbortSignal),
       });
     });
 
@@ -106,7 +108,7 @@ describe('api-client', () => {
       );
     });
 
-    it('should throw with status and body on non-ok response', async () => {
+    it('should clear auth and throw auth-expired on 401/403', async () => {
       global.fetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 403,
@@ -121,7 +123,24 @@ describe('api-client', () => {
           token: 'bad-key',
           operationName: 'Admin invite',
         })
-      ).rejects.toThrow('Admin invite failed: 403 Forbidden: invalid key');
+      ).rejects.toThrow('Authentication expired — run `anvil login` to re-authenticate.');
+    });
+
+    it('should throw with status and body on non-auth error response', async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('Internal Server Error'),
+      });
+
+      await expect(
+        apiRequest({
+          method: 'POST',
+          path: '/api/v1/action',
+          body: { data: 'test' },
+          operationName: 'Server action',
+        })
+      ).rejects.toThrow('Server action failed: 500 Internal Server Error');
     });
 
     it('should throw a user-friendly error on network failure', async () => {

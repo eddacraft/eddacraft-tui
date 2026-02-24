@@ -65,6 +65,7 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
       method: options.method,
       headers,
       body,
+      signal: AbortSignal.timeout(30_000),
     });
   } catch (err) {
     if (!(err instanceof TypeError)) throw err;
@@ -83,6 +84,14 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
   if (!res.ok) {
     const body = await res.text();
     log(`apiRequest: FAILED ${options.operationName} status=${res.status}`);
+
+    if (res.status === 401 || res.status === 403) {
+      // Lazy import to avoid circular dependency
+      const { clearAuth } = await import('./auth-store.js');
+      clearAuth();
+      throw new Error('Authentication expired — run `anvil login` to re-authenticate.');
+    }
+
     throw new Error(`${options.operationName} failed: ${res.status} ${body}`);
   }
 
