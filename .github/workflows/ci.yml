@@ -165,6 +165,9 @@ jobs:
       - name: Set Nx SHAs
         uses: nrwl/nx-set-shas@v4
 
+      - name: Build ESLint plugin (required by lint rules)
+        run: pnpm exec nx run eslint-plugin-anvil:build
+
       - name: Run lint (affected on PRs, all on push)
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
