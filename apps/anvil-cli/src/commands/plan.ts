@@ -132,7 +132,10 @@ function createCreateSubcommand(): Command {
           console.log(chalk.gray('  Intent: '), chalk.white(intent));
         } catch (error) {
           spinner.fail(chalk.red('Failed to create plan'));
-          console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
+          console.error(
+            chalk.red('Error:'),
+            error instanceof Error ? error.message : String(error)
+          );
           throw new CliError('Failed to create plan');
         }
       }
