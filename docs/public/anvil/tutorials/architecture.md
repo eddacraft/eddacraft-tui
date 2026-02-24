@@ -158,8 +158,12 @@ import { ReportService } from '../../services/report.service';
 import { ReportRepo } from '../../repositories/report.repo';
 ```
 
-:::caution Suppressions require a reason. A bare `@anvil-ignore` without an
-explanation triggers its own warning. :::
+:::caution
+
+Suppressions require a reason. A bare `@anvil-ignore` without an explanation
+triggers its own warning.
+
+:::
 
 ---
 

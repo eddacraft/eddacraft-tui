@@ -13,7 +13,7 @@ all in about 10 minutes.
 
 :::info Beta release
 
-This is **pre-release software** (0.1.0-beta). APIs and behaviour may change
+This is **pre-release software** (0.1.2-beta). APIs and behaviour may change
 between releases. Your feedback directly shapes the product before public
 launch.
 

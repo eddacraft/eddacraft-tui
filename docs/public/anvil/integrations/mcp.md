@@ -9,6 +9,15 @@ sidebar_position: 3
 
 Anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
+:::info
+
+The `anvil mcp-config` command generates MCP server configuration for various
+editors (Claude Code, Cursor, Windsurf, VS Code). A built-in MCP server
+(`anvil mcp serve`) is planned for a future release. The tools and resources
+described below reflect the intended MCP server design.
+
+:::
+
 ## What is MCP?
 
 MCP is a protocol for providing context to AI models. Anvil's MCP server
@@ -19,13 +28,13 @@ exposes:
 - Task constraints and scope
 - Validation endpoints
 
-## Starting the MCP Server
+## Generating MCP Configuration
 
 ```bash
-anvil mcp serve
+anvil mcp-config
 ```
 
-The server listens on stdin/stdout for MCP messages.
+This generates MCP server configuration for your editor.
 
 ## Configuration
 
@@ -36,7 +45,7 @@ Add Anvil to your MCP configuration:
   "mcpServers": {
     "anvil": {
       "command": "anvil",
-      "args": ["mcp", "serve"],
+      "args": ["mcp-config"],
       "cwd": "/path/to/your/project"
     }
   }

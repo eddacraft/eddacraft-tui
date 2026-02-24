@@ -7,25 +7,26 @@ sidebar_position: 2
 
 # Upgrade Notes
 
-Guides for upgrading between major Anvil versions.
+Guides for upgrading between Anvil versions.
 
-## Upgrading to 1.0
+## Current Version: 0.1.2-beta
 
-### From 0.9.x
+This is the first public beta. There are no breaking migrations yet.
 
-Anvil 1.0 is the first stable release. If you were using the beta:
+### Note for Early Alpha Testers
 
-#### Configuration Changes
+If you used an internal alpha build, the top-level configuration key changed
+from `"checks"` to `"gates"`:
 
 ```json
-// Old (0.9.x)
+// Old (alpha)
 {
   "checks": {
     "architecture": { ... }
   }
 }
 
-// New (1.0)
+// Current (0.1.x-beta)
 {
   "gates": {
     "architecture": { ... }
@@ -33,49 +34,12 @@ Anvil 1.0 is the first stable release. If you were using the beta:
 }
 ```
 
-**Migration:**
-
-```bash
-# Rename "checks" to "gates" in anvil.config.json
-```
-
-#### CLI Changes
-
-| Old Command           | New Command   |
-| --------------------- | ------------- |
-| `anvil check`         | `anvil run`   |
-| `anvil check --watch` | `anvil watch` |
-
-#### Evidence Format
-
-Evidence format changed. Old evidence files are not compatible.
-
-**Migration:**
-
-```bash
-# Clear old evidence
-rm -rf .anvil/evidence
-
-# Run fresh
-anvil run
-```
-
-### From No Previous Version
-
-If you're new to Anvil, start with:
-
-```bash
-pnpm add -D @eddacraft/anvil-cli
-# or: npm install -D @eddacraft/anvil-cli
-# or: yarn add -D @eddacraft/anvil-cli
-# or: bun add -D @eddacraft/anvil-cli
-anvil init
-anvil run
-```
+Run `anvil init --force` to regenerate your configuration, or rename the key
+manually in `.anvilrc`.
 
 ## Future Versions
 
-This section will be updated with each major release.
+Upgrade guides will be added here as new versions ship.
 
 ## Getting Help
 

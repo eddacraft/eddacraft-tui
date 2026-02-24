@@ -148,7 +148,7 @@ A unit of authorised work:
 When Anvil runs, it can validate that changes align with an active plan:
 
 ```bash
-anvil run --plan plans/index.aps.md
+anvil plan validate plans/index.aps.md
 ```
 
 Anvil checks:

@@ -92,6 +92,8 @@ failed, and when.
 | AP-006 | Empty catch block            | warning  |
 | AP-007 | Console in production code   | info     |
 
+> AP-002 and AP-005 are reserved for future use.
+
 ## What Anvil Doesn't Do
 
 Anvil is focused. It doesn't:

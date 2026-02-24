@@ -7,6 +7,14 @@ sidebar_position: 4
 
 # Audit Trail
 
+:::caution Planned feature
+
+The `anvil evidence` CLI commands described on this page are planned for a
+future release. Evidence is currently generated internally during validation
+runs but is not yet exposed via dedicated CLI commands.
+
+:::
+
 Every action in Anvil produces an auditable record. This page explains how
 provenance works and why it matters.
 
@@ -32,7 +40,7 @@ Provenance tracks the origin and lineage of every artefact:
 │ What: run_abc123 validated src/auth/login.ts        │
 │ When: 2024-01-15T10:30:00Z                          │
 │ Who: developer@example.com                          │
-│ How: anvil run (watch mode)                         │
+│ How: anvil check (watch mode)                       │
 │ Config: sha256:config123                            │
 │ Result: PASS (all 4 checks)                         │
 │ Signature: sha256:evidence789                       │
@@ -164,10 +172,9 @@ Anvil can attach evidence to commits:
 # Include evidence reference in commit
 git commit -m "feat: add login endpoint" \
   --trailer "Anvil-Evidence: evidence_001"
-
-# Or use Anvil's commit helper
-anvil commit -m "feat: add login endpoint"
 ```
+
+Anvil's own commit helper (`anvil commit`) is planned for a future release.
 
 The evidence ID in the commit trailer links to the full audit record.
 

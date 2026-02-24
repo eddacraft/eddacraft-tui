@@ -7,7 +7,7 @@ sidebar_position: 1
 
 # Configuration
 
-Anvil is configured via `anvil.config.json` in your project root.
+Anvil is configured via `.anvilrc` (JSON format) in your project root.
 
 ## Basic Structure
 
@@ -206,11 +206,11 @@ Anvil is configured via `anvil.config.json` in your project root.
 
 ### Local Overrides
 
-Create `anvil.local.json` (gitignored):
+Create `.anvilrc.local` (gitignored):
 
 ```json
 {
-  "extends": "./anvil.config.json",
+  "extends": "./.anvilrc",
   "watch": {
     "debounceMs": 500
   }
@@ -222,15 +222,15 @@ Create `anvil.local.json` (gitignored):
 Override via environment:
 
 ```bash
-ANVIL_FAIL_ON_WARNINGS=true anvil run
+ANVIL_FAIL_ON_WARNINGS=true anvil check --all
 ```
 
-| Variable                 | Description            |
-| ------------------------ | ---------------------- |
-| `ANVIL_CONFIG`           | Path to config file    |
-| `ANVIL_CI`               | Force CI mode          |
-| `ANVIL_FAIL_ON_WARNINGS` | Fail on warnings       |
-| `ANVIL_DISABLE`          | Disable Anvil entirely |
+| Variable                 | Description                    |
+| ------------------------ | ------------------------------ |
+| `ANVIL_CONFIG`           | Path to config file (.anvilrc) |
+| `ANVIL_CI`               | Force CI mode                  |
+| `ANVIL_FAIL_ON_WARNINGS` | Fail on warnings               |
+| `ANVIL_DISABLE`          | Disable Anvil entirely         |
 
 ## Full Example
 

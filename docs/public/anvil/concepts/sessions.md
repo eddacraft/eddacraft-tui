@@ -7,6 +7,15 @@ sidebar_position: 3
 
 # Sessions and Runs
 
+:::caution Planned feature
+
+Session and run tracking commands (`anvil session start`, `anvil session end`,
+etc.) are planned for a future release. The conceptual model described here
+reflects the intended design. Currently, Anvil tracks runs internally but does
+not expose session management via the CLI.
+
+:::
+
 Anvil organises work into **sessions** (bounded development periods) and
 **runs** (individual validation executions).
 
@@ -63,7 +72,7 @@ A run is a single execution of Anvil validation.
 ### When Runs Happen
 
 - **Watch mode** — automatic on file save
-- **Manual** — `anvil run`
+- **Manual** — `anvil check --all`
 - **CI** — as part of pipeline
 
 ### Run Output
@@ -86,11 +95,11 @@ Status: PASS
 
 ### Run Modes
 
-| Mode        | Trigger          | Output                |
-| ----------- | ---------------- | --------------------- |
-| Watch       | File save        | Inline terminal       |
-| Interactive | `anvil run`      | Full terminal UI      |
-| CI          | `anvil run --ci` | Machine-readable JSON |
+| Mode        | Trigger                  | Output                |
+| ----------- | ------------------------ | --------------------- |
+| Watch       | File save                | Inline terminal       |
+| Interactive | `anvil check --all`      | Full terminal UI      |
+| CI          | `anvil check --all --ci` | Machine-readable JSON |
 
 ## Artefacts
 

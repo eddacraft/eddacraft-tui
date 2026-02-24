@@ -62,7 +62,7 @@ As you work with AI:
 Run a full check:
 
 ```bash
-anvil run
+anvil check --all
 ```
 
 This ensures nothing slipped through (e.g., if watch mode wasn't running).
@@ -143,13 +143,10 @@ const response: any = await legacyApi.fetch();
 
 Write a real reason. Future-you will thank present-you.
 
-### 3. Review Evidence Occasionally
+### 3. Review Watch Output Patterns
 
-```bash
-anvil evidence list --since 7d
-```
-
-Look for patterns. If you're suppressing the same thing repeatedly, consider:
+Pay attention to recurring warnings in watch mode output. If you're suppressing
+the same issue repeatedly, consider:
 
 - Adjusting configuration
 - Fixing the root cause
@@ -157,21 +154,22 @@ Look for patterns. If you're suppressing the same thing repeatedly, consider:
 
 ### 4. Keep Config in Git
 
-Your `anvil.config.json` is part of your project. Version it.
+Your `.anvilrc` is part of your project. Version it.
 
 ### 5. Run Before Push
 
 Even with watch mode, run a full check before pushing:
 
 ```bash
-anvil run && git push
+anvil check --all && git push
 ```
 
 ## When to Skip Anvil
 
 Even solo, there are times to bypass:
 
-- **Rapid prototyping** — `anvil run --skip` for throwaway experiments
+- **Rapid prototyping** — disable watch mode and use suppressions for throwaway
+  experiments
 - **Emergency hotfix** — fix it now, clean it later (but do clean it)
 - **Third-party code** — suppress entire directories
 

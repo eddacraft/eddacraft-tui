@@ -56,7 +56,7 @@ jobs:
       - run: pnpm install
 
       - name: Run Anvil
-        run: pnpm anvil run --ci
+        run: pnpm anvil check --all --ci
         env:
           ANVIL_CI: true
 ```
@@ -96,7 +96,7 @@ Anvil can post results as PR comments:
 
 ```yaml
 - name: Run Anvil
-  run: pnpm anvil run --ci --output anvil-results.json
+  run: pnpm anvil check --all --ci --output anvil-results.json
 
 - name: Comment on PR
   if: github.event_name == 'pull_request'
@@ -133,8 +133,8 @@ Store configuration in the repo root:
 
 ```
 project/
-├── anvil.config.json      # Shared team config
-├── anvil.local.json       # Personal overrides (gitignored)
+├── .anvilrc      # Shared team config
+├── .anvilrc.local       # Personal overrides (gitignored)
 └── ...
 ```
 
@@ -143,9 +143,9 @@ project/
 Developers can override for their environment:
 
 ```json
-// anvil.local.json
+// .anvilrc.local
 {
-  "extends": "./anvil.config.json",
+  "extends": "./.anvilrc",
   "watch": {
     "debounce_ms": 500
   }
@@ -155,7 +155,7 @@ Developers can override for their environment:
 Add to `.gitignore`:
 
 ```
-anvil.local.json
+.anvilrc.local
 ```
 
 ### Team-Wide Suppressions
@@ -184,7 +184,7 @@ Require PR review for new suppressions:
 
 ```yaml
 # .github/CODEOWNERS
-anvil.config.json @team/architecture **/anvil-ignore* @team/leads
+.anvilrc @team/architecture **/anvil-ignore* @team/leads
 ```
 
 ### 2. Evidence Review
@@ -229,7 +229,7 @@ Run Anvil in CI without blocking:
 
 ```yaml
 - name: Run Anvil (Shadow)
-  run: pnpm anvil run --ci || true
+  run: pnpm anvil check --all --ci || true
   continue-on-error: true
 ```
 

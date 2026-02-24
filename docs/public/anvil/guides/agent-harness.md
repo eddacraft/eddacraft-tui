@@ -131,7 +131,7 @@ Catch issues before they're committed:
 #!/bin/bash
 # .git/hooks/pre-commit
 
-anvil run --staged
+anvil check --staged
 if [ $? -ne 0 ]; then
   echo "Anvil validation failed. Commit blocked."
   exit 1
@@ -160,6 +160,13 @@ anvil session end
 
 Using Claude with Anvil harness:
 
+:::info Planned
+
+The `@eddacraft/anvil-client` SDK is planned for a future release. The example
+below illustrates the intended integration pattern.
+
+:::
+
 ```typescript
 import { AnvilClient } from '@eddacraft/anvil-client';
 import { Anthropic } from '@anthropic-ai/sdk';
@@ -176,7 +183,7 @@ async function runWithHarness(task: string) {
 
   // Run Claude with constraints in prompt
   const response = await claude.messages.create({
-    model: 'claude-3-opus-20240229',
+    model: 'claude-sonnet-4-6',
     messages: [
       {
         role: 'user',
@@ -208,6 +215,12 @@ async function runWithHarness(task: string) {
 ## Telemetry and Learning
 
 Track agent behaviour over time:
+
+:::info Planned
+
+Evidence querying commands are planned for a future release.
+
+:::
 
 ```bash
 anvil evidence list --agent claude --since 30d

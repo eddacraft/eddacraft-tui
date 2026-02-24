@@ -85,13 +85,13 @@ Right-click context menu:
 
 Open Settings (Ctrl+, / Cmd+,) and search for "Anvil":
 
-| Setting                | Description              | Default             |
-| ---------------------- | ------------------------ | ------------------- |
-| `anvil.enable`         | Enable/disable extension | `true`              |
-| `anvil.configPath`     | Path to config file      | `anvil.config.json` |
-| `anvil.validateOnSave` | Run on save              | `true`              |
-| `anvil.validateOnType` | Run while typing         | `false`             |
-| `anvil.debounceMs`     | Delay before validation  | `300`               |
+| Setting                | Description              | Default    |
+| ---------------------- | ------------------------ | ---------- |
+| `anvil.enable`         | Enable/disable extension | `true`     |
+| `anvil.configPath`     | Path to config file      | `.anvilrc` |
+| `anvil.validateOnSave` | Run on save              | `true`     |
+| `anvil.validateOnType` | Run while typing         | `false`    |
+| `anvil.debounceMs`     | Delay before validation  | `300`      |
 
 ### Workspace Settings
 
@@ -161,7 +161,7 @@ Anvil evidence can be viewed alongside GitLens blame info.
 ### Extension Not Loading
 
 1. Check Output channel for errors
-2. Verify `anvil.config.json` exists
+2. Verify `.anvilrc` exists
 3. Run `Anvil: Show Output`
 
 ### Diagnostics Not Appearing

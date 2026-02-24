@@ -97,7 +97,7 @@ Checking policies...
 
 ## 5. Customise the Threshold
 
-Override the default in `anvil.config.json`:
+Override the default in `.anvilrc`:
 
 ```json
 {

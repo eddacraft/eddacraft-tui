@@ -44,7 +44,7 @@ anvil init
 
 ## Step 2: Define Architecture Boundaries
 
-Edit `anvil.config.json` to add boundary rules:
+Edit `.anvilrc` to add boundary rules:
 
 ```json
 {
@@ -90,13 +90,13 @@ Edit `anvil.config.json` to add boundary rules:
 ## Step 3: Run Initial Check
 
 ```bash
-anvil run
+anvil check --all
 ```
 
 You might see existing violations:
 
 ```
-🔨 Anvil Run
+🔨 Anvil Check
 
 Checking architecture...
   ✗ ARCH-001: Boundary violation
@@ -137,8 +137,12 @@ If the violation is intentional, add a suppression:
 import { UserRepo } from '../repositories/user.repo';
 ```
 
-:::caution Suppressions require explanations. `@anvil-ignore` without a reason
-will itself trigger a warning. :::
+:::caution
+
+Suppressions require explanations. `@anvil-ignore` without a reason will itself
+trigger a warning.
+
+:::
 
 ## Step 5: Start Watch Mode
 
@@ -157,7 +161,7 @@ Add Anvil to your CI pipeline:
 ```yaml
 # .github/workflows/ci.yml
 - name: Run Anvil
-  run: pnpm anvil run --ci
+  run: pnpm anvil check --all --ci
 ```
 
 The `--ci` flag produces machine-readable output and sets appropriate exit

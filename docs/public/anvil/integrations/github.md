@@ -56,12 +56,12 @@ jobs:
 
 ### Action Inputs
 
-| Input              | Description                | Default             |
-| ------------------ | -------------------------- | ------------------- |
-| `github_token`     | Token for PR comments      | Required            |
-| `comment`          | Post results as PR comment | `true`              |
-| `fail_on_warnings` | Fail workflow on warnings  | `false`             |
-| `config`           | Path to config file        | `anvil.config.json` |
+| Input              | Description                | Default    |
+| ------------------ | -------------------------- | ---------- |
+| `github_token`     | Token for PR comments      | Required   |
+| `comment`          | Post results as PR comment | `true`     |
+| `fail_on_warnings` | Fail workflow on warnings  | `false`    |
+| `config`           | Path to config file        | `.anvilrc` |
 
 ### Action Outputs
 
@@ -195,7 +195,7 @@ Speed up CI with caching:
 - uses: actions/cache@v4
   with:
     path: .anvil/cache
-    key: anvil-${{ runner.os }}-${{ hashFiles('**/anvil.config.json') }}
+    key: anvil-${{ runner.os }}-${{ hashFiles('**/.anvilrc') }}
 ```
 
 ---

@@ -62,7 +62,7 @@ Suppress multiple rules on the same line by separating them with commas:
 ## File-Level Suppression
 
 For files where many lines trigger the same rule, suppress at the file level in
-`anvil.config.json`:
+`.anvilrc`:
 
 ```json
 {
@@ -98,7 +98,7 @@ anvil suppress --all --reason "Baseline: pre-Anvil adoption"
 
 ```
 Suppressed 142 violations across 38 files.
-Written to anvil.config.json under "suppressions".
+Written to .anvilrc under "suppressions".
 
 Run anvil check --all to verify a clean baseline.
 ```
@@ -120,7 +120,7 @@ anvil suppress --list
 ```
 Active suppressions:
 
-  File-level (anvil.config.json):
+  File-level (.anvilrc):
     src/legacy/**          AP-003, AP-006    "Legacy code, migration planned Q2"
     src/generated/**       *                 "Auto-generated from protobuf"
 

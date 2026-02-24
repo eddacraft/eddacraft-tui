@@ -9,43 +9,47 @@ sidebar_position: 1
 
 All notable changes to Anvil are documented here.
 
-## [1.0.0] - 2024-01-15
+## [0.1.2-beta] - 2025-12-15
+
+### Fixed
+
+- CLI error handling improvements
+- Watch mode signal handler reliability
+
+## [0.1.1-beta] - 2025-11-01
 
 ### Added
 
-- **Watch mode** — real-time validation on file save
-- **Architecture boundaries** — define and enforce import rules
-- **Anti-pattern detection** — AP-001 through AP-007
-- **Secret detection** — pattern matching + entropy analysis
-- **Evidence system** — immutable audit trail
-- **GitHub Action** — CI integration with PR comments
-- **VS Code extension** — in-editor diagnostics
-- **TUI** — interactive terminal interface
-- **MCP server** — Model Context Protocol integration
+- Interactive tutorial system
+- Doctor diagnostics command
+- Explain command for rule details
+- Watch mode profiles (source, plans, all)
 
-### Changed
+### Fixed
 
-- Initial stable release
+- Init wizard project detection improvements
+
+## [0.1.0-beta] - 2025-10-01
+
+### Added
+
+- Core validation engine with architecture boundary checks
+- Anti-pattern detection (AP-001 through AP-007)
+- Secret detection with pattern matching and entropy analysis
+- Watch mode for real-time validation
+- GitHub Action for CI integration
+- VS Code extension for in-editor diagnostics
+- TUI (terminal UI) for interactive commands
+- MCP server configuration generation
+- OPA/Rego custom policy support
+- Drift detection with snapshot comparison
+- Evidence system for audit trails
+- Beta access and authentication system
 
 ### Security
 
 - All evidence is cryptographically signed
 - Secrets never appear in logs or output
-
----
-
-## [0.9.0] - 2024-01-01
-
-### Added
-
-- Beta release for early adopters
-- Core validation engine
-- Basic CLI commands
-
-### Known Issues
-
-- Watch mode may miss rapid file changes
-- VS Code extension requires manual reload on config change
 
 ---
 

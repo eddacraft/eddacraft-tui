@@ -28,5 +28,9 @@ self-contained -- you can follow any of them independently.
 
 ---
 
-:::tip Prefer a guided walk-through in your terminal? Run `anvil tutorial` for
-an interactive version of these guides. :::
+:::tip
+
+Prefer a guided walk-through in your terminal? Run `anvil tutorial` for an
+interactive version of these guides.
+
+:::

@@ -42,6 +42,16 @@ bun add -D @eddacraft/anvil-cli
 npx @eddacraft/anvil-cli --help
 ```
 
+## Authenticate
+
+Log in with the beta token from your invite email:
+
+```bash
+anvil login
+```
+
+You will be prompted for your token. All CLI commands require authentication.
+
 ## Initialise
 
 Run the setup wizard in your project root:
@@ -123,8 +133,12 @@ Press Ctrl+C to stop.
 Save a file and see Anvil catch it. Every change is validated in milliseconds,
 not minutes.
 
-:::tip Run watch mode in a dedicated terminal pane or use the VS Code extension
-for in-editor diagnostics. :::
+:::tip
+
+Run watch mode in a dedicated terminal pane or use the VS Code extension for
+in-editor diagnostics.
+
+:::
 
 ## Fix Your First Issue
 

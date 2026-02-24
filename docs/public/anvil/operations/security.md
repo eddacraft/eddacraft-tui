@@ -122,7 +122,7 @@ Evidence files are read-only after creation. Control access via:
 
 ### Sensitive Config
 
-Never put secrets in `anvil.config.json`:
+Never put secrets in `.anvilrc`:
 
 ```json
 // ❌ Wrong
@@ -170,7 +170,7 @@ Use CODEOWNERS:
 
 ```
 # .github/CODEOWNERS
-anvil.config.json @security-team
+.anvilrc @security-team
 ```
 
 ### Track Suppressions
@@ -178,7 +178,7 @@ anvil.config.json @security-team
 List all suppressions:
 
 ```bash
-anvil suppressions list
+anvil suppress --list
 ```
 
 Review periodically—are they still needed?

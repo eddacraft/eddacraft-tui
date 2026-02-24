@@ -30,9 +30,9 @@ bun add -g @eddacraft/anvil-cli
 **Solution (local install):**
 
 ```bash
-pnpm anvil run
+pnpm anvil check --all
 # or
-npx anvil run
+npx anvil check --all
 ```
 
 ### "Cannot find module '@eddacraft/anvil-cli'"
@@ -60,7 +60,7 @@ nvm use 20      # Switch to Node 20
 
 ### "Configuration file not found"
 
-No `anvil.config.json` in project root.
+No `.anvilrc` in project root.
 
 **Solution:**
 
@@ -76,7 +76,7 @@ Config syntax error.
 
 ```bash
 # Validate config
-anvil config validate
+anvil doctor
 
 # Common issues:
 # - Missing commas
@@ -92,7 +92,7 @@ Boundary patterns not matching files.
 
 ```bash
 # Test pattern matching
-anvil debug boundaries src/api/users.ts
+anvil check src/api/users.ts --verbose
 ```
 
 **Common issues:**
@@ -112,7 +112,7 @@ Files changing but Anvil not responding.
 1. Check ignore patterns:
 
    ```bash
-   anvil config show | grep ignore
+   cat .anvilrc | grep ignore
    ```
 
 2. Check file extensions:
@@ -196,10 +196,10 @@ Anvil not catching problems it should.
 
 ```bash
 # Verify check is enabled
-anvil config show | grep -A5 antiPatterns
+cat .anvilrc | grep -A5 antiPatterns
 
 # Run verbose
-anvil run --verbose
+anvil check --all --verbose
 ```
 
 ### Architecture Check Slow
@@ -289,7 +289,7 @@ Or restart VS Code.
 Run with debug output:
 
 ```bash
-DEBUG=anvil:* anvil run
+DEBUG=anvil:* anvil check --all
 ```
 
 ### Log Collection
@@ -297,7 +297,7 @@ DEBUG=anvil:* anvil run
 Collect logs for bug reports:
 
 ```bash
-anvil run --verbose 2>&1 | tee anvil.log
+anvil check --all --verbose 2>&1 | tee anvil.log
 ```
 
 ### Filing Issues

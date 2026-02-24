@@ -164,7 +164,7 @@ A bounded period of development work, typically with a specific goal.
 
 A single execution of Anvil validation against a codebase.
 
-**Plain definition:** One invocation of `anvil run` or equivalent.
+**Plain definition:** One invocation of `anvil check` or equivalent.
 
 ### Artefact
 
