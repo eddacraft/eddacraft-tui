@@ -142,6 +142,17 @@ export function setupTTYMocks(options: MockTTYOptions = {}): () => void {
   };
 }
 
+/**
+ * Strip ANSI escape codes from a string for easier assertion.
+ */
+// eslint-disable-next-line no-control-regex
+const ANSI_RE = /\x1B\[[0-9;]*[a-zA-Z]/g;
+// eslint-disable-next-line no-control-regex
+const OSC_RE = /\x1B\][^\x07]*\x07/g;
+export function stripAnsi(str: string): string {
+  return str.replace(ANSI_RE, '').replace(OSC_RE, '');
+}
+
 export function expectFrame(lastFrame: () => string): {
   toContain: (expected: string) => void;
   toMatch: (pattern: RegExp) => void;

@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
 import path from 'node:path';
 
 // Use vi.hoisted to create mock functions before vi.mock hoisting
@@ -99,11 +100,9 @@ describe('ArchitectureTutorial component', () => {
     expect(lastFrame()).toContain('What architecture boundaries are and why they matter');
   });
 
-  it('shows keyboard shortcuts', async () => {
+  it('shows keyboard shortcuts', () => {
     const { lastFrame } = render(<ArchitectureTutorial />);
-    await vi.waitFor(() => {
-      expect(lastFrame()).toMatch(/q.*quit/);
-    });
+    expect(stripAnsi(lastFrame()!)).toContain('q quit');
   });
 
   it('advances to next step on Enter', async () => {

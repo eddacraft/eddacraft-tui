@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
 import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
 import type { TutorialOption } from '../components/TutorialPicker.js';
 
@@ -16,12 +17,11 @@ const ALL_TUTORIALS: TutorialOption[] = [
 ];
 
 describe('TutorialPicker', () => {
-  it('shows instruction text with key hint', async () => {
+  it('shows instruction text with key hint', () => {
     const { lastFrame } = render(<TutorialPicker tutorials={ALL_TUTORIALS} currentTopic="core" />);
-    await vi.waitFor(() => {
-      expect(lastFrame()).toContain("What's next");
-      expect(lastFrame()).toMatch(/q.*to exit/);
-    });
+    const frame = stripAnsi(lastFrame()!);
+    expect(frame).toContain("What's next");
+    expect(frame).toContain('q to exit');
   });
 
   it('shows check icon for completed tutorials', () => {

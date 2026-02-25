@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
 import {
   TUTORIAL_STEPS,
   STEP_DEFINITIONS,
@@ -213,12 +214,11 @@ describe('Tutorial component', () => {
     expect(lastFrame()).toContain('Analyse your codebase for issues');
   });
 
-  it('shows keyboard shortcuts', async () => {
+  it('shows keyboard shortcuts', () => {
     const { lastFrame } = render(<Tutorial />);
 
-    await vi.waitFor(() => {
-      expect(lastFrame()).toMatch(/q.*quit/);
-    });
+    const frame = stripAnsi(lastFrame()!);
+    expect(frame).toContain('q quit');
   });
 
   it('shows the header title', () => {

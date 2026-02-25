@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
 
 import { DriftTutorial, DRIFT_STEPS, DRIFT_STEP_DEFINITIONS } from '../features/DriftTutorial.js';
 import { IntroStep } from '../features/drift-steps/IntroStep.js';
@@ -52,11 +53,9 @@ describe('DriftTutorial component', () => {
     expect(lastFrame()).toContain('What drift detection is and why it matters');
   });
 
-  it('shows keyboard shortcuts', async () => {
+  it('shows keyboard shortcuts', () => {
     const { lastFrame } = render(<DriftTutorial />);
-    await vi.waitFor(() => {
-      expect(lastFrame()).toMatch(/q.*quit/);
-    });
+    expect(stripAnsi(lastFrame()!)).toContain('q quit');
   });
 
   it('advances to next step on Enter', async () => {
