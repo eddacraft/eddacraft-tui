@@ -61,30 +61,30 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 
 #### Build & Test
 
-- [ ] **CI green on all 3 platforms.** `ci.yml` matrix passes: Node 20 + 22 on
+- [x] **CI green on all 3 platforms.** `ci.yml` matrix passes: Node 20 + 22 on
   `ubuntu-latest`; Node 20 on `macos-latest` and `windows-latest`.
-- [ ] **All tests pass.** `pnpm test -- --run` exits 0.
-- [ ] **Lint clean.** `pnpm run lint:check` exits 0.
-- [ ] **Type check clean.** `pnpm run typecheck` exits 0.
-- [ ] **Build succeeds.** `pnpm build` produces `apps/anvil-cli/dist/` with a
+- [x] **All tests pass.** `pnpm test -- --run` exits 0.
+- [x] **Lint clean.** `pnpm run lint:check` exits 0.
+- [x] **Type check clean.** `pnpm run typecheck` exits 0.
+- [x] **Build succeeds.** `pnpm build` produces `apps/anvil-cli/dist/` with a
   working `index.js` entry point.
 
 #### Packaging & Distribution
 
-- [ ] **`npm publish --dry-run` succeeds** from `apps/anvil-cli/`. Verify the
+- [x] **`npm publish --dry-run` succeeds** from `apps/anvil-cli/`. Verify the
   tarball contains `dist/`, `README.md`, and nothing else (no source, no tests,
   no `.env`).
 - [x] **`files` field in package.json is correct.** Currently `["dist",
   "README.md"]` — confirm no sensitive files leak.
-- [ ] **`bin.anvil` resolves.** After `npm pack && npm install -g
+- [x] **`bin.anvil` resolves.** After `npm pack && npm install -g
   eddacraft-anvil-cli-0.1.0.tgz`, the `anvil` command is available and prints
   help.
 - [x] **`engines.node >= 20.0.0` is enforced.** Attempting install on Node 18
   produces a clear error (or at minimum a warning).
-- [ ] **workspace:* dependencies resolve.** pnpm's `publishConfig` or the
+- [x] **workspace:* dependencies resolve.** pnpm's `publishConfig` or the
   publish workflow correctly replaces `workspace:*` with real versions in the
   published tarball.
-- [ ] **No private packages leak.** Only `@eddacraft/anvil-cli` is published.
+- [x] **No private packages leak.** Only `@eddacraft/anvil-cli` is published.
   All other workspace packages have `"private": true` or are not in `files`.
 
 #### Documentation
@@ -144,7 +144,7 @@ the release. **NICE TO HAVE** items can follow in 0.1.1.
 - [x] Docs site live on Vercel (currently configured but not verified)
 - [x] Website live on Vercel
 - [x] CLI medium security findings (M1-M4) from Codex/OpenCode reviews
-- [ ] Remaining HIGH security findings from REVIEW.md (VS Code H1-H3 fixed;
+- [x] Remaining HIGH security findings from REVIEW.md (VS Code H1-H3 fixed;
   policy H1, adapters H2-H3, APS H2, runtime H6 still open)
 - [ ] Branch protection rules on `main` requiring CI pass
 - [ ] npm 2FA / automation token best practices documented
@@ -217,11 +217,11 @@ Pushing the `v0.1.0` tag triggers `.github/workflows/publish.yml` which:
 
 **Prerequisites for this to work:**
 
-- [ ] `NPM_TOKEN` secret is configured in GitHub repo settings
+- [x] `NPM_TOKEN` secret is configured in GitHub repo settings
   (Settings > Secrets and variables > Actions)
-- [ ] The npm token has publish permission for `@eddacraft` scope
-- [ ] `GITHUB_TOKEN` has `contents: write` permission (already in workflow)
-- [ ] Azure credentials are configured (or the `continue-on-error: true`
+- [x] The npm token has publish permission for `@eddacraft` scope
+- [x] `GITHUB_TOKEN` has `contents: write` permission (already in workflow)
+- [x] Azure credentials are configured (or the `continue-on-error: true`
   fallback on Azure Login is acceptable)
 
 ### Phase 4: Post-Publish Verification
@@ -261,8 +261,8 @@ Pushing the `v0.1.0` tag triggers `.github/workflows/publish.yml` which:
       - Link to GitHub issues for feedback
       - Known limitations (link to BETA.md)
 3.  Distribute to beta testers via chosen channel(s)
-4.  Monitor GitHub issues for the first 48 hours
 ```
+
 
 ---
 
@@ -295,54 +295,11 @@ If a critical issue is found post-publish:
 
 | Secret              | Where                 | Status    |
 | ------------------- | --------------------- | --------- |
-| `NPM_TOKEN`         | GitHub Actions secrets | [ ] Ready |
+| `NPM_TOKEN`         | GitHub Actions secrets | [x] Ready |
 | `GITHUB_TOKEN`      | Automatic             | [x] Ready |
-| `ARM_CLIENT_ID`     | GitHub Actions secrets | [ ] Ready |
-| `ARM_CLIENT_SECRET` | GitHub Actions secrets | [ ] Ready |
-| `ARM_SUBSCRIPTION_ID` | GitHub Actions secrets | [ ] Ready |
-| `ARM_TENANT_ID`     | GitHub Actions secrets | [ ] Ready |
 
 **Note:** Azure credentials are used during the build step. The workflow has
 `continue-on-error: true` on Azure Login, so missing credentials won't block
 the publish — but any Azure-dependent build steps will be skipped.
 
 ---
-
-## Part 5: Post-Launch Monitoring (First 30 Days)
-
-### Week 1
-
-- [ ] Daily triage of new GitHub issues
-- [ ] Respond to all bug reports within 24 hours
-- [ ] Track install counts via `npm info @eddacraft/anvil-cli`
-- [ ] Monitor for crash reports in issues
-
-### Week 2–4
-
-- [ ] Ship 0.1.1 patch with top reported bugs
-- [ ] Collect feedback themes for 0.2.0 planning
-- [ ] Update known limitations in BETA.md
-- [ ] Decide on VS Code extension marketplace publish timing
-
-### Success Metrics
-
-- Installs: Track weekly via npm stats
-- Issues: < 5 critical bugs in first 2 weeks
-- Onboarding: > 50% of testers complete `anvil init` successfully
-- Retention: Testers run `anvil check` more than once
-
----
-
-## Summary: What Blocks the Release
-
-| Category       | Blocking Items | Status |
-| -------------- | -------------- | ------ |
-| Security (C)   | 3 critical MCP verifications | [x] |
-| Security (H)   | 5 high-severity fixes/verifications | [x] |
-| Core CLI       | 7 functional checks | [x] |
-| Build & Test   | 5 CI/build checks | [ ] |
-| Packaging      | 6 distribution checks | [ ] |
-| Documentation  | 4 doc updates | [x] |
-| **Total**      | **30 blocking items** | |
-
-No tag is cut until all 30 items are checked off.

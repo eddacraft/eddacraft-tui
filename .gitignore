@@ -54,6 +54,7 @@ docs/analysis/claude-code-safety-net-review.md
 .anvil/logs/
 
 # Claude (local)
+.claude/worktrees/
 .claude/settings.local.json
 .claude/.setup-meta
 .claude/logs/
