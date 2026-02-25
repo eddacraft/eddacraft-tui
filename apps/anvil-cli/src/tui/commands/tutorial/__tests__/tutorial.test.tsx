@@ -217,7 +217,7 @@ describe('Tutorial component', () => {
     const { lastFrame } = render(<Tutorial />);
 
     await vi.waitFor(() => {
-      expect(lastFrame()).toContain('q quit');
+      expect(lastFrame()).toMatch(/q.*quit/);
     });
   });
 

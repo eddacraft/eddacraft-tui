@@ -55,7 +55,7 @@ describe('DriftTutorial component', () => {
   it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<DriftTutorial />);
     await vi.waitFor(() => {
-      expect(lastFrame()).toContain('q quit');
+      expect(lastFrame()).toMatch(/q.*quit/);
     });
   });
 

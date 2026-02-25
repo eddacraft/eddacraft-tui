@@ -118,7 +118,7 @@ describe('PolicyTutorial component', () => {
   it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<PolicyTutorial />);
     await vi.waitFor(() => {
-      expect(lastFrame()).toContain('q quit');
+      expect(lastFrame()).toMatch(/q.*quit/);
     });
   });
 

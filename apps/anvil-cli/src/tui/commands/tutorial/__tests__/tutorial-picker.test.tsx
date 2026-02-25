@@ -1,8 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
 import type { TutorialOption } from '../components/TutorialPicker.js';
+
+// eslint-disable-next-line no-control-regex
+const stripAnsi = (s: string) => s.replace(/\u001B\[[0-9;]*m/g, '');
 
 const ALL_TUTORIALS: TutorialOption[] = [
   { topic: 'core', description: 'Core tutorial (scan, watch, fix)' },
@@ -17,7 +20,7 @@ describe('TutorialPicker', () => {
     const { lastFrame } = render(<TutorialPicker tutorials={ALL_TUTORIALS} currentTopic="core" />);
     await vi.waitFor(() => {
       expect(lastFrame()).toContain("What's next");
-      expect(lastFrame()).toContain('q to exit');
+      expect(lastFrame()).toMatch(/q.*to exit/);
     });
   });
 
@@ -45,7 +48,7 @@ describe('TutorialPicker', () => {
         completedTopics={['policies', 'drift']}
       />
     );
-    const frame = lastFrame()!;
+    const frame = stripAnsi(lastFrame()!);
     // With policies (index 0) and drift (index 2) completed,
     // architecture should be 1, ci should be 2 (consecutive)
     expect(frame).toContain('1');

@@ -102,7 +102,7 @@ describe('ArchitectureTutorial component', () => {
   it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<ArchitectureTutorial />);
     await vi.waitFor(() => {
-      expect(lastFrame()).toContain('q quit');
+      expect(lastFrame()).toMatch(/q.*quit/);
     });
   });
 
