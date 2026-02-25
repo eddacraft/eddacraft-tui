@@ -99,9 +99,11 @@ describe('ArchitectureTutorial component', () => {
     expect(lastFrame()).toContain('What architecture boundaries are and why they matter');
   });
 
-  it('shows keyboard shortcuts', () => {
+  it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<ArchitectureTutorial />);
-    expect(lastFrame()).toContain('q quit');
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain('q quit');
+    });
   });
 
   it('advances to next step on Enter', async () => {

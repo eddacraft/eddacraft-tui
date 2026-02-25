@@ -13,10 +13,12 @@ const ALL_TUTORIALS: TutorialOption[] = [
 ];
 
 describe('TutorialPicker', () => {
-  it('shows instruction text with key hint', () => {
+  it('shows instruction text with key hint', async () => {
     const { lastFrame } = render(<TutorialPicker tutorials={ALL_TUTORIALS} currentTopic="core" />);
-    expect(lastFrame()).toContain("What's next");
-    expect(lastFrame()).toContain('q to exit');
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain("What's next");
+      expect(lastFrame()).toContain('q to exit');
+    });
   });
 
   it('shows check icon for completed tutorials', () => {

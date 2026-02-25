@@ -213,11 +213,12 @@ describe('Tutorial component', () => {
     expect(lastFrame()).toContain('Analyse your codebase for issues');
   });
 
-  it('shows keyboard shortcuts', () => {
+  it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<Tutorial />);
 
-    const frame = lastFrame();
-    expect(frame).toContain('q quit');
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain('q quit');
+    });
   });
 
   it('shows the header title', () => {

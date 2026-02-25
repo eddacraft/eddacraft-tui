@@ -88,9 +88,11 @@ describe('CITutorial component', () => {
     expect(lastFrame()).toContain('Why CI integration matters for architecture enforcement');
   });
 
-  it('shows keyboard shortcuts', () => {
+  it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<CITutorial />);
-    expect(lastFrame()).toContain('q quit');
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain('q quit');
+    });
   });
 
   it('advances to next step on Enter', async () => {

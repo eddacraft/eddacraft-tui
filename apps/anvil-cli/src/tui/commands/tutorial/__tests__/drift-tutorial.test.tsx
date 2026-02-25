@@ -52,9 +52,11 @@ describe('DriftTutorial component', () => {
     expect(lastFrame()).toContain('What drift detection is and why it matters');
   });
 
-  it('shows keyboard shortcuts', () => {
+  it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<DriftTutorial />);
-    expect(lastFrame()).toContain('q quit');
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain('q quit');
+    });
   });
 
   it('advances to next step on Enter', async () => {

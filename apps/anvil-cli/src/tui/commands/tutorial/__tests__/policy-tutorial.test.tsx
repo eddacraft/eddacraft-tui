@@ -115,9 +115,11 @@ describe('PolicyTutorial component', () => {
     expect(lastFrame()).toContain('What policies are and what you will learn');
   });
 
-  it('shows keyboard shortcuts', () => {
+  it('shows keyboard shortcuts', async () => {
     const { lastFrame } = render(<PolicyTutorial />);
-    expect(lastFrame()).toContain('q quit');
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain('q quit');
+    });
   });
 
   it('shows intro content about OPA/Rego', () => {
