@@ -180,6 +180,61 @@ describe('PolicyTutorial component', () => {
       expect(lastFrame()).toContain('Step 3 of 6');
     });
   });
+
+  it('triggers onSelectTutorial with the correct topic when a valid number key is pressed on the last step', async () => {
+    const onSelectTutorial = vi.fn();
+    const tutorials = [
+      { topic: 'policies', description: 'Write custom OPA/Rego rules' },
+      { topic: 'architecture', description: 'Define architecture boundaries' },
+      { topic: 'drift', description: 'Track architecture drift over time' },
+    ];
+    const { lastFrame, stdin } = render(
+      <PolicyTutorial tutorials={tutorials} onSelectTutorial={onSelectTutorial} />
+    );
+
+    // Navigate to the last step (customise = step 6) by pressing Enter 5 times
+    for (let i = 0; i < 5; i++) {
+      stdin.write('\r');
+    }
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain('Step 6 of 6');
+    });
+
+    // Press key '1' — 'policies' is excluded as currentTopic, so '1' maps to 'architecture'
+    stdin.write('1');
+
+    await vi.waitFor(() => {
+      expect(onSelectTutorial).toHaveBeenCalledWith('architecture');
+    });
+  });
+
+  it('does not trigger onSelectTutorial when an invalid key is pressed on the last step', async () => {
+    const onSelectTutorial = vi.fn();
+    const tutorials = [
+      { topic: 'policies', description: 'Write custom OPA/Rego rules' },
+      { topic: 'architecture', description: 'Define architecture boundaries' },
+    ];
+    const { lastFrame, stdin } = render(
+      <PolicyTutorial tutorials={tutorials} onSelectTutorial={onSelectTutorial} />
+    );
+
+    // Navigate to the last step
+    for (let i = 0; i < 5; i++) {
+      stdin.write('\r');
+    }
+    await vi.waitFor(() => {
+      expect(lastFrame()).toContain('Step 6 of 6');
+    });
+
+    // Press a non-numeric key
+    stdin.write('a');
+    // Press an out-of-range number key
+    stdin.write('9');
+
+    // Give time to ensure no callback was triggered
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onSelectTutorial).not.toHaveBeenCalled();
+  });
 });
 
 describe('IntroStep', () => {
