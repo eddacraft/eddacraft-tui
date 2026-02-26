@@ -9,14 +9,14 @@ sidebar_position: 1
 
 All notable changes to Anvil are documented here.
 
-## [0.1.2-beta] - 2025-12-15
+## [0.1.2-beta] - 2026-02-22
 
 ### Fixed
 
 - CLI error handling improvements
 - Watch mode signal handler reliability
 
-## [0.1.1-beta] - 2025-11-01
+## [0.1.1] - 2026-02-21
 
 ### Added
 
@@ -29,7 +29,7 @@ All notable changes to Anvil are documented here.
 
 - Init wizard project detection improvements
 
-## [0.1.0-beta] - 2025-10-01
+## [0.1.0-beta] - 2026-02-19
 
 ### Added
 

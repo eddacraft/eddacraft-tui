@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The changes since the last release (`v0.1.2-beta`, 2025-12-15) fall into five
+The changes since the last release (`v0.1.2-beta`, 2026-02-22) fall into five
 major areas:
 
 1. **Forge & Temper pipeline** — New autonomous code review infrastructure
