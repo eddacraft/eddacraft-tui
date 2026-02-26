@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
+import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
 import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
 import type { TutorialOption } from '../components/TutorialPicker.js';
 
@@ -83,7 +84,7 @@ describe('TutorialPicker', () => {
     const { lastFrame } = render(<TutorialPicker tutorials={TUTORIALS} currentTopic="core" />);
 
     const frame = lastFrame();
-    expect(frame).toContain('Continue with another tutorial');
+    expect(frame).toContain("What's next");
     expect(frame).toContain('policies');
     expect(frame).toContain('architecture');
     expect(frame).toContain('drift');
@@ -94,7 +95,7 @@ describe('TutorialPicker', () => {
   it('shows numbered indices starting from 1', () => {
     const { lastFrame } = render(<TutorialPicker tutorials={TUTORIALS} currentTopic="core" />);
 
-    const frame = lastFrame();
+    const frame = stripAnsi(lastFrame()!);
     expect(frame).toContain('1');
     expect(frame).toContain('2');
     expect(frame).toContain('3');
@@ -191,8 +192,9 @@ describe('Tutorial continuation key handling', () => {
 
     stdin.write('9');
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(onSelectTutorial).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(onSelectTutorial).not.toHaveBeenCalled();
+    });
   });
 
   it('does not call onSelectTutorial for non-numeric keys on last step', async () => {
@@ -205,8 +207,9 @@ describe('Tutorial continuation key handling', () => {
 
     stdin.write('x');
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(onSelectTutorial).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(onSelectTutorial).not.toHaveBeenCalled();
+    });
   });
 
   it('does not trigger onSelectTutorial before reaching last step', async () => {
@@ -218,7 +221,8 @@ describe('Tutorial continuation key handling', () => {
     // Still on step 1 (scan), press a number key
     stdin.write('1');
 
-    await new Promise((r) => setTimeout(r, 50));
-    expect(onSelectTutorial).not.toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(onSelectTutorial).not.toHaveBeenCalled();
+    });
   });
 });
