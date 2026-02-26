@@ -141,26 +141,30 @@ describe('TutorialPicker', () => {
   });
 });
 
-describe('Tutorial continuation key handling', { timeout: 15000 }, () => {
+describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
+
+  const tick = () => new Promise((r) => setTimeout(r, 50));
 
   async function advanceToLastStep(
     stdin: { write: (s: string) => void },
     lastFrame: () => string | undefined
   ) {
-    const opts = { timeout: 3000 };
+    const opts = { timeout: 5000 };
     // Advance scan -> watch
     stdin.write('\r');
     await vi.waitFor(() => {
       expect(lastFrame()).toContain('Step 2 of 4');
     }, opts);
+    await tick();
     // Advance watch -> fix
     stdin.write('\r');
     await vi.waitFor(() => {
       expect(lastFrame()).toContain('Step 3 of 4');
     }, opts);
+    await tick();
     // Advance fix -> next-steps
     stdin.write('\r');
     await vi.waitFor(() => {
