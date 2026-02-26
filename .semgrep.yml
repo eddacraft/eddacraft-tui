@@ -1,0 +1,19 @@
+rules:
+  - p/owasp-top-ten
+  - p/typescript
+  - p/nodejs
+  - .semgrep/
+
+paths:
+  exclude:
+    - node_modules
+    - dist
+    - coverage
+    - "*.test.ts"
+    - "*.spec.ts"
+    - "**/fixtures/**"
+    - "**/e2e/**"
+    - "**/__mocks__/**"
+    - playwright-report
+    - .nx
+    - .claude
