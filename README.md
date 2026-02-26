@@ -111,7 +111,7 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> Last measured: 2026-02-17 · commit `7f7c30e` · 163 test files · 3,982 tests
+> Last measured: 2026-02-26 · commit `8663d83` · 176 test files · 4,182 tests
 > passing
 
 Coverage reflects unit and integration tests only (v8 provider). E2E tests (CLI
@@ -119,36 +119,38 @@ E2E, TUI E2E) run separately and do not contribute to line coverage.
 
 | Project                                 |     Lines |    Branch |                     Test Files | Types                  |
 | --------------------------------------- | --------: | --------: | -----------------------------: | ---------------------- |
-| `@eddacraft/anvil-cli`                  |     54.5% |     47.6% | 36 unit, 3 integ, 2 e2e, 3 tui | Unit, Integration, E2E |
-| `@eddacraft/anvil-api`                  |     90.5% |     70.4% |                              3 | Unit                   |
+| `@eddacraft/anvil-cli`                  |     52.5% |     45.3% | 63 unit, 3 integ, 5 e2e, 3 tui | Unit, Integration, E2E |
+| `@eddacraft/anvil-api`                  |     77.9% |     58.1% |                              3 | Unit                   |
 | `@eddacraft/anvil-aps`                  |     96.6% |     85.0% |                              8 | Unit                   |
-| `@eddacraft/anvil-adapters`             |     83.3% |     70.8% |                             12 | Unit                   |
+| `@eddacraft/anvil-adapters`             |     83.4% |     70.9% |                             12 | Unit                   |
 | `@eddacraft/anvil-edda-stack`           |     42.8% |     25.8% |                              5 | Unit                   |
-| `@eddacraft/anvil-kindling-integration` |     44.4% |     22.8% |                              1 | Unit                   |
-| `@eddacraft/anvil-mcp-server`           |      --^1 |      --^1 |                             11 | Unit                   |
-| `anvil-vscode`                          |     62.9% |     45.2% |                              7 | Unit                   |
-| `eslint-plugin-anvil`                   |      100% |     93.1% |                              3 | Unit                   |
+| `@eddacraft/anvil-kindling-integration` |     43.8% |     23.4% |                              1 | Unit                   |
+| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |                            4^1 | Unit                   |
+| `anvil-vscode`                          |     62.5% |     43.9% |                              7 | Unit                   |
+| `eslint-plugin-anvil`                   |      --^2 |      --^2 |                              3 | Unit                   |
 | `contracts`                             |      100% |      100% |                              1 | Unit                   |
-| `ports`                                 |     N/A^2 |     N/A^2 |                              0 | --                     |
-| `core`                                  |     82.8% |     72.6% |                             35 | Unit                   |
-| `runtime`                               |     59.1% |     52.8% |               24 unit, 2 integ | Unit, Integration      |
-| `policy`                                |     76.0% |     67.4% |                              5 | Unit                   |
-| `platform-config`                       |      100% |      100% |                              1 | Unit                   |
-| `platform-storage`                      |      100% |      100% |                              1 | Unit                   |
-| `platform-crypto`                       |      0%^3 |      0%^3 |                              0 | --                     |
-| **Monorepo total**                      | **65.3%** | **55.5%** |                        **163** |                        |
+| `ports`                                 |     N/A^3 |     N/A^3 |                              0 | --                     |
+| `core`                                  |     83.4% |     73.3% |                             35 | Unit                   |
+| `runtime`                               |     60.3% |     53.0% |               24 unit, 2 integ | Unit, Integration      |
+| `policy`                                |     76.4% |     67.2% |                              5 | Unit                   |
+| `platform-config`                       |      100% |      100% |                              2 | Unit                   |
+| `platform-storage`                      |     90.5% |     79.2% |                              1 | Unit                   |
+| `platform-crypto`                       |      0%^4 |      0%^4 |                              0 | --                     |
+| **Monorepo total**                      | **64.0%** | **53.8%** |                        **176** |                        |
 
-^1 `mcp-server` has pre-existing test failures preventing coverage collection.
-^2 `ports` contains pure interface definitions — no executable code to cover. ^3
-`platform-crypto` has no tests yet.
+^1 `mcp-server` runs 4 of 12 test files — remaining tool tests have pre-existing
+failures from mock paths that need updating. ^2 `eslint-plugin` tests run via NX
+project-level config, not the root vitest config. ^3 `ports` contains pure
+interface definitions — no executable code to cover. ^4 `platform-crypto` has no
+tests yet.
 
 ### Test type breakdown
 
 | Type        | Files | Description                                            |
 | ----------- | ----: | ------------------------------------------------------ |
-| Unit        |   153 | Co-located `*.test.ts` — mocked deps, fast             |
+| Unit        |   171 | Co-located `*.test.ts` — mocked deps, fast             |
 | Integration |     5 | `*-integration.test.ts` — multi-module, in-process     |
-| CLI E2E     |     2 | `*.e2e.test.ts` — `execFile`/`spawn`-based CLI testing |
+| CLI E2E     |     5 | `*.e2e.test.ts` — `execFile`/`spawn`-based CLI testing |
 | TUI E2E     |     3 | `*.tuistory.e2e.test.ts` — Ink pseudo-terminal testing |
 
 ### Running coverage
@@ -158,7 +160,7 @@ E2E, TUI E2E) run separately and do not contribute to line coverage.
 pnpm nx test <project-name> --coverage
 
 # Full monorepo
-pnpm test -- --run --coverage
+pnpm vitest run --coverage
 ```
 
 Coverage output is written to the root `coverage/` directory (HTML, JSON, and
