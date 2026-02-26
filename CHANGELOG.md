@@ -55,7 +55,7 @@ CLI error handling improvements and watch mode signal handler reliability.
 - CLI error handling improvements
 - Watch mode signal handler reliability
 
-## [0.1.0] - 2026-02-19
+## [0.1.0-beta] - 2025-10-01
 
 Initial pre-release of Anvil - the deterministic development automation platform
 that makes AI-generated code safe to merge by catching architecture boundary
@@ -208,5 +208,5 @@ violations and anti-patterns at save time.
 - CI/CD pipeline with preview on PR, apply on merge
 
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
-[0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
+[0.1.0-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0-beta
 [Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
