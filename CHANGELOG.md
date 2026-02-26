@@ -14,6 +14,16 @@ and this project adheres to
 - Added conditional release mode so beta tags (`v*-beta*`) are always CLI-only.
 - Added `docs/guides/release-runbook.md` with step-by-step release and
   verification checklist.
+- Improved CLI login error messaging to surface actionable network/API failures
+  instead of generic `fetch failed`.
+- Follow-up beta onboarding polish and warning-noise reductions for first-run
+  flows.
+- Published CLI metadata no longer exposes `workspace:*` runtime dependencies to
+  npm consumers.
+- Release workflow publishes CLI-required workspace packages using
+  `pnpm publish` and skips already published versions.
+- Updated release workflow notes in `README.md` to reflect workspace package
+  publishing behaviour.
 
 ### Planned for 0.2.0 — Web Dashboard
 
@@ -36,37 +46,14 @@ and this project adheres to
 - Ember (interpretive layer)
 - Edda (canonical memory)
 
-## [0.2.1-beta.0] - 2026-02-22
+## [0.1.2-beta] - 2025-12-15
 
-Beta release focused on onboarding/auth UX stability and login error clarity.
-
-### Fixed
-
-- Improved CLI login error messaging to surface actionable network/API failures
-  instead of generic `fetch failed`.
-- Follow-up beta onboarding polish and warning-noise reductions for first-run
-  flows.
-
-### Release
-
-- Shipped via CLI-only beta release flow (`v0.2.1-beta.0`).
-
-## [0.1.1] - 2026-02-21
-
-Patch release focused on npm publish/install reliability for
-`@eddacraft/anvil-cli`.
+CLI error handling improvements and watch mode signal handler reliability.
 
 ### Fixed
 
-- Published CLI metadata no longer exposes `workspace:*` runtime dependencies to
-  npm consumers.
-- Release workflow publishes CLI-required workspace packages using
-  `pnpm publish` and skips already published versions.
-
-### Documentation
-
-- Updated release workflow notes in `README.md` to reflect workspace package
-  publishing behaviour.
+- CLI error handling improvements
+- Watch mode signal handler reliability
 
 ## [0.1.0] - 2026-02-19
 
@@ -220,6 +207,6 @@ violations and anti-patterns at save time.
 - Azure DNS zone and record management
 - CI/CD pipeline with preview on PR, apply on merge
 
-[0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
+[0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD

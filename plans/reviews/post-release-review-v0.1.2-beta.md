@@ -1,4 +1,4 @@
-# Post-Release Review — Changes Since v0.2.1-beta.0
+# Post-Release Review — Changes Since v0.1.2-beta
 
 **Date:** 2026-02-26
 **Scope:** All 50 commits on `main` since the repo root (all post-release)
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-The changes since the last release (`v0.2.1-beta.0`, 2026-02-22) fall into five
+The changes since the last release (`v0.1.2-beta`, 2025-12-15) fall into five
 major areas:
 
 1. **Forge & Temper pipeline** — New autonomous code review infrastructure
@@ -25,8 +25,8 @@ major areas:
 
 Overall quality is good. The security fixes are substantive and correct. The CLI
 refactoring is consistent. The Forge pipeline has shell-scripting issues that
-need attention before enabling. Documentation has version drift that should be
-fixed before sharing with beta testers.
+need attention before enabling. Root CHANGELOG.md had phantom version entries
+(`0.2.1-beta.0`, `0.1.1`) that were never published — corrected in this review.
 
 ---
 
@@ -38,7 +38,7 @@ fixed before sharing with beta testers.
 |---|------|------|---------|
 | C-1 | Tests | `tutorial-picker.test.tsx:4,9` | **Shadowed `stripAnsi` import** — local `const stripAnsi` shadows the imported version from `test-utils.ts` with a weaker regex that only strips SGR sequences (`\x1B[...m`), missing OSC sequences and other escape types. The import on line 4 is dead code. Remove the local definition. |
 
-### MAJOR (16)
+### MAJOR (15)
 
 | # | Area | File | Finding |
 |---|------|------|---------|
@@ -55,11 +55,10 @@ fixed before sharing with beta testers.
 | M-11 | Security | `api-client.test.ts` | **Missing IPv6 loopback test** — `::1` is in the `allowedLocalHosts` set but has no test case. Add `http://[::1]:3000` test alongside the `127.0.0.1` test. |
 | M-12 | Security | `mcp-config-path.test.ts` | **Parent directory symlink not tested** — only tests symlink at final path component. The parent directory (`.cursor/`) being a symlink to outside the workspace is untested. |
 | M-13 | Tests | `watch.test.ts:110-137` | **Source-text scan masquerading as a test** — reads `watch.ts` source and asserts on string contents. Breaks on rename/reformat, passes if `process.exit(0)` appears in a comment. Should mock `process.exit` and emit `SIGINT` instead. |
-| M-14 | Docs | `changelog.md`, `upgrade-notes.md`, `beta/quickstart.md` | **Version number drift** — docs site shows `0.1.2-beta` as current; actual current release is `0.2.1-beta.0`. Three files affected. |
-| M-15 | CI | `claude-code-review.yml:26` | **Unnecessary `id-token: write` permission** — grants OIDC token minting to a workflow that only needs `contents: read` and `pull-requests: write`. Remove this privilege. |
-| M-16 | Tests | `tutorial-continuation.test.tsx`, `tutorial-picker.test.tsx` | **Duplicate `resolveTutorialKey` tests** — both files contain `describe('resolveTutorialKey', ...)` blocks testing the same function. Consolidate into `tutorial-picker.test.tsx`. |
+| M-14 | CI | `claude-code-review.yml:26` | **Unnecessary `id-token: write` permission** — grants OIDC token minting to a workflow that only needs `contents: read` and `pull-requests: write`. Remove this privilege. |
+| M-15 | Tests | `tutorial-continuation.test.tsx`, `tutorial-picker.test.tsx` | **Duplicate `resolveTutorialKey` tests** — both files contain `describe('resolveTutorialKey', ...)` blocks testing the same function. Consolidate into `tutorial-picker.test.tsx`. |
 
-### MINOR (25)
+### MINOR (26)
 
 | # | Area | File | Finding |
 |---|------|------|---------|
@@ -88,6 +87,7 @@ fixed before sharing with beta testers.
 | m-23 | Docs | `plans/modules/03` / `04` | DEFER↔TEMPER circular dependency needs clarification note. |
 | m-24 | Docs | `README.md:188` | `claude-code-review.yml` not listed in CI/CD section. |
 | m-25 | Docs | `plans/reviews/cli-beta-review.md:383` | H-1 deferred item has no tracking issue link. |
+| m-26 | Docs | `CHANGELOG.md` | **Root CHANGELOG had phantom versions** — listed `0.2.1-beta.0` and `0.1.1` as released versions, but npm shows `0.1.2-beta` as current. Corrected in this review: phantom entries merged into `[Unreleased]`, `0.1.2-beta` entry added. |
 
 ### NIT (15)
 
@@ -115,44 +115,40 @@ fixed before sharing with beta testers.
 
 ### Before Next Beta Push (Blocking)
 
-1. **Fix docs version drift (M-14)** — Update `docs/public/anvil/releases/changelog.md`,
-   `upgrade-notes.md`, and `beta/quickstart.md` to reflect `v0.2.1-beta.0`.
-   Users will lose trust in docs that show the wrong version number.
-
-2. **Remove `id-token: write` from CI (M-15)** — Unnecessary OIDC privilege in
+1. **Remove `id-token: write` from CI (M-14)** — Unnecessary OIDC privilege in
    the code review workflow.
 
-3. **Fix `plan create` error message loss (M-7)** — Forward `error.message` in
+2. **Fix `plan create` error message loss (M-7)** — Forward `error.message` in
    the CliError constructor, consistent with all other commands.
 
-4. **Fix `plan/load.ts` validation errors (M-8)** — Change `throw new Error()`
+3. **Fix `plan/load.ts` validation errors (M-8)** — Change `throw new Error()`
    to `throw new CliError()` for invalid priority/confidence values.
 
 ### Before Enabling Forge (Blocking for Forge)
 
-5. **Fix shell injection in `forge.sh` heredocs (M-1)** — Escape filenames and
+4. **Fix shell injection in `forge.sh` heredocs (M-1)** — Escape filenames and
    diff stat before embedding in JSON/Markdown. Use `jq -n --arg`.
 
-6. **Fix `--no-verify`/`--amend` bypass guard (M-3)** — Strengthen the regex to
+5. **Fix `--no-verify`/`--amend` bypass guard (M-3)** — Strengthen the regex to
    avoid substring matches in string literals within the command.
 
-7. **Fix Temper cycle counting (M-6)** — Use a unique HTML comment marker
+6. **Fix Temper cycle counting (M-6)** — Use a unique HTML comment marker
    instead of matching on `## Temper` prefix.
 
 ### Before GA
 
-8. **Add IPv6 loopback test (M-11)** — `::1` is in the allowlist but untested.
+7. **Add IPv6 loopback test (M-11)** — `::1` is in the allowlist but untested.
 
-9. **Add parent-directory symlink test (M-12)** — Test `.cursor/` itself being
+8. **Add parent-directory symlink test (M-12)** — Test `.cursor/` itself being
    a symlink outside workspace.
 
-10. **Consolidate duplicate `resolveTutorialKey` tests (M-16)** — Move to
-    `tutorial-picker.test.tsx` only.
+9. **Consolidate duplicate `resolveTutorialKey` tests (M-15)** — Move to
+   `tutorial-picker.test.tsx` only.
 
-11. **Replace source-text scan in `watch.test.ts` (M-13)** — Use behavioral
+10. **Replace source-text scan in `watch.test.ts` (M-13)** — Use behavioral
     test with `process.exit` mock and SIGINT signal.
 
-12. **Normalize path validation** — Ensure `mcp-config.ts` (M-9) and
+11. **Normalize path validation** — Ensure `mcp-config.ts` (M-9) and
     `policy.ts` (M-10) use `getWorkspaceRoot()` and the shared
     `validatePathWithinRoot()` utility respectively.
 
@@ -194,9 +190,11 @@ scan in watch.test.ts, and missing edge cases for security-sensitive paths.
 
 ### Documentation & CI
 Docs content is accurate and well-written with appropriate caution banners for
-planned features. Critical issue: three docs files show `0.1.2-beta` as current
-version when `0.2.1-beta.0` is released. APS plan modules for Forge/Temper are
-well-structured with clear scope and dependency declarations.
+planned features. Version references in docs (`0.1.2-beta`) are correct and
+match npm. Root `CHANGELOG.md` had phantom version entries (`0.2.1-beta.0`,
+`0.1.1`) that were never published — corrected in this review. APS plan modules
+for Forge/Temper are well-structured with clear scope and dependency
+declarations.
 
 ---
 
@@ -205,7 +203,7 @@ well-structured with clear scope and dependency declarations.
 | Severity | Count |
 |----------|-------|
 | Critical | 1 |
-| Major | 16 |
-| Minor | 25 |
+| Major | 15 |
+| Minor | 26 |
 | Nit | 15 |
 | **Total** | **57** |
