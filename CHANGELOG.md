@@ -62,7 +62,7 @@ Patch release focused on npm publish/install reliability for
 - Updated release workflow notes in `README.md` to reflect workspace package
   publishing behaviour.
 
-## [0.1.0-beta] - 2026-02-19
+## [0.1.0] - 2026-02-21
 
 Initial pre-release of Anvil - the deterministic development automation platform
 that makes AI-generated code safe to merge by catching architecture boundary
@@ -216,5 +216,5 @@ violations and anti-patterns at save time.
 
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
-[0.1.0-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0-beta
+[0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
 [Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD

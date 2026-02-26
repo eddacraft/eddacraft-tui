@@ -29,7 +29,7 @@ All notable changes to Anvil are documented here.
 
 - Init wizard project detection improvements
 
-## [0.1.0-beta] - 2026-02-19
+## [0.1.0] - 2026-02-21
 
 ### Added
 
