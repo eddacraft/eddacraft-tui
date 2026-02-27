@@ -10,3 +10,5 @@ pnpm-lock.yaml
 .github/workflows/temper.yml
 # Claude review workflow must match default branch exactly for action validation
 .github/workflows/claude-code-review.yml
+# Semgrep rules use DSL patterns that aren't valid YAML for Prettier
+.semgrep/

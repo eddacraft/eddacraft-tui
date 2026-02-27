@@ -9,11 +9,11 @@ paths:
     - node_modules
     - dist
     - coverage
-    - "*.test.ts"
-    - "*.spec.ts"
-    - "**/fixtures/**"
-    - "**/e2e/**"
-    - "**/__mocks__/**"
+    - '*.test.ts'
+    - '*.spec.ts'
+    - '**/fixtures/**'
+    - '**/e2e/**'
+    - '**/__mocks__/**'
     - playwright-report
     - .nx
     - .claude
