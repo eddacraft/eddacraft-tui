@@ -25,8 +25,9 @@ major areas:
 
 Overall quality is good. The security fixes are substantive and correct. The CLI
 refactoring is consistent. The Forge pipeline has shell-scripting issues that
-need attention before enabling. Root CHANGELOG.md had phantom version entries
-(`0.2.1-beta.0`, `0.1.1`) that were never published — corrected in this review.
+need attention before enabling. Root CHANGELOG.md had a phantom version entry
+(`0.2.1-beta.0`) and a misaligned `0.1.1` entry that did not match the documented
+release history — both were corrected in this review.
 
 ---
 
@@ -87,7 +88,7 @@ need attention before enabling. Root CHANGELOG.md had phantom version entries
 | m-23 | Docs | `plans/modules/03` / `04` | DEFER↔TEMPER circular dependency needs clarification note. |
 | m-24 | Docs | `README.md:188` | `claude-code-review.yml` not listed in CI/CD section. |
 | m-25 | Docs | `plans/reviews/cli-beta-review.md:383` | H-1 deferred item has no tracking issue link. |
-| m-26 | Docs | `CHANGELOG.md` | **Root CHANGELOG had phantom versions** — listed `0.2.1-beta.0` and `0.1.1` as released versions, but npm shows `0.1.2-beta` as current. Corrected in this review: phantom entries merged into `[Unreleased]`, `0.1.2-beta` entry added. |
+| m-26 | Docs | `CHANGELOG.md` | **Root CHANGELOG had a phantom prerelease entry** — listed `0.2.1-beta.0` as a released version, but npm shows `0.1.2-beta` as current and `0.1.1` remains a legitimate release. Corrected in this review: phantom entry merged into `[Unreleased]`, `0.1.2-beta` entry added. |
 
 ### NIT (15)
 
@@ -191,8 +192,8 @@ scan in watch.test.ts, and missing edge cases for security-sensitive paths.
 ### Documentation & CI
 Docs content is accurate and well-written with appropriate caution banners for
 planned features. Version references in docs (`0.1.2-beta`) are correct and
-match npm. Root `CHANGELOG.md` had phantom version entries (`0.2.1-beta.0`,
-`0.1.1`) that were never published — corrected in this review. APS plan modules
+match npm. Root `CHANGELOG.md` had phantom/duplicate entries referencing versions (`0.2.1-beta.0`,
+`0.1.1`) that did not align with the actual release history — clarified/removed in this review so the changelog now reflects the published releases. APS plan modules
 for Forge/Temper are well-structured with clear scope and dependency
 declarations.
 
