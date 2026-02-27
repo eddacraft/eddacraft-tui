@@ -156,10 +156,13 @@ tests yet.
 ### Running coverage
 
 ```bash
-# Per project
+# Per project (via Nx)
 pnpm nx test <project-name> --coverage
 
-# Full monorepo
+# Full monorepo (via Nx — runs all project-level vitest configs)
+pnpm nx run-many -t test --coverage
+
+# Root vitest config only (excludes eslint-plugin-anvil — see ^2)
 pnpm vitest run --coverage
 ```
 
