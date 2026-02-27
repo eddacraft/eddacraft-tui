@@ -111,8 +111,8 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> Last measured: 2026-02-26 · commit `8663d83` · 176 test files · 4,182 tests
-> passing
+> Last measured: 2026-02-26 · commit `8663d83` · 176 unit/integration test files
+> (184 total incl. E2E) · 4,182 tests passing
 
 Coverage reflects unit and integration tests only (v8 provider). E2E tests (CLI
 E2E, TUI E2E) run separately and do not contribute to line coverage.
