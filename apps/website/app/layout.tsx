@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description:
     'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
   generator: 'eddacraft',
-  metadataBase: new URL('https://anvil.eddacraft.com'),
+  metadataBase: new URL('https://anvil.eddacraft.ai'),
   openGraph: {
     title: 'Anvil — AI Governance for Developers',
     description:

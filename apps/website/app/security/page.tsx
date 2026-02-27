@@ -178,8 +178,8 @@ export default function SecurityPage() {
                 <p className="text-text-primary mb-1">How to Report</p>
                 <p className="pl-4">
                   Email{' '}
-                  <a href="mailto:security@eddacraft.com" className="text-anvil hover:underline">
-                    security@eddacraft.com
+                  <a href="mailto:security@eddacraft.ai" className="text-anvil hover:underline">
+                    security@eddacraft.ai
                   </a>{' '}
                   with details of the vulnerability. Include steps to reproduce if possible.
                 </p>
@@ -207,7 +207,7 @@ export default function SecurityPage() {
               <div>
                 <p className="text-text-primary mb-1">Scope</p>
                 <p className="pl-4">
-                  In scope: anvil CLI, web properties (*.eddacraft.com), API endpoints. Out of
+                  In scope: anvil CLI, web properties (*.eddacraft.ai), API endpoints. Out of
                   scope: third-party services, social engineering, physical attacks.
                 </p>
               </div>
@@ -232,7 +232,7 @@ export default function SecurityPage() {
               </pre>
               <p className="text-xs">
                 Full key available at{' '}
-                <span className="text-anvil">https://eddacraft.com/.well-known/pgp-key.txt</span>
+                <span className="text-anvil">https://eddacraft.ai/.well-known/pgp-key.txt</span>
               </p>
             </div>
           </section>

@@ -5,7 +5,7 @@
 ## Overview
 
 This is the public-facing marketing and landing page for Anvil at
-`anvil.eddacraft.com`. It is a **Next.js 16** application using the **App
+`anvil.eddacraft.ai`. It is a **Next.js 16** application using the **App
 Router**, **React 19**, **Tailwind CSS 4**, and **Radix UI** primitives. The
 design follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corners.
 
@@ -118,7 +118,7 @@ All interactive components use `'use client'` directive. Key patterns:
 
 ```
 Title: "Anvil — AI Governance for Developers"
-URL: https://anvil.eddacraft.com
+URL: https://anvil.eddacraft.ai
 Locale: en_GB
 OG: Site name "Anvil by EddaCraft", type "website"
 Twitter: @eddacraft, summary_large_image

@@ -100,7 +100,7 @@ export default async function Image() {
           fontSize: 16,
         }}
       >
-        <span>eddacraft.com</span>
+        <span>eddacraft.ai</span>
         <span style={{ color: '#2A2A2E' }}>|</span>
         <span>@eddacraft</span>
       </div>
