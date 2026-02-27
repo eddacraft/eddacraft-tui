@@ -1,1656 +1,589 @@
 # Anvil Architecture
 
-**Version**: 2.2.0 **Last Updated**: 2 February 2026 **Status**: Living Document
+**Version**: 3.0.0 | **Last Updated**: 27 February 2026 | **Status**: Living
+Document
 
 ---
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Core Principles](#core-principles)
-3. [System Architecture](#system-architecture)
-4. [Component Deep Dive](#component-deep-dive)
-5. [Data Flow](#data-flow)
-6. [Technology Stack](#technology-stack)
-7. [Security Model](#security-model)
-8. [Performance Considerations](#performance-considerations)
-9. [Extension Points](#extension-points)
-10. [Future Considerations](#future-considerations)
+1. [System Overview](#system-overview)
+2. [Package Layering](#package-layering)
+3. [Check Pipeline](#check-pipeline)
+4. [Surface Architecture](#surface-architecture)
+5. [Hybrid Policy Engine](#hybrid-policy-engine)
+6. [State and Configuration](#state-and-configuration)
+7. [Memory Stack (Edda Stack)](#memory-stack-edda-stack)
+8. [Forge and Temper Pipeline](#forge-and-temper-pipeline)
+9. [Technology Stack](#technology-stack)
+10. [Key Architectural Decisions](#key-architectural-decisions)
 
 ---
 
-## Overview
+## System Overview
 
-Anvil is a deterministic development automation platform that transforms
-AI/human intent into validated, auditable, and reversible changes. The
-architecture is designed around a core insight: **making all changes flow
-through a deterministic plan specification (APS) enables validation, governance,
-and safety**.
+Anvil is a deterministic development automation platform that catches
+architecture drift and AI anti-patterns at file save-time. It analyses
+TypeScript/JavaScript codebases for dependency violations, anti-patterns, policy
+breaches, and security risks -- then surfaces findings as warnings rather than
+build-blocking errors.
 
-### Key Architectural Decisions
+### Design Philosophy
 
-1. **APS as Internal Format** - Universal interchange format for validation and
-   execution
-2. **Adapter Pattern for Interoperability** - Support existing planning formats
-   (SpecKit, BMAD, etc.)
-3. **Immutable Evidence Trail** - All validations and executions append
-   evidence, never modify
-4. **Separation of Concerns** - Parse → Validate → Execute are distinct,
-   composable stages
-5. **Safety by Default** - All operations are reversible; rollback is a
-   first-class concern
+Four principles govern every architectural decision:
 
----
+1. **Planless-first** -- Anvil delivers value without requiring plans, specs, or
+   configuration. The current codebase and its dependency structure are the
+   baseline source of truth. Plans (APS) are an accelerant, not a prerequisite.
+   ([D-001](../plans/decisions/001-planless-first.md))
 
-## Core Principles
+2. **Deterministic** -- Same input produces same output, always. Hash-stable
+   canonicalisation, deterministic validation (no race conditions), and
+   reproducible execution environments.
 
-### 1. Determinism
+3. **Composable** -- Every check, policy, adapter, and surface is independently
+   usable. The CLI, VS Code extension, MCP server, and REST API all consume the
+   same runtime without coupling to each other.
 
-**Principle**: Same input → same output, always.
-
-**Implementation**:
-
-- Hash-stable canonicalisation of plans
-- Deterministic validation (no race conditions)
-- Reproducible execution environments
-- Immutable evidence (append-only)
-
-**Why It Matters**: Determinism enables trust. Teams can review a plan once and
-know it won't change unexpectedly.
-
-### 2. Interoperability
-
-**Principle**: Work with existing formats, don't force adoption of new ones.
-
-**Implementation**:
-
-- Pluggable adapter system
-- Format auto-detection
-- Round-trip conversion (parse → APS → serialize)
-- Preserve original formatting and structure
-
-**Why It Matters**: Adoption is the biggest risk. By supporting existing
-formats, we eliminate that barrier.
-
-### 3. Safety
-
-**Principle**: All changes are validated before application and reversible
-after.
-
-**Implementation**:
-
-- Mandatory gate validation before apply
-- Snapshot creation before any change
-- Rollback as first-class operation
-- Audit trail for all operations
-
-**Why It Matters**: Production incidents are expensive. Anvil makes changes safe
-by default.
-
-### 4. Transparency
-
-**Principle**: All operations produce auditable evidence.
-
-**Implementation**:
-
-- Immutable evidence bundles
-- Structured evidence format (JSON/YAML)
-- Provenance tracking (who, what, when, why)
-- Evidence signatures (future: cryptographic)
-
-**Why It Matters**: Compliance and debugging require complete audit trails.
-
-### 5. Composability
-
-**Principle**: Components are independent and can be composed flexibly.
-
-**Implementation**:
-
-- Adapter → APS → Validator → Gate → Executor pipeline
-- Each component has clear interfaces
-- Components usable independently (library mode)
-- CLI orchestrates but doesn't couple components
-
-**Why It Matters**: Future extensibility requires loose coupling.
+4. **Safety by default** -- Warnings over blocks
+   ([D-002](../plans/decisions/002-warnings-over-blocks.md)). New edges only
+   ([D-003](../plans/decisions/003-new-edges-only.md)). Existing violations are
+   baselined on first run so developers are never overwhelmed by a wall of
+   warnings they did not introduce.
 
 ---
 
-## System Architecture
+## Package Layering
 
-### High-Level Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     External World                           │
-│  • User Formats (SpecKit, BMAD, etc.)                       │
-│  • VCS (Git)                                                 │
-│  • CI/CD (GitHub Actions, GitLab CI)                        │
-│  • IDEs (VS Code, Cursor)                                   │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         │ Files, Commands
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│                     CLI Layer (Commander.js)                 │
-│  • Command parsing and routing                               │
-│  • User interaction and prompts                              │
-│  • Output formatting and display                             │
-│  • Error handling and recovery                               │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         │ Commands
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   Adapter Layer                              │
-│                                                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐     │
-│  │   SpecKit    │  │     BMAD     │  │   Native     │     │
-│  │   Adapter    │  │   Adapter    │  │     APS      │     │
-│  └──────────────┘  └──────────────┘  └──────────────┘     │
-│                                                              │
-│  • Format detection                                          │
-│  • Parse → APS conversion                                    │
-│  • APS → Format serialization                                │
-│  • Round-trip fidelity                                       │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         │ APS (Internal Format)
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   Core Layer (APS)                           │
-│                                                              │
-│  ┌────────────────────────────────────────────────┐         │
-│  │  APS Schema (Zod)                              │         │
-│  │  • TypeScript types                            │         │
-│  │  • Runtime validation                          │         │
-│  │  • JSON Schema export                          │         │
-│  └────────────────────────────────────────────────┘         │
-│                                                              │
-│  ┌────────────────────────────────────────────────┐         │
-│  │  Hash & Canonicalization                       │         │
-│  │  • Stable serialization                        │         │
-│  │  • SHA-256 hashing                             │         │
-│  │  • Hash verification                           │         │
-│  └────────────────────────────────────────────────┘         │
-│                                                              │
-│  ┌────────────────────────────────────────────────┐         │
-│  │  Validation Engine                             │         │
-│  │  • Schema validation                           │         │
-│  │  • Hash validation                             │         │
-│  │  • Business rule validation                    │         │
-│  └────────────────────────────────────────────────┘         │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         │ Validated APS
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   Gate Layer                                 │
-│                                                              │
-│  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐   │
-│  │  Lint    │  │  Test    │  │ Coverage │  │ Secrets  │   │
-│  │  Check   │  │  Check   │  │  Check   │  │  Check   │   │
-│  └──────────┘  └──────────┘  └──────────┘  └──────────┘   │
-│                                                              │
-│  ┌──────────────────────────────────────────┐               │
-│  │  Policy Engine (OPA)                     │               │
-│  │  • Rego policy evaluation                │               │
-│  │  • Custom rules                          │               │
-│  │  • Policy versioning                     │               │
-│  └──────────────────────────────────────────┘               │
-│                                                              │
-│  ┌──────────────────────────────────────────┐               │
-│  │  Evidence Collector                      │               │
-│  │  • Aggregate check results               │               │
-│  │  • Format evidence bundle                │               │
-│  │  • Append to plan (immutable)            │               │
-│  └──────────────────────────────────────────┘               │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         │ Validated Plan + Evidence
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   Sidecar Layer                              │
-│                                                              │
-│  ┌──────────────────────────────────────────┐               │
-│  │  Dry-Run Engine                          │               │
-│  │  • Preview changes                       │               │
-│  │  • Generate diffs                        │               │
-│  │  • Collect logs                          │               │
-│  │  • No side effects                       │               │
-│  └──────────────────────────────────────────┘               │
-│                                                              │
-│  ┌──────────────────────────────────────────┐               │
-│  │  Apply Engine                            │               │
-│  │  • Snapshot creation                     │               │
-│  │  • Transactional execution               │               │
-│  │  • Audit trail generation                │               │
-│  │  • Idempotent operations                 │               │
-│  └──────────────────────────────────────────┘               │
-│                                                              │
-│  ┌──────────────────────────────────────────┐               │
-│  │  Rollback Engine                         │               │
-│  │  • Snapshot restoration                  │               │
-│  │  • Change reversal                       │               │
-│  │  • Integrity verification                │               │
-│  │  • Rollback evidence                     │               │
-│  └──────────────────────────────────────────┘               │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-                         │ Execution Results
-                         ↓
-┌─────────────────────────────────────────────────────────────┐
-│                   Storage Layer                              │
-│                                                              │
-│  • Plans (.anvil/plans/)                                     │
-│  • Evidence bundles (.anvil/evidence/)                       │
-│  • Snapshots (.anvil/snapshots/)                             │
-│  • Audit logs (.anvil/audit/)                                │
-│  • Configuration (.anvilrc, .anvil/config.json)              │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Monorepo Package Structure
-
-The codebase is organised as an Nx monorepo with layered packages:
+The monorepo enforces a strict unidirectional dependency graph. Each layer may
+only depend on layers below it -- never sideways or upward.
 
 ```
-packages/
-├── anvil/                    # Core Anvil packages (layered)
-│   ├── contracts/            # Layer 0: Schemas, types, events (zero deps)
-│   ├── ports/                # Layer 1: Interface definitions
-│   ├── core/                 # Layer 2: Pure domain logic
-│   ├── runtime/              # Layer 3: Orchestration, gate, watch
-│   └── policy/               # OPA/Rego wrappers
-├── adapters/                 # Format adapters (SpecKit, BMAD, APS-Markdown, Generic)
-├── aps/                      # APS parser and tooling
-├── edda-stack/               # Memory system (Kindling/Ember/Edda)
-├── eslint-plugin-anvil/      # ESLint rules for test quality enforcement
-├── kindling-integration/     # Kindling memory integration contracts
-├── platform/                 # Cross-cutting utilities
-│   ├── config/
-│   ├── crypto/
-│   └── storage/
-├── shared/                   # Shared utilities
-├── vscode-extension/         # VS Code integration
-└── tooling/                  # Shared configuration
-    ├── eslint-config/
-    └── tsconfig/
-
-apps/
-├── anvil-cli/                # CLI application
-├── docs-site/                # Docusaurus documentation (deployed via Vercel)
-├── website/                  # Marketing website — Next.js (deployed via Vercel)
-├── anvil-api/                # API service (planned)
-├── anvil-ui/                 # Web UI (planned)
-└── e2e/                      # End-to-end test suites (Playwright)
-
-tools/
-├── generators/               # NX code generators
-├── codemods/                 # Codemod transformations
-└── scripts/                  # Build and utility scripts
+contracts (zero deps)
+    --> ports (contracts only)
+        --> core (contracts, ports)
+            --> runtime (core, policy, contracts)
+                --> CLI / MCP / API (runtime, core, adapters, ...)
 ```
 
-**Dependency Rules**:
+### Packages
 
-- Layer N can only depend on layers < N
-- `contracts` (Layer 0) has zero internal dependencies
-- `runtime` (Layer 3) orchestrates all lower layers
+| Package                          | npm Name                      | Purpose                                                                                            |
+| -------------------------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `packages/anvil/contracts/`      | `@eddacraft/anvil-contracts`  | Zod schemas, types, events. Zero dependencies.                                                     |
+| `packages/anvil/ports/`          | `@eddacraft/anvil-ports`      | Interface definitions. Depends only on contracts.                                                  |
+| `packages/anvil/core/`           | `@eddacraft/anvil-core`       | Pure domain logic: antipattern, architecture, drift, suppression, validation, explain, provenance. |
+| `packages/anvil/runtime/`        | `@eddacraft/anvil-runtime`    | GateRunner orchestration, cache, watch, export, concurrency.                                       |
+| `packages/anvil/policy/`         | `@eddacraft/anvil-policy`     | OPA/Rego wrappers and policy evaluation.                                                           |
+| `packages/adapters/`             | `@eddacraft/anvil-adapters`   | Format converters (SpecKit, BMAD, APS).                                                            |
+| `packages/aps/`                  | `@eddacraft/anvil-aps`        | APS document parser and validator.                                                                 |
+| `packages/mcp-server/`           | `@eddacraft/anvil-mcp-server` | MCP tools, resources, and prompts.                                                                 |
+| `packages/vscode-extension/`     | --                            | VS Code extension for real-time diagnostics.                                                       |
+| `packages/eslint-plugin-anvil/`  | `eslint-plugin-anvil`         | Test quality ESLint rules.                                                                         |
+| `packages/edda-stack/`           | --                            | Kindling, Ember, Edda memory layers (planned).                                                     |
+| `packages/kindling-integration/` | --                            | Kindling memory contracts and emitters.                                                            |
+
+### Apps
+
+| App               | Purpose                                              |
+| ----------------- | ---------------------------------------------------- |
+| `apps/anvil-cli/` | CLI (Commander.js + Ink TUI) -- primary entry point. |
+| `apps/anvil-api/` | REST API (Hono + Vercel + Neon Postgres).            |
+| `apps/anvil-ui/`  | Web dashboard (in development).                      |
+| `apps/website/`   | Marketing site (Next.js).                            |
+| `apps/docs-site/` | Documentation (Docusaurus).                          |
+| `apps/e2e/`       | Playwright E2E tests.                                |
+
+### Dependency Diagram
+
+```mermaid
+graph TD
+    contracts["contracts<br/><small>Zod schemas, types, events</small>"]
+    ports["ports<br/><small>Interface definitions</small>"]
+    core["core<br/><small>Domain logic</small>"]
+    policy["policy<br/><small>OPA/Rego wrappers</small>"]
+    runtime["runtime<br/><small>GateRunner, cache, watch</small>"]
+    adapters["adapters<br/><small>SpecKit, BMAD, APS</small>"]
+    aps["aps<br/><small>APS parser/validator</small>"]
+    mcp["mcp-server<br/><small>MCP tools & resources</small>"]
+    vscode["vscode-extension<br/><small>Real-time diagnostics</small>"]
+    cli["anvil-cli<br/><small>Commander.js + Ink</small>"]
+    api["anvil-api<br/><small>Hono + Vercel</small>"]
+    ui["anvil-ui<br/><small>Web dashboard</small>"]
+    kindling["kindling-integration<br/><small>Memory contracts</small>"]
+
+    ports --> contracts
+    core --> contracts
+    core --> ports
+    policy --> contracts
+    runtime --> core
+    runtime --> policy
+    runtime --> contracts
+    runtime --> kindling
+    adapters --> contracts
+    adapters --> aps
+    aps --> contracts
+    mcp --> runtime
+    mcp --> core
+    mcp --> contracts
+    cli --> runtime
+    cli --> core
+    cli --> adapters
+    cli --> contracts
+    api --> runtime
+    api --> core
+    api --> contracts
+    ui --> api
+    vscode --> runtime
+    vscode --> core
+    kindling --> contracts
+
+    classDef foundation fill:#e8f5e9,stroke:#2e7d32
+    classDef domain fill:#e3f2fd,stroke:#1565c0
+    classDef orchestration fill:#fff3e0,stroke:#e65100
+    classDef surface fill:#fce4ec,stroke:#c62828
+    classDef support fill:#f3e5f5,stroke:#6a1b9a
+
+    class contracts,ports foundation
+    class core,policy domain
+    class runtime orchestration
+    class cli,api,ui,mcp,vscode surface
+    class adapters,aps,kindling support
+```
 
 ---
 
-## Component Deep Dive
+## Check Pipeline
 
-### 1. Adapter Layer
+The core runtime flow -- how `anvil check` works from invocation to exit code.
 
-**Purpose**: Bridge between user formats and internal APS representation.
+### Pipeline Steps
 
-#### Adapter Interface
+1. **CLI parses arguments**, loads configuration from
+   `.anvil/config.anvil.json`.
+2. **GateRunner** (runtime) orchestrates checks in parallel:
+   - **AntipatternCheck** -- regex-based pattern detection against known
+     anti-patterns (God classes, barrel re-exports, magic numbers, etc.).
+   - **ArchitectureCheck** -- dependency-cruiser static analysis + OPA hybrid
+     evaluation of layer violations, circular dependencies, orphaned modules.
+   - **PolicyCheck** -- OPA/Rego policy evaluation against structured input
+     (business rules, change scope, security review).
+   - **CommandSafetyCheck** -- dangerous shell command detection.
+   - **SecretCheck** -- hardcoded credentials and API keys.
+   - **DependencyCheck** -- licence compliance and vulnerability audit.
+   - **ESLintCheck** -- linting via project ESLint configuration.
+   - **CoverageCheck** -- test coverage threshold enforcement.
+3. **Suppressions applied** from `.anvil/suppressions.json` and inline
+   `@anvil-ignore` annotations
+   ([D-004](../plans/decisions/004-suppression-syntax.md)).
+4. **AnalyseResult returned** containing `warnings[]` and `summary`.
+5. **Output formatted** as text, JSON, or interactive TUI.
+6. **Kindling events emitted** (session, gate, action) for operational memory.
+7. **Exit code**: `0` (pass), `1` (warnings), `2` (blocking errors).
+
+### Pipeline Diagram
+
+```mermaid
+flowchart TD
+    start(["anvil check"])
+    config["Load .anvil/config.anvil.json"]
+    gate["GateRunner<br/>parallel orchestration"]
+
+    ap["AntipatternCheck"]
+    arch["ArchitectureCheck<br/>DC + OPA"]
+    pol["PolicyCheck<br/>OPA/Rego"]
+    cmd["CommandSafetyCheck"]
+    sec["SecretCheck"]
+    dep["DependencyCheck"]
+    lint["ESLintCheck"]
+    cov["CoverageCheck"]
+
+    merge["Merge results"]
+    suppress["Apply suppressions<br/>.anvil/suppressions.json<br/>@anvil-ignore inline"]
+    analyse["AnalyseResult<br/>warnings + summary"]
+    format["Format output<br/>text / JSON / TUI"]
+    kindling["Emit Kindling events"]
+    exit(["Exit code<br/>0 / 1 / 2"])
+
+    start --> config --> gate
+
+    gate --> ap
+    gate --> arch
+    gate --> pol
+    gate --> cmd
+    gate --> sec
+    gate --> dep
+    gate --> lint
+    gate --> cov
+
+    ap --> merge
+    arch --> merge
+    pol --> merge
+    cmd --> merge
+    sec --> merge
+    dep --> merge
+    lint --> merge
+    cov --> merge
+
+    merge --> suppress --> analyse --> format --> kindling --> exit
+```
+
+---
+
+## Surface Architecture
+
+Anvil exposes its runtime through multiple surfaces. Each surface is a thin
+adapter over the same core runtime -- no surface contains domain logic.
+
+| Surface               | Technology                              | Primary Use                                                                   |
+| --------------------- | --------------------------------------- | ----------------------------------------------------------------------------- |
+| **CLI**               | Commander.js + Ink TUI                  | Developer workflow, CI/CD                                                     |
+| **VS Code Extension** | VS Code API                             | Real-time diagnostics on save                                                 |
+| **MCP Server**        | MCP protocol                            | AI code generation tools (check, gate, fix, suppress, status, query-boundary) |
+| **REST API**          | Hono + Vercel                           | Dashboard consumption                                                         |
+| **CI/CD**             | GitHub Actions composite action         | PR checks                                                                     |
+| **Export**            | llms.txt, MCP resource, prompt fragment | Constraint export for AI contexts                                             |
+
+### Surface Connectivity Diagram
+
+```mermaid
+graph LR
+    runtime["runtime<br/>GateRunner + core"]
+
+    cli["CLI<br/>Commander.js + Ink"]
+    vscode["VS Code Extension<br/>on-save diagnostics"]
+    mcp["MCP Server<br/>AI tools & resources"]
+    api["REST API<br/>Hono + Vercel"]
+    cicd["CI/CD<br/>GitHub Actions"]
+    export["Export<br/>llms.txt / MCP / prompt"]
+
+    cli --> runtime
+    vscode --> runtime
+    mcp --> runtime
+    api --> runtime
+    cicd --> cli
+    export --> runtime
+
+    dashboard["Web Dashboard"]
+    ai["AI Assistants<br/>Claude / Copilot"]
+    ide["VS Code"]
+    developer["Developer"]
+    pipeline["GitHub Actions"]
+
+    developer --> cli
+    developer --> ide --> vscode
+    ai --> mcp
+    dashboard --> api
+    pipeline --> cicd
+    ai --> export
+
+    classDef surface fill:#e3f2fd,stroke:#1565c0
+    classDef runtime fill:#fff3e0,stroke:#e65100
+    classDef consumer fill:#f3e5f5,stroke:#6a1b9a
+
+    class cli,vscode,mcp,api,cicd,export surface
+    class runtime runtime
+    class dashboard,ai,ide,developer,pipeline consumer
+```
+
+---
+
+## Hybrid Policy Engine
+
+Anvil uses a hybrid architecture combining dependency-cruiser (DC) for static
+import graph analysis with Open Policy Agent (OPA) for policy evaluation.
+([D-006](../plans/decisions/006-hybrid-dc-opa.md))
+
+### Why Hybrid
+
+Neither tool does everything well on its own:
+
+| Capability                    | Best Tool          |
+| ----------------------------- | ------------------ |
+| TypeScript import parsing     | dependency-cruiser |
+| Circular dependency detection | dependency-cruiser |
+| Layer violation detection     | dependency-cruiser |
+| Orphaned module detection     | dependency-cruiser |
+| Business rule evaluation      | OPA                |
+| Change scope enforcement      | OPA                |
+| Security review policies      | OPA                |
+| Architecture rule testing     | OPA                |
+| Remote policy distribution    | OPA                |
+
+### Data Flow
+
+1. **Architecture YAML** (`.anvil/architecture.yaml`) defines layers,
+   boundaries, and allowed dependencies using a declarative schema.
+2. Anvil **auto-generates** both:
+   - `.anvil/dependency-cruiser.js` -- DC rules for static analysis.
+   - `.anvil/policies/.generated/architecture.rego` -- OPA policies for
+     evaluation.
+3. **DC runs first**, producing a structured dependency graph with violations.
+4. **DC results are injected into OPA input**, so Rego policies can reason about
+   the actual import graph alongside business rules.
+5. Both produce **unified warnings** that flow into the check pipeline.
+
+### Incremental Adoption
+
+The hybrid approach matches the planless-first philosophy:
+
+- **Without OPA**: Full DC analysis and architecture boundary enforcement. Zero
+  additional setup required.
+- **With OPA**: DC analysis + custom Rego policies + DC-informed rules. Opt-in
+  for teams that need business rules, change scope limits, or security reviews.
+
+### Architecture Templates
+
+Pre-built templates generate the correct DC and Rego rules for common
+architecture styles:
+
+- **Layered** -- strict top-down dependency flow
+- **Hexagonal** -- ports and adapters isolation
+- **Clean Architecture** -- dependency rule (inward only)
+- **DDD** -- bounded context enforcement
+
+```yaml
+# .anvil/architecture.yaml
+template: hexagonal
+layers:
+  domain:
+    paths: ['src/domain/**']
+  infrastructure:
+    paths: ['src/infrastructure/**']
+    depends_on: [domain]
+```
+
+---
+
+## State and Configuration
+
+All Anvil state lives in the `.anvil/` directory at the project root. This
+directory is intended to be committed to version control (except for caches).
+
+| File                     | Purpose                                                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `config.anvil.json`      | Project configuration: enabled checks, thresholds, output format, watch settings.                                                |
+| `architecture.yaml`      | Layer definitions, boundary rules, architecture template selection.                                                              |
+| `baseline.json`          | Drift baseline snapshot -- existing violations captured on first run. Only new violations after this snapshot generate warnings. |
+| `suppressions.json`      | Suppression store -- intentional bypasses with required reasoning, tracked by warning ID, author, and timestamp.                 |
+| `policies/*.rego`        | Custom OPA policies authored by the team.                                                                                        |
+| `policies/.generated/`   | Auto-generated Rego from `architecture.yaml`. Do not edit manually.                                                              |
+| `.dependency-cruiser.js` | Auto-generated DC configuration from `architecture.yaml`. Do not edit manually.                                                  |
+
+### Suppression Format
+
+Inline annotations and the suppressions store both follow the same schema
+([D-004](../plans/decisions/004-suppression-syntax.md)):
 
 ```typescript
-interface FormatAdapter {
-  // Metadata
-  name: string;
-  version: string;
-  supportedExtensions: string[];
-
-  // Detection
-  detect(content: string, filename?: string): DetectionResult;
-
-  // Parsing (User Format → APS)
-  parse(content: string, options?: ParseOptions): Promise<APSPlan>;
-
-  // Serialization (APS → User Format)
-  serialize(plan: APSPlan, options?: SerializeOptions): Promise<string>;
-
-  // Validation
-  validate(content: string): Promise<ValidationResult>;
-
-  // Evidence injection
-  injectEvidence(content: string, evidence: Evidence): Promise<string>;
-}
-
-interface DetectionResult {
-  detected: boolean;
-  confidence: number; // 0-1
-  format: string;
-  version?: string;
-}
+// @anvil-ignore ARCH-001: Legacy auth integration, see TECH-123
+// @anvil-ignore-until 2026-06-01 AP-002: Temp workaround for migration
 ```
 
-#### SpecKit Adapter ✅ COMPLETE
-
-**Responsibility**: Parse and serialize GitHub's official SpecKit format
-(`spec.md`, `plan.md`, `tasks.md`).
-
-**Status**: Fully implemented (October 2025)
-
-- **Code Size**: 2,469 lines of code
-- **Tests**: 51 tests (49 passing, 2 minor fixes pending)
-- **Coverage**: >95%
-
-**SpecKit Format Support**:
-
-The adapter supports GitHub's complete spec-kit workflow with three document
-types:
-
-1. **spec.md** - Requirements and user scenarios (WHAT and WHY)
-   - Feature metadata (branch, date, status)
-   - User scenarios with acceptance criteria
-   - Functional requirements with clarification markers
-   - Key entities (data model)
-   - Success criteria
-
-2. **plan.md** - Technical implementation (HOW)
-   - Summary of technical approach
-   - Technical context (language, dependencies, constraints)
-   - Constitution check (compliance with project principles)
-   - Project structure
-   - Implementation details
-
-3. **tasks.md** - Executable breakdown
-   - Tasks organised by phases with IDs
-   - Parallel execution markers
-   - Checkpoints after each phase
-   - Dependencies and execution order
-
-**Mapping to APS**:
-
-- User Scenarios → `proposed_changes[]` with scenario metadata
-- Functional Requirements → `metadata.requirements.functional[]`
-- Key Entities → `metadata.requirements.entities[]`
-- Success Criteria → `metadata.successCriteria`
-- Clarifications → `metadata.clarifications[]` (all `[NEEDS CLARIFICATION]`
-  markers)
-- Technical Context → `metadata.technicalContext`
-- Project Structure → `metadata.projectStructure`
-- Implementation Details → `metadata.implementationDetails`
-- Phases & Tasks → `metadata.phases[]`, `metadata.taskDependencies[]`
-
-**Round-trip Preservation**:
-
-- Preserve markdown formatting
-- Maintain comment structure
-- Keep custom sections
-- Inject evidence as markdown comments
-- Support for v1 (simple) and v2 (official) formats
-
-**Implementation Structure**: `packages/adapters/src/speckit/`
-
-```
-speckit/
-├── index.ts              # Exports
-├── parser.ts             # Core markdown parser (330 LOC)
-├── import.ts             # V1 import adapter (284 LOC)
-├── import-v2.ts          # V2 official format adapter (424 LOC)
-├── export.ts             # Export adapter (462 LOC)
-└── parsers/              # Specialized parsers (966 LOC)
-    ├── spec-parser.ts    # Spec.md parser (378 LOC)
-    ├── plan-parser.ts    # Plan.md parser (342 LOC)
-    └── tasks-parser.ts   # Tasks.md parser (246 LOC)
-```
-
-#### BMAD Adapter ✅ COMPLETE
-
-**Responsibility**: Parse and serialize BMAD format (Business Model and
-Architecture Documents, PRDs).
-
-**Status**: Fully implemented
-
-**BMAD Format Structure**:
-
-```markdown
-# Product Requirements Document
-
-## Problem Statement
-
-[Description of the problem being solved]
-
-## Requirements
-
-### Functional
-
-- REQ-001: [Requirement description]
-- REQ-002: [Requirement description]
-
-### Non-Functional
-
-- PERF-001: [Performance requirement]
-- SEC-001: [Security requirement]
-
-## Architecture
-
-[Technical approach and design decisions]
-
-## Acceptance Criteria
-
-[Testing and validation criteria]
-```
-
-**Mapping to APS**:
-
-- `Problem Statement` → `intent`
-- Functional Requirements (REQ-XXX) → `proposed_changes[]`
-- Non-Functional Requirements (PERF-XXX, SEC-XXX) → `metadata.nfr[]`
-- `Architecture` → `metadata.architecture`
-- `Acceptance Criteria` → `metadata.acceptance_criteria[]`
-- Requirement IDs → `metadata.requirement_ids[]`
-
-**Implementation Structure**: `packages/adapters/src/bmad/`
-
-```
-bmad/
-├── index.ts              # Exports
-├── format-adapter.ts     # BMAD format adapter (FormatAdapter interface)
-├── parser.ts             # Markdown parser with REQ-ID extraction
-├── serializer.ts         # APS → BMAD serialization
-├── types.ts              # BMAD-specific types
-└── utils.ts              # Parsing and formatting utilities
-```
-
-#### APS-Markdown Adapter ✅ COMPLETE
-
-**Responsibility**: Handle native APS documents in Markdown format.
-
-**Features**:
-
-- Direct parsing of APS-flavoured Markdown
-- Highest-priority adapter (matched first)
-- Round-trip preservation
-
-**Implementation Location**: `packages/adapters/src/aps-markdown/`
-
-#### Generic Markdown Adapter ✅ COMPLETE
-
-**Responsibility**: Fallback adapter for generic Markdown documents that don't
-match any specific format.
-
-**Features**:
-
-- Lowest-priority adapter (matched last)
-- Best-effort extraction of intent and structure
-- Handles arbitrary Markdown files
-
-**Implementation Location**: `packages/adapters/src/generic/`
-
-#### Native APS Adapter
-
-**Responsibility**: Handle native APS JSON/YAML format.
-
-**Features**:
-
-- Direct parsing (no transformation)
-- Schema validation
-- Pretty printing
-- YAML ↔ JSON conversion
-
-**Implementation Location**: Native APS handling is built into core
-(`@eddacraft/anvil-core`) and base adapter framework
-(`packages/adapters/src/base/`)
-
-#### Adapter Priority
-
-All adapters are registered in priority order:
-
-1. **APSMarkdownAdapter** — native APS-flavoured Markdown (highest priority)
-2. **BMADFormatAdapter** — BMAD PRD format
-3. **SpecKitFormatAdapter** — GitHub SpecKit format
-4. **GenericMarkdownAdapter** — fallback for unrecognised Markdown (lowest
-   priority)
-
-### 2. Core Layer (APS)
-
-**Purpose**: Define and validate the Anvil Plan Specification.
-
-#### APS Schema (Zod)
-
-**Schema Definition**: `packages/anvil/contracts/src/schemas/`
-
-**Key Fields**:
-
-```typescript
-interface APSPlan {
-  // Identity
-  schema_version: '1.0.0';
-  id: string; // aps-[8 hex chars]
-  hash: string; // SHA-256 of canonical form
-
-  // Core content
-  intent: string; // What we're trying to achieve
-  proposed_changes: Change[];
-
-  // Context
-  provenance: Provenance; // Who, when, how
-  context: Context; // Repository, branch, etc.
-
-  // Validation
-  validation: Validation; // Required checks, policies
-  evidence: Evidence[]; // Gate results (append-only)
-
-  // Lifecycle
-  approval: Approval; // Approval status
-  executions: Execution[]; // Apply/rollback history
-}
-```
-
-**Schema Validation**:
-
-- Zod for runtime validation
-- JSON Schema for interoperability
-- TypeScript types for development
-
-#### Hash & Canonicalization
-
-**Purpose**: Generate deterministic hashes for plans.
-
-**Algorithm**:
-
-1. **Canonicalize**: Stable JSON serialization
-   - Sorted keys
-   - No whitespace variations
-   - Consistent encoding
-   - Excludes `hash` and `evidence` fields
-
-2. **Hash**: SHA-256 of canonical form
-
-3. **Verify**: Compare computed hash with stored hash
-
-**Implementation**: `packages/anvil/core/src/crypto/`
-
-**Critical Property**: Same plan content → same hash, always.
-
-#### Validation Engine
-
-**Purpose**: Validate plans against schema and business rules.
-
-**Validation Levels**:
-
-1. **Schema Validation** (Zod)
-   - Type checking
-   - Required fields
-   - Format validation (regex patterns)
-   - Enum validation
-
-2. **Hash Validation**
-   - Recompute hash
-   - Compare with stored hash
-   - Detect tampering
-
-3. **Business Rule Validation**
-   - Intent length (10-500 chars)
-   - Required fields present
-   - Valid provenance
-   - Reasonable proposed changes
-
-**Error Handling**:
-
-- Structured error objects
-- User-friendly messages
-- Actionable suggestions
-- CLI-formatted output
-
-**Implementation**: `packages/anvil/core/src/validation/`
-
-### 3. Gate Layer
-
-**Purpose**: Enforce quality standards before changes are applied.
-
-#### Architecture
-
-```typescript
-interface GateRunner {
-  run(plan: APSPlan, config: GateConfig): Promise<GateResult>;
-}
-
-interface GateConfig {
-  checks: CheckConfig[];
-  policies: string[]; // OPA policy files
-  failFast: boolean; // Stop on first failure
-  parallel: boolean; // Run checks in parallel
-}
-
-interface GateResult {
-  overall_status: 'passed' | 'failed' | 'partial';
-  checks: CheckResult[];
-  evidence: Evidence;
-  summary: string;
-}
-```
-
-#### Check Types
-
-**1. Lint Check (ESLint)**
-
-- Run ESLint on proposed changes
-- Configurable rules
-- Support for custom configs
-- Output formatted errors
-
-**2. Test Check (Vitest)**
-
-- Run test suite
-- Require all tests pass
-- Support for test patterns
-- Coverage integration
-
-**3. Coverage Check**
-
-- Measure test coverage
-- Enforce minimum threshold (default: 80%)
-- Per-file coverage analysis
-- Delta coverage (changed files only)
-
-**4. Secret Scanning**
-
-- Regex-based detection
-- Common secret patterns (API keys, tokens, passwords)
-- Future: Entropy-based detection
-- Configurable patterns
-
-**5. Policy Check (OPA)**
-
-- Rego policy evaluation
-- Custom business rules
-- Example policies:
-  - Coverage minimum
-  - Change scope limits
-  - Risk classification
-
-#### Evidence Collection
-
-**Purpose**: Aggregate all check results into immutable evidence bundle.
-
-**Evidence Structure**:
-
-```typescript
-interface Evidence {
-  gate_version: string;
-  timestamp: string;
-  overall_status: 'passed' | 'failed' | 'partial';
-  checks: CheckResult[];
-  summary: string;
-  artifacts: Record<string, string>; // Links to detailed reports
-}
-```
-
-**Properties**:
-
-- **Immutable**: Never modified, only appended
-- **Comprehensive**: All check results included
-- **Timestamped**: When validation occurred
-- **Versioned**: Which gate version ran
-
-**Storage**: Appended to `evidence[]` array in APS plan.
-
-**Implementation**: `packages/anvil/runtime/src/gate/`
-
-### 4. Sidecar Layer
-
-**Purpose**: Execute validated plans safely with rollback capability.
-
-#### Dry-Run Engine
-
-**Responsibility**: Preview changes without applying them.
-
-**Process**:
-
-1. Parse `proposed_changes` from APS
-2. Generate diffs for each change
-3. Collect execution logs (simulated)
-4. Create preview bundle
-5. Return preview to user
-
-**No side effects**: Dry-run never modifies files or state.
-
-**Implementation**: `packages/anvil/runtime/src/`
-
-#### Apply Engine
-
-**Responsibility**: Apply validated plans transactionally.
-
-**Process**:
-
-1. **Pre-flight checks**:
-   - Verify gate passed
-   - Check approval status
-   - Validate plan hash
-
-2. **Snapshot creation**:
-   - Capture current state
-   - Store in `.anvil/snapshots/`
-   - Include timestamp and plan ID
-
-3. **Transactional application**:
-   - Apply changes sequentially
-   - Collect execution evidence
-   - Rollback on failure (optional)
-
-4. **Post-execution**:
-   - Generate audit trail
-   - Update plan with execution record
-   - Store evidence
-
-**Idempotency**: Re-applying same plan should have no additional effect.
-
-**Implementation**: `packages/anvil/runtime/src/`
-
-#### Rollback Engine
-
-**Responsibility**: Revert applied changes to previous state.
-
-**Process**:
-
-1. Load snapshot from apply
-2. Verify snapshot integrity
-3. Reverse changes sequentially
-4. Verify system state matches snapshot
-5. Generate rollback evidence
-
-**Safety**: Rollback itself is reversible (can "undo rollback").
-
-**Implementation**: `packages/anvil/runtime/src/`
-
-### 5. Storage Layer
-
-**Purpose**: Persist plans, evidence, and snapshots.
-
-#### Directory Structure
-
-```
-.anvil/
-├── plans/
-│   ├── aps-a1b2c3d4.json
-│   ├── aps-e5f6g7h8.json
-│   └── index.json          # Plan registry
-├── evidence/
-│   ├── aps-a1b2c3d4/
-│   │   ├── gate-001.json
-│   │   └── gate-002.json
-│   └── index.json
-├── snapshots/
-│   ├── aps-a1b2c3d4/
-│   │   ├── pre-apply.tar.gz
-│   │   └── metadata.json
-│   └── index.json
-├── audit/
-│   ├── 2025-09-30.log
-│   └── index.json
-└── config.json             # Anvil configuration
-```
-
-#### Plan Storage
-
-**Format**: JSON (pretty-printed)
-
-**Naming**: `aps-[plan-id].json`
-
-**Indexing**: `index.json` maintains registry of all plans
-
-**Retrieval**: By plan ID or hash
-
-#### Evidence Storage
-
-**Format**: JSON (per gate execution)
-
-**Organization**: By plan ID, then chronological
-
-**Retention**: Indefinite (immutable audit trail)
-
-#### Snapshot Storage
-
-**Format**: Compressed tar.gz + metadata JSON
-
-**Content**: All files affected by plan
-
-**Retention**: Configurable (default: keep until plan superseded)
-
-#### Audit Logs
-
-**Format**: Structured JSON logs
-
-**Content**: All operations (plan, gate, apply, rollback)
-
-**Rotation**: Daily files, configurable retention
+- Warning ID is required -- no blanket suppressions.
+- Reason is required -- the parser rejects empty reasons.
+- The `-until` variant enables time-boxed suppressions that auto-expire.
 
 ---
 
-## Data Flow
+## Memory Stack (Edda Stack)
 
-### 1. Plan Creation Flow
+The Edda Stack is a three-layer architecture governing how activity becomes
+institutional memory. Planned for delivery in v0.4.0. (See
+[edda-stack-integration.aps.md](../plans/modules/edda-stack-integration.aps.md))
 
-```
-User Intent
-    ↓
-┌───────────────────┐
-│  anvil plan       │
-│  "add feature"    │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Format Selection  │  ← User specifies or auto-detect
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Generate Plan     │  ← Create in selected format
-│ (Adapter)         │     (SpecKit, BMAD, or APS)
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Convert to APS    │  ← Internal representation
-│ (if needed)       │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Validate Schema   │  ← Zod validation
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Generate Hash     │  ← Deterministic hash
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Serialize & Save  │  ← Store in user format
-│ (.anvil/plans/)   │     + APS internally
-└───────────────────┘
-```
+### Three Layers
 
-### 2. Validation Flow (Gate)
+| Layer        | Role                                                                                   | Trust Level       | Storage         | Frequency                 |
+| ------------ | -------------------------------------------------------------------------------------- | ----------------- | --------------- | ------------------------- |
+| **Kindling** | Operational memory -- captures observations without judgement                          | Low (raw)         | SQLite          | High-frequency, ephemeral |
+| **Ember**    | Candidate memory -- curated observations under review, meaning without authority       | Medium (proposed) | SQLite          | Medium-frequency          |
+| **Edda**     | Canonical memory -- institutional knowledge: decisions, patterns, constraints, lessons | High (accepted)   | Git-backed YAML | Low-frequency, immutable  |
+
+### Governing Rules
+
+1. Kindling cannot judge (facts only).
+2. Ember cannot decide (proposals only).
+3. Edda cannot speculate (curated truths only).
+4. Each layer is intentionally limited.
+5. Meaning emerges only through their separation.
+
+### Memory Object Types
+
+`decision` | `pattern` | `constraint` | `warning` | `doctrine` | `lesson`
+
+### Promotion Flow
 
 ```
-Plan File
-    ↓
-┌───────────────────┐
-│  anvil gate       │
-│  plan.md          │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Detect Format     │  ← Auto-detect or explicit
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Parse to APS      │  ← Adapter parses format
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Validate APS      │  ← Schema + hash check
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Run Gate Checks   │  ← Parallel execution
-│  • Lint           │
-│  • Tests          │
-│  • Coverage       │
-│  • Secrets        │
-│  • Policies       │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Collect Evidence  │  ← Aggregate results
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Update Plan       │  ← Inject evidence into
-│ (with Evidence)   │     user format + APS
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Display Results   │  ← Pretty table output
-└───────────────────┘
+Kindling observes --> captures without judgement
+Ember reflects   --> meaning without authority
+Edda remembers   --> memory with restraint
 ```
 
-### 3. Apply Flow
+Promotion is always gated: Kindling to Ember is review-gated (automated or
+human), Ember to Edda is human-decision-gated. Edda entries are immutable,
+versioned, and auditable.
 
-```
-Validated Plan
-    ↓
-┌───────────────────┐
-│  anvil apply      │
-│  plan.md          │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Load & Parse      │  ← Load plan, convert to APS
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Pre-flight Checks │
-│  • Gate passed?   │
-│  • Approved?      │
-│  • Hash valid?    │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Create Snapshot   │  ← Capture current state
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Apply Changes     │  ← Sequential execution
-│ (Transactional)   │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Generate Evidence │  ← Execution logs
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Update Plan       │  ← Add execution record
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Audit Log         │  ← Record operation
-└───────────────────┘
+### Memory Stack Diagram
+
+```mermaid
+graph TD
+    activity(["Developer activity<br/>commits, checks, reviews"])
+    kindling["Kindling<br/><em>Operational Memory</em><br/>SQLite | ephemeral<br/>observations, sessions, events"]
+    ember["Ember<br/><em>Candidate Memory</em><br/>SQLite | medium trust<br/>curated proposals under review"]
+    edda["Edda<br/><em>Canonical Memory</em><br/>Git-backed YAML | immutable<br/>decisions, patterns, constraints, lessons"]
+
+    activity -->|"emit events"| kindling
+    kindling -->|"review gate<br/>(automated or human)"| ember
+    ember -->|"human decision gate"| edda
+    edda -.->|"provenance resolution"| kindling
+
+    classDef ephemeral fill:#fff3e0,stroke:#e65100
+    classDef candidate fill:#e3f2fd,stroke:#1565c0
+    classDef canonical fill:#e8f5e9,stroke:#2e7d32
+
+    class kindling ephemeral
+    class ember candidate
+    class edda canonical
 ```
 
-### 4. Rollback Flow
+---
 
-```
-Plan ID or Hash
-    ↓
-┌───────────────────┐
-│  anvil rollback   │
-│  aps-a1b2c3d4     │
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Load Snapshot     │  ← Find pre-apply snapshot
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Verify Integrity  │  ← Check snapshot hash
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Preview Changes   │  ← Show what will revert
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Confirm?          │  ← User confirmation
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Restore State     │  ← Apply snapshot
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Verify Rollback   │  ← Check state matches
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Generate Evidence │  ← Rollback evidence
-└─────────┬─────────┘
-          │
-          ↓
-┌───────────────────┐
-│ Audit Log         │  ← Record rollback
-└───────────────────┘
+## Forge and Temper Pipeline
+
+Autonomous code review pipeline with two complementary phases. (See
+[forge-hook-agent.aps.md](../plans/modules/01-forge-hook-agent.aps.md) through
+[temper-workflow.aps.md](../plans/modules/04-temper-workflow.aps.md))
+
+### Forge (Pre-commit, Local)
+
+The `forge.sh` PreToolUse hook intercepts `git commit` commands and spawns a
+`forge-reviewer` subagent. The reviewer performs cross-model review via the
+codex MCP (GPT delegation), then enters a structured negotiation protocol with
+the committing agent.
+
+**Severity-based action matrix:**
+
+| Severity | Action          | Behaviour                                         |
+| -------- | --------------- | ------------------------------------------------- |
+| Critical | Must fix        | Commit blocked until resolved                     |
+| Major    | Must fix        | Commit blocked until resolved                     |
+| Minor    | Author's choice | Agent decides whether to address                  |
+| Nit      | Auto-deferred   | Filed as GitHub issue with `forge:deferred` label |
+
+**Negotiation rules:**
+
+- Maximum 3 rounds of negotiation (`CLAUDE_FORGE_MAX_ROUNDS`).
+- If consensus is not reached after 3 rounds, remaining findings are
+  auto-deferred.
+- Nits are always auto-deferred without negotiation
+  (`CLAUDE_FORGE_AUTO_DEFER_NITS`).
+
+### Temper (Post-push, GitHub Actions)
+
+The `temper.yml` workflow runs after push when the `forge:tempered` label is
+present on the PR. It auto-addresses CI review comments left by reviewers.
+
+- **Cycle 1**: Addresses all fixable findings.
+- **Cycle 2**: Scoped only to lines changed by cycle-1 fixes (prevents infinite
+  loops).
+- **Remaining**: Deferred to GitHub issues.
+
+Manual dispatch via `workflow_dispatch` always works regardless of the
+`CLAUDE_TEMPER_ENABLED` toggle.
+
+### Operating Modes
+
+| Scenario               | Forge | Temper | Behaviour                                       |
+| ---------------------- | ----- | ------ | ----------------------------------------------- |
+| Full autonomous        | on    | on     | Pre-commit review + auto self-healing post-push |
+| Local review only      | on    | off    | Pre-commit review, manual PR handling           |
+| Auto self-healing only | off   | on     | No pre-commit, but PR reviews auto-addressed    |
+| Everything off         | off   | off    | Current manual workflow (unchanged)             |
+
+### Forge Negotiation Sequence
+
+```mermaid
+sequenceDiagram
+    participant Dev as Committing Agent
+    participant Hook as forge.sh hook
+    participant FR as forge-reviewer
+    participant Codex as Codex MCP (GPT)
+
+    Dev->>Hook: git commit
+    Hook->>Hook: Capture staged diff
+    Hook->>FR: Spawn subagent with diff
+
+    FR->>Codex: Delegate review (staged diff)
+    Codex-->>FR: Structured findings
+
+    FR->>Dev: Findings (critical, major, minor, nit)
+
+    Note over Dev,FR: Nits auto-deferred immediately
+
+    loop Max 3 rounds
+        Dev->>FR: Response (accept / contest / fix)
+        FR->>Dev: Updated findings
+    end
+
+    alt All critical/major resolved
+        Dev->>Hook: Proceed with commit
+        Hook-->>Dev: Commit succeeds
+    else Unresolved after 3 rounds
+        FR->>FR: Auto-defer remaining findings
+        FR-->>Dev: Deferred to GitHub issues
+        Dev->>Hook: Proceed with commit
+        Hook-->>Dev: Commit succeeds
+    end
+
+    Note over Hook: Write forge report to<br/>.claude/logs/forge-{hash}.md
 ```
 
 ---
 
 ## Technology Stack
 
-### Core Technologies
-
-**Language**: TypeScript 5.9+
-
-- Strict mode enabled
-- Path aliases for imports
-- Comprehensive type coverage
-
-**Runtime**: Node.js >=20.0.0
-
-- Native ESM support
-- Modern JavaScript features
-- Cross-platform compatibility
-
-**Package Manager**: pnpm
-
-- Workspace support
-- Efficient disk usage
-- Fast installs
-
-**Build System**: Nx 22.3+
-
-- Monorepo management (pnpm workspaces)
-- Incremental builds
-- Task caching
-- Layered package architecture
-
-### Key Libraries
-
-#### Schema & Validation
-
-- **Zod** (^4.x): Runtime validation, TypeScript types
-- **zod-to-json-schema** (^3.x): JSON Schema export
-- **Ajv** (^8.17): JSON Schema validation (compatibility)
-
-#### CLI
-
-- **Commander.js** (^14.x): Command-line interface
-- **Enquirer** (^2.x): Interactive prompts
-- **Chalk** (^5.x): Terminal colors
-- **Ora** (^7.x): Spinners and progress
-
-#### Parsing & Serialization
-
-- **js-yaml** (^4.1): YAML parsing
-- **marked** (^9.x): Markdown parsing
-- **turndown** (^7.x): HTML to Markdown
-
-#### Testing
-
-- **Vitest** (^4.x): Unit and integration tests
-- **@vitest/coverage-v8**: Coverage reporting
-
-#### Code Quality
-
-- **ESLint** (^9.x): Linting (flat config)
-- **Prettier** (^3.x): Code formatting
-- **TypeScript ESLint**: TypeScript linting
-
-#### Security
-
-- **detect-secrets** (patterns): Secret detection
-- **semver** (^7.x): Version comparison
-
-#### Policy Engine
-
-- **Open Policy Agent** (OPA): Policy evaluation
-- Bundled binary (platform-specific)
-- Rego policy language
-
-### Development Tools
-
-**Version Control**: Git + GitHub
-
-- Conventional commits
-- Branch protection
-- PR templates
-
-**CI/CD**: GitHub Actions
-
-- Automated testing
-- Lint checks
-- Security scanning
-
-**Code Quality**: Husky + lint-staged
-
-- Pre-commit hooks
-- Automated formatting
-- Lint on commit
+| Category          | Technology              | Version  | Purpose                                            |
+| ----------------- | ----------------------- | -------- | -------------------------------------------------- |
+| Language          | TypeScript              | 5.9      | All source code, strict mode, ESM only             |
+| Runtime           | Node.js                 | >= 20    | Execution environment                              |
+| Package manager   | pnpm                    | >= 10.20 | Workspace management, strict isolation             |
+| Monorepo          | NX                      | 22.5     | Task orchestration, caching, dependency graph      |
+| CLI framework     | Commander.js            | --       | Command parsing and routing                        |
+| TUI               | Ink                     | 5.x      | Terminal UI components (React-based)               |
+| HTTP framework    | Hono                    | --       | REST API (Vercel-deployable)                       |
+| Testing           | Vitest                  | 4.x      | Unit and integration tests                         |
+| E2E testing       | Playwright              | --       | End-to-end browser and CLI tests                   |
+| Schema validation | Zod                     | --       | Runtime type validation, source of truth for types |
+| Static analysis   | dependency-cruiser      | --       | Import graph analysis, layer violations            |
+| Policy engine     | OPA / Rego              | --       | Policy-as-code evaluation                          |
+| Linting           | ESLint                  | 9.x      | Code quality and style enforcement                 |
+| Formatting        | Prettier                | 3.x      | Code formatting                                    |
+| Bundling          | esbuild                 | --       | CLI distribution bundling                          |
+| IaC               | Pulumi (TypeScript)     | --       | Vercel, GitHub, Azure DNS management               |
+| Database          | Neon Postgres           | --       | API persistence layer                              |
+| Deployment        | Vercel                  | --       | Website, docs-site, API hosting                    |
+| CI/CD             | GitHub Actions          | --       | Build, test, deploy, Temper workflow               |
+| Memory storage    | SQLite (better-sqlite3) | --       | Kindling operational memory                        |
 
 ---
 
-## Security Model
+## Key Architectural Decisions
 
-### Threat Model
+All decisions are recorded as ADRs in [`plans/decisions/`](../plans/decisions/).
 
-**Threats**:
-
-1. Malicious plans (code injection, path traversal)
-2. Tampering with validated plans
-3. Unauthorized apply operations
-4. Secret leakage in logs/evidence
-5. Supply chain attacks
-
-**Mitigations**:
-
-1. **Input validation**: All inputs sanitized and validated
-2. **Hash verification**: Detect plan tampering
-3. **Approval requirements**: Multi-step validation before apply
-4. **Secret scanning**: Prevent secrets in plans and logs
-5. **Dependency scanning**: Regular security audits
-
-### Trust Boundaries
-
-**Boundary 1**: User Input → Adapter
-
-- Validate all file inputs
-- Sanitize user-provided data
-- Prevent path traversal
-
-**Boundary 2**: Adapter → APS Core
-
-- Schema validation
-- Hash verification
-- Business rule enforcement
-
-**Boundary 3**: Gate → Sidecar
-
-- Require gate pass
-- Check approval status
-- Verify plan integrity
-
-**Boundary 4**: Sidecar → File System
-
-- Sandbox execution (future)
-- Limited file system access
-- Audit all operations
-
-### Secrets Handling
-
-**Policy**: Never log or store secrets.
-
-**Implementation**:
-
-- Secret scanning in gate
-- Redaction in logs
-- Secure evidence storage (optional encryption)
-- Environment variable isolation
-
-**Detection Patterns**:
-
-- API keys (AWS, GitHub, etc.)
-- Private keys (RSA, SSH)
-- Passwords and tokens
-- Database connection strings
-
-### Audit Trail
-
-**Requirements**:
-
-- All operations logged
-- Immutable audit log
-- Timestamp and actor tracking
-- Evidence integrity verification
-
-**Storage**: `.anvil/audit/`
-
-**Format**: Structured JSON logs
-
-**Retention**: Configurable (default: 90 days)
+| ID                                                      | Decision             | Summary                                                                                                                        |
+| ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| [D-001](../plans/decisions/001-planless-first.md)       | Planless-first       | Anvil delivers value without requiring plans or configuration. The codebase is the source of truth.                            |
+| [D-002](../plans/decisions/002-warnings-over-blocks.md) | Warnings over blocks | Warnings do not block by default. Exit code 0 for warnings. CI opt-in for `fail-on-warnings: true`.                            |
+| [D-003](../plans/decisions/003-new-edges-only.md)       | New edges only       | Existing violations are baselined. Only new violations introduced after the baseline generate warnings.                        |
+| [D-004](../plans/decisions/004-suppression-syntax.md)   | Suppression syntax   | `@anvil-ignore WARNING-ID: reason` with optional `-until DATE` for time-boxed suppressions.                                    |
+| [D-005](../plans/decisions/005-ink-over-opentui.md)     | Ink over OpenTUI     | Ink for TUI -- production-ready, Node.js native, no Bun dependency. Re-evaluate when OpenTUI reaches 1.0 with Node.js support. |
+| [D-006](../plans/decisions/006-hybrid-dc-opa.md)        | Hybrid DC + OPA      | dependency-cruiser for static analysis, OPA for policy evaluation, with DC results fed into OPA input.                         |
+| [D-007](../plans/decisions/007-pulumi-iac.md)           | Pulumi for IaC       | TypeScript-native IaC using Pulumi open source. Manages Vercel, GitHub, and Azure DNS.                                         |
 
 ---
 
-## Performance Considerations
-
-### Scalability Targets
-
-**Plan Size**:
-
-- Max plan size: 10 MB
-- Max proposed changes: 1000
-- Max evidence entries: 100
-
-**Repository Size**:
-
-- Support repositories up to 10 GB
-- Incremental analysis (changed files only)
-- Caching for repeated checks
-
-**Execution Time**:
-
-- Gate execution: <2 minutes for typical repos
-- Dry-run: <30 seconds
-- Apply: <5 minutes
-
-### Optimization Strategies
-
-#### 1. Parallel Execution
-
-**Gate checks run in parallel**:
-
-```typescript
-const results = await Promise.all([
-  lintCheck.run(plan),
-  testCheck.run(plan),
-  coverageCheck.run(plan),
-  secretsCheck.run(plan),
-  policyCheck.run(plan),
-]);
-```
-
-**Benefits**: 3-5x faster than sequential execution.
-
-#### 2. Caching
-
-**Cache Strategy**:
-
-- Cache check results by plan hash
-- Cache adapter parsing by file hash
-- Invalidate on file changes
-
-**Storage**: `.anvil/cache/`
-
-**Eviction**: LRU with configurable size limit
-
-#### 3. Incremental Analysis
-
-**Strategy**: Analyze only changed files.
-
-**Implementation**:
-
-- Git diff to identify changed files
-- Run checks only on changed files
-- Aggregate results with previous checks
-
-**Benefits**: 10x faster for large repos with small changes.
-
-#### 4. Streaming Output
-
-**Strategy**: Stream check results as they complete.
-
-**Implementation**:
-
-- Event-based architecture
-- Real-time UI updates
-- Interruptible operations
-
-**Benefits**: Better UX, faster perceived performance.
-
-### Future Optimizations
-
-**Post-MVP**:
-
-- Rust/Go rewrite for performance-critical components
-- Native binary for faster startup
-- Parallel file parsing
-- Distributed gate execution (for CI)
-
----
-
-## Extension Points
-
-### 1. Custom Adapters
-
-**Interface**: `FormatAdapter`
-
-**Use Cases**:
-
-- Support additional planning formats (ADR, RFC, etc.)
-- Company-specific formats
-- Legacy system integration
-
-**Registration**:
-
-```typescript
-import { AdapterRegistry } from '@eddacraft/anvil-adapters';
-import { MyCustomAdapter } from './my-adapter';
-
-AdapterRegistry.register(new MyCustomAdapter());
-```
-
-### 2. Custom Gate Checks
-
-**Interface**: `GateCheck`
-
-```typescript
-interface GateCheck {
-  name: string;
-  run(plan: APSPlan, config: CheckConfig): Promise<CheckResult>;
-}
-```
-
-**Use Cases**:
-
-- Custom linting rules
-- Company-specific validations
-- Integration with external tools
-
-**Registration**:
-
-```typescript
-import { GateRunner } from '@eddacraft/anvil-gate';
-import { MyCustomCheck } from './my-check';
-
-const gate = new GateRunner({
-  checks: [...standardChecks, new MyCustomCheck()],
-});
-```
-
-### 3. Custom Policies
-
-**Format**: Rego (OPA)
-
-**Location**: `.anvil/policies/`
-
-**Use Cases**:
-
-- Business-specific rules
-- Compliance requirements
-- Risk classification
-
-**Example**:
-
-```rego
-package anvil.policies
-
-deny[msg] {
-  input.proposed_changes[_].type == "file_create"
-  not has_tests(input)
-  msg = "New files must include tests"
-}
-```
-
-### 4. Event Hooks
-
-**Future Feature**: Subscribe to lifecycle events.
-
-**Events**:
-
-- `plan.created`
-- `gate.started`, `gate.completed`
-- `apply.started`, `apply.completed`
-- `rollback.started`, `rollback.completed`
-
-**Use Cases**:
-
-- Notifications (Slack, email)
-- External system integration
-- Custom workflow automation
-
----
-
-## Future Considerations
-
-### Phase 2 Features (Post-MVP)
-
-#### 1. Packs System
-
-**Concept**: Reusable modules for common infrastructure needs.
-
-**Examples**:
-
-- Feature flags pack
-- Telemetry pack
-- Authentication pack
-
-**Architecture**:
-
-```
-Pack
-  ├── Templates (code generation)
-  ├── Policies (OPA rules)
-  ├── Tests (generated tests)
-  └── Documentation
-```
-
-**Distribution**: npm packages, versioned.
-
-#### 2. Memory Layer (RAG)
-
-**Concept**: Store and retrieve context from past plans.
-
-**Components**:
-
-- Vector store (embeddings)
-- Metadata indices
-- Retrieval APIs
-
-**Use Cases**:
-
-- "Show plans related to authentication"
-- "What changes did we make to the API last month?"
-- Context for AI-assisted plan generation
-
-#### 3. AI-Assisted Features
-
-**Plan Generation**:
-
-```bash
-anvil plan --assist "add user authentication"
-# AI generates structured plan based on context
-```
-
-**Plan Review**:
-
-```bash
-anvil review plan.md --assist
-# AI suggests improvements, finds issues
-```
-
-**Productioniser Enhancement**:
-
-```bash
-anvil productionise --assist
-# AI suggests architectural improvements
-```
-
-#### 4. VS Code Extension
-
-**Features**:
-
-- Inline plan validation
-- Provenance decorations (gutter badges)
-- Command palette integration
-- Diff preview in editor
-
-**Architecture**: Language Server Protocol (LSP) for Anvil.
-
-#### 5. MCP Integration
-
-**Concept**: Expose Anvil as MCP (Model Context Protocol) tools.
-
-**Tools**:
-
-- `anvil_plan`: Create plans
-- `anvil_gate`: Validate plans
-- `anvil_apply`: Execute plans
-- `anvil_search`: Search past plans
-
-**Use Cases**: AI assistants (Cursor, Claude Projects) can use Anvil natively.
-
-### Act 2 Expansion
-
-**Document Adapters**:
-
-- Word/Google Docs
-- Confluence
-- Notion
-- Markdown
-
-**Analysis Adapters**:
-
-- Excel/Google Sheets
-- Jupyter notebooks
-- Tableau
-
-**Validation Checks**:
-
-- Citation verification
-- Data source validation
-- Formula correctness
-- Logic checking
-
-### Act 3 Platform
-
-**Enterprise Features**:
-
-- SSO integration
-- RBAC (role-based access control)
-- Advanced audit dashboard
-- Compliance reporting
-
-**Platform Integrations**:
-
-- ServiceNow
-- Jira
-- Confluence
-- Slack
-
-**Governance**:
-
-- Policy marketplace
-- Compliance frameworks (SOC2, ISO)
-- Regulatory support
-
----
-
-## Architecture Decision Records (ADRs)
-
-### ADR-001: APS as Internal Format
-
-**Status**: Accepted
-
-**Context**: Users won't adopt a new planning format. Existing formats (SpecKit,
-BMAD) are entrenched.
-
-**Decision**: APS is internal only. Adapters convert between user formats and
-APS.
-
-**Consequences**:
-
-- ✅ Easier adoption (work with existing formats)
-- ✅ Clean separation of concerns
-- ❌ Adapter maintenance burden
-- ❌ Conversion complexity
-
-### ADR-002: Immutable Evidence
-
-**Status**: Accepted
-
-**Context**: Evidence must be trustworthy for compliance and debugging.
-
-**Decision**: Evidence is append-only, never modified.
-
-**Consequences**:
-
-- ✅ Complete audit trail
-- ✅ Tamper-proof
-- ❌ Storage growth
-- ❌ Cannot "fix" old evidence
-
-### ADR-003: Hash-Stable Plans
-
-**Status**: Accepted
-
-**Context**: Plans must be reproducible for validation and caching.
-
-**Decision**: Plans have deterministic hashes based on canonical form.
-
-**Consequences**:
-
-- ✅ Detect tampering
-- ✅ Enable caching
-- ✅ Reproducible validation
-- ❌ Canonicalisation complexity
-
-### ADR-004: TypeScript Everywhere
-
-**Status**: Accepted
-
-**Context**: Need fast iteration, strong typing, cross-platform support.
-
-**Decision**: Use TypeScript for all components. Consider Go/Rust post-MVP for
-performance.
-
-**Consequences**:
-
-- ✅ Fast development
-- ✅ Strong typing
-- ✅ Good ecosystem
-- ❌ Slower than compiled languages
-- ❌ May need rewrite later
-
-### ADR-005: OPA for Policies
-
-**Status**: Accepted
-
-**Context**: Need flexible, safe policy engine.
-
-**Decision**: Use OPA with Rego for policy evaluation.
-
-**Consequences**:
-
-- ✅ Industry standard
-- ✅ Safe evaluation
-- ✅ Good tooling
-- ❌ Another language to learn
-- ❌ Binary dependency
-
----
-
-## Glossary
-
-**APS (Anvil Plan Specification)**: The internal, hash-stable format for
-representing plans.
-
-**Adapter**: Component that converts between user formats and APS.
-
-**Gate**: Validation system that enforces quality standards.
-
-**Evidence**: Immutable record of validation and execution results.
-
-**Sidecar**: Execution runtime that applies and rolls back plans.
-
-**Provenance**: Metadata about who, what, when, why for a plan.
-
-**Canonical Form**: Stable, deterministic serialization of a plan.
-
-**Round-trip**: Parse → APS → Serialize preserving original format.
-
-**Snapshot**: Captured state before applying changes (for rollback).
-
-**Idempotent**: Re-applying has no additional effect.
-
----
-
-## Contributing to Architecture
-
-This architecture is a living document. As we build and learn, it will evolve.
-
-**Process for Architecture Changes**:
-
-1. Propose change as GitHub issue
-2. Discuss with team
-3. Create ADR if significant decision
-4. Update this document
-5. Implement change
-
-**Questions About Architecture?**
-
-- Open a GitHub discussion
-- Ask in team chat
-- Review existing ADRs
-
----
-
-**Document Version**: 2.2 **Last Updated**: 2 February 2026 **Next Review**: As
-needed during development
+_This is a living document. Update it when architecture changes are made. For
+implementation-level detail, see module specs in
+[`plans/modules/`](../plans/modules/)._
