@@ -198,9 +198,8 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
 
     stdin.write('9');
 
-    await vi.waitFor(() => {
-      expect(onSelectTutorial).not.toHaveBeenCalled();
-    });
+    await tick();
+    expect(onSelectTutorial).not.toHaveBeenCalled();
   });
 
   it('does not call onSelectTutorial for non-numeric keys on last step', async () => {
@@ -213,9 +212,8 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
 
     stdin.write('x');
 
-    await vi.waitFor(() => {
-      expect(onSelectTutorial).not.toHaveBeenCalled();
-    });
+    await tick();
+    expect(onSelectTutorial).not.toHaveBeenCalled();
   });
 
   it('does not trigger onSelectTutorial before reaching last step', async () => {
@@ -227,8 +225,7 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
     // Still on step 1 (scan), press a number key
     stdin.write('1');
 
-    await vi.waitFor(() => {
-      expect(onSelectTutorial).not.toHaveBeenCalled();
-    });
+    await tick();
+    expect(onSelectTutorial).not.toHaveBeenCalled();
   });
 });
