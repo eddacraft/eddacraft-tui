@@ -4,6 +4,10 @@ ignore:
   - pnpm-lock.yaml
   - "*-lock.yaml"
   - node_modules/
+  # Workflows using shell heredocs in run: blocks produce false syntax errors
+  - .github/workflows/temper.yml
+  # Workflows using shell heredocs in run: blocks produce false syntax errors
+  - .github/workflows/temper.yml
 
 rules:
   line-length: disable
