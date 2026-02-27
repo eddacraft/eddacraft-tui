@@ -40,7 +40,7 @@
     "chokidar": "^5.0.0",
     "eslint": "^9.39.2",
     "glob": "13.0.0",
-    "minimatch": "^10.2.0",
+    "minimatch": "^10.2.3",
     "shell-quote": "^1.8.3",
     "zod": "^4.3.6"
   },
