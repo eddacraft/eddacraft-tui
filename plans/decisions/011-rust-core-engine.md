@@ -576,4 +576,4 @@ If the spike fails to meet targets, fall back to Alternative A
 - [tree-sitter](https://tree-sitter.github.io/tree-sitter/)
 - [Ratatui](https://ratatui.rs/)
 - [notify-rs](https://github.com/notify-rs/notify)
-- APS onboarding design: `anvil-plan-spec/docs/plans/2026-02-27-onboarding-design.md`
+- APS onboarding design: https://github.com/anvil-co/anvil-plan-spec/blob/main/docs/plans/2026-02-27-onboarding-design.md
