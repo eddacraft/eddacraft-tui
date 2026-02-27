@@ -297,7 +297,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 - **Risks:** Policy check is likely unusable on platforms without a preinstalled
   OPA binary until this is fixed. Affects any user relying on automatic OPA
   download.
@@ -405,10 +405,10 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Draft
-- **Risks:** Changing error propagation may surface unhandled rejections in
-  callers that relied on process.exit() for flow control. Requires audit of
-  all call sites.
+- **Status:** Complete
+- **Notes:** Verified 2026-02-27 — no process.exit() calls remain in
+  packages/anvil/runtime/ or packages/anvil/core/ (excluding test files).
+  Already resolved in prior work.
 
 ---
 
@@ -430,10 +430,12 @@ Change status to **Ready** when:
   commands; UTIL-001 extracted path safety utilities to core)
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 - **Notes:** CLIH-007 (Complete 2026-02-09) addressed `policy doc` and
-  `policy scaffold`. This generalises the pattern to all output-accepting
-  commands via a shared utility.
+  `policy scaffold`. Added `validatePathWithinRoot` to `plan.ts` (create
+  subcommand) and `architecture.ts` (visualise subcommand) — the two
+  remaining commands with unvalidated output paths. All output-accepting
+  commands now use the shared utility from `@eddacraft/anvil-core`.
 
 ---
 

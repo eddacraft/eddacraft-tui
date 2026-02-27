@@ -48,11 +48,11 @@ const ARCH_MAP: Record<string, string> = {
 
 const OPA_CHECKSUMS: Record<string, Record<string, string>> = {
   '0.60.0': {
-    'darwin-amd64': 'e5d63f703e63b7ff38bc3b07b08a7b9be8c0d7c31c24fd06f9e0faa4e4c8e92c',
-    'darwin-arm64': '8d33eaf63d8c82e78e3c26e738e2f3f7b1f8d8c3d4e5f6a7b8c9d0e1f2a3b4c5',
-    'linux-amd64': 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2',
-    'linux-arm64': 'f1e2d3c4b5a6f7e8d9c0b1a2f3e4d5c6b7a8f9e0d1c2b3a4f5e6d7c8b9a0f1e2',
-    'windows-amd64': 'c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2',
+    'darwin-amd64': '1b96cb23a63700b75f670e6bca1e3f8e9e7930c29b095753a9f978ce88828fa0',
+    'darwin-arm64': '27c1209fda3a5b8d7ec158b3696246ce7d1bf3f0f08f3698a23bf7dada5a618b',
+    'linux-amd64': '71514c6c70e744713656a302131e3172988c4898b43cb503f273086d47ccc299',
+    'linux-arm64': 'dd2ba13e42faa16f4a7933f80f44ee518bb96a023ea6dfb8193916a8ba134555',
+    'windows-amd64': '8e20b4fcd6b8094be186d8c9ec5596477fb7cb689b340d285865cb716c3c8ea7',
   },
 };
 

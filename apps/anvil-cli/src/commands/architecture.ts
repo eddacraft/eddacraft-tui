@@ -6,7 +6,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import YAML from 'yaml';
-import { createDebugger } from '@eddacraft/anvil-core';
+import { createDebugger, validatePathWithinRoot } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../utils/cli-error.js';
 import {
   type ArchitectureTemplate,
@@ -700,12 +700,13 @@ function createVisualiseSubcommand(): Command {
         }
 
         if (options.output) {
-          const outDir = dirname(options.output);
+          const validatedOutput = validatePathWithinRoot(options.output, projectRoot);
+          const outDir = dirname(validatedOutput);
           if (!existsSync(outDir)) {
             await mkdir(outDir, { recursive: true });
           }
-          await writeFile(options.output, output, 'utf-8');
-          console.log(chalk.green(`  Written to ${options.output}`));
+          await writeFile(validatedOutput, output, 'utf-8');
+          console.log(chalk.green(`  Written to ${validatedOutput}`));
         } else {
           console.log('');
           console.log(chalk.bold.cyan('  Architecture Dependency Graph'));

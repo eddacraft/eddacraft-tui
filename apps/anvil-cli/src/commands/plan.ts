@@ -20,6 +20,7 @@ import {
   generateHash,
   APS_SCHEMA_VERSION,
   createDebugger,
+  validatePathWithinRoot,
 } from '@eddacraft/anvil-core';
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'node:path';
@@ -119,7 +120,8 @@ function createCreateSubcommand(): Command {
             'executions',
             `${planId}.${options.format}`
           );
-          const outputPath = options.output || defaultPath;
+          const rawPath = options.output || defaultPath;
+          const outputPath = validatePathWithinRoot(rawPath, workspaceRoot);
 
           // Save the plan
           savePlan(completePlan, outputPath);
