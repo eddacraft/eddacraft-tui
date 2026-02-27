@@ -109,13 +109,35 @@ if ! LICENSE_OUTPUT=$(pnpm licenses list --json --prod 2>/dev/null); then
 fi
 
 # Parse JSON output — look for blocked licenses
-# pnpm licenses list --json returns an object keyed by license type
+# Expected pnpm output format (tested with pnpm >= 8):
+#   pnpm licenses list --json --prod => JSON object keyed by license type,
+#   e.g. { "MIT": [...], "Apache-2.0": [...] }
 BLOCKED_FOUND=""
 
-# Extract license names from the JSON keys
+# Extract license names from the JSON keys, validating the structure first
 LICENSE_NAMES=$(echo "$LICENSE_OUTPUT" | node -e "
-  const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
-  for (const license of Object.keys(data)) {
+  const fs = require('node:fs');
+  const raw = fs.readFileSync('/dev/stdin', 'utf8');
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    console.error('ERROR: Failed to parse pnpm licenses JSON:', e.message);
+    process.exit(1);
+  }
+
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    console.error('ERROR: Unexpected pnpm licenses JSON format. Expected a top-level object keyed by license type.');
+    process.exit(1);
+  }
+
+  const licenses = Object.keys(data);
+  if (licenses.length === 0) {
+    console.error('ERROR: pnpm licenses JSON contained no license keys. Output format may have changed.');
+    process.exit(1);
+  }
+
+  for (const license of licenses) {
     console.log(license);
   }
 " 2>/dev/null) || {
@@ -154,22 +176,24 @@ while IFS= read -r license; do
     " 2>/dev/null || echo "  (could not list packages)")
 
     # Filter out allowlisted packages
-    FILTERED=""
+    FILTERED_PACKAGES=()
     while IFS= read -r pkg_line; do
       [ -z "$pkg_line" ] && continue
-      PKG_NAME=$(echo "$pkg_line" | sed 's/^  - //' | sed 's/@[^@]*$//')
+      raw_pkg="${pkg_line#  - }"
+      version="${raw_pkg##*@}"
+      PKG_NAME="${raw_pkg%"@$version"}"
       if echo "$ALLOWLIST_PACKAGES" | grep -qxF "$PKG_NAME"; then
         echo "  ALLOWED (allowlisted): $pkg_line"
       else
-        FILTERED="${FILTERED}${pkg_line}\n"
+        FILTERED_PACKAGES+=("$pkg_line")
         VIOLATION_COUNT=$((VIOLATION_COUNT + 1))
       fi
     done <<< "$PACKAGES"
 
-    if [ -n "$FILTERED" ]; then
+    if [ "${#FILTERED_PACKAGES[@]}" -gt 0 ]; then
       echo ""
       echo "BLOCKED license: $license"
-      echo -e "$FILTERED"
+      printf '%s\n' "${FILTERED_PACKAGES[@]}"
     fi
   fi
 done <<< "$LICENSE_NAMES"
