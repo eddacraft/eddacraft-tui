@@ -33,8 +33,8 @@ fi
 # Use word-boundary-aware matching to avoid false positives from commit
 # messages that happen to contain these flag names as substrings.
 if [[ ! "$COMMAND" =~ (^|&&|;)[[:space:]]*git[[:space:]]+commit ]] || \
-   [[ "$COMMAND" =~ (^|[[:space:]])--amend([[:space:]]|$) ]] || \
-   [[ "$COMMAND" =~ (^|[[:space:]])--no-verify([[:space:]]|$) ]]; then
+   [[ "$COMMAND" =~ (^|[[:space:]])--amend([[:space:];]|$) ]] || \
+   [[ "$COMMAND" =~ (^|[[:space:]])--no-verify([[:space:];]|$) ]]; then
     exit 0
 fi
 
@@ -97,16 +97,16 @@ jq -n \
   --arg diffFile "$DIFF_FILE" \
   --arg stagedFiles "$STAGED_FILES" \
   --arg startedAt "$STARTED_AT" \
-  --argjson maxRounds "$MAX_ROUNDS" \
-  --argjson autoDeferNits "$AUTO_DEFER_NITS" \
+  --arg maxRounds "$MAX_ROUNDS" \
+  --arg autoDeferNits "$AUTO_DEFER_NITS" \
   '{
     id: $id,
     topic: "Pre-commit review of staged changes",
     participants: ["session", "forge-reviewer"],
     status: "in_progress",
     round: 1,
-    maxRounds: $maxRounds,
-    autoDeferNits: $autoDeferNits,
+    maxRounds: ($maxRounds | tonumber? // 3),
+    autoDeferNits: ($autoDeferNits == "true"),
     diffFile: $diffFile,
     stagedFiles: $stagedFiles,
     history: [],

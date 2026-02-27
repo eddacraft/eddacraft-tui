@@ -208,7 +208,7 @@ Change status to **Ready** when:
 - **Intent:** `get_repo_info` returns 1 on failure but call site does not
   explicitly check, relying on fragile `set -e` behaviour
 - **Expected Outcome:** Call site has explicit `|| exit 1` or equivalent guard
-- **Validation:** `grep -A1 "get_repo_info" .claude/hooks/forge-defer.sh` shows
+- **Validation:** `grep -A1 "get_repo_info" .claude/agent-bus/forge-defer.sh` shows
   explicit error handling
 - **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Dependencies:** None

@@ -193,18 +193,18 @@ export function createLoadSubcommand(): Command {
         if (isValidPriorityArray(options.priority)) {
           criteria.priorities = options.priority;
         } else {
-          throw new CliError(
-            `Invalid priority values. Must be one of: low, medium, high. Got: ${options.priority.join(', ')}`
-          );
+          const msg = `Invalid priority values. Must be one of: low, medium, high. Got: ${options.priority.join(', ')}`;
+          console.error(chalk.red('Error:'), msg);
+          throw new CliError(msg);
         }
       }
       if (options.confidence) {
         if (isValidConfidenceArray(options.confidence)) {
           criteria.confidences = options.confidence;
         } else {
-          throw new CliError(
-            `Invalid confidence values. Must be one of: low, medium, high. Got: ${options.confidence.join(', ')}`
-          );
+          const msg = `Invalid confidence values. Must be one of: low, medium, high. Got: ${options.confidence.join(', ')}`;
+          console.error(chalk.red('Error:'), msg);
+          throw new CliError(msg);
         }
       }
 
