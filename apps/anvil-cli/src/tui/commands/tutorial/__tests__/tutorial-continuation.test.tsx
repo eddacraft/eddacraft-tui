@@ -170,6 +170,7 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
     await vi.waitFor(() => {
       expect(lastFrame()).toContain('Step 4 of 4');
     }, opts);
+    await tick();
   }
 
   it('calls onSelectTutorial with correct topic when valid number key is pressed on last step', async () => {
