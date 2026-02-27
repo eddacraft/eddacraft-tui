@@ -77,8 +77,8 @@ LICENSE_NAMES=$(echo "$LICENSE_OUTPUT" | node -e "
 # Load allowlist if it exists
 ALLOWLIST_PACKAGES=""
 if [ -f "$ALLOWLIST" ]; then
-  ALLOWLIST_PACKAGES=$(node -e "
-    const data = JSON.parse(require('fs').readFileSync('$ALLOWLIST', 'utf8'));
+  ALLOWLIST_PACKAGES=$(ALLOWLIST_PATH="$ALLOWLIST" node -e "
+    const data = JSON.parse(require('fs').readFileSync(process.env.ALLOWLIST_PATH, 'utf8'));
     (data.allowed || []).forEach(p => console.log(p));
   " 2>/dev/null || true)
 fi
@@ -90,9 +90,9 @@ while IFS= read -r license; do
 
   if echo "$license" | grep -qiE "$BLOCKED_PATTERNS"; then
     # Get the packages under this blocked license
-    PACKAGES=$(echo "$LICENSE_OUTPUT" | node -e "
+    PACKAGES=$(echo "$LICENSE_OUTPUT" | LICENSE_KEY="$license" node -e "
       const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
-      const key = '$license';
+      const key = process.env.LICENSE_KEY;
       if (data[key]) {
         data[key].forEach(pkg => console.log('  - ' + pkg.name + '@' + pkg.version));
       }
