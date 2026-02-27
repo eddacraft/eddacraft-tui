@@ -19,7 +19,7 @@ continuous, automated security gates that run on every PR and push.
 | Tool          | What It Catches                                  | Speed  |
 | ------------- | ------------------------------------------------ | ------ |
 | Semgrep       | SAST — injection, XSS, path traversal, OWASP    | ~60s   |
-| npm audit     | Known CVEs in dependencies                       | ~10s   |
+| pnpm audit    | Known CVEs in dependencies                       | ~10s   |
 | license check | GPL/AGPL/unlicensed deps in production           | ~5s    |
 | secret scan   | Leaked keys/tokens in committed code             | ~15s   |
 | OSSF Scorecard| Supply chain health of the repo itself           | ~30s   |
@@ -32,9 +32,10 @@ continuous, automated security gates that run on every PR and push.
   community rule registry covering OWASP Top 10.
 - **npm audit** over Snyk: already installed, zero config, covers CVEs in the
   dependency tree. Dependabot covers upgrade PRs; npm audit covers the gate.
-- **Secretlint** over TruffleHog/Gitleaks: pure Node.js (matches our stack),
-  configurable, good TypeScript support. Alternatively, GitHub's built-in secret
-  scanning can be enabled at the repo level.
+- **TruffleHog** over Secretlint/Gitleaks: aligns with SEC-004 and the existing
+  CI workflow, supports both high-entropy and pattern-based secret detection, and
+  is already battle-tested in our environment. Alternatively, GitHub's built-in
+  secret scanning can be enabled at the repo level.
 - **OSSF Scorecard**: free GitHub Action, measures supply chain hygiene (branch
   protection, signed commits, dependency update policy, etc.)
 

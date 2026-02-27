@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ALLOWLIST="${LICENSE_ALLOWLIST:-$SCRIPT_DIR/license-allowlist.json}"
 
 # Blocked license patterns (POSIX extended regex)
-BLOCKED_PATTERNS="GPL-2\.0|GPL-3\.0|AGPL-|SSPL-|UNLICENSED"
+BLOCKED_PATTERNS="(^|[^L])GPL-2\.0|(^|[^L])GPL-3\.0|AGPL-|SSPL-|UNLICENSED"
 
 echo "=== License Compliance Check ==="
 echo ""

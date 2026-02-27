@@ -8,7 +8,6 @@ rules:
   - id: anvil.shell-injection-risk
     patterns:
       - pattern: execSync($CMD, ...)
-      - pattern-not: execSync($CMD, { ..., shell: false, ... })
       - metavariable-pattern:
           metavariable: $CMD
           pattern: |
