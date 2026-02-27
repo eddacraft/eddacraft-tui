@@ -93,7 +93,9 @@
     "markdown-it": "^14.1.1",
     "@isaacs/brace-expansion": "^5.0.1",
     "cross-spawn": "^7.0.6",
-    "@eddacraft/kindling-core": "0.1.2"
+    "@eddacraft/kindling-core": "0.1.2",
+    "minimatch": ">=10.2.3",
+    "rollup": ">=4.59.0"
   },
   "pnpm": {
     "overrides": {
@@ -109,7 +111,12 @@
       "markdown-it": "^14.1.1",
       "@isaacs/brace-expansion": "^5.0.1",
       "cross-spawn": "^7.0.6",
-      "@eddacraft/kindling-core": "0.1.2"
+      "@eddacraft/kindling-core": "0.1.2",
+      "minimatch@<3.1.4": ">=3.1.4",
+      "minimatch@>=5.0.0 <5.1.8": ">=5.1.8",
+      "minimatch@>=7.0.0 <7.4.8": ">=7.4.8",
+      "minimatch@>=10.0.0 <10.2.3": ">=10.2.3",
+      "rollup@>=4.0.0 <4.59.0": ">=4.59.0"
     },
     "onlyBuiltDependencies": [
       "esbuild",

@@ -34,24 +34,79 @@ fi
 
 # Get production licenses as JSON
 echo "Scanning production dependency licenses..."
-LICENSE_OUTPUT=$(pnpm licenses list --json --prod 2>/dev/null) || {
-  echo "WARNING: pnpm licenses list failed, falling back to text mode"
-  LICENSE_OUTPUT_TEXT=$(pnpm licenses list --prod 2>/dev/null) || {
-    echo "ERROR: Could not list licenses"
+
+# pnpm licenses list fails with ERR_PNPM_MISSING_PACKAGE_INDEX_FILE when
+# packages have ignoredBuiltDependencies (e.g. @swc/core, sharp).
+# Try pnpm first, then fall back to npx license-checker.
+LICENSE_OUTPUT=""
+if ! LICENSE_OUTPUT=$(pnpm licenses list --json --prod 2>/dev/null); then
+  echo "WARNING: pnpm licenses list --json failed, trying license-checker..."
+  # license-checker reads node_modules directly — no store index needed
+  LC_OUTPUT=$(npx -y license-checker --production --json 2>/dev/null) || {
+    echo "WARNING: license-checker also failed, trying pnpm text mode..."
+    LICENSE_OUTPUT_TEXT=$(pnpm licenses list --prod 2>/dev/null) || {
+      echo "ERROR: Could not list licenses via any method"
+      exit 2
+    }
+    # Simple grep-based fallback
+    VIOLATIONS=$(echo "$LICENSE_OUTPUT_TEXT" | grep -iE "$BLOCKED_PATTERNS" || true)
+    if [ -n "$VIOLATIONS" ]; then
+      echo ""
+      echo "BLOCKED licenses found:"
+      echo "$VIOLATIONS"
+      echo ""
+      exit 1
+    fi
+    echo "All production licenses OK (text mode)"
+    exit 0
+  }
+
+  # license-checker returns {"pkg@ver": {"licenses": "MIT", ...}, ...}
+  # Extract unique license strings and check for blocked ones
+  LC_LICENSES=$(echo "$LC_OUTPUT" | node -e "
+    const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
+    const seen = new Set();
+    for (const [pkg, info] of Object.entries(data)) {
+      const lic = info.licenses || 'UNKNOWN';
+      if (!seen.has(pkg + ':' + lic)) {
+        seen.add(pkg + ':' + lic);
+        console.log(lic + '\t' + pkg);
+      }
+    }
+  " 2>/dev/null) || {
+    echo "ERROR: Failed to parse license-checker output"
     exit 2
   }
-  # Simple grep-based fallback
-  VIOLATIONS=$(echo "$LICENSE_OUTPUT_TEXT" | grep -iE "$BLOCKED_PATTERNS" || true)
-  if [ -n "$VIOLATIONS" ]; then
-    echo ""
-    echo "BLOCKED licenses found:"
-    echo "$VIOLATIONS"
-    echo ""
+
+  VIOLATION_COUNT=0
+  while IFS=$'\t' read -r license pkg; do
+    [ -z "$license" ] && continue
+    if echo "$license" | grep -qiE "$BLOCKED_PATTERNS"; then
+      # Check allowlist
+      PKG_NAME=$(echo "$pkg" | sed 's/@[^@]*$//')
+      if [ -f "$ALLOWLIST" ]; then
+        ALLOWED=$(ALLOWLIST_PATH="$ALLOWLIST" PKG="$PKG_NAME" node -e "
+          const data = JSON.parse(require('fs').readFileSync(process.env.ALLOWLIST_PATH, 'utf8'));
+          process.exit((data.allowed || []).includes(process.env.PKG) ? 0 : 1);
+        " 2>/dev/null) && {
+          echo "  ALLOWED (allowlisted): $pkg ($license)"
+          continue
+        }
+      fi
+      echo "BLOCKED: $pkg — $license"
+      VIOLATION_COUNT=$((VIOLATION_COUNT + 1))
+    fi
+  done <<< "$LC_LICENSES"
+
+  echo ""
+  if [ "$VIOLATION_COUNT" -gt 0 ]; then
+    echo "FAIL: $VIOLATION_COUNT package(s) with blocked licenses"
     exit 1
+  else
+    echo "PASS: All production licenses are acceptable (via license-checker)"
+    exit 0
   fi
-  echo "All production licenses OK (text mode)"
-  exit 0
-}
+fi
 
 # Parse JSON output — look for blocked licenses
 # pnpm licenses list --json returns an object keyed by license type
