@@ -777,12 +777,13 @@ function collectYamlList(
     const listMatch = line.match(/^(\s*)- (.*)$/);
     if (listMatch) {
       let value = listMatch[2].trim();
-      // Handle multi-line quoted strings
-      if (value.startsWith('"') && !value.endsWith('"')) {
+      // Handle multi-line quoted strings (double or single quotes)
+      const quoteChar = value.charAt(0);
+      if ((quoteChar === '"' || quoteChar === "'") && !value.endsWith(quoteChar)) {
         i++;
         while (i < lines.length) {
           value += ' ' + lines[i].trim();
-          if (lines[i].trimEnd().endsWith('"')) break;
+          if (lines[i].trimEnd().endsWith(quoteChar)) break;
           i++;
         }
       }
@@ -811,39 +812,51 @@ export function parseAgentYaml(content: string): BMADAgentYaml | null {
 
   let section: 'root' | 'metadata' | 'persona' | 'critical_actions' | 'menu' | 'prompts' = 'root';
 
+  // Detect section indent level from first section header (metadata/persona)
+  let sectionIndent = 2; // default BMAD convention
+  for (const l of lines) {
+    const m = l.match(/^(\s+)(metadata|persona):\s*$/);
+    if (m) {
+      sectionIndent = m[1].length;
+      break;
+    }
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
     if (trimmed === '' || trimmed.startsWith('#')) continue;
 
-    // Top-level section detection
-    if (/^\s{2}metadata:\s*$/.test(line)) {
-      section = 'metadata';
-      continue;
-    }
-    if (/^\s{2}persona:\s*$/.test(line)) {
-      section = 'persona';
-      continue;
-    }
-    if (/^\s{2}critical_actions:\s*$/.test(line)) {
-      section = 'critical_actions';
-      const list = collectYamlList(lines, i + 1, 2);
-      critical_actions = list.items;
-      i = list.endIndex;
-      continue;
-    }
-    if (/^\s{2}menu:\s*$/.test(line)) {
-      section = 'menu';
-      menu = parseMenuItems(lines, i + 1);
-      // Skip past menu items
-      i = skipSection(lines, i + 1, 4);
-      continue;
-    }
-    if (/^\s{2}prompts:\s*$/.test(line)) {
-      section = 'prompts';
-      prompts = parsePromptItems(lines, i + 1);
-      i = skipSection(lines, i + 1, 4);
-      continue;
+    // Top-level section detection (flexible indent)
+    const indent = indentLevel(line);
+    if (indent === sectionIndent && trimmed.endsWith(':')) {
+      const sectionName = trimmed.slice(0, -1);
+      if (sectionName === 'metadata') {
+        section = 'metadata';
+        continue;
+      }
+      if (sectionName === 'persona') {
+        section = 'persona';
+        continue;
+      }
+      if (sectionName === 'critical_actions') {
+        section = 'critical_actions';
+        const list = collectYamlList(lines, i + 1, sectionIndent);
+        critical_actions = list.items;
+        i = list.endIndex;
+        continue;
+      }
+      if (sectionName === 'menu') {
+        section = 'menu';
+        menu = parseMenuItems(lines, i + 1);
+        i = skipSection(lines, i + 1, sectionIndent * 2);
+        continue;
+      }
+      if (sectionName === 'prompts') {
+        section = 'prompts';
+        prompts = parsePromptItems(lines, i + 1);
+        i = skipSection(lines, i + 1, sectionIndent * 2);
+        continue;
     }
 
     // Parse metadata fields (indent level 4)
@@ -1091,8 +1104,9 @@ export function parseWorkflowYaml(content: string): BMADWorkflowYaml | null {
     const kvMatch = line.match(/^(\w[\w_]*):\s*(.*)$/);
     if (kvMatch) {
       const [, key, rawValue] = kvMatch;
-      if (rawValue.trim() === '') {
-        // Plain multi-line scalar (value on next indented lines)
+      const trimmedValue = rawValue.trim();
+      if (trimmedValue === '' || trimmedValue === '|' || trimmedValue === '>') {
+        // Plain multi-line scalar or block scalar (value on next indented lines)
         const scalar = collectPlainScalar(lines, i + 1, 0);
         result[key] = scalar.text;
         i = scalar.endIndex;
@@ -1175,11 +1189,20 @@ export function parseModuleYaml(content: string): BMADModuleYaml | null {
 
   const lines = content.split('\n');
   const result: Record<string, unknown> = {};
+  let directories: string[] | undefined;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (line.trim() === '' || line.trim().startsWith('#')) continue;
     // Only parse top-level keys (no indent)
     if (indentLevel(line) === 0) {
+      // Handle directories list
+      if (/^directories:\s*$/.test(line)) {
+        const list = collectYamlList(lines, i + 1, 0);
+        directories = list.items;
+        i = list.endIndex;
+        continue;
+      }
       const kvMatch = line.match(/^(\w[\w_]*):\s*(.+)$/);
       if (kvMatch) {
         const [, key, value] = kvMatch;
@@ -1200,5 +1223,6 @@ export function parseModuleYaml(content: string): BMADModuleYaml | null {
     default_selected: result['default_selected'] as boolean | undefined,
     header: result['header'] as string | undefined,
     subheader: result['subheader'] as string | undefined,
+    directories,
   } as BMADModuleYaml;
 }

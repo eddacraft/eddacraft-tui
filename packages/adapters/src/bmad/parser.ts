@@ -39,10 +39,11 @@ import { createError, createWarning, generateDeterministicPlanId } from '../base
  * Falls back to stripping special characters if validation fails.
  */
 function safePath(raw: string): string {
+  const cleaned = raw.replace(/\{project-root\}\/?/g, '');
   try {
-    return validateRelativePath(raw);
+    return validateRelativePath(cleaned);
   } catch {
-    return raw.replace(/[^a-z0-9/._-]/gi, '').replace(/\.{2,}/g, '');
+    throw new Error(`Invalid path in BMAD document: "${raw}" — must be a relative path within the project`);
   }
 }
 
@@ -205,7 +206,7 @@ export function bmadToAPS(
         if (workflowPath) {
           changes.push({
             type: 'file_create',
-            path: safePath(workflowPath.replace(/\{project-root\}\/?/g, '')),
+            path: safePath(workflowPath),
             description: item.description,
           });
         }
@@ -298,13 +299,26 @@ export function bmadToAPS(
     }
   }
 
-  // If no changes found (and not a YAML document type), add warning
+  // If document was detected as YAML type but structured parsing failed, emit error
   const isYamlDocType = [
     BMADDocumentType.AGENT,
     BMADDocumentType.WORKFLOW,
     BMADDocumentType.TEAM,
     BMADDocumentType.MODULE,
   ].includes(document.type);
+  const hasYamlData =
+    document.agentYaml || document.workflowYaml || document.teamYaml || document.moduleYaml;
+  if (isYamlDocType && !hasYamlData) {
+    errors.push(
+      createError(
+        'YAML_PARSE_FAILED',
+        `Document detected as ${document.type} but structured YAML parsing failed`,
+        { details: { type: document.type } }
+      )
+    );
+  }
+
+  // If no changes found (and not a YAML document type), add warning
   if (changes.length === 0 && !isYamlDocType) {
     warnings.push(
       createWarning('NO_CHANGES', 'No requirements or user stories found in document', {

@@ -22,6 +22,9 @@ import {
   calculateConfidenceScore,
   buildDetectionReason,
   parseAgentYaml,
+  parseWorkflowYaml,
+  parseTeamYaml,
+  parseModuleYaml,
 } from './utils.js';
 import { BMAD_UPSTREAM_VERSION } from './types.js';
 import { parseBMAD } from './parser.js';
@@ -156,8 +159,18 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
       severity: 'error' | 'warning';
     }> = [];
 
-    // Check for minimum content length
-    if (content.trim().length < 100) {
+    // Analyze content for BMAD indicators
+    const indicators = analyzeContent(content);
+    const confidence = calculateConfidenceScore(indicators);
+
+    const isYamlDocType =
+      indicators.isAgentYaml ||
+      indicators.isWorkflowYaml ||
+      indicators.isTeamYaml ||
+      indicators.isModuleYaml;
+
+    // Check for minimum content length (skip for YAML types which can be compact)
+    if (!isYamlDocType && content.trim().length < 100) {
       issues.push({
         code: 'CONTENT_TOO_SHORT',
         path: 'content',
@@ -165,10 +178,6 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
         severity: 'error',
       });
     }
-
-    // Analyze content for BMAD indicators
-    const indicators = analyzeContent(content);
-    const confidence = calculateConfidenceScore(indicators);
 
     // Low confidence suggests invalid BMAD format
     if (confidence < 50) {
@@ -181,12 +190,6 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
     }
 
     // Check for at least some requirements or stories (only for planning docs)
-    const isYamlDocType =
-      indicators.isAgentYaml ||
-      indicators.isWorkflowYaml ||
-      indicators.isTeamYaml ||
-      indicators.isModuleYaml;
-
     if (!isYamlDocType && indicators.requirementCount === 0) {
       issues.push({
         code: 'NO_REQUIREMENTS',
@@ -196,15 +199,41 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
       });
     }
 
-    // v6: Validate agent YAML structure
+    // v6: Validate YAML structures
     if (indicators.isAgentYaml) {
-      const agent = parseAgentYaml(content);
-      if (!agent) {
+      if (!parseAgentYaml(content)) {
         issues.push({
           code: 'INVALID_AGENT_YAML',
           path: 'agent',
           message:
             'Agent YAML is missing required fields (metadata.id, metadata.name, metadata.title, persona.role, persona.identity)',
+          severity: 'error',
+        });
+      }
+    } else if (indicators.isWorkflowYaml) {
+      if (!parseWorkflowYaml(content)) {
+        issues.push({
+          code: 'INVALID_WORKFLOW_YAML',
+          path: 'workflow',
+          message: 'Workflow YAML is missing required fields (name, description)',
+          severity: 'error',
+        });
+      }
+    } else if (indicators.isTeamYaml) {
+      if (!parseTeamYaml(content)) {
+        issues.push({
+          code: 'INVALID_TEAM_YAML',
+          path: 'team',
+          message: 'Team YAML is missing required fields (bundle.name, agents list)',
+          severity: 'error',
+        });
+      }
+    } else if (indicators.isModuleYaml) {
+      if (!parseModuleYaml(content)) {
+        issues.push({
+          code: 'INVALID_MODULE_YAML',
+          path: 'module',
+          message: 'Module YAML is missing required fields (name, code)',
           severity: 'error',
         });
       }
