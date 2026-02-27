@@ -2,7 +2,7 @@
 
 ## Context
 
-Anvil is a deterministic development automation platform (EddaCraft) that catches
+Anvil is a deterministic development automation platform from EddaCraft that catches
 architecture drift and AI anti-patterns at save-time. Currently in closed beta,
 distributed as `@eddacraft/anvil-cli` on npm with invite tokens. The product
 consists of: CLI, VS Code extension, MCP server, REST API (Hono/Vercel/Neon),
@@ -85,7 +85,7 @@ before adopting locally.
 
 Keep npm as primary for beta. Add standalone binary for GA to widen the
 audience. GitHub Action as the team adoption wedge. Docker only if
-enterprise demand materialises.
+enterprise demand materializes.
 
 ---
 
@@ -196,7 +196,7 @@ Free tier with usage limits. Paid tiers unlock more:
 
 | Tier | Price | What you get |
 |------|-------|-------------|
-| **Free** | $0 | CLI + VS Code, 1 project, 3 anti-patterns, local only |
+| **Free** | $0 | CLI + VS Code, 1 project, all anti-patterns & architecture checks, local only |
 | **Pro** | $19/dev/mo | Unlimited projects, all patterns, MCP server, CI mode |
 | **Team** | $39/dev/mo | Shared config, dashboard, org policies, PR comments |
 | **Enterprise** | Custom | SSO, RBAC, air-gapped, audit export, SLA, support |
@@ -386,7 +386,7 @@ AI-assisted development. Nobody else occupies this exact position.
    annual.
 
 5. **Build auth in-house or use a service?** WorkOS gives you SSO/SAML
-   with minimal effort and is free until 1M MAU. Clerk or Auth0 for
+   with minimal effort and offers a generous free tier. Clerk or Auth0 for
    consumer auth. Recommendation: WorkOS for enterprise SSO, simple
    email+password or GitHub OAuth for individual accounts.
 
@@ -483,8 +483,10 @@ addon. Two options:
 2. **Replace better-sqlite3 with a pure-JS or Bun-native alternative** —
    Bun has built-in `bun:sqlite` which is native to the runtime and embeds
    cleanly. Migrating `kindling-store-sqlite` from `better-sqlite3` to
-   `bun:sqlite` eliminates the native addon problem entirely. This is the
-   cleaner path if Bun is the chosen compiler.
+   `bun:sqlite` eliminates the native addon problem entirely, at the cost of
+   coupling the storage layer to Bun-specific APIs (and thus to Bun as the
+   compiler/runtime). This is the cleaner path if Bun is the chosen compiler
+   and you are comfortable with that lock-in.
 
 **Runtime file access patterns** (must survive compilation):
 
