@@ -240,9 +240,13 @@ RUST WATCHER pre-commit:
 | Secret scan | 10-30s | Redundant if watcher ran |
 
 **With a Rust watcher:** Gate results can be persisted as provenance
-records (via Kindling). CI can verify the provenance trail ("was every
-file checked?") rather than re-running checks. This shifts CI from
-"run all checks" to "verify all checks ran" — seconds instead of minutes.
+records (via Kindling). CI can then either (a) re-run the checks in a
+clean, trusted environment as today, or (b) verify a tamper-resistant
+provenance trail ("was every file checked?") that is produced and
+validated via cryptographically verifiable or remote mechanisms that
+developers cannot forge or modify. Provenance may reduce redundant work,
+but it must not be trusted directly from developer machines without such
+integrity guarantees.
 
 Checks that remain in CI:
 - **Vitest/Coverage** — must run in clean environment
