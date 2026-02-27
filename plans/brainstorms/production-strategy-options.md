@@ -85,7 +85,7 @@ before adopting locally.
 
 Keep npm as primary for beta. Add standalone binary for GA to widen the
 audience. GitHub Action as the team adoption wedge. Docker only if
-enterprise demand materializes.
+enterprise demand materialises.
 
 ---
 
@@ -197,7 +197,7 @@ Free tier with usage limits. Paid tiers unlock more:
 | Tier | Price | What you get |
 |------|-------|-------------|
 | **Free** | $0 | CLI + VS Code, 1 project, all anti-patterns & architecture checks, local only |
-| **Pro** | $19/dev/mo | Unlimited projects, all patterns, MCP server, CI mode |
+| **Pro** | $19/dev/mo | Unlimited projects, MCP server, CI mode |
 | **Team** | $39/dev/mo | Shared config, dashboard, org policies, PR comments |
 | **Enterprise** | Custom | SSO, RBAC, air-gapped, audit export, SLA, support |
 
