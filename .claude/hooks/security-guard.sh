@@ -1,1 +1,1 @@
-/home/aneki/src/code-env/.claude/hooks/security-guard.sh
+/home/aneki/Projects/src/code-env/.claude/hooks/security-guard.sh

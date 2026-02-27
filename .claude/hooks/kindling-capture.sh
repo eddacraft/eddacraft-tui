@@ -1,1 +1,1 @@
-/home/aneki/src/code-env/.claude/hooks/kindling-capture.sh
+/home/aneki/Projects/src/code-env/.claude/hooks/kindling-capture.sh

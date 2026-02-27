@@ -1,1 +1,1 @@
-/home/aneki/src/code-env/.claude/hooks/codex-review-post.sh
+/home/aneki/Projects/src/code-env/.claude/hooks/codex-review-post.sh

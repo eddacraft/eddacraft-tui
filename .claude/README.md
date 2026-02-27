@@ -1,1 +1,1 @@
-/home/aneki/src/code-env/.claude/README.md
+/home/aneki/Projects/src/code-env/.claude/README.md
