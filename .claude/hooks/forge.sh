@@ -30,9 +30,11 @@ if [[ -z "$COMMAND" ]]; then
 fi
 
 # --- Guard: Only trigger on git commit (not amend, not --no-verify) ---
+# Use word-boundary-aware matching to avoid false positives from commit
+# messages that happen to contain these flag names as substrings.
 if [[ ! "$COMMAND" =~ (^|&&|;)[[:space:]]*git[[:space:]]+commit ]] || \
-   [[ "$COMMAND" =~ --amend ]] || \
-   [[ "$COMMAND" =~ --no-verify ]]; then
+   [[ "$COMMAND" =~ (^|[[:space:]])--amend([[:space:]]|$) ]] || \
+   [[ "$COMMAND" =~ (^|[[:space:]])--no-verify([[:space:]]|$) ]]; then
     exit 0
 fi
 
@@ -85,46 +87,48 @@ STAGED_FILES=$(git diff --cached --name-only 2>/dev/null | tr '\n' ', ' | sed 's
 DIFF_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/agent-bus/diffs"
 mkdir -p "$DIFF_DIR"
 DIFF_FILE="${DIFF_DIR}/forge-${FORGE_HASH}.diff"
-echo "$STAGED_DIFF" > "$DIFF_FILE"
+printf '%s\n' "$STAGED_DIFF" > "$DIFF_FILE"
 
 # --- Initialize negotiation signal file ---
-cat > "$SIGNAL_FILE" << SIGNAL_EOF
-{
-  "id": "${FORGE_HASH}",
-  "topic": "Pre-commit review of staged changes",
-  "participants": ["session", "forge-reviewer"],
-  "status": "in_progress",
-  "round": 1,
-  "maxRounds": ${MAX_ROUNDS},
-  "autoDeferNits": ${AUTO_DEFER_NITS},
-  "diffFile": "${DIFF_FILE}",
-  "stagedFiles": "${STAGED_FILES}",
-  "history": [],
-  "startedAt": "${STARTED_AT}",
-  "updatedAt": "${STARTED_AT}"
-}
-SIGNAL_EOF
+# Use jq for safe JSON construction — avoids shell injection from filenames
+# or diff stat containing quotes/special characters.
+jq -n \
+  --arg id "$FORGE_HASH" \
+  --arg diffFile "$DIFF_FILE" \
+  --arg stagedFiles "$STAGED_FILES" \
+  --arg startedAt "$STARTED_AT" \
+  --argjson maxRounds "$MAX_ROUNDS" \
+  --argjson autoDeferNits "$AUTO_DEFER_NITS" \
+  '{
+    id: $id,
+    topic: "Pre-commit review of staged changes",
+    participants: ["session", "forge-reviewer"],
+    status: "in_progress",
+    round: 1,
+    maxRounds: $maxRounds,
+    autoDeferNits: $autoDeferNits,
+    diffFile: $diffFile,
+    stagedFiles: $stagedFiles,
+    history: [],
+    startedAt: $startedAt,
+    updatedAt: $startedAt
+  }' > "$SIGNAL_FILE"
 
 # --- Initialize forge report ---
-cat > "$FORGE_LOG" << LOG_EOF
-# Forge Report: ${FORGE_HASH}
-
-**Started:** ${STARTED_AT}
-**Files:** ${STAGED_FILES}
-**Diff size:** ${DIFF_SIZE} bytes
-**Max rounds:** ${MAX_ROUNDS}
-**Auto-defer nits:** ${AUTO_DEFER_NITS}
-
-## Staged Diff Stats
-
-\`\`\`
-${STAGED_DIFF_STAT}
-\`\`\`
-
-## Negotiation
-
-_Pending — negotiation will be logged by the forge-reviewer agent._
-LOG_EOF
+# Use a function to safely write the Markdown report, avoiding unquoted
+# interpolation of git-derived values (filenames may contain backticks, etc.).
+{
+  printf '# Forge Report: %s\n\n' "$FORGE_HASH"
+  printf '**Started:** %s\n' "$STARTED_AT"
+  printf '**Files:** %s\n' "$STAGED_FILES"
+  printf '**Diff size:** %s bytes\n' "$DIFF_SIZE"
+  printf '**Max rounds:** %s\n' "$MAX_ROUNDS"
+  printf '**Auto-defer nits:** %s\n\n' "$AUTO_DEFER_NITS"
+  printf '## Staged Diff Stats\n\n```\n'
+  printf '%s\n' "$STAGED_DIFF_STAT"
+  printf '```\n\n## Negotiation\n\n'
+  printf '_Pending — negotiation will be logged by the forge-reviewer agent._\n'
+} > "$FORGE_LOG"
 
 # --- Block the commit and instruct Claude to run negotiation ---
 # The hook returns a JSON block message that tells Claude Code to:

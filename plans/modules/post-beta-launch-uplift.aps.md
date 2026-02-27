@@ -164,7 +164,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -181,7 +181,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -198,7 +198,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -210,11 +210,11 @@ Change status to **Ready** when:
 - **Expected Outcome:** Call site has explicit `|| exit 1` or equivalent guard
 - **Validation:** `grep -A1 "get_repo_info" .claude/hooks/forge-defer.sh` shows
   explicit error handling
-- **Files:** `.claude/hooks/forge-defer.sh`
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -228,11 +228,11 @@ Change status to **Ready** when:
   extraction; non-conforming values abort with a clear error
 - **Validation:** Test with a branch name containing path traversal characters
   does not reach the `find` command
-- **Files:** `.claude/hooks/forge-defer.sh`
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -249,7 +249,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 

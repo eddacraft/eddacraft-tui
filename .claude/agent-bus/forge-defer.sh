@@ -154,6 +154,14 @@ file_aps_issue() {
     local module_id
     module_id=$(echo "$aps_ref" | cut -d'-' -f1)
 
+    # Strict validation: module_id must be 2-6 uppercase letters only.
+    # Prevents glob injection in the find command below.
+    if [[ ! "$module_id" =~ ^[A-Z]{2,6}$ ]]; then
+        echo "Error: Invalid module_id '${module_id}' — expected 2-6 uppercase letters" >&2
+        file_github_issue "$finding_json"
+        return
+    fi
+
     local description severity
     description=$(echo "$finding_json" | jq -r '.description // "No description"')
     severity=$(echo "$finding_json" | jq -r '.severity // "minor"')
@@ -190,7 +198,7 @@ APS_EOF
 case "$ACTION" in
     file)
         FINDING_JSON="$1"
-        get_repo_info
+        get_repo_info || exit 1
 
         APS_REF=$(detect_aps_context)
         if [[ -n "$APS_REF" ]]; then
@@ -202,7 +210,7 @@ case "$ACTION" in
 
     batch)
         FINDINGS_JSON="$1"
-        get_repo_info
+        get_repo_info || exit 1
 
         APS_REF=$(detect_aps_context)
         RESULTS="[]"
