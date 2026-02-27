@@ -6,8 +6,8 @@ BMAD (Breakthrough Method for Agile AI-Driven Development) adapter for
 converting BMAD format documents (PRDs, Architecture docs, Epics, Stories)
 to/from Anvil Plan Specification (APS).
 
-**Version**: 1.0.0 **Status**: Design Phase (Week 8) **Target**: FormatAdapter
-interface compliance from the start
+**Version**: 0.1.2 **Status**: Complete (v6.0.3 compatible) **Target**:
+FormatAdapter interface compliance from the start
 
 ---
 
@@ -432,19 +432,47 @@ anvil export plan.json --to bmad --output docs/
 
 ## BMAD v6 Compatibility (ADAPTUP)
 
-**Added**: 2026-02-09 **Module**:
+**Added**: 2026-02-09 **Updated**: 2026-02-26 **Module**:
 `plans/modules/adapter-upstream-updates.aps.md`
 
-### Breaking Changes in v6.0.0-alpha.23
+**Upstream Version**: 6.0.3 (latest stable, released 2026-02-23)
 
-| Change          | Old              | New              | Adapter Support  |
-| --------------- | ---------------- | ---------------- | ---------------- |
-| Project folder  | `.bmad`          | `_bmad`          | Both detected    |
-| Config folder   | `_cfg`           | `_config`        | Both detected    |
-| Variable syntax | `{project_root}` | `{project-root}` | Both expanded    |
-| Module config   | Various          | `module.yaml`    | Constant defined |
+### Breaking Changes Addressed
 
-### New Features
+| Change          | Old              | New              | Adapter Support        |
+| --------------- | ---------------- | ---------------- | ---------------------- |
+| Project folder  | `.bmad`          | `_bmad`          | Both detected          |
+| Config folder   | `_cfg`           | `_config`        | Both detected          |
+| Variable syntax | `{project_root}` | `{project-root}` | Both expanded          |
+| Module config   | Various          | `module.yaml`    | Parsed + constant      |
+| Agent format    | N/A              | `.agent.yaml`    | Full YAML parsing      |
+| Workflow format | Monolithic .md   | Sharded .yaml    | YAML detection + parse |
+| Output folder   | `doc/`           | `_bmad-output/`  | Constant defined       |
+
+### v6 Document Types
+
+**AGENT** — `.agent.yaml` files with structured schema:
+
+- `agent.metadata` — id, name, title, icon, module, capabilities, hasSidecar
+- `agent.persona` — role, identity, communication_style, principles
+- `agent.critical_actions` — array of startup directives
+- `agent.menu` — command triggers with exec/workflow/action references
+- `agent.prompts` — reusable prompt definitions
+
+**WORKFLOW** — `.yaml` workflow configurations:
+
+- name, description, config_source, instructions, validation references
+- Support for step-file architecture references
+
+**TEAM** — Team bundle `.yaml` files:
+
+- bundle (name, icon, description), agents list, party CSV reference
+
+**MODULE** — `module.yaml` configuration:
+
+- code, name, description, config prompts, directory patterns
+
+### Existing Features (preserved)
 
 **Path-aware detection** — `detectWithPath(content, hint)` uses folder structure
 to boost confidence when files are inside `_bmad/` or `.bmad/` directories.
@@ -452,10 +480,6 @@ to boost confidence when files are inside `_bmad/` or `.bmad/` directories.
 **`hasSidecar` field** — Agent documents can declare `hasSidecar: true` in YAML
 front-matter. The adapter parses YAML boolean values (`true`/`false`,
 `yes`/`no`, `on`/`off`) and warns when agent documents are missing this field.
-
-**AGENT document type** — `BMADDocumentType.AGENT` identifies agent
-persona/configuration documents, detected via `hasSidecar` field or front-matter
-name containing "agent".
 
 **Variable expansion** — `expandVariables()` handles both underscore
 (`{project_root}`) and hyphenated (`{project-root}`) syntax, normalising keys in
@@ -467,11 +491,23 @@ either direction.
 - `CONFIG` = `_config` / `CONFIG_LEGACY` = `_cfg`
 - `MEMORY` = `_memory`
 - `MODULE_CONFIG` = `module.yaml`
+- `OUTPUT` = `_bmad-output`
+
+### Detection Confidence (updated for v6)
+
+| Content Type      | Base Score | Path Bonus | Total  |
+| ----------------- | ---------- | ---------- | ------ |
+| Agent YAML        | 80         | +20        | 100    |
+| Workflow YAML     | 80         | +20        | 100    |
+| Team YAML         | 80         | +20        | 100    |
+| Module YAML       | 70         | +5         | 75     |
+| PRD (markdown)    | 30-100     | +20        | 50-100 |
+| Architecture (md) | 30-100     | +20        | 50-100 |
 
 ### Backward Compatibility
 
-All v5 documents continue to work. Legacy folder paths (`.bmad`, `_cfg`) and
-underscore variable syntax (`{project_root}`) are detected and processed
+All v4/legacy documents continue to work. Legacy folder paths (`.bmad`, `_cfg`)
+and underscore variable syntax (`{project_root}`) are detected and processed
 alongside their v6 equivalents.
 
 ---

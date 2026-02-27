@@ -6,7 +6,13 @@
 
 import { type APSPlan, type Change, validateRelativePath } from '@eddacraft/anvil-core';
 import type { ParseContext, AdapterError, AdapterWarning } from '../base/types.js';
-import { BMADDocument, BMADRequirement, BMADUserStory, RequirementType } from './types.js';
+import {
+  BMADDocument,
+  BMADDocumentType,
+  BMADRequirement,
+  BMADUserStory,
+  RequirementType,
+} from './types.js';
 import {
   extractFrontMatter,
   extractRequirements,
@@ -15,6 +21,10 @@ import {
   identifyDocumentType,
   extractTitle,
   extractIntent,
+  parseAgentYaml,
+  parseWorkflowYaml,
+  parseTeamYaml,
+  parseModuleYaml,
 } from './utils.js';
 import { createError, createWarning, generateDeterministicPlanId } from '../base/utils.js';
 
@@ -45,11 +55,40 @@ export function parseBMADDocument(content: string): BMADDocument {
   }
   const frontMatter = extractFrontMatter(content);
   const docType = identifyDocumentType(content, frontMatter);
-  const requirements = extractRequirements(content);
-  const userStories = extractUserStories(content);
-  const changeLog = extractChangeLog(content);
-  const title = extractTitle(content);
-  const intent = extractIntent(content, docType);
+
+  // For v6 YAML document types, parse the structured content
+  const agentYaml = docType === BMADDocumentType.AGENT ? parseAgentYaml(content) : null;
+  const workflowYaml = docType === BMADDocumentType.WORKFLOW ? parseWorkflowYaml(content) : null;
+  const teamYaml = docType === BMADDocumentType.TEAM ? parseTeamYaml(content) : null;
+  const moduleYaml = docType === BMADDocumentType.MODULE ? parseModuleYaml(content) : null;
+
+  // For YAML-based types, skip markdown extraction
+  const isYamlType = agentYaml || workflowYaml || teamYaml || moduleYaml;
+
+  const requirements = isYamlType ? [] : extractRequirements(content);
+  const userStories = isYamlType ? [] : extractUserStories(content);
+  const changeLog = isYamlType ? [] : extractChangeLog(content);
+
+  // Derive title and intent from YAML or markdown
+  let title: string | null = null;
+  let intent: string;
+
+  if (agentYaml) {
+    title = `${agentYaml.metadata.name} - ${agentYaml.metadata.title}`;
+    intent = agentYaml.persona.role;
+  } else if (workflowYaml) {
+    title = workflowYaml.name;
+    intent = workflowYaml.description;
+  } else if (teamYaml) {
+    title = teamYaml.bundle.name;
+    intent = teamYaml.bundle.description || `Team with ${teamYaml.agents.length} agents`;
+  } else if (moduleYaml) {
+    title = moduleYaml.name;
+    intent = moduleYaml.description ?? `Module: ${moduleYaml.code}`;
+  } else {
+    title = extractTitle(content);
+    intent = extractIntent(content, docType);
+  }
 
   return {
     type: docType,
@@ -61,6 +100,10 @@ export function parseBMADDocument(content: string): BMADDocument {
     changeLog,
     sections: new Map(),
     raw: content,
+    agentYaml: agentYaml || undefined,
+    workflowYaml: workflowYaml || undefined,
+    teamYaml: teamYaml || undefined,
+    moduleYaml: moduleYaml || undefined,
   };
 }
 
@@ -146,6 +189,83 @@ export function bmadToAPS(
   const errors: AdapterError[] = [];
   const warnings: AdapterWarning[] = [];
 
+  // v6: Handle agent YAML documents
+  if (document.agentYaml) {
+    const agent = document.agentYaml;
+    changes.push({
+      type: 'file_create',
+      path: safePath(agent.metadata.id || `agents/${agent.metadata.name.toLowerCase()}.md`),
+      description: `Agent: ${agent.metadata.name} (${agent.metadata.title}) - ${agent.persona.role}`,
+    });
+
+    // Add menu items as references
+    if (agent.menu) {
+      for (const item of agent.menu) {
+        const workflowPath = item.exec || item.workflow;
+        if (workflowPath) {
+          changes.push({
+            type: 'file_create',
+            path: safePath(workflowPath.replace(/\{project-root\}\/?/g, '')),
+            description: item.description,
+          });
+        }
+      }
+    }
+  }
+
+  // v6: Handle workflow YAML documents
+  // Resolve {installed_path} to conventional BMAD location; strip remaining placeholders
+  if (document.workflowYaml) {
+    const wf = document.workflowYaml;
+    const installedPath = wf.installed_path ?? '_bmad';
+    const resolvePath = (p: string) =>
+      safePath(p.replace(/\{installed_path\}/g, installedPath).replace(/\{[^}]+\}\/?/g, ''));
+    if (wf.instructions) {
+      changes.push({
+        type: 'file_create',
+        path: resolvePath(wf.instructions),
+        description: `Workflow instructions: ${wf.name}`,
+      });
+    }
+    if (wf.validation) {
+      changes.push({
+        type: 'file_create',
+        path: resolvePath(wf.validation),
+        description: `Workflow validation: ${wf.name}`,
+      });
+    }
+  }
+
+  // v6: Handle team YAML documents
+  if (document.teamYaml) {
+    for (const agentName of document.teamYaml.agents) {
+      changes.push({
+        type: 'file_create',
+        path: safePath(`agents/${agentName}.md`),
+        description: `Team agent: ${agentName}`,
+      });
+    }
+  }
+
+  // v6: Handle module YAML documents
+  if (document.moduleYaml) {
+    const mod = document.moduleYaml;
+    changes.push({
+      type: 'config_update',
+      path: safePath(`_bmad/${mod.code}/module.yaml`),
+      description: `Module config: ${mod.name}`,
+    });
+    if (mod.directories) {
+      for (const dir of mod.directories) {
+        changes.push({
+          type: 'file_create',
+          path: safePath(dir),
+          description: `Module directory: ${dir}`,
+        });
+      }
+    }
+  }
+
   // Add requirements as changes
   for (const requirement of document.requirements) {
     try {
@@ -178,8 +298,14 @@ export function bmadToAPS(
     }
   }
 
-  // If no changes found, add warning
-  if (changes.length === 0) {
+  // If no changes found (and not a YAML document type), add warning
+  const isYamlDocType = [
+    BMADDocumentType.AGENT,
+    BMADDocumentType.WORKFLOW,
+    BMADDocumentType.TEAM,
+    BMADDocumentType.MODULE,
+  ].includes(document.type);
+  if (changes.length === 0 && !isYamlDocType) {
     warnings.push(
       createWarning('NO_CHANGES', 'No requirements or user stories found in document', {
         details: { type: document.type },
@@ -187,9 +313,12 @@ export function bmadToAPS(
     );
   }
 
-  // Extract provenance from front-matter or context
+  // Extract provenance from front-matter, agent yaml, or context
   const timestamp = document.frontMatter?.date || context?.timestamp || new Date().toISOString();
-  const author = document.frontMatter?.author || context?.author || 'unknown';
+  const author =
+    document.frontMatter?.author ||
+    context?.author ||
+    (document.agentYaml ? document.agentYaml.metadata.name : 'unknown');
   const version = document.frontMatter?.version || '1.0.0';
 
   // Build APS plan

@@ -21,10 +21,9 @@ import {
   analyzeContent,
   calculateConfidenceScore,
   buildDetectionReason,
-  extractFrontMatter,
-  identifyDocumentType,
+  parseAgentYaml,
 } from './utils.js';
-import { BMADDocumentType } from './types.js';
+import { BMAD_UPSTREAM_VERSION } from './types.js';
 import { parseBMAD } from './parser.js';
 import { serializeToBMAD } from './serializer.js';
 
@@ -36,11 +35,11 @@ import { serializeToBMAD } from './serializer.js';
 export class BMADFormatAdapter extends BaseFormatAdapter {
   readonly metadata: AdapterMetadata = {
     name: 'bmad',
-    version: '1.0.0',
+    version: '0.1.2',
     displayName: 'BMAD (Breakthrough Method for Agile AI-Driven Development)',
-    description: 'BMAD PRD and architecture document adapter',
-    formats: ['bmad', 'prd', 'architecture'],
-    extensions: ['.md'],
+    description: `BMAD document adapter (supports upstream v${BMAD_UPSTREAM_VERSION})`,
+    formats: ['bmad', 'prd', 'architecture', 'agent', 'workflow', 'team', 'module'],
+    extensions: ['.md', '.yaml', '.yml'],
   };
 
   /**
@@ -181,8 +180,14 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
       });
     }
 
-    // Check for at least some requirements or stories
-    if (indicators.requirementCount === 0) {
+    // Check for at least some requirements or stories (only for planning docs)
+    const isYamlDocType =
+      indicators.isAgentYaml ||
+      indicators.isWorkflowYaml ||
+      indicators.isTeamYaml ||
+      indicators.isModuleYaml;
+
+    if (!isYamlDocType && indicators.requirementCount === 0) {
       issues.push({
         code: 'NO_REQUIREMENTS',
         path: 'content',
@@ -191,16 +196,18 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
       });
     }
 
-    // v6: Warn on agent docs missing hasSidecar
-    const frontMatter = extractFrontMatter(content);
-    const docType = identifyDocumentType(content, frontMatter);
-    if (docType === BMADDocumentType.AGENT && frontMatter?.hasSidecar === undefined) {
-      issues.push({
-        code: 'MISSING_HAS_SIDECAR',
-        path: 'frontMatter.hasSidecar',
-        message: 'Agent document is missing the hasSidecar field (expected for BMAD v6)',
-        severity: 'warning',
-      });
+    // v6: Validate agent YAML structure
+    if (indicators.isAgentYaml) {
+      const agent = parseAgentYaml(content);
+      if (!agent) {
+        issues.push({
+          code: 'INVALID_AGENT_YAML',
+          path: 'agent',
+          message:
+            'Agent YAML is missing required fields (metadata.id, metadata.name, metadata.title, persona.role, persona.identity)',
+          severity: 'error',
+        });
+      }
     }
 
     return {

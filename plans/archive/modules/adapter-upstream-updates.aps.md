@@ -1,6 +1,6 @@
 # Adapter Upstream Updates
 
-**Scope:** ADAPTUP **Owner:** @team **Priority:** medium **Status:** In Progress
+**Scope:** ADAPTUP **Owner:** @team **Priority:** medium **Status:** Complete
 
 ## Purpose
 
@@ -10,29 +10,36 @@ were built.
 
 ## Upstream Changes Summary
 
-### BMAD v6.0.0-alpha.23 (January 2026)
+### BMAD v6.0.3 (February 2026) — LATEST STABLE
 
 Source: [github.com/bmad-code-org/BMAD-METHOD](https://github.com/bmad-code-org/BMAD-METHOD)
 
-**Breaking Changes:**
+**Breaking Changes (addressed in adapter v2.0.0):**
 
-| Change | Old | New | Impact |
-|--------|-----|-----|--------|
-| Folder structure | `.bmad` | `_bmad` | Path detection |
-| Config folder | `_cfg` | `_config` | Config parsing |
-| Variable syntax | `{project_root}` | `{project-root}` | Template expansion |
-| Module config | Various | `module.yaml` | Config loading |
+| Change | Old | New | Impact | Status |
+|--------|-----|-----|--------|--------|
+| Folder structure | `.bmad` | `_bmad` | Path detection | Done |
+| Config folder | `_cfg` | `_config` | Config parsing | Done |
+| Variable syntax | `{project_root}` | `{project-root}` | Template expansion | Done |
+| Module config | Various | `module.yaml` | Config loading | Done |
+| Agent format | N/A | `.agent.yaml` | Full YAML schema | Done |
+| Workflow format | Monolithic .md | Sharded .yaml | YAML parsing | Done |
+| Output folder | `doc/` | `_bmad-output/` | Path constant | Done |
 
-**New Fields:**
+**New Fields (all supported):**
 
 - `hasSidecar` — Required boolean in agent validation
 - Agent memory in `_bmad/_memory`
-- PRD validation as mandatory workflow checkpoint
+- Agent YAML schema: metadata, persona, critical_actions, menu, prompts
+- Workflow YAML: name, description, config_source, instructions, validation
+- Team bundles: bundle, agents, party CSV
+- Module config: code, name, description, directories
 
 **Documentation Changes:**
 
 - Diataxis framework adoption
 - Site-relative link format
+- Renamed to "Build More Architect Dreams"
 
 ### SpecKit (tracked from upstream main)
 

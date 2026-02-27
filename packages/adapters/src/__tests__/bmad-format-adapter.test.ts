@@ -13,8 +13,16 @@ import {
   expandVariables,
   parseYamlBoolean,
   hasHyphenatedVariables,
+  isAgentYamlContent,
+  isWorkflowYamlContent,
+  isTeamYamlContent,
+  isModuleYamlContent,
+  parseAgentYaml,
+  parseWorkflowYaml,
+  parseTeamYaml,
+  parseModuleYaml,
 } from '../bmad/utils.js';
-import { BMAD_FOLDERS } from '../bmad/types.js';
+import { BMAD_FOLDERS, BMAD_UPSTREAM_VERSION } from '../bmad/types.js';
 import type { ParseContext, PathDetectionHint } from '../base/types.js';
 
 // Get __dirname equivalent for ES modules
@@ -32,7 +40,7 @@ describe('BMADFormatAdapter', () => {
   describe('metadata', () => {
     it('should have correct name and version', () => {
       expect(adapter.metadata.name).toBe('bmad');
-      expect(adapter.metadata.version).toBe('1.0.0');
+      expect(adapter.metadata.version).toBe('0.1.2');
     });
 
     it('should have correct display name', () => {
@@ -49,6 +57,23 @@ describe('BMADFormatAdapter', () => {
 
     it('should support .md extension', () => {
       expect(adapter.metadata.extensions).toContain('.md');
+    });
+
+    it('should support .yaml and .yml extensions (v6)', () => {
+      expect(adapter.metadata.extensions).toContain('.yaml');
+      expect(adapter.metadata.extensions).toContain('.yml');
+    });
+
+    it('should support v6 format names', () => {
+      expect(adapter.metadata.formats).toContain('agent');
+      expect(adapter.metadata.formats).toContain('workflow');
+      expect(adapter.metadata.formats).toContain('team');
+      expect(adapter.metadata.formats).toContain('module');
+    });
+
+    it('should reference correct upstream version', () => {
+      expect(BMAD_UPSTREAM_VERSION).toBe('6.0.3');
+      expect(adapter.metadata.description).toContain(BMAD_UPSTREAM_VERSION);
     });
   });
 
@@ -1465,6 +1490,290 @@ Performs test operations for quality assurance.`;
         expect(result.data?.proposed_changes.length).toBeGreaterThanOrEqual(3);
         expect(result.data?.provenance.author).toBe('v6 Author');
       }
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // v6 Agent YAML Tests
+  // -----------------------------------------------------------------------
+
+  describe('v6: Agent YAML detection', () => {
+    it('should detect agent YAML content', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-agent.yaml'), 'utf-8');
+      expect(isAgentYamlContent(content)).toBe(true);
+    });
+
+    it('should not detect non-agent content as agent YAML', () => {
+      expect(isAgentYamlContent('# Regular markdown')).toBe(false);
+      expect(isAgentYamlContent('name: workflow\ndescription: test')).toBe(false);
+    });
+
+    it('should detect agent YAML with high confidence', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-agent.yaml'), 'utf-8');
+      const result = adapter.detect(content);
+
+      expect(result.detected).toBe(true);
+      expect(result.confidence).toBeGreaterThanOrEqual(80);
+      expect(result.reason).toContain('agent-yaml');
+    });
+  });
+
+  describe('v6: Agent YAML parsing', () => {
+    it('should parse a complete agent YAML file', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-agent.yaml'), 'utf-8');
+      const agent = parseAgentYaml(content);
+
+      expect(agent).not.toBeNull();
+      expect(agent!.metadata.id).toBe('_bmad/bmm/agents/pm.md');
+      expect(agent!.metadata.name).toBe('John');
+      expect(agent!.metadata.title).toBe('Product Manager');
+      expect(agent!.metadata.module).toBe('bmm');
+      expect(agent!.metadata.hasSidecar).toBe(false);
+      expect(agent!.metadata.capabilities).toContain('PRD creation');
+    });
+
+    it('should parse agent persona', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-agent.yaml'), 'utf-8');
+      const agent = parseAgentYaml(content);
+
+      expect(agent!.persona.role).toContain('Product Manager');
+      expect(agent!.persona.identity).toContain('8+ years');
+      expect(agent!.persona.communication_style).toContain('WHY');
+      expect(agent!.persona.principles).toContain('user-centered design');
+    });
+
+    it('should parse agent menu items', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-agent.yaml'), 'utf-8');
+      const agent = parseAgentYaml(content);
+
+      expect(agent!.menu).toBeDefined();
+      expect(agent!.menu!.length).toBe(4);
+
+      const cpItem = agent!.menu![0];
+      expect(cpItem.trigger).toContain('CP');
+      expect(cpItem.exec).toContain('create-prd');
+      expect(cpItem.description).toContain('[CP]');
+
+      // Last item uses workflow instead of exec
+      const ccItem = agent!.menu![3];
+      expect(ccItem.workflow).toContain('correct-course');
+      expect(ccItem.exec).toBeUndefined();
+    });
+
+    it('should parse agent with critical_actions', async () => {
+      const content = await readFile(
+        join(fixturesDir, 'valid-v6-agent-with-actions.yaml'),
+        'utf-8'
+      );
+      const agent = parseAgentYaml(content);
+
+      expect(agent).not.toBeNull();
+      expect(agent!.metadata.name).toBe('Amelia');
+      expect(agent!.critical_actions).toBeDefined();
+      expect(agent!.critical_actions!.length).toBe(4);
+      expect(agent!.critical_actions![0]).toContain('READ the entire story file');
+    });
+
+    it('should return null for non-agent YAML', () => {
+      expect(parseAgentYaml('# Just markdown')).toBeNull();
+      expect(parseAgentYaml('name: not an agent')).toBeNull();
+    });
+
+    it('should parse agent YAML via adapter.parse()', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-agent.yaml'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.intent).toContain('Product Manager');
+        expect(result.data?.proposed_changes.length).toBeGreaterThan(0);
+        // Agent name should be used as author
+        expect(result.data?.provenance.author).toBe('John');
+      }
+    });
+
+    it('should validate agent YAML successfully', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-agent.yaml'), 'utf-8');
+      const result = await adapter.validate(content);
+
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // v6 Workflow YAML Tests
+  // -----------------------------------------------------------------------
+
+  describe('v6: Workflow YAML detection and parsing', () => {
+    it('should detect workflow YAML content', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-workflow.yaml'), 'utf-8');
+      expect(isWorkflowYamlContent(content)).toBe(true);
+    });
+
+    it('should not detect non-workflow content', () => {
+      expect(isWorkflowYamlContent('# Markdown')).toBe(false);
+      expect(isWorkflowYamlContent('agent:\n  metadata:')).toBe(false);
+    });
+
+    it('should detect workflow YAML with high confidence', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-workflow.yaml'), 'utf-8');
+      const result = adapter.detect(content);
+
+      expect(result.detected).toBe(true);
+      expect(result.confidence).toBeGreaterThanOrEqual(80);
+      expect(result.reason).toContain('workflow-yaml');
+    });
+
+    it('should parse workflow YAML', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-workflow.yaml'), 'utf-8');
+      const wf = parseWorkflowYaml(content);
+
+      expect(wf).not.toBeNull();
+      expect(wf!.name).toBe('dev-story');
+      expect(wf!.description).toContain('Execute story implementation');
+      expect(wf!.config_source).toContain('{project-root}');
+      expect(wf!.instructions).toContain('instructions.xml');
+      expect(wf!.validation).toContain('checklist.md');
+    });
+
+    it('should parse workflow YAML via adapter.parse()', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-workflow.yaml'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.intent).toContain('Execute story implementation');
+        expect(result.data?.proposed_changes.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // v6 Team YAML Tests
+  // -----------------------------------------------------------------------
+
+  describe('v6: Team YAML detection and parsing', () => {
+    it('should detect team YAML content', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-team.yaml'), 'utf-8');
+      expect(isTeamYamlContent(content)).toBe(true);
+    });
+
+    it('should detect team YAML with high confidence', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-team.yaml'), 'utf-8');
+      const result = adapter.detect(content);
+
+      expect(result.detected).toBe(true);
+      expect(result.confidence).toBeGreaterThanOrEqual(80);
+      expect(result.reason).toContain('team-yaml');
+    });
+
+    it('should parse team YAML', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-team.yaml'), 'utf-8');
+      const team = parseTeamYaml(content);
+
+      expect(team).not.toBeNull();
+      expect(team!.bundle.name).toBe('Team Plan and Architect');
+      expect(team!.agents).toEqual(['analyst', 'architect', 'pm', 'sm', 'ux-designer']);
+      expect(team!.party).toBe('./default-party.csv');
+    });
+
+    it('should parse team YAML via adapter.parse()', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-team.yaml'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        // Each agent becomes a proposed change
+        expect(result.data?.proposed_changes.length).toBe(5);
+      }
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // v6 Module YAML Tests
+  // -----------------------------------------------------------------------
+
+  describe('v6: Module YAML detection and parsing', () => {
+    it('should detect module YAML content', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-module.yaml'), 'utf-8');
+      expect(isModuleYamlContent(content)).toBe(true);
+    });
+
+    it('should not detect non-module content as module YAML', () => {
+      expect(isModuleYamlContent('name: something\ndescription: test')).toBe(false);
+      expect(isModuleYamlContent('code: bmm\nname: test')).toBe(false);
+      expect(isModuleYamlContent('agent:\n  metadata:')).toBe(false);
+    });
+
+    it('should detect module YAML with high confidence', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-module.yaml'), 'utf-8');
+      const result = adapter.detect(content);
+
+      expect(result.detected).toBe(true);
+      expect(result.confidence).toBeGreaterThanOrEqual(70);
+      expect(result.reason).toContain('module-yaml');
+    });
+
+    it('should parse module YAML', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-module.yaml'), 'utf-8');
+      const mod = parseModuleYaml(content);
+
+      expect(mod).not.toBeNull();
+      expect(mod!.code).toBe('bmm');
+      expect(mod!.name).toBe('BMad Method Agile-AI Driven-Development');
+      expect(mod!.default_selected).toBe(true);
+    });
+
+    it('should parse module YAML via adapter.parse()', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-v6-module.yaml'), 'utf-8');
+      const result = await adapter.parse(content);
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data?.intent).toContain('AI-driven agile');
+        expect(result.data?.proposed_changes.length).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // v6 Serializer Tests
+  // -----------------------------------------------------------------------
+
+  describe('v6: Serializer output format', () => {
+    it('should include v6 output_file with hyphenated variable syntax', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-prd.md'), 'utf-8');
+      const parseResult = await adapter.parse(content);
+      expect(parseResult.success).toBe(true);
+      if (!parseResult.success) return;
+
+      const serializeResult = await adapter.serialize(parseResult.data!);
+      expect(serializeResult.success).toBe(true);
+      if (!serializeResult.success) return;
+
+      expect(serializeResult.content).toContain('{project-root}');
+      expect(serializeResult.content).toContain('output_file:');
+    });
+
+    it('should include BMAD version in footer', async () => {
+      const content = await readFile(join(fixturesDir, 'valid-prd.md'), 'utf-8');
+      const parseResult = await adapter.parse(content);
+      if (!parseResult.success) return;
+
+      const serializeResult = await adapter.serialize(parseResult.data!);
+      if (!serializeResult.success) return;
+
+      expect(serializeResult.content).toContain(BMAD_UPSTREAM_VERSION);
+    });
+  });
+
+  // -----------------------------------------------------------------------
+  // v6 Folder Constants
+  // -----------------------------------------------------------------------
+
+  describe('v6: Updated folder constants', () => {
+    it('should have OUTPUT folder constant', () => {
+      expect(BMAD_FOLDERS.OUTPUT).toBe('_bmad-output');
     });
   });
 });

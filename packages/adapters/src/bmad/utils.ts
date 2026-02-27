@@ -13,6 +13,14 @@ import {
   BMADDocumentType,
   DetectionIndicators,
   BMAD_FOLDERS,
+  type BMADAgentYaml,
+  type BMADAgentMetadata,
+  type BMADAgentPersona,
+  type BMADMenuItem,
+  type BMADAgentPrompt,
+  type BMADWorkflowYaml,
+  type BMADTeamYaml,
+  type BMADModuleYaml,
 } from './types.js';
 import type { PathDetectionHint } from '../base/types.js';
 
@@ -315,6 +323,20 @@ export function identifyDocumentType(
   content: string,
   frontMatter?: BMADFrontMatter | null
 ): BMADDocumentType {
+  // v6: Check for structured YAML document types first
+  if (isAgentYamlContent(content)) {
+    return BMADDocumentType.AGENT;
+  }
+  if (isWorkflowYamlContent(content)) {
+    return BMADDocumentType.WORKFLOW;
+  }
+  if (isTeamYamlContent(content)) {
+    return BMADDocumentType.TEAM;
+  }
+  if (isModuleYamlContent(content)) {
+    return BMADDocumentType.MODULE;
+  }
+
   // Check front-matter
   if (frontMatter?.name) {
     if (/product requirements/i.test(frontMatter.name)) {
@@ -382,6 +404,11 @@ export function analyzeContent(content: string, hint?: PathDetectionHint): Detec
     hasBmadConfigPath: pathAnalysis.isConfigFolder,
     hasHasSidecar: frontMatter?.hasSidecar !== undefined,
     hasHyphenatedVariables: hasHyphenatedVariables(content),
+    // v6 structured YAML detection
+    isAgentYaml: isAgentYamlContent(content),
+    isWorkflowYaml: isWorkflowYamlContent(content),
+    isTeamYaml: isTeamYamlContent(content),
+    isModuleYaml: isModuleYamlContent(content),
   };
 }
 
@@ -438,9 +465,23 @@ export function calculateConfidenceScore(indicators: DetectionIndicators): numbe
     score += 15;
   }
 
-  // v6: Hyphenated variables like {{var-name}} (10 points bonus)
+  // v6: Hyphenated variables like {var-name} (10 points bonus)
   if (indicators.hasHyphenatedVariables) {
     score += 10;
+  }
+
+  // v6: Structured YAML document types (high confidence — these are definitive)
+  if (indicators.isAgentYaml) {
+    score += 80;
+  }
+  if (indicators.isWorkflowYaml) {
+    score += 80;
+  }
+  if (indicators.isTeamYaml) {
+    score += 80;
+  }
+  if (indicators.isModuleYaml) {
+    score += 70;
   }
 
   return Math.min(100, score);
@@ -485,6 +526,18 @@ export function buildDetectionReason(indicators: DetectionIndicators): string {
   }
   if (indicators.hasHyphenatedVariables) {
     reasons.push('hyphenated-variables');
+  }
+  if (indicators.isAgentYaml) {
+    reasons.push('agent-yaml');
+  }
+  if (indicators.isWorkflowYaml) {
+    reasons.push('workflow-yaml');
+  }
+  if (indicators.isTeamYaml) {
+    reasons.push('team-yaml');
+  }
+  if (indicators.isModuleYaml) {
+    reasons.push('module-yaml');
   }
 
   return reasons.length > 0 ? reasons.join(', ') : 'no strong indicators';
@@ -572,4 +625,580 @@ export function extractIntent(content: string, docType: BMADDocumentType): strin
   // Fallback: use title or first non-empty line
   const title = extractTitle(content);
   return title || 'BMAD document';
+}
+
+// ---------------------------------------------------------------------------
+// v6 YAML structure detection helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Detect whether content is structured agent YAML (agent.metadata + agent.persona)
+ */
+export function isAgentYamlContent(content: string): boolean {
+  return (
+    /^agent:\s*$/m.test(content) &&
+    /^\s+metadata:\s*$/m.test(content) &&
+    /^\s+persona:\s*$/m.test(content)
+  );
+}
+
+/**
+ * Detect whether content is a workflow YAML (has name + description)
+ */
+export function isWorkflowYamlContent(content: string): boolean {
+  return (
+    /^name:\s+\S/m.test(content) &&
+    /^description:\s+/m.test(content) &&
+    (/^instructions:\s+/m.test(content) || /^config_source:\s+/m.test(content))
+  );
+}
+
+/**
+ * Detect whether content is a team bundle YAML
+ */
+export function isTeamYamlContent(content: string): boolean {
+  return /^bundle:\s*$/m.test(content) && /^agents:\s*$/m.test(content);
+}
+
+/**
+ * Detect whether content is a module config YAML.
+ * Requires `code:` + `name:` + `default_selected:` to avoid false positives
+ * on generic config files that also have code/name keys.
+ */
+export function isModuleYamlContent(content: string): boolean {
+  return (
+    /^code:\s+\S/m.test(content) &&
+    /^name:\s+/m.test(content) &&
+    /^default_selected:\s+/m.test(content)
+  );
+}
+
+// ---------------------------------------------------------------------------
+// v6 Agent YAML Parser (lightweight — no js-yaml dependency)
+//
+// NOTE: The parser assumes BMAD's standard 2-space indentation convention.
+// Agent YAML files using 4-space or tab indentation will not parse correctly.
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a simple YAML value, handling quotes and multi-line pipe syntax.
+ */
+function parseSimpleYamlValue(raw: string): string {
+  const trimmed = raw.trim();
+  // Remove surrounding quotes
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+/**
+ * Get indentation level of a line (number of leading spaces)
+ */
+function indentLevel(line: string): number {
+  const match = line.match(/^(\s*)/);
+  return match ? match[1].length : 0;
+}
+
+/**
+ * Collect a plain multi-line scalar (continuation lines indented deeper than the key).
+ * Used when a YAML key has no value on the same line and the value is on the next indented lines.
+ * Returns the joined text and the index of the last consumed line.
+ */
+function collectPlainScalar(
+  lines: string[],
+  startIndex: number,
+  keyIndent: number
+): { text: string; endIndex: number } {
+  const parts: string[] = [];
+  let i = startIndex;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === '') break;
+    if (indentLevel(line) <= keyIndent) break;
+    parts.push(line.trim());
+    i++;
+  }
+  const joined = parts.join(' ');
+  return { text: parseSimpleYamlValue(joined), endIndex: i - 1 };
+}
+
+/**
+ * Collect a multi-line pipe (|) block starting after a `key: |` line.
+ * Returns the block text and the index of the last consumed line.
+ */
+function collectPipeBlock(
+  lines: string[],
+  startIndex: number,
+  baseIndent: number
+): { text: string; endIndex: number } {
+  const blockLines: string[] = [];
+  let i = startIndex;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === '') {
+      blockLines.push('');
+      i++;
+      continue;
+    }
+    if (indentLevel(line) <= baseIndent) break;
+    blockLines.push(line.trimStart());
+    i++;
+  }
+  // Trim trailing empty lines
+  while (blockLines.length > 0 && blockLines[blockLines.length - 1] === '') {
+    blockLines.pop();
+  }
+  return { text: blockLines.join('\n'), endIndex: i - 1 };
+}
+
+/**
+ * Collect a YAML list (lines starting with "- ") at a given indent level.
+ * Each item can be a simple string or a multi-line string (quoted).
+ */
+function collectYamlList(
+  lines: string[],
+  startIndex: number,
+  baseIndent: number
+): { items: string[]; endIndex: number } {
+  const items: string[] = [];
+  let i = startIndex;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+    const currentIndent = indentLevel(line);
+    if (currentIndent <= baseIndent && line.trim() !== '') break;
+    const listMatch = line.match(/^(\s*)- (.*)$/);
+    if (listMatch) {
+      let value = listMatch[2].trim();
+      // Handle multi-line quoted strings
+      if (value.startsWith('"') && !value.endsWith('"')) {
+        i++;
+        while (i < lines.length) {
+          value += ' ' + lines[i].trim();
+          if (lines[i].trimEnd().endsWith('"')) break;
+          i++;
+        }
+      }
+      items.push(parseSimpleYamlValue(value));
+    }
+    i++;
+  }
+  return { items, endIndex: i - 1 };
+}
+
+/**
+ * Parse a v6 agent YAML file into a BMADAgentYaml structure.
+ *
+ * This is a lightweight parser that handles the specific YAML schema
+ * used by BMAD agent definitions without requiring a full YAML library.
+ */
+export function parseAgentYaml(content: string): BMADAgentYaml | null {
+  if (!isAgentYamlContent(content)) return null;
+
+  const lines = content.split('\n');
+  const metadata: Partial<BMADAgentMetadata> = {};
+  const persona: Partial<BMADAgentPersona> = {};
+  let critical_actions: string[] | undefined;
+  let menu: BMADMenuItem[] | undefined;
+  let prompts: BMADAgentPrompt[] | undefined;
+
+  let section: 'root' | 'metadata' | 'persona' | 'critical_actions' | 'menu' | 'prompts' = 'root';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+    // Top-level section detection
+    if (/^\s{2}metadata:\s*$/.test(line)) {
+      section = 'metadata';
+      continue;
+    }
+    if (/^\s{2}persona:\s*$/.test(line)) {
+      section = 'persona';
+      continue;
+    }
+    if (/^\s{2}critical_actions:\s*$/.test(line)) {
+      section = 'critical_actions';
+      const list = collectYamlList(lines, i + 1, 2);
+      critical_actions = list.items;
+      i = list.endIndex;
+      continue;
+    }
+    if (/^\s{2}menu:\s*$/.test(line)) {
+      section = 'menu';
+      menu = parseMenuItems(lines, i + 1);
+      // Skip past menu items
+      i = skipSection(lines, i + 1, 4);
+      continue;
+    }
+    if (/^\s{2}prompts:\s*$/.test(line)) {
+      section = 'prompts';
+      prompts = parsePromptItems(lines, i + 1);
+      i = skipSection(lines, i + 1, 4);
+      continue;
+    }
+
+    // Parse metadata fields (indent level 4)
+    if (section === 'metadata' && indentLevel(line) >= 4) {
+      const kvMatch = trimmed.match(/^(\w+):\s*(.*)$/);
+      if (kvMatch) {
+        const [, key, value] = kvMatch;
+        if (value.trim() === '') continue;
+        const val = parseSimpleYamlValue(value);
+        switch (key) {
+          case 'id':
+            metadata.id = val;
+            break;
+          case 'name':
+            metadata.name = val;
+            break;
+          case 'title':
+            metadata.title = val;
+            break;
+          case 'icon':
+            metadata.icon = val;
+            break;
+          case 'module':
+            metadata.module = val;
+            break;
+          case 'capabilities':
+            metadata.capabilities = val;
+            break;
+          case 'hasSidecar': {
+            const bool = parseYamlBoolean(val);
+            metadata.hasSidecar = bool ?? false;
+            break;
+          }
+        }
+      }
+    }
+
+    // Parse persona fields (indent level 4)
+    if (section === 'persona' && indentLevel(line) >= 4) {
+      const kvMatch = trimmed.match(/^(\w[\w_]*):\s*(.*)$/);
+      if (kvMatch) {
+        const [, key, rawValue] = kvMatch;
+        if (rawValue.trim() === '|') {
+          // Multi-line pipe block
+          const block = collectPipeBlock(lines, i + 1, 4);
+          (persona as Record<string, string>)[key] = block.text;
+          i = block.endIndex;
+        } else if (rawValue.trim() === '') {
+          // Plain multi-line scalar (value on next indented lines)
+          const scalar = collectPlainScalar(lines, i + 1, indentLevel(line));
+          (persona as Record<string, string>)[key] = scalar.text;
+          i = scalar.endIndex;
+        } else {
+          (persona as Record<string, string>)[key] = parseSimpleYamlValue(rawValue);
+        }
+      }
+    }
+  }
+
+  // Validate required fields
+  if (!metadata.id || !metadata.name || !metadata.title) return null;
+  if (!persona.role || !persona.identity) return null;
+
+  return {
+    metadata: {
+      id: metadata.id,
+      name: metadata.name,
+      title: metadata.title,
+      icon: metadata.icon,
+      module: metadata.module,
+      capabilities: metadata.capabilities,
+      hasSidecar: metadata.hasSidecar ?? false,
+    },
+    persona: {
+      role: persona.role,
+      identity: persona.identity,
+      communication_style: persona.communication_style ?? '',
+      principles: persona.principles ?? '',
+    },
+    critical_actions,
+    menu,
+    prompts,
+  };
+}
+
+/**
+ * Parse menu items from agent YAML lines.
+ */
+function parseMenuItems(lines: string[], startIndex: number): BMADMenuItem[] {
+  const items: BMADMenuItem[] = [];
+  let current: Partial<BMADMenuItem> | null = null;
+
+  for (let i = startIndex; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === '') continue;
+    const indent = indentLevel(line);
+    // Stop when we leave the menu section
+    if (indent < 4 && line.trim() !== '') break;
+
+    const trimmed = line.trim();
+    // New menu item
+    if (trimmed.startsWith('- trigger:')) {
+      if (current?.trigger && current.description) {
+        items.push(current as BMADMenuItem);
+      }
+      current = { trigger: parseSimpleYamlValue(trimmed.replace(/^- trigger:\s*/, '')) };
+      continue;
+    }
+
+    if (current) {
+      // Match key: value (value may be empty for multi-line)
+      const kvMatch = trimmed.match(/^(\w+):\s*(.*)$/);
+      if (kvMatch) {
+        const [, key, rawValue] = kvMatch;
+        let val: string;
+        if (rawValue.trim() === '') {
+          // Plain multi-line scalar (value on next indented lines)
+          const scalar = collectPlainScalar(lines, i + 1, indent);
+          val = scalar.text;
+          i = scalar.endIndex;
+        } else {
+          val = parseSimpleYamlValue(rawValue);
+        }
+        switch (key) {
+          case 'exec':
+            current.exec = val;
+            break;
+          case 'workflow':
+            current.workflow = val;
+            break;
+          case 'action':
+            current.action = val;
+            break;
+          case 'data':
+            current.data = val;
+            break;
+          case 'description':
+            current.description = val;
+            break;
+        }
+      }
+    }
+  }
+
+  // Push last item
+  if (current?.trigger && current.description) {
+    items.push(current as BMADMenuItem);
+  }
+
+  return items;
+}
+
+/**
+ * Parse prompt items from agent YAML lines.
+ */
+function parsePromptItems(lines: string[], startIndex: number): BMADAgentPrompt[] {
+  const prompts: BMADAgentPrompt[] = [];
+  let current: Partial<BMADAgentPrompt> | null = null;
+  let collectingContent = false;
+  const contentLines: string[] = [];
+
+  for (let i = startIndex; i < lines.length; i++) {
+    const line = lines[i];
+    const indent = indentLevel(line);
+    if (indent < 4 && line.trim() !== '') break;
+
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('- id:')) {
+      // Save previous prompt (block-scalar or inline content)
+      if (current?.id) {
+        if (collectingContent) {
+          current.content = contentLines.join('\n').trim();
+        }
+        if (current.content) {
+          prompts.push(current as BMADAgentPrompt);
+        }
+      }
+      current = { id: parseSimpleYamlValue(trimmed.replace(/^- id:\s*/, '')) };
+      collectingContent = false;
+      contentLines.length = 0;
+      continue;
+    }
+
+    if (current && trimmed.startsWith('content:')) {
+      const remainder = trimmed.replace(/^content:\s*/, '');
+      if (remainder === '|' || remainder === '') {
+        collectingContent = true;
+      } else {
+        current.content = parseSimpleYamlValue(remainder);
+      }
+      continue;
+    }
+
+    if (collectingContent && current) {
+      contentLines.push(line.trimStart());
+    }
+  }
+
+  // Push last prompt
+  if (current?.id) {
+    if (collectingContent) {
+      current.content = contentLines.join('\n').trim();
+    }
+    if (current.content) {
+      prompts.push(current as BMADAgentPrompt);
+    }
+  }
+
+  return prompts;
+}
+
+/**
+ * Skip past a YAML section at a given indent level.
+ */
+function skipSection(lines: string[], startIndex: number, minIndent: number): number {
+  let i = startIndex;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+    if (indentLevel(line) < minIndent) break;
+    i++;
+  }
+  return i - 1;
+}
+
+/**
+ * Parse a v6 workflow YAML file.
+ */
+export function parseWorkflowYaml(content: string): BMADWorkflowYaml | null {
+  if (!isWorkflowYamlContent(content)) return null;
+
+  const result: Record<string, string> = {};
+  const lines = content.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === '' || line.trim().startsWith('#')) continue;
+    // Only parse top-level keys (no indent)
+    if (indentLevel(line) !== 0) continue;
+
+    const kvMatch = line.match(/^(\w[\w_]*):\s*(.*)$/);
+    if (kvMatch) {
+      const [, key, rawValue] = kvMatch;
+      if (rawValue.trim() === '') {
+        // Plain multi-line scalar (value on next indented lines)
+        const scalar = collectPlainScalar(lines, i + 1, 0);
+        result[key] = scalar.text;
+        i = scalar.endIndex;
+      } else {
+        result[key] = parseSimpleYamlValue(rawValue);
+      }
+    }
+  }
+
+  if (!result['name'] || !result['description']) return null;
+
+  return {
+    name: result['name'],
+    description: result['description'],
+    config_source: result['config_source'],
+    installed_path: result['installed_path'],
+    instructions: result['instructions'],
+    validation: result['validation'],
+    ...result,
+  } as BMADWorkflowYaml;
+}
+
+/**
+ * Parse a v6 team bundle YAML file.
+ */
+export function parseTeamYaml(content: string): BMADTeamYaml | null {
+  if (!isTeamYamlContent(content)) return null;
+
+  const lines = content.split('\n');
+  const bundle: Record<string, string> = {};
+  const agents: string[] = [];
+  let party: string | undefined;
+  let section: 'root' | 'bundle' | 'agents' = 'root';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+
+    if (trimmed === 'bundle:') {
+      section = 'bundle';
+      continue;
+    }
+    if (trimmed === 'agents:') {
+      section = 'agents';
+      continue;
+    }
+    if (trimmed.startsWith('party:')) {
+      party = parseSimpleYamlValue(trimmed.replace(/^party:\s*/, ''));
+      section = 'root';
+      continue;
+    }
+
+    if (section === 'bundle') {
+      const kvMatch = trimmed.match(/^(\w+):\s*(.+)$/);
+      if (kvMatch) {
+        bundle[kvMatch[1]] = parseSimpleYamlValue(kvMatch[2]);
+      }
+    }
+
+    if (section === 'agents' && trimmed.startsWith('- ')) {
+      agents.push(parseSimpleYamlValue(trimmed.replace(/^-\s*/, '').trim()));
+    }
+  }
+
+  if (!bundle['name'] || agents.length === 0) return null;
+
+  return {
+    bundle: { name: bundle['name'], icon: bundle['icon'], description: bundle['description'] },
+    agents,
+    party,
+  };
+}
+
+/**
+ * Parse a v6 module.yaml configuration file.
+ */
+export function parseModuleYaml(content: string): BMADModuleYaml | null {
+  if (!isModuleYamlContent(content)) return null;
+
+  const lines = content.split('\n');
+  const result: Record<string, unknown> = {};
+
+  for (const line of lines) {
+    if (line.trim() === '' || line.trim().startsWith('#')) continue;
+    // Only parse top-level keys (no indent)
+    if (indentLevel(line) === 0) {
+      const kvMatch = line.match(/^(\w[\w_]*):\s*(.+)$/);
+      if (kvMatch) {
+        const [, key, value] = kvMatch;
+        const val = parseSimpleYamlValue(value);
+        if (val === 'true') result[key] = true;
+        else if (val === 'false') result[key] = false;
+        else result[key] = val;
+      }
+    }
+  }
+
+  if (!result['code'] || !result['name']) return null;
+
+  return {
+    code: result['code'] as string,
+    name: result['name'] as string,
+    description: result['description'] as string | undefined,
+    default_selected: result['default_selected'] as boolean | undefined,
+    header: result['header'] as string | undefined,
+    subheader: result['subheader'] as string | undefined,
+  } as BMADModuleYaml;
 }
