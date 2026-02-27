@@ -207,8 +207,8 @@ export default function SecurityPage() {
               <div>
                 <p className="text-text-primary mb-1">Scope</p>
                 <p className="pl-4">
-                  In scope: anvil CLI, web properties (*.eddacraft.ai), API endpoints. Out of
-                  scope: third-party services, social engineering, physical attacks.
+                  In scope: anvil CLI, web properties (*.eddacraft.ai), API endpoints. Out of scope:
+                  third-party services, social engineering, physical attacks.
                 </p>
               </div>
 
