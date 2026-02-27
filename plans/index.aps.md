@@ -118,17 +118,17 @@ release must deliver both the core value AND a friction-free first experience.
 
 | Feature                  | Description                                              | Status      |
 | ------------------------ | -------------------------------------------------------- | ----------- |
-| Forge Hook & Agent       | Pre-commit hook + reviewer agent with codex delegation   | Ready       |
-| Forge Negotiation        | Structured finding/response protocol, round cap          | Ready       |
-| Deferred Finding Filing  | Auto-file deferred findings as GH issues or APS items    | Ready       |
-| Temper Workflow           | GitHub Actions self-healing loop with 2-cycle cap        | Ready       |
-| Configuration & Docs     | Env vars, settings.json, CLAUDE.md, toggle matrix        | Ready       |
+| Forge Hook & Agent       | Pre-commit hook + reviewer agent with codex delegation   | Complete    |
+| Forge Negotiation        | Structured finding/response protocol, round cap          | Complete    |
+| Deferred Finding Filing  | Auto-file deferred findings as GH issues or APS items    | Complete    |
+| Temper Workflow           | GitHub Actions self-healing loop with 2-cycle cap        | Complete    |
+| Configuration & Docs     | Env vars, settings.json, CLAUDE.md, toggle matrix        | Complete    |
 | CLI Hardening            | Error handling, edge cases, robustness                   | Complete    |
 | Coaching Nudges          | Context-aware suggestions for pattern improvement        | Complete    |
 | Nx Task Migration        | Migrate root scripts to Nx-orchestrated per-project      | Ready       |
 | CLI esbuild Bundling     | Self-contained npm package via esbuild                   | Pending     |
 | MCP Server Hardening     | Production-readiness for MCP server                      | Complete    |
-| Security CI Pipeline     | Automated security scanning on every PR                  | Ready       |
+| Security CI Pipeline     | Automated security scanning on every PR                  | Complete    |
 | Tutorial Path Continuation | Continue with another tutorial from completion screen  | Complete    |
 | Post-Beta Launch Uplift  | Address 57 findings from v0.1.2-beta post-release review | Draft       |
 | Code Review Backlog      | 25 architectural recommendations from code review        | Draft       |
@@ -329,13 +329,13 @@ Task-level detail for all completed work is archived in
 | [mcp-server-hardening](./modules/mcp-server-hardening.aps.md) | MCPH | Complete | — |
 | [tutorial-path-continuation](./modules/tutorial-path-continuation.aps.md) | Tutorial | Complete | tui |
 | [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Ready | — |
-| [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Ready | — |
+| [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — |
 | [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Pending | — |
-| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Ready | — |
-| [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Ready | forge-hook-agent |
-| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Ready | forge-negotiation |
-| [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Ready | deferred-finding-filing |
-| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Ready | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
+| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | — |
+| [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | forge-hook-agent |
+| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | forge-negotiation |
+| [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | deferred-finding-filing |
+| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
 | [post-beta-launch-uplift](./modules/post-beta-launch-uplift.aps.md) | PBLU | Draft | — |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Draft | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | Draft | — |

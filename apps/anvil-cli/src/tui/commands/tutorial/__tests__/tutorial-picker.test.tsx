@@ -5,9 +5,6 @@ import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
 import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
 import type { TutorialOption } from '../components/TutorialPicker.js';
 
-// eslint-disable-next-line no-control-regex
-const stripAnsi = (s: string) => s.replace(/\u001B\[[0-9;]*m/g, '');
-
 const ALL_TUTORIALS: TutorialOption[] = [
   { topic: 'core', description: 'Core tutorial (scan, watch, fix)' },
   { topic: 'policies', description: 'Write custom OPA/Rego rules' },
