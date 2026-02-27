@@ -469,7 +469,7 @@ measurable.
 ### Phase 6: Lint Integration (2-3 weeks)
 
 - oxlint integration or custom lint rules
-- Pre-commit hook optimization (cache lookup)
+- Pre-commit hook optimisation (cache lookup)
 - CI provenance verification
 
 **Total estimated timeline: 15-20 weeks (incremental, feature-flagged)**
