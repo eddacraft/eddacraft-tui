@@ -63,7 +63,7 @@ if ! LICENSE_OUTPUT=$(pnpm licenses list --json --prod 2>/dev/null); then
 
   # license-checker returns {"pkg@ver": {"licenses": "MIT", ...}, ...}
   # Extract unique license strings and check for blocked ones
-  LC_LICENSES=$(echo "$LC_OUTPUT" | node -e "
+  LC_LICENSES=$(printf '%s' "$LC_OUTPUT" | node -e "
     const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
     const seen = new Set();
     for (const [pkg, info] of Object.entries(data)) {
@@ -115,7 +115,7 @@ fi
 BLOCKED_FOUND=""
 
 # Extract license names from the JSON keys, validating the structure first
-LICENSE_NAMES=$(echo "$LICENSE_OUTPUT" | node -e "
+LICENSE_NAMES=$(printf '%s' "$LICENSE_OUTPUT" | node -e "
   const fs = require('node:fs');
   const raw = fs.readFileSync('/dev/stdin', 'utf8');
   let data;
@@ -140,7 +140,7 @@ LICENSE_NAMES=$(echo "$LICENSE_OUTPUT" | node -e "
   for (const license of licenses) {
     console.log(license);
   }
-" 2>/dev/null) || {
+") || {
   echo "WARNING: JSON parse failed, falling back to grep"
   VIOLATIONS=$(echo "$LICENSE_OUTPUT" | grep -ioE "$BLOCKED_PATTERNS" || true)
   if [ -n "$VIOLATIONS" ]; then
@@ -167,7 +167,7 @@ while IFS= read -r license; do
 
   if echo "$license" | grep -qiE "$BLOCKED_PATTERNS"; then
     # Get the packages under this blocked license
-    PACKAGES=$(echo "$LICENSE_OUTPUT" | LICENSE_KEY="$license" node -e "
+    PACKAGES=$(printf '%s' "$LICENSE_OUTPUT" | LICENSE_KEY="$license" node -e "
       const data = JSON.parse(require('fs').readFileSync('/dev/stdin', 'utf8'));
       const key = process.env.LICENSE_KEY;
       if (data[key]) {
