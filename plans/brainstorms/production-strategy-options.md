@@ -397,9 +397,9 @@ AI-assisted development. Nobody else occupies this exact position.
 ### The Problem
 
 npm packages are fully extractable. Anyone can run `npm pack @eddacraft/anvil-cli`
-and get the complete published tarball. The current esbuild config makes this worse:
+and get the complete published tarball. Before hardening, the esbuild config made this worse:
 
-- **`sourcemap: true`** — ships a `.js.map` that reconstructs original TypeScript
+- **`sourcemap: true` (before hardening)** — shipped a `.js.map` that reconstructed original TypeScript
 - **esbuild output is readable** — bundled but with meaningful variable names,
   clean control flow, and preserved string literals
 - **All workspace packages bundled in** — `anvil-core`, `anvil-runtime`, the
@@ -429,7 +429,7 @@ are simple.
 
 | Approach | Effort | Protection | DX impact |
 |----------|--------|-----------|-----------|
-| **Minify + no sourcemaps** | 30 seconds | Low — stops casual reading, not determined actors | None |
+| **Minify + no sourcemaps** | 30 seconds | Low — stops casual reading, not determined actors | Worse debugging, harder-to-use stack traces |
 | **JS obfuscation** | 1-2 days | Medium — control flow flattening, string encryption | 10-30% perf hit, useless stack traces |
 | **Compiled binary** | 1-2 weeks | High — no JS on disk at all | Better (no Node requirement) |
 | **Server-side core** | 2-4 weeks | Very high — IP never leaves servers | Worse for local/offline use |
