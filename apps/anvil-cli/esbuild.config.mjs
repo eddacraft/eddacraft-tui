@@ -42,6 +42,8 @@ await esbuild.build({
     'react-devtools-core': './src/stubs/react-devtools-core.ts',
   },
   jsx: 'automatic',
-  sourcemap: true,
+  // IP protection: no source maps in published package, minify to collapse names
+  sourcemap: false,
+  minify: true,
   logLevel: 'info',
 });

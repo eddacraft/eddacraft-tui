@@ -392,18 +392,181 @@ AI-assisted development. Nobody else occupies this exact position.
 
 ---
 
-## 5. Implementation Priorities
+## 5. IP Protection & Source Extraction Risk
+
+### The Problem
+
+npm packages are fully extractable. Anyone can run `npm pack @eddacraft/anvil-cli`
+and get the complete published tarball. The current esbuild config makes this worse:
+
+- **`sourcemap: true`** — ships a `.js.map` that reconstructs original TypeScript
+- **esbuild output is readable** — bundled but with meaningful variable names,
+  clean control flow, and preserved string literals
+- **All workspace packages bundled in** — `anvil-core`, `anvil-runtime`, the
+  anti-pattern detection engine, architecture analysis, everything lands in one
+  readable `dist/index.js`
+
+The proprietary license is a legal deterrent but not a technical one. A competitor
+or sufficiently motivated actor can extract, read, and reimplement the detection
+logic with minimal effort.
+
+### What's Actually Worth Protecting
+
+| Component | Extractability | Value if copied |
+|-----------|---------------|-----------------|
+| Anti-pattern detectors | High (string patterns, AST rules) | Medium — patterns are the "what", the curation is the value |
+| Architecture analysis engine | High (bundled in dist/) | High — core differentiator, hard to build from scratch |
+| Gate/policy evaluation (OPA integration) | High | Low — OPA is open, integration is commodity |
+| Tutorial/onboarding content | High | Low |
+| Auth/token handling | High | Low |
+
+The architecture analysis engine and the curated pattern set together are the
+core IP. The composition of all detectors + their tuning + the watch-mode
+integration is what makes Anvil hard to replicate even if individual patterns
+are simple.
+
+### Options Considered
+
+| Approach | Effort | Protection | DX impact |
+|----------|--------|-----------|-----------|
+| **Minify + no sourcemaps** | 30 seconds | Low — stops casual reading, not determined actors | None |
+| **JS obfuscation** | 1-2 days | Medium — control flow flattening, string encryption | 10-30% perf hit, useless stack traces |
+| **Compiled binary** | 1-2 weeks | High — no JS on disk at all | Better (no Node requirement) |
+| **Server-side core** | 2-4 weeks | Very high — IP never leaves servers | Worse for local/offline use |
+| **Private npm registry** | 1 day | Medium — controls access, not extraction | Adds auth step to install |
+
+### Decision: Compiled Binary (primary) + Immediate Hardening (now)
+
+**Compiled binary is the right move.** It solves IP protection and distribution
+in one shot:
+
+1. No readable JS shipped — binary contains V8 bytecode or Bun's compiled form
+2. Eliminates Node.js requirement — widens audience to Go/Python/Rust devs
+3. Simpler install — `curl -fsSL ... | sh` or Homebrew, no `npm install`
+4. Air-gapped friendly — just copy the binary
+5. Consistent runtime — no "works on my Node version" issues
+
+**Immediate hardening** (do now, regardless of binary timeline):
+- `sourcemap: false` in esbuild config — stop shipping the map that
+  reconstructs TypeScript source
+- `minify: true` in esbuild config — collapse variable names, remove whitespace
+- Verify `.npmignore` or `files` field excludes any stray source files
+
+### Binary Compilation: Technical Assessment
+
+**Recommended approach: Bun compile**
+
+| Factor | Bun compile | Node SEA | pkg |
+|--------|------------|----------|-----|
+| Maturity | Stable | Stable (Node 22+) | Deprecated |
+| Output size | ~30-50MB | ~50-80MB | ~50MB |
+| ESM support | Native | Requires blob injection | Poor |
+| Cross-compile | `--target=bun-linux-x64` etc. | Manual per-platform | Built-in |
+| Native addons | Not embedded, loaded at runtime | Not embedded | Partial |
+| Build speed | Fast | Moderate | Slow |
+
+Bun is the best fit because: the CLI is already ESM (`"type": "module"`),
+Bun's cross-compile flags are trivial, and it produces the smallest binaries.
+
+**Key consideration: kindling packages with better-sqlite3**
+
+The kindling packages (`@eddacraft/kindling-core`, `kindling-store-sqlite`,
+`kindling-provider-local`) are kept external in the current esbuild config
+because `kindling-store-sqlite` depends on `better-sqlite3`, a native C++
+addon. Two options:
+
+1. **Bundle kindling into the binary too** — Bun compile can embed JS but
+   native `.node` addons must be distributed alongside. Use
+   `--external better-sqlite3` and ship the platform-specific `.node` file
+   next to the binary. This is what Turso's `libsql` does.
+
+2. **Replace better-sqlite3 with a pure-JS or Bun-native alternative** —
+   Bun has built-in `bun:sqlite` which is native to the runtime and embeds
+   cleanly. Migrating `kindling-store-sqlite` from `better-sqlite3` to
+   `bun:sqlite` eliminates the native addon problem entirely. This is the
+   cleaner path if Bun is the chosen compiler.
+
+**Runtime file access patterns** (must survive compilation):
+
+- `template-loader.ts` reads template YAML files from disk via
+  `readFile(filePath)` — these are user-project files, not bundled assets.
+  Works fine in a binary since it reads from the user's filesystem, not from
+  inside the binary.
+- `file-io.ts` reads/writes project config files — same, filesystem-based.
+- No embedded asset files (no `.ejs`, `.hbs`, `.yaml` templates baked into
+  the package) — all templates are generated programmatically.
+- Dynamic `import()` calls in `tutorial.ts` for lazy-loading TUI components —
+  these need to be resolved at compile time by Bun (it handles this).
+
+**Build matrix:**
+
+| Target | Priority | Notes |
+|--------|----------|-------|
+| `bun-darwin-arm64` | P0 | macOS Apple Silicon (majority of devs) |
+| `bun-linux-x64` | P0 | CI runners, Linux devs, Docker |
+| `bun-darwin-x64` | P1 | macOS Intel |
+| `bun-linux-arm64` | P1 | ARM CI, Graviton |
+| `bun-windows-x64` | P2 | Windows devs |
+
+**Distribution channels:**
+
+| Channel | Mechanism | Priority |
+|---------|-----------|----------|
+| GitHub Releases | Binary attached to release tag | P0 |
+| Install script | `curl -fsSL https://anvil.dev/install.sh \| sh` | P0 |
+| Homebrew | `brew install eddacraft/tap/anvil` | P1 |
+| npm (shimmed) | Thin wrapper that downloads the binary | P2 |
+
+The npm shim approach (used by esbuild, Turbo, Biome) keeps `npx anvil` working
+while shipping a binary. The npm package contains only a ~20-line postinstall
+script that fetches the platform-appropriate binary.
+
+### npm Shim Pattern (for backwards compatibility)
+
+Keep publishing `@eddacraft/anvil-cli` to npm but change what it contains:
+
+```
+@eddacraft/anvil-cli/
+  package.json        # bin entry + postinstall
+  install.js          # Downloads platform binary from GitHub Releases
+  bin/anvil           # Shell script that execs the downloaded binary
+```
+
+Platform-specific optional dependencies (the esbuild/Biome pattern):
+
+```
+@eddacraft/anvil-cli-darwin-arm64
+@eddacraft/anvil-cli-darwin-x64
+@eddacraft/anvil-cli-linux-x64
+@eddacraft/anvil-cli-linux-arm64
+@eddacraft/anvil-cli-win32-x64
+```
+
+Each contains just the binary for that platform. npm's `optionalDependencies`
+ensures only the right one is installed. This is the gold standard — it's how
+esbuild, Biome, SWC, and Turbo all distribute.
+
+---
+
+## 6. Implementation Priorities
 
 This section is for reference — no code changes in this plan.
 
+**Phase 0 (Immediate — this week):**
+- esbuild hardening: `sourcemap: false`, `minify: true`
+- Verify no source files leak into npm package
+
 **Phase 1 (Beta → GA):**
+- Compiled binary via Bun compile (5 platform targets)
+- npm shim package with platform-specific optional deps
+- Install script + GitHub Releases distribution
 - Account system (replace invite tokens with real accounts)
 - Free tier (remove token requirement for basic CLI use)
 - Pro tier billing (Stripe integration)
-- Standalone binary distribution
 - GitHub Action v1
 
 **Phase 2 (GA → Growth):**
+- Homebrew tap
 - Team tier features (dashboard, shared config)
 - Team billing and seat management
 - Source-available license for core packages
@@ -418,7 +581,7 @@ This section is for reference — no code changes in this plan.
 
 ---
 
-## 6. Verification
+## 7. Verification
 
 This is a strategy document — no code changes to verify. The next
 step is to decide on the key questions in section 4, then create
