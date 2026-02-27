@@ -45,7 +45,7 @@ need attention before enabling. Root CHANGELOG.md had phantom version entries
 | M-1 | Forge | `forge.sh:79,91-127` | **Shell injection via filenames in heredocs** — `STAGED_FILES` and `STAGED_DIFF_STAT` from `git diff` are interpolated into JSON and Markdown heredocs without escaping. A filename containing `"`, `` ` ``, or `$()` breaks JSON structure and could corrupt reports. Use `jq -n --arg` for JSON values. |
 | M-2 | Forge | `forge.sh:88` | **Unsafe `echo` for diff file** — `echo "$STAGED_DIFF"` interprets flags (`-e`, `-n`) if the diff starts with those bytes. Use `printf '%s'` instead. |
 | M-3 | Forge | `forge.sh:33-36` | **Bypass guard defeat via substring** — `--no-verify` and `--amend` guards are substring matches on the full command string. A string literal containing these words (e.g., in an echo or commit message) causes false positives/negatives. |
-| M-4 | Forge | `forge-defer.sh:192-200` | **`get_repo_info` failure not guarded** — function returns 1 on failure but call site does not explicitly check, relying on `set -e` which can be fragile with inherited `set +e`. Add `|| exit 1`. |
+| M-4 | Forge | `forge-defer.sh:192-200` | **`get_repo_info` failure not guarded** — function returns 1 on failure but call site does not explicitly check, relying on `set -e` which can be fragile with inherited `set +e`. Add `\|\| exit 1`. |
 | M-5 | Forge | `forge-defer.sh:165` | **Path traversal via `module_id`** — `find -name "*${module_id,,}*"` uses lowercased branch-extracted ID in a glob. While the regex limits to `[A-Z]{2,6}`, validate strictly after extraction. |
 | M-6 | Temper | `temper.yml:63-64` | **Fragile cycle count** — counts all PR comments starting with `## Temper`, including human comments. Use a unique HTML comment marker instead. |
 | M-7 | CLI | `plan.ts:133-140` | **`plan create` drops original error message** — `CliError('Failed to create plan')` discards the original `error.message`. Other commands forward the original; this should be consistent. |
@@ -68,7 +68,7 @@ need attention before enabling. Root CHANGELOG.md had phantom version entries
 | m-4 | Forge | `forge-defer.sh:142` | Output JSON built via string interpolation, not `jq -n` — fragile. |
 | m-5 | Forge | `forge-defer.sh:203-223` | Batch is sequential; `get_repo_info` result unused by `gh` commands. |
 | m-6 | Forge | `forge-report.sh:47,66` | JSON via positional arg breaks if value contains single quotes. |
-| m-7 | Forge | `forge-report.sh:60,74,100` | Inconsistent `|| true` guards under `set -e`. |
+| m-7 | Forge | `forge-report.sh:60,74,100` | Inconsistent `\|\| true` guards under `set -e`. |
 | m-8 | Temper | `temper.yml:8-9` | Fires on all review submissions (incl. approvals), not just change requests. |
 | m-9 | CLI | `hooks.ts:306-311,380-384` | Double `spinner.fail()` + `error()` pattern fragile across inner/outer catch. |
 | m-10 | CLI | `audit.ts:327-334` | `CliExit()` on natural return paths — should just `return`. |
