@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
 import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
-import { TutorialPicker, resolveTutorialKey } from '../components/TutorialPicker.js';
+import { TutorialPicker } from '../components/TutorialPicker.js';
 import type { TutorialOption } from '../components/TutorialPicker.js';
 
 // Mock scan-project to prevent real filesystem access
@@ -32,52 +32,7 @@ const TUTORIALS: TutorialOption[] = [
   { topic: 'ci', description: 'Set up CI integration' },
 ];
 
-describe('resolveTutorialKey', () => {
-  it('maps number keys to the correct topic', () => {
-    expect(resolveTutorialKey(TUTORIALS, 'core', '1')).toBe('policies');
-    expect(resolveTutorialKey(TUTORIALS, 'core', '2')).toBe('architecture');
-    expect(resolveTutorialKey(TUTORIALS, 'core', '3')).toBe('drift');
-    expect(resolveTutorialKey(TUTORIALS, 'core', '4')).toBe('ci');
-  });
-
-  it('returns null for out-of-range keys', () => {
-    expect(resolveTutorialKey(TUTORIALS, 'core', '5')).toBeNull();
-    expect(resolveTutorialKey(TUTORIALS, 'core', '99')).toBeNull();
-  });
-
-  it('returns null for zero', () => {
-    expect(resolveTutorialKey(TUTORIALS, 'core', '0')).toBeNull();
-  });
-
-  it('returns null for negative numbers', () => {
-    expect(resolveTutorialKey(TUTORIALS, 'core', '-1')).toBeNull();
-  });
-
-  it('returns null for non-numeric input', () => {
-    expect(resolveTutorialKey(TUTORIALS, 'core', 'a')).toBeNull();
-    expect(resolveTutorialKey(TUTORIALS, 'core', '')).toBeNull();
-    expect(resolveTutorialKey(TUTORIALS, 'core', 'abc')).toBeNull();
-  });
-
-  it('excludes currentTopic from the available list', () => {
-    // With 'core' excluded, index 1 = 'policies'
-    expect(resolveTutorialKey(TUTORIALS, 'core', '1')).toBe('policies');
-
-    // With 'policies' excluded, index 1 = 'core'
-    expect(resolveTutorialKey(TUTORIALS, 'policies', '1')).toBe('core');
-    expect(resolveTutorialKey(TUTORIALS, 'policies', '2')).toBe('architecture');
-  });
-
-  it('handles undefined currentTopic (no exclusion)', () => {
-    expect(resolveTutorialKey(TUTORIALS, undefined, '1')).toBe('core');
-    expect(resolveTutorialKey(TUTORIALS, undefined, '5')).toBe('ci');
-  });
-
-  it('returns null when all tutorials are filtered out', () => {
-    const single: TutorialOption[] = [{ topic: 'only', description: 'Only one' }];
-    expect(resolveTutorialKey(single, 'only', '1')).toBeNull();
-  });
-});
+// resolveTutorialKey tests are consolidated in tutorial-picker.test.tsx
 
 describe('TutorialPicker', () => {
   it('displays tutorials excluding the current one', () => {

@@ -18,7 +18,7 @@ import {
   writeFileSync,
   readFileSync,
 } from 'node:fs';
-import { join, dirname, resolve, relative } from 'node:path';
+import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info, warning } from '../utils/output.js';
@@ -806,12 +806,7 @@ export function createPolicyCommand(): Command {
         const configMgr = new PolicyConfigManager(workspaceRoot);
         const markdown = configMgr.generatePoliciesDoc();
 
-        const outputPath = resolve(workspaceRoot, options.output);
-        const rel = relative(workspaceRoot, outputPath);
-        if (rel.startsWith('..') || resolve(workspaceRoot, rel) !== outputPath) {
-          error(`Output path "${options.output}" resolves outside workspace root`);
-          throw new CliError('Policy doc output path resolves outside workspace root');
-        }
+        const outputPath = validatePathWithinRoot(options.output, workspaceRoot);
         const outputDir = dirname(outputPath);
         if (!existsSync(outputDir)) {
           mkdirSync(outputDir, { recursive: true });

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { CliError } from '../utils/cli-error.js';
+import { getWorkspaceRoot } from '../utils/file-io.js';
 
 // ---------------------------------------------------------------------------
 // MCP config generation — inlined from @eddacraft/anvil-mcp-server/config
@@ -111,7 +112,8 @@ export function createMcpConfigCommand(): Command {
             const expandedPath = config.configPath.startsWith('~/')
               ? config.configPath.replace('~', homedir())
               : config.configPath;
-            const fullPath = resolve(process.cwd(), expandedPath);
+            const workspaceRoot = getWorkspaceRoot();
+            const fullPath = resolve(workspaceRoot, expandedPath);
 
             // Resolve symlinks to prevent symlink-based bypass of outside-workspace check.
             // Try the full path first (catches symlinks at the final component, e.g.
@@ -119,9 +121,9 @@ export function createMcpConfigCommand(): Command {
             // directory when the file doesn't exist yet.
             let realCwd: string;
             try {
-              realCwd = realpathSync(process.cwd());
+              realCwd = realpathSync(workspaceRoot);
             } catch {
-              realCwd = process.cwd();
+              realCwd = workspaceRoot;
             }
             let realFullPath: string;
             try {

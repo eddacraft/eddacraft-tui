@@ -271,7 +271,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -288,7 +288,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -304,7 +304,9 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Also fixed bug — `[::1]` (bracketed form from URL parser) was
+  missing from `allowedLocalHosts` set in api-client.ts
 
 ---
 
@@ -317,11 +319,11 @@ Change status to **Ready** when:
   workspace and verifies path guard rejects it
 - **Validation:** `grep -n "parent.*symlink\|symlink.*parent" apps/anvil-cli/src/commands/mcp-config-path.test.ts`
   shows test case
-- **Files:** `apps/anvil-cli/src/commands/mcp-config-path.test.ts`
+- **Files:** `apps/anvil-cli/src/commands/__tests__/mcp-config-path.test.ts`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 
@@ -337,7 +339,9 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Replaced fs.readFileSync source scan with Function.toString()
+  introspection on the imported module — no file path coupling
 
 ---
 
@@ -350,14 +354,14 @@ Change status to **Ready** when:
 - **Expected Outcome:** `resolveTutorialKey` tests exist only in
   `tutorial-picker.test.tsx`; `tutorial-continuation.test.tsx` focuses on
   continuation-specific behaviour
-- **Validation:** `grep -rn "resolveTutorialKey" apps/anvil-cli/src/commands/tutorial-continuation.test.tsx`
+- **Validation:** `grep -rn "resolveTutorialKey" apps/anvil-cli/src/tui/commands/tutorial/__tests__/tutorial-continuation.test.tsx`
   returns 0 matches
-- **Files:** `apps/anvil-cli/src/commands/tutorial-continuation.test.tsx`,
-  `apps/anvil-cli/src/commands/tutorial-picker.test.tsx`
+- **Files:** `apps/anvil-cli/src/tui/commands/tutorial/__tests__/tutorial-continuation.test.tsx`,
+  `apps/anvil-cli/src/tui/commands/tutorial/__tests__/tutorial-picker.test.tsx`
 - **Dependencies:** PBLU-001 (fix shadowed import first)
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 
 ---
 

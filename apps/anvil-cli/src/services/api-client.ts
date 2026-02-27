@@ -27,7 +27,7 @@ export function getApiUrl(): string {
   }
 
   const { protocol, hostname } = parsed;
-  const allowedLocalHosts = new Set(['localhost', '127.0.0.1', '::1']);
+  const allowedLocalHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
   const isHttps = protocol === 'https:';
   const isLocalHttp = protocol === 'http:' && allowedLocalHosts.has(hostname);
 

@@ -85,6 +85,32 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     }
   });
 
+  it('detects symlink at parent directory component pointing outside workspace', async () => {
+    // Create a temp "workspace" where .cursor/ itself is a symlink to an outside directory
+    const workspace = mkdtempSync(join(tmpdir(), 'anvil-mcp-test-ws-'));
+    const outsideDir = mkdtempSync(join(tmpdir(), 'anvil-mcp-test-outside-'));
+    writeFileSync(join(outsideDir, 'mcp.json'), '{}');
+
+    // Symlink .cursor/ -> outsideDir/ (parent directory is the symlink)
+    symlinkSync(outsideDir, join(workspace, '.cursor'));
+
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(workspace);
+
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const command = createMcpConfigCommand();
+      await expect(
+        command.parseAsync(['-t', 'cursor', '--write'], { from: 'user' })
+      ).rejects.toThrow('outside workspace');
+    } finally {
+      process.chdir(originalCwd);
+      rmSync(workspace, { recursive: true, force: true });
+      rmSync(outsideDir, { recursive: true, force: true });
+    }
+  });
+
   it('generates correct stdio config for each target', async () => {
     const targets = ['claude-code', 'cursor', 'windsurf', 'vscode'] as const;
 

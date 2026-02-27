@@ -55,6 +55,12 @@ describe('api-client', () => {
 
       expect(getApiUrl()).toBe('http://127.0.0.1:3000');
     });
+
+    it('should allow http://[::1] (IPv6 loopback) for local development', () => {
+      process.env.ANVIL_API_URL = 'http://[::1]:3000';
+
+      expect(getApiUrl()).toBe('http://[::1]:3000');
+    });
   });
 
   describe('getAdminKey', () => {
