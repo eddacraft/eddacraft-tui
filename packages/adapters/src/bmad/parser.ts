@@ -25,6 +25,10 @@ import {
   parseWorkflowYaml,
   parseTeamYaml,
   parseModuleYaml,
+  isAgentYamlContent,
+  isWorkflowYamlContent,
+  isTeamYamlContent,
+  isModuleYamlContent,
 } from './utils.js';
 import { createError, createWarning, generateDeterministicPlanId } from '../base/utils.js';
 
@@ -36,7 +40,7 @@ import { createError, createWarning, generateDeterministicPlanId } from '../base
  */
 /**
  * Validate and sanitize a file path to prevent path traversal attacks.
- * Falls back to stripping special characters if validation fails.
+ * Throws if the path is not a valid relative path within the project.
  */
 function safePath(raw: string): string {
   const cleaned = raw.replace(/\{project-root\}\/?/g, '');
@@ -195,22 +199,43 @@ export function bmadToAPS(
   // v6: Handle agent YAML documents
   if (document.agentYaml) {
     const agent = document.agentYaml;
-    changes.push({
-      type: 'file_create',
-      path: safePath(agent.metadata.id || `agents/${agent.metadata.name.toLowerCase()}.md`),
-      description: `Agent: ${agent.metadata.name} (${agent.metadata.title}) - ${agent.persona.role}`,
-    });
+    try {
+      const agentPath = safePath(
+        agent.metadata.id || `agents/${agent.metadata.name.toLowerCase()}.md`
+      );
+      changes.push({
+        type: 'file_create',
+        path: agentPath,
+        description: `Agent: ${agent.metadata.name} (${agent.metadata.title}) - ${agent.persona.role}`,
+      });
+    } catch (error) {
+      errors.push(
+        createError(
+          'INVALID_PATH',
+          `Invalid agent path for "${agent.metadata.name}": ${(error as Error).message}`
+        )
+      );
+    }
 
     // Add menu items as references
     if (agent.menu) {
       for (const item of agent.menu) {
         const workflowPath = item.exec || item.workflow;
         if (workflowPath) {
-          changes.push({
-            type: 'file_create',
-            path: safePath(workflowPath),
-            description: item.description,
-          });
+          try {
+            changes.push({
+              type: 'file_create',
+              path: safePath(workflowPath),
+              description: item.description,
+            });
+          } catch (error) {
+            errors.push(
+              createError(
+                'INVALID_PATH',
+                `Invalid workflow path "${workflowPath}" in agent "${agent.metadata.name}": ${(error as Error).message}`
+              )
+            );
+          }
         }
       }
     }
@@ -223,48 +248,79 @@ export function bmadToAPS(
     const installedPath = wf.installed_path ?? '_bmad';
     const resolvePath = (p: string) =>
       safePath(p.replace(/\{installed_path\}/g, installedPath).replace(/\{[^}]+\}\/?/g, ''));
-    if (wf.instructions) {
-      changes.push({
-        type: 'file_create',
-        path: resolvePath(wf.instructions),
-        description: `Workflow instructions: ${wf.name}`,
-      });
-    }
-    if (wf.validation) {
-      changes.push({
-        type: 'file_create',
-        path: resolvePath(wf.validation),
-        description: `Workflow validation: ${wf.name}`,
-      });
+    for (const [field, desc] of [
+      ['instructions', `Workflow instructions: ${wf.name}`],
+      ['validation', `Workflow validation: ${wf.name}`],
+    ] as const) {
+      const val = wf[field];
+      if (val) {
+        try {
+          changes.push({ type: 'file_create', path: resolvePath(val), description: desc });
+        } catch (error) {
+          errors.push(
+            createError(
+              'INVALID_PATH',
+              `Invalid ${field} path "${val}" in workflow "${wf.name}": ${(error as Error).message}`
+            )
+          );
+        }
+      }
     }
   }
 
   // v6: Handle team YAML documents
   if (document.teamYaml) {
     for (const agentName of document.teamYaml.agents) {
-      changes.push({
-        type: 'file_create',
-        path: safePath(`agents/${agentName}.md`),
-        description: `Team agent: ${agentName}`,
-      });
+      try {
+        changes.push({
+          type: 'file_create',
+          path: safePath(`agents/${agentName}.md`),
+          description: `Team agent: ${agentName}`,
+        });
+      } catch (error) {
+        errors.push(
+          createError(
+            'INVALID_PATH',
+            `Invalid agent path for team member "${agentName}": ${(error as Error).message}`
+          )
+        );
+      }
     }
   }
 
   // v6: Handle module YAML documents
   if (document.moduleYaml) {
     const mod = document.moduleYaml;
-    changes.push({
-      type: 'config_update',
-      path: safePath(`_bmad/${mod.code}/module.yaml`),
-      description: `Module config: ${mod.name}`,
-    });
+    try {
+      changes.push({
+        type: 'config_update',
+        path: safePath(`_bmad/${mod.code}/module.yaml`),
+        description: `Module config: ${mod.name}`,
+      });
+    } catch (error) {
+      errors.push(
+        createError(
+          'INVALID_PATH',
+          `Invalid module path for "${mod.name}": ${(error as Error).message}`
+        )
+      );
+    }
     if (mod.directories) {
       for (const dir of mod.directories) {
-        changes.push({
-          type: 'file_create',
-          path: safePath(dir),
-          description: `Module directory: ${dir}`,
-        });
+        try {
+          changes.push({
+            type: 'file_create',
+            path: safePath(dir),
+            description: `Module directory: ${dir}`,
+          });
+        } catch (error) {
+          errors.push(
+            createError(
+              'INVALID_PATH',
+              `Invalid directory path "${dir}" in module "${mod.name}": ${(error as Error).message}`
+            )
+          );
+        }
       }
     }
   }
@@ -301,24 +357,29 @@ export function bmadToAPS(
     }
   }
 
-  // If document was detected as YAML type but structured parsing failed, emit error
+  // If structured YAML content was detected but parsing returned null, fail fast.
+  // Only applies to actual YAML documents (detected by is*YamlContent), not markdown
+  // documents that happen to have an AGENT/WORKFLOW/etc. type via frontmatter.
+  const src = originalContent ?? '';
+  const isStructuredYaml =
+    isAgentYamlContent(src) ||
+    isWorkflowYamlContent(src) ||
+    isTeamYamlContent(src) ||
+    isModuleYamlContent(src);
+  const hasYamlData =
+    document.agentYaml || document.workflowYaml || document.teamYaml || document.moduleYaml;
+  if (isStructuredYaml && !hasYamlData) {
+    throw new Error(
+      `YAML_PARSE_FAILED: Document detected as ${document.type} but structured YAML parsing failed`
+    );
+  }
+
   const isYamlDocType = [
     BMADDocumentType.AGENT,
     BMADDocumentType.WORKFLOW,
     BMADDocumentType.TEAM,
     BMADDocumentType.MODULE,
   ].includes(document.type);
-  const hasYamlData =
-    document.agentYaml || document.workflowYaml || document.teamYaml || document.moduleYaml;
-  if (isYamlDocType && !hasYamlData) {
-    errors.push(
-      createError(
-        'YAML_PARSE_FAILED',
-        `Document detected as ${document.type} but structured YAML parsing failed`,
-        { details: { type: document.type } }
-      )
-    );
-  }
 
   // If no changes found (and not a YAML document type), add warning
   if (changes.length === 0 && !isYamlDocType) {

@@ -648,7 +648,7 @@ export function isAgentYamlContent(content: string): boolean {
 export function isWorkflowYamlContent(content: string): boolean {
   return (
     /^name:\s+\S/m.test(content) &&
-    /^description:\s+/m.test(content) &&
+    /^description:\s*(?:[|>]\s*)?.*/m.test(content) &&
     (/^instructions:\s+/m.test(content) || /^config_source:\s+/m.test(content))
   );
 }
@@ -662,14 +662,14 @@ export function isTeamYamlContent(content: string): boolean {
 
 /**
  * Detect whether content is a module config YAML.
- * Requires `code:` + `name:` + `default_selected:` to avoid false positives
- * on generic config files that also have code/name keys.
+ * Requires `code:` + `name:` + (`default_selected:` or `directories:`) to
+ * avoid false positives on generic config files that also have code/name keys.
  */
 export function isModuleYamlContent(content: string): boolean {
   return (
     /^code:\s+\S/m.test(content) &&
     /^name:\s+/m.test(content) &&
-    /^default_selected:\s+/m.test(content)
+    (/^default_selected:\s+/m.test(content) || /^directories:\s*$/m.test(content))
   );
 }
 
@@ -862,8 +862,11 @@ export function parseAgentYaml(content: string): BMADAgentYaml | null {
       }
     }
 
-    // Parse metadata fields (indent level 4)
-    if (section === 'metadata' && indentLevel(line) >= 4) {
+    // Field indent = 2x section indent (e.g. section at 2 → fields at 4)
+    const fieldIndent = sectionIndent * 2;
+
+    // Parse metadata fields (dynamic indent based on section indent)
+    if (section === 'metadata' && indentLevel(line) >= fieldIndent) {
       const kvMatch = trimmed.match(/^(\w+):\s*(.*)$/);
       if (kvMatch) {
         const [, key, value] = kvMatch;
@@ -897,14 +900,14 @@ export function parseAgentYaml(content: string): BMADAgentYaml | null {
       }
     }
 
-    // Parse persona fields (indent level 4)
-    if (section === 'persona' && indentLevel(line) >= 4) {
+    // Parse persona fields (dynamic indent based on section indent)
+    if (section === 'persona' && indentLevel(line) >= fieldIndent) {
       const kvMatch = trimmed.match(/^(\w[\w_]*):\s*(.*)$/);
       if (kvMatch) {
         const [, key, rawValue] = kvMatch;
         if (rawValue.trim() === '|') {
           // Multi-line pipe block
-          const block = collectPipeBlock(lines, i + 1, 4);
+          const block = collectPipeBlock(lines, i + 1, indentLevel(line));
           (persona as Record<string, string>)[key] = block.text;
           i = block.endIndex;
         } else if (rawValue.trim() === '') {
@@ -1108,8 +1111,13 @@ export function parseWorkflowYaml(content: string): BMADWorkflowYaml | null {
     if (kvMatch) {
       const [, key, rawValue] = kvMatch;
       const trimmedValue = rawValue.trim();
-      if (trimmedValue === '' || trimmedValue === '|' || trimmedValue === '>') {
-        // Plain multi-line scalar or block scalar (value on next indented lines)
+      if (trimmedValue === '|') {
+        // Literal block scalar — preserve newlines
+        const block = collectPipeBlock(lines, i + 1, 0);
+        result[key] = block.text;
+        i = block.endIndex;
+      } else if (trimmedValue === '' || trimmedValue === '>') {
+        // Folded or plain multi-line scalar (newlines collapsed to spaces)
         const scalar = collectPlainScalar(lines, i + 1, 0);
         result[key] = scalar.text;
         i = scalar.endIndex;
