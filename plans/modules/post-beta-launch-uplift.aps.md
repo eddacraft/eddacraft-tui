@@ -413,9 +413,10 @@ Change status to **Ready** when:
 - **Severity:** Minor
 - **Intent:** Output JSON built via string interpolation, not `jq -n` — fragile
 - **Expected Outcome:** JSON output uses `jq -n --arg` for safe construction
-- **Files:** `.claude/hooks/forge-defer.sh`
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Already uses `jq --arg` / `jq --argjson` throughout
 
 ---
 
@@ -436,9 +437,10 @@ Change status to **Ready** when:
 - **Severity:** Minor
 - **Intent:** JSON via positional arg breaks if value contains single quotes
 - **Expected Outcome:** Use `jq -n --arg` or heredoc instead of positional args
-- **Files:** `.claude/hooks/forge-report.sh`
+- **Files:** `.claude/agent-bus/forge-report.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** JSON now constructed via jq pipe input, no positional arg interpolation
 
 ---
 
@@ -476,7 +478,8 @@ Change status to **Ready** when:
   failure and error output coordinated
 - **Files:** `apps/anvil-cli/src/commands/hooks.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Single spinner.fail per catch block — no double-call pattern remains
 
 ---
 
@@ -489,7 +492,8 @@ Change status to **Ready** when:
   `throw new CliExit()`
 - **Files:** `apps/anvil-cli/src/commands/audit.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** CliExit used appropriately — no unnecessary throws on natural paths
 
 ---
 
@@ -515,7 +519,8 @@ Change status to **Ready** when:
   substring
 - **Files:** `apps/anvil-cli/src/services/api-client.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Uses `/admin/` with trailing slash — sufficient for current routes
 
 ---
 
@@ -527,7 +532,8 @@ Change status to **Ready** when:
   types
 - **Files:** `apps/anvil-cli/src/services/api-client.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Explicit `DOMException` + `name === 'TimeoutError'` check before TypeError branch
 
 ---
 
@@ -552,7 +558,8 @@ Change status to **Ready** when:
 - **Expected Outcome:** URL construction normalises trailing slashes
 - **Files:** `apps/anvil-cli/src/services/api-client.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** No trailing slash in default URL or return value — clean concatenation
 
 ---
 
@@ -723,7 +730,8 @@ Change status to **Ready** when:
   plan subcommands
 - **Files:** `apps/anvil-cli/src/commands/plan/load.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** JSON success path falls through naturally — no spurious exit needed
 
 ---
 
@@ -785,7 +793,8 @@ Change status to **Ready** when:
   prettierignore
 - **Files:** `.prettierignore`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Comment explains exclusion reason
 
 ---
 
@@ -838,9 +847,8 @@ Change status to **Ready** when:
 - **Intent:** `name:` before `on:` is unconventional for GitHub Actions
 - **Files:** `.github/workflows/temper.yml`
 - **Priority:** Low
-- **Status:** Draft
-- **Notes:** Actually `name:` before `on:` is the GitHub convention — review
-  finding may be inverted. Verify before acting.
+- **Status:** Complete
+- **Notes:** Ordering is already correct (`name:` before `on:`) — finding was inverted
 
 ---
 
@@ -851,7 +859,8 @@ Change status to **Ready** when:
   current value
 - **Files:** `.claude/agents/forge-reviewer.md`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Field documented as optional with correct description
 
 ---
 

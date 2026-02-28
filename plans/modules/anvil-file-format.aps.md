@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status |
 | ------ | ----- | ------ |
-| ANVFMT | —     | Draft  |
+| ANVFMT | —     | In Progress |
 
 ## Purpose
 

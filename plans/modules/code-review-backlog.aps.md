@@ -14,7 +14,7 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | Draft  |
+| CRB | —     | In Progress |
 
 ## Purpose
 

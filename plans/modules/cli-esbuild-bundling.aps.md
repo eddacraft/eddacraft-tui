@@ -9,7 +9,7 @@ so the published npm package is self-contained and installable.
 
 | ID     | Owner | Status  |
 | ------ | ----- | ------- |
-| BUNDLE | —     | Pending |
+| BUNDLE | —     | Complete |
 
 ## Branch
 

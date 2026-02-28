@@ -116,23 +116,24 @@ release must deliver both the core value AND a friction-free first experience.
 
 ### 0.1.x — Current Work
 
-| Feature                  | Description                                              | Status      |
-| ------------------------ | -------------------------------------------------------- | ----------- |
-| Forge Hook & Agent       | Pre-commit hook + reviewer agent with codex delegation   | Complete    |
-| Forge Negotiation        | Structured finding/response protocol, round cap          | Complete    |
-| Deferred Finding Filing  | Auto-file deferred findings as GH issues or APS items    | Complete    |
-| Temper Workflow           | GitHub Actions self-healing loop with 2-cycle cap        | Complete    |
-| Configuration & Docs     | Env vars, settings.json, CLAUDE.md, toggle matrix        | Complete    |
-| CLI Hardening            | Error handling, edge cases, robustness                   | Complete    |
-| Coaching Nudges          | Context-aware suggestions for pattern improvement        | Complete    |
-| Nx Task Migration        | Migrate root scripts to Nx-orchestrated per-project      | Ready       |
-| CLI esbuild Bundling     | Self-contained npm package via esbuild                   | Pending     |
-| MCP Server Hardening     | Production-readiness for MCP server                      | Complete    |
-| Security CI Pipeline     | Automated security scanning on every PR                  | Complete    |
-| Tutorial Path Continuation | Continue with another tutorial from completion screen  | Complete    |
-| Post-Beta Launch Uplift  | Address 57 findings from v0.1.2-beta post-release review | Draft       |
-| Code Review Backlog      | 25 architectural recommendations from code review        | Draft       |
-| .anvil File Format       | Replace hardcoded anti-pattern catalogue with file-based | Draft       |
+| Feature                    | Description                                              | Status      | Progress |
+| -------------------------- | -------------------------------------------------------- | ----------- | -------- |
+| Forge Hook & Agent         | Pre-commit hook + reviewer agent with codex delegation   | Complete    | —        |
+| Forge Negotiation          | Structured finding/response protocol, round cap          | Complete    | —        |
+| Deferred Finding Filing    | Auto-file deferred findings as GH issues or APS items    | Complete    | —        |
+| Temper Workflow             | GitHub Actions self-healing loop with 2-cycle cap        | Complete    | —        |
+| Configuration & Docs       | Env vars, settings.json, CLAUDE.md, toggle matrix        | Complete    | —        |
+| CLI Hardening              | Error handling, edge cases, robustness                   | Complete    | —        |
+| Coaching Nudges            | Context-aware suggestions for pattern improvement        | Complete    | —        |
+| Nx Task Migration          | Migrate root scripts to Nx-orchestrated per-project      | Complete    | 6/6      |
+| CLI esbuild Bundling       | Self-contained npm package via esbuild                   | Complete    | 3/3      |
+| MCP Server Hardening       | Production-readiness for MCP server                      | Complete    | —        |
+| Security CI Pipeline       | Automated security scanning on every PR                  | Complete    | —        |
+| Tutorial Path Continuation | Continue with another tutorial from completion screen     | Complete    | —        |
+| Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Ready       | 28/57    |
+| Code Review Backlog        | 25 architectural recommendations from code review        | In Progress | 3/25     |
+| .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
+| BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
 
 **Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
@@ -322,23 +323,24 @@ Task-level detail for all completed work is archived in
 
 ### Current (0.1.x)
 
-| Module | Scope | Status | Dependencies |
-| ------ | ----- | ------ | ------------ |
-| [cli-hardening](./modules/cli-hardening.aps.md) | CLIH | Complete | — |
-| [coaching-nudges](./modules/coaching-nudges.aps.md) | NUDGE | Complete | antipattern-library |
-| [mcp-server-hardening](./modules/mcp-server-hardening.aps.md) | MCPH | Complete | — |
-| [tutorial-path-continuation](./modules/tutorial-path-continuation.aps.md) | Tutorial | Complete | tui |
-| [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Ready | — |
-| [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — |
-| [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Pending | — |
-| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | — |
-| [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | forge-hook-agent |
-| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | forge-negotiation |
-| [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | deferred-finding-filing |
-| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [post-beta-launch-uplift](./modules/post-beta-launch-uplift.aps.md) | PBLU | Draft | — |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Draft | — |
-| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | Draft | — |
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [cli-hardening](./modules/cli-hardening.aps.md) | CLIH | Complete | — | — |
+| [coaching-nudges](./modules/coaching-nudges.aps.md) | NUDGE | Complete | — | antipattern-library |
+| [mcp-server-hardening](./modules/mcp-server-hardening.aps.md) | MCPH | Complete | — | — |
+| [tutorial-path-continuation](./modules/tutorial-path-continuation.aps.md) | Tutorial | Complete | — | tui |
+| [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 | — |
+| [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — | — |
+| [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 | — |
+| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | — | — |
+| [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | — | forge-hook-agent |
+| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | — | forge-negotiation |
+| [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | — | deferred-finding-filing |
+| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | — | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
+| [post-beta-launch-uplift](./modules/post-beta-launch-uplift.aps.md) | PBLU | Ready | 28/57 | — |
+| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 3/25 | — |
+| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
+| [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
 
 ### Planned — 0.2.0 (Web Dashboard)
 

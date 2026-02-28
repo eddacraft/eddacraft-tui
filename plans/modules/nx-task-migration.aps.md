@@ -1,5 +1,5 @@
 <!-- APS Module: nx-task-migration -->
-<!-- Status: Ready -->
+<!-- Status: Complete -->
 
 # Nx Task Migration
 
@@ -109,7 +109,7 @@ should follow the same pattern.
 
 ### NXTASK-001: Ensure nx sync is clean and TypeScript references are current
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Guarantee that `nx sync` reports no drift so per-project
   `typecheck` targets have correct project references.
 - **Expected Outcome:** `npx nx sync --dry-run` exits 0 and reports "already up
@@ -124,7 +124,7 @@ should follow the same pattern.
 
 ### NXTASK-002: Wire eslint-plugin-anvil as an Nx build dependency for lint targets
 
-- **Status:** Ready
+- **Status:** Complete
 - **Dependencies:** NXTASK-001
 - **Intent:** Ensure the custom ESLint plugin is built before any project's lint
   target runs, replacing the `prelint` npm script hack.
@@ -140,7 +140,7 @@ should follow the same pattern.
 
 ### NXTASK-003: Migrate root lint scripts to nx run-many
 
-- **Status:** Ready
+- **Status:** Complete
 - **Dependencies:** NXTASK-002
 - **Intent:** Replace monolithic `eslint . --fix` with `nx run-many -t lint` so
   linting runs per-project with caching and parallelism.
@@ -163,7 +163,7 @@ should follow the same pattern.
 
 ### NXTASK-004: Migrate root typecheck script to nx run-many
 
-- **Status:** Ready
+- **Status:** Complete
 - **Dependencies:** NXTASK-001
 - **Intent:** Replace monolithic `tsc --noEmit` with `nx run-many -t typecheck`
   for per-project type checking with caching.
@@ -181,7 +181,7 @@ should follow the same pattern.
 
 ### NXTASK-005: Migrate root test script to nx run-many
 
-- **Status:** Ready
+- **Status:** Complete
 - **Dependencies:** NXTASK-001
 - **Intent:** Replace the monolithic `vitest` invocation with
   `nx run-many -t test` so tests run per-project with caching.
@@ -209,7 +209,7 @@ should follow the same pattern.
 
 ### NXTASK-006: Update CI to use nx affected
 
-- **Status:** Ready
+- **Status:** Complete
 - **Dependencies:** NXTASK-003, NXTASK-004, NXTASK-005
 - **Intent:** Maximise CI efficiency by running only affected project targets on
   PRs instead of running everything.
