@@ -13,7 +13,7 @@ Scopes: PBLU (main), grouped by area: FORGE, CLI, SEC, TEST, CI, DOC
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |
-| PBLU | —     | Draft  |
+| PBLU | —     | Ready  |
 
 ## Purpose
 
@@ -92,7 +92,8 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Critical
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Completed in PR #386 (2026-02-27)
 
 ---
 
@@ -109,7 +110,8 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Completed in PR #386 (2026-02-27)
 
 ---
 
@@ -126,7 +128,8 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Completed in PR #386 (2026-02-27)
 
 ---
 
@@ -144,7 +147,8 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Completed in PR #386 (2026-02-27)
 
 ---
 
