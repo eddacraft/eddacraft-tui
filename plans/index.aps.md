@@ -337,7 +337,7 @@ Task-level detail for all completed work is archived in
 | [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | — | forge-negotiation |
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | — | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | — | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [post-beta-launch-uplift](./modules/post-beta-launch-uplift.aps.md) | PBLU | Ready | 28/57 | — |
+| [post-beta-launch-uplift](./modules/post-beta-launch-uplift.aps.md) | PBLU | Ready | 26/57 | — |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 3/25 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |

@@ -70,9 +70,9 @@ waves correspond to the review's priority recommendations:
 
 Change status to **Ready** when:
 
-- [ ] Team has reviewed and confirmed priority ordering
-- [ ] No overlap with in-flight work on other modules
-- [ ] Forge items deferred if Forge enablement is not imminent
+- [x] Team has reviewed and confirmed priority ordering
+- [x] No overlap with in-flight work on other modules
+- [x] Forge items deferred if Forge enablement is not imminent
 
 ---
 
@@ -110,8 +110,9 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Complete
-- **Notes:** Completed in PR #386 (2026-02-27)
+- **Status:** Draft
+- **Notes:** Previously claimed complete in PR #386 but `id-token: write` is
+  still present on line 24 of the workflow
 
 ---
 
@@ -415,8 +416,9 @@ Change status to **Ready** when:
 - **Expected Outcome:** JSON output uses `jq -n --arg` for safe construction
 - **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Priority:** Low
-- **Status:** Complete
-- **Notes:** Already uses `jq --arg` / `jq --argjson` throughout
+- **Status:** Draft
+- **Notes:** Uses `jq` for input parsing but JSON *output* on lines 99, 142,
+  193, 239 still uses shell interpolation (`echo "{\"key\":\"${var}\"}"`)
 
 ---
 
