@@ -810,7 +810,9 @@ export function parseAgentYaml(content: string): BMADAgentYaml | null {
   let menu: BMADMenuItem[] | undefined;
   let prompts: BMADAgentPrompt[] | undefined;
 
-  let section: 'root' | 'metadata' | 'persona' | 'critical_actions' | 'menu' | 'prompts' = 'root';
+  // Typed as string to prevent incorrect CFA narrowing across loop iterations —
+  // TypeScript eliminates values assigned before `continue` in earlier iterations.
+  let section = 'root' as string;
 
   // Detect section indent level from first section header (metadata/persona)
   let sectionIndent = 2; // default BMAD convention
@@ -857,6 +859,7 @@ export function parseAgentYaml(content: string): BMADAgentYaml | null {
         prompts = parsePromptItems(lines, i + 1);
         i = skipSection(lines, i + 1, sectionIndent * 2);
         continue;
+      }
     }
 
     // Parse metadata fields (indent level 4)
