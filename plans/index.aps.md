@@ -189,7 +189,7 @@ modules.
 | ------------------------ | -------------------------------------------------------- | -------- | -------- |
 | Spike (Validation)       | tree-sitter, N-API, rusqlite, Ratatui, notify-rs         | Proposed | 0/5      |
 | Secret Scanner           | Port secret scan to Rust, N-API binding, benchmark       | Proposed | 0/4      |
-| Architecture + Anti-Pat  | tree-sitter AST, dependency graph, pattern matching      | Proposed | 0/4      |
+| Architecture + Anti-Pattern | tree-sitter AST, dependency graph, pattern matching   | Proposed | 0/4      |
 | Watcher                  | notify-rs, adaptive debounce, git2, parallel gate runner | Proposed | 0/4      |
 | Kindling Storage         | rusqlite observation store, query API                    | Proposed | 0/2      |
 | TUI                      | eddacraft-tui shared crate, watch dashboard, wizard      | Proposed | 0/3      |
