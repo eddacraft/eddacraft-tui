@@ -43,7 +43,9 @@ function safePath(raw: string): string {
   try {
     return validateRelativePath(cleaned);
   } catch {
-    throw new Error(`Invalid path in BMAD document: "${raw}" — must be a relative path within the project`);
+    throw new Error(
+      `Invalid path in BMAD document: "${raw}" — must be a relative path within the project`
+    );
   }
 }
 

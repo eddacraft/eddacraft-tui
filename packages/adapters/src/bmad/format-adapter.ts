@@ -25,8 +25,10 @@ import {
   parseWorkflowYaml,
   parseTeamYaml,
   parseModuleYaml,
+  identifyDocumentType,
+  extractFrontMatter,
 } from './utils.js';
-import { BMAD_UPSTREAM_VERSION } from './types.js';
+import { BMAD_UPSTREAM_VERSION, BMADDocumentType } from './types.js';
 import { parseBMAD } from './parser.js';
 import { serializeToBMAD } from './serializer.js';
 
@@ -235,6 +237,19 @@ export class BMADFormatAdapter extends BaseFormatAdapter {
           path: 'module',
           message: 'Module YAML is missing required fields (name, code)',
           severity: 'error',
+        });
+      }
+    }
+
+    // v6: Warn if agent-type document is missing hasSidecar field
+    if (!indicators.hasHasSidecar && !indicators.isAgentYaml) {
+      const docType = identifyDocumentType(content, extractFrontMatter(content));
+      if (docType === BMADDocumentType.AGENT) {
+        issues.push({
+          code: 'MISSING_HAS_SIDECAR',
+          path: 'frontMatter.hasSidecar',
+          message: 'Agent document is missing hasSidecar field in front matter',
+          severity: 'warning',
         });
       }
     }
