@@ -183,6 +183,24 @@ modules.
 | Edda                   | Canonical memory — git-backed, provenance-tracked | Draft |
 | Edda Stack Integration | Shared schemas, event bus, layer ports          | Draft  |
 
+### Future — Rust Core Engine (Proposed)
+
+| Feature                  | Description                                              | Status   | Progress |
+| ------------------------ | -------------------------------------------------------- | -------- | -------- |
+| Spike (Validation)       | tree-sitter, N-API, rusqlite, Ratatui, notify-rs         | Proposed | 0/5      |
+| Secret Scanner           | Port secret scan to Rust, N-API binding, benchmark       | Proposed | 0/4      |
+| Architecture + Anti-Pat  | tree-sitter AST, dependency graph, pattern matching      | Proposed | 0/4      |
+| Watcher                  | notify-rs, adaptive debounce, git2, parallel gate runner | Proposed | 0/4      |
+| Kindling Storage         | rusqlite observation store, query API                    | Proposed | 0/2      |
+| TUI                      | eddacraft-tui shared crate, watch dashboard, wizard      | Proposed | 0/3      |
+| Lint Integration         | oxlint integration, pre-commit cache optimisation        | Proposed | 0/2      |
+
+**Why this is future:** Gated on [ADR-011](./decisions/011-rust-core-engine.md)
+acceptance and Phase 0 spike validation. The TypeScript CLI stays — Rust handles
+performance-critical subsystems (policy engine, watcher, storage, TUI). Each
+phase delivers independently behind a feature flag. 15-20 week estimated
+timeline. If the spike fails targets, fall back to JS-only optimisations.
+
 ### Post-1.0.0 — Multi-Language Support (Placeholders)
 
 | Feature         | Description                                    | Status      |
@@ -376,15 +394,16 @@ Task-level detail for all completed work is archived in
 
 ### Future (Post-1.0.0)
 
-| Module | Scope | Status | Dependencies |
-| ------ | ----- | ------ | ------------ |
-| [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | html-css-support (HTMLCSS-001) |
-| [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | html-css-support (HTMLCSS-001) |
-| [lang-dotnet](./modules/lang-dotnet.aps.md) | DNLAN | Placeholder | html-css-support (HTMLCSS-001) |
-| [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | — |
-| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | save-time-trust |
-| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Draft | save-time-trust, ide-integration |
-| ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | see D-005: Ink over OpenTUI |
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Proposed | 0/24 | ADR-011 acceptance |
+| [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
+| [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
+| [lang-dotnet](./modules/lang-dotnet.aps.md) | DNLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
+| [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | — | — |
+| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | — | save-time-trust |
+| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Draft | — | save-time-trust, ide-integration |
+| ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI |
 
 ## Risks & Mitigations
 
@@ -417,6 +436,9 @@ Task-level detail for all completed work is archived in
 - **D-007:** Pulumi for IaC — open-source Pulumi with TypeScript over Terraform
   for consistency with the monorepo's TypeScript-first toolchain
   ([ADR](./decisions/007-pulumi-iac.md))
+- **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
+  watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
+  ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
 
 ## Open Questions
 
