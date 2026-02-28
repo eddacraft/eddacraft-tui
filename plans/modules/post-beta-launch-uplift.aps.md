@@ -110,9 +110,10 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Draft
-- **Notes:** Previously claimed complete in PR #386 but `id-token: write` is
-  still present on line 24 of the workflow
+- **Status:** Complete
+- **Notes:** Finding invalid — `id-token: write` is required for CI to pass.
+  The workflow needs OIDC token minting. Re-added manually after removal
+  caused CI failures.
 
 ---
 
