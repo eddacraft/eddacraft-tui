@@ -962,7 +962,7 @@ describe('template patterns with Windows-style paths', () => {
 
     for (const template of templates) {
       const defaults = getTemplateDefaults(template as ArchitectureTemplate);
-      for (const [, layer] of Object.entries(defaults.layers ?? {})) {
+      for (const [, layer] of Object.entries(defaults)) {
         for (const pattern of layer.patterns ?? []) {
           // A forward-slash path should match its own pattern
           const samplePath = pattern.replace('**/*', 'example.ts').replace('**', 'example.ts');
@@ -977,20 +977,23 @@ describe('template patterns with Windows-style paths', () => {
   });
 
   it('template layer patterns match backslash paths after normalisation', () => {
-    const defaults = getTemplateDefaults('fullstack');
+    const templates = getAvailableTemplates();
 
-    for (const [, layer] of Object.entries(defaults.layers ?? {})) {
-      for (const pattern of layer.patterns ?? []) {
-        // Simulate a Windows path by replacing / with \ in the sample
-        const samplePath = pattern.replace('**/*', 'example.ts').replace('**', 'example.ts');
-        const windowsPath = samplePath.replace(/\//g, '\\');
+    for (const template of templates) {
+      const defaults = getTemplateDefaults(template as ArchitectureTemplate);
+      for (const [, layer] of Object.entries(defaults)) {
+        for (const pattern of layer.patterns ?? []) {
+          // Simulate a Windows path by replacing / with \ in the sample
+          const samplePath = pattern.replace('**/*', 'example.ts').replace('**', 'example.ts');
+          const windowsPath = samplePath.replace(/\//g, '\\');
 
-        // Without normalisation it may fail; with normalisation it must match
-        const normalised = normaliseToForwardSlash(windowsPath);
-        expect(
-          minimatch(normalised, pattern, { matchBase: true }),
-          `normalised Windows path '${normalised}' should match pattern '${pattern}'`
-        ).toBe(true);
+          // Without normalisation it may fail; with normalisation it must match
+          const normalised = normaliseToForwardSlash(windowsPath);
+          expect(
+            minimatch(normalised, pattern, { matchBase: true }),
+            `normalised Windows path '${normalised}' should match pattern '${pattern}'`
+          ).toBe(true);
+        }
       }
     }
   });
@@ -1000,7 +1003,7 @@ describe('template patterns with Windows-style paths', () => {
 
     for (const template of templates) {
       const defaults = getTemplateDefaults(template as ArchitectureTemplate);
-      for (const [layerName, layer] of Object.entries(defaults.layers ?? {})) {
+      for (const [layerName, layer] of Object.entries(defaults)) {
         for (const pattern of layer.patterns ?? []) {
           expect(
             pattern.includes('\\'),
