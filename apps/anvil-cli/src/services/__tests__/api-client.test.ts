@@ -61,6 +61,18 @@ describe('api-client', () => {
 
       expect(getApiUrl()).toBe('http://[::1]:3000');
     });
+
+    it('should strip trailing slashes to prevent double-slash URLs', () => {
+      process.env.ANVIL_API_URL = 'https://example.com/';
+
+      expect(getApiUrl()).toBe('https://example.com');
+    });
+
+    it('should strip multiple trailing slashes', () => {
+      process.env.ANVIL_API_URL = 'https://example.com///';
+
+      expect(getApiUrl()).toBe('https://example.com');
+    });
   });
 
   describe('getAdminKey', () => {
