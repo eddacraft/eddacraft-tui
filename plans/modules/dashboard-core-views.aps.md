@@ -2,7 +2,7 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| DASHCORE | @eddacraft | Draft |
+| DASHCORE | @eddacraft | Ready |
 
 ## Purpose
 
@@ -13,16 +13,15 @@ the minimum viable dashboard.
 
 ## In Scope
 
-- Overview page: metric cards, trend charts, recent activity feed, quick actions
-- Gates page: run history list, gate detail view, gate trend analysis
+- Overview page: metric cards, trend charts, recent activity feed
+- Gates page: run history list, gate detail view with check tree
 - Warnings page: warning list with filtering/grouping, warning detail panel,
   warning breakdown charts, anti-pattern registry reference
 - Empty states and loading skeletons for all views
-- Data export per table/chart (JSON, CSV, Markdown)
 
 ## Out of Scope
 
-- Architecture visualization (see DASHARCH)
+- Architecture visualisation (see DASHARCH)
 - Drift tracking (see DASHARCH)
 - Suppression management (see DASHARCH)
 - AI dashboard builder (see DASHAI)
@@ -32,7 +31,7 @@ the minimum viable dashboard.
 
 **Depends on:**
 
-- `dashboard-foundation` — App shell, routing, component catalog, data hooks,
+- `dashboard-foundation` — App shell, routing, component catalogue, data hooks,
   theme, deep linking
 - `contracts` — `WarningSchema`, `EvidenceEntrySchema`, `ProvenanceRecordSchema`
 - `drift-reporting` — Drift score for Overview metric card
@@ -40,10 +39,11 @@ the minimum viable dashboard.
 
 **Exposes:**
 
-- Overview page at `/`
-- Gates pages at `/gates`, `/gates/:id`, `/gates/trends`
-- Warnings pages at `/warnings`, `/warnings/breakdown`, `/warnings/patterns`
-- Anvil-specific components: `GateResultCard`, `WarningList`, `GateCheckTree`
+- Overview page at `/dashboard`
+- Gates pages at `/dashboard/gates`, `/dashboard/gates/:id`
+- Warnings pages at `/dashboard/warnings`, `/dashboard/warnings/breakdown`,
+  `/dashboard/warnings/patterns`
+- Domain components: `GateResultCard`, `WarningList`, `GateCheckTree`
 
 ## Risks
 
@@ -57,152 +57,135 @@ the minimum viable dashboard.
 
 Change status to **Ready** when:
 
-- [ ] Purpose and scope are clear
-- [ ] Dependencies identified
-- [ ] At least one task defined
-- [ ] DASH foundation tasks are Ready or In Progress
+- [x] Purpose and scope are clear
+- [x] Dependencies identified
+- [x] At least one task defined
+- [x] DASH foundation tasks are Ready
+
+## Wave
+
+**Wave 2** — Can begin after Wave 1 (DASH) completes. Runs in parallel with
+DASHARCH.
 
 ## Tasks
 
-### DASHCORE-001: Overview page — metric cards row
+### DASHCORE-001: Overview — metric cards row
 
 - **Intent:** Show at-a-glance project health via key metrics
-- **Expected Outcome:** Top row of metric cards displaying: gate pass rate (last
-  30 days) with sparkline, active warning count by severity, architecture drift
-  score with trend arrow, pending suppression count, active plan count by
-  status, and last gate run timestamp with pass/fail badge
-- **Scope:** `apps/anvil-ui/src/pages/overview/`
-- **Non-scope:** Trend charts, activity feed
-- **Dependencies:** DASH-004, DASH-006
-- **Validation:** Cards render with real data from API; sparklines show 30-day trend
+- **Expected Outcome:** MetricCards for gate pass rate (sparkline), active
+  warnings by severity, drift score with trend arrow, suppression count, last
+  gate run with badge. Each links to detail page.
+- **Files:**
+  - `apps/website/app/(dashboard)/dashboard/page.tsx`
+  - `apps/website/components/dashboard/overview/metric-cards.tsx`
+- **Dependencies:** DASH-003, DASH-006
+- **Validation:** Cards render with real data from API; sparklines show 30-day
+  trend; clicking navigates to detail
 - **Confidence:** high
 
-### DASHCORE-002: Overview page — trend charts
+### DASHCORE-002: Overview — trend charts
 
 - **Intent:** Visualise codebase health trajectory over time
-- **Expected Outcome:** Mid-page section with three charts: warning trend (line
-  chart, 30/60/90 day toggles, grouped by category), gate pass rate over time
-  (area chart, daily/weekly granularity), and drift trajectory (line chart of
-  key drift metrics across snapshots). All charts support hover tooltips and
-  time range selection.
-- **Scope:** `apps/anvil-ui/src/pages/overview/`
-- **Non-scope:** Custom chart configurations
+- **Expected Outcome:** Warning count trend (line, 30/60/90 day toggle) and gate
+  pass rate (area, daily/weekly). Uses DASH-004 charts.
+- **Files:**
+  - `apps/website/components/dashboard/overview/trend-charts.tsx`
 - **Dependencies:** DASH-004, DASH-006
 - **Validation:** Charts render with historical data; time range toggle works
 - **Confidence:** medium
 
-### DASHCORE-003: Overview page — activity feed and quick actions
+### DASHCORE-003: Overview — activity feed
 
 - **Intent:** Show recent events and provide navigation shortcuts
-- **Expected Outcome:** Chronological activity feed showing recent gate runs,
-  new warnings, suppression events, plan lifecycle events, and architecture
-  changes. Each entry has timestamp, event type badge, summary text, and actor.
-  Quick action buttons: "View latest warnings", "Compare drift". Feed is
-  paginated and auto-refreshes.
-- **Scope:** `apps/anvil-ui/src/pages/overview/`
-- **Non-scope:** Real-time push updates
-- **Dependencies:** DASH-004, DASH-006
-- **Validation:** Activity feed shows latest events; clicking entries navigates to detail views
+- **Expected Outcome:** Last 20 events from provenance: gate runs, new warnings,
+  suppressions. Timestamp, type badge, summary, actor. Click navigates to detail.
+- **Files:**
+  - `apps/website/components/dashboard/overview/activity-feed.tsx`
+- **Dependencies:** DASH-003, DASH-006
+- **Validation:** Activity feed shows latest events; clicking entries navigates
+  to detail views
 - **Confidence:** high
 
-### DASHCORE-004: Gate history list with filtering
+### DASHCORE-004: Gate history list
 
 - **Intent:** Browse all gate runs with sorting and filtering
-- **Expected Outcome:** Sortable table of all gate runs showing: timestamp,
-  status badge (pass/fail), score, checks summary (passed/total), trigger type
-  (manual/pre-commit/CI/watch), duration, scope, file count, actor. Filters:
-  status, trigger type, date range, minimum score. Clicking a row navigates to
-  gate detail.
-- **Scope:** `apps/anvil-ui/src/pages/gates/`
-- **Non-scope:** Gate detail view, trend analysis
-- **Dependencies:** DASH-004, DASH-006, DASH-008
-- **Validation:** Table renders gate history; filters narrow results; sort works; row click navigates
+- **Expected Outcome:** DataTable of gate runs: timestamp, status, score, checks
+  (passed/total), trigger, duration, file count. Filters via useFilterParams.
+  Click navigates to detail.
+- **Files:**
+  - `apps/website/app/(dashboard)/dashboard/gates/page.tsx`
+  - `apps/website/components/dashboard/gates/gate-history-table.tsx`
+- **Dependencies:** DASH-003, DASH-006, DASH-008
+- **Validation:** Table renders gate history; filters narrow results; row click
+  navigates
 - **Confidence:** high
 
-### DASHCORE-005: Gate detail view with check tree
+### DASHCORE-005: Gate detail with check tree
 
 - **Intent:** Deep dive into a single gate run's results
-- **Expected Outcome:** Header with overall status, score, timestamp, duration,
-  trigger, scope. Expandable check list showing each check's name, status,
-  score, message, duration. Expanding a check reveals detailed output, issues
-  found, and file references. Evidence panel showing raw evidence entries.
-  Provenance footer with environment and git context. Keyboard navigation
-  matching Gate Explorer TUI (j/k navigate, Enter expand, n/N jump to
-  failures).
-- **Scope:** `apps/anvil-ui/src/pages/gates/`
-- **Non-scope:** Comparison between gate runs
-- **Dependencies:** DASHCORE-004, DASH-004
-- **Validation:** Detail view renders full gate data; check tree expands; keyboard nav works
+- **Expected Outcome:** Header (status, score, timestamp, trigger), expandable
+  check tree (name, status, score, message, duration → detailed output on
+  expand), evidence panel, provenance footer. Keyboard nav (j/k/Enter/n/N).
+- **Files:**
+  - `apps/website/app/(dashboard)/dashboard/gates/[id]/page.tsx`
+  - `apps/website/components/dashboard/gates/check-tree.tsx`
+  - `apps/website/components/dashboard/gates/gate-detail-header.tsx`
+  - `apps/website/components/dashboard/gates/evidence-panel.tsx`
+- **Dependencies:** DASHCORE-004, DASH-003
+- **Validation:** Detail view renders full gate data; check tree expands;
+  keyboard nav works
 - **Confidence:** medium
 
-### DASHCORE-006: Gate trend analysis charts
-
-- **Intent:** Identify patterns in gate results over time
-- **Expected Outcome:** Charts page showing: pass rate by check type over time,
-  average score trend, most common failure reasons (bar chart), and duration
-  trends. Useful for understanding which checks are failing, whether quality is
-  improving, and whether gates are getting slower.
-- **Scope:** `apps/anvil-ui/src/pages/gates/`
-- **Non-scope:** Custom chart building
-- **Dependencies:** DASH-004, DASH-006
-- **Validation:** Charts render with historical gate data; trends are visible
-- **Confidence:** medium
-
-### DASHCORE-007: Warning list with grouping and filtering
+### DASHCORE-006: Warning list with grouping/filtering
 
 - **Intent:** Browse and investigate all active warnings
-- **Expected Outcome:** Table of all warnings from latest analysis showing: ID,
-  severity badge, category, title, file path, line number, new-since-baseline
-  indicator, suppression status. Filters: severity, category, file path glob,
-  new-only, suppressed/unsuppressed, confidence level. Group-by options: file,
-  category, severity, pattern ID. Sorting on all columns.
-- **Scope:** `apps/anvil-ui/src/pages/warnings/`
-- **Non-scope:** Warning detail panel, breakdown charts
-- **Dependencies:** DASH-004, DASH-006, DASH-008
-- **Validation:** Table renders warnings; filters narrow results; group-by reorganises data
+- **Expected Outcome:** DataTable: ID, severity badge, category, title, file,
+  line, new-since-baseline, suppression status. Filters: severity, category,
+  file glob, new-only, suppressed. Group-by: file, category, severity, pattern.
+  Click opens detail panel.
+- **Files:**
+  - `apps/website/app/(dashboard)/dashboard/warnings/page.tsx`
+  - `apps/website/components/dashboard/warnings/warning-table.tsx`
+- **Dependencies:** DASH-003, DASH-006, DASH-008
+- **Validation:** Table renders warnings; filters narrow results; group-by
+  reorganises data
 - **Confidence:** high
 
-### DASHCORE-008: Warning detail panel with code context
+### DASHCORE-007: Warning detail panel
 
 - **Intent:** Understand a specific warning in full context
-- **Expected Outcome:** Slide-out detail panel showing: full warning message and
-  explanation, fix suggestion, code context (surrounding source lines with
-  violation highlighted), suppression status (reason, author, expiry if
-  suppressed), drift info (new vs. existing, instance count). Panel opens when
-  clicking a warning row; closable with Escape.
-- **Scope:** `apps/anvil-ui/src/pages/warnings/`
-- **Non-scope:** Inline editing, auto-fix
-- **Dependencies:** DASHCORE-007
-- **Validation:** Clicking a warning opens panel with full context; code rendering is readable
+- **Expected Outcome:** shadcn/ui Sheet with full message, explanation, fix
+  suggestion, code context (highlighted violation), suppression status, drift
+  info. Opens on row click, closes on Escape.
+- **Files:**
+  - `apps/website/components/dashboard/warnings/warning-detail-panel.tsx`
+- **Dependencies:** DASHCORE-006
+- **Validation:** Clicking a warning opens panel with full context; code
+  rendering is readable
 - **Confidence:** medium
 
-### DASHCORE-009: Warning breakdown visualisations
+### DASHCORE-008: Warning breakdown visualisations
 
 - **Intent:** Understand warning distribution and identify hotspots
-- **Expected Outcome:** Visual summary page with: bar chart of warning counts
-  per pattern ID, treemap or ranked list of warnings per file (hotspot
-  identification), donut chart for severity split, donut chart for category
-  split, stacked bar showing new vs. existing warnings (drift indicator).
-- **Scope:** `apps/anvil-ui/src/pages/warnings/`
-- **Non-scope:** Custom chart configurations
+- **Expected Outcome:** Bar chart by pattern ID, hotspot file ranking, donut for
+  severity, donut for category.
+- **Files:**
+  - `apps/website/app/(dashboard)/dashboard/warnings/breakdown/page.tsx`
+  - `apps/website/components/dashboard/warnings/warning-charts.tsx`
 - **Dependencies:** DASH-004, DASH-006
-- **Validation:** Charts render and reflect current warning data; hotspots are identifiable
+- **Validation:** Charts render and reflect current warning data; hotspots are
+  identifiable
 - **Confidence:** medium
 
-### DASHCORE-010: Anti-pattern registry reference page
+### DASHCORE-009: Anti-pattern registry reference
 
 - **Intent:** Document all defined anti-patterns in an accessible reference
-- **Expected Outcome:** Table listing all anti-patterns (AP-001 through AP-007)
-  with: ID, name, category, default severity, enabled status, opt-in flag,
-  current instance count, sparkline trend. Clicking a pattern opens full
-  documentation: explanation, detection configuration, suggestion text,
-  allowlist details.
-- **Scope:** `apps/anvil-ui/src/pages/warnings/`
-- **Non-scope:** Pattern configuration editing
-- **Dependencies:** DASH-004, DASH-006
-- **Validation:** All defined patterns appear; clicking opens documentation; instance counts are accurate
+- **Expected Outcome:** Table of all patterns (AP-001..007): ID, name, category,
+  severity, enabled, instance count, sparkline. Click expands inline docs.
+- **Files:**
+  - `apps/website/app/(dashboard)/dashboard/warnings/patterns/page.tsx`
+  - `apps/website/components/dashboard/warnings/pattern-registry.tsx`
+- **Dependencies:** DASH-003, DASH-006
+- **Validation:** All defined patterns appear; clicking opens documentation;
+  instance counts are accurate
 - **Confidence:** high
-
-## Execution
-
-Steps: [../execution/DASHCORE.steps.md](../execution/DASHCORE.steps.md)

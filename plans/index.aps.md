@@ -141,11 +141,11 @@ release must deliver both the core value AND a friction-free first experience.
 
 | Feature              | Description                                         | Status |
 | -------------------- | --------------------------------------------------- | ------ |
-| Dashboard Foundation | App scaffold, routing, theme, components, API       | Draft  |
-| Dashboard Core Views | Overview, gates history/detail, warnings            | Draft  |
-| Dashboard Arch/Drift | Architecture graphs, drift comparison, suppressions | Draft  |
-| Dashboard AI Builder | json-render prompt interface, templates, persistence | Draft |
-| Dashboard Operations | Audit trail, plans, config, diagnostics, roles      | Draft  |
+| Dashboard Foundation | App scaffold, routing, theme, components, API       | Ready  |
+| Dashboard Core Views | Overview, gates history/detail, warnings            | Ready  |
+| Dashboard Arch/Drift | Architecture graphs, drift comparison, suppressions | Ready  |
+| Dashboard AI Builder | json-render prompt interface, templates, persistence | Ready  |
+| Dashboard Operations | Audit trail, plans, config, diagnostics, roles      | Ready  |
 
 **Why this is 0.2.0:** The web dashboard builds on top of all 0.1.0 domain logic
 (gates, warnings, architecture, drift, suppressions, plans). It is a new
@@ -396,13 +396,16 @@ Task-level detail for all completed work is archived in
 
 ### Planned — 0.2.0 (Web Dashboard)
 
-| Module | Scope | Status | Dependencies |
-| ------ | ----- | ------ | ------------ |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Draft | monorepo-migration, contracts |
-| [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Draft | dashboard-foundation |
-| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
-| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Draft | dashboard-foundation |
-| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Draft | dashboard-foundation |
+Built into `apps/website/` (Next.js 16 + shadcn/ui + Recharts). Four execution
+waves; 39 tasks total.
+
+| Module | Scope | Status | Progress | Wave | Dependencies |
+| ------ | ----- | ------ | -------- | ---- | ------------ |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | 0/9 | 1 | apps/website, contracts |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Ready | 0/9 | 2 | dashboard-foundation |
+| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | 0/8 | 2 | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
+| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | 0/7 | 3 | dashboard-foundation |
+| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Ready | 0/6 | 4 | dashboard-foundation |
 
 ### Planned — 0.3.0 (Organisational Policy Governance)
 
@@ -621,29 +624,29 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 
 | Task     | Module | Description                             | Status | Priority |
 | -------- | ------ | --------------------------------------- | ------ | -------- |
-| DASH-001 | dash   | Application scaffold and build config   | Draft  | high     |
-| DASH-002 | dash   | Routing and navigation shell            | Draft  | high     |
-| DASH-003 | dash   | Theme system and design tokens          | Draft  | high     |
-| DASH-004 | dash   | Shared component catalog                | Draft  | high     |
-| DASH-005 | dash   | API data layer                          | Draft  | high     |
-| DASH-006 | dash   | Data fetching hooks and cache mgmt      | Draft  | high     |
-| DASH-007 | dash   | Global search infrastructure            | Draft  | medium   |
+| DASH-001 | dash   | Dashboard route group and layout shell  | Draft  | high     |
+| DASH-002 | dash   | Extended theme tokens for dashboard     | Draft  | high     |
+| DASH-003 | dash   | Shared dashboard component catalogue    | Draft  | high     |
+| DASH-004 | dash   | Chart components (shadcn/ui + Recharts) | Draft  | high     |
+| DASH-005 | dash   | API data layer (Next.js API routes)     | Draft  | high     |
+| DASH-006 | dash   | Data fetching hooks (TanStack Query)    | Draft  | high     |
+| DASH-007 | dash   | Command palette (global search)         | Draft  | medium   |
 | DASH-008 | dash   | URL deep linking and filter persistence | Draft  | medium   |
+| DASH-009 | dash   | Remove apps/anvil-ui/ placeholder       | Draft  | low      |
 
 #### Dashboard Core Views (Overview, Gates, Warnings)
 
 | Task         | Module   | Description                          | Status | Priority |
 | ------------ | -------- | ------------------------------------ | ------ | -------- |
 | DASHCORE-001 | dashcore | Overview — metric cards row          | Draft  | high     |
-| DASHCORE-002 | dashcore | Overview — trend charts              | Draft  | high     |
-| DASHCORE-003 | dashcore | Overview — activity feed & actions   | Draft  | medium   |
-| DASHCORE-004 | dashcore | Gate history list with filtering     | Draft  | high     |
-| DASHCORE-005 | dashcore | Gate detail view with check tree     | Draft  | high     |
-| DASHCORE-006 | dashcore | Gate trend analysis charts           | Draft  | medium   |
-| DASHCORE-007 | dashcore | Warning list with grouping/filtering | Draft  | high     |
-| DASHCORE-008 | dashcore | Warning detail panel with code ctx   | Draft  | high     |
-| DASHCORE-009 | dashcore | Warning breakdown visualisations     | Draft  | medium   |
-| DASHCORE-010 | dashcore | Anti-pattern registry reference      | Draft  | medium   |
+| DASHCORE-002 | dashcore | Overview — trend charts              | Draft  | medium   |
+| DASHCORE-003 | dashcore | Overview — activity feed             | Draft  | high     |
+| DASHCORE-004 | dashcore | Gate history list                    | Draft  | high     |
+| DASHCORE-005 | dashcore | Gate detail with check tree          | Draft  | medium   |
+| DASHCORE-006 | dashcore | Warning list with grouping/filtering | Draft  | high     |
+| DASHCORE-007 | dashcore | Warning detail panel                 | Draft  | medium   |
+| DASHCORE-008 | dashcore | Warning breakdown visualisations     | Draft  | medium   |
+| DASHCORE-009 | dashcore | Anti-pattern registry reference      | Draft  | high     |
 
 #### Dashboard Architecture, Drift & Suppressions
 
@@ -673,14 +676,13 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 
 | Task        | Module  | Description                          | Status | Priority |
 | ----------- | ------- | ------------------------------------ | ------ | -------- |
-| DASHOPS-001 | dashops | Audit log viewer with filtering      | Draft  | high     |
-| DASHOPS-002 | dashops | User activity breakdown              | Draft  | medium   |
+| DASHOPS-001 | dashops | Audit log viewer                     | Draft  | high     |
+| DASHOPS-002 | dashops | User activity breakdown              | Draft  | high     |
 | DASHOPS-003 | dashops | AI tool tracking analysis            | Draft  | medium   |
 | DASHOPS-004 | dashops | Plan list and detail views           | Draft  | high     |
-| DASHOPS-005 | dashops | Configuration viewer                 | Draft  | medium   |
-| DASHOPS-006 | dashops | Diagnostics page                     | Draft  | medium   |
-| DASHOPS-007 | dashops | Role-based view filtering            | Draft  | low      |
-| DASHOPS-008 | dashops | Real-time update infrastructure      | Draft  | low      |
+| DASHOPS-005 | dashops | Configuration viewer                 | Draft  | high     |
+| DASHOPS-006 | dashops | Diagnostics page                     | Draft  | high     |
+| DASHOPS-007 | dashops | Role-based view filtering            | Draft  | medium   |
 
 ### Task Status — 0.1.0 (HTML/CSS Support)
 

@@ -12,11 +12,11 @@
   In Progress
 - SECB: security-review-backlog (2/8) — In Progress
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
-- DASH: dashboard-foundation (0/8) — Draft
-- DASHCORE: dashboard-core-views (0/10) — Draft
-- DASHARCH: dashboard-architecture-views (0/8) — Draft
-- DASHAI: dashboard-ai-builder (0/6) — Draft
-- DASHOPS: dashboard-ops-views (0/8) — Draft
+- DASH: dashboard-foundation (0/9) — Ready
+- DASHCORE: dashboard-core-views (0/9) — Ready
+- DASHARCH: dashboard-architecture-views (0/8) — Ready
+- DASHOPS: dashboard-ops-views (0/7) — Ready
+- DASHAI: dashboard-ai-builder (0/6) — Ready
 - OPAE: opa-enhancements (0/36) — Draft
 - ORGHIER: org-policy-hierarchy — Draft
 - POLLC: policy-lifecycle — Draft
@@ -90,34 +90,79 @@ apps/anvil-cli/src/test-utils.ts: PBLU-037
 apps/anvil-cli/src/utils/output.ts: CRB-001, CRB-019
 apps/anvil-cli/src/utils/option-coerce.ts: CRB-020
 apps/anvil-cli/vitest.config.ts: CRB-006
-apps/anvil-ui/index.html: DASH-001
-apps/anvil-ui/package.json: DASH-001
-apps/anvil-ui/src/components/AppShell.tsx: DASH-002
-apps/anvil-ui/src/components/GlobalSearch.tsx: DASH-007
-apps/anvil-ui/src/components/Sidebar.tsx: DASH-002
-apps/anvil-ui/src/components/TopBar.tsx: DASH-002
-apps/anvil-ui/src/components/catalog/: DASH-004
-apps/anvil-ui/src/components/catalog/index.ts: DASH-004
-apps/anvil-ui/src/contexts/RoleContext.tsx: DASHOPS-007
-apps/anvil-ui/src/data/templates/: DASHAI-004
-apps/anvil-ui/src/hooks/useAuditLog.ts: DASH-006
-apps/anvil-ui/src/hooks/useDrift.ts: DASH-006
-apps/anvil-ui/src/hooks/useFilterParams.ts: DASH-008
-apps/anvil-ui/src/hooks/useGates.ts: DASH-006
-apps/anvil-ui/src/hooks/useRole.ts: DASHOPS-007
-apps/anvil-ui/src/hooks/useSearch.ts: DASH-007
-apps/anvil-ui/src/hooks/useSuppressions.ts: DASH-006
-apps/anvil-ui/src/hooks/usePlans.ts: DASH-006
-apps/anvil-ui/src/hooks/useTheme.ts: DASH-003
-apps/anvil-ui/src/hooks/useWarnings.ts: DASH-006
-apps/anvil-ui/src/lib/api-client.ts: DASH-006
-apps/anvil-ui/src/lib/catalog-registry.ts: DASHAI-002
-apps/anvil-ui/src/main.tsx: DASH-001
-apps/anvil-ui/src/routes/: DASH-002
-apps/anvil-ui/src/styles/: DASH-003
-apps/anvil-ui/tailwind.config.ts: DASH-003
-apps/anvil-ui/tsconfig.json: DASH-001
-apps/anvil-ui/vite.config.ts: DASH-001
+apps/anvil-ui/: DASH-009 (delete)
+apps/website/app/(dashboard)/layout.tsx: DASH-001, DASH-002
+apps/website/app/(dashboard)/dashboard/page.tsx: DASH-001, DASHCORE-001
+apps/website/app/(dashboard)/dashboard.css: DASH-002
+apps/website/app/(dashboard)/providers.tsx: DASH-006
+apps/website/app/(dashboard)/dashboard/gates/page.tsx: DASHCORE-004
+apps/website/app/(dashboard)/dashboard/gates/[id]/page.tsx: DASHCORE-005
+apps/website/app/(dashboard)/dashboard/warnings/page.tsx: DASHCORE-006
+apps/website/app/(dashboard)/dashboard/warnings/breakdown/page.tsx: DASHCORE-008
+apps/website/app/(dashboard)/dashboard/warnings/patterns/page.tsx: DASHCORE-009
+apps/website/app/(dashboard)/dashboard/architecture/page.tsx: DASHARCH-001
+apps/website/app/(dashboard)/dashboard/architecture/violations/page.tsx: DASHARCH-002
+apps/website/app/(dashboard)/dashboard/architecture/graph/page.tsx: DASHARCH-003
+apps/website/app/(dashboard)/dashboard/drift/page.tsx: DASHARCH-004
+apps/website/app/(dashboard)/dashboard/drift/[name]/page.tsx: DASHARCH-005
+apps/website/app/(dashboard)/dashboard/drift/compare/page.tsx: DASHARCH-006
+apps/website/app/(dashboard)/dashboard/suppressions/page.tsx: DASHARCH-007
+apps/website/app/(dashboard)/dashboard/suppressions/trends/page.tsx: DASHARCH-008
+apps/website/app/(dashboard)/dashboard/audit/page.tsx: DASHOPS-001
+apps/website/app/(dashboard)/dashboard/audit/users/page.tsx: DASHOPS-002
+apps/website/app/(dashboard)/dashboard/audit/ai-tools/page.tsx: DASHOPS-003
+apps/website/app/(dashboard)/dashboard/plans/page.tsx: DASHOPS-004
+apps/website/app/(dashboard)/dashboard/plans/[id]/page.tsx: DASHOPS-004
+apps/website/app/(dashboard)/dashboard/config/page.tsx: DASHOPS-005
+apps/website/app/(dashboard)/dashboard/diagnostics/page.tsx: DASHOPS-006
+apps/website/app/(dashboard)/dashboard/builder/page.tsx: DASHAI-003
+apps/website/app/(dashboard)/dashboard/builder/templates/page.tsx: DASHAI-004
+apps/website/app/(dashboard)/dashboard/dashboards/page.tsx: DASHAI-005
+apps/website/app/(dashboard)/dashboard/dashboards/[id]/page.tsx: DASHAI-005
+apps/website/app/api/anvil/status/route.ts: DASH-005
+apps/website/app/api/anvil/gates/route.ts: DASH-005
+apps/website/app/api/anvil/gates/[id]/route.ts: DASH-005
+apps/website/app/api/anvil/warnings/route.ts: DASH-005
+apps/website/app/api/anvil/drift/snapshots/route.ts: DASH-005
+apps/website/app/api/anvil/drift/snapshots/[name]/route.ts: DASH-005
+apps/website/app/api/anvil/drift/compare/route.ts: DASH-005
+apps/website/app/api/anvil/suppressions/route.ts: DASH-005
+apps/website/app/api/anvil/config/route.ts: DASH-005
+apps/website/app/api/anvil/provenance/route.ts: DASH-005
+apps/website/app/api/anvil/diagnostics/route.ts: DASHOPS-006
+apps/website/app/api/anvil/dashboards/route.ts: DASHAI-005
+apps/website/app/api/anvil/dashboards/[id]/route.ts: DASHAI-005
+apps/website/app/api/anvil/dashboards/[id]/versions/route.ts: DASHAI-006
+apps/website/lib/anvil/workspace.ts: DASH-005
+apps/website/lib/anvil/api-client.ts: DASH-006
+apps/website/lib/json-render/dashboard-renderer.tsx: DASHAI-001
+apps/website/lib/json-render/schema-validator.ts: DASHAI-001
+apps/website/lib/json-render/catalog-registry.ts: DASHAI-002
+apps/website/components/dashboard/sidebar.tsx: DASH-001
+apps/website/components/dashboard/top-bar.tsx: DASH-001
+apps/website/components/dashboard/dashboard-shell.tsx: DASH-001
+apps/website/components/dashboard/metric-card.tsx: DASH-003
+apps/website/components/dashboard/data-table.tsx: DASH-003
+apps/website/components/dashboard/status-badge.tsx: DASH-003
+apps/website/components/dashboard/severity-badge.tsx: DASH-003
+apps/website/components/dashboard/code-block.tsx: DASH-003
+apps/website/components/dashboard/empty-state.tsx: DASH-003
+apps/website/components/dashboard/loading-skeleton.tsx: DASH-003
+apps/website/components/dashboard/charts/: DASH-004
+apps/website/components/dashboard/command-palette.tsx: DASH-007
+apps/website/components/dashboard/query-boundary.tsx: DASH-006
+apps/website/hooks/use-status.ts: DASH-006
+apps/website/hooks/use-gates.ts: DASH-006
+apps/website/hooks/use-warnings.ts: DASH-006
+apps/website/hooks/use-drift.ts: DASH-006
+apps/website/hooks/use-suppressions.ts: DASH-006
+apps/website/hooks/use-config.ts: DASH-006
+apps/website/hooks/use-provenance.ts: DASH-006
+apps/website/hooks/use-search.ts: DASH-007
+apps/website/hooks/use-filter-params.ts: DASH-008
+apps/website/hooks/use-role.ts: DASHOPS-007
+apps/website/contexts/role-context.tsx: DASHOPS-007
+apps/website/data/dashboard-templates/: DASHAI-004
 cli/src/commands/policy.ts: OPAE-011
 cli/src/commands/policy-debug.ts: OPAE-013
 cli/src/tui/impact-report.tsx: OPAE-019
