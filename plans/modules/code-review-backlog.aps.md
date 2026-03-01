@@ -14,7 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress |
+| CRB | —     | In Progress (6/29) |
+<!-- Complete: CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -50,6 +51,9 @@ is independently actionable and can be promoted to Ready when prioritised.
 - Silent fallback visibility
 - Subprocess timeout enforcement
 - Documentation/script drift from reality
+- Spinner lifecycle safety in TUI-capable commands
+- Input path containment (generalisation of output path containment)
+- CLI command test coverage expansion
 
 ## Out of Scope
 
@@ -623,3 +627,93 @@ Change status to **Ready** when:
 - **Confidence:** medium
 - **Priority:** Low
 - **Status:** Draft
+
+---
+
+### Beta Review Gaps (CRB-026 through CRB-029)
+
+### CRB-026: Fix spinner leak on TUI fallback path in audit command
+
+- **Intent:** Ensure the ora spinner is cleaned up if an error is thrown during
+  the scan or TUI rendering phase, preventing terminal garbling
+- **Expected Outcome:** The spinner is wrapped in a try/finally so that any
+  thrown error during `scanner.scan()` or `renderTUI()` stops the spinner before
+  the error propagates; the spinner no longer runs concurrently with TUI output
+  if TUI rendering is selected
+- **Validation:** `pnpm -F anvil-cli test -- --testNamePattern="audit"` passes;
+  manual test confirms spinner stops on scan error
+- **Files:** `apps/anvil-cli/src/commands/audit.ts`
+- **Dependencies:** None
+- **Confidence:** high
+- **Priority:** Medium
+- **Status:** Complete
+- **Notes:** Beta review item H-4. PBLU-032 added a related spinner test;
+  PBLU-026 addressed CliExit patterns. Added finally block guaranteeing
+  spinner?.stop() on all code paths.
+- **Origin:** cli-beta-review.md H-4
+
+---
+
+### CRB-027: Add workspace path containment to policy validate subcommand
+
+- **Intent:** Validate that the user-provided file path in `policy validate`
+  is within the workspace root, consistent with other path-accepting commands
+- **Expected Outcome:** `policy validate <file>` resolves the file argument
+  against `getWorkspaceRoot()` using the existing `validatePathWithinRoot()`
+  utility before reading it; paths outside the workspace produce a clear error;
+  relative paths are resolved against the workspace root
+- **Validation:** `pnpm -F anvil-cli test -- --testNamePattern="policy"` passes;
+  manual test confirms `policy validate ../../etc/passwd` is rejected
+- **Files:** `apps/anvil-cli/src/commands/policy.ts`
+- **Dependencies:** None (`validatePathWithinRoot` is already imported)
+- **Confidence:** high
+- **Priority:** Medium
+- **Status:** Complete
+- **Notes:** Beta review item M-2. Added `validatePathWithinRoot()` call before
+  `readFile()`, consistent with `policy doc`, `scaffold`, `export`, `plan create`.
+- **Origin:** cli-beta-review.md M-2
+
+---
+
+### CRB-028: Annotate M-6 mcp-config symlink guard as fixed
+
+- **Intent:** Update the beta review document to reflect that M-6 (symlink path
+  traversal in `mcp-config --write`) was already fixed via PBLU-011 and PBLU-014
+- **Expected Outcome:** `cli-beta-review.md` has a FIXED annotation on M-6
+  noting that `realpathSync()` is now used on both paths (lines 118-137 of
+  `mcp-config.ts`) with a parent-directory fallback for non-existent files
+- **Validation:** Manual review of the review document
+- **Files:** `plans/reviews/cli-beta-review.md`
+- **Dependencies:** None (code fix already in place)
+- **Confidence:** high
+- **Priority:** Low
+- **Status:** Complete
+- **Notes:** The code at mcp-config.ts:118-137 already implements the exact
+  fix recommended by the review (realpathSync on both paths before comparison).
+  Annotated cli-beta-review.md with FIXED status.
+- **Origin:** cli-beta-review.md M-6
+
+---
+
+### CRB-029: Expand test coverage for untested CLI commands
+
+- **Intent:** Add baseline test coverage for CLI commands that currently have
+  no tests, reducing regression risk during refactoring
+- **Expected Outcome:** At minimum, command registration tests (subcommands,
+  options, descriptions) exist for: `login`, `logout`, `whoami`, `authorship`,
+  `drift`, `explain`, `audit`, `new`, `plan create`, `release`,
+  `welcome/start`; ideally one behavioural test per command covering the happy
+  path
+- **Validation:** `pnpm -F anvil-cli test` discovers and passes tests for all
+  previously untested commands
+- **Files:** `apps/anvil-cli/src/commands/__tests__/` or colocated `.test.ts`
+  files
+- **Dependencies:** None
+- **Confidence:** medium
+- **Priority:** Medium
+- **Status:** Draft
+- **Notes:** Beta review item 13. This is a large item that may be broken into
+  sub-tasks per command. The review identified 13 commands with no tests and
+  several service modules with gaps (api-client retry/error paths,
+  loadAnvilEnv() edge cases).
+- **Origin:** cli-beta-review.md recommendation 13

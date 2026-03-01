@@ -285,6 +285,7 @@ export function createAuditCommand(): Command {
           },
         });
 
+        // Stop spinner before any output (TUI, JSON, or human-readable)
         spinner?.stop();
 
         if (options.json) {
@@ -335,6 +336,10 @@ export function createAuditCommand(): Command {
         spinner?.fail('Scan failed');
         error(err instanceof Error ? err.message : 'Unknown error');
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
+      } finally {
+        // Guarantee spinner cleanup — handles any code path that bypasses
+        // the explicit stop/fail calls (e.g. unhandled rejection during scan)
+        spinner?.stop();
       }
     });
 

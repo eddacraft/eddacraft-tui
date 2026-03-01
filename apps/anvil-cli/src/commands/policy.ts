@@ -927,11 +927,14 @@ export function createPolicyCommand(): Command {
       const spinner = ora('Validating policy syntax...').start();
 
       try {
+        const workspaceRoot = getWorkspaceRoot();
+        const validatedPath = validatePathWithinRoot(file, workspaceRoot);
+
         const binaryManager = getOPABinaryManager();
         const binaryPath = await binaryManager.ensureBinary();
 
         const { readFile } = await import('node:fs/promises');
-        const content = await readFile(file, 'utf-8');
+        const content = await readFile(validatedPath, 'utf-8');
 
         const executor = new OPAExecutor(binaryPath);
         const result = await executor.validateSyntax(content);

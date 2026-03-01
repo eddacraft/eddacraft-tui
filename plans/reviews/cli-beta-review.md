@@ -187,6 +187,9 @@ lines 274-286), the spinner continues running and garbles the terminal.
 **Recommendation:** Move spinner creation after the TUI availability check, or
 use a try/finally to ensure cleanup.
 
+**Status:** ~~FIXED~~ (CRB-026) — added `finally` block to guarantee
+`spinner?.stop()` on all code paths including unhandled rejections during scan.
+
 ---
 
 ## Medium Severity
@@ -211,6 +214,9 @@ The `policy validate <file>` command reads a file at the user-provided path
 without verifying it's within the workspace root. While this is not exploitable
 in a CLI context (the user controls the path), it's inconsistent with the
 careful path validation done in `policy doc` and `policy scaffold`.
+
+**Status:** ~~FIXED~~ (CRB-027) — `validatePathWithinRoot()` now applied to the
+file argument before `readFile()`, consistent with `policy doc` and `scaffold`.
 
 ### M-3: Redundant `process.exit(0)` in audit command
 
@@ -251,6 +257,10 @@ workspace" check uses `pathRelative(cwd, fullPath)` which doesn't account for
 symlinks. A symlink in the path could bypass the confirmation prompt.
 
 **Recommendation:** Use `fs.realpathSync()` on both paths before comparison.
+
+**Status:** ~~FIXED~~ (PBLU-011, PBLU-014) — `realpathSync()` is now used on
+both paths (lines 118-137 of `mcp-config.ts`) with a parent-directory fallback
+for files that don't yet exist.
 
 ### M-7: No request timeout on API calls
 

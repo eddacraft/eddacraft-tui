@@ -7,7 +7,7 @@
 ## Active Modules
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
-- CRB: code-review-backlog (3/25) — In Progress
+- CRB: code-review-backlog (6/29) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
@@ -54,7 +54,7 @@
 README.md: PBLU-040, PBLU-052
 apps/anvil-cli/src/commands/*.ts: CRB-001, CRB-019, CRB-020, CRB-021, CRB-023
 apps/anvil-cli/src/commands/audit-spinner.test.ts: PBLU-032
-apps/anvil-cli/src/commands/audit.ts: PBLU-043
+apps/anvil-cli/src/commands/audit.ts: PBLU-043, CRB-026
 apps/anvil-cli/src/commands/architecture-validate.ts: ARCHCFG-003
 apps/anvil-cli/src/commands/architecture-validate.test.ts: ARCHCFG-003
 apps/anvil-cli/src/commands/architecture-watch.ts: OPAE-016
@@ -73,7 +73,7 @@ apps/anvil-cli/src/commands/mcp-config-path.test.ts: PBLU-033
 apps/anvil-cli/src/commands/policy-debug.ts: OPAE-013
 apps/anvil-cli/src/commands/policy-validate.ts: POLVAL-005
 apps/anvil-cli/src/commands/policy-watch.ts: OPAE-015
-apps/anvil-cli/src/commands/policy.ts: CRB-022
+apps/anvil-cli/src/commands/policy.ts: CRB-022, CRB-027
 apps/anvil-cli/src/commands/pr-comment.ts: OPAE-028, OPAE-029
 apps/anvil-cli/src/commands/stack.ts: STACK-013, STACK-014
 apps/anvil-cli/src/commands/stack.test.ts: STACK-013
@@ -296,6 +296,6 @@ packages/platform/README.md: CRB-012
 plans/beta-launch-checklist.aps.md: PBLU-038
 plans/modules/03-deferred-finding-filing.aps.md: PBLU-039
 plans/modules/04-temper-workflow.aps.md: PBLU-039
-plans/reviews/cli-beta-review.md: PBLU-041
+plans/reviews/cli-beta-review.md: PBLU-041, CRB-028
 vitest.config.ts: CRB-006, CRB-013
 ```
