@@ -156,9 +156,9 @@ Format adapter `inferPathFromDescription` fallback also validated.
 No limits on input content size. `split('\n')` creates unbounded arrays.
 Recursive markdown parsing has no depth limit.
 
-**Note:** `MAX_INPUT_SIZE` (2MB) was added to SpecKit and BMAD parsers.
-`MAX_FILE_SIZE_BYTES` (2MB) added to `file-discovery.ts`. Generic parser still
-lacks a size guard at the parse layer. Tracked as SECB-002.
+**Note:** ✅ `MAX_INPUT_SIZE` (2MB) added to all three parsers — SpecKit, BMAD,
+and generic (SECB-002, now complete). `MAX_FILE_SIZE_BYTES` (2MB) added to
+`file-discovery.ts`.
 
 ### H3. Regex DoS vulnerabilities (mostly fixed)
 

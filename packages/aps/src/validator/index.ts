@@ -20,7 +20,7 @@ import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import { visit } from 'unist-util-visit';
 import type { Root, Heading, Paragraph, Link } from 'mdast';
-import { TASK_ID_REGEX } from '../types/index.js';
+import { TASK_ID_REGEX, ParseError } from '../types/index.js';
 import { loadPlan, detectCycles, resolvePath, type LoadedPlan } from '../loader/index.js';
 
 /**
@@ -402,17 +402,21 @@ async function validateModuleLinks(
         try {
           const resolvedPath = resolvePath(linkUrl, baseDir);
           validateFileExists(resolvedPath, filePath, linkLine, currentModuleId, issues);
-        } catch {
-          // resolvePath rejects absolute paths and paths escaping baseDir —
-          // report as a validation issue rather than crashing the run
-          issues.push({
-            severity: 'error',
-            message: `Unsafe link path in module "${currentModuleId}": "${linkUrl}" escapes project directory`,
-            rule: 'path-containment',
-            path: filePath,
-            lineNumber: linkLine,
-            context: `Module: ${currentModuleId}`,
-          });
+        } catch (err) {
+          if (err instanceof ParseError) {
+            // resolvePath rejects absolute paths and paths escaping baseDir —
+            // report as a validation issue rather than crashing the run
+            issues.push({
+              severity: 'error',
+              message: `Unsafe link path in module "${currentModuleId}": "${linkUrl}" escapes project directory`,
+              rule: 'path-containment',
+              path: filePath,
+              lineNumber: linkLine,
+              context: `Module: ${currentModuleId}`,
+            });
+          } else {
+            throw err;
+          }
         }
       }
     }
