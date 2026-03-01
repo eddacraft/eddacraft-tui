@@ -24,7 +24,6 @@
 - POLVAL: policy-pack-validation (0/5) — Draft
 - ARCHCFG: architecture-config-validation (0/5) — Draft
 - AIGUARD: ai-guardrail-profile (0/4) — Draft
-- KINDLING: kindling-integration (19/19) — In Progress
 - EMBER: ember (0/14) — Draft
 - EDDA: edda (0/19) — Draft
 - STACK: edda-stack-integration (0/16) — Draft
@@ -76,8 +75,6 @@ apps/anvil-cli/src/commands/policy-validate.ts: POLVAL-005
 apps/anvil-cli/src/commands/policy-watch.ts: OPAE-015
 apps/anvil-cli/src/commands/policy.ts: CRB-022
 apps/anvil-cli/src/commands/pr-comment.ts: OPAE-028, OPAE-029
-apps/anvil-cli/src/commands/run.ts: KINDLING-012
-apps/anvil-cli/src/commands/run.test.ts: KINDLING-012
 apps/anvil-cli/src/commands/stack.ts: STACK-013, STACK-014
 apps/anvil-cli/src/commands/stack.test.ts: STACK-013
 apps/anvil-cli/src/commands/status.ts: EMBER-013, EDDA-017
