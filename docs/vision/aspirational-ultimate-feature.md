@@ -1,4 +1,3 @@
-
 # The Ultimate Feature: A Real-Time Deterministic Semantic Guardian
 
 **This is an aspirational design direction. Not all items are committed scope.**
@@ -11,10 +10,8 @@ Instead of:
 
 It knows:
 
-> “A public boundary moved.
-> A trust invariant was weakened.
-> A compliance guarantee was broken.
-> A data flow path now bypasses a guard.”
+> “A public boundary moved. A trust invariant was weakened. A compliance
+> guarantee was broken. A data flow path now bypasses a guard.”
 
 That’s a different class of tool.
 
@@ -24,12 +21,12 @@ That’s a different class of tool.
 
 Rust unlocks a few delicious superpowers:
 
-* Zero-cost abstractions → deep analysis without runtime sludge
-* Native file watching (notify, inotify, kqueue, etc.)
-* Parallel graph analysis with Rayon
-* Safe memory for persistent in-memory state
-* Tight integration with tree-sitter for AST parsing
-* Direct WASM compilation (future remote watcher nodes 👀)
+- Zero-cost abstractions → deep analysis without runtime sludge
+- Native file watching (notify, inotify, kqueue, etc.)
+- Parallel graph analysis with Rayon
+- Safe memory for persistent in-memory state
+- Tight integration with tree-sitter for AST parsing
+- Direct WASM compilation (future remote watcher nodes 👀)
 
 So instead of stateless scans…
 
@@ -37,7 +34,7 @@ You maintain a **persistent semantic graph** of the entire repository.
 
 ---
 
-# The Real Play: A Live Structural Index
+## The Real Play: A Live Structural Index
 
 Think like this:
 
@@ -68,7 +65,7 @@ That is extremely fast in Rust.
 
 ---
 
-# The Feature That Changes the Game
+## The Feature That Changes the Game
 
 Here it is:
 
@@ -82,15 +79,14 @@ You type.
 
 It responds.
 
-Not like a linter.
-More like a guardrail AI kernel.
+Not like a linter. More like a guardrail AI kernel.
 
 Example:
 
 You add:
 
 ```ts
-fetch("https://third-party.com")
+fetch('https://third-party.com');
 ```
 
 Instant response:
@@ -107,7 +103,7 @@ That feels alive.
 
 ---
 
-# Cross-File Behavioural Drift Detection
+## Cross-File Behavioural Drift Detection
 
 Here’s the spicy bit.
 
@@ -117,9 +113,9 @@ With enough time, you add:
 
 Anvil maintains a model of:
 
-* Expected architecture boundaries
-* Expected data flows
-* Expected privilege escalation paths
+- Expected architecture boundaries
+- Expected data flows
+- Expected privilege escalation paths
 
 When drift accumulates beyond tolerance…
 
@@ -131,14 +127,14 @@ That’s architectural immune response.
 
 ---
 
-# Plan-Aware Watching
+## Plan-Aware Watching
 
 You’ve built APS.
 
 Now imagine:
 
-* A plan defines expected structural change
-* Watcher validates that actual code movement matches the declared plan
+- A plan defines expected structural change
+- Watcher validates that actual code movement matches the declared plan
 
 If code evolves outside plan scope:
 
@@ -150,20 +146,21 @@ If code evolves outside plan scope:
 
 That closes the loop between intention and reality.
 
-This is where agentic engineering stops being vibes and becomes controlled evolution.
+This is where agentic engineering stops being vibes and becomes controlled
+evolution.
 
 ---
 
-# Distributed Watcher Mesh
+## Distributed Watcher Mesh
 
 Rust → lightweight binary → WASM target.
 
 You could:
 
-* Run watchers inside CI
-* Run watchers inside agent VMs
-* Run watchers in developer IDE
-* Run watchers in prod build pipeline
+- Run watchers inside CI
+- Run watchers inside agent VMs
+- Run watchers in developer IDE
+- Run watchers in prod build pipeline
 
 All feeding invariant telemetry into Edda.
 
@@ -173,7 +170,7 @@ That’s serious.
 
 ---
 
-# The Dangerous but Incredible Idea
+## The Dangerous but Incredible Idea
 
 Add:
 
@@ -187,10 +184,10 @@ But:
 
 You diff:
 
-* Call graphs
-* Public interfaces
-* Side effect surfaces
-* Data boundary transitions
+- Call graphs
+- Public interfaces
+- Side effect surfaces
+- Data boundary transitions
 
 Then you present:
 
@@ -206,7 +203,7 @@ Agents will LOVE reviewing that.
 
 ---
 
-# The True North Version
+## The True North Version
 
 If you really want the ultimate feature:
 
@@ -214,11 +211,11 @@ Build Anvil into a **Code Provenance Engine**.
 
 Every function:
 
-* Who introduced it
-* Under which plan
-* Which invariant guards it
-* What data classification touches it
-* Which commits modified its trust posture
+- Who introduced it
+- Under which plan
+- Which invariant guards it
+- What data classification touches it
+- Which commits modified its trust posture
 
 Now you’re not watching files.
 
@@ -226,7 +223,7 @@ You’re watching evolution.
 
 ---
 
-# Practical First Step
+## Practical First Step
 
 If I had to choose one powerful thing that is realistic and transformative:
 
@@ -238,11 +235,11 @@ Speed + correctness + incremental analysis = unfair advantage.
 
 ---
 
-# The Philosophy Bit
+## The Philosophy Bit
 
 Most tools are reactive.
 
-Rust gives you the performance headroom to build something *anticipatory*.
+Rust gives you the performance headroom to build something _anticipatory_.
 
 Anvil shouldn’t say:
 
