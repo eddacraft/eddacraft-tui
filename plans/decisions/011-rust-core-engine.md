@@ -2,7 +2,14 @@
 
 ## Status
 
-Proposed (Decision Space)
+Superseded
+
+> Superseded by the Architecture Evolution document
+> (`docs/architecture/anvil-architecture-evolution.md`) and the Rust Kernel
+> Specification (`docs/architecture/rust-kernel-spec.md`). The N-API hybrid
+> approach described here informed the design but has been replaced by a
+> standalone kernel architecture. Performance analysis and alternatives below
+> remain valuable reference material.
 
 ## Date
 

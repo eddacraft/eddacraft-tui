@@ -250,10 +250,16 @@ Define a local socket:
 - Unix domain socket on Linux/macOS
 - Named pipe / TCP loopback on Windows
 
+**Protocol:** JSON-RPC 2.0 over the local socket (LSP-style pattern). Supports
+both request/response (queries: `kernel/status`, `kernel/check`,
+`kernel/graph/query`) and notifications (streaming: `kernel/violation`,
+`kernel/progress`, `kernel/snapshot`). This aligns with MCP's transport model
+and allows surfaces to use familiar JSON-RPC client libraries.
+
 Two channels:
 
-- **Control RPC** (start/stop/status/subscribe)
-- **Event stream** (NDJSON or length-prefixed binary frames)
+- **Control RPC** (start/stop/status/subscribe) — JSON-RPC request/response
+- **Event stream** (JSON-RPC notifications, NDJSON framing)
 
 ---
 

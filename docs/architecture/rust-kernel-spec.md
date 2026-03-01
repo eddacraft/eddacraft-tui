@@ -240,11 +240,51 @@ Edges:
 
 Each node may include:
 
-- `trust_level` (enum)
+- `trust_level` (enum — see below)
 - `boundary_label` (string)
 - `visibility` (public/internal)
 
 Trust is metadata, not a separate graph in H1.
+
+#### Trust Level Enum
+
+```rust
+enum TrustLevel {
+    Unknown,      // Default — unparsed or new
+    Internal,     // No external exposure
+    Boundary,     // Public API surface
+    External,     // Calls external services
+    Privileged,   // Accesses sensitive resources
+}
+```
+
+- `Unknown` is the default for any symbol not yet analysed or newly introduced.
+- `Boundary` marks symbols that form the public API surface (exported functions,
+  public class methods).
+- `External` marks symbols that call external services (HTTP clients, database
+  drivers, third-party SDKs).
+- `Privileged` marks symbols that access sensitive resources (credential stores,
+  file system writes, process spawning).
+- Trust levels are inferred by the parser's symbol extraction adapter (e.g., a
+  function calling `fetch()` is `External`) and can be overridden via annotation
+  comments or configuration.
+
+### 6.4 Graph Persistence & Cold Start
+
+**Cold start (H1):** The kernel rebuilds the graph from scratch on every start.
+This is simple, correct, and sufficient for the H1 performance target (cold
+graph build <3 seconds for 100k LOC repo). Graph snapshot to disk is a
+fast-follow optimisation for post-H1.
+
+**Stale state:** If files change while the kernel is stopped, a full rescan on
+start detects all changes. Git diff optimisation (only rescan files changed
+since last known commit) is post-H1.
+
+**Memory budget:** "Medium repo" is defined as ~100k LOC / ~2000 files. The
+<500MB memory target from section 8.3 applies to this size. The graph itself
+(petgraph with SymbolNode/SymbolEdge) is expected to use <50MB for 2000 nodes;
+the majority of the memory budget is consumed by AST caches and tree-sitter
+parse trees.
 
 ---
 
@@ -265,25 +305,94 @@ The Policy Engine:
 
 No drift modelling in H1. No entropy metrics. No behavioural trend tracking.
 
+### 7.2 Policy Evaluation Model
+
+**Invariant definition (H1):** Invariants are Rust functions that receive a
+`GraphDelta` and return zero or more `Violation` events. Post-H1, a declarative
+DSL may supplement or replace Rust functions for user-authored policies.
+
+**Layer definitions:** Loaded from `.anvil/architecture.yaml` (existing format:
+`clean.yaml`, `layered.yaml`, etc.). The kernel reads this configuration at
+startup and uses it to annotate graph nodes with their architectural layer.
+
+**Input:** `GraphDelta` — the set of added, removed, and modified nodes and
+edges since the last evaluation. The policy engine operates on deltas, not the
+full graph, to maintain incremental performance.
+
+**Deduplication:** Violations are fingerprinted by `(policy_id, file, symbol)`.
+If the same violation already exists in the current session's violation set, it
+is not re-emitted. This prevents duplicate warnings when a file is re-saved
+without fixing the violation.
+
 ---
 
 ## 8. Engine Event Emission
 
 Kernel emits events via the Engine Protocol.
 
-### 8.1 Required Event Types
+### 8.1 Event Envelope
 
-- `Progress`
-- `Snapshot`
-- `Violation`
+All events are wrapped in a common envelope for routing, ordering, and
+debugging:
+
+```rust
+struct EngineEvent {
+    event_type: EventType,    // progress, snapshot, violation, error
+    seq: u64,                 // monotonic sequence number
+    timestamp: String,        // ISO 8601
+    engine: EngineId,         // rust, legacy
+    payload: EventPayload,    // type-specific enum
+}
+```
+
+- `seq` is monotonically increasing per engine instance, enabling consumers to
+  detect gaps and order events deterministically.
+- `engine` identifies which engine produced the event (critical for dual-run
+  mode).
+- `timestamp` uses ISO 8601 with millisecond precision.
+
+### 8.2 Required Event Types
+
+- `Progress` — parsing/evaluation progress
+- `Snapshot` — graph state summary after recomputation
+- `Violation` — policy invariant violation detected
+- `Error` — structured error (parse failure, config error, internal fault)
 
 Events must:
 
-- Be ordered deterministically
+- Be ordered deterministically (via `seq`)
 - Avoid full graph dumps
 - Emit deltas only
 
-### 8.2 Performance Requirements
+#### Error Event Schema
+
+```rust
+struct ErrorPayload {
+    code: ErrorCode,          // parse_error, config_error, internal
+    file: Option<String>,     // file that triggered the error, if applicable
+    message: String,          // human-readable description
+    recoverable: bool,        // true if kernel can continue operating
+}
+```
+
+The kernel isolates malformed file impacts: a parse error in one file does not
+prevent analysis of other files. Recoverable errors are emitted as events;
+non-recoverable errors (e.g., corrupt configuration) cause the kernel to emit
+the error event and then shut down cleanly.
+
+#### Heartbeat (Future — Daemon Mode)
+
+```rust
+struct HeartbeatPayload {
+    uptime_ms: u64,
+    files_watched: u64,
+    graph_nodes: u64,
+}
+```
+
+Defined now for forward compatibility. Not emitted in H1 embedded mode.
+
+### 8.3 Performance Requirements
 
 Target:
 

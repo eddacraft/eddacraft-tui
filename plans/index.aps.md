@@ -183,23 +183,54 @@ modules.
 | Edda                   | Canonical memory — git-backed, provenance-tracked | Draft |
 | Edda Stack Integration | Shared schemas, event bus, layer ports          | Draft  |
 
-### Future — Rust Core Engine (Proposed)
+### Future — Rust Kernel (KERN, Proposed)
 
-| Feature                  | Description                                              | Status   | Progress |
-| ------------------------ | -------------------------------------------------------- | -------- | -------- |
-| Spike (Validation)       | tree-sitter, N-API, rusqlite, Ratatui, notify-rs         | Proposed | 0/5      |
-| Secret Scanner           | Port secret scan to Rust, N-API binding, benchmark       | Proposed | 0/4      |
-| Architecture + Anti-Pattern | tree-sitter AST, dependency graph, pattern matching   | Proposed | 0/4      |
-| Watcher                  | notify-rs, adaptive debounce, git2, parallel gate runner | Proposed | 0/4      |
-| Kindling Storage         | rusqlite observation store, query API                    | Proposed | 0/2      |
-| TUI                      | eddacraft-tui shared crate, watch dashboard, wizard      | Proposed | 0/3      |
-| Lint Integration         | oxlint integration, pre-commit cache optimisation        | Proposed | 0/2      |
+| Phase | Description                                              | Status   | Progress |
+| ----- | -------------------------------------------------------- | -------- | -------- |
+| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace    | Proposed | 0/4      |
+| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Proposed | 0/4 |
+| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Proposed | 0/4 |
+| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Proposed | 0/4 |
+| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks      | Proposed | 0/4      |
+| 5 — Daemon (Deferred) | Unix socket, JSON-RPC, session management        | Proposed | 0/3      |
 
-**Why this is future:** Gated on [ADR-011](./decisions/011-rust-core-engine.md)
-acceptance and Phase 0 spike validation. The TypeScript CLI stays — Rust handles
-performance-critical subsystems (policy engine, watcher, storage, TUI). Each
-phase delivers independently behind a feature flag. 15-20 week estimated
-timeline. If the spike fails targets, fall back to JS-only optimisations.
+**Module:** [KERN — Rust Kernel](./modules/rust-kernel.aps.md)
+**Spec:** [Rust Kernel Specification](../docs/architecture/rust-kernel-spec.md)
+**Evolution:** [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
+
+### Future — Rust Engine Ports (RENG, Proposed)
+
+| Task | Description                                                   | Status   |
+| ---- | ------------------------------------------------------------- | -------- |
+| RENG-001 | Port secret scan to Rust (regex + entropy)               | Proposed |
+| RENG-002 | Port anti-pattern detection (uses kernel ASTs)           | Proposed |
+| RENG-003 | Port command safety check                                | Proposed |
+| RENG-004 | Merge architecture check into kernel dependency graph    | Proposed |
+| RENG-005 | Benchmark all ported checks vs JS                        | Proposed |
+| RENG-006 | Feature flag + dual-run for ported checks                | Proposed |
+
+**Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
+**Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
+
+### Future — Ratatui TUI (RATS, Proposed)
+
+| Task | Description                                                   | Status   |
+| ---- | ------------------------------------------------------------- | -------- |
+| RATS-001 | eddacraft-tui shared crate (theme, keyboard, widgets)    | Proposed |
+| RATS-002 | Watch dashboard (live gate results, file status)         | Proposed |
+| RATS-003 | Gate result viewer (interactive)                         | Proposed |
+| RATS-004 | APS onboarding wizard                                    | Proposed |
+
+**Module:** [RATS — Ratatui TUI](./modules/ratatui-tui.aps.md)
+**Depends on:** KERN (consumes kernel events)
+
+**Why these are future:** Gated on KERN Phase 0 spike validation. The TypeScript
+CLI stays — the Rust kernel adds structural graph analysis as a new capability
+(KERN), existing checks port to Rust for speed (RENG), and TUI surfaces move to
+Ratatui (RATS). RENG and RATS depend on KERN but don't block it. See
+[Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
+for the phased rollout plan. ADR-011 is
+[superseded](./decisions/011-rust-core-engine.md).
 
 ### Post-1.0.0 — Multi-Language Support (Placeholders)
 
