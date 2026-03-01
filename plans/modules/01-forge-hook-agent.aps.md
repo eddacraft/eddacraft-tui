@@ -67,8 +67,9 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 
 ## Tasks
 
-### FORGE-001: Create forge.sh PreToolUse hook — Complete
+### FORGE-001: Create forge.sh PreToolUse hook
 
+- **Status:** Complete
 - **Intent:** Intercept git commit commands and launch the Forge review pipeline
 - **Expected Outcome:** Hook detects `git commit` in PreToolUse, captures staged
   diff, and initiates negotiation between the current session and forge-reviewer
@@ -77,8 +78,9 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 - **Files:** `.claude/hooks/forge.sh`
 - **Confidence:** high
 
-### FORGE-002: Create forge-reviewer agent spec — Complete
+### FORGE-002: Create forge-reviewer agent spec
 
+- **Status:** Complete
 - **Intent:** Define a specialized diff reviewer agent that delegates to codex
   for cross-model review and outputs structured findings
 - **Expected Outcome:** Agent receives staged diff, delegates to codex MCP,
@@ -99,8 +101,9 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 - **Files:** `.claude/skills/forge/SKILL.md`
 - **Confidence:** high
 
-### FORGE-004: Implement Forge report logging — Complete
+### FORGE-004: Implement Forge report logging
 
+- **Status:** Complete
 - **Intent:** Persist a summary of each Forge session for auditability
 - **Expected Outcome:** After negotiation completes, a markdown report is written
   with findings, responses, outcomes, and timing

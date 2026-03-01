@@ -72,8 +72,9 @@ auto-deferred if not fixed in round 1.
 
 ## Tasks
 
-### FNEG-001: Extend agent-bus schema with finding fields — In Progress
+### FNEG-001: Extend agent-bus schema with finding fields
 
+- **Status:** In Progress
 - **Intent:** Add forge-specific finding and response fields to the agent-bus
   message schema so structured findings flow through the existing messaging system
 - **Expected Outcome:** `schema.json` supports `forge-finding` message subtype
@@ -85,8 +86,9 @@ auto-deferred if not fixed in round 1.
 - **Notes:** Finding format defined in `forge-reviewer.md` agent spec but formal
   `schema.json` extension not yet created
 
-### FNEG-002: Implement round cap enforcement — Complete
+### FNEG-002: Implement round cap enforcement
 
+- **Status:** Complete
 - **Intent:** Negotiation terminates after the configured maximum rounds, with
   all remaining findings auto-deferred
 - **Expected Outcome:** After `CLAUDE_FORGE_MAX_ROUNDS` rounds, negotiation stops
@@ -96,8 +98,9 @@ auto-deferred if not fixed in round 1.
 - **Dependencies:** FNEG-001
 - **Confidence:** high
 
-### FNEG-003: Implement scoped re-review for rounds 2+ — Complete
+### FNEG-003: Implement scoped re-review for rounds 2+
 
+- **Status:** Complete
 - **Intent:** Subsequent rounds only review lines changed by fixes, not the
   original diff
 - **Expected Outcome:** The forge-reviewer receives only the new changes (diff of
@@ -107,8 +110,9 @@ auto-deferred if not fixed in round 1.
 - **Dependencies:** FNEG-001
 - **Confidence:** medium
 
-### FNEG-004: Implement severity-action matrix — Complete
+### FNEG-004: Implement severity-action matrix
 
+- **Status:** Complete
 - **Intent:** Enforce which response actions are allowed per finding severity
   level
 - **Expected Outcome:** Criticals cannot be dismissed (only fix or defer to
@@ -119,8 +123,9 @@ auto-deferred if not fixed in round 1.
 - **Dependencies:** FNEG-001
 - **Confidence:** high
 
-### FNEG-005: Implement fix-and-restage flow — Complete
+### FNEG-005: Implement fix-and-restage flow
 
+- **Status:** Complete
 - **Intent:** When the author fixes a finding, the file is re-staged before the
   next round begins
 - **Expected Outcome:** After a "fix" response, the author's changes are applied

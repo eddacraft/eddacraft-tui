@@ -73,8 +73,9 @@ final integration step that makes the pipeline discoverable and controllable.
 
 ## Tasks
 
-### FTCFG-001: Register Forge env vars and hook in settings.json — In Progress
+### FTCFG-001: Register Forge env vars and hook in settings.json
 
+- **Status:** In Progress
 - **Intent:** Add Forge configuration defaults and hook registration to the
   Claude Code settings file
 - **Expected Outcome:** `settings.json` includes `CLAUDE_FORGE_ENABLED=false`,
@@ -87,8 +88,9 @@ final integration step that makes the pipeline discoverable and controllable.
 - **Notes:** `forge.sh` reads env vars with defaults inline; formal
   `settings.json` registration may exist in source code-env repo
 
-### FTCFG-002: Document Temper GitHub repo variables — Complete
+### FTCFG-002: Document Temper GitHub repo variables
 
+- **Status:** Complete
 - **Intent:** Document the GitHub repo-level Actions variables needed for Temper
 - **Expected Outcome:** README or CLAUDE.md documents that
   `CLAUDE_TEMPER_ENABLED` and `CLAUDE_TEMPER_MAX_CYCLES` must be set as GitHub
@@ -97,8 +99,9 @@ final integration step that makes the pipeline discoverable and controllable.
   setup instructions
 - **Confidence:** high
 
-### FTCFG-003: Update CLAUDE.md hook behavior table — Complete
+### FTCFG-003: Update CLAUDE.md hook behavior table
 
+- **Status:** Complete
 - **Intent:** Add Forge hook to the Active Hook Behavior table in CLAUDE.md
 - **Expected Outcome:** `forge.sh` appears in the hook table with trigger
   (PreToolUse on git commit), description, and active status
@@ -107,8 +110,9 @@ final integration step that makes the pipeline discoverable and controllable.
 - **Files:** `CLAUDE.md`
 - **Confidence:** high
 
-### FTCFG-004: Update CLAUDE.md env var table — Complete
+### FTCFG-004: Update CLAUDE.md env var table
 
+- **Status:** Complete
 - **Intent:** Add all Forge and Temper env vars to the Environment Variable
   Toggles table
 - **Expected Outcome:** Table includes `CLAUDE_FORGE_ENABLED`,
@@ -120,8 +124,9 @@ final integration step that makes the pipeline discoverable and controllable.
 - **Dependencies:** FTCFG-001
 - **Confidence:** high
 
-### FTCFG-005: Document Forge/Temper pipeline overview in CLAUDE.md — Complete
+### FTCFG-005: Document Forge/Temper pipeline overview in CLAUDE.md
 
+- **Status:** Complete
 - **Intent:** Add a section to CLAUDE.md explaining the autonomous code review
   pipeline for both agents and human readers
 - **Expected Outcome:** CLAUDE.md includes a "Forge & Temper" section covering:

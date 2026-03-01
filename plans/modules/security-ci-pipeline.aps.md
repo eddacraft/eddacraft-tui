@@ -91,8 +91,9 @@ continuous, automated security gates that run on every PR and push.
 
 ## Tasks
 
-### SEC-001: Create security scanning workflow — Complete
+### SEC-001: Create security scanning workflow
 
+- **Status:** Complete
 - **Intent:** Add `.github/workflows/security.yml` with parallel security jobs
 - **Expected Outcome:** Workflow runs on PR and push to main/develop. Contains
   jobs for Semgrep, dependency audit, secret scanning, and license check, all
@@ -103,8 +104,9 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Workflow passes `actionlint` and YAML syntax check
 - **Confidence:** high
 
-### SEC-002: Semgrep SAST integration — Complete
+### SEC-002: Semgrep SAST integration
 
+- **Status:** Complete
 - **Intent:** Run Semgrep with TypeScript/JavaScript rulesets on every PR
 - **Expected Outcome:** Semgrep job uses `returntocorp/semgrep-action` with
   `p/owasp-top-ten`, `p/typescript`, and `p/nodejs` rulesets. Outputs SARIF for
@@ -116,8 +118,9 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Semgrep runs against codebase without errors
 - **Confidence:** high
 
-### SEC-003: Dependency vulnerability audit — Complete
+### SEC-003: Dependency vulnerability audit
 
+- **Status:** Complete
 - **Intent:** Fail CI on critical/high CVEs in production dependencies
 - **Expected Outcome:** Job runs `pnpm audit --prod --audit-level=high`. Fails
   on high+ severity findings. Outputs structured JSON for reporting. Allowfile
@@ -128,8 +131,9 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** `pnpm audit` runs cleanly or exits with expected code
 - **Confidence:** high
 
-### SEC-004: Secret scanning in CI — Complete
+### SEC-004: Secret scanning in CI
 
+- **Status:** Complete
 - **Intent:** Catch leaked secrets that Anvil's built-in patterns might miss
 - **Expected Outcome:** Job uses `trufflesecurity/trufflehog` GitHub Action to
   scan committed code for secrets. Scans only the diff (not full history) on PRs
@@ -142,8 +146,9 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** No false positives on current codebase
 - **Confidence:** high
 
-### SEC-005: License compliance check — Complete
+### SEC-005: License compliance check
 
+- **Status:** Complete
 - **Intent:** Prevent copyleft/unlicensed dependencies from entering production
 - **Expected Outcome:** Job runs `license-checker` or `pnpm licenses list` to
   enumerate production dependency licenses. Fails if GPL, AGPL, or unlicensed
@@ -155,8 +160,9 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Current production deps pass the check
 - **Confidence:** medium
 
-### SEC-006: Custom Semgrep rules for Anvil patterns — Complete
+### SEC-006: Custom Semgrep rules for Anvil patterns
 
+- **Status:** Complete
 - **Intent:** Add project-specific Semgrep rules for patterns found in the
   adversarial review
 - **Expected Outcome:** `.semgrep/` directory with custom rules covering:
@@ -171,8 +177,9 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Rules match known patterns in codebase
 - **Confidence:** medium
 
-### SEC-007: OSSF Scorecard integration — Complete
+### SEC-007: OSSF Scorecard integration
 
+- **Status:** Complete
 - **Intent:** Measure and track supply chain security posture of the repo
 - **Expected Outcome:** Weekly Scorecard run on main branch via
   `ossf/scorecard-action`. Results published to GitHub Security tab. Tracks
@@ -184,8 +191,9 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Scorecard completes and publishes results
 - **Confidence:** high
 
-### SEC-008: Security scan result reporting — Complete
+### SEC-008: Security scan result reporting
 
+- **Status:** Complete
 - **Intent:** Aggregate security findings into a single PR summary
 - **Expected Outcome:** Final job that waits for all security scans and posts a
   summary comment on the PR. Includes: Semgrep finding count by severity,

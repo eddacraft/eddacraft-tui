@@ -76,8 +76,9 @@ when `forge:tempered` label is present) and manual dispatch.
 
 ## Tasks
 
-### TEMPER-001: Create temper.yml workflow scaffold — Complete
+### TEMPER-001: Create temper.yml workflow scaffold
 
+- **Status:** Complete
 - **Intent:** Establish the GitHub Actions workflow file with both trigger modes
   and cycle management infrastructure
 - **Expected Outcome:** Workflow file with `pull_request_review` and
@@ -88,8 +89,9 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Files:** `.github/workflows/temper.yml`
 - **Confidence:** high
 
-### TEMPER-002: Implement cycle 1 -- full review addressing — Complete
+### TEMPER-002: Implement cycle 1 -- full review addressing
 
+- **Status:** Complete
 - **Intent:** The first cycle fetches all unresolved review threads, categorizes
   them, applies fixes, and resolves threads
 - **Expected Outcome:** Cycle 1 fetches unresolved threads via GraphQL,
@@ -100,8 +102,9 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-001
 - **Confidence:** medium
 
-### TEMPER-003: Implement cycle 2 -- scoped re-review — Complete
+### TEMPER-003: Implement cycle 2 -- scoped re-review
 
+- **Status:** Complete
 - **Intent:** The second cycle only addresses findings on lines changed by
   cycle-1 fixes, deferring everything else
 - **Expected Outcome:** Cycle 2 computes the diff from cycle-1 commits, filters
@@ -112,8 +115,9 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-002
 - **Confidence:** medium
 
-### TEMPER-004: Implement cycle cap enforcement — Complete
+### TEMPER-004: Implement cycle cap enforcement
 
+- **Status:** Complete
 - **Intent:** The workflow never runs more than 2 cycles regardless of new
   comments
 - **Expected Outcome:** A cycle counter tracks iterations. If the workflow is
@@ -124,8 +128,9 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-001
 - **Confidence:** high
 
-### TEMPER-005: Implement manual dispatch trigger — Complete
+### TEMPER-005: Implement manual dispatch trigger
 
+- **Status:** Complete
 - **Intent:** Allow manual triggering of Temper on any PR regardless of label or
   toggle state
 - **Expected Outcome:** `workflow_dispatch` accepts a PR number input, checks out
@@ -135,8 +140,9 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-001
 - **Confidence:** high
 
-### TEMPER-006: Implement PR summary comments — Complete
+### TEMPER-006: Implement PR summary comments
 
+- **Status:** Complete
 - **Intent:** Each cycle posts a structured summary comment on the PR
 - **Expected Outcome:** Summary includes: findings addressed (with categories),
   findings deferred (with issue links), cycle number, and next steps
