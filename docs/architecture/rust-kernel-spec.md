@@ -1,13 +1,13 @@
-# Anvil Kernel (Rust)
+# Rust Kernel Specification (H1)
 
-### Technical Specification — v1 + Strategic Extensions
+**Status:** Proposed — H1 Implementation Target
 
 **Relationship to other documents:**
 
 - This spec implements the Rust kernel described in
   [ADR-011](../../plans/decisions/adr-011-rust-core-engine.md) (Proposed)
 - The [Architecture Evolution](anvil-architecture-evolution.md) document
-  supersedes ADR-011 and defines the phased rollout
+  supersedes ADR-011 and defines the phased rollout (Current → H1 → H2)
 - The kernel's policy model draws from
   [Constitutional Engineering](../vision/constitutional-engineering.md)
   (structural/evolution/procedural law)
@@ -17,93 +17,150 @@
 
 ---
 
-## 1. Purpose
+## Purpose
 
-The Anvil Watcher Kernel is a high-performance, persistent, incremental semantic
-analysis engine written in Rust.
+Define the Rust Watcher Kernel for Anvil.
 
-Its purpose is to:
+The Kernel is the high-performance semantic runtime responsible for:
 
-- Maintain a live structural model of a repository
-- Detect invariant violations in real time
-- Evaluate architectural and trust policies continuously
-- Provide deterministic governance feedback to developers, CI, and agents
+- Maintaining a persistent in-memory model of repository structure
+- Performing incremental recomputation on file changes
+- Evaluating deterministic structural invariants
+- Emitting structured semantic events via the Engine Protocol
 
-This is not a linter. It is a **semantic guardrail runtime**.
+The Kernel is not a CLI. The Kernel is not a renderer. The Kernel does not
+define product philosophy.
 
----
-
-## 2. Design Principles
-
-1. Deterministic over probabilistic
-2. Incremental over full rescans
-3. Structural over textual
-4. Streaming over batch
-5. Language-agnostic via pluggable parsers
-6. Zero reliance on AI for core enforcement
-
-AI may assist interpretation. It never defines truth.
+It implements the Engine.
 
 ---
 
-## 3. Core Capabilities (v1 – Buildable Now)
+## 1. Design Goals
+
+### 1. Deterministic
+
+No AI in enforcement path. Same inputs → same outputs.
+
+### 2. Incremental
+
+Only recompute affected subgraphs on change.
+
+### 3. Persistent
+
+Graph state lives in memory across file changes.
+
+### 4. Streaming
+
+Emit events as soon as meaningful state changes occur.
+
+### 5. Isolated
+
+Surfaces must not depend on internal kernel types.
 
 ---
 
-## 3.1 File System Event Engine
+## 2. Responsibilities
 
-### Responsibility
+The Rust Kernel owns:
 
-Watch repository changes and trigger minimal semantic updates.
+- File system watching
+- Change coalescing and backpressure
+- Incremental parsing (tree-sitter)
+- Persistent semantic graph
+- Policy evaluation scheduling
+- Event emission (Engine Protocol)
 
-### Implementation
+It does not own:
 
-- `notify` crate (cross-platform inotify/kqueue/FSEvents)
-- Debounce batching (50–200ms window)
-- Event queue with backpressure control
+- CLI argument parsing
+- TUI rendering
+- VS Code integration
+- Enterprise dashboards
+- Remote distribution
 
-### Output
+---
+
+## 3. High-Level Architecture
 
 ```
-FileChanged { path, change_type }
+        ┌────────────────────┐
+        │  Engine Protocol   │
+        │  (events out)      │
+        └─────────▲──────────┘
+                  │
+        ┌─────────┴──────────┐
+        │   Policy Engine    │
+        └─────────▲──────────┘
+                  │
+        ┌─────────┴──────────┐
+        │  Semantic Graphs   │
+        │  (persistent)      │
+        └─────────▲──────────┘
+                  │
+        ┌─────────┴──────────┐
+        │ Incremental Parser │
+        │  (tree-sitter)     │
+        └─────────▲──────────┘
+                  │
+        ┌─────────┴──────────┐
+        │ Watcher + Queue    │
+        │ Debounce / Merge   │
+        └────────────────────┘
 ```
 
 ---
 
-## 3.2 Incremental AST Parsing
+## 4. Watcher Subsystem
 
-### Responsibility
+### 4.1 File Watcher
 
-Parse only changed files into syntax trees.
+Use platform-native file notifications (e.g., `notify-rs`).
 
-### Implementation
+Must support:
 
-- tree-sitter (language plugins)
-- Maintain AST cache
-- Hash-based change detection
+- Recursive directory watching
+- Ignore patterns (`node_modules`, build outputs)
+- Git-aware filtering (optional in H1)
 
-### Data Structure
+### 4.2 Debounce & Backpressure
 
-```
-FileNode {
-  path
-  language
-  ast
-  symbol_table
-  last_hash
-}
-```
+On rapid file change bursts:
+
+- Coalesce changes within a debounce window (e.g., 50–100ms)
+- Merge multiple file updates into a single recompute batch
+- Avoid recomputing same file multiple times
+
+Queue must:
+
+- Bound memory growth
+- Drop redundant events
+- Prevent re-entrant recompute loops
 
 ---
 
-## 3.2.1 Language Support (v1)
+## 5. Incremental Parsing
 
-v1 targets languages with mature tree-sitter grammars and high relevance to the
-Anvil user base:
+### 5.1 Parser Strategy
+
+Use tree-sitter for language parsing.
+
+Maintain:
+
+- AST cache keyed by file hash
+- Symbol extraction cache
+
+On file change:
+
+1. Reparse only changed file
+2. Replace AST subtree
+3. Recompute symbol table entries for affected file
+
+### 5.2 Language Support (H1)
+
+H1 targets languages with mature tree-sitter grammars:
 
 - **TypeScript/JavaScript** — primary target, covers most Anvil users
 - **Rust** — dogfooding the kernel on itself
-- **Go** — common in infrastructure codebases
 
 Languages are pluggable via tree-sitter grammar modules. Adding a language
 requires:
@@ -113,28 +170,40 @@ requires:
 3. A trust annotation convention (how trust levels are declared in that
    language)
 
-Later phases may add Python, Java, and C#. The symbol graph schema is
-language-agnostic — only the parser and extraction adapter are
-language-specific.
+The symbol graph schema is language-agnostic — only the parser and extraction
+adapter are language-specific.
+
+### 5.3 Hashing
+
+Each file:
+
+- Content hash
+- Optional structural hash (future)
+
+Graph nodes maintain:
+
+- Version counters
+- Parent-child dependencies
 
 ---
 
-## 3.3 Symbol Graph
+## 6. Semantic Graph Model (H1 Scope)
 
-### Responsibility
+H1 includes only:
 
-Track:
+### 6.1 Symbol Graph
+
+Nodes:
 
 - Functions
 - Classes
+- Modules
 - Exports
-- Imports
-- Interfaces
-- Public boundaries
 
-### Data Structure
+Edges:
 
-Directed graph:
+- Contains
+- References
 
 ```
 SymbolNode {
@@ -148,401 +217,163 @@ SymbolNode {
 SymbolEdge {
   from
   to
-  edge_type (call, import, inherit, etc.)
+  edge_type (contains, references, calls, imports)
 }
 ```
 
-Stored in-memory using:
+Stored in-memory using `petgraph` or custom arena-based graph.
 
-- petgraph
-- or custom arena-based graph for performance
-
----
-
-## 3.4 Dependency Graph
+### 6.2 Dependency Graph
 
 Derived from symbol graph.
 
-Tracks:
+Nodes:
 
-- Inter-module dependencies
-- External dependencies
-- Cross-layer violations
+- Modules/files
 
----
+Edges:
 
-## 3.5 Trust Graph (Core Governance Layer)
+- Import/require relationships
+- External dependency calls
 
-Each symbol/node may have:
+### 6.3 Trust Metadata (Minimal in H1)
 
-- Trust classification
-- Sensitivity level
-- External exposure status
-- Privilege scope
+Each node may include:
 
-Policy engine evaluates:
+- `trust_level` (enum)
+- `boundary_label` (string)
+- `visibility` (public/internal)
 
-- Unauthorised external calls
-- Privilege escalation
-- Boundary violations
-- Data crossing restricted layers
+Trust is metadata, not a separate graph in H1.
 
 ---
 
-## 3.6 Policy Engine (Deterministic Rules)
+## 7. Policy Engine
 
-Policies defined declaratively (YAML/DSL). Each policy maps to one of the three
-invariant categories from
-[Constitutional Engineering](../vision/constitutional-engineering.md).
+The Policy Engine:
 
-### Structural Law Examples
+- Evaluates invariants against changed subgraphs
+- Produces deterministic Violation events
+- Must operate on delta-only recomputation
 
-Hard invariants — non-negotiable boundary rules:
+### 7.1 H1 Invariant Scope (Minimal)
 
-```yaml
-policy: external-traffic-restricted
-category: structural
-match:
-  call: fetch
-  trust_level: HIGH
-require:
-  route: approved-gateway
+- Cross-layer boundary violation
+- New external dependency introduction
+- Public API surface expansion
+- Privilege expansion heuristic (simple)
 
-policy: no-cross-layer-imports
-category: structural
-match:
-  import_from: infrastructure/*
-  import_in: domain/*
-deny: true
-message: "Domain layer must not import from infrastructure"
-```
-
-### Evolution Law Examples
-
-Rules about the rate and direction of change:
-
-```yaml
-policy: public-api-growth-gate
-category: evolution
-match:
-  visibility: public
-  change_type: added
-require:
-  plan_alignment: true
-message: 'New public exports require an active plan reference'
-```
-
-### Procedural Law Examples
-
-Rules about how change is introduced:
-
-```yaml
-policy: boundary-shift-declaration
-category: procedural
-match:
-  trust_level_changed: true
-require:
-  annotation: 'anvil:trust-change'
-message: 'Trust level changes must be explicitly declared'
-```
-
-### Engine Behaviour
-
-- Re-evaluates only affected graph subtrees
-- Emits structured violation events
-- Policies are additive — multiple policies can match the same symbol
+No drift modelling in H1. No entropy metrics. No behavioural trend tracking.
 
 ---
 
-## 3.7 Invariant Violation Streaming
+## 8. Engine Event Emission
 
-When a violation occurs:
+Kernel emits events via the Engine Protocol.
 
-```
-Violation {
-  policy_id
-  severity
-  symbol
-  file
-  reasoning
-  suggested_remediation
-}
-```
+### 8.1 Required Event Types
 
-Output modes:
+- `Progress`
+- `Snapshot`
+- `Violation`
 
-- CLI streaming
-- JSON stream (machine readable)
-- WebSocket server (optional)
+Events must:
 
----
+- Be ordered deterministically
+- Avoid full graph dumps
+- Emit deltas only
 
-## 3.8 Performance Goals (v1)
+### 8.2 Performance Requirements
 
-- Cold graph build under 3 seconds for 100k LOC
-- Incremental update under 100ms for single-file change
-- Memory footprint under 500MB for medium repo
+Target:
+
+- Cold graph build <3 seconds for 100k LOC repo
+- Incremental update <100ms for single-file change in medium repo
+- Event emission overhead <10ms
+- Memory footprint <500MB for medium repo
+- No blocking on rendering
 
 ---
 
-## 4. v1 Architecture
+## 9. Execution Modes
 
-```
-[ File Watcher ]
-        ↓
-[ Event Queue ]
-        ↓
-[ Incremental Parser ]
-        ↓
-[ Symbol Graph ]
-        ↓
-[ Dependency Graph ]
-        ↓
-[ Trust Graph ]
-        ↓
-[ Policy Engine ]
-        ↓
-[ Streaming Output ]
-```
+The Kernel supports:
 
-Single process. Multi-threaded parsing + evaluation.
+### 9.1 Embedded Mode
+
+Called directly by CLI. Runs in-process or as subprocess. Exits after check.
+
+### 9.2 Foreground Watch Mode
+
+Long-lived process streaming events.
+
+### 9.3 Daemon Mode (Optional in H1)
+
+Runs as background service. Accepts local client connections. Maintains
+persistent graph across sessions.
+
+Daemon mode is not required for H1, but architecture must not prevent it.
 
 ---
 
-## 5. CLI Modes
+## 10. Error Handling
 
-1. `anvil watch`
-   - Live streaming
+Kernel must:
 
-2. `anvil scan`
-   - One-shot evaluation
-
-3. `anvil graph`
-   - Export graph state
-
-4. `anvil policy test`
-   - Validate policy definitions
+- Fail fast on parse errors
+- Emit structured error events
+- Never panic across engine boundary
+- Isolate malformed file impacts
 
 ---
 
-## 6. APS Integration (v1.5 Extension)
+## 11. Non-Goals (H1)
 
-Watcher can optionally load active APS plan.
+The following are explicitly excluded:
 
-When enabled:
+- Distributed watcher mesh
+- Cross-repo structural awareness
+- Historical drift tracking
+- Provenance storage engine
+- WASM distribution
+- AI-based enforcement
 
-- Detect code changes outside declared plan scope
-- Detect plan drift
-- Validate declared structural change against actual diff
-
-Example output:
-
-```
-PlanDrift {
-  file
-  symbol
-  expected_module
-  actual_location
-}
-```
+These belong to later phases.
 
 ---
 
-## 7. Future Capabilities (Strategic Roadmap)
+## 12. Migration Constraints
 
-Now the fun part.
-
----
-
-## 7.1 Behavioural Diff Engine
-
-Instead of text diff, compute:
-
-- Call graph delta
-- Public API surface delta
-- Async path introduction
-- New side-effect surface
-
-Output:
-
-```
-BehaviouralDelta {
-  new_external_calls: 1
-  new_public_methods: 2
-  privilege_scope_expansion: true
-}
-```
+- Must support dual-run comparison with legacy engine
+- Must not change event semantics without protocol revision
+- Must be swappable via `--engine rust`
 
 ---
 
-## 7.2 Structural Drift Modelling
+## 13. Success Criteria
 
-Maintain:
+The Rust Kernel is considered production-ready when:
 
-- Expected architecture boundaries
-- Layer enforcement rules
-- Drift tolerance thresholds
-
-Track cumulative drift over time.
-
-Warn before architecture collapses.
+- Output parity with legacy engine for H1 rules
+- Incremental performance targets met
+- No false positive explosion in beta usage
+- Surfaces remain unchanged when switching engines
+- Behavioural diff prototype built on top of persistent graph
 
 ---
 
-## 7.3 Provenance Tracking
+## Summary
 
-For each symbol:
+The Rust Kernel is:
 
-- Introduced in commit
-- Introduced under plan
-- Modified by whom
-- Policy state history
+> A persistent, incremental, deterministic semantic runtime that continuously
+> enforces structural invariants and streams governance events.
 
-This turns Anvil into a code lineage engine.
+It is not:
 
----
+- A CLI
+- A UI
+- A dashboard
+- A distributed system
 
-## 7.4 Distributed Watcher Mesh
-
-Compile to:
-
-- Native binary
-- WASM
-
-Run in:
-
-- CI
-- Agent VMs
-- Dev machines
-- Pre-commit hooks
-
-Aggregate telemetry into Edda.
-
----
-
-## 7.5 Semantic Risk Scoring
-
-Compute:
-
-- Risk index per module
-- Architectural entropy score
-- Privilege concentration index
-
-Trend over time.
-
----
-
-## 7.6 Data Flow Classification
-
-Advanced static analysis:
-
-- Track data origin
-- Track data sinks
-- Enforce classification boundaries
-
-Example:
-
-```
-PII → logging → violation
-```
-
----
-
-## 7.7 Real-Time Agent Feedback Channel
-
-Agents connected via:
-
-- IPC socket
-- JSON stream
-
-Agents receive structured semantic deltas instead of raw git diff.
-
----
-
-## 7.8 Cross-Repo Structural Awareness
-
-Enterprise mode:
-
-- Multiple repos
-- Shared contracts
-- Service boundary validation
-
----
-
-## 7.9 Architecture Snapshots
-
-Persist graph snapshots.
-
-Enable:
-
-- Time-travel architecture diff
-- Architectural regression detection
-
----
-
-## 7.10 Live Architecture Visualisation API
-
-Expose:
-
-- GraphQL
-- JSON export
-- Real-time graph streaming
-
-Feed into UI or TUI.
-
----
-
-## 8. Non-Goals (For Sanity)
-
-- No runtime code execution tracing in v1
-- No AI interpretation in core enforcement
-- No deep whole-program static analysis beyond symbol + call graph initially
-- No cross-language full semantic unification (phase 2+)
-
----
-
-## 9. Build Phases
-
-Phase 1:
-
-- Watcher
-- AST parsing
-- Symbol graph
-- Basic dependency graph
-- Basic policy engine
-
-Phase 2:
-
-- Trust graph
-- Incremental policy evaluation
-- Streaming output
-
-Phase 3:
-
-- APS integration
-- Behavioural diff
-
-Phase 4:
-
-- Drift modelling
-- Provenance engine
-
-Phase 5:
-
-- Distributed mesh
-- Enterprise features
-
----
-
-## 10. The Real Strategic Outcome
-
-If you execute this correctly:
-
-Anvil becomes:
-
-- A semantic operating system for the repository
-- A deterministic governance runtime
-- A structural immune system
-- The missing layer between intention and implementation
-
-That is not a linter. That is constitutional engineering.
+It is the core of the system. Everything else is a surface.
