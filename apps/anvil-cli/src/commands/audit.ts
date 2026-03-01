@@ -338,8 +338,12 @@ export function createAuditCommand(): Command {
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         // Guarantee spinner cleanup — handles any code path that bypasses
-        // the explicit stop/fail calls (e.g. unhandled rejection during scan)
-        spinner?.stop();
+        // the explicit stop/fail calls (e.g. unhandled rejection during scan).
+        // Only stop if still spinning; calling stop() after fail() would
+        // clear the failure indicator.
+        if (spinner?.isSpinning) {
+          spinner.stop();
+        }
       }
     });
 

@@ -196,6 +196,28 @@ describe('parseCommand', () => {
       expect(result.command).toBe('git');
       expect(result.wrapperChain).toContain('python3');
     });
+
+    it('extracts from eval pattern in interpreter one-liner', () => {
+      // Tests the eval regex in extractInterpreterCommand
+      const result = parseCommand('node -e "eval(\'rm -rf /tmp\')"');
+      expect(result.command).toBe('rm');
+      expect(result.wrapperChain).toContain('node');
+    });
+
+    it('extracts from $() pattern in interpreter one-liner', () => {
+      // Tests the $() regex in extractInterpreterCommand
+      const result = parseCommand('python3 -c "result = $(git reset --hard)"');
+      expect(result.command).toBe('git');
+      expect(result.subcommand).toBe('reset');
+      expect(result.wrapperChain).toContain('python3');
+    });
+
+    it('extracts from backtick pattern in interpreter one-liner', () => {
+      // Tests the backtick regex in extractInterpreterCommand
+      const result = parseCommand('ruby -e "out = `rm -rf /var`"');
+      expect(result.command).toBe('rm');
+      expect(result.wrapperChain).toContain('ruby');
+    });
   });
 
   describe('edge cases', () => {

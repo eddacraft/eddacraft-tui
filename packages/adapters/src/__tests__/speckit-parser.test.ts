@@ -215,5 +215,29 @@ Implement user authentication
 
       expect(result.changes?.[0].content).toContain('"strict": true');
     });
+
+    it('should parse code blocks with backticks in content without ReDoS', () => {
+      // Regression test for SECB-008: the code-block regex must not
+      // catastrophically backtrack on content containing isolated backticks.
+      const backtickHeavy = '`'.repeat(60);
+      const markdown = `# Spec
+
+## Changes
+
+### Create template
+
+\`\`\`typescript
+const tmpl = ${backtickHeavy};
+\`\`\``;
+
+      const start = performance.now();
+      const result = parser.parseSpecMarkdown(markdown);
+      const elapsed = performance.now() - start;
+
+      // Must complete in well under a second — exponential backtracking
+      // would blow past this on 60 backticks.
+      expect(elapsed).toBeLessThan(1000);
+      expect(result.changes).toBeDefined();
+    });
   });
 });
