@@ -8,9 +8,9 @@ See: plans/aps-rules.md
 
 # Forge Hook & Agent
 
-| ID    | Owner  | Status |
-| ----- | ------ | ------ |
-| FORGE | @aneki | Ready  |
+| ID    | Owner  | Status      |
+| ----- | ------ | ----------- |
+| FORGE | @aneki | In Progress |
 
 ## Purpose
 
@@ -67,7 +67,7 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 
 ## Tasks
 
-### FORGE-001: Create forge.sh PreToolUse hook
+### FORGE-001: Create forge.sh PreToolUse hook — Complete
 
 - **Intent:** Intercept git commit commands and launch the Forge review pipeline
 - **Expected Outcome:** Hook detects `git commit` in PreToolUse, captures staged
@@ -77,7 +77,7 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 - **Files:** `.claude/hooks/forge.sh`
 - **Confidence:** high
 
-### FORGE-002: Create forge-reviewer agent spec
+### FORGE-002: Create forge-reviewer agent spec — Complete
 
 - **Intent:** Define a specialized diff reviewer agent that delegates to codex
   for cross-model review and outputs structured findings
@@ -99,7 +99,7 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 - **Files:** `.claude/skills/forge/SKILL.md`
 - **Confidence:** high
 
-### FORGE-004: Implement Forge report logging
+### FORGE-004: Implement Forge report logging — Complete
 
 - **Intent:** Persist a summary of each Forge session for auditability
 - **Expected Outcome:** After negotiation completes, a markdown report is written

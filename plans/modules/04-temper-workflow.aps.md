@@ -8,9 +8,9 @@ See: plans/aps-rules.md
 
 # Temper Workflow
 
-| ID     | Owner  | Status |
-| ------ | ------ | ------ |
-| TEMPER | @aneki | Ready  |
+| ID     | Owner  | Status   |
+| ------ | ------ | -------- |
+| TEMPER | @aneki | Complete |
 
 ## Purpose
 
@@ -76,7 +76,7 @@ when `forge:tempered` label is present) and manual dispatch.
 
 ## Tasks
 
-### TEMPER-001: Create temper.yml workflow scaffold
+### TEMPER-001: Create temper.yml workflow scaffold — Complete
 
 - **Intent:** Establish the GitHub Actions workflow file with both trigger modes
   and cycle management infrastructure
@@ -88,7 +88,7 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Files:** `.github/workflows/temper.yml`
 - **Confidence:** high
 
-### TEMPER-002: Implement cycle 1 -- full review addressing
+### TEMPER-002: Implement cycle 1 -- full review addressing — Complete
 
 - **Intent:** The first cycle fetches all unresolved review threads, categorizes
   them, applies fixes, and resolves threads
@@ -100,7 +100,7 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-001
 - **Confidence:** medium
 
-### TEMPER-003: Implement cycle 2 -- scoped re-review
+### TEMPER-003: Implement cycle 2 -- scoped re-review — Complete
 
 - **Intent:** The second cycle only addresses findings on lines changed by
   cycle-1 fixes, deferring everything else
@@ -112,7 +112,7 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-002
 - **Confidence:** medium
 
-### TEMPER-004: Implement cycle cap enforcement
+### TEMPER-004: Implement cycle cap enforcement — Complete
 
 - **Intent:** The workflow never runs more than 2 cycles regardless of new
   comments
@@ -124,7 +124,7 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-001
 - **Confidence:** high
 
-### TEMPER-005: Implement manual dispatch trigger
+### TEMPER-005: Implement manual dispatch trigger — Complete
 
 - **Intent:** Allow manual triggering of Temper on any PR regardless of label or
   toggle state
@@ -135,7 +135,7 @@ when `forge:tempered` label is present) and manual dispatch.
 - **Dependencies:** TEMPER-001
 - **Confidence:** high
 
-### TEMPER-006: Implement PR summary comments
+### TEMPER-006: Implement PR summary comments — Complete
 
 - **Intent:** Each cycle posts a structured summary comment on the PR
 - **Expected Outcome:** Summary includes: findings addressed (with categories),

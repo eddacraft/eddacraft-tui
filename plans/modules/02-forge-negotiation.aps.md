@@ -8,9 +8,9 @@ See: plans/aps-rules.md
 
 # Forge Negotiation Protocol
 
-| ID   | Owner  | Status |
-| ---- | ------ | ------ |
-| FNEG | @aneki | Ready  |
+| ID   | Owner  | Status      |
+| ---- | ------ | ----------- |
+| FNEG | @aneki | In Progress |
 
 ## Purpose
 
@@ -72,7 +72,7 @@ auto-deferred if not fixed in round 1.
 
 ## Tasks
 
-### FNEG-001: Extend agent-bus schema with finding fields
+### FNEG-001: Extend agent-bus schema with finding fields — In Progress
 
 - **Intent:** Add forge-specific finding and response fields to the agent-bus
   message schema so structured findings flow through the existing messaging system
@@ -82,8 +82,10 @@ auto-deferred if not fixed in round 1.
   schema
 - **Files:** `.claude/agent-bus/schema.json`
 - **Confidence:** high
+- **Notes:** Finding format defined in `forge-reviewer.md` agent spec but formal
+  `schema.json` extension not yet created
 
-### FNEG-002: Implement round cap enforcement
+### FNEG-002: Implement round cap enforcement — Complete
 
 - **Intent:** Negotiation terminates after the configured maximum rounds, with
   all remaining findings auto-deferred
@@ -94,7 +96,7 @@ auto-deferred if not fixed in round 1.
 - **Dependencies:** FNEG-001
 - **Confidence:** high
 
-### FNEG-003: Implement scoped re-review for rounds 2+
+### FNEG-003: Implement scoped re-review for rounds 2+ — Complete
 
 - **Intent:** Subsequent rounds only review lines changed by fixes, not the
   original diff
@@ -105,7 +107,7 @@ auto-deferred if not fixed in round 1.
 - **Dependencies:** FNEG-001
 - **Confidence:** medium
 
-### FNEG-004: Implement severity-action matrix
+### FNEG-004: Implement severity-action matrix — Complete
 
 - **Intent:** Enforce which response actions are allowed per finding severity
   level
@@ -117,7 +119,7 @@ auto-deferred if not fixed in round 1.
 - **Dependencies:** FNEG-001
 - **Confidence:** high
 
-### FNEG-005: Implement fix-and-restage flow
+### FNEG-005: Implement fix-and-restage flow — Complete
 
 - **Intent:** When the author fixes a finding, the file is re-staged before the
   next round begins
