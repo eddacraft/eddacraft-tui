@@ -297,7 +297,7 @@ export class SpecKitParser {
     }
     const path = safePath(pathMatch?.[1]);
 
-    const codeBlockMatch = section.content.match(/```[\w]*\n([\s\S]*?)```/);
+    const codeBlockMatch = section.content.match(/```[\w]*\n([^`]*(?:`(?!``)[^`]*)*)```/);
     const content = codeBlockMatch ? codeBlockMatch[1].trim() : undefined;
 
     return {

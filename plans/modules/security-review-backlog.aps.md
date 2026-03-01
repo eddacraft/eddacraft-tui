@@ -12,8 +12,8 @@ Scope: SECB (security backlog)
 
 | ID   | Owner | Status      |
 | ---- | ----- | ----------- |
-| SECB | —     | In Progress (4/8) |
-<!-- Complete: SECB-001, SECB-002, SECB-003, SECB-004 -->
+| SECB | —     | In Progress (6/8) |
+<!-- Complete: SECB-001, SECB-002, SECB-003, SECB-004, SECB-005, SECB-008 -->
 
 ## Purpose
 
@@ -186,11 +186,10 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Ready
-- **Notes:** Full detection of obfuscated subprocess calls is an unsolvable
-  problem at the regex level. The pragmatic fix is either expanding the
-  heuristic or clearly documenting the limitation so consumers don't treat
-  the result as authoritative.
+- **Status:** Complete
+- **Notes:** Added detection for eval-style and $() command substitution
+  patterns. Documented function as best-effort heuristic with explicit
+  limitations comment.
 - **Origin:** REVIEW.md Runtime H6
 
 ---
@@ -248,7 +247,7 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Ready
-- **Notes:** The 2MB input cap limits the practical blast radius. This is a
-  defence-in-depth improvement rather than an urgent fix.
+- **Status:** Complete
+- **Notes:** Replaced lazy `[\s\S]*?` with a non-backtracking pattern using
+  negated character class `[^`]` with lookahead guard against triple backticks.
 - **Origin:** REVIEW.md Adapters H3 (residual)

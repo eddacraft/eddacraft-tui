@@ -156,6 +156,14 @@ function extractEnvCommand(tokens: string[]): string[] | null {
   return null;
 }
 
+/**
+ * Best-effort extraction of commands executed via interpreter flags (-c, -e).
+ *
+ * Limitations: this uses pattern matching and will miss obfuscated invocations
+ * (string concatenation, hex encoding, template literals, variable
+ * interpolation, eval of computed strings). Treat the result as a heuristic —
+ * a null return does NOT mean the script is safe.
+ */
 function extractInterpreterCommand(tokens: string[]): string | null {
   const cIndex = tokens.findIndex((t) => t === '-c' || t === '-e');
   if (cIndex !== -1 && cIndex + 1 < tokens.length) {
@@ -167,6 +175,8 @@ function extractInterpreterCommand(tokens: string[]): string | null {
       /execSync\s*\(\s*['"](.*?)['"]\s*\)/,
       /`([^`]+)`/,
       /system\s*\(\s*['"](.*?)['"]\s*\)/,
+      /eval\s*\(\s*['"](.*?)['"]\s*\)/,
+      /\$\(\s*(.*?)\s*\)/,
     ];
 
     for (const pattern of execPatterns) {
