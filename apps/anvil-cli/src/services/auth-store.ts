@@ -34,10 +34,8 @@ function getAuthPath(): string {
  * Returns null if no auth file exists or if it's expired.
  */
 export function loadAuth(): StoredAuth | null {
-  const authPath = getAuthPath();
-
   try {
-    const raw = readFileSync(authPath, 'utf-8');
+    const raw = readFileSync(getAuthPath(), 'utf-8');
     const data = StoredAuthSchema.parse(JSON.parse(raw));
 
     // Check local expiry (server is the real authority, but we avoid

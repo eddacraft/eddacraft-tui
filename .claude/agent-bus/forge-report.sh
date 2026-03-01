@@ -46,9 +46,9 @@ EOF
         ROUND="$1"
         FINDINGS_JSON="$2"
         # Parse JSON findings into a markdown table
-        FINDING_COUNT=$(echo "$FINDINGS_JSON" | jq 'length' 2>/dev/null || echo "0")
-        NITS=$(echo "$FINDINGS_JSON" | jq '[.[] | select(.severity == "nit")] | length' 2>/dev/null || echo "0")
-        AUTO_DEFERRED=$(echo "$FINDINGS_JSON" | jq '[.[] | select(.status == "auto-deferred")] | length' 2>/dev/null || echo "0")
+        FINDING_COUNT=$(echo "$FINDINGS_JSON" | jq 'length' 2>/dev/null) || FINDING_COUNT="0"
+        NITS=$(echo "$FINDINGS_JSON" | jq '[.[] | select(.severity == "nit")] | length' 2>/dev/null) || NITS="0"
+        AUTO_DEFERRED=$(echo "$FINDINGS_JSON" | jq '[.[] | select(.status == "auto-deferred")] | length' 2>/dev/null) || AUTO_DEFERRED="0"
 
         cat >> "$REPORT_FILE" << EOF
 **Findings:** ${FINDING_COUNT} (${NITS} nits, ${AUTO_DEFERRED} auto-deferred)
@@ -90,7 +90,7 @@ EOF
 
     deferred)
         DEFERRED_JSON="$1"
-        DEFERRED_COUNT=$(echo "$DEFERRED_JSON" | jq 'length' 2>/dev/null || echo "0")
+        DEFERRED_COUNT=$(echo "$DEFERRED_JSON" | jq 'length' 2>/dev/null) || DEFERRED_COUNT="0"
 
         cat >> "$REPORT_FILE" << EOF
 ## Deferred Findings
