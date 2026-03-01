@@ -28,6 +28,8 @@ interface TutorialProps {
   onSelectTutorial?: (topic: string) => void;
   tutorials?: TutorialOption[];
   completedTopics?: string[];
+  /** The topic this tutorial instance covers (default: 'core') */
+  currentTopic?: string;
 }
 
 export function Tutorial({
@@ -36,6 +38,7 @@ export function Tutorial({
   onSelectTutorial,
   tutorials = [],
   completedTopics = [],
+  currentTopic = 'core',
 }: TutorialProps): React.ReactElement {
   const { exit } = useApp();
   const [state, setState] = useState<TutorialState>(createInitialTutorialState);
@@ -115,8 +118,7 @@ export function Tutorial({
         return;
       }
 
-      // 'core' — this component is only used for the core tutorial flow
-      const topic = resolveTutorialKey(tutorials, 'core', input, completedTopics);
+      const topic = resolveTutorialKey(tutorials, currentTopic, input, completedTopics);
       if (topic) {
         onSelectTutorial?.(topic);
         exit();
@@ -168,6 +170,7 @@ export function Tutorial({
             cleanupRequested={state.cleanupRequested}
             tutorials={tutorials}
             completedTopics={completedTopics}
+            currentTopic={currentTopic}
             onFinish={handleFinish}
           />
         )}

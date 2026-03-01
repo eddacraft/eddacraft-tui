@@ -83,8 +83,8 @@ STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # --- Staged file list (for scoped review context) ---
 # Build as JSON array for structured signal file; comma-separated for report
+STAGED_FILES_CSV=$(git diff --cached --name-only 2>/dev/null | tr '\n' ', ' | sed 's/,$//')
 STAGED_FILES_JSON=$(git diff --cached --name-only 2>/dev/null | jq -R . | jq -s '.')
-STAGED_FILES=$(git diff --cached --name-only 2>/dev/null | tr '\n' ', ' | sed 's/,$//')
 
 # --- Write the diff to a persistent file for the reviewer ---
 # NOTE: Do NOT use a temp file with EXIT trap — the hook exits before the
@@ -94,6 +94,9 @@ DIFF_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/agent-bus/diffs"
 mkdir -p "$DIFF_DIR"
 DIFF_FILE="${DIFF_DIR}/forge-${FORGE_HASH}.diff"
 printf '%s\n' "$STAGED_DIFF" > "$DIFF_FILE"
+
+# Clean up stale diff files older than 7 days to prevent accumulation
+find "$DIFF_DIR" -name "forge-*.diff" -mtime +7 -delete 2>/dev/null || true
 
 # --- Initialize negotiation signal file ---
 # Use jq for safe JSON construction — avoids shell injection from filenames
@@ -126,7 +129,7 @@ jq -n \
 {
   printf '# Forge Report: %s\n\n' "$FORGE_HASH"
   printf '**Started:** %s\n' "$STARTED_AT"
-  printf '**Files:** %s\n' "$STAGED_FILES"
+  printf '**Files:** %s\n' "$STAGED_FILES_CSV"
   printf '**Diff size:** %s bytes\n' "$DIFF_SIZE"
   printf '**Max rounds:** %s\n' "$MAX_ROUNDS"
   printf '**Auto-defer nits:** %s\n\n' "$AUTO_DEFER_NITS"

@@ -580,7 +580,7 @@ Change status to **Ready** when:
 - **Intent:** No test for scan-throws-after-spinner-started scenario
 - **Expected Outcome:** Test verifies spinner is stopped cleanly when scan
   throws mid-operation
-- **Files:** `apps/anvil-cli/src/commands/audit-spinner.test.ts`
+- **Files:** `apps/anvil-cli/src/commands/__tests__/audit-spinner.test.ts`
 - **Priority:** Low
 - **Status:** Complete
 - **Notes:** Added test that mocks RepoScanner.scan to reject and asserts spinner.fail called
@@ -592,7 +592,7 @@ Change status to **Ready** when:
 - **Severity:** Minor
 - **Intent:** `--yes` bypass path not tested
 - **Expected Outcome:** Test verifies `--yes` flag skips confirmation prompt
-- **Files:** `apps/anvil-cli/src/commands/mcp-config-path.test.ts`
+- **Files:** `apps/anvil-cli/src/commands/__tests__/mcp-config-path.test.ts`
 - **Priority:** Low
 - **Status:** Complete
 - **Notes:** Added test for windsurf --write --yes bypassing outside-workspace check
@@ -606,7 +606,7 @@ Change status to **Ready** when:
   faster and less flaky
 - **Expected Outcome:** `tick()` calls replaced with `flushPromises()` or
   `vi.waitFor`
-- **Files:** `apps/anvil-cli/src/commands/tutorial-continuation.test.tsx`
+- **Files:** `apps/anvil-cli/src/tui/commands/tutorial/__tests__/tutorial-continuation.test.tsx`
 - **Priority:** Low
 - **Status:** Complete
 - **Notes:** Replaced all tick() calls with flushPromises() (0ms vs 50ms)
@@ -624,7 +624,7 @@ Change status to **Ready** when:
   `apps/anvil-cli/src/tui/commands/tutorial/steps/NextStepsStep.tsx`
 - **Priority:** Low
 - **Status:** Complete
-- **Notes:** Added comments documenting why 'core' is intentionally hardcoded
+- **Notes:** Added `currentTopic?: string` prop (default: 'core') to both components
 
 ---
 

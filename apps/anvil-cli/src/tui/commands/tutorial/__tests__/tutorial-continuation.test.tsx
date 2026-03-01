@@ -101,8 +101,6 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
     vi.clearAllMocks();
   });
 
-  const tick = () => new Promise((r) => setTimeout(r, 50));
-
   async function advanceToLastStep(
     stdin: { write: (s: string) => void },
     lastFrame: () => string | undefined
@@ -113,19 +111,16 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
     await vi.waitFor(() => {
       expect(lastFrame()).toContain('Step 2 of 4');
     }, opts);
-    await tick();
     // Advance watch -> fix
     stdin.write('\r');
     await vi.waitFor(() => {
       expect(lastFrame()).toContain('Step 3 of 4');
     }, opts);
-    await tick();
     // Advance fix -> next-steps
     stdin.write('\r');
     await vi.waitFor(() => {
       expect(lastFrame()).toContain('Step 4 of 4');
     }, opts);
-    await tick();
   }
 
   it('calls onSelectTutorial with correct topic when valid number key is pressed on last step', async () => {
@@ -153,7 +148,7 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
 
     stdin.write('9');
 
-    await tick();
+    await new Promise((r) => setTimeout(r, 0));
     expect(onSelectTutorial).not.toHaveBeenCalled();
   });
 
@@ -167,7 +162,7 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
 
     stdin.write('x');
 
-    await tick();
+    await new Promise((r) => setTimeout(r, 0));
     expect(onSelectTutorial).not.toHaveBeenCalled();
   });
 
@@ -180,7 +175,7 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
     // Still on step 1 (scan), press a number key
     stdin.write('1');
 
-    await tick();
+    await new Promise((r) => setTimeout(r, 0));
     expect(onSelectTutorial).not.toHaveBeenCalled();
   });
 });

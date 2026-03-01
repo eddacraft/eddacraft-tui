@@ -13,6 +13,8 @@ interface NextStepsStepProps {
   cleanupRequested?: boolean;
   completedTopics?: string[];
   tutorials: TutorialOption[];
+  /** The topic this tutorial instance covers (default: 'core') */
+  currentTopic?: string;
   onFinish?: () => void;
   /** @deprecated Cleanup is now handled by the parent Tutorial component */
   onCleanup?: () => void;
@@ -33,6 +35,7 @@ export function NextStepsStep({
   cleanupRequested = false,
   completedTopics,
   tutorials,
+  currentTopic = 'core',
 }: NextStepsStepProps): React.ReactElement {
   const elapsed = formatElapsedTime(startedAt);
 
@@ -75,7 +78,7 @@ export function NextStepsStep({
       <Box flexDirection="column" marginBottom={1}>
         <TutorialPicker
           tutorials={tutorials}
-          currentTopic="core"
+          currentTopic={currentTopic}
           completedTopics={completedTopics}
         />
       </Box>

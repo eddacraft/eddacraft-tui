@@ -51,6 +51,11 @@ linking back to the source PR, file, severity, and reasoning.
 - APS plan files — module specs for APS issue filing
 - Git — branch name and commit message for APS context detection
 
+> **Note:** DEFER and TEMPER have a mutual dependency: TEMPER calls DEFER to file
+> findings, while DEFER lists TEMPER as an input source. This is not circular at
+> runtime — DEFER is a library called by both Forge and Temper. DEFER was
+> implemented first; TEMPER invokes it via shell commands.
+
 **Exposes:**
 
 - Filing utility — callable from both Forge (local) and Temper (CI)

@@ -55,6 +55,10 @@ when `forge:tempered` label is present) and manual dispatch.
 - GitHub Actions — workflow runtime
 - `CLAUDE_TEMPER_ENABLED` / `CLAUDE_TEMPER_MAX_CYCLES` — repo-level variables
 
+> **Note:** TEMPER depends on DEFER for filing, while DEFER lists TEMPER as an
+> input source. This is not circular at runtime — DEFER is a utility invoked by
+> Temper via shell commands during the filing step. DEFER was built first.
+
 **Exposes:**
 
 - `.github/workflows/temper.yml` — the self-healing workflow
