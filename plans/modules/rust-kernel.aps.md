@@ -127,7 +127,8 @@ Change status to **Ready** when:
   medium repo (~2000 files, ~100k LOC)
 - **Expected Outcome:** Memory measurement showing graph + AST cache fits within
   budget
-- **Validation:** Build graph for synthetic 2000-node repo, measure RSS
+- **Validation:** Build graph for synthetic repo (2000 files, ~15k symbol nodes),
+  measure RSS
 - **Files:** `crates/spike/`
 - **Confidence:** high (petgraph is arena-allocated, expected <50MB for graph
   alone)
