@@ -276,6 +276,31 @@ describe('parseTaskFields', () => {
     expect(result.status).toBe('open');
   });
 
+  it('should accept prose status aliases', () => {
+    const cases: Array<[string, string]> = [
+      ['Complete', 'completed'],
+      ['complete', 'completed'],
+      ['Done', 'completed'],
+      ['In Progress', 'locked'],
+      ['in-progress', 'locked'],
+      ['Draft', 'open'],
+      ['Ready', 'open'],
+      ['Blocked', 'locked'],
+      ['canceled', 'cancelled'],
+    ];
+    for (const [input, expected] of cases) {
+      const para = fieldParagraph({ Status: input });
+      const result = parseTaskFields([para], []);
+      expect(result.status, `"${input}" should map to "${expected}"`).toBe(expected);
+    }
+  });
+
+  it('should strip parenthetical suffixes from status values', () => {
+    const para = fieldParagraph({ Status: 'Complete (2026-02-15)' });
+    const result = parseTaskFields([para], []);
+    expect(result.status).toBe('completed');
+  });
+
   it('should parse inline Inputs as single-item array', () => {
     const para = fieldParagraph({ Inputs: 'Database credentials' });
     const result = parseTaskFields([para], []);

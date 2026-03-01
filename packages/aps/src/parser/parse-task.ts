@@ -230,19 +230,33 @@ function parseConfidence(value: string): Confidence {
 }
 
 /**
- * Parse task status from string
+ * Parse task status from string.
+ * Accepts canonical tokens (open, locked, completed, cancelled) and
+ * common prose aliases used in human-authored plan files.
  */
 function parseStatus(value: string): TaskStatus {
-  const normalized = value.toLowerCase().trim();
-  if (
-    normalized === 'open' ||
-    normalized === 'locked' ||
-    normalized === 'completed' ||
-    normalized === 'cancelled'
-  ) {
-    return normalized;
-  }
-  return 'open'; // default
+  // Strip parenthetical suffixes like "(2026-02-15)" before matching
+  const normalized = value
+    .replace(/\s*\(.*\)\s*$/, '')
+    .toLowerCase()
+    .trim();
+
+  const aliases: Record<string, TaskStatus> = {
+    open: 'open',
+    locked: 'locked',
+    completed: 'completed',
+    cancelled: 'cancelled',
+    complete: 'completed',
+    done: 'completed',
+    'in progress': 'locked',
+    'in-progress': 'locked',
+    draft: 'open',
+    ready: 'open',
+    blocked: 'locked',
+    canceled: 'cancelled',
+  };
+
+  return aliases[normalized] ?? 'open';
 }
 
 /**
