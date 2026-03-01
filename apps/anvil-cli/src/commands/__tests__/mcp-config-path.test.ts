@@ -114,13 +114,16 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
   it('bypasses outside-workspace check when --yes is passed', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    // Redirect HOME to a temp directory so the test never touches the real filesystem
+    // Redirect HOME to a temp directory so the test never touches the real filesystem.
+    // We write the config to the temp dir so --write succeeds without hitting the real HOME.
+    // Using process.env.HOME instead of vi.spyOn(os, 'homedir') because ESM module
+    // namespace is not configurable on macOS/Node 20.
     const tempHome = mkdtempSync(join(tmpdir(), 'anvil-mcp-config-'));
-    const os = await import('node:os');
-    vi.spyOn(os, 'homedir').mockReturnValue(tempHome);
-    const fs = await import('node:fs');
-    const writeSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
-    vi.spyOn(fs, 'mkdirSync').mockImplementation(() => tempHome);
+    const targetDir = join(tempHome, '.codeium', 'windsurf');
+    mkdirSync(targetDir, { recursive: true });
+
+    const originalEnv = process.env.HOME;
+    process.env.HOME = tempHome;
 
     try {
       const command = createMcpConfigCommand();
@@ -129,9 +132,9 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
 
       const output = logSpy.mock.calls.map((c) => c[0]).join('\n');
       // Should succeed and attempt to write rather than throwing
-      expect(writeSpy).toHaveBeenCalled();
       expect(output).toContain('Wrote');
     } finally {
+      process.env.HOME = originalEnv;
       rmSync(tempHome, { recursive: true, force: true });
     }
   });

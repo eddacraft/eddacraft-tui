@@ -26,42 +26,50 @@ vi.mock('../../utils/file-io.js', () => ({
   getWorkspaceRoot: () => '/mock/workspace',
 }));
 
+const mockScanResult = {
+  timestamp: new Date(),
+  project: {
+    framework: 'none',
+    size: 'small',
+    fileCount: 10,
+    monorepo: 'none',
+    tsStrictness: 'strict',
+    workspacePackages: [],
+  },
+  currentIssues: {
+    filesScanned: 10,
+    totalWarnings: 0,
+    bySeverity: { errors: 0, warnings: 0, info: 0 },
+    byCategory: {},
+    topIssues: [],
+    hasBlockingWarnings: false,
+    executionTimeMs: 50,
+    checksRun: ['test-check'],
+  },
+  historical: {
+    totalCommits: 0,
+    totalViolations: 0,
+    avgViolationsPerCommit: 0,
+    patternOccurrences: [],
+    dateRange: { from: new Date(), to: new Date() },
+  },
+  totalDurationMs: 100,
+};
+
+// Hoisted so mock factory can reference it; shared across all tests
+const mockScan = vi.hoisted(() => vi.fn());
+
 vi.mock('../../services/repo-scanner.js', () => {
   class MockRepoScanner {
-    scan = vi.fn().mockResolvedValue({
-      timestamp: new Date(),
-      project: {
-        framework: 'none',
-        size: 'small',
-        fileCount: 10,
-        monorepo: 'none',
-        tsStrictness: 'strict',
-        workspacePackages: [],
-      },
-      currentIssues: {
-        filesScanned: 10,
-        totalWarnings: 0,
-        bySeverity: { errors: 0, warnings: 0, info: 0 },
-        byCategory: {},
-        topIssues: [],
-        hasBlockingWarnings: false,
-        executionTimeMs: 50,
-        checksRun: ['test-check'],
-      },
-      historical: {
-        totalCommits: 0,
-        totalViolations: 0,
-        avgViolationsPerCommit: 0,
-        patternOccurrences: [],
-        dateRange: { from: new Date(), to: new Date() },
-      },
-      totalDurationMs: 100,
-    });
+    scan = mockScan;
   }
   return { RepoScanner: MockRepoScanner };
 });
 
 import { createAuditCommand } from '../audit.js';
+
+// Set default scan behaviour before tests run
+mockScan.mockResolvedValue(mockScanResult);
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -69,6 +77,7 @@ afterEach(() => {
   mockOra.spinnerInstance.start.mockClear();
   mockOra.spinnerInstance.stop.mockClear();
   mockOra.spinnerInstance.fail.mockClear();
+  mockScan.mockReset().mockResolvedValue(mockScanResult);
 });
 
 describe('audit spinner lifecycle (H-4)', () => {
@@ -98,15 +107,8 @@ describe('audit spinner lifecycle (H-4)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    // scan is an instance field in the mock (not on prototype), so we
-    // override the mock constructor to produce an instance whose scan rejects
-    const { RepoScanner } = await import('../../services/repo-scanner.js');
-    vi.mocked(RepoScanner).mockImplementationOnce(
-      () =>
-        ({
-          scan: vi.fn().mockRejectedValueOnce(new Error('Scan exploded')),
-        }) as unknown as InstanceType<typeof RepoScanner>
-    );
+    // Override the shared mockScan to reject for this test only
+    mockScan.mockRejectedValueOnce(new Error('Scan exploded'));
 
     const command = createAuditCommand();
     await expect(command.parseAsync(['--days-back', '30'], { from: 'user' })).rejects.toThrow();
