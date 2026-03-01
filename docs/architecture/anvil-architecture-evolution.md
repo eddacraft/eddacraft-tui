@@ -293,11 +293,18 @@ Violation:
   reasoning: string
   suggested_remediation?: string
   refs?: { rule_url?: string, doc?: string }
+
+Error:
+  code: string # parse_error, config_error, internal
+  file?: string
+  message: string
+  recoverable: boolean
 ```
 
-These map cleanly to
-[Invariant Violation Streaming](../vision/aspirational-ultimate-feature.md) and
-the [Rust Kernel Spec](rust-kernel-spec.md).
+These map cleanly to the [Rust Kernel Spec](rust-kernel-spec.md) event types
+(see section 8). All four event types are wrapped in a common `EngineEvent`
+envelope with `seq`, `timestamp`, and `engine` fields for ordering and dual-run
+attribution.
 
 ### 7.3 Planned Event Types (H1.5/H2)
 
