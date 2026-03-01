@@ -122,8 +122,13 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     const targetDir = join(tempHome, '.codeium', 'windsurf');
     mkdirSync(targetDir, { recursive: true });
 
-    const originalEnv = process.env.HOME;
+    // Save and override all homedir-related env vars (HOME on Unix, USERPROFILE on Windows)
+    const savedEnv = {
+      HOME: process.env.HOME,
+      USERPROFILE: process.env.USERPROFILE,
+    };
     process.env.HOME = tempHome;
+    process.env.USERPROFILE = tempHome;
 
     try {
       const command = createMcpConfigCommand();
@@ -134,7 +139,14 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
       // Should succeed and attempt to write rather than throwing
       expect(output).toContain('Wrote');
     } finally {
-      process.env.HOME = originalEnv;
+      // Restore or delete env vars — assigning undefined coerces to "undefined"
+      for (const [key, val] of Object.entries(savedEnv)) {
+        if (val === undefined) {
+          delete process.env[key];
+        } else {
+          process.env[key] = val;
+        }
+      }
       rmSync(tempHome, { recursive: true, force: true });
     }
   });
