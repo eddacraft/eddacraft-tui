@@ -69,8 +69,12 @@ work, and delegates bookkeeping to a background agent at session boundaries.
 
 ## Activation Guard
 
-If `plans/index.aps.md` does not exist in the current project, this skill does
+If `plans/index.aps.md` does not exist in the current project **and** this is a
+passive activation (session start, background reconciliation), the skill does
 nothing. Stop here.
+
+If this is an explicit `/plan` invocation, the missing index is expected — the
+skill should offer to bootstrap APS for the project.
 
 ## Session Start — Load Context
 
@@ -136,8 +140,11 @@ reality. Trigger on:
 - After a commit that touches APS-tracked files
 - Before or after creating a PR
 - When completing a branch
-- When the user runs `/plan-status`
 - At explicit user request
+
+Note: `/plan-status` runs reconciliation in the **foreground** (the user is
+waiting for results), not as a background task. It uses the same reconciliation
+logic but returns output directly.
 
 ### How to spawn the reconciliation agent
 
@@ -231,12 +238,16 @@ for reconciliation:
 When spawned by the APS planning skill for reconciliation, follow this workflow:
 
 1. Read `plans/index.aps.md` and identify all active modules
-2. For each active module, read the `.aps.md` file and extract non-Complete work
-   items
+2. For each active module, read the `.aps.md` file and extract all work items
+   (including Complete items, to detect regressions)
 3. For each work item with a `Validation:` command:
-   - Run the validation command
+   - Display the command and request user confirmation before executing (or
+     auto-approve if the command matches the allowlist: `pnpm test`,
+     `pnpm lint`, `npm test`, `npm run lint`, `cargo test`, `cargo clippy`,
+     `go test`)
+   - Run the validation command only after approval
    - If it passes and status is Draft/Ready, propose marking Complete
-   - If it fails and status is Complete, flag as drift
+   - If it fails and status is Complete, flag as drift (regression detected)
 4. Count Complete vs total items per module and update the Progress column in
    `index.aps.md`
 5. Generate or update `.claude/rules/aps-project.md` with:

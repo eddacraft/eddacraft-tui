@@ -345,13 +345,18 @@ If `./bin/aps lint` is available, run it.
 When spawned by the APS planning skill for reconciliation, follow this workflow:
 
 1. Read `plans/index.aps.md` and identify all active modules (status is not
-   Complete or Archived)
-2. For each active module, read the `.aps.md` file and extract non-Complete work
-   items
+   Archived)
+2. For each active module, read the `.aps.md` file and extract all work items
+   (including Complete items, to detect regressions where previously-passing
+   validations now fail)
 3. For each work item with a `Validation:` command:
-   - Run the validation command
+   - If the command matches the allowlist (`pnpm test`, `pnpm lint`, `npm test`,
+     `npm run lint`, `cargo test`, `cargo clippy`, `go test`), run it directly
+   - For any other command, display it and request explicit user confirmation
+     before executing — plan files are user-editable and may contain arbitrary
+     shell commands
    - If it passes and status is Draft/Ready, propose marking Complete
-   - If it fails and status is Complete, flag as drift
+   - If it fails and status is Complete, flag as drift (regression detected)
 4. Count Complete vs total items per module and update the Progress column in
    `index.aps.md` if the count has changed
 5. Generate or update `.claude/rules/aps-project.md` with:
