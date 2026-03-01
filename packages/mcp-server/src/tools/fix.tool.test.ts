@@ -113,6 +113,23 @@ describe('anvil_fix tool', () => {
       expect(parsed['fixed']).toBe(false);
     });
 
+    it('fixes `: any` in code after a block comment', async () => {
+      const filePath = 'src/mixed-comment.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, '/* note */ const x: any = 1;\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_fix',
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['fixed']).toBe(true);
+
+      const content = readFileSync(absPath, 'utf-8');
+      expect(content).toBe('/* note */ const x: unknown = 1;\n');
+    });
+
     it('does not mutate `: any` in trailing inline comments', async () => {
       const filePath = 'src/trailing.ts';
       const absPath = join(tmpDir, filePath);

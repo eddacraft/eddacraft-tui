@@ -52,8 +52,10 @@ const FIXABLE_PATTERNS: Record<
     description: 'Replace explicit `any` type with `unknown`',
     apply: (line) => {
       const trimmed = line.trimStart();
-      // Skip full-line comments: //, /* ... */, and JSDoc continuation lines (* )
-      if (trimmed.startsWith('//') || trimmed.startsWith('* ') || trimmed.startsWith('/*')) {
+      // Skip full-line comments: // and JSDoc continuation lines (* )
+      // Block comments (/*) are handled by the character parser below,
+      // which correctly skips comment content while fixing code after it.
+      if (trimmed.startsWith('//') || trimmed.startsWith('* ')) {
         return null;
       }
       if (!/:(\s*)any\b/.test(line)) {
