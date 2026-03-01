@@ -340,6 +340,30 @@ Run validation checks:
 
 If `./bin/aps lint` is available, run it.
 
+### 12. Reconciliation Mode
+
+When spawned by the APS planning skill for reconciliation, follow this workflow:
+
+1. Read `plans/index.aps.md` and identify all active modules (status is not
+   Complete or Archived)
+2. For each active module, read the `.aps.md` file and extract non-Complete work
+   items
+3. For each work item with a `Validation:` command:
+   - Run the validation command
+   - If it passes and status is Draft/Ready, propose marking Complete
+   - If it fails and status is Complete, flag as drift
+4. Count Complete vs total items per module and update the Progress column in
+   `index.aps.md` if the count has changed
+5. Generate or update `.claude/rules/aps-project.md` with:
+   - Active modules list with progress counts
+   - File-to-item map extracted from work item `Files:` fields
+   - Project conventions (read from `plans/aps-rules.md` if it exists)
+6. Output a reconciliation report summarising all changes and findings
+
+When proposing status changes, make the edits directly if running in background
+mode with pre-approval. Otherwise, list proposed changes and wait for
+confirmation.
+
 ## Decision Tree
 
 When the user makes a request, follow this logic:
