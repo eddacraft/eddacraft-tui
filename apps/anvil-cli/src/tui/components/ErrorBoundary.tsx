@@ -12,21 +12,20 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
-  errorInfo: React.ErrorInfo | null;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null, errorInfo: null };
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error };
   }
 
-  componentDidCatch(_error: Error, errorInfo: React.ErrorInfo): void {
-    this.setState({ errorInfo });
+  componentDidCatch(_error: Error, _errorInfo: React.ErrorInfo): void {
+    // Error details are currently not displayed; hook kept for potential logging.
   }
 
   render(): ReactNode {
@@ -38,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
           onRetry={
             this.props.onRetry
               ? () => {
-                  this.setState({ hasError: false, error: null, errorInfo: null });
+                  this.setState({ hasError: false, error: null });
                   this.props.onRetry?.();
                 }
               : undefined
