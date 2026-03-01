@@ -1,9 +1,9 @@
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * Configuration for sample analysis
@@ -107,7 +107,7 @@ export class SampleAnalyzer {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execAsync('git rev-parse --git-dir', { cwd: this.projectRoot });
+      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
       return true;
     } catch {
       return false;
@@ -121,8 +121,9 @@ export class SampleAnalyzer {
     try {
       // Get files changed in the last N days
       const since = `${config.daysBack}.days.ago`;
-      const { stdout } = await execAsync(
-        `git log --since="${since}" --name-only --pretty=format: --diff-filter=AM`,
+      const { stdout } = await execFileAsync(
+        'git',
+        ['log', `--since=${since}`, '--name-only', '--pretty=format:', '--diff-filter=AM'],
         {
           cwd: this.projectRoot,
           maxBuffer: 10 * 1024 * 1024,

@@ -1,7 +1,7 @@
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,7 +9,7 @@ import { z } from 'zod';
 
 const log = createDebugger('check');
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const YarnAdvisoryDataSchema = z.object({
   id: z.number(),
@@ -301,10 +301,8 @@ export class DependencyCheck extends BaseCheck {
     workspaceRoot: string,
     packageManager: PackageManager
   ): Promise<NormalisedAuditResult | null> {
-    const auditCommand = `${packageManager} audit --json`;
-
     try {
-      const { stdout } = await execAsync(auditCommand, {
+      const { stdout } = await execFileAsync(packageManager, ['audit', '--json'], {
         cwd: workspaceRoot,
         maxBuffer: 10 * 1024 * 1024,
         timeout: 120_000,

@@ -17,10 +17,10 @@ import {
 } from '../../__tests__/helpers/test-workspace.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const toFwd = (p: string): string => p.replace(/\\/g, '/');
 
@@ -154,8 +154,8 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'content', 'utf-8');
 
       initGitRepo(workspace.root);
-      await execAsync('git add .', { cwd: workspace.root });
-      await execAsync('git commit -m "initial"', { cwd: workspace.root });
+      await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+      await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: workspace.root });
 
       const selection = await analyzer.selectFiles();
 
@@ -251,8 +251,8 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'content', 'utf-8');
 
       initGitRepo(workspace.root);
-      await execAsync('git add .', { cwd: workspace.root });
-      await execAsync('git commit -m "initial"', { cwd: workspace.root });
+      await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+      await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: workspace.root });
 
       const stats = await analyzer.getSelectionStats();
 

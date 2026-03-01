@@ -18,10 +18,10 @@ import {
 } from '../../__tests__/helpers/test-workspace.js';
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Git operations (init, add, commit, log) in temp dirs are slower on Windows
 // CI runners; bump the per-test timeout to prevent flaky timeouts.
@@ -68,8 +68,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
     it('should retrieve commits with TypeScript files', async () => {
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add app.ts"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add app.ts'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -83,8 +83,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
     it('should filter out commits without relevant files', async () => {
       try {
         writeFileSync(join(workspace.root, 'README.md'), '# Test', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add readme"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add readme'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -98,8 +98,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
     it('should respect daysBack configuration', async () => {
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Recent commit"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Recent commit'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ daysBack: 1 });
 
@@ -118,8 +118,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
         // Create multiple commits
         for (let i = 0; i < 5; i++) {
           writeFileSync(join(workspace.root, 'src', `file${i}.ts`), `const x${i} = 1;`, 'utf-8');
-          await execAsync('git add .', { cwd: workspace.root });
-          await execAsync(`git commit -m "Commit ${i}"`, { cwd: workspace.root });
+          await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+          await execFileAsync('git', ['commit', '-m', `Commit ${i}`], { cwd: workspace.root });
         }
 
         const analysis = await analyzer.analyse({ maxCommits: 3 });
@@ -144,8 +144,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
           '/* eslint-disable */\nconst x = 1;',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add eslint-disable"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add eslint-disable'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ antiPatternIds: ['AP-001'] });
 
@@ -164,8 +164,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
           'function test(x: any) { return x; }',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add any type"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add any type'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ antiPatternIds: ['AP-003'] });
 
@@ -184,8 +184,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
           '// @ts-ignore\nconst x = 1;',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add ts-ignore"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add ts-ignore'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ antiPatternIds: ['AP-004'] });
 
@@ -204,8 +204,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
           'try { test(); } catch (e) { }',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add empty catch"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add empty catch'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ antiPatternIds: ['AP-006'] });
 
@@ -220,8 +220,8 @@ describe('HistoricalAnalyzer', { timeout: 30_000 }, () => {
     it('should detect console violations (AP-007)', async () => {
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'console.log("debug");', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add console.log"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add console.log'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ antiPatternIds: ['AP-007'] });
 
@@ -244,8 +244,10 @@ function test(x: any) {
 }`,
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add multiple violations"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add multiple violations'], {
+          cwd: workspace.root,
+        });
 
         const analysis = await analyzer.analyse();
 
@@ -270,8 +272,8 @@ function test(x: any) {
           'const x: any = 1;\nconst y: any = 2;',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add any types"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add any types'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ antiPatternIds: ['AP-003'] });
 
@@ -301,8 +303,8 @@ const y: any = 2;
 console.log(x);`,
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Mixed violations"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Mixed violations'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -325,8 +327,8 @@ console.log(x);`,
 
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x: any = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add any type"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add any type'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ antiPatternIds: ['AP-003'] });
 
@@ -348,16 +350,16 @@ console.log(x);`,
 
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x: any = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Commit 1"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Commit 1'], { cwd: workspace.root });
 
         writeFileSync(
           join(workspace.root, 'src', 'app.ts'),
           'const x: any = 1;\nconst y: any = 2;',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Commit 2"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Commit 2'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -378,8 +380,8 @@ console.log(x);`,
       try {
         for (let i = 0; i < 3; i++) {
           writeFileSync(join(workspace.root, 'src', `file${i}.ts`), 'const x: any = 1;', 'utf-8');
-          await execAsync('git add .', { cwd: workspace.root });
-          await execAsync(`git commit -m "Commit ${i}"`, { cwd: workspace.root });
+          await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+          await execFileAsync('git', ['commit', '-m', `Commit ${i}`], { cwd: workspace.root });
         }
 
         const analysis = await analyzer.analyse();
@@ -408,8 +410,8 @@ console.log(x);`,
           'const x: any = 1;\nconst y: any = 2;',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add violations"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add violations'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -437,8 +439,8 @@ console.log(x);`,
 
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "First commit"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'First commit'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -462,8 +464,8 @@ console.log(x);`,
 
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x: any = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add violation"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add violation'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
         const summary = analyzer.generateSummary(analysis);
@@ -497,8 +499,8 @@ console.log(x);`,
           'const x: any = 1;\nconsole.log(x);',
           'utf-8'
         );
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add violations"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add violations'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
         const summary = analyzer.generateSummary(analysis);
@@ -520,13 +522,13 @@ console.log(x);`,
       try {
         // Clean commit
         writeFileSync(join(workspace.root, 'src', 'clean.ts'), 'const x = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Clean commit"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Clean commit'], { cwd: workspace.root });
 
         // Commit with violation
         writeFileSync(join(workspace.root, 'src', 'dirty.ts'), 'const y: any = 2;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Dirty commit"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Dirty commit'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
         const stats = analyzer.getStatistics(analysis);
@@ -547,8 +549,8 @@ console.log(x);`,
 
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x: any = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add violation"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add violation'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
         const stats = analyzer.getStatistics(analysis);
@@ -570,8 +572,8 @@ console.log(x);`,
       try {
         for (let i = 0; i < 3; i++) {
           writeFileSync(join(workspace.root, 'src', `file${i}.ts`), 'const x: any = 1;', 'utf-8');
-          await execAsync('git add .', { cwd: workspace.root });
-          await execAsync(`git commit -m "Commit ${i}"`, { cwd: workspace.root });
+          await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+          await execFileAsync('git', ['commit', '-m', `Commit ${i}`], { cwd: workspace.root });
         }
 
         const analysis = await analyzer.analyse();
@@ -607,8 +609,8 @@ console.log(x);`,
     it('should exclude test files', async () => {
       try {
         writeFileSync(join(workspace.root, 'src', 'app.test.ts'), 'const x: any = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add test file"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add test file'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -625,8 +627,8 @@ console.log(x);`,
       try {
         mkdirSync(join(workspace.root, 'dist'), { recursive: true });
         writeFileSync(join(workspace.root, 'dist', 'app.js'), 'const x = 1;', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add build file"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add build file'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse();
 
@@ -643,8 +645,8 @@ console.log(x);`,
       try {
         writeFileSync(join(workspace.root, 'src', 'app.ts'), 'const x: any = 1;', 'utf-8');
         writeFileSync(join(workspace.root, 'src', 'data.json'), '{}', 'utf-8');
-        await execAsync('git add .', { cwd: workspace.root });
-        await execAsync('git commit -m "Add files"', { cwd: workspace.root });
+        await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
+        await execFileAsync('git', ['commit', '-m', 'Add files'], { cwd: workspace.root });
 
         const analysis = await analyzer.analyse({ filePatterns: ['.ts', '.tsx'] });
 
