@@ -43,6 +43,10 @@ linking back to the source PR, file, severity, and reasoning.
 
 - FNEG module — provides deferred findings with metadata
 - TEMPER module — provides deferred findings from CI cycle cap
+  (Note: TEMPER also depends on DEFER — this is a mutual runtime
+  dependency, not a build cycle. TEMPER calls DEFER to file
+  remaining findings; DEFER accepts findings from TEMPER as input.
+  Resolution order: implement DEFER first, then TEMPER calls it.)
 - GitHub CLI (`gh`) — issue creation
 - APS plan files — module specs for APS issue filing
 - Git — branch name and commit message for APS context detection

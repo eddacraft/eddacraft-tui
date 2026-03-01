@@ -35,7 +35,6 @@ function getAuthPath(): string {
  */
 export function loadAuth(): StoredAuth | null {
   const authPath = getAuthPath();
-  if (!existsSync(authPath)) return null;
 
   try {
     const raw = readFileSync(authPath, 'utf-8');

@@ -130,7 +130,7 @@ release must deliver both the core value AND a friction-free first experience.
 | MCP Server Hardening       | Production-readiness for MCP server                      | Complete    | —        |
 | Security CI Pipeline       | Automated security scanning on every PR                  | Complete    | —        |
 | Tutorial Path Continuation | Continue with another tutorial from completion screen     | Complete    | —        |
-| Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Ready       | 37/57    |
+| Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Ready       | 50/57    |
 | Code Review Backlog        | 25 architectural recommendations from code review        | In Progress | 3/25     |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |

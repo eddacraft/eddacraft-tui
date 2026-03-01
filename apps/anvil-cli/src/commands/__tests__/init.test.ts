@@ -342,6 +342,8 @@ describe('init command', () => {
 
   describe('interactive mode', () => {
     it('should use inquirer for interactive setup', async () => {
+      const genSpy = vi.spyOn(TemplateGenerator.prototype, 'generateAnvilrc');
+
       const inquirer = await import('inquirer');
       // Architecture confirmation prompt
       vi.mocked(inquirer.default.prompt).mockResolvedValueOnce({
@@ -368,6 +370,7 @@ describe('init command', () => {
 
       expect(inquirer.default.prompt).toHaveBeenCalled();
       expect(existsSync(join(workspace.root, 'custom/plans'))).toBe(true);
+      expect(genSpy).toHaveBeenCalled();
     });
 
     it('should use custom planning directory from interactive input', async () => {

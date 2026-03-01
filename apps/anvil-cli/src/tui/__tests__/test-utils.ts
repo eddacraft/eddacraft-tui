@@ -54,24 +54,6 @@ export async function flushPromises(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-export async function waitForFrame(
-  lastFrame: () => string,
-  predicate: (frame: string) => boolean,
-  timeout = 1000
-): Promise<string> {
-  const start = Date.now();
-
-  while (Date.now() - start < timeout) {
-    const frame = lastFrame();
-    if (predicate(frame)) {
-      return frame;
-    }
-    await flushPromises();
-  }
-
-  throw new Error(`Timeout waiting for frame condition after ${timeout}ms`);
-}
-
 export interface MockTTYOptions {
   isTTY?: boolean;
   columns?: number;

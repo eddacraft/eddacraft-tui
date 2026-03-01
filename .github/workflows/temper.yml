@@ -36,6 +36,7 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'pull_request_review' &&
+        github.event.review.state == 'changes_requested' &&
         contains(github.event.pull_request.labels.*.name, 'forge:tempered') &&
         vars.CLAUDE_TEMPER_ENABLED == 'true'
       )

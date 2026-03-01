@@ -1,9 +1,9 @@
-# Beta Launch Checklist — Anvil CLI v0.1.0
+# Beta Launch Checklist — Anvil CLI v0.1.x
 
-**Status:** Draft
+**Status:** Complete
 **Owner:** Engineering
 **Target Package:** `@eddacraft/anvil-cli` on npm
-**Current Version:** 0.1.0 (in `apps/anvil-cli/package.json`)
+**Current Version:** 0.1.2-beta (in `apps/anvil-cli/package.json`)
 
 ---
 

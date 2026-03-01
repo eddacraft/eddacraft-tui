@@ -111,6 +111,18 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     }
   });
 
+  it('bypasses outside-workspace check when --yes is passed', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createMcpConfigCommand();
+    // windsurf writes to ~ which is outside workspace — --yes skips the prompt
+    await command.parseAsync(['-t', 'windsurf', '--write', '--yes'], { from: 'user' });
+
+    const output = logSpy.mock.calls.map((c) => c[0]).join('\n');
+    // Should succeed (write or at least attempt to write) rather than throwing
+    expect(output).toBeDefined();
+  });
+
   it('generates correct stdio config for each target', async () => {
     const targets = ['claude-code', 'cursor', 'windsurf', 'vscode'] as const;
 

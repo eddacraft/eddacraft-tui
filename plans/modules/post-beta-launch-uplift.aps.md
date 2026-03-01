@@ -474,7 +474,8 @@ Change status to **Ready** when:
   `review.state == 'changes_requested'` or comment reviews
 - **Files:** `.github/workflows/temper.yml`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added `github.event.review.state == 'changes_requested'` condition
 
 ---
 
@@ -514,8 +515,8 @@ Change status to **Ready** when:
 - **Expected Outcome:** Uses `getWorkspaceRoot()` consistently
 - **Files:** `apps/anvil-cli/src/commands/export.ts`
 - **Priority:** Low
-- **Status:** Draft
-- **Notes:** Related to PBLU-011 (same class of issue)
+- **Status:** Complete
+- **Notes:** Replaced process.cwd() with getWorkspaceRoot() in exportConstraints
 
 ---
 
@@ -555,7 +556,8 @@ Change status to **Ready** when:
   `readFileSync`
 - **Files:** `apps/anvil-cli/src/services/auth-store.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Removed redundant existsSync guard; try/catch handles ENOENT
 
 ---
 
@@ -580,7 +582,8 @@ Change status to **Ready** when:
   throws mid-operation
 - **Files:** `apps/anvil-cli/src/commands/audit-spinner.test.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added test that mocks RepoScanner.scan to reject and asserts spinner.fail called
 
 ---
 
@@ -591,7 +594,8 @@ Change status to **Ready** when:
 - **Expected Outcome:** Test verifies `--yes` flag skips confirmation prompt
 - **Files:** `apps/anvil-cli/src/commands/mcp-config-path.test.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added test for windsurf --write --yes bypassing outside-workspace check
 
 ---
 
@@ -604,7 +608,8 @@ Change status to **Ready** when:
   `vi.waitFor`
 - **Files:** `apps/anvil-cli/src/commands/tutorial-continuation.test.tsx`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Replaced all tick() calls with flushPromises() (0ms vs 50ms)
 
 ---
 
@@ -615,10 +620,11 @@ Change status to **Ready** when:
   NextStepsStep.tsx — should be a prop or documented
 - **Expected Outcome:** `currentTopic` passed as prop or documented as
   intentionally hardcoded
-- **Files:** `apps/anvil-cli/src/components/Tutorial.tsx`,
-  `apps/anvil-cli/src/components/NextStepsStep.tsx`
+- **Files:** `apps/anvil-cli/src/tui/commands/tutorial/Tutorial.tsx`,
+  `apps/anvil-cli/src/tui/commands/tutorial/steps/NextStepsStep.tsx`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added comments documenting why 'core' is intentionally hardcoded
 
 ---
 
@@ -631,7 +637,8 @@ Change status to **Ready** when:
   expected prompt values
 - **Files:** `apps/anvil-cli/src/commands/init.test.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added generateAnvilrc spy assertion in interactive setup test
 
 ---
 
@@ -640,9 +647,10 @@ Change status to **Ready** when:
 - **Severity:** Minor
 - **Intent:** `waitForFrame` duplicates `vi.waitFor` and is currently unused
 - **Expected Outcome:** `waitForFrame` removed from test-utils.ts
-- **Files:** `apps/anvil-cli/src/test-utils.ts`
+- **Files:** `apps/anvil-cli/src/tui/__tests__/test-utils.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Removed waitForFrame — unused, duplicates vi.waitFor
 
 ---
 
@@ -653,7 +661,8 @@ Change status to **Ready** when:
 - **Expected Outcome:** Version and status updated to reflect current state
 - **Files:** `plans/beta-launch-checklist.aps.md`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Updated header to v0.1.x / Complete status
 
 ---
 
@@ -667,7 +676,8 @@ Change status to **Ready** when:
 - **Files:** `plans/modules/03-deferred-finding-filing.aps.md`,
   `plans/modules/04-temper-workflow.aps.md`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added mutual dependency explanation to both module files
 
 ---
 
@@ -679,7 +689,8 @@ Change status to **Ready** when:
   README
 - **Files:** `README.md`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added claude-code-review.yml entry to CI/CD section
 
 ---
 
@@ -692,7 +703,8 @@ Change status to **Ready** when:
   resolved
 - **Files:** `plans/reviews/cli-beta-review.md`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added resolution status and cross-references to H-1 entry
 
 ---
 

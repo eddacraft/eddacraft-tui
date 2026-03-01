@@ -115,6 +115,7 @@ export function Tutorial({
         return;
       }
 
+      // 'core' — this component is only used for the core tutorial flow
       const topic = resolveTutorialKey(tutorials, 'core', input, completedTopics);
       if (topic) {
         onSelectTutorial?.(topic);

@@ -47,6 +47,10 @@ when `forge:tempered` label is present) and manual dispatch.
 **Depends on:**
 
 - DEFER module — filing deferred findings as issues
+  (Note: DEFER also lists TEMPER as a dependency — this is a mutual
+  runtime dependency. TEMPER calls DEFER to file remaining findings;
+  DEFER accepts findings from TEMPER as input. DEFER was implemented
+  first; TEMPER consumes it.)
 - GitHub GraphQL API — fetching unresolved review threads
 - GitHub Actions — workflow runtime
 - `CLAUDE_TEMPER_ENABLED` / `CLAUDE_TEMPER_MAX_CYCLES` — repo-level variables

@@ -94,6 +94,22 @@ describe('audit spinner lifecycle (H-4)', () => {
     expect(mockOra.oraFn).not.toHaveBeenCalled();
   });
 
+  it('stops spinner cleanly when scan throws mid-operation', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const { RepoScanner } = await import('../../services/repo-scanner.js');
+    vi.spyOn(RepoScanner.prototype, 'scan').mockRejectedValueOnce(new Error('Scan exploded'));
+
+    const command = createAuditCommand();
+    await expect(
+      command.parseAsync(['--days-back', '30'], { from: 'user' })
+    ).rejects.toThrow();
+
+    expect(mockOra.oraFn).toHaveBeenCalled();
+    expect(mockOra.spinnerInstance.fail).toHaveBeenCalled();
+  });
+
   it('creates spinner only after validation passes', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
 

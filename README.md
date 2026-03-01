@@ -192,6 +192,8 @@ The repository has several GitHub Actions workflows:
   runs the full test suite, and creates a GitHub release.
 - **claude.yml** — Claude Code integration for AI-assisted issue triage and PR
   review.
+- **claude-code-review.yml** — Automated code review on pull requests via Claude
+  Code.
 
 A reusable **Anvil Check** GitHub Action is also provided at
 `.github/actions/anvil-check/` for running Anvil analysis in your own workflows.

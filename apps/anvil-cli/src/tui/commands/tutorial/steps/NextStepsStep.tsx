@@ -70,7 +70,8 @@ export function NextStepsStep({
         </Box>
       </Box>
 
-      {/* Explore further */}
+      {/* Explore further — currentTopic is 'core' because this step only
+         appears at the end of the core tutorial (the first tutorial users complete) */}
       <Box flexDirection="column" marginBottom={1}>
         <TutorialPicker
           tutorials={tutorials}

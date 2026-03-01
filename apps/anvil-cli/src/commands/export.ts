@@ -223,8 +223,7 @@ async function exportConstraints(
   const spinner = ora('Collecting constraints...').start();
 
   try {
-    // Get workspace root (current directory)
-    const workspaceRoot = process.cwd();
+    const workspaceRoot = getWorkspaceRoot();
 
     // Collect constraints
     const constraints = await collectConstraints(workspaceRoot);
