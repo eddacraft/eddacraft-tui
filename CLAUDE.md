@@ -21,6 +21,9 @@ configuration.
   symlink, or update)
 - `check-version.sh` — Version check utility
 - `plans/` — Implementation plans and specs
+- `docs/vision/` — North star documents describing Anvil's long-term direction.
+  Use these to validate whether new features align with the project's vision,
+  but they are not scope documents — do not treat them as committed work items
 - `.claude/` — All Claude Code configuration (agents, hooks, commands, skills,
   MCP servers)
 
