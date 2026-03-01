@@ -1,3 +1,5 @@
+<\!-- Archived: 2026-03-01 | Reason: Implementation complete — Unosend replaced with Resend -->
+
 # Plan: Migrate from Unosend to Resend
 
 **Status:** Implemented

@@ -365,10 +365,15 @@ Task-level detail for all completed work is archived in
 | [html-css-support](./archive/modules/html-css-support.aps.md) | HTMLCSS | 0.1.0 |
 | [intelligent-first-run](./archive/modules/intelligent-first-run.aps.md) | IFR | 0.1.0 |
 | [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md) | TUT | 0.1.0 |
+| [tutorial-path-continuation](./archive/modules/tutorial-path-continuation.aps.md) | Tutorial | 0.1.x |
 | [website-migration](./archive/modules/website-migration.aps.md) | WEB | 0.1.0 |
 | [monorepo-migration](./archive/modules/monorepo-migration.aps.md) | MONO | 0.1.0 |
 | [test-quality](./archive/modules/test-quality.aps.md) | TEST | — |
 | [pulumi-iac](./modules/pulumi-iac.aps.md) | IAC | 0.1.0 |
+| [beta-launch-checklist](./archive/modules/beta-launch-checklist.aps.md) | — | 0.1.2-beta |
+| [beta-testing-improvements](./archive/modules/beta-testing-improvements.aps.md) | — | 0.1.2-beta |
+| [post-beta-launch-uplift](./archive/modules/post-beta-launch-uplift.aps.md) | PBLU | 0.1.x |
+| [migrate-unosend-to-resend](./archive/modules/migrate-unosend-to-resend.md) | — | 0.1.x |
 
 ### Current (0.1.x)
 
@@ -377,7 +382,6 @@ Task-level detail for all completed work is archived in
 | [cli-hardening](./modules/cli-hardening.aps.md) | CLIH | Complete | — | — |
 | [coaching-nudges](./modules/coaching-nudges.aps.md) | NUDGE | Complete | — | antipattern-library |
 | [mcp-server-hardening](./modules/mcp-server-hardening.aps.md) | MCPH | Complete | — | — |
-| [tutorial-path-continuation](./modules/tutorial-path-continuation.aps.md) | Tutorial | Complete | — | tui |
 | [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 | — |
 | [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — | — |
 | [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 | — |
@@ -386,7 +390,6 @@ Task-level detail for all completed work is archived in
 | [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Ready | 0/5 | forge-negotiation |
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | In Progress | 4/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [post-beta-launch-uplift](./modules/post-beta-launch-uplift.aps.md) | PBLU | Ready | 27/57 | — |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 6/29 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |

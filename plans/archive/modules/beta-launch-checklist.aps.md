@@ -1,3 +1,5 @@
+<\!-- Archived: 2026-03-01 | Reason: All work items complete — v0.1.2-beta shipped -->
+
 # Beta Launch Checklist — Anvil CLI v0.1.x
 
 **Status:** Complete

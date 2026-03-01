@@ -1,3 +1,6 @@
+<\!-- Archived: 2026-03-01 | Reason: Implementation complete —
+aps-markdown-adapter module is archived -->
+
 # APS Completion Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to

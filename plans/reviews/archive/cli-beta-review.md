@@ -1,3 +1,5 @@
+<\!-- Archived: 2026-03-01 | Reason: All findings fully addressed and implemented -->
+
 # Anvil CLI Beta Code Review
 
 **Date:** 2026-02-23

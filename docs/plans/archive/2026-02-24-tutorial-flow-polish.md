@@ -1,3 +1,6 @@
+<\!-- Archived: 2026-03-01 | Reason: Problem addressed and implementation
+complete via PBLU -->
+
 # Tutorial Flow Polish
 
 **Date:** 2026-02-24 **Branch:** fix/tutorial-flow **Status:** Approved

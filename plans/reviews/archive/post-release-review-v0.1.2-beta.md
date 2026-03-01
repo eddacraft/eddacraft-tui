@@ -1,3 +1,5 @@
+<\!-- Archived: 2026-03-01 | Reason: All 57 findings resolved via PBLU module (Complete 57/57) -->
+
 # Post-Release Review — Changes Since v0.1.2-beta
 
 **Date:** 2026-02-26

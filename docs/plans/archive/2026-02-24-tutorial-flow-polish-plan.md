@@ -1,3 +1,6 @@
+<\!-- Archived: 2026-03-01 | Reason: Implementation complete — tutorial flow
+polish shipped via PBLU (57/57) -->
+
 # Tutorial Flow Polish — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to

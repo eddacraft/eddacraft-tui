@@ -1,3 +1,5 @@
+<\!-- Archived: 2026-03-01 | Reason: All work items complete — gaps filled via PR #407 -->
+
 # Beta Testing Improvements
 
 **Status:** In Progress
