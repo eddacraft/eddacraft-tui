@@ -71,7 +71,7 @@ EOF
 | Finding | Action | Reasoning |
 | ------- | ------ | --------- |
 EOF
-        echo "$RESPONSES_JSON" | jq -r '.[] | "| \(.findingId) | \(.action) | \(.reasoning // "-") |"' 2>/dev/null >> "$REPORT_FILE"
+        echo "$RESPONSES_JSON" | jq -r '.[] | "| \(.findingId) | \(.action) | \(.reasoning // "-") |"' 2>/dev/null >> "$REPORT_FILE" || true
         echo "" >> "$REPORT_FILE"
         ;;
 
@@ -97,14 +97,13 @@ EOF
 | ID | File | Severity | Category | Description | Filed as |
 | -- | ---- | -------- | -------- | ----------- | -------- |
 EOF
-        echo "$DEFERRED_JSON" | jq -r '.[] | "| \(.id) | `\(.file):\(.line)` | \(.severity) | \(.category) | \(.description) | \(.issueUrl // "pending") |"' 2>/dev/null >> "$REPORT_FILE"
+        echo "$DEFERRED_JSON" | jq -r '.[] | "| \(.id) | `\(.file):\(.line)` | \(.severity) | \(.category) | \(.description) | \(.issueUrl // "pending") |"' 2>/dev/null >> "$REPORT_FILE" || true
         echo "" >> "$REPORT_FILE"
         ;;
 
     complete)
         OUTCOME="$1"
         TOTAL_ROUNDS="$2"
-        COMPLETED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
         cat >> "$REPORT_FILE" << EOF
 
@@ -114,8 +113,18 @@ EOF
 
 **Outcome:** ${OUTCOME}
 **Rounds:** ${TOTAL_ROUNDS}
-**Completed:** ${COMPLETED_AT}
+**Completed:** ${TIMESTAMP}
 EOF
+
+        # Clean up stale diff and signal files older than 7 days
+        DIFF_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/agent-bus/diffs"
+        SIGNAL_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/agent-bus/signals"
+        if [[ -d "$DIFF_DIR" ]]; then
+            find "$DIFF_DIR" -name "forge-*.diff" -mtime +7 -delete 2>/dev/null || true
+        fi
+        if [[ -d "$SIGNAL_DIR" ]]; then
+            find "$SIGNAL_DIR" -name "forge-*.json" -mtime +7 -delete 2>/dev/null || true
+        fi
         ;;
 
     *)

@@ -382,7 +382,8 @@ Change status to **Ready** when:
   `cksum` or `sum`) or documents the collision risk
 - **Files:** `.claude/hooks/forge.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added cksum as fallback before tr-based last resort
 
 ---
 
@@ -393,7 +394,8 @@ Change status to **Ready** when:
 - **Expected Outcome:** `stagedFiles` is a proper JSON array in the report
 - **Files:** `.claude/hooks/forge.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Signal file now uses --argjson with a jq-built JSON array
 
 ---
 
@@ -404,9 +406,11 @@ Change status to **Ready** when:
   cleanup mechanism
 - **Expected Outcome:** Stale diff files are cleaned up after successful commit
   or on a periodic basis
-- **Files:** `.claude/hooks/forge.sh`
+- **Files:** `.claude/agent-bus/forge-report.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Cleanup of diff/signal files older than 7 days runs in the
+  `complete` action of forge-report.sh
 
 ---
 
@@ -417,9 +421,8 @@ Change status to **Ready** when:
 - **Expected Outcome:** JSON output uses `jq -n --arg` for safe construction
 - **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Priority:** Low
-- **Status:** Draft
-- **Notes:** Uses `jq` for input parsing but JSON *output* on lines 99, 142,
-  193, 239 still uses shell interpolation (`echo "{\"key\":\"${var}\"}"`)
+- **Status:** Complete
+- **Notes:** All 5 JSON output sites replaced with `jq -n --arg`
 
 ---
 
@@ -429,9 +432,11 @@ Change status to **Ready** when:
 - **Intent:** Batch is sequential; `get_repo_info` result unused by `gh`
   commands
 - **Expected Outcome:** Remove unused call or parallelise batch operations
-- **Files:** `.claude/hooks/forge-defer.sh`
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Replaced get_repo_info with lightweight check_gh_repo that
+  only verifies connectivity without setting unused variables
 
 ---
 
@@ -453,9 +458,10 @@ Change status to **Ready** when:
 - **Intent:** Inconsistent `|| true` guards under `set -e` — some commands
   guarded, others not
 - **Expected Outcome:** Consistent error handling strategy throughout the file
-- **Files:** `.claude/hooks/forge-report.sh`
+- **Files:** `.claude/agent-bus/forge-report.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** All jq row-generation pipes now consistently have `|| true`
 
 ---
 
@@ -744,7 +750,8 @@ Change status to **Ready** when:
 - **Intent:** Non-deterministic hash input includes `$$` — undocumented
 - **Files:** `.claude/hooks/forge.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added inline comment explaining epoch+PID+diffstat uniqueness
 
 ---
 
@@ -753,9 +760,10 @@ Change status to **Ready** when:
 - **Severity:** Nit
 - **Intent:** No file locking for concurrent APS module appends in
   forge-defer.sh
-- **Files:** `.claude/hooks/forge-defer.sh`
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** file_aps_issue now uses flock with 5s timeout around the append
 
 ---
 
@@ -763,9 +771,10 @@ Change status to **Ready** when:
 
 - **Severity:** Nit
 - **Intent:** `COMPLETED_AT` is redundant re-assignment of `TIMESTAMP`
-- **Files:** `.claude/hooks/forge-report.sh`
+- **Files:** `.claude/agent-bus/forge-report.sh`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Removed COMPLETED_AT; `complete` action now uses $TIMESTAMP directly
 
 ---
 

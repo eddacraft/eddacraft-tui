@@ -19,11 +19,10 @@ shift
 
 # --- Helpers ---
 
-get_repo_info() {
-    OWNER=$(gh repo view --json owner -q '.owner.login' 2>/dev/null)
-    REPO=$(gh repo view --json name -q '.name' 2>/dev/null)
-    if [[ -z "$OWNER" || -z "$REPO" ]]; then
-        echo "Error: Could not determine repo owner/name. Is gh authenticated?" >&2
+check_gh_repo() {
+    # Verify gh CLI can resolve the current repo (lightweight connectivity check)
+    if ! gh repo view --json name -q '.name' >/dev/null 2>&1; then
+        echo "Error: Could not resolve repo. Is gh authenticated and in a git repo?" >&2
         return 1
     fi
 }
@@ -96,7 +95,8 @@ The same or similar issue was flagged again during a Forge review session.
 COMMENT_EOF
 )" 2>/dev/null
 
-        echo "{\"findingId\":\"${id}\",\"action\":\"duplicate\",\"issueNumber\":${existing_issue}}"
+        jq -n --arg id "$id" --arg num "$existing_issue" \
+            '{findingId: $id, action: "duplicate", issueNumber: ($num | tonumber)}'
         return 0
     fi
 
@@ -139,9 +139,10 @@ BODY_EOF
     if [[ -n "$issue_url" ]]; then
         local issue_number
         issue_number=$(echo "$issue_url" | grep -oE '[0-9]+$')
-        echo "{\"findingId\":\"${id}\",\"action\":\"filed\",\"issueUrl\":\"${issue_url}\",\"issueNumber\":${issue_number:-0}}"
+        jq -n --arg id "$id" --arg url "$issue_url" --arg num "${issue_number:-0}" \
+            '{findingId: $id, action: "filed", issueUrl: $url, issueNumber: ($num | tonumber)}'
     else
-        echo "{\"findingId\":\"${id}\",\"action\":\"error\",\"error\":\"Failed to create issue\"}" >&2
+        jq -n --arg id "$id" '{findingId: $id, action: "error", error: "Failed to create issue"}' >&2
         return 1
     fi
 }
@@ -178,8 +179,11 @@ file_aps_issue() {
         return
     fi
 
-    # Append as a draft work item to the module
-    cat >> "$module_file" << APS_EOF
+    # Append as a draft work item to the module (flock prevents interleaving
+    # when multiple forge-defer.sh processes run concurrently)
+    (
+        flock -w 5 200 2>/dev/null || true
+        cat >> "$module_file" << APS_EOF
 
 ### ${module_id}-DEFER: ${description}
 
@@ -189,8 +193,11 @@ file_aps_issue() {
 - **Status:** Draft
 - **Confidence:** medium
 APS_EOF
+    ) 200>"${module_file}.lock"
+    rm -f "${module_file}.lock"
 
-    echo "{\"findingId\":\"${id}\",\"action\":\"aps-filed\",\"module\":\"${module_id}\",\"file\":\"${module_file}\"}"
+    jq -n --arg id "$id" --arg mod "$module_id" --arg file "$module_file" \
+        '{findingId: $id, action: "aps-filed", module: $mod, file: $file}'
 }
 
 # --- Main ---
@@ -198,7 +205,7 @@ APS_EOF
 case "$ACTION" in
     file)
         FINDING_JSON="$1"
-        get_repo_info || exit 1
+        check_gh_repo || exit 1
 
         APS_REF=$(detect_aps_context)
         if [[ -n "$APS_REF" ]]; then
@@ -210,7 +217,7 @@ case "$ACTION" in
 
     batch)
         FINDINGS_JSON="$1"
-        get_repo_info || exit 1
+        check_gh_repo || exit 1
 
         APS_REF=$(detect_aps_context)
         RESULTS="[]"
@@ -236,9 +243,9 @@ case "$ACTION" in
         DESCRIPTION="$2"
         EXISTING=$(check_duplicate "$FILE" "$DESCRIPTION")
         if [[ -n "$EXISTING" ]]; then
-            echo "{\"duplicate\":true,\"issueNumber\":${EXISTING}}"
+            jq -n --arg num "$EXISTING" '{duplicate: true, issueNumber: ($num | tonumber)}'
         else
-            echo "{\"duplicate\":false}"
+            jq -n '{duplicate: false}'
         fi
         ;;
 

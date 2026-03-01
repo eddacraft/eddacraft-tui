@@ -55,6 +55,8 @@ if [[ $DIFF_SIZE -gt 102400 ]]; then
 fi
 
 # --- Derive session identifiers ---
+# Include epoch, PID ($$), and diff stat to ensure unique hashes even when
+# the same files are committed in quick succession from different processes.
 HASH_INPUT="$(date +%s)-$$-${STAGED_DIFF_STAT}"
 if command -v shasum >/dev/null 2>&1; then
     FORGE_HASH=$(printf '%s' "$HASH_INPUT" | shasum -a 256 | awk '{print substr($1,1,12)}')
@@ -62,8 +64,10 @@ elif command -v sha256sum >/dev/null 2>&1; then
     FORGE_HASH=$(printf '%s' "$HASH_INPUT" | sha256sum | awk '{print substr($1,1,12)}')
 elif command -v md5 >/dev/null 2>&1; then
     FORGE_HASH=$(printf '%s' "$HASH_INPUT" | md5 | awk '{print substr($1,1,12)}')
+elif command -v cksum >/dev/null 2>&1; then
+    FORGE_HASH=$(printf '%s' "$HASH_INPUT" | cksum | awk '{printf "%012d", $1}')
 else
-    FORGE_HASH=$(printf '%s' "$HASH_INPUT" | tr -cd '[:alnum:]' | cut -c1-12)
+    FORGE_HASH=$(printf '%s%s' "$HASH_INPUT" "$$" | tr -cd '[:alnum:]' | cut -c1-12)
 fi
 FORGE_LOG_DIR="${CLAUDE_PROJECT_DIR:-.}/.claude/logs"
 FORGE_LOG="${FORGE_LOG_DIR}/forge-${FORGE_HASH}.md"
@@ -78,6 +82,8 @@ AUTO_DEFER_NITS="${CLAUDE_FORGE_AUTO_DEFER_NITS:-true}"
 STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # --- Staged file list (for scoped review context) ---
+# Build as JSON array for structured signal file; comma-separated for report
+STAGED_FILES_JSON=$(git diff --cached --name-only 2>/dev/null | jq -R . | jq -s '.')
 STAGED_FILES=$(git diff --cached --name-only 2>/dev/null | tr '\n' ', ' | sed 's/,$//')
 
 # --- Write the diff to a persistent file for the reviewer ---
@@ -95,7 +101,7 @@ printf '%s\n' "$STAGED_DIFF" > "$DIFF_FILE"
 jq -n \
   --arg id "$FORGE_HASH" \
   --arg diffFile "$DIFF_FILE" \
-  --arg stagedFiles "$STAGED_FILES" \
+  --argjson stagedFiles "$STAGED_FILES_JSON" \
   --arg startedAt "$STARTED_AT" \
   --arg maxRounds "$MAX_ROUNDS" \
   --arg autoDeferNits "$AUTO_DEFER_NITS" \
