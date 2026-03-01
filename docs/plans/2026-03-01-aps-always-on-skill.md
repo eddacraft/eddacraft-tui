@@ -128,11 +128,12 @@ user is waiting for the report (see section 6).
 
 **The background agent does:**
 
-1. **Validation scan** — for each non-Complete work item that declares a
-   `Validation:` command, surface the command to the user for confirmation
-   before executing. Only allowlisted safe commands (`pnpm test`, `pnpm lint`,
-   `npm test`, etc.) may run without explicit approval. If the validated check
-   passes, propose marking Complete.
+1. **Validation scan** — for each work item that declares a `Validation:`
+   command (including Complete items, to detect regressions), surface the
+   command to the user for confirmation before executing. Only allowlisted safe
+   commands (`pnpm test`, `pnpm lint`, `npm test`, etc.) may run without
+   explicit approval. If the validated check passes and the item is not already
+   Complete, propose marking Complete.
 2. **Status sync** — update work item statuses in the module `.aps.md` files
    (with user-confirmed changes only, or auto-apply if the user pre-approved a
    batch).
