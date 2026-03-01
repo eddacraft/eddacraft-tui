@@ -4,6 +4,10 @@ Start or continue APS planning for this project.
 
 ## Instructions
 
+> **Note:** If the `aps-planning` skill is active, it has already loaded APS
+> context for this session. Use that context rather than re-scanning from
+> scratch.
+
 You are starting an APS (Anvil Plan Spec) planning session. Follow these steps:
 
 ### Step 1: Assess current state

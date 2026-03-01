@@ -4,6 +4,11 @@ Review the current state of APS planning in this project.
 
 ## Instructions
 
+> **Note:** If the `aps-planning` skill is active, trigger a foreground
+> reconciliation scan using the anvil-plan-spec agent. This runs validation
+> commands and detects drift, producing a more accurate status than a simple
+> file scan.
+
 Scan all APS artefacts and give a concise status report.
 
 ### What to check
