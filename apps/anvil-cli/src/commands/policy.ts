@@ -927,8 +927,10 @@ export function createPolicyCommand(): Command {
       const spinner = ora('Validating policy syntax...').start();
 
       try {
+        const { resolve } = await import('node:path');
         const workspaceRoot = getWorkspaceRoot();
-        const validatedPath = validatePathWithinRoot(file, workspaceRoot);
+        const absolutePath = resolve(file);
+        const validatedPath = validatePathWithinRoot(absolutePath, workspaceRoot);
 
         const binaryManager = getOPABinaryManager();
         const binaryPath = await binaryManager.ensureBinary();
