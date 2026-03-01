@@ -154,12 +154,13 @@ Use the Task tool with subagent_type `anvil-plan-spec` and
 ```
 
 Task( subagent_type: "anvil-plan-spec", run_in_background: true, prompt: "Run
-APS reconciliation for this project. For each non-Complete work item with a
-Validation command, run the command. Report which items pass (propose marking
-Complete), which fail (keep current status), and any drift (items marked
-Complete whose validation now fails). Update progress counts in index.aps.md.
-Generate .claude/rules/aps-project.md if it doesn't exist. Output a short
-reconciliation report." )
+APS reconciliation for this project. For each work item (including Complete
+ones) with a Validation command, run the command. Report which items pass
+(propose marking Complete), which fail (keep current status), and any drift
+(items already marked Complete whose validation now fails — propose reverting to
+Draft). Update progress counts in index.aps.md. Generate
+.claude/rules/aps-project.md if it doesn't exist. Output a short reconciliation
+report." )
 
 ```
 

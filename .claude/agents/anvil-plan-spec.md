@@ -355,7 +355,8 @@ When spawned by the APS planning skill for reconciliation, follow this workflow:
    - For any other command, display it and request explicit user confirmation
      before executing — plan files are user-editable and may contain arbitrary
      shell commands
-   - If it passes and status is Draft/Ready, propose marking Complete
+   - If it passes and status is Draft/Ready/In Progress, propose marking
+     Complete
    - If it fails and status is Complete, flag as drift (regression detected)
 4. Count Complete vs total items per module and update the Progress column in
    `index.aps.md` if the count has changed

@@ -38,19 +38,23 @@
 - UK English spelling in all plan text
 - Work item IDs: PREFIX-NNN (3-digit zero-padded)
 - Module statuses: Draft -> Proposed -> Ready -> In Progress -> Complete
-- Plans live in plans/modules/\*.aps.md
-- Decisions live in plans/decisions/NNN-\*.md
+- Plans live in `plans/modules/*.aps.md`
+- Decisions live in `plans/decisions/NNN-*.md`
 
 ## File Map
 
 <!-- Extracted from non-Complete work items' Files: fields -->
 
-.claude/agents/forge-reviewer.md: PBLU-049 .claude/hooks/forge-defer.sh:
-PBLU-047 .claude/hooks/forge-report.sh: PBLU-023, PBLU-048
+```text
+.claude/agents/forge-reviewer.md: PBLU-049
+.claude/hooks/forge-defer.sh: PBLU-047
+.claude/hooks/forge-report.sh: PBLU-023, PBLU-048
 .claude/hooks/forge.sh: PBLU-017, PBLU-018, PBLU-019, PBLU-046
-.github/workflows/temper.yml: PBLU-024 .gitignore: PBLU-050 README.md: PBLU-040,
-PBLU-052 apps/anvil-cli/src/commands/_.ts: CRB-001, CRB-019, CRB-020, CRB-021,
-CRB-023 apps/anvil-cli/src/commands/audit-spinner.test.ts: PBLU-032
+.github/workflows/temper.yml: PBLU-024
+.gitignore: PBLU-050
+README.md: PBLU-040, PBLU-052
+apps/anvil-cli/src/commands/*.ts: CRB-001, CRB-019, CRB-020, CRB-021, CRB-023
+apps/anvil-cli/src/commands/audit-spinner.test.ts: PBLU-032
 apps/anvil-cli/src/commands/audit.ts: PBLU-043
 apps/anvil-cli/src/commands/architecture-validate.ts: ARCHCFG-003
 apps/anvil-cli/src/commands/architecture-validate.test.ts: ARCHCFG-003
@@ -84,11 +88,14 @@ apps/anvil-cli/src/components/Tutorial.tsx: PBLU-035
 apps/anvil-cli/src/services/_.ts: CRB-021, CRB-023, CRB-024
 apps/anvil-cli/src/services/auth-store.ts: PBLU-030
 apps/anvil-cli/src/services/hook-installer.ts: CRB-002
-apps/anvil-cli/src/test-utils.ts: PBLU-037 apps/anvil-cli/src/utils/output.ts:
-CRB-001, CRB-019 apps/anvil-cli/src/utils/option-coerce.ts: CRB-020
-apps/anvil-cli/vitest.config.ts: CRB-006 apps/anvil-ui/index.html: DASH-001
-apps/anvil-ui/package.json: DASH-001 apps/anvil-ui/src/components/AppShell.tsx:
-DASH-002 apps/anvil-ui/src/components/GlobalSearch.tsx: DASH-007
+apps/anvil-cli/src/test-utils.ts: PBLU-037
+apps/anvil-cli/src/utils/output.ts: CRB-001, CRB-019
+apps/anvil-cli/src/utils/option-coerce.ts: CRB-020
+apps/anvil-cli/vitest.config.ts: CRB-006
+apps/anvil-ui/index.html: DASH-001
+apps/anvil-ui/package.json: DASH-001
+apps/anvil-ui/src/components/AppShell.tsx: DASH-002
+apps/anvil-ui/src/components/GlobalSearch.tsx: DASH-007
 apps/anvil-ui/src/components/Sidebar.tsx: DASH-002
 apps/anvil-ui/src/components/TopBar.tsx: DASH-002
 apps/anvil-ui/src/components/catalog/: DASH-004
@@ -107,13 +114,19 @@ apps/anvil-ui/src/hooks/useTheme.ts: DASH-003
 apps/anvil-ui/src/hooks/useWarnings.ts: DASH-006
 apps/anvil-ui/src/lib/api-client.ts: DASH-006
 apps/anvil-ui/src/lib/catalog-registry.ts: DASHAI-002
-apps/anvil-ui/src/main.tsx: DASH-001 apps/anvil-ui/src/routes/: DASH-002
-apps/anvil-ui/src/styles/: DASH-003 apps/anvil-ui/tailwind.config.ts: DASH-003
-apps/anvil-ui/tsconfig.json: DASH-001 apps/anvil-ui/vite.config.ts: DASH-001
-cli/src/commands/policy.ts: OPAE-011 cli/src/commands/policy-debug.ts: OPAE-013
-cli/src/tui/impact-report.tsx: OPAE-019 cli/src/tui/leaderboard.tsx: OPAE-033
-cli/src/tui/metrics-dashboard.tsx: OPAE-032 cli/src/tui/policy-creator.tsx:
-OPAE-023 cli/src/tui/policy-debugger.tsx: OPAE-014
+apps/anvil-ui/src/main.tsx: DASH-001
+apps/anvil-ui/src/routes/: DASH-002
+apps/anvil-ui/src/styles/: DASH-003
+apps/anvil-ui/tailwind.config.ts: DASH-003
+apps/anvil-ui/tsconfig.json: DASH-001
+apps/anvil-ui/vite.config.ts: DASH-001
+cli/src/commands/policy.ts: OPAE-011
+cli/src/commands/policy-debug.ts: OPAE-013
+cli/src/tui/impact-report.tsx: OPAE-019
+cli/src/tui/leaderboard.tsx: OPAE-033
+cli/src/tui/metrics-dashboard.tsx: OPAE-032
+cli/src/tui/policy-creator.tsx: OPAE-023
+cli/src/tui/policy-debugger.tsx: OPAE-014
 core/src/architecture/config-diagnostics.ts: ARCHCFG-002
 core/src/architecture/config-diagnostics.test.ts: ARCHCFG-002
 core/src/architecture/config-validator.ts: ARCHCFG-001
@@ -136,8 +149,9 @@ core/src/gate/policy/exceptions.ts: OPAE-024
 core/src/gate/policy/impact-analyser.ts: OPAE-018
 core/src/gate/policy/impact-simulator.ts: OPAE-020
 core/src/gate/policy/incremental-evaluator.ts: OPAE-017
-core/src/gate/policy/library.ts: OPAE-006 core/src/gate/policy/metrics.ts:
-OPAE-031 core/src/gate/policy/nlp-parser.ts: OPAE-021
+core/src/gate/policy/library.ts: OPAE-006
+core/src/gate/policy/metrics.ts: OPAE-031
+core/src/gate/policy/nlp-parser.ts: OPAE-021
 core/src/gate/policy/opa-executor.ts: OPAE-012
 core/src/gate/policy/policy-metadata.ts: POLVAL-001
 core/src/gate/policy/policy-metadata.test.ts: POLVAL-001
@@ -150,37 +164,46 @@ core/src/gate/policy/policy-test-runner.test.ts: POLVAL-004
 core/src/gate/policy/yaml-generator.ts: OPAE-022
 core/src/gate/profiles/ai-guardrail-profile.ts: AIGUARD-001
 core/src/gate/profiles/ai-guardrail-profile.test.ts: AIGUARD-001
-core/src/gate/**fixtures**/library/compliance/: OPAE-009
-core/src/gate/**fixtures**/library/quality/: OPAE-008
-core/src/gate/**fixtures**/library/scope/: OPAE-009
-core/src/gate/**fixtures**/library/security/: OPAE-007
+core/src/gate/__fixtures__/library/compliance/: OPAE-009
+core/src/gate/__fixtures__/library/quality/: OPAE-008
+core/src/gate/__fixtures__/library/scope/: OPAE-009
+core/src/gate/__fixtures__/library/security/: OPAE-007
 core/src/diagnostics/diagnostic-schema.ts: AIGUARD-002
 core/src/diagnostics/diagnostic-schema.test.ts: AIGUARD-002
 crates/anvil-engine/src/antipattern/: RENG-012
-crates/anvil-engine/src/architecture/: RENG-011 crates/anvil-engine/src/lint/:
-RENG-023 crates/anvil-engine/src/parse/: RENG-010
-crates/anvil-engine/src/secret/: RENG-006 crates/anvil-gate/: RENG-016
+crates/anvil-engine/src/architecture/: RENG-011
+crates/anvil-engine/src/lint/: RENG-023
+crates/anvil-engine/src/parse/: RENG-010
+crates/anvil-engine/src/secret/: RENG-006
+crates/anvil-gate/: RENG-016
 crates/anvil-napi/: RENG-007, RENG-013, RENG-019
-crates/anvil-tui/src/dashboard/: RENG-021 crates/anvil-tui/src/wizard/: RENG-022
-crates/anvil-watcher/: RENG-014, RENG-024 crates/anvil-watcher/src/cache.rs:
-RENG-017 crates/anvil-watcher/src/git.rs: RENG-015 crates/bench/: RENG-008
-crates/eddacraft-kindling/: RENG-018 crates/eddacraft-kindling/src/query.rs:
-RENG-019 crates/eddacraft-tui/: RENG-020 crates/spike/: RENG-001, RENG-002,
-RENG-003, RENG-004, RENG-005 docs/architecture/edda-stack.md: STACK-015
+crates/anvil-tui/src/dashboard/: RENG-021
+crates/anvil-tui/src/wizard/: RENG-022
+crates/anvil-watcher/: RENG-014, RENG-024
+crates/anvil-watcher/src/cache.rs: RENG-017
+crates/anvil-watcher/src/git.rs: RENG-015
+crates/bench/: RENG-008
+crates/eddacraft-kindling/: RENG-018
+crates/eddacraft-kindling/src/query.rs: RENG-019
+crates/eddacraft-tui/: RENG-020
+crates/spike/: RENG-001, RENG-002, RENG-003, RENG-004, RENG-005
+docs/architecture/edda-stack.md: STACK-015
 docs/guides/ai-guardrail-profile.md: AIGUARD-004
 docs/guides/architecture-config-validation.md: ARCHCFG-005
-docs/guides/edda-memory.md: EDDA-019 docs/guides/ember-candidates.md: EMBER-014
+docs/guides/edda-memory.md: EDDA-019
+docs/guides/ember-candidates.md: EMBER-014
 docs/guides/stack-migration.md: STACK-016
 packages/anvil/core/src/config/loader.ts: CRB-012
 packages/anvil/core/src/config/loader.test.ts: CRB-017
-packages/anvil/runtime/src/\*_/_.ts: CRB-021, CRB-023, CRB-024
+packages/anvil/runtime/src/**/*.ts: CRB-021, CRB-023, CRB-024
 packages/anvil/runtime/src/concurrency/git-agent.test.ts: CRB-014
 packages/anvil/runtime/src/gate/checks/dependency.check.ts: CRB-005
 packages/anvil/runtime/src/gate/checks/policy.check.ts: CRB-004
 packages/anvil/runtime/src/storage/file-storage.test.ts: CRB-015
 packages/anvil/runtime/src/watch/git-status.test.ts: CRB-014
-packages/aps/src/loader/index.ts: CRB-011 packages/aps/src/state/index.ts:
-CRB-010 packages/edda-stack/config.ts: STACK-012
+packages/aps/src/loader/index.ts: CRB-011
+packages/aps/src/state/index.ts: CRB-010
+packages/edda-stack/config.ts: STACK-012
 packages/edda-stack/contracts/confidence.ts: STACK-003
 packages/edda-stack/contracts/confidence.test.ts: STACK-003
 packages/edda-stack/contracts/edda-memory.ts: EDDA-001
@@ -244,8 +267,9 @@ packages/edda-stack/ember/proposal-store.ts: EMBER-004
 packages/edda-stack/ember/proposal-store.test.ts: EMBER-004
 packages/edda-stack/ember/query-api.ts: EMBER-012
 packages/edda-stack/ember/query-api.test.ts: EMBER-012
-packages/edda-stack/ember/README.md: EMBER-014 packages/edda-stack/ember/rules/:
-EMBER-008 packages/edda-stack/ember/rules/convergence.rule.ts: EMBER-008
+packages/edda-stack/ember/README.md: EMBER-014
+packages/edda-stack/ember/rules/: EMBER-008
+packages/edda-stack/ember/rules/convergence.rule.ts: EMBER-008
 packages/edda-stack/ember/rules/escalation.rule.ts: EMBER-008
 packages/edda-stack/ember/rules/repetition.rule.ts: EMBER-008
 packages/edda-stack/ember/rules/resolution.rule.ts: EMBER-008
@@ -271,7 +295,10 @@ packages/mcp-server/src/tools/suppress.tool.test.ts: CRB-016
 packages/mcp-server/vitest.config.ts: CRB-013
 packages/platform/config/src/loader.ts: CRB-012
 packages/platform/config/src/loader.test.ts: CRB-017
-packages/platform/README.md: CRB-012 plans/beta-launch-checklist.aps.md:
-PBLU-038 plans/modules/03-deferred-finding-filing.aps.md: PBLU-039
+packages/platform/README.md: CRB-012
+plans/beta-launch-checklist.aps.md: PBLU-038
+plans/modules/03-deferred-finding-filing.aps.md: PBLU-039
 plans/modules/04-temper-workflow.aps.md: PBLU-039
-plans/reviews/cli-beta-review.md: PBLU-041 vitest.config.ts: CRB-006, CRB-013
+plans/reviews/cli-beta-review.md: PBLU-041
+vitest.config.ts: CRB-006, CRB-013
+```
