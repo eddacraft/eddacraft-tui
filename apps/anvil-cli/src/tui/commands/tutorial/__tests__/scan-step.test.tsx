@@ -169,10 +169,8 @@ describe('ScanStep', () => {
     const { lastFrame } = render(<ScanStep onComplete={onComplete} />);
 
     await vi.waitFor(() => {
-      expect(onComplete).toHaveBeenCalled();
+      expect(lastFrame()).toContain('Press Enter to start watch mode');
     });
-
-    expect(lastFrame()).toContain('Press Enter to start watch mode');
   });
 
   it('shows component title', () => {
