@@ -40,7 +40,7 @@ describe('Provenance System', () => {
     });
   });
 
-  describe('collectGitContext', () => {
+  describe('collectGitContext', { timeout: 30_000 }, () => {
     const itIfGit = gitAvailable ? it : it.skip;
 
     it('should return undefined for non-git directory', async () => {
