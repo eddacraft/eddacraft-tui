@@ -398,9 +398,22 @@ async function validateModuleLinks(
       }
 
       if (hasPathField && linkUrl) {
-        // Validate the link exists
-        const resolvedPath = resolvePath(linkUrl, baseDir);
-        validateFileExists(resolvedPath, filePath, linkLine, currentModuleId, issues);
+        // Validate the link is within the project and exists
+        try {
+          const resolvedPath = resolvePath(linkUrl, baseDir);
+          validateFileExists(resolvedPath, filePath, linkLine, currentModuleId, issues);
+        } catch {
+          // resolvePath rejects absolute paths and paths escaping baseDir —
+          // report as a validation issue rather than crashing the run
+          issues.push({
+            severity: 'error',
+            message: `Unsafe link path in module "${currentModuleId}": "${linkUrl}" escapes project directory`,
+            rule: 'path-containment',
+            path: filePath,
+            lineNumber: linkLine,
+            context: `Module: ${currentModuleId}`,
+          });
+        }
       }
     }
   });

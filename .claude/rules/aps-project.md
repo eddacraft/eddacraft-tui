@@ -10,7 +10,7 @@
 - CRB: code-review-backlog (6/29) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
-- SECB: security-review-backlog (2/8) — In Progress
+- SECB: security-review-backlog (4/8) — In Progress
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
 - DASHCORE: dashboard-core-views (0/9) — Ready

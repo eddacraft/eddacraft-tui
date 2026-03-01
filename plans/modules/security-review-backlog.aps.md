@@ -12,8 +12,8 @@ Scope: SECB (security backlog)
 
 | ID   | Owner | Status      |
 | ---- | ----- | ----------- |
-| SECB | —     | In Progress (2/8) |
-<!-- Complete: SECB-001, SECB-003 -->
+| SECB | —     | In Progress (4/8) |
+<!-- Complete: SECB-001, SECB-002, SECB-003, SECB-004 -->
 
 ## Purpose
 
@@ -140,10 +140,9 @@ Change status to **Ready** when:
 - **Dependencies:** None (SpecKit and BMAD already have this pattern)
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Ready
-- **Notes:** file-discovery.ts already has `MAX_FILE_SIZE_BYTES` (2MB).
-  SpecKit and BMAD parsers already check `MAX_INPUT_SIZE`. Generic parser is
-  the only remaining entry point without a size guard.
+- **Status:** Complete
+- **Notes:** Added `MAX_INPUT_SIZE` (2MB) check at entry of `parseGeneric()`,
+  consistent with SpecKit and BMAD parsers.
 - **Origin:** REVIEW.md Adapters H2
 
 ---
@@ -163,10 +162,10 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** High
-- **Status:** Ready
-- **Notes:** `resolvePath()` already rejects absolute paths and validates
-  resolved paths stay within `baseDir` for module path resolution (H1 fix).
-  The same pattern should be applied to link validation.
+- **Status:** Complete
+- **Notes:** `resolvePath()` already rejects escapes via `ParseError`, but the
+  throw was unhandled at the call site — it would crash the entire validation
+  run. Wrapped in try/catch converting to a `path-containment` validation issue.
 - **Origin:** REVIEW.md APS H2
 
 ---

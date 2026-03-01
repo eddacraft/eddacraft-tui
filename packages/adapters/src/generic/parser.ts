@@ -10,6 +10,8 @@ import type { GenericDocument } from './types.js';
 import { generateDeterministicPlanId } from '../base/utils.js';
 import { parseGenericDocument } from './utils.js';
 
+const MAX_INPUT_SIZE = 2 * 1024 * 1024;
+
 /**
  * Convert generic document item to APS change
  */
@@ -124,6 +126,9 @@ export function genericToAPS(
 }
 
 export function parseGeneric(content: string, context?: ParseContext): APSPlan {
+  if (content.length > MAX_INPUT_SIZE) {
+    throw new Error(`Input exceeds maximum size of ${MAX_INPUT_SIZE} bytes`);
+  }
   const document = parseGenericDocument(content);
   return genericToAPS(document, context, content);
 }
