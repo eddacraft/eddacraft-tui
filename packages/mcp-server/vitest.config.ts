@@ -7,6 +7,7 @@ export default defineConfig({
     include: [
       'src/utils/**/*.{test,spec}.{ts,tsx}',
       'src/tools/suppress.tool.{test,spec}.{ts,tsx}',
+      'src/tools/fix.tool.{test,spec}.{ts,tsx}',
       'src/transports/**/*.{test,spec}.{ts,tsx}',
       'src/prompts/**/*.{test,spec}.{ts,tsx}',
     ],

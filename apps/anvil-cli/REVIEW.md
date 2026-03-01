@@ -18,12 +18,12 @@ auth design concerns), and a number of lower-severity design issues.
 
 ### Severity Counts
 
-| Severity | Count |
-| -------- | ----- |
-| CRITICAL | 0     |
-| HIGH     | 3     |
-| MEDIUM   | 10    |
-| LOW      | 6     |
+| Severity | Count     |
+| -------- | --------- |
+| CRITICAL | 0         |
+| HIGH     | ~~3~~ (0) |
+| MEDIUM   | 10        |
+| LOW      | 6         |
 
 ---
 
@@ -35,7 +35,7 @@ None.
 
 ## HIGH Issues
 
-### H1. Unguarded YAML.parse on user-controlled config file
+### ~~H1. Unguarded YAML.parse on user-controlled config file~~ ✅
 
 **File:** `src/services/policy-config.ts:119-121`
 
@@ -62,6 +62,11 @@ so this is not an RCE vector, but it can cause confusing crashes.
 with how other parts of the codebase validate JSON (e.g., `status-service.ts`
 uses Zod).
 
+**Fixed:** `load()` now wraps both `YAML.parse()` and
+`AnvilConfigSchema.parse()` in try/catch, returning empty config on failure
+(consistent with missing-file behavior). Zod validation was already present via
+`AnvilConfigSchema.parse()`.
+
 ---
 
 ### H2. `execSync('npx husky init')` in doctor fix command
@@ -86,7 +91,7 @@ instead for defense in depth.
 
 ---
 
-### H3. Unprotected JSON.parse at CLI startup
+### ~~H3. Unprotected JSON.parse at CLI startup~~ ✅
 
 **File:** `src/index.ts:37`
 
@@ -102,6 +107,8 @@ partial npm install), this crashes the entire CLI with an unhelpful
 commands including `--help`.
 
 **Recommendation:** Wrap in try/catch with a fallback version string.
+
+**Fixed:** Wrapped in try/catch with fallback `'0.0.0-unknown'` in prior commit.
 
 ---
 

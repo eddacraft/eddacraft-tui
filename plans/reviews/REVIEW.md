@@ -19,14 +19,14 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 
 | Package          | CRIT  | HIGH   | MED    | LOW    | Status           |
 | ---------------- | ----- | ------ | ------ | ------ | ---------------- |
-| mcp-server       | ~~3~~ | ~~3~~  | 3      | 3      | CRIT/HIGH fixed  |
+| mcp-server       | ~~3~~ | ~~3~~  | 3      | 3      | CRIT/HIGH fixed, P1-2 fixed |
 | anvil/runtime    | 0     | ~~6~~  | 7      | 6      | HIGH fixed       |
 | anvil/policy     | 0     | 1 (1✓) | 8      | 5      | 1 HIGH fixed     |
 | adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed     |
 | aps              | 0     | 1 (1✓) | 7      | 4      | 1 HIGH fixed     |
 | vscode-extension | 0     | ~~3~~  | 4      | 3      | HIGH fixed       |
 | platform/storage | 0     | ~~1~~  | 0      | 0      | HIGH fixed       |
-| **anvil-cli**    | **0** | **0**  | ~~4~~  | **5**  | **MED fixed**     |
+| **anvil-cli**    | **0** | ~~3~~  | ~~4~~  | **5**  | **HIGH/MED fixed** |
 | website          | 0     | 0      | 1      | 1      | Open             |
 | contracts        | 0     | 0      | 2      | 0      | Open             |
 | eslint-plugin    | 0     | 0      | 0      | 0      | Clean            |

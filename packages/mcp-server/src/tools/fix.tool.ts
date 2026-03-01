@@ -46,12 +46,43 @@ const FIXABLE_PATTERNS: Record<
   'AP-003': {
     // Limitation: This regex-based fix only handles simple `: any` annotations.
     // It will NOT correctly transform: generic parameters (Array<any>), union
-    // types (string | any), function signatures ((...args: any[]) => void),
-    // or the `any` keyword used in string literals. Manual review is advised.
+    // types (string | any), function signatures ((...args: any[]) => void).
+    // Manual review is advised.
     description: 'Replace explicit `any` type with `unknown`',
     apply: (line) => {
-      if (line.includes(': any') || line.includes(':any')) {
-        return line.replace(/:\s*any\b/g, ': unknown');
+      const trimmed = line.trimStart();
+      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+        return null;
+      }
+      const withoutStrings = line.replace(/(["'`])(?:(?!\1|\\).|\\.)*\1/g, '""');
+      if (withoutStrings.includes(': any') || withoutStrings.includes(':any')) {
+        let result = '';
+        let inString: string | null = null;
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+          if (inString) {
+            result += ch;
+            if (ch === '\\') {
+              result += line[++i] ?? '';
+              continue;
+            }
+            if (ch === inString) inString = null;
+          } else if (ch === '"' || ch === "'" || ch === '`') {
+            inString = ch;
+            result += ch;
+          } else if (line[i] === ':' && /^:\s*any\b/.test(line.slice(i))) {
+            const m = line.slice(i).match(/^(:\s*)any\b/);
+            if (m) {
+              result += ': unknown';
+              i += m[0].length - 1;
+            } else {
+              result += ch;
+            }
+          } else {
+            result += ch;
+          }
+        }
+        return result !== line ? result : null;
       }
       return null;
     },

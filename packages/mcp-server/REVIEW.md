@@ -99,7 +99,7 @@ error messages may leak path information.
 `getWorkspaceRoot()`, or at minimum validate that the provided `workspaceRoot`
 is within an allowed set of roots.
 
-#### 2. `anvil_fix` AP-003 pattern may produce incorrect code
+#### ~~2. `anvil_fix` AP-003 pattern may produce incorrect code~~ ✅
 
 **File**: `fix.tool.ts:21`
 
@@ -120,6 +120,10 @@ introduce bugs.
 **Recommendation**: Document this limitation clearly in the tool description, or
 restrict the replacement to only operate when the line appears to contain a
 TypeScript type annotation context.
+
+**Fixed:** AP-003 now skips comment lines and strips string literals before
+checking for `: any`, then uses a character-by-character parser to only replace
+occurrences outside of string contexts.
 
 #### 3. Hardcoded version `'0.1.0'` in multiple places
 
@@ -294,10 +298,10 @@ worth noting if the server is ever exposed beyond localhost.
 
 | Category     | Found  | Fixed | Remaining |
 | ------------ | ------ | ----- | --------- |
-| P1 (High)    | 3      | 0     | 3         |
+| P1 (High)    | 3      | 1     | 2         |
 | P2 (Medium)  | 4      | 2     | 2         |
 | P3 (Low/Nit) | 6      | 2     | 4         |
-| **Total**    | **13** | **4** | **9**     |
+| **Total**    | **13** | **5** | **8**     |
 
 The implementation is well-structured, thoroughly tested, and demonstrates good
 security awareness. The main areas for improvement are:
@@ -329,8 +333,7 @@ The following issues remain open for team discussion:
 
 - **P1-1**: Read-tool workspace root validation — Design decision for HTTP
   transport security model
-- **P1-2**: AP-003 regex false positives — Would require AST-level analysis or
-  heuristics
+- ~~**P1-2**: AP-003 regex false positives~~ ✅ — Fixed with string-aware parser
 - **P1-3**: Version string synchronization — Requires build-time tooling
 - **P2-4**: Empty plan double-cast — Requires changes to
   `@eddacraft/anvil-runtime`

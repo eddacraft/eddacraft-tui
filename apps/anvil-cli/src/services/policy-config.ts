@@ -160,12 +160,17 @@ export class PolicyConfigManager {
       return {};
     }
 
-    const raw = readFileSync(this.configPath, 'utf-8');
-    const parsed = YAML.parse(raw);
-    if (!parsed || typeof parsed !== 'object') {
+    try {
+      const raw = readFileSync(this.configPath, 'utf-8');
+      const parsed = YAML.parse(raw);
+      if (!parsed || typeof parsed !== 'object') {
+        return {};
+      }
+      return AnvilConfigSchema.parse(parsed);
+    } catch (error) {
+      log(`PolicyConfigManager.load: failed to parse config: ${error}`);
       return {};
     }
-    return AnvilConfigSchema.parse(parsed);
   }
 
   /** Write config back to .anvil/config.yml */
