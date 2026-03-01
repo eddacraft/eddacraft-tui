@@ -4,7 +4,7 @@
 
 ## System Context
 
-This rendering engine is the visualization layer for Anvil's semantic graphs.
+This rendering engine is the visualisation layer for Anvil's semantic graphs.
 The [Rust Kernel](../architecture/rust-kernel-spec.md) maintains live symbol,
 dependency, and trust graphs; this engine renders them as interactive TUI
 diagrams. In the

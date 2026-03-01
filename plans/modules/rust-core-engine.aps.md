@@ -169,7 +169,7 @@ Change status to **Ready** when:
   output and reports discrepancies
 - **Validation:** All three modes work correctly, dual mode catches intentionally
   introduced discrepancies
-- **Files:** `crates/anvil-cli/src/engine.rs` (future), integration with KERN-042
+- **Files:** `apps/anvil-cli/` (current TypeScript CLI), future Rust CLI crate `crates/anvil-cli/src/engine.rs` (does not exist yet), integration with KERN-042
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** RENG-005, KERN-042

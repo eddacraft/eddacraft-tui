@@ -4,16 +4,16 @@
 
 **Relationship to other documents:**
 
-- This spec implements the Rust kernel described in
-  [ADR-011](../../plans/decisions/adr-011-rust-core-engine.md) (Proposed)
+- This spec refines the Rust kernel originally described in
+  [ADR-011](../../plans/decisions/011-rust-core-engine.md) (Superseded)
 - The [Architecture Evolution](anvil-architecture-evolution.md) document
   supersedes ADR-011 and defines the phased rollout (Current → H1 → H2)
 - The kernel's policy model draws from
   [Constitutional Engineering](../vision/constitutional-engineering.md)
   (structural/evolution/procedural law)
-- [ADR-006](../../plans/decisions/adr-006-hybrid-dc-opa.md)
-  (Dependency-Cruiser + OPA) defines the current policy approach; the kernel's
-  policy engine is its long-term successor
+- [ADR-006](../../plans/decisions/006-hybrid-dc-opa.md) (Dependency-Cruiser +
+  OPA) defines the current policy approach; the kernel's policy engine is its
+  long-term successor
 
 ---
 
@@ -429,10 +429,12 @@ Daemon mode is not required for H1, but architecture must not prevent it.
 
 Kernel must:
 
-- Fail fast on parse errors
-- Emit structured error events
+- Fail fast on non-recoverable parse errors (e.g. corrupted configuration,
+  invalid kernel state)
+- Emit structured error events for recoverable issues (e.g. per-file parse
+  errors) while continuing processing
 - Never panic across engine boundary
-- Isolate malformed file impacts
+- Isolate malformed file impacts to the owning file and dependent analyses only
 
 ---
 
