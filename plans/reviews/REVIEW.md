@@ -21,8 +21,8 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 | ---------------- | ----- | ------ | ------ | ------ | ---------------- |
 | mcp-server       | ~~3~~ | ~~3~~  | 3      | 3      | CRIT/HIGH fixed, P1-2 fixed |
 | anvil/runtime    | 0     | ~~6~~  | 7      | 6      | HIGH fixed       |
-| anvil/policy     | 0     | 1 (1✓) | 8      | 5      | 1 HIGH fixed     |
-| adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed     |
+| anvil/policy     | 0     | ~~2~~  | 8      | 5      | HIGH fixed       |
+| adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed, H3 mostly fixed |
 | aps              | 0     | 1 (1✓) | 7      | 4      | 1 HIGH fixed     |
 | vscode-extension | 0     | ~~3~~  | 4      | 3      | HIGH fixed       |
 | platform/storage | 0     | ~~1~~  | 0      | 0      | HIGH fixed       |
@@ -109,18 +109,23 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 
 Simple regex patterns for detecting subprocess calls miss obfuscation,
 multi-line constructs, and variable interpolation. Gives false sense of
-security.
+security. Tracked as SECB-005.
 
 ---
 
 ## Policy (packages/anvil/policy)
 
-### H1. Path traversal via bundle manifest filenames
+### ~~H1. Path traversal via bundle manifest filenames~~ ✅
 
 **File:** `src/bundle-verifier.ts:285`
 
 `join(bundleDir, fileEntry.name)` where `fileEntry.name` comes from parsed
 `.signatures.json`. Attacker controls the manifest → path traversal.
+
+**Fixed:** Dual-layer path containment added at lines 305-328: pre-check
+rejects absolute paths and `..`-relative paths, post-join `resolve()`
+containment check against canonical bundle root. (Discovered fixed during
+SECB-001 verification, 2026-03-01.)
 
 ### ~~H2. Tar archive extraction without path validation~~ ✅
 
@@ -151,15 +156,20 @@ Format adapter `inferPathFromDescription` fallback also validated.
 No limits on input content size. `split('\n')` creates unbounded arrays.
 Recursive markdown parsing has no depth limit.
 
-**Note:** `MAX_INPUT_SIZE` (2MB) was added to SpecKit and BMAD parsers. Generic
-parser and file-discovery still lack limits.
+**Note:** `MAX_INPUT_SIZE` (2MB) was added to SpecKit and BMAD parsers.
+`MAX_FILE_SIZE_BYTES` (2MB) added to `file-discovery.ts`. Generic parser still
+lacks a size guard at the parse layer. Tracked as SECB-002.
 
-### H3. Regex DoS vulnerabilities
+### H3. Regex DoS vulnerabilities (mostly fixed)
 
 **File:** `bmad/utils.ts:241`, `speckit/parser.ts:100, 279`
 
 Complex regex patterns on user-controlled text can cause exponential
 backtracking.
+
+**Note:** BMAD utils now uses bounded quantifiers `{1,200}` on all broad
+patterns (fixed). SpecKit has 2MB input cap limiting blast radius; one residual
+lazy `[\s\S]*?` in code-block regex at ~line 300. Tracked as SECB-008.
 
 ---
 
@@ -177,7 +187,8 @@ stay within `baseDir`. Tracked as APS-PKG-001 in cli-hardening.aps.md.
 **File:** `src/validator/index.ts:420-421`
 
 Validator uses `accessSync()` to check linked files. Malicious index files can
-probe whether files like `/etc/passwd` or `~/.ssh/id_rsa` exist.
+probe whether files like `/etc/passwd` or `~/.ssh/id_rsa` exist. Tracked as
+SECB-004.
 
 ### M1-M7
 
@@ -324,6 +335,7 @@ tests).
 **File:** `app/api/waitlist/route.ts:33`
 
 Regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` allows invalid emails like `a@b.c`.
+Tracked as SECB-006.
 
 ---
 
@@ -334,10 +346,12 @@ Regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` allows invalid emails like `a@b.c`.
 **File:** `src/schemas/aps.schema.ts:32, 57, 67, 153`
 
 `z.record(z.string(), z.unknown())` disables type checking for metadata fields.
+Tracked as SECB-007.
 
 ### M2. Potential prototype pollution via untrusted metadata keys
 
 Same file. Keys like `__proto__` or `constructor` accepted in metadata records.
+`.strict()` added at root level (partial mitigation). Tracked as SECB-007.
 
 ---
 

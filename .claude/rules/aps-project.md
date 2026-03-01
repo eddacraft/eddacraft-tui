@@ -10,6 +10,7 @@
 - CRB: code-review-backlog (6/29) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
+- SECB: security-review-backlog (2/8) — In Progress
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
 - DASH: dashboard-foundation (0/8) — Draft
 - DASHCORE: dashboard-core-views (0/10) — Draft
@@ -297,5 +298,14 @@ plans/beta-launch-checklist.aps.md: PBLU-038
 plans/modules/03-deferred-finding-filing.aps.md: PBLU-039
 plans/modules/04-temper-workflow.aps.md: PBLU-039
 plans/reviews/cli-beta-review.md: PBLU-041, CRB-028
+plans/reviews/REVIEW.md: SECB-001, SECB-003
+packages/adapters/src/generic/parser.ts: SECB-002
+packages/adapters/src/speckit/parser.ts: SECB-003, SECB-008
+packages/adapters/src/bmad/utils.ts: SECB-003
+packages/anvil/policy/src/bundle-verifier.ts: SECB-001
+packages/aps/src/validator/index.ts: SECB-004
+packages/anvil/runtime/src/gate/parsers/command-parser.ts: SECB-005
+apps/website/app/api/waitlist/route.ts: SECB-006
+packages/anvil/contracts/src/schemas/aps.schema.ts: SECB-007
 vitest.config.ts: CRB-006, CRB-013
 ```
