@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import YAML from 'yaml';
+import { minimatch } from 'minimatch';
 import {
   getArchitectureYamlPath,
   architectureYamlExists,
@@ -936,5 +937,77 @@ describe('definition-schema', () => {
       expect(a).toEqual(b);
       expect(a).not.toBe(b);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// XPLAT-005: Windows path compatibility
+// ---------------------------------------------------------------------------
+
+describe('template patterns with Windows-style paths', () => {
+  /**
+   * Template patterns use forward slashes (e.g. 'src/controllers/**').
+   * On Windows, file paths use backslashes. Code that consumes these patterns
+   * must normalise separators before matching. This test verifies that
+   * normalising backslashes to forward slashes makes minimatch work correctly
+   * with all template patterns — the same approach used by layer-detector.ts.
+   */
+
+  function normaliseToForwardSlash(p: string): string {
+    return p.replace(/\\/g, '/');
+  }
+
+  it('template layer patterns match forward-slash paths', () => {
+    const templates = getAvailableTemplates();
+
+    for (const template of templates) {
+      const defaults = getTemplateDefaults(template as ArchitectureTemplate);
+      for (const [, layer] of Object.entries(defaults.layers ?? {})) {
+        for (const pattern of layer.patterns ?? []) {
+          // A forward-slash path should match its own pattern
+          const samplePath = pattern.replace('**/*', 'example.ts').replace('**', 'example.ts');
+
+          expect(
+            minimatch(samplePath, pattern, { matchBase: true }),
+            `pattern '${pattern}' from template '${template}' should match '${samplePath}'`
+          ).toBe(true);
+        }
+      }
+    }
+  });
+
+  it('template layer patterns match backslash paths after normalisation', () => {
+    const defaults = getTemplateDefaults('fullstack');
+
+    for (const [, layer] of Object.entries(defaults.layers ?? {})) {
+      for (const pattern of layer.patterns ?? []) {
+        // Simulate a Windows path by replacing / with \ in the sample
+        const samplePath = pattern.replace('**/*', 'example.ts').replace('**', 'example.ts');
+        const windowsPath = samplePath.replace(/\//g, '\\');
+
+        // Without normalisation it may fail; with normalisation it must match
+        const normalised = normaliseToForwardSlash(windowsPath);
+        expect(
+          minimatch(normalised, pattern, { matchBase: true }),
+          `normalised Windows path '${normalised}' should match pattern '${pattern}'`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('all template patterns use forward slashes only', () => {
+    const templates = getAvailableTemplates();
+
+    for (const template of templates) {
+      const defaults = getTemplateDefaults(template as ArchitectureTemplate);
+      for (const [layerName, layer] of Object.entries(defaults.layers ?? {})) {
+        for (const pattern of layer.patterns ?? []) {
+          expect(
+            pattern.includes('\\'),
+            `pattern '${pattern}' in layer '${layerName}' of template '${template}' should not contain backslashes`
+          ).toBe(false);
+        }
+      }
+    }
   });
 });
