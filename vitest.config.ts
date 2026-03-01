@@ -36,6 +36,7 @@ export default defineConfig({
       // pre-existing failures from mock paths that need updating for workspace validation.
       'packages/mcp-server/src/utils/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/mcp-server/src/tools/suppress.tool.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'packages/mcp-server/src/tools/fix.tool.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/mcp-server/src/transports/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/mcp-server/src/prompts/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/platform/*/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',

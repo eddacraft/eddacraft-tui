@@ -168,7 +168,8 @@ export class PolicyConfigManager {
       }
       return AnvilConfigSchema.parse(parsed);
     } catch (error) {
-      log(`PolicyConfigManager.load: failed to parse config: ${error}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      log(`PolicyConfigManager.load: failed to parse config: ${errorMessage}`);
       return {};
     }
   }

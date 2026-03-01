@@ -81,8 +81,85 @@ describe('anvil_fix tool', () => {
       expect(parsed['fixed']).toBe(true);
 
       const content = readFileSync(absPath, 'utf-8');
-      expect(content).toContain(': unknown');
+      expect(content).toContain(':unknown');
       expect(content).not.toContain(':any');
+    });
+
+    it('does not change `: any` inside string literals', async () => {
+      const filePath = 'src/strings.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, `const msg = "type: any is bad";\n`, 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_fix',
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['fixed']).toBe(false);
+    });
+
+    it('does not change comment-only lines', async () => {
+      const filePath = 'src/comments.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, '// x: any should stay\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_fix',
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['fixed']).toBe(false);
+    });
+
+    it('does not mutate `: any` in trailing inline comments', async () => {
+      const filePath = 'src/trailing.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, 'const x = 1; // type: any\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_fix',
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['fixed']).toBe(false);
+
+      const content = readFileSync(absPath, 'utf-8');
+      expect(content).toBe('const x = 1; // type: any\n');
+    });
+
+    it('does not skip generator method signatures', async () => {
+      const filePath = 'src/generator.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, '*run(arg: any) {}\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_fix',
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['fixed']).toBe(true);
+
+      const content = readFileSync(absPath, 'utf-8');
+      expect(content).toContain(': unknown');
+    });
+
+    it('preserves original whitespace after colon', async () => {
+      const filePath = 'src/spacing.ts';
+      const absPath = join(tmpDir, filePath);
+      writeFileSync(absPath, 'const x:   any = 1;\n', 'utf-8');
+
+      const result = await client.callTool({
+        name: 'anvil_fix',
+        arguments: { filePath, warningId: 'AP-003', line: 1 },
+      });
+
+      const parsed = parseResult(result);
+      expect(parsed['fixed']).toBe(true);
+      expect(parsed['after']).toBe('const x:   unknown = 1;');
     });
 
     it('replaces multiple `: any` occurrences on the same line', async () => {

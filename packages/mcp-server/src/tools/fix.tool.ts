@@ -47,44 +47,69 @@ const FIXABLE_PATTERNS: Record<
     // Limitation: This regex-based fix only handles simple `: any` annotations.
     // It will NOT correctly transform: generic parameters (Array<any>), union
     // types (string | any), function signatures ((...args: any[]) => void).
+    // It does not handle `: any` inside template-literal expressions (`${...}`).
     // Manual review is advised.
     description: 'Replace explicit `any` type with `unknown`',
     apply: (line) => {
       const trimmed = line.trimStart();
-      if (trimmed.startsWith('//') || trimmed.startsWith('*') || trimmed.startsWith('/*')) {
+      // Skip full-line comments: //, /* ... */, and JSDoc continuation lines (* )
+      if (trimmed.startsWith('//') || trimmed.startsWith('* ') || trimmed.startsWith('/*')) {
         return null;
       }
-      const withoutStrings = line.replace(/(["'`])(?:(?!\1|\\).|\\.)*\1/g, '""');
-      if (withoutStrings.includes(': any') || withoutStrings.includes(':any')) {
-        let result = '';
-        let inString: string | null = null;
-        for (let i = 0; i < line.length; i++) {
-          const ch = line[i];
-          if (inString) {
-            result += ch;
-            if (ch === '\\') {
-              result += line[++i] ?? '';
-              continue;
-            }
-            if (ch === inString) inString = null;
-          } else if (ch === '"' || ch === "'" || ch === '`') {
-            inString = ch;
-            result += ch;
-          } else if (line[i] === ':' && /^:\s*any\b/.test(line.slice(i))) {
-            const m = line.slice(i).match(/^(:\s*)any\b/);
-            if (m) {
-              result += ': unknown';
-              i += m[0].length - 1;
-            } else {
-              result += ch;
-            }
-          } else {
-            result += ch;
+      if (!/:(\s*)any\b/.test(line)) {
+        return null;
+      }
+      let result = '';
+      let inString: string | null = null;
+      let inBlockComment = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        const next = line[i + 1];
+        if (inString) {
+          result += ch;
+          if (ch === '\\') {
+            result += line[++i] ?? '';
+            continue;
+          }
+          if (ch === inString) inString = null;
+          continue;
+        }
+        if (inBlockComment) {
+          result += ch;
+          if (ch === '*' && next === '/') {
+            result += '/';
+            i++;
+            inBlockComment = false;
+          }
+          continue;
+        }
+        // Entering a line comment — rest of line is not code
+        if (ch === '/' && next === '/') {
+          result += line.slice(i);
+          break;
+        }
+        if (ch === '/' && next === '*') {
+          result += '/*';
+          i++;
+          inBlockComment = true;
+          continue;
+        }
+        if (ch === '"' || ch === "'" || ch === '`') {
+          inString = ch;
+          result += ch;
+          continue;
+        }
+        if (ch === ':' && /^:\s*any\b/.test(line.slice(i))) {
+          const m = line.slice(i).match(/^(:\s*)any\b/);
+          if (m) {
+            result += m[1] + 'unknown';
+            i += m[0].length - 1;
+            continue;
           }
         }
-        return result !== line ? result : null;
+        result += ch;
       }
-      return null;
+      return result !== line ? result : null;
     },
   },
   'AP-004': {
