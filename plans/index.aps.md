@@ -404,65 +404,6 @@ Task-level detail for all completed work is archived in
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | — | save-time-trust |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Draft | — | save-time-trust, ide-integration |
 | ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI |
-| Module                                                                  | Scope   | Status      | Release | Dependencies                                              |
-| ----------------------------------------------------------------------- | ------- | ----------- | ------- | --------------------------------------------------------- |
-| [save-time-trust](./archive/modules/save-time-trust.aps.md)             | CORE    | Complete    | 0.1.0   | —                                                         |
-| [architecture-safety](./archive/modules/architecture-safety.aps.md)     | ARCH    | Complete    | 0.1.0   | save-time-trust                                           |
-| [antipattern-library](./archive/modules/antipattern-library.aps.md)     | ANTI    | Complete    | 0.1.0   | save-time-trust                                           |
-| [suppressions](./archive/modules/suppressions.aps.md)                   | SUPP    | Complete    | 0.1.0   | architecture-safety, antipattern-library                  |
-| [ci-integration](./archive/modules/ci-integration.aps.md)               | CI      | Complete    | 0.1.0   | save-time-trust                                           |
-| [tui](./archive/modules/tui.aps.md)                                     | TUI     | Complete    | 0.1.0   | — (Phase 1: onboarding only)                              |
-| [documentation-polish](./archive/modules/documentation-polish.aps.md)   | DOCS    | Complete    | 0.1.0   | —                                                         |
-| [explain-command](./archive/modules/explain-command.aps.md)             | EXPLAIN | Complete    | 0.1.0   | architecture-safety, antipattern-library                  |
-| [drift-reporting](./archive/modules/drift-reporting.aps.md)             | DRIFT   | Complete    | 0.1.0   | architecture-safety, antipattern-library, suppressions    |
-| [opa-architecture-integration](./archive/modules/opa-architecture-integration.aps.md) | OPA | Complete | 0.1.0 | architecture-safety, save-time-trust                      |
-| [ide-integration](./archive/modules/ide-integration.aps.md)             | IDE     | Complete    | 0.1.0   | save-time-trust, architecture-safety, antipattern-library |
-| [llms-txt-export](./archive/modules/llms-txt-export.aps.md)                     | LLMS    | Complete    | 0.1.0   | architecture-safety, antipattern-library                  |
-| [command-safety-validation](./archive/modules/command-safety-validation.aps.md) | CMDSAF  | Complete    | 0.1.0   | —                                                         |
-| [mcp-server](./archive/modules/mcp-server.aps.md)                               | MCP     | Complete    | 0.1.0   | save-time-trust, architecture-safety                      |
-| [policy-pack-validation](./modules/policy-pack-validation.aps.md)       | POLVAL  | Draft       | 0.3.0   | opa-architecture-integration                              |
-| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | 0.3.0 | opa-architecture-integration, architecture-safety         |
-| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md)           | AIGUARD | Draft       | 0.3.0   | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
-| [aps-markdown-adapter](./archive/modules/aps-markdown-adapter.aps.md)   | APSMD   | Complete    | 0.1.0   | —                                                         |
-| [open-spec-adapter](./modules/open-spec-adapter.aps.md)                 | OPENSPEC| Draft       | —       | —                                                         |
-| [adapter-upstream-updates](./archive/modules/adapter-upstream-updates.aps.md) | ADAPTUP | Complete    | 0.1.0   | —                                                         |
-| [kindling-integration](./modules/kindling-integration.aps.md)           | KINDLING| Draft       | 0.4.0   | save-time-trust, drift-reporting                          |
-| [ember](./modules/ember.aps.md)                                         | EMBER   | Draft       | 0.4.0   | kindling-integration                                      |
-| [edda](./modules/edda.aps.md)                                           | EDDA    | Draft       | 0.4.0   | ember                                                     |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md)       | STACK   | Draft       | 0.4.0   | kindling-integration, ember, edda                         |
-| [opa-enhancements](./modules/opa-enhancements.aps.md)                   | OPAE    | Draft       | 0.3.0   | opa-architecture-integration, architecture-safety, tui    |
-| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md)           | ORGHIER | Draft       | 0.3.0   | opa-architecture-integration, policy-pack-validation, opa-enhancements |
-| [policy-lifecycle](./modules/policy-lifecycle.aps.md)                   | POLLC   | Draft       | 0.3.0   | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
-| [compliance-reporting](./modules/compliance-reporting.aps.md)           | COMPLY  | Draft       | 0.3.0   | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
-| [policy-federation](./modules/policy-federation.aps.md)                 | POLFED  | Draft       | 0.3.0   | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
-| [onboarding-feedback-resolution](./archive/modules/onboarding-feedback-resolution.aps.md) | ONFBK | Complete | 0.1.0 | architecture-safety, tui                                  |
-| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | —      | save-time-trust                                           |
-| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF    | Draft       | —       | save-time-trust, ide-integration                          |
-| [tui-enhancement](./modules/tui-enhancement.aps.md)                     | TUIENH  | Superseded  | —       | tui (see D-005: Ink over OpenTUI)                         |
-| [test-quality](./archive/modules/test-quality.aps.md)                   | TEST    | Complete    | —       | —                                                         |
-| [monorepo-migration](./archive/modules/monorepo-migration.aps.md)       | MONO    | Complete    | 0.1.0   | —                                                         |
-| [dashboard-foundation](./modules/dashboard-foundation.aps.md)           | DASH     | Draft       | 0.2.0   | monorepo-migration, contracts                             |
-| [dashboard-core-views](./modules/dashboard-core-views.aps.md)           | DASHCORE | Draft       | 0.2.0   | dashboard-foundation                                      |
-| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Draft | 0.2.0  | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
-| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md)           | DASHAI   | Draft       | 0.2.0   | dashboard-foundation                                      |
-| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md)             | DASHOPS  | Draft       | 0.2.0   | dashboard-foundation                                      |
-| [pulumi-iac](./modules/pulumi-iac.aps.md)                               | IAC      | Complete    | 0.1.0   | —                                                         |
-| [html-css-support](./archive/modules/html-css-support.aps.md)           | HTMLCSS  | Complete    | 0.1.0   | antipattern-library, architecture-safety, suppressions    |
-| [lang-python](./modules/lang-python.aps.md)                             | PYLAN    | Placeholder | post-1.0.0 | html-css-support (HTMLCSS-001)                          |
-| [lang-rust](./modules/lang-rust.aps.md)                                 | RSTLAN   | Placeholder | post-1.0.0 | html-css-support (HTMLCSS-001)                          |
-| [lang-dotnet](./modules/lang-dotnet.aps.md)                             | DNLAN    | Placeholder | post-1.0.0 | html-css-support (HTMLCSS-001)                          |
-| [intelligent-first-run](./archive/modules/intelligent-first-run.aps.md) | IFR      | Complete    | 0.1.0   | tui, architecture-safety                                  |
-| [tutorial-overhaul](./archive/modules/tutorial-overhaul.aps.md)         | TUT      | Complete    | 0.1.0   | tui                                                       |
-| [website-migration](./archive/modules/website-migration.aps.md)         | WEB      | Complete    | 0.1.0   | monorepo-migration                                        |
-| [coaching-nudges](./modules/coaching-nudges.aps.md)                     | NUDGE    | In Progress | 0.1.x   | antipattern-library                                       |
-| [cli-hardening](./modules/cli-hardening.aps.md)                         | CLIH     | In Progress | 0.1.x   | —                                                         |
-| [code-review-backlog](./modules/code-review-backlog.aps.md)             | CRB      | Draft       | 0.1.x   | —                                                         |
-| [nx-task-migration](./modules/nx-task-migration.aps.md)                 | NXTASK   | Ready       | 0.1.x   | —                                                         |
-| [forge-hook-agent](./modules/01-forge-hook-agent.aps.md)               | FORGE    | In Progress | 0.1.x   | —                                                         |
-| [forge-negotiation](./modules/02-forge-negotiation.aps.md)             | FNEG     | In Progress | 0.1.x   | forge-hook-agent                                          |
-| [deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER    | Ready       | 0.1.x   | forge-negotiation                                         |
-| [temper-workflow](./modules/04-temper-workflow.aps.md)                  | TEMPER   | Complete    | 0.1.x   | deferred-finding-filing                                   |
-| [forge-temper-config](./modules/05-forge-temper-config.aps.md)         | FTCFG    | In Progress | 0.1.x   | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
 
 ### Task Status — 0.1.0 (Core Engine)
 
