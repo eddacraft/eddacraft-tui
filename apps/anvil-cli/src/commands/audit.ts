@@ -5,12 +5,12 @@ import { createDebugger } from '@eddacraft/anvil-core';
 import { RepoScanner, type RepoScanResult } from '../services/repo-scanner.js';
 import { success, error, info } from '../utils/output.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
-
-const log = createDebugger('cli');
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { AuditResults } from '../tui/commands/audit/AuditResults.js';
+
+const log = createDebugger('cli');
 
 /**
  * JSON output format for audit results

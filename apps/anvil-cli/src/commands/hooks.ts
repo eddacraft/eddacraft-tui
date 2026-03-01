@@ -76,9 +76,6 @@ function detectHusky(workspaceRoot: string): { detected: boolean; huskyDir: stri
 }
 
 /**
- * Install a Git hook
- */
-/**
  * Inject the Anvil marker into hook content, placing it after the shebang
  * line (if present) so the shebang remains on line 1.
  */

@@ -67,7 +67,6 @@ gha-creds-*.json
 
 /.serena
 .worktrees/
-.claude/worktrees/
 .vercel
 .env*.local
 infra/import.json

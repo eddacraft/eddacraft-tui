@@ -13,7 +13,7 @@ Scopes: PBLU (main), grouped by area: FORGE, CLI, SEC, TEST, CI, DOC
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |
-| PBLU | —     | Ready  |
+| PBLU | —     | Complete |
 
 ## Purpose
 
@@ -730,7 +730,8 @@ Change status to **Ready** when:
 - **Intent:** Import after `const` assignment; unconventional order
 - **Files:** `apps/anvil-cli/src/commands/audit.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Moved imports before `const log` declaration
 
 ---
 
@@ -740,7 +741,8 @@ Change status to **Ready** when:
 - **Intent:** Orphaned double JSDoc block
 - **Files:** `apps/anvil-cli/src/commands/hooks.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Removed orphaned `/** Install a Git hook */` JSDoc block
 
 ---
 
@@ -796,7 +798,8 @@ Change status to **Ready** when:
 - **Intent:** `--no-verify` skips all hooks, not just Forge — undocumented
 - **Files:** `.claude/agents/forge-reviewer.md`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added note in Constraints section clarifying --no-verify bypasses all git hooks
 
 ---
 
@@ -806,7 +809,8 @@ Change status to **Ready** when:
 - **Intent:** Duplicate `.claude/worktrees/` entry at lines 57 and 70
 - **Files:** `.gitignore`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Removed duplicate entry at line 70; kept the one in the Claude section
 
 ---
 
@@ -828,7 +832,8 @@ Change status to **Ready** when:
 - **Intent:** Footnote markers `^1/^2/^3` don't render as superscripts in GFM
 - **Files:** `README.md`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Changed to GFM `[^N]` footnote syntax with corresponding definitions
 
 ---
 
@@ -840,7 +845,8 @@ Change status to **Ready** when:
 - **Files:** `apps/anvil-cli/src/commands/tutorial-continuation.test.tsx`
 - **Dependencies:** PBLU-016 (consolidate duplicate tests first)
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** File not present in config repo; fix applied in main monorepo
 
 ---
 
@@ -850,7 +856,8 @@ Change status to **Ready** when:
 - **Intent:** Inline comment at line 93 could be clearer about index mapping
 - **Files:** `apps/anvil-cli/src/commands/tutorial-picker.test.tsx`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** File not present in config repo; fix applied in main monorepo
 
 ---
 
@@ -861,7 +868,8 @@ Change status to **Ready** when:
   specificity
 - **Files:** `apps/anvil-cli/src/commands/init.test.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** File not present in config repo; fix applied in main monorepo
 
 ---
 

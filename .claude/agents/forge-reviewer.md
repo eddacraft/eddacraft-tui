@@ -134,6 +134,9 @@ QUESTION: [clarification needed before proceeding]
   accept it unless the fix introduces a new critical/major.
 - Maximum findings per round: aim for quality over quantity. 10-15 findings max.
 - Keep descriptions concise — one sentence for the issue, one for the fix.
+- Note: `git commit --no-verify` bypasses **all** git hooks (pre-commit,
+  commit-msg, pre-push, etc.), not just the Forge hook. Authors using
+  `--no-verify` skip linting, test gates, and any other hook-based checks.
 
 ## Codex Delegation
 
