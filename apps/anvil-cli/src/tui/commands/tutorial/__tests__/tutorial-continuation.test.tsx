@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render } from 'ink-testing-library';
-import { stripAnsi } from '../../../../tui/__tests__/test-utils.js';
-import { TutorialPicker } from '../components/TutorialPicker.js';
 import type { TutorialOption } from '../components/TutorialPicker.js';
 
 // Mock scan-project to prevent real filesystem access
@@ -32,69 +30,7 @@ const TUTORIALS: TutorialOption[] = [
   { topic: 'ci', description: 'Set up CI integration' },
 ];
 
-// resolveTutorialKey tests are consolidated in tutorial-picker.test.tsx
-
-describe('TutorialPicker', () => {
-  it('displays tutorials excluding the current one', () => {
-    const { lastFrame } = render(<TutorialPicker tutorials={TUTORIALS} currentTopic="core" />);
-
-    const frame = lastFrame();
-    expect(frame).toContain("What's next");
-    expect(frame).toContain('policies');
-    expect(frame).toContain('architecture');
-    expect(frame).toContain('drift');
-    expect(frame).toContain('ci');
-    expect(frame).not.toContain('Core tutorial');
-  });
-
-  it('shows numbered indices starting from 1', () => {
-    const { lastFrame } = render(<TutorialPicker tutorials={TUTORIALS} currentTopic="core" />);
-
-    const frame = stripAnsi(lastFrame()!);
-    expect(frame).toContain('1');
-    expect(frame).toContain('2');
-    expect(frame).toContain('3');
-    expect(frame).toContain('4');
-  });
-
-  it('shows descriptions for each tutorial', () => {
-    const { lastFrame } = render(<TutorialPicker tutorials={TUTORIALS} currentTopic="core" />);
-
-    const frame = lastFrame();
-    expect(frame).toContain('Write custom OPA/Rego rules');
-    expect(frame).toContain('Define architecture boundaries');
-    expect(frame).toContain('Track architecture drift over time');
-    expect(frame).toContain('Set up CI integration');
-  });
-
-  it('returns empty fragment when no tutorials are available', () => {
-    const { lastFrame } = render(
-      <TutorialPicker
-        tutorials={[{ topic: 'only', description: 'Only one' }]}
-        currentTopic="only"
-      />
-    );
-
-    expect(lastFrame()).toBe('');
-  });
-
-  it('returns empty fragment for empty tutorials list', () => {
-    const { lastFrame } = render(<TutorialPicker tutorials={[]} />);
-
-    expect(lastFrame()).toBe('');
-  });
-
-  it('shows all tutorials when currentTopic is not set', () => {
-    const { lastFrame } = render(<TutorialPicker tutorials={TUTORIALS} />);
-
-    const frame = lastFrame();
-    expect(frame).toContain('core');
-    expect(frame).toContain('policies');
-    expect(frame).toContain('architecture');
-    expect(frame).toContain('drift');
-    expect(frame).toContain('ci');
-  });
-});
+// resolveTutorialKey and TutorialPicker component tests are in tutorial-picker.test.tsx
 
 describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
   beforeEach(() => {

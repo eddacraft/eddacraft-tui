@@ -302,9 +302,9 @@ export function createHooksCommand(): Command {
           console.log(chalk.cyan('  ANVIL_SKIP_HOOKS=1 git push'));
         } catch (err) {
           if (err instanceof CliError) throw err;
-          spinner.fail(chalk.red('Hook installation failed'));
-          error(`${err instanceof Error ? err.message : 'Unknown error'}`);
-          throw new CliError(err instanceof Error ? err.message : 'Unknown error');
+          const msg = err instanceof Error ? err.message : 'Unknown error';
+          spinner.fail(chalk.red(`Hook installation failed: ${msg}`));
+          throw new CliError(msg);
         }
       }
     );
@@ -376,9 +376,9 @@ export function createHooksCommand(): Command {
         success('Anvil hooks removed');
       } catch (err) {
         if (err instanceof CliError) throw err;
-        spinner.fail(chalk.red('Hook removal failed'));
-        error(`${err instanceof Error ? err.message : 'Unknown error'}`);
-        throw new CliError(err instanceof Error ? err.message : 'Unknown error');
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        spinner.fail(chalk.red(`Hook removal failed: ${msg}`));
+        throw new CliError(msg);
       }
     });
 

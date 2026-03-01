@@ -121,10 +121,8 @@ describe('audit spinner lifecycle (H-4)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
 
     const command = createAuditCommand();
-    // Valid options — spinner should be created and stopped; CliExit is thrown for clean exit
-    await expect(
-      command.parseAsync(['--days-back', '30', '--max-commits', '50'], { from: 'user' })
-    ).rejects.toThrow('Clean exit');
+    // Valid options — spinner should be created and stopped; success paths return normally
+    await command.parseAsync(['--days-back', '30', '--max-commits', '50'], { from: 'user' });
 
     expect(mockOra.oraFn).toHaveBeenCalled();
     expect(mockOra.spinnerInstance.stop).toHaveBeenCalled();

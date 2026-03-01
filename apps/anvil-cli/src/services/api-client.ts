@@ -35,7 +35,7 @@ export function getApiUrl(): string {
     throw new Error(`ANVIL_API_URL must use HTTPS, or HTTP only for localhost (got ${url})`);
   }
 
-  return url;
+  return url.replace(/\/+$/, '');
 }
 
 /**
@@ -112,7 +112,7 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
     log(`apiRequest: FAILED ${options.operationName} status=${res.status}`);
 
     if (res.status === 401 || res.status === 403) {
-      const isAdminRoute = options.path.includes('/admin/');
+      const isAdminRoute = /(?:^|\/)admin(?:\/|$)/.test(options.path);
       if (isAdminRoute) {
         const truncated = body.length > 200 ? body.slice(0, 200) + '...' : body;
         throw new Error(`${options.operationName} failed: ${res.status} ${truncated}`);

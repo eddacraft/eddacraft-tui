@@ -91,7 +91,10 @@ describe('resolveTutorialKey', () => {
     expect(resolveTutorialKey(ALL_TUTORIALS, 'core', '1', ['policies'])).toBe('architecture');
     expect(resolveTutorialKey(ALL_TUTORIALS, 'core', '2', ['policies'])).toBe('drift');
     expect(resolveTutorialKey(ALL_TUTORIALS, 'core', '3', ['policies'])).toBe('ci');
-    // Key 4 should be out of range (only 3 selectable)
+    // Keys are 1-based consecutive indices into the filtered list (excluding
+    // current topic and completed topics). Key 4 is out of range since only
+    // 3 selectable tutorials remain after removing 'core' (current) and
+    // 'policies' (completed).
     expect(resolveTutorialKey(ALL_TUTORIALS, 'core', '4', ['policies'])).toBeNull();
   });
 

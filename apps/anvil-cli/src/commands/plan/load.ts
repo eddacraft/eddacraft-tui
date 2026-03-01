@@ -224,6 +224,7 @@ export function createLoadSubcommand(): Command {
           } else if (options.filesOnly) {
             console.log(formatFilesOnly(filtered));
           }
+          throw new CliExit();
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
           console.error(error instanceof Error ? error.message : String(error));

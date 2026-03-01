@@ -368,7 +368,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync([], { from: 'user' });
 
-      expect(inquirer.default.prompt).toHaveBeenCalled();
+      expect(inquirer.default.prompt).toHaveBeenCalledTimes(3);
       expect(existsSync(join(workspace.root, 'custom/plans'))).toBe(true);
       expect(genSpy).toHaveBeenCalled();
     });

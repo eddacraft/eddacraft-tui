@@ -388,7 +388,7 @@ These helper functions are useful beyond the policy command. They could live in
 
 ### Must Fix Before GA
 5. **H-1:** Replace `process.exit()` with thrown errors (phased — start with
-   most-used commands) — **DEFERRED** to own branch (30+ files, ~140 sites)
+   most-used commands) — **FIXED** via PBLU module (57/57 items complete)
 6. ~~**M-4:** Fix hardcoded `branch: 'main'` in plan create~~ **FIXED**
    (2026-02-24)
 7. ~~Validate `ANVIL_API_URL` requires HTTPS scheme~~ **FIXED** (2026-02-24)

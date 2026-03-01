@@ -325,12 +325,10 @@ export function createAuditCommand(): Command {
           if (!options.json) {
             info('Issues found but none are blocking');
           }
-          throw new CliExit();
         } else {
           if (!options.json) {
             success('Repository audit complete - no issues found!');
           }
-          throw new CliExit();
         }
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
