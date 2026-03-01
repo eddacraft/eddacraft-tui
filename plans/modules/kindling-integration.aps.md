@@ -3,9 +3,9 @@
 
 # Kindling Memory Integration (v1)
 
-| Scope    | Owner | Priority | Status |
-| -------- | ----- | -------- | ------ |
-| KINDLING | —     | medium   | In Progress |
+| Scope    | Owner | Priority | Status   |
+| -------- | ----- | -------- | -------- |
+| KINDLING | —     | medium   | Complete |
 
 ## Purpose
 

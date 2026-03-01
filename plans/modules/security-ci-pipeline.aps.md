@@ -3,9 +3,9 @@
 
 # Security CI Pipeline
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| SEC   | —     | high     | Ready  |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| SEC   | —     | high     | Complete |
 
 ## Purpose
 
@@ -91,7 +91,7 @@ continuous, automated security gates that run on every PR and push.
 
 ## Tasks
 
-### SEC-001: Create security scanning workflow
+### SEC-001: Create security scanning workflow — Complete
 
 - **Intent:** Add `.github/workflows/security.yml` with parallel security jobs
 - **Expected Outcome:** Workflow runs on PR and push to main/develop. Contains
@@ -103,7 +103,7 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Workflow passes `actionlint` and YAML syntax check
 - **Confidence:** high
 
-### SEC-002: Semgrep SAST integration
+### SEC-002: Semgrep SAST integration — Complete
 
 - **Intent:** Run Semgrep with TypeScript/JavaScript rulesets on every PR
 - **Expected Outcome:** Semgrep job uses `returntocorp/semgrep-action` with
@@ -116,7 +116,7 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Semgrep runs against codebase without errors
 - **Confidence:** high
 
-### SEC-003: Dependency vulnerability audit
+### SEC-003: Dependency vulnerability audit — Complete
 
 - **Intent:** Fail CI on critical/high CVEs in production dependencies
 - **Expected Outcome:** Job runs `pnpm audit --prod --audit-level=high`. Fails
@@ -128,7 +128,7 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** `pnpm audit` runs cleanly or exits with expected code
 - **Confidence:** high
 
-### SEC-004: Secret scanning in CI
+### SEC-004: Secret scanning in CI — Complete
 
 - **Intent:** Catch leaked secrets that Anvil's built-in patterns might miss
 - **Expected Outcome:** Job uses `trufflesecurity/trufflehog` GitHub Action to
@@ -142,7 +142,7 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** No false positives on current codebase
 - **Confidence:** high
 
-### SEC-005: License compliance check
+### SEC-005: License compliance check — Complete
 
 - **Intent:** Prevent copyleft/unlicensed dependencies from entering production
 - **Expected Outcome:** Job runs `license-checker` or `pnpm licenses list` to
@@ -155,7 +155,7 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Current production deps pass the check
 - **Confidence:** medium
 
-### SEC-006: Custom Semgrep rules for Anvil patterns
+### SEC-006: Custom Semgrep rules for Anvil patterns — Complete
 
 - **Intent:** Add project-specific Semgrep rules for patterns found in the
   adversarial review
@@ -171,7 +171,7 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Rules match known patterns in codebase
 - **Confidence:** medium
 
-### SEC-007: OSSF Scorecard integration
+### SEC-007: OSSF Scorecard integration — Complete
 
 - **Intent:** Measure and track supply chain security posture of the repo
 - **Expected Outcome:** Weekly Scorecard run on main branch via
@@ -184,7 +184,7 @@ continuous, automated security gates that run on every PR and push.
 - **Validation:** Scorecard completes and publishes results
 - **Confidence:** high
 
-### SEC-008: Security scan result reporting
+### SEC-008: Security scan result reporting — Complete
 
 - **Intent:** Aggregate security findings into a single PR summary
 - **Expected Outcome:** Final job that waits for all security scans and posts a

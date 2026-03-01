@@ -387,7 +387,7 @@ Task-level detail for all completed work is archived in
 
 | Module | Scope | Status | Dependencies |
 | ------ | ----- | ------ | ------------ |
-| [kindling-integration](./modules/kindling-integration.aps.md) | KINDLING | In Progress | save-time-trust, drift-reporting |
+| [kindling-integration](./modules/kindling-integration.aps.md) | KINDLING | Complete | save-time-trust, drift-reporting |
 | [ember](./modules/ember.aps.md) | EMBER | Draft | kindling-integration |
 | [edda](./modules/edda.aps.md) | EDDA | Draft | ember |
 | [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Draft | kindling-integration, ember, edda |
