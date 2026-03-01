@@ -98,13 +98,18 @@ describe('audit spinner lifecycle (H-4)', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
     vi.spyOn(console, 'error').mockImplementation(() => {});
 
+    // scan is an instance field in the mock (not on prototype), so we
+    // override the mock constructor to produce an instance whose scan rejects
     const { RepoScanner } = await import('../../services/repo-scanner.js');
-    vi.spyOn(RepoScanner.prototype, 'scan').mockRejectedValueOnce(new Error('Scan exploded'));
+    vi.mocked(RepoScanner).mockImplementationOnce(
+      () =>
+        ({
+          scan: vi.fn().mockRejectedValueOnce(new Error('Scan exploded')),
+        }) as unknown as InstanceType<typeof RepoScanner>
+    );
 
     const command = createAuditCommand();
-    await expect(
-      command.parseAsync(['--days-back', '30'], { from: 'user' })
-    ).rejects.toThrow();
+    await expect(command.parseAsync(['--days-back', '30'], { from: 'user' })).rejects.toThrow();
 
     expect(mockOra.oraFn).toHaveBeenCalled();
     expect(mockOra.spinnerInstance.fail).toHaveBeenCalled();

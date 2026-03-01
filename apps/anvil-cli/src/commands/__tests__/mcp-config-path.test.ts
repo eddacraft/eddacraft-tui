@@ -114,13 +114,26 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
   it('bypasses outside-workspace check when --yes is passed', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    const command = createMcpConfigCommand();
-    // windsurf writes to ~ which is outside workspace — --yes skips the prompt
-    await command.parseAsync(['-t', 'windsurf', '--write', '--yes'], { from: 'user' });
+    // Redirect HOME to a temp directory so the test never touches the real filesystem
+    const tempHome = mkdtempSync(join(tmpdir(), 'anvil-mcp-config-'));
+    const os = await import('node:os');
+    vi.spyOn(os, 'homedir').mockReturnValue(tempHome);
+    const fs = await import('node:fs');
+    const writeSpy = vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {});
+    vi.spyOn(fs, 'mkdirSync').mockImplementation(() => tempHome);
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join('\n');
-    // Should succeed (write or at least attempt to write) rather than throwing
-    expect(output).toBeDefined();
+    try {
+      const command = createMcpConfigCommand();
+      // windsurf writes to ~ which is outside workspace — --yes skips the prompt
+      await command.parseAsync(['-t', 'windsurf', '--write', '--yes'], { from: 'user' });
+
+      const output = logSpy.mock.calls.map((c) => c[0]).join('\n');
+      // Should succeed and attempt to write rather than throwing
+      expect(writeSpy).toHaveBeenCalled();
+      expect(output).toContain('Wrote');
+    } finally {
+      rmSync(tempHome, { recursive: true, force: true });
+    }
   });
 
   it('generates correct stdio config for each target', async () => {

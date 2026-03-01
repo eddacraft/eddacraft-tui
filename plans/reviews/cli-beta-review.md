@@ -143,9 +143,11 @@ Almost every command error path calls `process.exit(1)` directly. This:
 handler set the exit code. Use `process.exitCode = 1` where immediate exit
 is truly needed.
 
-**Status:** Resolved — all commands now use `CliError`/`CliExit` pattern instead
-of `process.exit()`. See `cli-hardening.aps.md` (complete) and
-`post-beta-launch-uplift.aps.md` (PBLU-003, PBLU-004, PBLU-025, PBLU-026).
+**Status:** Resolved — all command error paths now use the `CliError`/`CliExit`
+pattern instead of `process.exit()`, with `process.exit()` retained only at the
+top-level CLI boundary and in signal handlers (e.g. `watch`). See
+`cli-hardening.aps.md` (complete) and `post-beta-launch-uplift.aps.md`
+(PBLU-003, PBLU-004, PBLU-025, PBLU-026).
 
 ### H-2: `commands/index.ts` barrel export drift
 

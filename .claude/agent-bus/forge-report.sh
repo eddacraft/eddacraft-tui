@@ -71,7 +71,10 @@ EOF
 | Finding | Action | Reasoning |
 | ------- | ------ | --------- |
 EOF
-        echo "$RESPONSES_JSON" | jq -r '.[] | "| \(.findingId) | \(.action) | \(.reasoning // "-") |"' 2>/dev/null >> "$REPORT_FILE" || true
+        if ! echo "$RESPONSES_JSON" | jq -r '.[] | "| \(.findingId) | \(.action) | \(.reasoning // "-") |"' >> "$REPORT_FILE" 2>/dev/null; then
+            echo "Error: failed to parse RESPONSES_JSON for round ${ROUND}" >&2
+            return 1
+        fi
         echo "" >> "$REPORT_FILE"
         ;;
 

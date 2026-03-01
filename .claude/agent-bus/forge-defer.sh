@@ -180,9 +180,14 @@ file_aps_issue() {
     fi
 
     # Append as a draft work item to the module (flock prevents interleaving
-    # when multiple forge-defer.sh processes run concurrently)
+    # when multiple forge-defer.sh processes run concurrently).
+    # Lock file is kept around — flock works on inodes, so deleting it would
+    # allow a second process to create a new inode and acquire a separate lock.
     (
-        flock -w 5 200 2>/dev/null || true
+        if ! flock -w 5 200 2>/dev/null; then
+            echo "Error: failed to acquire lock on ${module_file}.lock" >&2
+            return 1
+        fi
         cat >> "$module_file" << APS_EOF
 
 ### ${module_id}-DEFER: ${description}
@@ -194,7 +199,6 @@ file_aps_issue() {
 - **Confidence:** medium
 APS_EOF
     ) 200>"${module_file}.lock"
-    rm -f "${module_file}.lock"
 
     jq -n --arg id "$id" --arg mod "$module_id" --arg file "$module_file" \
         '{findingId: $id, action: "aps-filed", module: $mod, file: $file}'
