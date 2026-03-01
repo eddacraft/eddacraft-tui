@@ -56,7 +56,9 @@ User action
 - **Trigger:** Session start on any project with `plans/index.aps.md`; user says
   `/plan`, `/plan-status`, or mentions APS/work items; user is doing
   implementation work in a project with active APS modules
-- **No-op:** If `plans/index.aps.md` doesn't exist, skill does nothing
+- **No-op:** If `plans/index.aps.md` doesn't exist, passive awareness does
+  nothing. Explicit `/plan` invocations still work and can bootstrap a new APS
+  index.
 
 ### 2. Session Start — Context Loading
 
@@ -119,14 +121,18 @@ pause:
 
 ### 4. Session Boundaries — Background Reconciliation
 
-At natural boundaries (commit, PR creation, branch completion, or explicit
-`/plan-status`), the skill spawns a background agent to do the heavy
-bookkeeping. This runs async — the user isn't blocked.
+At natural boundaries (commit, PR creation, branch completion), the skill spawns
+a background agent to do the heavy bookkeeping. This runs async — the user isn't
+blocked. Explicit `/plan-status` invocations run in the foreground since the
+user is waiting for the report (see section 6).
 
 **The background agent does:**
 
-1. **Validation scan** — for each non-Complete work item with a `Validation:`
-   command, run it. If it passes, propose marking Complete.
+1. **Validation scan** — for each non-Complete work item that declares a
+   `Validation:` command, surface the command to the user for confirmation
+   before executing. Only allowlisted safe commands (`pnpm test`, `pnpm lint`,
+   `npm test`, etc.) may run without explicit approval. If the validated check
+   passes, propose marking Complete.
 2. **Status sync** — update work item statuses in the module `.aps.md` files
    (with user-confirmed changes only, or auto-apply if the user pre-approved a
    batch).
@@ -149,14 +155,16 @@ APS Reconciliation (background)
 ```
 
 **Agent type:** Uses the existing `anvil-plan-spec` agent definition (repurposed
-as a subagent rather than standalone), run via `Task` tool with
-`run_in_background: true`.
+as a subagent rather than standalone), invoked via the `Task` tool with
+`subagent_type: anvil-plan-spec` and `run_in_background: true`.
 
 ### 5. Project Rules File
 
 Each repo can optionally have `.claude/rules/aps-project.md` to provide
-project-specific context the global skill can't infer. Auto-generated on first
-skill activation if `plans/index.aps.md` exists but the rules file doesn't.
+project-specific context the global skill can't infer. Generated during the
+first explicit reconciliation step (not on passive session-start activation) if
+`plans/index.aps.md` exists but the rules file doesn't — the user is prompted
+before any file is created.
 
 **Contents:**
 
@@ -176,7 +184,8 @@ skill activation if `plans/index.aps.md` exists but the rules file doesn't.
 
 - UK English spelling in all plan text
 - Work item IDs: PREFIX-NNN (3-digit zero-padded)
-- Module statuses: Draft -> Proposed -> Ready -> In Progress -> Complete
+- Module statuses: Proposed -> Ready -> In Progress -> Done -> Blocked (legacy
+  aliases: Draft=Proposed, Complete=Done)
 - Plans live in plans/modules/\*.aps.md
 - Decisions live in plans/decisions/NNN-\*.md
 
