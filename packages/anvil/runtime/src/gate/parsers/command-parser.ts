@@ -12,6 +12,8 @@ const ENV_WRAPPERS = ['env', 'command', 'nohup', 'nice', 'time', 'strace'];
 
 const INTERPRETER_COMMANDS = ['python', 'python3', 'node', 'ruby', 'perl', 'php'];
 
+const SHELL_LIKE_INTERPRETERS = ['bash', 'sh', 'zsh', 'dash'];
+
 const COMMAND_OPERATORS = ['and', 'or', ';', '|', '||', '&&'];
 
 function isShellWrapper(cmd: string): boolean {
@@ -164,20 +166,24 @@ function extractEnvCommand(tokens: string[]): string[] | null {
  * interpolation, eval of computed strings). Treat the result as a heuristic —
  * a null return does NOT mean the script is safe.
  */
-function extractInterpreterCommand(tokens: string[]): string | null {
+function extractInterpreterCommand(tokens: string[], interpreter?: string): string | null {
   const cIndex = tokens.findIndex((t) => t === '-c' || t === '-e');
   if (cIndex !== -1 && cIndex + 1 < tokens.length) {
     const script = tokens[cIndex + 1];
-    const execPatterns = [
+    const execPatterns: RegExp[] = [
       /os\.system\s*\(\s*['"](.*?)['"]\s*\)/,
       /subprocess\.(?:run|call|Popen)\s*\(\s*['"](.*?)['"]/,
       /exec\s*\(\s*['"](.*?)['"]\s*\)/,
       /execSync\s*\(\s*['"](.*?)['"]\s*\)/,
       /`([^`]+)`/,
       /system\s*\(\s*['"](.*?)['"]\s*\)/,
-      /eval\s*\(\s*['"](.*?)['"]\s*\)/,
-      /\$\(\s*(.*?)\s*\)/,
+      /\beval\s*\(\s*['"](.*?)['"]\s*\)/,
     ];
+
+    // $() is a shell construct — only match it for shell-like interpreters
+    if (!interpreter || SHELL_LIKE_INTERPRETERS.includes(interpreter)) {
+      execPatterns.push(/\$\(\s*(.*?)\s*\)/);
+    }
 
     for (const pattern of execPatterns) {
       const match = script.match(pattern);
@@ -254,7 +260,7 @@ function unwrapCommand(cmd: string, depth = 0): UnwrapResult {
   }
 
   if (isInterpreter(firstToken)) {
-    const innerCmd = extractInterpreterCommand(tokens);
+    const innerCmd = extractInterpreterCommand(tokens, firstToken);
     if (innerCmd) {
       const inner = unwrapCommand(innerCmd, depth + 1);
       return {

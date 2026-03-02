@@ -197,19 +197,40 @@ describe('parseCommand', () => {
       expect(result.wrapperChain).toContain('python3');
     });
 
-    it('extracts from eval pattern in interpreter one-liner', () => {
-      // Tests the eval regex in extractInterpreterCommand
-      const result = parseCommand('node -e "eval(\'rm -rf /tmp\')"');
-      expect(result.command).toBe('rm');
-      expect(result.wrapperChain).toContain('node');
+    it('does not extract $() from non-shell interpreters (false positive guard)', () => {
+      // $() is a shell construct — python3, node, ruby, perl, php do not execute it
+      const result = parseCommand('python3 -c "print(\'$(git reset --hard)\')"');
+      // Should parse as the python3 command itself since no shell exec pattern matches
+      expect(result.command).toBe('python3');
+      expect(result.wrapperChain).toEqual([]);
     });
 
-    it('extracts from $() pattern in interpreter one-liner', () => {
-      // Tests the $() regex in extractInterpreterCommand
-      const result = parseCommand('python3 -c "result = $(git reset --hard)"');
-      expect(result.command).toBe('git');
-      expect(result.subcommand).toBe('reset');
-      expect(result.wrapperChain).toContain('python3');
+    it('does not extract $() from node interpreter', () => {
+      const result = parseCommand('node -e "console.log(\'$(rm -rf /tmp)\')"');
+      expect(result.command).toBe('node');
+      expect(result.wrapperChain).toEqual([]);
+    });
+
+    it('does not extract $() from ruby interpreter', () => {
+      const result = parseCommand('ruby -e "puts \'$(git push --force)\'"');
+      expect(result.command).toBe('ruby');
+      expect(result.wrapperChain).toEqual([]);
+    });
+
+    it('does not match safeval as eval (word boundary)', () => {
+      // The eval regex must be word-bounded to avoid matching safeval, nodeval, etc.
+      const result = parseCommand("node -e \"safeval('rm -rf /tmp')\"");
+      expect(result.command).toBe('node');
+      expect(result.wrapperChain).toEqual([]);
+    });
+
+    it('still matches standalone eval in interpreter one-liner', () => {
+      // NOTE: this tests the eval() regex pattern detection in the command parser,
+      // not actual code evaluation — the string "eval(...)" is a pattern we detect
+      // in interpreter one-liners to extract embedded shell commands
+      const result = parseCommand("node -e \"eval('rm -rf /tmp')\"");
+      expect(result.command).toBe('rm');
+      expect(result.wrapperChain).toContain('node');
     });
 
     it('extracts from backtick pattern in interpreter one-liner', () => {
