@@ -95,9 +95,9 @@ export function Tutorial({
   }, [onCleanup]);
 
   const handleFinish = useCallback(() => {
-    onComplete?.();
+    if (isLastStep(state.currentStep)) onComplete?.();
     exit();
-  }, [onComplete, exit]);
+  }, [onComplete, state.currentStep, exit]);
 
   useInput((input, key) => {
     if (input === 'q' || (key.ctrl && input === 'c')) {
