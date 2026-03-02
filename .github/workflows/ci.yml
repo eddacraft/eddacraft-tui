@@ -20,91 +20,19 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      docs-only: ${{ steps.filter.outputs.docs-only }}
-      code-changed: ${{ steps.filter.outputs.code-changed }}
-      source-changed: ${{ steps.filter.outputs.source-changed }}
-      e2e-changed: ${{ steps.filter.outputs.e2e-changed }}
+      docs-only: ${{ steps.changes.outputs.docs-only }}
+      code-changed: ${{ steps.changes.outputs.code-changed }}
+      source-changed: ${{ steps.changes.outputs.source-changed }}
+      e2e-changed: ${{ steps.changes.outputs.e2e-changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check changed files
-        id: filter
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if [ "${{ github.event_name }}" == "pull_request" ]; then
-            BASE_SHA=${{ github.event.pull_request.base.sha }}
-            HEAD_SHA=${{ github.event.pull_request.head.sha }}
-          else
-            BASE_SHA=${{ github.event.before }}
-            HEAD_SHA=${{ github.sha }}
-          fi
-
-          # Get list of changed files (full clone ensures merge-base is available)
-          CHANGED_FILES=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null)
-          if [ $? -ne 0 ] || [ -z "$CHANGED_FILES" ]; then
-            echo "⚠️  git diff failed or empty — falling back to GitHub API"
-            if [ "${{ github.event_name }}" == "pull_request" ]; then
-              CHANGED_FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only 2>/dev/null || echo "")
-            fi
-          fi
-
-          # Classify changed files into categories
-          DOCS_ONLY=true
-          CODE_CHANGED=false
-          SOURCE_CHANGED=false
-          E2E_CHANGED=false
-
-          while IFS= read -r file; do
-            if [[ -n "$file" ]]; then
-              # Docs/metadata — never triggers any code jobs
-              if [[ "$file" =~ \.(md|txt)$ ]] || \
-                 [[ "$file" =~ ^docs/ ]] || \
-                 [[ "$file" =~ ^plans/ ]] || \
-                 [[ "$file" == "LICENSE" ]]; then
-                continue
-              fi
-
-              # Anything beyond docs is at least a code change
-              DOCS_ONLY=false
-              CODE_CHANGED=true
-
-              # Source code — triggers cross-platform matrix
-              # (workspace directories that contain platform-sensitive code)
-              if [[ "$file" =~ ^apps/ ]] || \
-                 [[ "$file" =~ ^packages/ ]] || \
-                 [[ "$file" =~ ^tools/ ]] || \
-                 [[ "$file" =~ ^infra/ ]]; then
-                SOURCE_CHANGED=true
-              fi
-
-              # Lockfile/dependency changes — also cross-platform
-              if [[ "$file" == "pnpm-lock.yaml" ]] || \
-                 [[ "$file" == "package.json" ]]; then
-                SOURCE_CHANGED=true
-              fi
-
-              # E2E-related patterns
-              if [[ "$file" =~ ^apps/e2e/ ]] || \
-                 [[ "$file" == "playwright.config.ts" ]]; then
-                E2E_CHANGED=true
-              fi
-            fi
-          done <<< "$CHANGED_FILES"
-
-          echo "docs-only=$DOCS_ONLY" >> $GITHUB_OUTPUT
-          echo "code-changed=$CODE_CHANGED" >> $GITHUB_OUTPUT
-          echo "source-changed=$SOURCE_CHANGED" >> $GITHUB_OUTPUT
-          echo "e2e-changed=$E2E_CHANGED" >> $GITHUB_OUTPUT
-
-          echo "📊 Change Detection Results:"
-          echo "  Docs only: $DOCS_ONLY"
-          echo "  Code changed: $CODE_CHANGED"
-          echo "  Source changed: $SOURCE_CHANGED"
-          echo "  E2E changed: $E2E_CHANGED"
+      - name: Detect changes
+        id: changes
+        uses: ./.github/actions/detect-changes
 
   # Docs-only job: just linting
   docs-lint:

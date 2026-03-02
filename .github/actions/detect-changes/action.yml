@@ -1,0 +1,90 @@
+name: Detect Changes
+description: Classify changed files to skip unnecessary CI jobs
+
+outputs:
+  docs-only:
+    description: 'true if only docs/plans/metadata changed'
+    value: ${{ steps.filter.outputs.docs-only }}
+  code-changed:
+    description: 'true if any non-docs file changed'
+    value: ${{ steps.filter.outputs.code-changed }}
+  source-changed:
+    description: 'true if apps/ or packages/ source changed'
+    value: ${{ steps.filter.outputs.source-changed }}
+  e2e-changed:
+    description: 'true if e2e test files changed'
+    value: ${{ steps.filter.outputs.e2e-changed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Classify changed files
+      id: filter
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        EVENT_NAME: ${{ github.event_name }}
+        PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        PUSH_BEFORE: ${{ github.event.before }}
+        PUSH_SHA: ${{ github.sha }}
+      run: |
+        if [ "$EVENT_NAME" == "pull_request" ]; then
+          BASE_SHA="$PR_BASE_SHA"
+          HEAD_SHA="$PR_HEAD_SHA"
+        else
+          BASE_SHA="$PUSH_BEFORE"
+          HEAD_SHA="$PUSH_SHA"
+        fi
+
+        CHANGED_FILES=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" 2>/dev/null)
+        if [ $? -ne 0 ] || [ -z "$CHANGED_FILES" ]; then
+          echo "git diff failed — falling back to GitHub API"
+          if [ "$EVENT_NAME" == "pull_request" ]; then
+            CHANGED_FILES=$(gh pr diff "$PR_NUMBER" --name-only 2>/dev/null || echo "")
+          fi
+        fi
+
+        DOCS_ONLY=true
+        CODE_CHANGED=false
+        SOURCE_CHANGED=false
+        E2E_CHANGED=false
+
+        while IFS= read -r file; do
+          if [[ -n "$file" ]]; then
+            # Docs/metadata — skip
+            if [[ "$file" =~ \.(md|txt)$ ]] || \
+               [[ "$file" =~ ^docs/ ]] || \
+               [[ "$file" =~ ^plans/ ]] || \
+               [[ "$file" == "LICENSE" ]]; then
+              continue
+            fi
+
+            DOCS_ONLY=false
+            CODE_CHANGED=true
+
+            # Source code or dependencies
+            if [[ "$file" =~ ^apps/ ]] || \
+               [[ "$file" =~ ^packages/ ]] || \
+               [[ "$file" =~ ^tools/ ]] || \
+               [[ "$file" =~ ^infra/ ]] || \
+               [[ "$file" == "pnpm-lock.yaml" ]] || \
+               [[ "$file" == "package.json" ]]; then
+              SOURCE_CHANGED=true
+            fi
+
+            # E2E patterns
+            if [[ "$file" =~ ^apps/e2e/ ]] || \
+               [[ "$file" == "playwright.config.ts" ]]; then
+              E2E_CHANGED=true
+            fi
+          fi
+        done <<< "$CHANGED_FILES"
+
+        echo "docs-only=$DOCS_ONLY" >> "$GITHUB_OUTPUT"
+        echo "code-changed=$CODE_CHANGED" >> "$GITHUB_OUTPUT"
+        echo "source-changed=$SOURCE_CHANGED" >> "$GITHUB_OUTPUT"
+        echo "e2e-changed=$E2E_CHANGED" >> "$GITHUB_OUTPUT"
+
+        echo "Change detection: docs-only=$DOCS_ONLY code=$CODE_CHANGED source=$SOURCE_CHANGED e2e=$E2E_CHANGED"
