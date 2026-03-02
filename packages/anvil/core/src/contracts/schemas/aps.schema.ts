@@ -5,6 +5,8 @@ import { z } from 'zod';
  */
 const SCHEMA_VERSION = '0.1.0' as const;
 
+const DEFAULT_REQUIRED_CHECKS = ['lint', 'test', 'coverage', 'secrets'] as const;
+
 const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 const safeKey = z.string().refine((k) => !FORBIDDEN_KEYS.has(k), {
   message: 'Forbidden key — potential prototype pollution',
@@ -248,10 +250,10 @@ export function createPlan(params: {
     proposed_changes: params.changes || [],
     provenance: params.provenance,
     validations: params.validations || {
-      required_checks: ['lint', 'test', 'coverage', 'secrets'],
+      required_checks: DEFAULT_REQUIRED_CHECKS,
       skip_checks: [],
     },
-  } as Omit<APSPlan, 'hash'>;
+  } satisfies Omit<APSPlan, 'hash'>;
 }
 
 /**

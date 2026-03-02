@@ -177,7 +177,7 @@ function extractInterpreterCommand(tokens: string[], interpreter?: string): stri
       /execSync\s*\(\s*['"](.*?)['"]\s*\)/,
       /`([^`]+)`/,
       /system\s*\(\s*['"](.*?)['"]\s*\)/,
-      /\beval\s*\(\s*['"](.*?)['"]\s*\)/,
+      /\beval\b\s*\(\s*['"](.*?)['"]\s*\)/,
     ];
 
     // $() is a shell construct — only match it for shell-like interpreters
