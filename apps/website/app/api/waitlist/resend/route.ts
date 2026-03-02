@@ -10,9 +10,7 @@ function isAuthorized(request: Request): boolean {
   const authHeader = request.headers.get('authorization');
   const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const direct = request.headers.get('x-waitlist-admin-token')?.trim();
-  const provided = bearer || direct;
-
-  return provided === expectedToken;
+  return bearer === expectedToken || direct === expectedToken;
 }
 
 export async function POST(request: Request) {
@@ -24,6 +22,10 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
+    return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 

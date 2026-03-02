@@ -24,6 +24,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
+    }
+
     const { email } = body as { email?: unknown };
 
     if (!email || typeof email !== 'string') {
@@ -55,22 +59,14 @@ export async function POST(request: Request) {
 
     const isNewSignup = result[0].is_new;
 
-    let emailSent = false;
-    let emailStatus: string = isNewSignup ? 'pending' : 'skipped_existing';
-
     if (isNewSignup) {
-      const delivery = await sendWaitlistConfirmation(result[0].email);
-      emailSent = delivery.sent;
-      emailStatus = delivery.sent ? 'sent' : delivery.code || 'failed';
+      await sendWaitlistConfirmation(result[0].email);
     }
 
     return NextResponse.json({
       success: true,
       message: 'Added to waitlist',
       email: result[0].email,
-      isNewSignup,
-      emailSent,
-      emailStatus,
     });
   } catch (error: unknown) {
     if (error instanceof Error) {

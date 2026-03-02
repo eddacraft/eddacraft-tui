@@ -26,21 +26,9 @@ async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
     });
     const data = (await response.json()) as {
       error?: string;
-      emailSent?: boolean;
-      emailStatus?: string;
     };
     if (!response.ok) {
       return { success: false, error: data.error || 'Failed to join waitlist' };
-    }
-
-    if (data.emailSent === false) {
-      return {
-        success: true,
-        warning:
-          data.emailStatus === 'skipped_existing'
-            ? '[ INFO ] Already on waitlist. Use your original confirmation email.'
-            : '[ WARN ] Access request saved. Confirmation email delayed.',
-      };
     }
 
     return { success: true };
