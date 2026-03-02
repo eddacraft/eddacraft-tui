@@ -19,7 +19,7 @@ docs/
 ├── MONOREPO_STRUCTURE.md   # Repository layout
 ├── TESTING.md              # Test strategy and practices
 ├── architecture/           # Architecture deep-dives
-├── guides/                 # Internal development guides
+├── guides/                 # Internal development guides + runbooks
 ├── specifications/         # Technical specifications
 └── archive/                # Historical documents (read-only reference)
 ```
@@ -35,6 +35,7 @@ docs/
 
 - [TESTING.md](TESTING.md) - Test strategy and practices
 - [guides/](guides/) - Development guides
+- [guides/runbooks/README.md](guides/runbooks/README.md) - Operations runbooks
 
 ### Specifications
 

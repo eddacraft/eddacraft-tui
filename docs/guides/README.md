@@ -1,6 +1,6 @@
 # Development Guides
 
-**Last Updated:** 2026-01-19
+**Last Updated:** 2026-03-02
 
 ## Overview
 
@@ -32,6 +32,11 @@ How-to guides for developers working on Anvil.
 
 - [Custom Architecture Policies](custom-architecture-policies.md) - Writing
   custom OPA policies
+
+### Runbooks
+
+- [Runbooks Index](runbooks/README.md) - Operational playbooks
+- [Waitlist Email Operations](waitlist-email-operations.md) - Admin resend + delivery debugging
 
 ## Quick Links
 
