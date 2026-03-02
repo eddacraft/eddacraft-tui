@@ -125,22 +125,29 @@ E2E, TUI E2E) run separately and do not contribute to line coverage.
 | `@eddacraft/anvil-adapters`             |     83.4% |     70.9% |                             12 | Unit                   |
 | `@eddacraft/anvil-edda-stack`           |     42.8% |     25.8% |                              5 | Unit                   |
 | `@eddacraft/anvil-kindling-integration` |     43.8% |     23.4% |                              1 | Unit                   |
-| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |                       4[^1] | Unit                   |
+| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |                          4[^1] | Unit                   |
 | `anvil-vscode`                          |     62.5% |     43.9% |                              7 | Unit                   |
-| `eslint-plugin-anvil`                   |   --[^2] |   --[^2] |                              3 | Unit                   |
+| `eslint-plugin-anvil`                   |    --[^2] |    --[^2] |                              3 | Unit                   |
 | `contracts`                             |      100% |      100% |                              1 | Unit                   |
-| `ports`                                 |  N/A[^3] |  N/A[^3] |                              0 | --                     |
+| `ports`                                 |   N/A[^3] |   N/A[^3] |                              0 | --                     |
 | `core`                                  |     83.4% |     73.3% |                             35 | Unit                   |
 | `runtime`                               |     60.3% |     53.0% |               24 unit, 2 integ | Unit, Integration      |
 | `policy`                                |     76.4% |     67.2% |                              5 | Unit                   |
 | `platform-config`                       |      100% |      100% |                              2 | Unit                   |
 | `platform-storage`                      |     90.5% |     79.2% |                              1 | Unit                   |
-| `platform-crypto`                       |   0%[^4] |   0%[^4] |                              0 | --                     |
+| `platform-crypto`                       |    0%[^4] |    0%[^4] |                              0 | --                     |
 | **Monorepo total**                      | **64.0%** | **53.8%** |                        **176** |                        |
 
-[^1]: `mcp-server` runs 4 of 12 test files — remaining tool tests have pre-existing failures from mock paths that need updating.
-[^2]: `eslint-plugin` tests run via NX project-level config, not the root vitest config.
+[^1]:
+    `mcp-server` runs 4 of 12 test files — remaining tool tests have
+    pre-existing failures from mock paths that need updating.
+
+[^2]:
+    `eslint-plugin` tests run via NX project-level config, not the root vitest
+    config.
+
 [^3]: `ports` contains pure interface definitions — no executable code to cover.
+
 [^4]: `platform-crypto` has no tests yet.
 
 ### Test type breakdown
