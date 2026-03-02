@@ -4,9 +4,11 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "anvil-mcp-server": "./dist/bin.js",
-    "anvil-mcp-server-http": "./dist/bin-http.js"
+  "publishConfig": {
+    "bin": {
+      "anvil-mcp-server": "./dist/bin.js",
+      "anvil-mcp-server-http": "./dist/bin-http.js"
+    }
   },
   "exports": {
     ".": "./dist/index.js",
