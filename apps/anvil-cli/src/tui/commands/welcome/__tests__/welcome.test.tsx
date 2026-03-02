@@ -138,7 +138,7 @@ describe('Welcome content', () => {
     expect(QUICK_START_OPTIONS).toHaveLength(4);
   });
 
-  it('QUICK_START_OPTIONS includes tutorial command as first option', () => {
+  it('QUICK_START_OPTIONS includes login command as first option', () => {
     const loginOption = QUICK_START_OPTIONS.find((o) => o.key === 'login');
     expect(loginOption).toBeDefined();
     expect(loginOption?.command).toBe('anvil login');
