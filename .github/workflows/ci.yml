@@ -90,6 +90,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Azure Login
+        uses: azure/login@v2
+        continue-on-error: true
+        with:
+          creds:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+
       - name: Set Nx SHAs
         uses: nrwl/nx-set-shas@v4
 
@@ -132,6 +141,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Azure Login
+        uses: azure/login@v2
+        continue-on-error: true
+        with:
+          creds:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
+
       - name: Set Nx SHAs
         uses: nrwl/nx-set-shas@v4
 
@@ -171,6 +189,15 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Azure Login
+        uses: azure/login@v2
+        continue-on-error: true
+        with:
+          creds:
+            '{"clientId":"${{ secrets.ARM_CLIENT_ID }}","clientSecret":"${{
+            secrets.ARM_CLIENT_SECRET }}","subscriptionId":"${{ secrets.ARM_SUBSCRIPTION_ID
+            }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Set Nx SHAs
         uses: nrwl/nx-set-shas@v4
