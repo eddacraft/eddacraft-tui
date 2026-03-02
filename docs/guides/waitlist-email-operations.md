@@ -1,13 +1,15 @@
 # Waitlist Email Operations (Admin)
 
-This guide covers how to preview, test, and resend website waitlist confirmation emails.
+This guide covers how to preview, test, and resend website waitlist confirmation
+emails.
 
 ## What changed
 
 Website waitlist API now returns delivery state so failures are visible:
 
 - `emailSent` (`true`/`false`)
-- `emailStatus` (`sent`, `skipped_existing`, `resend_not_configured`, `provider_error`, etc.)
+- `emailStatus` (`sent`, `skipped_existing`, `resend_not_configured`,
+  `provider_error`, etc.)
 - `isNewSignup` (`true` when first seen in DB)
 
 A new admin endpoint is available to force re-send confirmations:
@@ -89,5 +91,7 @@ curl -X POST https://<your-site>/api/waitlist/resend \
 ## Ops notes
 
 - Standard `/api/waitlist` signup sends confirmation only for new signups.
-- Existing signups are still accepted but always report `emailStatus: skipped_existing` (no new email).
-- Use the authenticated `/api/waitlist/resend` endpoint for explicit re-sends during support/testing.
+- Existing signups are still accepted but always report
+  `emailStatus: skipped_existing` (no new email).
+- Use the authenticated `/api/waitlist/resend` endpoint for explicit re-sends
+  during support/testing.
