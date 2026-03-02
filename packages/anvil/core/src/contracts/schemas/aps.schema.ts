@@ -5,6 +5,37 @@ import { z } from 'zod';
  */
 const SCHEMA_VERSION = '0.1.0' as const;
 
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const safeKey = z.string().refine((k) => !FORBIDDEN_KEYS.has(k), {
+  message: 'Forbidden key — potential prototype pollution',
+});
+
+/**
+ * Build a safe z.record() that rejects __proto__ keys *before* Zod's own
+ * record parsing can strip them (Zod v4 silently drops __proto__ during
+ * internal object construction, so the safeKey refinement alone cannot
+ * catch it).  The superRefine step runs on the raw input, then pipes into
+ * the normal record schema that handles constructor/prototype via safeKey.
+ */
+function safeRecord<V extends z.ZodTypeAny>(valueSchema: V) {
+  return z
+    .unknown()
+    .superRefine((val, ctx) => {
+      if (
+        val !== null &&
+        typeof val === 'object' &&
+        Object.prototype.hasOwnProperty.call(val, '__proto__')
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Forbidden key — potential prototype pollution',
+          path: ['__proto__'],
+        });
+      }
+    })
+    .pipe(z.record(safeKey, valueSchema));
+}
+
 /**
  * Change type enumeration for proposed changes
  */
@@ -28,10 +59,7 @@ export const ChangeSchema = z.object({
   description: z.string().describe('Human-readable description of the change'),
   content: z.string().optional().describe('New content for file changes'),
   diff: z.string().optional().describe('Unified diff for updates'),
-  metadata: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .describe('Additional change-specific metadata'),
+  metadata: safeRecord(z.unknown()).optional().describe('Additional change-specific metadata'),
 });
 
 /**
@@ -54,7 +82,7 @@ export const ValidationSchema = z.object({
   required_checks: z.array(z.string()).default([]).describe('List of required validation checks'),
   policy_version: z.string().optional().describe('Version of the policy bundle to use'),
   skip_checks: z.array(z.string()).default([]).describe('Checks to skip for this plan'),
-  custom_rules: z.record(z.string(), z.unknown()).optional().describe('Custom validation rules'),
+  custom_rules: safeRecord(z.unknown()).optional().describe('Custom validation rules'),
 });
 
 /**
@@ -64,7 +92,7 @@ export const EvidenceEntrySchema = z.object({
   check: z.string().describe('Name of the check performed'),
   status: z.enum(['passed', 'failed', 'skipped', 'warning']).describe('Result status'),
   timestamp: z.string().datetime().describe('When the check was performed'),
-  details: z.record(z.string(), z.unknown()).optional().describe('Detailed check results'),
+  details: safeRecord(z.unknown()).optional().describe('Detailed check results'),
   message: z.string().optional().describe('Human-readable result message'),
 });
 
@@ -77,10 +105,7 @@ export const EvidenceSchema = z.object({
   overall_status: z.enum(['passed', 'failed', 'partial']).describe('Overall gate result'),
   checks: z.array(EvidenceEntrySchema).describe('Individual check results'),
   summary: z.string().optional().describe('Summary of gate execution'),
-  artifacts: z
-    .record(z.string(), z.string())
-    .optional()
-    .describe('Links or references to artifacts'),
+  artifacts: safeRecord(z.string()).optional().describe('Links or references to artifacts'),
 });
 
 /**
@@ -149,10 +174,7 @@ export const APSPlanSchema = z
 
     // Additional metadata
     tags: z.array(z.string()).optional().describe('Tags for categorization and filtering'),
-    metadata: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .describe('Additional plan-specific metadata'),
+    metadata: safeRecord(z.unknown()).optional().describe('Additional plan-specific metadata'),
   })
   .strict(); // Reject unknown properties
 // .brand<'APSPlan'>(); // Brand for nominal typing - disabled for easier testing
