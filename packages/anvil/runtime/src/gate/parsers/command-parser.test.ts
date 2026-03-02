@@ -219,7 +219,7 @@ describe('parseCommand', () => {
 
     it('does not match safeval as eval (word boundary)', () => {
       // The eval regex must be word-bounded to avoid matching safeval, nodeval, etc.
-      const result = parseCommand("node -e \"safeval('rm -rf /tmp')\"");
+      const result = parseCommand('node -e "safeval(\'rm -rf /tmp\')"');
       expect(result.command).toBe('node');
       expect(result.wrapperChain).toEqual([]);
     });
@@ -228,7 +228,7 @@ describe('parseCommand', () => {
       // NOTE: this tests the eval() regex pattern detection in the command parser,
       // not actual code evaluation — the string "eval(...)" is a pattern we detect
       // in interpreter one-liners to extract embedded shell commands
-      const result = parseCommand("node -e \"eval('rm -rf /tmp')\"");
+      const result = parseCommand('node -e "eval(\'rm -rf /tmp\')"');
       expect(result.command).toBe('rm');
       expect(result.wrapperChain).toContain('node');
     });
