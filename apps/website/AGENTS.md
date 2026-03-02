@@ -11,6 +11,9 @@ design follows a **Nordic Terminal** aesthetic — dark, monospace, sharp corner
 
 This is _not_ the documentation site (that lives in `apps/docs-site`).
 
+For waitlist email operations and resend testing, see:
+`docs/guides/waitlist-email-operations.md`.
+
 ## Structure
 
 ```
