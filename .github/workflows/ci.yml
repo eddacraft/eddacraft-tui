@@ -220,13 +220,17 @@ jobs:
   # ── Job 3b: Cross-platform smoke (only when source/deps change) ──
   test-cross-platform:
     name: Unit Tests (Node 20.x, ${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
     needs: detect-changes
     if: needs.detect-changes.outputs.source-changed == 'true'
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        include:
+          - os: macos-latest
+            runner: macos-latest
+          - os: windows-latest
+            runner: windows-latest-8-cores
 
     steps:
       - name: Checkout repository
