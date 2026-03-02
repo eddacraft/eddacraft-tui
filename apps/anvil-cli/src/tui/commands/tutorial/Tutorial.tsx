@@ -30,6 +30,8 @@ interface TutorialProps {
   completedTopics?: string[];
   /** The topic this tutorial instance covers (default: 'core') */
   currentTopic?: string;
+  /** Start on a specific step (default: 'scan'). Useful for testing. */
+  initialStep?: TutorialStepId;
 }
 
 export function Tutorial({
@@ -39,9 +41,10 @@ export function Tutorial({
   tutorials = [],
   completedTopics = [],
   currentTopic = 'core',
+  initialStep,
 }: TutorialProps): React.ReactElement {
   const { exit } = useApp();
-  const [state, setState] = useState<TutorialState>(createInitialTutorialState);
+  const [state, setState] = useState<TutorialState>(() => createInitialTutorialState(initialStep));
 
   const goToStep = useCallback((step: TutorialStepId) => {
     setState((prev) => ({

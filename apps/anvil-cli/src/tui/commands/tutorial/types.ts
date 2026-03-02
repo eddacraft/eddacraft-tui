@@ -81,10 +81,13 @@ export const TutorialProgressSchema = z.object({
   completedTutorials: z.array(z.string()).optional(),
 });
 
-export function createInitialTutorialState(): TutorialState {
+export function createInitialTutorialState(initialStep?: TutorialStepId): TutorialState {
+  const step = initialStep ?? 'scan';
+  const idx = getStepIndex(step);
+  const completed = new Set<TutorialStepId>(TUTORIAL_STEPS.slice(0, idx));
   return {
-    currentStep: 'scan',
-    completedSteps: new Set(),
+    currentStep: step,
+    completedSteps: completed,
     watchTriggered: false,
     fixConfirmed: false,
     startedAt: new Date(),

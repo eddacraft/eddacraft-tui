@@ -32,40 +32,20 @@ const TUTORIALS: TutorialOption[] = [
 
 // resolveTutorialKey and TutorialPicker component tests are in tutorial-picker.test.tsx
 
-describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
+describe('Tutorial continuation key handling', { timeout: 10000 }, () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  async function advanceToLastStep(
-    stdin: { write: (s: string) => void },
-    lastFrame: () => string | undefined
-  ) {
-    const opts = { timeout: 5000 };
-    // Advance scan -> watch
-    stdin.write('\r');
-    await vi.waitFor(() => {
-      expect(lastFrame()).toContain('Step 2 of 4');
-    }, opts);
-    // Advance watch -> fix
-    stdin.write('\r');
-    await vi.waitFor(() => {
-      expect(lastFrame()).toContain('Step 3 of 4');
-    }, opts);
-    // Advance fix -> next-steps
-    stdin.write('\r');
-    await vi.waitFor(() => {
-      expect(lastFrame()).toContain('Step 4 of 4');
-    }, opts);
-  }
-
   it('calls onSelectTutorial with correct topic when valid number key is pressed on last step', async () => {
     const onSelectTutorial = vi.fn();
-    const { stdin, lastFrame } = render(
-      <Tutorial tutorials={TUTORIALS} onSelectTutorial={onSelectTutorial} />
+    const { stdin } = render(
+      <Tutorial
+        initialStep="next-steps"
+        tutorials={TUTORIALS}
+        onSelectTutorial={onSelectTutorial}
+      />
     );
-
-    await advanceToLastStep(stdin, lastFrame);
 
     stdin.write('1');
 
@@ -76,11 +56,13 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
 
   it('does not call onSelectTutorial for invalid number keys on last step', async () => {
     const onSelectTutorial = vi.fn();
-    const { stdin, lastFrame } = render(
-      <Tutorial tutorials={TUTORIALS} onSelectTutorial={onSelectTutorial} />
+    const { stdin } = render(
+      <Tutorial
+        initialStep="next-steps"
+        tutorials={TUTORIALS}
+        onSelectTutorial={onSelectTutorial}
+      />
     );
-
-    await advanceToLastStep(stdin, lastFrame);
 
     stdin.write('9');
 
@@ -90,11 +72,13 @@ describe('Tutorial continuation key handling', { timeout: 30000 }, () => {
 
   it('does not call onSelectTutorial for non-numeric keys on last step', async () => {
     const onSelectTutorial = vi.fn();
-    const { stdin, lastFrame } = render(
-      <Tutorial tutorials={TUTORIALS} onSelectTutorial={onSelectTutorial} />
+    const { stdin } = render(
+      <Tutorial
+        initialStep="next-steps"
+        tutorials={TUTORIALS}
+        onSelectTutorial={onSelectTutorial}
+      />
     );
-
-    await advanceToLastStep(stdin, lastFrame);
 
     stdin.write('x');
 
