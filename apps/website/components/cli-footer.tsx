@@ -66,9 +66,10 @@ export function CLIFooter() {
     { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
     { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
     {
-      text: submitWarning
-        ? `Welcome aboard. Access is queued for ${userEmail}`
-        : `Welcome aboard. We'll be in touch at ${userEmail}`,
+      text:
+        submitWarning && submitWarning.includes('WARN')
+          ? `Welcome aboard. Access is queued for ${userEmail}`
+          : `Welcome aboard. We'll be in touch at ${userEmail}`,
       colorClass: 'text-text-muted',
       delay: 0,
     },

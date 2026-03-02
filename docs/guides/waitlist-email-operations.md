@@ -88,6 +88,6 @@ curl -X POST https://<your-site>/api/waitlist/resend \
 
 ## Ops notes
 
-- Standard waitlist signup sends confirmation only for new signups by default.
-- Existing signups are still accepted but report `emailStatus: skipped_existing`.
-- Use `/api/waitlist/resend` for explicit re-send during support/testing.
+- Standard `/api/waitlist` signup sends confirmation only for new signups.
+- Existing signups are still accepted but always report `emailStatus: skipped_existing` (no new email).
+- Use the authenticated `/api/waitlist/resend` endpoint for explicit re-sends during support/testing.

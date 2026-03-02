@@ -24,13 +24,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
-    const { email, resend } = body as { email?: unknown; resend?: unknown };
+    const { email } = body as { email?: unknown };
 
     if (!email || typeof email !== 'string') {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
-
-    const shouldResend = resend === true;
 
     const trimmedEmail = email.trim();
     if (trimmedEmail.length > 254) {
@@ -56,12 +54,11 @@ export async function POST(request: Request) {
     }
 
     const isNewSignup = result[0].is_new;
-    const shouldSendEmail = isNewSignup || shouldResend;
 
     let emailSent = false;
-    let emailStatus: string = shouldSendEmail ? 'pending' : 'skipped_existing';
+    let emailStatus: string = isNewSignup ? 'pending' : 'skipped_existing';
 
-    if (shouldSendEmail) {
+    if (isNewSignup) {
       const delivery = await sendWaitlistConfirmation(result[0].email);
       emailSent = delivery.sent;
       emailStatus = delivery.sent ? 'sent' : delivery.code || 'failed';
