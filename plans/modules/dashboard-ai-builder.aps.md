@@ -2,7 +2,7 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| DASHAI | @eddacraft | Ready |
+| DASHAI | @eddacraft | Draft |
 
 ## Purpose
 

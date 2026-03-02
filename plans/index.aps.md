@@ -385,11 +385,11 @@ Task-level detail for all completed work is archived in
 | [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 | — |
 | [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — | — |
 | [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 | — |
-| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | In Progress | 4/5 | — |
+| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | 5/5 | — |
 | [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | 5/5 | forge-hook-agent |
-| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Ready | 0/5 | forge-negotiation |
+| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
-| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | In Progress | 5/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
+| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 6/29 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
@@ -405,7 +405,7 @@ waves; 39 tasks total.
 | [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Ready | 0/9 | 2 | dashboard-foundation |
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | 0/8 | 2 | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | 0/7 | 3 | dashboard-foundation |
-| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Ready | 0/6 | 4 | dashboard-foundation |
+| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Draft | 0/6 | 4 | dashboard-foundation |
 
 ### Planned — 0.3.0 (Organisational Policy Governance)
 
