@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (14/29) |
-<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-015, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (16/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-012, CRB-014, CRB-015, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -347,7 +347,16 @@ Change status to **Ready** when:
   regression coverage)
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
+- **Completed:** 2026-03-02
+- **Notes:** 52 tests added across two files — 22 for git-status (argument
+  composition with special paths, status code parsing, filtering) and 30 for
+  git-agent (pure function tests for trailer parsing/extraction/formatting plus
+  real temp repo tests for git-calling functions). Also fixed two source bugs
+  uncovered by testing: `stdout.trim()` → `stdout.trimEnd()` in
+  `getFileStatus` (was stripping status code leading space), and rewrote
+  `parseCommitTrailers` bottom-up algorithm (was requiring trailing blank line
+  after trailers).
 
 ---
 
@@ -535,9 +544,11 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
-- **Notes:** Integrators may assume file/env config loading exists when it does
-  not. Resolving the status mismatch is the minimum fix.
+- **Status:** Complete
+- **Completed:** 2026-03-02
+- **Notes:** Corrected `packages/platform/README.md` status from "Complete" to
+  "Placeholder". Integrators may assume file/env config loading exists when it
+  does not; the status mismatch is now resolved.
 
 ---
 

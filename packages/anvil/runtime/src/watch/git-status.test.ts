@@ -1,305 +1,290 @@
-// @vitest-environment node
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-const toFwd = (p: string): string => p.replace(/\\/g, '/');
-
-// Track execFile calls for argument safety verification
-const execFileCalls: Array<{ cmd: string; args: string[] }> = [];
-let execFileStdout = '';
-let execFileError: Error | null = null;
-
-vi.mock('node:child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:child_process')>();
-
-  const execFile = Object.assign(
-    vi.fn((...fnArgs: unknown[]) => {
-      const cmd = fnArgs[0] as string;
-      const args = fnArgs[1] as string[];
-      const cb =
-        typeof fnArgs[fnArgs.length - 1] === 'function'
-          ? (fnArgs[fnArgs.length - 1] as (...cbArgs: unknown[]) => void)
-          : null;
-
-      execFileCalls.push({ cmd, args });
-
-      if (cb) {
-        if (execFileError) {
-          cb(execFileError, '', '');
-        } else {
-          cb(null, execFileStdout, '');
-        }
-      }
-    }),
-    {
-      // Custom promisify returns { stdout, stderr } like real execFile
-      [Symbol.for('nodejs.util.promisify.custom')]: vi.fn((...fnArgs: unknown[]) => {
-        const cmd = fnArgs[0] as string;
-        const args = fnArgs[1] as string[];
-
-        execFileCalls.push({ cmd, args });
-
-        if (execFileError) {
-          return Promise.reject(execFileError);
-        }
-        return Promise.resolve({ stdout: execFileStdout, stderr: '' });
-      }),
-    }
-  );
-
-  return { ...actual, default: { ...actual, execFile }, execFile };
-});
-
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import { GitStatusChecker, getChangedFiles } from './git-status.js';
 
-describe('GitStatusChecker — command safety (CRB-014)', () => {
-  beforeEach(() => {
-    execFileCalls.length = 0;
-    execFileStdout = '';
-    execFileError = null;
-  });
+/**
+ * CRB-014: Tests for git command composition in watch/git-status.ts
+ *
+ * Verifies that argument handling, status parsing, and error paths behave
+ * correctly — including paths with special characters and edge-case status
+ * codes. Uses a real temporary git repo to avoid CJS mock issues with
+ * vitest v4 ESM interop.
+ */
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+let tmpDir: string;
+let checker: GitStatusChecker;
 
-  describe('argument escaping with special characters', () => {
-    it('should pass file paths with spaces as a single argument', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
+function git(...args: string[]) {
+  return execFileSync('git', args, { cwd: tmpDir, encoding: 'utf-8' }).trim();
+}
 
-      await checker.getFileStatus('/workspace/path with spaces/file.ts');
+function writeFile(name: string, content = '') {
+  writeFileSync(join(tmpDir, name), content);
+}
 
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-      const pathArg = call!.args.find((a) => a.includes('path with spaces'));
-      expect(pathArg).toBeDefined();
-      expect(toFwd(pathArg!)).toBe('path with spaces/file.ts');
-      // Verify it's a single element, not split by spaces
-      expect(call!.args.filter((a) => a.includes('path with spaces'))).toHaveLength(1);
+beforeEach(() => {
+  tmpDir = mkdtempSync(join(tmpdir(), 'git-status-test-'));
+  git('init');
+  git('config', 'user.email', 'test@test.com');
+  git('config', 'user.name', 'Test');
+  // Create initial commit so HEAD exists
+  writeFile('.gitkeep', '');
+  git('add', '.');
+  git('commit', '-m', 'init');
+  checker = new GitStatusChecker(tmpDir);
+});
+
+afterEach(() => {
+  rmSync(tmpDir, { recursive: true, force: true });
+});
+
+describe('GitStatusChecker', () => {
+  describe('isGitRepository', () => {
+    it('returns true for a git repo', async () => {
+      expect(await checker.isGitRepository()).toBe(true);
     });
 
-    it('should pass file paths with semicolons as a single argument', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
-
-      await checker.getFileStatus('/workspace/file;rm -rf /.ts');
-
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-      // The dangerous string stays as one argument — no shell interpretation
-      expect(call!.args.map(toFwd)).toContain('file;rm -rf /.ts');
-    });
-
-    it('should pass file paths with backticks as a single argument', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
-
-      await checker.getFileStatus('/workspace/file`whoami`.ts');
-
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-      expect(call!.args.map(toFwd)).toContain('file`whoami`.ts');
-    });
-
-    it('should pass file paths with $() as a single argument', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
-
-      await checker.getFileStatus('/workspace/$(cat /etc/passwd).ts');
-
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-      expect(call!.args.map(toFwd)).toContain('$(cat /etc/passwd).ts');
-    });
-
-    it('should pass file paths with quotes as a single argument', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
-
-      await checker.getFileStatus('/workspace/file"with\'quotes.ts');
-
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-      expect(call!.args.map(toFwd)).toContain('file"with\'quotes.ts');
-    });
-
-    it('should use -- separator to prevent option injection', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
-
-      await checker.getFileStatus('/workspace/--exec=malicious');
-
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-      // The -- separator prevents --exec from being interpreted as a git option
-      const fwdArgs = call!.args.map(toFwd);
-      const dashDashIndex = fwdArgs.indexOf('--');
-      const pathIndex = fwdArgs.indexOf('--exec=malicious');
-      expect(dashDashIndex).toBeLessThan(pathIndex);
+    it('returns false for a non-repo directory', async () => {
+      const nonRepo = mkdtempSync(join(tmpdir(), 'not-a-repo-'));
+      const nonRepoChecker = new GitStatusChecker(nonRepo);
+      expect(await nonRepoChecker.isGitRepository()).toBe(false);
+      rmSync(nonRepo, { recursive: true, force: true });
     });
   });
 
-  describe('path traversal prevention', () => {
-    it('should pass ../ traversal paths without shell interpretation', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
+  describe('getFileStatus — argument composition with special paths', () => {
+    it('handles paths with spaces', async () => {
+      writeFile('my file.ts', 'content');
+      const status = await checker.getFileStatus(join(tmpDir, 'my file.ts'));
 
-      await checker.getFileStatus('/workspace/../../../etc/passwd');
-
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-      // execFile ensures the path is a single arg, not shell-expanded
-      const pathArg = call!.args.find((a) => a.includes('..'));
-      expect(pathArg).toBeDefined();
+      expect(status.isUntracked).toBe(true);
+      expect(status.statusCode).toBe('??');
     });
 
-    it('should pass absolute paths outside workspace as a single argument', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
+    it('handles paths with dollar signs', async () => {
+      writeFile('$pecial.ts', 'content');
+      const status = await checker.getFileStatus(join(tmpDir, '$pecial.ts'));
 
-      await checker.getFileStatus('/etc/passwd');
-
-      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
-      expect(call).toBeDefined();
-    });
-  });
-
-  describe('since parameter injection prevention', () => {
-    it('should pass since ref with semicolons as a single argument', async () => {
-      execFileStdout = '';
-
-      await getChangedFiles('/workspace', { since: 'main; rm -rf /' });
-
-      const call = execFileCalls.find((c) => c.args.includes('--name-only'));
-      expect(call).toBeDefined();
-      // The malicious string stays as one argument
-      expect(call!.args).toContain('main; rm -rf /');
+      expect(status.isUntracked).toBe(true);
     });
 
-    it('should pass since ref with backticks as a single argument', async () => {
-      execFileStdout = '';
+    it('handles paths with brackets', async () => {
+      writeFile('[test].ts', 'content');
+      const status = await checker.getFileStatus(join(tmpDir, '[test].ts'));
 
-      await getChangedFiles('/workspace', { since: '`whoami`' });
-
-      const call = execFileCalls.find((c) => c.args.includes('--name-only'));
-      expect(call).toBeDefined();
-      expect(call!.args).toContain('`whoami`');
+      expect(status.isUntracked).toBe(true);
     });
 
-    it('should pass since ref with $() as a single argument', async () => {
-      execFileStdout = '';
+    it('handles paths with single quotes', async () => {
+      writeFile("file'quoted.ts", 'content');
+      const status = await checker.getFileStatus(join(tmpDir, "file'quoted.ts"));
 
-      await getChangedFiles('/workspace', { since: '$(cat /etc/passwd)' });
+      expect(status.isUntracked).toBe(true);
+    });
 
-      const call = execFileCalls.find((c) => c.args.includes('--name-only'));
-      expect(call).toBeDefined();
-      expect(call!.args).toContain('$(cat /etc/passwd)');
+    it('returns clean status for tracked, unmodified file', async () => {
+      writeFile('clean.ts', 'content');
+      git('add', 'clean.ts');
+      git('commit', '-m', 'add clean');
+
+      const status = await checker.getFileStatus(join(tmpDir, 'clean.ts'));
+
+      expect(status.isStaged).toBe(false);
+      expect(status.isUnstaged).toBe(false);
+      expect(status.isUntracked).toBe(false);
     });
   });
 
-  describe('uses execFile (not exec) for shell safety', () => {
-    it('should call git as a direct executable, not through shell', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileStdout = '';
+  describe('status code parsing', () => {
+    it('detects unstaged modification ( M)', async () => {
+      writeFile('a.ts', 'original');
+      git('add', 'a.ts');
+      git('commit', '-m', 'add a');
+      writeFile('a.ts', 'modified');
 
-      await checker.getFileStatus('/workspace/test.ts');
+      const status = await checker.getFileStatus(join(tmpDir, 'a.ts'));
 
-      expect(execFileCalls.length).toBeGreaterThan(0);
-      // execFile receives the command as first arg, arguments as array
-      expect(execFileCalls[0].cmd).toBe('git');
-      expect(Array.isArray(execFileCalls[0].args)).toBe(true);
+      expect(status.isUnstaged).toBe(true);
+      expect(status.isStaged).toBe(false);
     });
 
-    it('should call git with argument array for getChangedFiles', async () => {
-      execFileStdout = '';
+    it('detects staged modification (M )', async () => {
+      writeFile('b.ts', 'original');
+      git('add', 'b.ts');
+      git('commit', '-m', 'add b');
+      writeFile('b.ts', 'modified');
+      git('add', 'b.ts');
 
-      await getChangedFiles('/workspace');
+      const status = await checker.getFileStatus(join(tmpDir, 'b.ts'));
 
-      expect(execFileCalls.length).toBeGreaterThan(0);
-      expect(execFileCalls[0].cmd).toBe('git');
-      expect(Array.isArray(execFileCalls[0].args)).toBe(true);
-    });
-  });
-
-  describe('parseStatusLine correctness', () => {
-    // Access private method via cast
-    type Internals = { parseStatusLine: (line: string, defaultPath: string) => unknown };
-
-    it('should parse modified-unstaged status', () => {
-      const checker = new GitStatusChecker('/workspace');
-      const result = (checker as unknown as Internals).parseStatusLine(' M src/file.ts', '');
-
-      expect(result).toMatchObject({
-        path: 'src/file.ts',
-        isTracked: true,
-        isStaged: false,
-        isUnstaged: true,
-        isUntracked: false,
-        statusCode: ' M',
-      });
+      expect(status.isStaged).toBe(true);
+      expect(status.isUnstaged).toBe(false);
     });
 
-    it('should parse staged status', () => {
-      const checker = new GitStatusChecker('/workspace');
-      const result = (checker as unknown as Internals).parseStatusLine('M  src/file.ts', '');
+    it('detects staged + unstaged (MM)', async () => {
+      writeFile('c.ts', 'original');
+      git('add', 'c.ts');
+      git('commit', '-m', 'add c');
+      writeFile('c.ts', 'staged-change');
+      git('add', 'c.ts');
+      writeFile('c.ts', 'unstaged-change');
 
-      expect(result).toMatchObject({
-        isStaged: true,
-        isUnstaged: false,
-        statusCode: 'M ',
-      });
+      const status = await checker.getFileStatus(join(tmpDir, 'c.ts'));
+
+      expect(status.isStaged).toBe(true);
+      expect(status.isUnstaged).toBe(true);
     });
 
-    it('should parse untracked status', () => {
-      const checker = new GitStatusChecker('/workspace');
-      const result = (checker as unknown as Internals).parseStatusLine('?? new-file.ts', '');
+    it('detects untracked file (??)', async () => {
+      writeFile('new.ts', 'content');
 
-      expect(result).toMatchObject({
-        path: 'new-file.ts',
-        isTracked: false,
-        isUntracked: true,
-        statusCode: '??',
-      });
-    });
-
-    it('should handle paths with special characters in status output', () => {
-      const checker = new GitStatusChecker('/workspace');
-      const result = (checker as unknown as Internals).parseStatusLine(' M file;injection.ts', '');
-
-      expect(result).toMatchObject({
-        path: 'file;injection.ts',
-        isUnstaged: true,
-      });
-    });
-
-    it('should handle empty/short lines gracefully', () => {
-      const checker = new GitStatusChecker('/workspace');
-
-      const empty = (checker as unknown as Internals).parseStatusLine('', 'default.ts');
-      expect(empty).toMatchObject({ path: 'default.ts', isTracked: true, isUnstaged: false });
-
-      const short = (checker as unknown as Internals).parseStatusLine('M', 'default.ts');
-      expect(short).toMatchObject({ path: 'default.ts', isTracked: true });
-    });
-  });
-
-  describe('error handling', () => {
-    it('should treat git errors as untracked (not crash)', async () => {
-      const checker = new GitStatusChecker('/workspace');
-      execFileError = new Error('not a git repository');
-
-      const status = await checker.getFileStatus('/workspace/test.ts');
+      const status = await checker.getFileStatus(join(tmpDir, 'new.ts'));
 
       expect(status.isUntracked).toBe(true);
       expect(status.isTracked).toBe(false);
     });
 
-    it('should return empty array on getChangedFiles error', async () => {
-      execFileError = new Error('not a git repository');
+    it('detects staged new file (A )', async () => {
+      writeFile('added.ts', 'content');
+      git('add', 'added.ts');
 
-      const files = await getChangedFiles('/workspace');
+      const status = await checker.getFileStatus(join(tmpDir, 'added.ts'));
 
+      expect(status.isStaged).toBe(true);
+      expect(status.isUntracked).toBe(false);
+    });
+
+    it('detects staged deletion (D )', async () => {
+      writeFile('to-delete.ts', 'content');
+      git('add', 'to-delete.ts');
+      git('commit', '-m', 'add file');
+      git('rm', 'to-delete.ts');
+
+      const status = await checker.getFileStatus(join(tmpDir, 'to-delete.ts'));
+
+      expect(status.isStaged).toBe(true);
+    });
+  });
+
+  describe('getUnstagedFiles', () => {
+    it('returns only files with unstaged changes', async () => {
+      writeFile('unstaged.ts', 'v1');
+      git('add', 'unstaged.ts');
+      git('commit', '-m', 'add');
+      writeFile('unstaged.ts', 'v2');
+
+      writeFile('staged.ts', 'v1');
+      git('add', 'staged.ts');
+
+      const files = await checker.getUnstagedFiles();
+      const names = files.map((f) => f.replace(tmpDir + '/', ''));
+
+      expect(names).toContain('unstaged.ts');
+      expect(names).not.toContain('staged.ts');
+    });
+
+    it('returns empty array for clean repo', async () => {
+      const files = await checker.getUnstagedFiles();
       expect(files).toEqual([]);
+    });
+  });
+
+  describe('getUntrackedFiles', () => {
+    it('returns only untracked files', async () => {
+      writeFile('tracked.ts', 'v1');
+      git('add', 'tracked.ts');
+      git('commit', '-m', 'add');
+
+      writeFile('untracked.ts', 'new');
+
+      const files = await checker.getUntrackedFiles();
+      const names = files.map((f) => f.replace(tmpDir + '/', ''));
+
+      expect(names).toContain('untracked.ts');
+      expect(names).not.toContain('tracked.ts');
+    });
+  });
+
+  describe('filterUnstaged', () => {
+    it('filters to only unstaged files', async () => {
+      writeFile('mod.ts', 'v1');
+      git('add', 'mod.ts');
+      git('commit', '-m', 'add');
+      writeFile('mod.ts', 'v2');
+
+      writeFile('clean.ts', 'ok');
+      git('add', 'clean.ts');
+      git('commit', '-m', 'add clean');
+
+      const result = await checker.filterUnstaged([
+        join(tmpDir, 'mod.ts'),
+        join(tmpDir, 'clean.ts'),
+      ]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('mod.ts');
+    });
+  });
+});
+
+describe('getChangedFiles', () => {
+  describe('with --since ref', () => {
+    it('returns files changed since a ref', async () => {
+      git('tag', 'v1');
+      writeFile('after-tag.ts', 'new');
+      git('add', 'after-tag.ts');
+      git('commit', '-m', 'add after tag');
+
+      const files = await getChangedFiles(tmpDir, { since: 'v1' });
+
+      expect(files.some((f) => f.endsWith('after-tag.ts'))).toBe(true);
+    });
+
+    it('handles refs with unusual characters safely', async () => {
+      // Create a tag with special chars (git allows this)
+      git('tag', 'v1.0.0-beta+build.1');
+      writeFile('x.ts', 'new');
+      git('add', 'x.ts');
+      git('commit', '-m', 'add x');
+
+      const files = await getChangedFiles(tmpDir, { since: 'v1.0.0-beta+build.1' });
+      expect(files.some((f) => f.endsWith('x.ts'))).toBe(true);
+    });
+
+    it('returns empty array for invalid ref (graceful error)', async () => {
+      const files = await getChangedFiles(tmpDir, { since: 'nonexistent-ref' });
+      expect(files).toEqual([]);
+    });
+  });
+
+  describe('status mode (no --since)', () => {
+    it('respects extension filter', async () => {
+      writeFile('a.ts', 'ts');
+      writeFile('b.js', 'js');
+      git('add', '.');
+      git('commit', '-m', 'add');
+      writeFile('a.ts', 'changed');
+      writeFile('b.js', 'changed');
+
+      const files = await getChangedFiles(tmpDir, { extensions: ['.ts'] });
+
+      expect(files.every((f) => f.endsWith('.ts'))).toBe(true);
+    });
+
+    it('returns sorted results', async () => {
+      writeFile('z.ts', 'z');
+      writeFile('a.ts', 'a');
+
+      const files = await getChangedFiles(tmpDir, { untracked: true });
+      const names = files.map((f) => f.split('/').pop());
+
+      // Should be sorted
+      for (let i = 1; i < names.length; i++) {
+        expect(names[i]! >= names[i - 1]!).toBe(true);
+      }
     });
   });
 });

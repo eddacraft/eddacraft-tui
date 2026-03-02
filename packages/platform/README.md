@@ -57,14 +57,14 @@ const planId = generatePlanId(); // 'aps-a1b2c3d4'
 
 ## Migration Status
 
-| Package   | Status   | Source           |
-| --------- | -------- | ---------------- |
-| config    | Stub     | New              |
-| storage   | Complete | New              |
-| crypto    | Complete | core/src/crypto/ |
-| telemetry | Pending  | New              |
-| auth      | Pending  | New              |
-| http      | Pending  | New              |
+| Package   | Status      | Source           |
+| --------- | ----------- | ---------------- |
+| config    | Placeholder | New              |
+| storage   | Complete    | New              |
+| crypto    | Complete    | core/src/crypto/ |
+| telemetry | Pending     | New              |
+| auth      | Pending     | New              |
+| http      | Pending     | New              |
 
 ## Design Principles
 

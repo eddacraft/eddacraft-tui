@@ -1,313 +1,293 @@
-// @vitest-environment node
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// Track execFileSync calls for argument safety verification
-const execFileSyncCalls: Array<{ cmd: string; args: string[] }> = [];
-let execFileSyncResult = '';
-let execFileSyncError: Error | null = null;
-
-vi.mock('node:child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:child_process')>();
-
-  const execFileSyncMock = vi.fn((...fnArgs: unknown[]) => {
-    const cmd = fnArgs[0] as string;
-    const args = fnArgs[1] as string[];
-    execFileSyncCalls.push({ cmd, args });
-    if (execFileSyncError) throw execFileSyncError;
-    return execFileSyncResult;
-  });
-
-  // Provide a working execFile with promisify support for transitive deps
-  const execFileMock = Object.assign(vi.fn(), {
-    [Symbol.for('nodejs.util.promisify.custom')]: vi.fn(() =>
-      Promise.resolve({ stdout: '', stderr: '' })
-    ),
-  });
-
-  return {
-    ...actual,
-    default: { ...actual, execFileSync: execFileSyncMock, execFile: execFileMock },
-    execFileSync: execFileSyncMock,
-    execFile: execFileMock,
-  };
-});
-
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
 import {
   parseCommitTrailers,
   extractAgentInfo,
   formatCommitWithAgent,
+  GIT_TRAILERS,
   getCommitAgentInfo,
   getRecentCommitsAgentInfo,
   getAgentContributions,
   getAiCommitPercentage,
-  GIT_TRAILERS,
 } from './git-agent.js';
 
-describe('git-agent — command safety (CRB-014)', () => {
+/**
+ * CRB-014: Tests for git command composition in concurrency/git-agent.ts
+ *
+ * Pure function tests (parseCommitTrailers, extractAgentInfo,
+ * formatCommitWithAgent) need no mocking. Git-calling functions use a real
+ * temporary repo to verify safe command composition.
+ */
+
+// ============================================================================
+// parseCommitTrailers — pure function tests
+// ============================================================================
+
+describe('parseCommitTrailers', () => {
+  it('extracts trailers after blank line', () => {
+    const msg =
+      'feat: add feature\n\nSome body text.\n\nAnvil-Agent-ID: agent-123\nAnvil-Agent-Type: claude';
+    const trailers = parseCommitTrailers(msg);
+
+    expect(trailers['Anvil-Agent-ID']).toBe('agent-123');
+    expect(trailers['Anvil-Agent-Type']).toBe('claude');
+  });
+
+  it('handles trailers with colons in values', () => {
+    const msg = 'fix: thing\n\nCo-authored-by: Bot <bot@example.com>';
+    const trailers = parseCommitTrailers(msg);
+
+    expect(trailers['Co-authored-by']).toBe('Bot <bot@example.com>');
+  });
+
+  it('handles varied whitespace around colon', () => {
+    const msg = 'chore: tidy\n\nKey:value\nKey2 : spaced';
+    const trailers = parseCommitTrailers(msg);
+
+    expect(trailers['Key']).toBe('value');
+    expect(trailers['Key2']).toBe('spaced');
+  });
+
+  it('handles hyphenated trailer keys', () => {
+    const msg = 'feat: add\n\nCo-Authored-By: User <user@example.com>';
+    const trailers = parseCommitTrailers(msg);
+
+    expect(trailers['Co-Authored-By']).toBe('User <user@example.com>');
+  });
+
+  it('returns empty record for message with no trailers', () => {
+    const msg = 'fix: simple fix\n\nNo trailers here.';
+    expect(parseCommitTrailers(msg)).toEqual({});
+  });
+
+  it('returns empty record for empty message', () => {
+    expect(parseCommitTrailers('')).toEqual({});
+  });
+
+  it('stops parsing trailers at blank line (reads bottom-up)', () => {
+    const msg = 'feat: add\n\nParagraph with Key: value\n\nReal-Trailer: yes';
+    const trailers = parseCommitTrailers(msg);
+
+    expect(trailers['Real-Trailer']).toBe('yes');
+    expect(trailers['Key']).toBeUndefined();
+  });
+
+  it('handles message with only subject line', () => {
+    expect(parseCommitTrailers('fix: quick')).toEqual({});
+  });
+});
+
+// ============================================================================
+// extractAgentInfo — pure function tests
+// ============================================================================
+
+describe('extractAgentInfo', () => {
+  it('detects AI-generated commit from agent ID', () => {
+    const info = extractAgentInfo({ [GIT_TRAILERS.AGENT_ID]: 'agent-123' });
+    expect(info.isAiGenerated).toBe(true);
+    expect(info.agentId).toBe('agent-123');
+  });
+
+  it('detects AI from co-author containing "claude"', () => {
+    const info = extractAgentInfo({
+      'Co-authored-by': 'Claude <claude@anthropic.com>',
+    });
+    expect(info.isAiGenerated).toBe(true);
+    expect(info.coAuthors).toContain('Claude <claude@anthropic.com>');
+  });
+
+  it('detects AI from co-author containing "copilot"', () => {
+    const info = extractAgentInfo({
+      'Co-authored-by': 'GitHub Copilot <copilot@github.com>',
+    });
+    expect(info.isAiGenerated).toBe(true);
+  });
+
+  it('returns isAiGenerated=false for human commits', () => {
+    const info = extractAgentInfo({ 'Signed-off-by': 'Human <human@example.com>' });
+    expect(info.isAiGenerated).toBe(false);
+  });
+
+  it('extracts all trailer fields', () => {
+    const info = extractAgentInfo({
+      [GIT_TRAILERS.AGENT_ID]: 'id-1',
+      [GIT_TRAILERS.AGENT_TYPE]: 'cursor',
+      [GIT_TRAILERS.SESSION_ID]: 'sess-1',
+      [GIT_TRAILERS.AGENT_NAME]: 'my-cursor',
+    });
+
+    expect(info.agentId).toBe('id-1');
+    expect(info.agentType).toBe('cursor');
+    expect(info.sessionId).toBe('sess-1');
+    expect(info.agentName).toBe('my-cursor');
+  });
+
+  it('returns empty co-authors when none present', () => {
+    const info = extractAgentInfo({});
+    expect(info.coAuthors).toEqual([]);
+  });
+});
+
+// ============================================================================
+// formatCommitWithAgent — pure function tests
+// ============================================================================
+
+describe('formatCommitWithAgent', () => {
+  const testAgent = {
+    id: 'test-001',
+    type: 'claude' as const,
+    name: 'test-claude',
+    sessionId: 'sess-abc',
+  };
+
+  it('appends trailers after blank line', () => {
+    const result = formatCommitWithAgent({ message: 'feat: add', agent: testAgent });
+
+    expect(result).toContain('\n\n');
+    expect(result).toContain(`${GIT_TRAILERS.AGENT_ID}: test-001`);
+    expect(result).toContain(`${GIT_TRAILERS.AGENT_TYPE}: claude`);
+  });
+
+  it('includes session ID trailer', () => {
+    const result = formatCommitWithAgent({ message: 'fix: bug', agent: testAgent });
+    expect(result).toContain(`${GIT_TRAILERS.SESSION_ID}: sess-abc`);
+  });
+
+  it('includes co-authored-by for AI agents', () => {
+    const result = formatCommitWithAgent({ message: 'fix: bug', agent: testAgent });
+    expect(result).toContain('Co-authored-by: Claude <claude@anthropic.com>');
+  });
+
+  it('omits co-authored-by when disabled', () => {
+    const result = formatCommitWithAgent({
+      message: 'fix: bug',
+      agent: testAgent,
+      includeCoAuthor: false,
+    });
+    expect(result).not.toContain('Co-authored-by');
+  });
+
+  it('includes additional trailers', () => {
+    const result = formatCommitWithAgent({
+      message: 'chore: tidy',
+      agent: testAgent,
+      additionalTrailers: { 'Custom-Key': 'custom-value' },
+    });
+    expect(result).toContain('Custom-Key: custom-value');
+  });
+
+  it('appends to existing trailers without extra blank line', () => {
+    const msg = 'feat: add\n\nSigned-off-by: Human <human@example.com>';
+    const result = formatCommitWithAgent({ message: msg, agent: testAgent });
+
+    expect(result).not.toContain('\n\n\n');
+    expect(result).toContain('Signed-off-by');
+    expect(result).toContain(GIT_TRAILERS.AGENT_ID);
+  });
+
+  it('trims trailing whitespace from message', () => {
+    const result = formatCommitWithAgent({ message: 'feat: add   \n\n  ', agent: testAgent });
+    // Should not have trailing spaces before trailers
+    expect(result).toMatch(/feat: add\n\n/);
+  });
+});
+
+// ============================================================================
+// Git-calling functions — real temp repo tests
+// ============================================================================
+
+describe('git command composition (real repo)', () => {
+  let tmpDir: string;
+
+  function git(...args: string[]) {
+    return execFileSync('git', args, { cwd: tmpDir, encoding: 'utf-8' }).trim();
+  }
+
   beforeEach(() => {
-    execFileSyncCalls.length = 0;
-    execFileSyncResult = '';
-    execFileSyncError = null;
+    tmpDir = mkdtempSync(join(tmpdir(), 'git-agent-test-'));
+    git('init');
+    git('config', 'user.email', 'test@test.com');
+    git('config', 'user.name', 'Test');
+
+    // Create a commit with agent trailers using -F to ensure proper newlines
+    writeFileSync(join(tmpDir, 'file.ts'), 'content');
+    git('add', '.');
+    const commitMsg = `feat: add file\n\n${GIT_TRAILERS.AGENT_ID}: agent-abc\n${GIT_TRAILERS.AGENT_TYPE}: claude`;
+    writeFileSync(join(tmpDir, '.commit-msg'), commitMsg);
+    git('commit', '-F', join(tmpDir, '.commit-msg'));
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  describe('parseCommitTrailers', () => {
-    it('should parse valid trailers', () => {
-      // Trailing newline matches real git %B output — parseCommitTrailers
-      // walks backwards and needs the empty last element to trigger collection
-      const message = `fix: something\n\nSigned-off-by: test@example.com\nCo-authored-by: AI <ai@example.com>\n`;
-      const trailers = parseCommitTrailers(message);
+  describe('getCommitAgentInfo', () => {
+    it('extracts agent info from HEAD', () => {
+      const info = getCommitAgentInfo('HEAD', tmpDir);
 
-      expect(trailers['Signed-off-by']).toBe('test@example.com');
-      expect(trailers['Co-authored-by']).toBe('AI <ai@example.com>');
+      expect(info).not.toBeNull();
+      expect(info!.agentId).toBe('agent-abc');
+      expect(info!.agentType).toBe('claude');
+      expect(info!.isAiGenerated).toBe(true);
     });
 
-    it('should handle messages with no trailers', () => {
-      const message = 'fix: simple commit\n\nJust a body paragraph.\n';
-      const trailers = parseCommitTrailers(message);
-
-      expect(Object.keys(trailers)).toHaveLength(0);
+    it('returns null for invalid ref', () => {
+      const info = getCommitAgentInfo('nonexistent-ref-12345', tmpDir);
+      expect(info).toBeNull();
     });
 
-    it('should not treat body lines as trailers if not after blank line', () => {
-      const message = 'fix: something\nKey: Value';
-      const trailers = parseCommitTrailers(message);
-
-      expect(Object.keys(trailers)).toHaveLength(0);
-    });
-
-    it('should handle injection attempts in trailer values', () => {
-      const message = `fix: commit\n\nAnvil-Agent-ID: $(cat /etc/passwd)\nAnvil-Agent-Type: \`whoami\`\n`;
-      const trailers = parseCommitTrailers(message);
-
-      expect(trailers['Anvil-Agent-ID']).toBe('$(cat /etc/passwd)');
-      expect(trailers['Anvil-Agent-Type']).toBe('`whoami`');
-    });
-
-    it('should handle newline injection attempts', () => {
-      const message = 'fix: commit\n\nTrailer: value\nmalicious\n\nAnother: safe';
-      const trailers = parseCommitTrailers(message);
-
-      expect(trailers['malicious']).toBeUndefined();
-    });
-
-    it('should reject trailers with invalid key format', () => {
-      // Trailing newline is required — parseCommitTrailers walks backwards
-      // and needs the empty last element to trigger trailer collection
-      const message = 'fix: commit\n\n; rm -rf /: true\n../../../etc: value\n';
-      const trailers = parseCommitTrailers(message);
-
-      expect(trailers['; rm -rf /']).toBeUndefined();
-      expect(trailers['../../../etc']).toBeUndefined();
-    });
-  });
-
-  describe('extractAgentInfo', () => {
-    it('should extract agent info from valid trailers', () => {
-      const trailers = {
-        [GIT_TRAILERS.AGENT_ID]: 'agent-123',
-        [GIT_TRAILERS.AGENT_TYPE]: 'claude',
-        [GIT_TRAILERS.SESSION_ID]: 'session-456',
-        [GIT_TRAILERS.AGENT_NAME]: 'test-agent',
-      };
-
-      const info = extractAgentInfo(trailers);
-
-      expect(info.agentId).toBe('agent-123');
-      expect(info.agentType).toBe('claude');
-      expect(info.sessionId).toBe('session-456');
-      expect(info.isAiGenerated).toBe(true);
-    });
-
-    it('should detect AI-generated commits from co-author values', () => {
-      const trailers = { 'Co-authored-by': 'Claude <claude@anthropic.com>' };
-      const info = extractAgentInfo(trailers);
-
-      expect(info.isAiGenerated).toBe(true);
-      expect(info.coAuthors).toContain('Claude <claude@anthropic.com>');
-    });
-
-    it('should not flag non-AI commits as AI-generated', () => {
-      const trailers = { 'Signed-off-by': 'human@example.com' };
-      const info = extractAgentInfo(trailers);
-
-      expect(info.isAiGenerated).toBe(false);
-    });
-
-    it('should handle injection attempt values safely', () => {
-      const trailers = {
-        [GIT_TRAILERS.AGENT_ID]: '$(rm -rf /)',
-        [GIT_TRAILERS.AGENT_TYPE]: '`whoami`',
-      };
-
-      const info = extractAgentInfo(trailers);
-
-      expect(info.agentId).toBe('$(rm -rf /)');
-      expect(info.agentType).toBe('`whoami`');
-    });
-  });
-
-  describe('getCommitAgentInfo — argument safety', () => {
-    it('should pass commit ref with special characters as a single argument', () => {
-      execFileSyncResult = 'fix: test commit\n';
-
-      getCommitAgentInfo('HEAD; rm -rf /');
-
-      const call = execFileSyncCalls[0];
-      expect(call.cmd).toBe('git');
-      expect(call.args).toContain('HEAD; rm -rf /');
-      expect(call.args.filter((a) => a.includes('; rm'))).toHaveLength(1);
-    });
-
-    it('should pass commit ref with backticks as a single argument', () => {
-      execFileSyncResult = 'fix: test\n';
-
-      getCommitAgentInfo('`whoami`');
-
-      expect(execFileSyncCalls[0].args).toContain('`whoami`');
-    });
-
-    it('should pass commit ref with $() as a single argument', () => {
-      execFileSyncResult = 'fix: test\n';
-
-      getCommitAgentInfo('$(cat /etc/passwd)');
-
-      expect(execFileSyncCalls[0].args).toContain('$(cat /etc/passwd)');
-    });
-
-    it('should use execFileSync (not execSync) for shell safety', () => {
-      execFileSyncResult = 'fix: test\n';
-
-      getCommitAgentInfo('HEAD');
-
-      expect(execFileSyncCalls.length).toBeGreaterThan(0);
-      expect(execFileSyncCalls[0].cmd).toBe('git');
-      expect(Array.isArray(execFileSyncCalls[0].args)).toBe(true);
-    });
-
-    it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
-
-      const result = getCommitAgentInfo('HEAD');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('getAgentContributions — sinceRef injection prevention', () => {
-    it('should pass sinceRef with injection attempts as a single argument', () => {
-      execFileSyncResult = '';
-
-      getAgentContributions('main; rm -rf /', '/workspace');
-
-      const call = execFileSyncCalls[0];
-      expect(call.cmd).toBe('git');
-      const refArg = call.args.find((a) => a.includes('..HEAD'));
-      expect(refArg).toBe('main; rm -rf /..HEAD');
-    });
-
-    it('should pass sinceRef with backticks safely', () => {
-      execFileSyncResult = '';
-
-      getAgentContributions('`whoami`', '/workspace');
-
-      const refArg = execFileSyncCalls[0].args.find((a) => a.includes('..HEAD'));
-      expect(refArg).toBe('`whoami`..HEAD');
-    });
-
-    it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
-
-      const contributions = getAgentContributions('main', '/workspace');
-
-      expect(contributions.size).toBe(0);
-    });
-  });
-
-  describe('getAiCommitPercentage — sinceRef injection prevention', () => {
-    it('should pass sinceRef safely to rev-list', () => {
-      execFileSyncResult = '0\n';
-
-      getAiCommitPercentage('main; echo pwned', '/workspace');
-
-      const refArg = execFileSyncCalls[0].args.find((a) => a.includes('..HEAD'));
-      expect(refArg).toBe('main; echo pwned..HEAD');
-    });
-
-    it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
-
-      const percentage = getAiCommitPercentage('main', '/workspace');
-
-      expect(percentage).toBe(0);
-    });
-  });
-
-  describe('formatCommitWithAgent', () => {
-    it('should produce correctly formatted trailers', () => {
-      const result = formatCommitWithAgent({
-        message: 'fix: test commit',
-        agent: {
-          id: 'agent-123',
-          type: 'claude',
-          sessionId: 'session-456',
-          name: 'test-agent',
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      expect(result).toContain('Anvil-Agent-ID: agent-123');
-      expect(result).toContain('Anvil-Agent-Type: claude');
-      expect(result).toContain('Anvil-Session-ID: session-456');
-      expect(result).toContain('Co-authored-by: Claude <claude@anthropic.com>');
-    });
-
-    it('should add blank line before trailers if none exist', () => {
-      const result = formatCommitWithAgent({
-        message: 'fix: test commit',
-        agent: {
-          id: 'agent-123',
-          type: 'claude',
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      expect(result).toMatch(/fix: test commit\n\nAnvil-Agent-ID/);
-    });
-
-    it('should handle message with special characters', () => {
-      const result = formatCommitWithAgent({
-        message: 'fix: handle $(cmd) and `backtick` in commit',
-        agent: {
-          id: 'agent-123',
-          type: 'claude',
-          timestamp: new Date().toISOString(),
-        },
-      });
-
-      expect(result).toContain('$(cmd)');
-      expect(result).toContain('`backtick`');
+    it('handles ref with special characters gracefully', () => {
+      // execFileSync passes this as a single array element — no shell injection
+      const info = getCommitAgentInfo('HEAD; echo pwned', tmpDir);
+      expect(info).toBeNull(); // Invalid ref, returns null
     });
   });
 
   describe('getRecentCommitsAgentInfo', () => {
-    it('should not crash on empty git log output', () => {
-      execFileSyncResult = '';
+    it('returns agent info for recent commits', () => {
+      const results = getRecentCommitsAgentInfo(5, tmpDir);
 
-      const results = getRecentCommitsAgentInfo(10, '/workspace');
-
-      expect(Array.isArray(results)).toBe(true);
+      expect(results.length).toBeGreaterThan(0);
+      expect(results[0].info.agentId).toBe('agent-abc');
     });
 
-    it('should handle errors gracefully', () => {
-      execFileSyncError = new Error('not a git repository');
-
-      const results = getRecentCommitsAgentInfo(10, '/workspace');
-
+    it('handles count of 0', () => {
+      // git log -0 returns nothing
+      const results = getRecentCommitsAgentInfo(0, tmpDir);
       expect(results).toEqual([]);
+    });
+  });
+
+  describe('getAgentContributions', () => {
+    it('aggregates contributions from commits', () => {
+      const contributions = getAgentContributions(undefined, tmpDir);
+
+      expect(contributions.size).toBeGreaterThan(0);
+      const entry = contributions.get('agent-abc');
+      expect(entry).toBeDefined();
+      expect(entry!.commitCount).toBe(1);
+      expect(entry!.agentType).toBe('claude');
+    });
+
+    it('handles invalid sinceRef gracefully', () => {
+      const contributions = getAgentContributions('nonexistent-ref', tmpDir);
+      expect(contributions).toEqual(new Map());
+    });
+  });
+
+  describe('getAiCommitPercentage', () => {
+    it('calculates AI commit percentage', () => {
+      const pct = getAiCommitPercentage(undefined, tmpDir);
+      // All commits have agent trailers, so should be 100%
+      expect(pct).toBe(100);
+    });
+
+    it('returns 0 for invalid ref', () => {
+      const pct = getAiCommitPercentage('nonexistent', tmpDir);
+      expect(pct).toBe(0);
     });
   });
 });

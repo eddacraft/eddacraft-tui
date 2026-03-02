@@ -6,8 +6,8 @@
 
 ## Active Modules
 
-- PBLU: post-beta-launch-uplift (57/57) — Complete
-- CRB: code-review-backlog (13/29) — In Progress
+- PBLU: post-beta-launch-uplift (57/57) — Complete <<<<<<< HEAD
+- CRB: code-review-backlog (16/29) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
