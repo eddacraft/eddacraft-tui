@@ -16,7 +16,7 @@
 - DASHCORE: dashboard-core-views (0/9) — Ready
 - DASHARCH: dashboard-architecture-views (0/8) — Ready
 - DASHOPS: dashboard-ops-views (0/7) — Ready
-- DASHAI: dashboard-ai-builder (0/6) — Ready
+- DASHAI: dashboard-ai-builder (0/6) — Draft
 - OPAE: opa-enhancements (0/36) — Draft
 - ORGHIER: org-policy-hierarchy — Draft
 - POLLC: policy-lifecycle — Draft
