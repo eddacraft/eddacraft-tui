@@ -126,7 +126,7 @@ export function genericToAPS(
 }
 
 export function parseGeneric(content: string, context?: ParseContext): APSPlan {
-  if (content.length > MAX_INPUT_SIZE) {
+  if (Buffer.byteLength(content, 'utf8') > MAX_INPUT_SIZE) {
     throw new Error(`Input exceeds maximum size of ${MAX_INPUT_SIZE} bytes`);
   }
   const document = parseGenericDocument(content);
