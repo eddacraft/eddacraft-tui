@@ -35,12 +35,11 @@ describe('parseGeneric', () => {
       // but whose UTF-8 byte length exceeds it.
       const emoji = '\u{1F600}'; // U+1F600 GRINNING FACE, 4 bytes UTF-8, 2 code units
       const emojiByteLen = Buffer.byteLength(emoji, 'utf8'); // 4
-      const emojiCodeUnits = emoji.length; // 2
 
       // We need: count * emojiByteLen > MAX_INPUT_SIZE
-      //          count * emojiCodeUnits <= MAX_INPUT_SIZE  (old check would pass)
+      //          count * emoji.length  <= MAX_INPUT_SIZE  (old check would pass)
       // count > MAX_INPUT_SIZE / emojiByteLen
-      // count <= MAX_INPUT_SIZE / emojiCodeUnits
+      // count <= MAX_INPUT_SIZE / emoji.length
       const count = Math.floor(MAX_INPUT_SIZE / emojiByteLen) + 1;
       const content = emoji.repeat(count);
 
