@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (6/29) |
-<!-- Complete: CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (7/29) |
+<!-- Complete: CRB-003, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -243,9 +243,15 @@ Change status to **Ready** when:
 - **Dependencies:** None (Zod is already a project dependency)
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
-- **Notes:** CLIH-002 added Zod validation to CLI-level config YAML parsing.
-  This extends the same pattern to the runtime layer.
+- **Status:** Complete
+- **Notes:** The spec referenced `yaml-parser.ts` and `templates/index.ts` in
+  `packages/anvil/runtime/src/`, but no YAML parsing exists in the runtime
+  package. All YAML parsing lives in `packages/anvil/core/src/architecture/`
+  and already validates against Zod schemas: `ArchitectureDefinitionSchema`
+  (in `definition-schema.ts`) for architecture YAML, and `TemplateFileSchema`
+  (in `templates/index.ts`) for template YAML. CLI-level config YAML
+  (`policy-config.ts`) also uses Zod via `AnvilConfigSchema`. The intent of
+  this item — Zod validation at YAML parse boundaries — is already satisfied.
 
 ---
 
@@ -253,17 +259,25 @@ Change status to **Ready** when:
 
 - **Intent:** Reduce risk from OPA binary resolution and route warnings through
   a consistent logging interface
-- **Expected Outcome:** OPA binary PATH resolution uses a safer lookup method
-  that avoids shell expansion; all `console.warn` calls in the policy check
-  module route through the shared `createDebugger` utility or a structured
-  logger; the binary validation from RT-001 is preserved
-- **Validation:** `grep -rn "console.warn" packages/anvil/runtime/src/gate/checks/policy.check.ts`
+- **Expected Outcome:** All `console.warn` and `console.error` calls in
+  `opa-binary-manager.ts` route through the existing `createDebugger('policy')`
+  instance (already imported at line 19); download progress, checksum
+  verification, and warning messages use the shared debug logger instead of
+  writing directly to stderr; the binary validation from RT-001 is preserved
+- **Validation:** `grep -rn "console\.\(warn\|error\)" packages/anvil/policy/src/opa-binary-manager.ts`
   returns 0 matches
-- **Files:** `packages/anvil/runtime/src/gate/checks/policy.check.ts`
+- **Files:** `packages/anvil/policy/src/opa-binary-manager.ts`
 - **Dependencies:** None (RT-001 already validates ANVIL_OPA_PATH)
-- **Confidence:** medium
+- **Confidence:** high
 - **Priority:** Low
 - **Status:** Draft
+- **Notes:** Original spec referenced `policy.check.ts` in the runtime package,
+  but that file already uses `createDebugger` with zero `console.warn` calls.
+  The actual issue is in `opa-binary-manager.ts` in `packages/anvil/policy/`,
+  which already imports `createDebugger('policy')` and uses it for some paths
+  but bypasses it with 10 raw `console.warn`/`console.error` calls in
+  `downloadBinary()` and `verifyChecksum()`. PATH lookup safety is already
+  resolved (`execFileSync`, no shell expansion).
 
 ---
 
