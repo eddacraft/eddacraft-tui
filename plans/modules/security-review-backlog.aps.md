@@ -12,8 +12,8 @@ Scope: SECB (security backlog)
 
 | ID   | Owner | Status      |
 | ---- | ----- | ----------- |
-| SECB | —     | In Progress (6/8) |
-<!-- Complete: SECB-001, SECB-002, SECB-003, SECB-004, SECB-005, SECB-008 -->
+| SECB | —     | Complete (8/8) |
+<!-- Complete: SECB-001, SECB-002, SECB-003, SECB-004, SECB-005, SECB-006, SECB-007, SECB-008 -->
 
 ## Purpose
 
@@ -208,7 +208,11 @@ Change status to **Ready** when:
 - **Dependencies:** None (Zod is already a project dependency)
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
+- **Notes:** Zod not available in website package — used a more restrictive,
+  RFC 5321-inspired regex requiring a 2+ character TLD and enforcing a
+  254-character maximum address length. Rejects `a@b.c` and other
+  single-character TLD addresses; does not aim to accept every RFC-valid form.
 - **Origin:** REVIEW.md Website M1
 
 ---
@@ -228,7 +232,11 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
+- **Notes:** Added `FORBIDDEN_KEYS` Set and `safeKey` refinement rejecting
+  `__proto__`, `constructor`, `prototype`. Applied to all 4 `z.record()`
+  metadata fields (ChangeSchema, ValidationSchema, EvidenceEntrySchema,
+  APSPlanSchema). Root `.strict()` preserved.
 - **Origin:** REVIEW.md Contracts M1/M2
 
 ---

@@ -31,7 +31,11 @@ export async function POST(request: Request) {
     }
 
     const trimmedEmail = email.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (trimmedEmail.length > 254) {
+      return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
+    }
+    const emailRegex =
+      /^[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-zA-Z0-9!#$%&'*+/=?^_`{|}~-]+)*@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*\.[a-zA-Z]{2,}$/;
     if (!emailRegex.test(trimmedEmail)) {
       return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
     }

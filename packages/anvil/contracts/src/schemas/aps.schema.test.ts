@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   APSPlanSchema,
+  ChangeSchema,
+  ValidationSchema,
+  EvidenceEntrySchema,
+  EvidenceSchema,
   validatePlan,
   createPlan,
   type APSPlan,
@@ -252,6 +256,98 @@ describe('APS Schema', () => {
       expect(plan.proposed_changes[0].type).toBe('config_update');
       expect(plan.validations.required_checks).toEqual(['custom-check']);
       expect(plan.validations.skip_checks).toEqual(['lint']);
+    });
+  });
+
+  describe('prototype pollution protection (SECB-007)', () => {
+    const forbiddenKeys = ['__proto__', 'constructor', 'prototype'];
+
+    it.each(forbiddenKeys)('should reject "%s" key in ChangeSchema.metadata', (key) => {
+      const result = ChangeSchema.safeParse({
+        type: 'file_create',
+        path: 'src/foo.ts',
+        description: 'test',
+        metadata: { [key]: 'malicious' },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it.each(forbiddenKeys)('should reject "%s" key in ValidationSchema.custom_rules', (key) => {
+      const result = ValidationSchema.safeParse({
+        required_checks: [],
+        skip_checks: [],
+        custom_rules: { [key]: true },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it.each(forbiddenKeys)('should reject "%s" key in EvidenceEntrySchema.details', (key) => {
+      const result = EvidenceEntrySchema.safeParse({
+        check: 'lint',
+        status: 'passed',
+        timestamp: new Date().toISOString(),
+        details: { [key]: 'malicious' },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it.each(forbiddenKeys)('should reject "%s" key in EvidenceSchema.artifacts', (key) => {
+      const result = EvidenceSchema.safeParse({
+        gate_version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        overall_status: 'passed',
+        checks: [],
+        artifacts: { [key]: 'value' },
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it.each(forbiddenKeys)('should reject "%s" key in APSPlanSchema.metadata', (key) => {
+      const plan = {
+        id: 'aps-12345678',
+        hash: 'a'.repeat(64),
+        intent: 'Prototype pollution test plan',
+        schema_version: '0.1.0',
+        proposed_changes: [],
+        provenance: validProvenance,
+        validations: { required_checks: [], skip_checks: [] },
+        metadata: { [key]: 'malicious' },
+      };
+      const result = APSPlanSchema.safeParse(plan);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject __proto__ key from JSON-parsed input', () => {
+      // Simulates a real attack vector: JSON.parse preserves __proto__ as an
+      // own property, which the safeKey refinement must catch.
+      const json = `{
+        "id": "aps-12345678",
+        "hash": "${'a'.repeat(64)}",
+        "intent": "Proto pollution via JSON parse",
+        "schema_version": "0.1.0",
+        "proposed_changes": [],
+        "provenance": { "timestamp": "${new Date().toISOString()}", "source": "cli", "version": "1.0.0" },
+        "validations": { "required_checks": [], "skip_checks": [] },
+        "metadata": { "__proto__": "malicious" }
+      }`;
+      const parsed = JSON.parse(json);
+      const result = APSPlanSchema.safeParse(parsed);
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept safe keys in metadata', () => {
+      const plan = {
+        id: 'aps-12345678',
+        hash: 'a'.repeat(64),
+        intent: 'Safe metadata test plan',
+        schema_version: '0.1.0',
+        proposed_changes: [],
+        provenance: validProvenance,
+        validations: { required_checks: [], skip_checks: [] },
+        metadata: { safe_key: 'value', anotherKey: 42 },
+      };
+      const result = APSPlanSchema.safeParse(plan);
+      expect(result.success).toBe(true);
     });
   });
 
