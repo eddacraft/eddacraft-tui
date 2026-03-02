@@ -75,18 +75,18 @@ final integration step that makes the pipeline discoverable and controllable.
 
 ### FTCFG-001: Register Forge env vars and hook in settings.json
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Add Forge configuration defaults and hook registration to the
   Claude Code settings file
-- **Expected Outcome:** `settings.json` includes `CLAUDE_FORGE_ENABLED=false`,
+- **Expected Outcome:** `settings.json` includes `CLAUDE_FORGE_ENABLED=true`,
   `CLAUDE_FORGE_MAX_ROUNDS=3`, `CLAUDE_FORGE_AUTO_DEFER_NITS=true` as defaults,
   and `forge.sh` is registered as a PreToolUse hook
 - **Validation:** `jq '.hooks' .claude/settings.json` shows forge.sh registered;
   env var defaults are present
 - **Files:** `.claude/settings.json`
 - **Confidence:** high
-- **Notes:** `forge.sh` reads env vars with defaults inline; formal
-  `settings.json` registration may exist in source code-env repo
+- **Notes:** All 3 env vars registered in `settings.json` with Forge enabled.
+  CLAUDE.md hook and env var tables updated to reflect `true` state.
 
 ### FTCFG-002: Document Temper GitHub repo variables
 

@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID   | Owner  | Status      |
 | ---- | ------ | ----------- |
-| FNEG | @aneki | In Progress |
+| FNEG | @aneki | Complete |
 
 ## Purpose
 
@@ -74,7 +74,7 @@ auto-deferred if not fixed in round 1.
 
 ### FNEG-001: Extend agent-bus schema with finding fields
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Add forge-specific finding and response fields to the agent-bus
   message schema so structured findings flow through the existing messaging system
 - **Expected Outcome:** `schema.json` supports `forge-finding` message subtype
@@ -83,8 +83,9 @@ auto-deferred if not fixed in round 1.
   schema
 - **Files:** `.claude/agent-bus/schema.json`
 - **Confidence:** high
-- **Notes:** Finding format defined in `forge-reviewer.md` agent spec but formal
-  `schema.json` extension not yet created
+- **Notes:** Added `forgeFinding`, `forgeResponse`, and `forgeSignal` definitions
+  to schema.json. Finding fields: id, file, line, severity, category, description,
+  suggestion, codexAgreed, status. Response fields: findingId, action, reasoning.
 
 ### FNEG-002: Implement round cap enforcement
 

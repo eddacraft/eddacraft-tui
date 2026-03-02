@@ -114,6 +114,7 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 
 ### FORGE-005: Integration test for Forge pipeline
 
+- **Status:** Complete
 - **Intent:** Verify the end-to-end flow from git commit interception through
   negotiation to commit proceeding
 - **Expected Outcome:** A test scenario demonstrates: hook fires, reviewer
@@ -122,3 +123,7 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
   without errors and produces a Forge report
 - **Dependencies:** FORGE-001, FORGE-002, FORGE-003, FORGE-004
 - **Confidence:** medium
+- **Notes:** Manual walkthrough verified: hook blocks on `git commit`, creates
+  signal/diff/report artefacts, forge-report.sh appends findings and completion
+  summary. Guard paths tested: disabled toggle, non-commit commands, amend,
+  no-verify, non-Bash tool — all pass silently.
