@@ -246,9 +246,9 @@ Pushing the `v0.1.0` tag triggers `.github/workflows/publish.yml` which:
       gh release view v0.1.0
       # Should show release notes and tag
 5.  Verify docs site is live:
-      curl -s https://docs.eddacraft.com | head -1
+      curl -s https://docs.eddacraft.ai | head -1
 6.  Verify website is live:
-      curl -s https://anvil.eddacraft.com | head -1
+      curl -s https://anvil.eddacraft.ai | head -1
 ```
 
 ### Phase 5: Announcement & Distribution

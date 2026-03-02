@@ -259,7 +259,7 @@ workspace root.
 
 **File:** `src/services/api-client.ts:13`
 
-**Fixed:** Default changed to `https://api.eddacraft.com`. Still overridable via
+**Fixed:** Default changed to `https://api.eddacraft.ai`. Still overridable via
 `ANVIL_API_URL` environment variable.
 
 ### ~~M4. Missing email validation in beta command~~ ✅
