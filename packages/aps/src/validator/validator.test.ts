@@ -116,6 +116,24 @@ describe('validatePlanningDoc', () => {
     });
   });
 
+  describe('path-containment rule', () => {
+    it('should error when module link escapes the project directory', async () => {
+      const result = await validatePlanningDoc(join(fixturesDir, 'path-containment.aps.md'));
+
+      expect(result.valid).toBe(false);
+      expect(result.errors.some((e) => e.rule === 'path-containment')).toBe(true);
+      expect(result.errors.some((e) => e.message.includes('escapes project directory'))).toBe(true);
+    });
+
+    it('should be skippable via skipRules', async () => {
+      const result = await validatePlanningDoc(join(fixturesDir, 'path-containment.aps.md'), {
+        skipRules: ['path-containment'],
+      });
+
+      expect(result.errors.some((e) => e.rule === 'path-containment')).toBe(false);
+    });
+  });
+
   describe('duplicate-ids rule', () => {
     it('should error when same task ID appears in multiple modules', async () => {
       const result = await validatePlanningDoc(join(fixturesDir, 'duplicate-ids-index.aps.md'));

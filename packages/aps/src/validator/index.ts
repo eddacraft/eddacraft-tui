@@ -135,7 +135,7 @@ export async function validatePlanningDoc(
 
     // Validate module links
     if (!skipRules.has('broken-links') && recursive) {
-      await validateModuleLinks(content, absolutePath, baseDir, issues);
+      await validateModuleLinks(content, absolutePath, baseDir, issues, skipRules);
     }
   } else {
     // Validate leaf spec structure
@@ -347,7 +347,8 @@ async function validateModuleLinks(
   content: string,
   filePath: string,
   baseDir: string,
-  issues: ValidationIssue[]
+  issues: ValidationIssue[],
+  skipRules: Set<string> = new Set()
 ): Promise<void> {
   const processor = unified().use(remarkParse);
   const ast = processor.parse(content) as Root;
@@ -406,14 +407,16 @@ async function validateModuleLinks(
           if (err instanceof ParseError) {
             // resolvePath rejects absolute paths and paths escaping baseDir —
             // report as a validation issue rather than crashing the run
-            issues.push({
-              severity: 'error',
-              message: `Unsafe link path in module "${currentModuleId}": "${linkUrl}" escapes project directory`,
-              rule: 'path-containment',
-              path: filePath,
-              lineNumber: linkLine,
-              context: `Module: ${currentModuleId}`,
-            });
+            if (!skipRules.has('path-containment')) {
+              issues.push({
+                severity: 'error',
+                message: `Unsafe link path in module "${currentModuleId}": "${linkUrl}" escapes project directory`,
+                rule: 'path-containment',
+                path: filePath,
+                lineNumber: linkLine,
+                context: `Module: ${currentModuleId}`,
+              });
+            }
           } else {
             throw err;
           }
