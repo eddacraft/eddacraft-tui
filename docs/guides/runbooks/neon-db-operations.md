@@ -2,7 +2,8 @@
 
 ## Purpose
 
-Triage and recover Neon-related production issues for Anvil services quickly and safely.
+Triage and recover Neon-related production issues for Anvil services quickly and
+safely.
 
 ## When to use
 
@@ -73,13 +74,15 @@ Expected: JSON success response, no 5xx.
    - Recovery: set env var, redeploy, re-check `/health`.
 
 2. **Connection/timeout spikes**
-   - Recovery: reduce traffic, inspect long-running queries, verify connection limits.
+   - Recovery: reduce traffic, inspect long-running queries, verify connection
+     limits.
 
 3. **Auth/role permission errors**
    - Recovery: rotate/check DB credentials and Neon role grants.
 
 4. **Persistent high latency**
-   - Recovery: investigate hot queries/indexes, scale Neon compute tier if required.
+   - Recovery: investigate hot queries/indexes, scale Neon compute tier if
+     required.
 
 ## Rollback / safety notes
 

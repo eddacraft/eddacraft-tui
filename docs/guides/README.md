@@ -36,7 +36,8 @@ How-to guides for developers working on Anvil.
 ### Runbooks
 
 - [Runbooks Index](runbooks/README.md) - Operational playbooks
-- [Waitlist Email Operations](waitlist-email-operations.md) - Admin resend + delivery debugging
+- [Waitlist Email Operations](waitlist-email-operations.md) - Admin resend +
+  delivery debugging
 
 ## Quick Links
 

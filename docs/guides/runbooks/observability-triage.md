@@ -2,7 +2,8 @@
 
 ## Purpose
 
-Provide a standard first-15-minutes triage flow for incidents using Anvil observability signals.
+Provide a standard first-15-minutes triage flow for incidents using Anvil
+observability signals.
 
 ## When to use
 
@@ -62,10 +63,12 @@ curl -sS https://<site-host>/api/waitlist \
    - Recovery: force synthetic request through full path and trace each hop.
 
 2. **Multiple simultaneous failures**
-   - Recovery: isolate by critical path first (signup/auth/core API), defer non-critical noise.
+   - Recovery: isolate by critical path first (signup/auth/core API), defer
+     non-critical noise.
 
 3. **False-positive alerting**
-   - Recovery: verify against real user path + endpoint health before escalation.
+   - Recovery: verify against real user path + endpoint health before
+     escalation.
 
 ## Rollback / safety notes
 
