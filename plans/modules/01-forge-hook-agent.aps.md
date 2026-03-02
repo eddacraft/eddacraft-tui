@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner  | Status      |
 | ----- | ------ | ----------- |
-| FORGE | @aneki | In Progress |
+| FORGE | @aneki | Complete |
 
 ## Purpose
 
@@ -93,6 +93,7 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
 
 ### FORGE-003: Create Forge skill documentation
 
+- **Status:** Complete
 - **Intent:** Document the Forge workflow for agents and users
 - **Expected Outcome:** Skill file explains the pre-commit review flow, round
   behavior, finding categories, and toggle behavior
@@ -100,6 +101,9 @@ entry point for Phase 2 (Forge) of the autonomous code review pipeline.
   Forge lifecycle
 - **Files:** `.claude/skills/forge/SKILL.md`
 - **Confidence:** high
+- **Notes:** Covers pipeline flow, severity rules, finding categories, author
+  response actions, orchestration steps, configuration, artefact lifecycle,
+  error handling, and Temper relationship.
 
 ### FORGE-004: Implement Forge report logging
 

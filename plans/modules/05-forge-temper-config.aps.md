@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner  | Status      |
 | ----- | ------ | ----------- |
-| FTCFG | @aneki | In Progress |
+| FTCFG | @aneki | Complete |
 
 ## Purpose
 
@@ -140,6 +140,7 @@ final integration step that makes the pipeline discoverable and controllable.
 
 ### FTCFG-006: Verify toggle combinations
 
+- **Status:** Complete
 - **Intent:** Confirm all 4 toggle combinations produce correct behavior
 - **Expected Outcome:** Each combination (both on, forge only, temper only, both
   off) behaves as documented in the toggle matrix -- no interference between
@@ -148,3 +149,7 @@ final integration step that makes the pipeline discoverable and controllable.
   documented
 - **Dependencies:** FTCFG-001, FTCFG-002, FTCFG-005
 - **Confidence:** high
+- **Notes:** Verified 6 scenarios: Forge OFF (silent pass), Forge ON + non-commit
+  (silent pass), Forge ON + amend (silent pass), Forge ON + no-verify (silent
+  pass), Forge ON + no staged changes (silent pass), non-Bash tool (silent pass).
+  Temper is CI-only (GitHub repo variable), independent of Forge toggle.

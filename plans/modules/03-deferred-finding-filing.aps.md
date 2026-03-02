@@ -10,7 +10,7 @@ See: plans/aps-rules.md
 
 | ID    | Owner  | Status |
 | ----- | ------ | ------ |
-| DEFER | @aneki | Ready  |
+| DEFER | @aneki | Complete |
 
 ## Purpose
 
@@ -82,6 +82,7 @@ linking back to the source PR, file, severity, and reasoning.
 
 ### DEFER-001: Implement GitHub Issue filing
 
+- **Status:** Complete
 - **Intent:** Deferred findings are filed as GitHub Issues with structured
   metadata and labels
 - **Expected Outcome:** Each deferred finding creates a GH issue with title
@@ -89,10 +90,15 @@ linking back to the source PR, file, severity, and reasoning.
   category, reviewer reasoning, and author deferral reasoning
 - **Validation:** `gh issue list --label forge:deferred` returns issues matching
   deferred findings from a Forge session
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Confidence:** high
+- **Notes:** Implemented in `forge-defer.sh` `file` command. Creates issues with
+  `forge:deferred` label, structured body with finding metadata and deferral
+  reasoning.
 
 ### DEFER-002: Implement category-to-label mapping
 
+- **Status:** Complete
 - **Intent:** Filed issues are labeled with finding category for filtering and
   triage
 - **Expected Outcome:** Issues receive both `forge:deferred` and
@@ -101,10 +107,14 @@ linking back to the source PR, file, severity, and reasoning.
 - **Validation:** Filed issues have both the `forge:deferred` label and the
   appropriate `area:*` label
 - **Dependencies:** DEFER-001
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Confidence:** high
+- **Notes:** Category mapped to `area:{category}` label via
+  `area_label="area:${category}"` in `file_github_issue`.
 
 ### DEFER-003: Implement APS context detection and filing
 
+- **Status:** Complete
 - **Intent:** When the current work is tied to an APS plan, deferred findings
   are filed as APS work items instead of (or in addition to) GH issues
 - **Expected Outcome:** If the commit message or branch name references an APS
@@ -113,10 +123,15 @@ linking back to the source PR, file, severity, and reasoning.
 - **Validation:** A deferred finding from a branch named `feat/FORGE-001-hook`
   creates a new Draft task in the FORGE module
 - **Dependencies:** DEFER-001
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Confidence:** medium
+- **Notes:** `detect_aps_context` checks branch name and last commit message for
+  `[A-Z]{2,6}-[0-9]{3}` patterns. `file_aps_issue` appends a Draft task to the
+  matching module file with flock-based concurrency safety.
 
 ### DEFER-004: Implement issue deduplication
 
+- **Status:** Complete
 - **Intent:** The same finding is not filed as multiple issues across Forge
   sessions
 - **Expected Outcome:** Before filing, the utility checks for existing open
@@ -125,10 +140,15 @@ linking back to the source PR, file, severity, and reasoning.
 - **Validation:** Running Forge twice on the same code with the same deferred
   finding does not create two issues
 - **Dependencies:** DEFER-001
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Confidence:** medium
+- **Notes:** `check_duplicate` queries open issues with `forge:deferred` label,
+  matching on file path and description via jq. Duplicates get a comment instead
+  of a new issue. Also exposed as `check-dup` subcommand.
 
 ### DEFER-005: Implement batch filing and filing report
 
+- **Status:** Complete
 - **Intent:** Multiple deferred findings from a single session are filed
   efficiently with a summary report
 - **Expected Outcome:** All deferred findings from a Forge or Temper session are
@@ -137,4 +157,8 @@ linking back to the source PR, file, severity, and reasoning.
 - **Validation:** A session with 3 deferred findings produces 3 issues and a
   summary listing all 3 with links
 - **Dependencies:** DEFER-001, DEFER-002
+- **Files:** `.claude/agent-bus/forge-defer.sh`
 - **Confidence:** high
+- **Notes:** `batch` subcommand iterates findings array, files each via
+  `file_github_issue` or `file_aps_issue`, and returns a JSON array of results
+  with per-finding action/url/issueNumber.
