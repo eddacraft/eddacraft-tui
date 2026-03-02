@@ -388,7 +388,7 @@ export function createTutorialCommand(): Command {
         const result = await renderTutorial(currentTopic, options, completedTopics);
         // Only persist progress if the tutorial was actually completed (not quit early)
         // and cleanup wasn't performed
-        if (!result.cleanedUp && result.completed) {
+        if (!result.cleanedUp && (result.completed || result.nextTopic)) {
           const justCompleted = currentTopic ?? 'core';
           if (!completedTopics.includes(justCompleted)) {
             completedTopics.push(justCompleted);
