@@ -69,7 +69,7 @@ Change status to **Ready** when:
 
 - **Intent:** Finalise the minimum real-time contract needed by dashboard ops views.
 - **Expected Outcome:** Defined event feed schema and reconnection/fallback expectations for live operations pages.
-- **Validation:** `rg -n "real-time|SSE|WebSocket|fallback" plans/modules/dashboard-ops-views.aps.md plans/modules/observability-foundation.aps.md`
+- **Validation:** `test -f docs/public/anvil/operations/realtime-feed-contract.md && rg -n "event feed schema|SSE|WebSocket|reconnect|fallback" docs/public/anvil/operations/realtime-feed-contract.md`
 
 ### OBS-004: Alert thresholds and incident severity matrix
 
