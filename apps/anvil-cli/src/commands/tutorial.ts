@@ -320,9 +320,26 @@ export function createTutorialCommand(): Command {
         }
 
         // Topic-specific reset: clean up artifacts created by that tutorial
+        const workspaceRoot = getWorkspaceRoot();
+
         if (topic === 'core') {
-          const workspaceRoot = getWorkspaceRoot();
+          // Preserve non-core completedTutorials before wiping core files
+          const existing = loadProgress(workspaceRoot);
+          const nonCoreCompleted = (existing?.completedTutorials ?? []).filter((t) => t !== 'core');
+
           cleanupTutorialFiles(workspaceRoot);
+
+          // Restore non-core completion tracking
+          if (nonCoreCompleted.length > 0) {
+            saveProgress(workspaceRoot, {
+              currentStep: 0,
+              totalSteps: 0,
+              completedSteps: [],
+              startedAt: new Date().toISOString(),
+              completedTutorials: nonCoreCompleted,
+            });
+          }
+
           console.log(
             chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`)
           );
@@ -331,12 +348,20 @@ export function createTutorialCommand(): Command {
         }
 
         if (topic === 'policies') {
-          const workspaceRoot = getWorkspaceRoot();
           if (cleanupPolicyTutorialFile(workspaceRoot)) {
             console.log(
               chalk.hex(theme.colours.steel)(`${theme.icons.success} Removed tutorial policy file`)
             );
           }
+        }
+
+        // Remove topic from completedTutorials so it can be re-selected
+        const existing = loadProgress(workspaceRoot);
+        if (existing?.completedTutorials?.includes(topic)) {
+          saveProgress(workspaceRoot, {
+            ...existing,
+            completedTutorials: existing.completedTutorials.filter((t) => t !== topic),
+          });
         }
 
         // For architecture, drift, ci — no persistent files are created
