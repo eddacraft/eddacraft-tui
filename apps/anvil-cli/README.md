@@ -8,6 +8,7 @@ changes meet your team's standards.
 
 ```bash
 # Try without installing
+npx @eddacraft/anvil-cli login
 npx @eddacraft/anvil-cli tutorial
 
 # Or install globally
@@ -15,11 +16,13 @@ npm install -g @eddacraft/anvil-cli
 # or: pnpm add -g @eddacraft/anvil-cli
 # or: yarn global add @eddacraft/anvil-cli
 # or: bun add -g @eddacraft/anvil-cli
+anvil login
 anvil tutorial
 ```
 
-The interactive tutorial takes about 5 minutes and walks you through scanning,
-watching, and fixing issues.
+For the current beta, authenticate first with your beta token. The interactive
+tutorial takes about 5 minutes and walks you through scanning, watching, and
+fixing issues.
 
 ## What Anvil Does
 

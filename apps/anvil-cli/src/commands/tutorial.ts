@@ -135,7 +135,7 @@ const TUTORIAL_OPTIONS: TutorialOption[] = [
 interface RenderResult {
   nextTopic: string | null;
   cleanedUp: boolean;
-  completed?: boolean;
+  completed: boolean;
 }
 
 /**
@@ -161,8 +161,10 @@ async function renderTutorial(
     ensureTutorialDir(workspaceRoot);
 
     let cleanedUp = false;
+    let completed = false;
 
     const handleComplete = () => {
+      completed = true;
       const progress: TutorialProgress = {
         currentStep: 4,
         totalSteps: 4,
@@ -191,16 +193,19 @@ async function renderTutorial(
       );
     }
 
-    return { nextTopic, cleanedUp };
+    return { nextTopic, cleanedUp, completed };
   }
 
   if (currentTopic === 'policies') {
     const { PolicyTutorial } = await import('../tui/commands/tutorial/features/PolicyTutorial.js');
 
     let policyCleanedUp = false;
+    let completed = false;
 
     await renderTUIAndWait(PolicyTutorial, {
-      onComplete: () => {},
+      onComplete: () => {
+        completed = true;
+      },
       onCleanup: () => {
         const workspaceRoot = getWorkspaceRoot();
         cleanupPolicyTutorialFile(workspaceRoot);
@@ -217,7 +222,7 @@ async function renderTutorial(
       );
     }
 
-    return { nextTopic, cleanedUp: policyCleanedUp };
+    return { nextTopic, cleanedUp: policyCleanedUp, completed };
   }
 
   if (currentTopic === 'architecture') {
@@ -273,7 +278,7 @@ async function renderTutorial(
   }
 
   // Unknown topic
-  return { nextTopic: null, cleanedUp: false };
+  return { nextTopic: null, cleanedUp: false, completed: false };
 }
 
 export function createTutorialCommand(): Command {
@@ -281,7 +286,7 @@ export function createTutorialCommand(): Command {
 
   command
     .description('Interactive tutorial to learn Anvil basics (< 5 minutes)')
-    .argument('[topic]', 'Tutorial topic (policies, architecture, drift, ci)')
+    .argument('[topic]', 'Tutorial topic (core, policies, architecture, drift, ci)')
     .option('--list', 'Show available tutorials')
     .option('--reset', 'Clear previous progress and start fresh')
     .option('--tui', 'Force TUI mode')
@@ -304,7 +309,7 @@ export function createTutorialCommand(): Command {
       }
 
       if (topic && options.reset) {
-        const validTopics = AVAILABLE_TUTORIALS.map((t) => t.topic);
+        const validTopics = TUTORIAL_OPTIONS.map((t) => t.topic);
         if (!validTopics.includes(topic)) {
           console.log(
             chalk.hex(theme.colours.slag)(
@@ -315,6 +320,16 @@ export function createTutorialCommand(): Command {
         }
 
         // Topic-specific reset: clean up artifacts created by that tutorial
+        if (topic === 'core') {
+          const workspaceRoot = getWorkspaceRoot();
+          cleanupTutorialFiles(workspaceRoot);
+          console.log(
+            chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`)
+          );
+          console.log(chalk.hex(theme.colours.smoke)('Run anvil tutorial to start fresh.'));
+          return;
+        }
+
         if (topic === 'policies') {
           const workspaceRoot = getWorkspaceRoot();
           if (cleanupPolicyTutorialFile(workspaceRoot)) {
@@ -352,7 +367,7 @@ export function createTutorialCommand(): Command {
 
       // Validate topic if provided
       if (topic) {
-        const validTopics = AVAILABLE_TUTORIALS.map((t) => t.topic);
+        const validTopics = TUTORIAL_OPTIONS.map((t) => t.topic);
         if (!validTopics.includes(topic)) {
           console.log(
             chalk.hex(theme.colours.slag)(
@@ -373,7 +388,7 @@ export function createTutorialCommand(): Command {
         const result = await renderTutorial(currentTopic, options, completedTopics);
         // Only persist progress if the tutorial was actually completed (not quit early)
         // and cleanup wasn't performed
-        if (!result.cleanedUp && result.completed !== false) {
+        if (!result.cleanedUp && result.completed) {
           const justCompleted = currentTopic ?? 'core';
           if (!completedTopics.includes(justCompleted)) {
             completedTopics.push(justCompleted);

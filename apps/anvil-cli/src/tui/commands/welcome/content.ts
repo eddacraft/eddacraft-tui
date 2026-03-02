@@ -15,22 +15,16 @@ export const EDDACRAFT_TEXT = 'Part of EddaCraft';
 
 export const QUICK_START_OPTIONS = [
   {
+    key: 'login',
+    label: 'Authenticate Beta Access',
+    description: 'Sign in with your beta token (recommended)',
+    command: 'anvil login',
+  },
+  {
     key: 'tutorial',
     label: 'Interactive Tutorial',
-    description: 'Learn Anvil step-by-step (recommended)',
+    description: 'Learn Anvil step-by-step after login',
     command: 'anvil tutorial',
-  },
-  {
-    key: 'init',
-    label: 'Initialise Anvil',
-    description: 'Set up Anvil in this project',
-    command: 'anvil init',
-  },
-  {
-    key: 'doctor',
-    label: 'Run diagnostics',
-    description: 'Check your environment setup',
-    command: 'anvil doctor',
   },
   {
     key: 'help',

@@ -130,6 +130,18 @@ describe('tutorial --list', () => {
 });
 
 describe('tutorial --reset with topic', () => {
+  it('resets core tutorial and confirms', async () => {
+    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    const command = createTutorialCommand();
+    await command.parseAsync(['core', '--reset'], { from: 'user' });
+
+    const allOutput = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
+
+    expect(allOutput).toContain('Tutorial progress reset');
+    expect(allOutput).toContain('Run anvil tutorial to start fresh.');
+  });
+
   it('resets a known topic and confirms', async () => {
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

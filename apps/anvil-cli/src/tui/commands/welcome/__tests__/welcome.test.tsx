@@ -35,8 +35,8 @@ describe('Welcome component', () => {
     const onQuit = vi.fn();
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
-    expect(lastFrame()).toContain('Initialise Anvil');
-    expect(lastFrame()).toContain('Run diagnostics');
+    expect(lastFrame()).toContain('Authenticate Beta Access');
+    expect(lastFrame()).toContain('Interactive Tutorial');
     expect(lastFrame()).toContain('View commands');
     expect(lastFrame()).toContain('Skip');
   });
@@ -55,7 +55,7 @@ describe('Welcome component', () => {
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
     expect(lastFrame()).toContain('▸');
-    expect(lastFrame()).toContain('Initialise Anvil');
+    expect(lastFrame()).toContain('Authenticate Beta Access');
   });
 
   it('handles Enter key press', () => {
@@ -64,7 +64,7 @@ describe('Welcome component', () => {
     const { lastFrame } = render(<Welcome onSelect={onSelect} onQuit={onQuit} />);
 
     const frame = lastFrame();
-    expect(frame).toContain('Initialise Anvil');
+    expect(frame).toContain('Authenticate Beta Access');
     expect(frame).toContain('Enter select');
   });
 
@@ -75,7 +75,7 @@ describe('Welcome component', () => {
 
     stdin.write('\x1B[B');
 
-    expect(lastFrame()).toContain('Run diagnostics');
+    expect(lastFrame()).toContain('Interactive Tutorial');
   });
 
   it('navigates down with j key', () => {
@@ -86,7 +86,7 @@ describe('Welcome component', () => {
     stdin.write('j');
 
     const frame = lastFrame();
-    expect(frame).toContain('Run diagnostics');
+    expect(frame).toContain('Interactive Tutorial');
   });
 
   it('navigates up with k key', () => {
@@ -109,7 +109,7 @@ describe('Welcome component', () => {
       stdin.write('j');
     }
 
-    expect(lastFrame()).toContain('Initialise Anvil');
+    expect(lastFrame()).toContain('Authenticate Beta Access');
   });
 
   it('wraps around when navigating before first option', () => {
@@ -134,27 +134,21 @@ describe('Welcome content', () => {
     expect(VALUE_PROPOSITION).not.toContain('realize');
   });
 
-  it('QUICK_START_OPTIONS has exactly 5 options', () => {
-    expect(QUICK_START_OPTIONS).toHaveLength(5);
+  it('QUICK_START_OPTIONS has exactly 4 options', () => {
+    expect(QUICK_START_OPTIONS).toHaveLength(4);
   });
 
   it('QUICK_START_OPTIONS includes tutorial command as first option', () => {
+    const loginOption = QUICK_START_OPTIONS.find((o) => o.key === 'login');
+    expect(loginOption).toBeDefined();
+    expect(loginOption?.command).toBe('anvil login');
+    expect(QUICK_START_OPTIONS[0].key).toBe('login');
+  });
+
+  it('QUICK_START_OPTIONS includes tutorial command', () => {
     const tutorialOption = QUICK_START_OPTIONS.find((o) => o.key === 'tutorial');
     expect(tutorialOption).toBeDefined();
     expect(tutorialOption?.command).toBe('anvil tutorial');
-    expect(QUICK_START_OPTIONS[0].key).toBe('tutorial');
-  });
-
-  it('QUICK_START_OPTIONS includes init command', () => {
-    const initOption = QUICK_START_OPTIONS.find((o) => o.key === 'init');
-    expect(initOption).toBeDefined();
-    expect(initOption?.command).toBe('anvil init');
-  });
-
-  it('QUICK_START_OPTIONS includes doctor command', () => {
-    const doctorOption = QUICK_START_OPTIONS.find((o) => o.key === 'doctor');
-    expect(doctorOption).toBeDefined();
-    expect(doctorOption?.command).toBe('anvil doctor');
   });
 
   it('QUICK_START_OPTIONS includes help command', () => {

@@ -15,11 +15,9 @@ import {
 export function createStartCommand(): Command {
   const command = new Command('start');
 
-  command
-    .description('Show getting started options (tutorial, init, diagnostics)')
-    .action(async () => {
-      await showWelcome();
-    });
+  command.description('Show getting started options (login, tutorial, help)').action(async () => {
+    await showWelcome();
+  });
 
   return command;
 }
