@@ -24,11 +24,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
-    const { email } = body as { email?: unknown };
+    const { email, resend } = body as { email?: unknown; resend?: unknown };
 
     if (!email || typeof email !== 'string') {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
+
+    const shouldResend = resend === true;
 
     const trimmedEmail = email.trim();
     if (trimmedEmail.length > 254) {
@@ -53,19 +55,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to join waitlist' }, { status: 500 });
     }
 
-    // Only send confirmation for genuinely new signups, not repeated submissions
-    if (result[0].is_new) {
-      try {
-        await sendWaitlistConfirmation(result[0].email);
-      } catch (err) {
-        console.error('Waitlist confirmation email error:', err);
-      }
+    const isNewSignup = result[0].is_new;
+    const shouldSendEmail = isNewSignup || shouldResend;
+
+    let emailSent = false;
+    let emailStatus: string = shouldSendEmail ? 'pending' : 'skipped_existing';
+
+    if (shouldSendEmail) {
+      const delivery = await sendWaitlistConfirmation(result[0].email);
+      emailSent = delivery.sent;
+      emailStatus = delivery.sent ? 'sent' : delivery.code || 'failed';
     }
 
     return NextResponse.json({
       success: true,
       message: 'Added to waitlist',
       email: result[0].email,
+      isNewSignup,
+      emailSent,
+      emailStatus,
     });
   } catch (error: unknown) {
     if (error instanceof Error) {

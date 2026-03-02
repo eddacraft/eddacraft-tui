@@ -15,27 +15,34 @@ function getClient(): Resend | null {
 const FROM_ADDRESS = 'Josh at EddaCraft <anvil@updates.eddacraft.ai>';
 const REPLY_TO = 'josh@eddacraft.ai';
 
-export async function sendWaitlistConfirmation(email: string): Promise<void> {
+export interface EmailDeliveryResult {
+  sent: boolean;
+  code?: string;
+  message?: string;
+}
+
+export async function sendWaitlistConfirmation(email: string): Promise<EmailDeliveryResult> {
   const resend = getClient();
   if (!resend) {
     console.warn('RESEND_API_KEY not configured — skipping confirmation email');
-    return;
+    return { sent: false, code: 'resend_not_configured', message: 'Resend is not configured' };
   }
 
   const subject = encodeURIComponent('Unsubscribe');
   const body = encodeURIComponent(`Please remove ${email} from the waitlist.`);
   const unsubscribeMailto = `mailto:anvil@updates.eddacraft.ai?subject=${subject}&body=${body}`;
 
-  const { error } = await resend.emails.send({
-    from: FROM_ADDRESS,
-    replyTo: REPLY_TO,
-    to: email,
-    subject: "You're on the Anvil waitlist",
-    headers: {
-      'List-Unsubscribe': `<${unsubscribeMailto}>`,
-    },
-    react: WaitlistConfirmation({ email, unsubscribeMailto }),
-    text: `$ anvil :: waitlist confirm
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      replyTo: REPLY_TO,
+      to: email,
+      subject: "You're on the Anvil waitlist",
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeMailto}>`,
+      },
+      react: WaitlistConfirmation({ email, unsubscribeMailto }),
+      text: `$ anvil :: waitlist confirm
 
 [ OK ] Access request received
 
@@ -49,10 +56,18 @@ If you have any questions or feedback, just reply to this email — I personally
 anvil :: eddacraft.ai
 
 To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}`,
-    tags: [{ name: 'category', value: 'waitlist-confirmation' }],
-  });
+      tags: [{ name: 'category', value: 'waitlist-confirmation' }],
+    });
 
-  if (error) {
-    console.error('Failed to send waitlist confirmation email:', error.message);
+    if (error) {
+      console.error('Failed to send waitlist confirmation email:', error.message);
+      return { sent: false, code: 'provider_error', message: error.message };
+    }
+
+    return { sent: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Unexpected waitlist email delivery error:', message);
+    return { sent: false, code: 'unexpected_error', message };
   }
 }

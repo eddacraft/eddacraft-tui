@@ -11,17 +11,38 @@ interface ResponseLine {
   delay: number;
 }
 
-async function submitToWaitlist(email: string): Promise<{ success: boolean; error?: string }> {
+interface WaitlistSubmitResult {
+  success: boolean;
+  error?: string;
+  warning?: string;
+}
+
+async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
   try {
     const response = await fetch('/api/waitlist', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
     });
-    const data = await response.json();
+    const data = (await response.json()) as {
+      error?: string;
+      emailSent?: boolean;
+      emailStatus?: string;
+    };
     if (!response.ok) {
       return { success: false, error: data.error || 'Failed to join waitlist' };
     }
+
+    if (data.emailSent === false) {
+      return {
+        success: true,
+        warning:
+          data.emailStatus === 'skipped_existing'
+            ? '[ INFO ] Already on waitlist. Use your original confirmation email.'
+            : '[ WARN ] Access request saved. Confirmation email delayed.',
+      };
+    }
+
     return { success: true };
   } catch {
     return { success: false, error: 'Network error. Please try again.' };
@@ -33,6 +54,7 @@ export function CLIFooter() {
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitWarning, setSubmitWarning] = useState<string | null>(null);
   const [displayedLines, setDisplayedLines] = useState<{ text: string; colorClass: string }[]>([]);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
@@ -44,7 +66,9 @@ export function CLIFooter() {
     { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
     { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
     {
-      text: `Welcome aboard. We'll be in touch at ${userEmail}`,
+      text: submitWarning
+        ? `Welcome aboard. Access is queued for ${userEmail}`
+        : `Welcome aboard. We'll be in touch at ${userEmail}`,
       colorClass: 'text-text-muted',
       delay: 0,
     },
@@ -87,7 +111,7 @@ export function CLIFooter() {
       }, currentLine.delay);
       return () => clearTimeout(timeout);
     }
-  }, [submitted, currentLineIndex, currentCharIndex, email]);
+  }, [submitted, currentLineIndex, currentCharIndex, email, submitWarning]);
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault();
@@ -97,10 +121,12 @@ export function CLIFooter() {
 
     setIsSubmitting(true);
     setSubmitError(null);
+    setSubmitWarning(null);
 
     const result = await submitToWaitlist(trimmedEmail);
 
     if (result.success) {
+      setSubmitWarning(result.warning || null);
       setSubmitted(true);
     } else {
       setSubmitError(result.error || 'Something went wrong');
@@ -126,6 +152,7 @@ export function CLIFooter() {
     setSubmitted(false);
     setIsSubmitting(false);
     setSubmitError(null);
+    setSubmitWarning(null);
     setDisplayedLines([]);
     setCurrentLineIndex(0);
     setCurrentCharIndex(0);
@@ -193,6 +220,14 @@ export function CLIFooter() {
                 <div className="flex items-center gap-3">
                   <span className="text-text-muted opacity-0">$</span>
                   <span className="text-red-500">[ ERROR ] {submitError}</span>
+                </div>
+              )}
+
+              {/* Warning Display */}
+              {submitted && submitWarning && (
+                <div className="flex items-center gap-3">
+                  <span className="text-text-muted opacity-0">$</span>
+                  <span className="text-amber-400">{submitWarning}</span>
                 </div>
               )}
 
