@@ -327,7 +327,7 @@ export class OPABinaryManager {
       debug('checksum mismatch', { expected: expectedChecksum, actual: actualChecksum });
       throw new Error(
         `OPA binary checksum verification failed - possible tampering detected. ` +
-        `Expected: ${expectedChecksum}, actual: ${actualChecksum}`,
+          `Expected: ${expectedChecksum}, actual: ${actualChecksum}`
       );
     }
 
