@@ -282,9 +282,7 @@ export class OPABinaryManager {
       mkdirSync(this.cacheDir, { recursive: true });
     }
 
-    console.warn(`Downloading OPA v${this.version}...`);
-    console.warn(`  URL: ${url}`);
-    console.warn(`  Destination: ${binaryPath}`);
+    debug(`downloading OPA v${this.version}`, { url, dest: binaryPath });
 
     await this.downloadFile(url, binaryPath);
 
@@ -304,22 +302,20 @@ export class OPABinaryManager {
       throw new Error('Downloaded OPA binary failed version verification');
     }
 
-    console.warn(`OPA v${this.version} downloaded and verified successfully`);
+    debug(`OPA v${this.version} downloaded and verified successfully`);
   }
 
   private verifyChecksum(binaryPath: string): boolean {
     const versionChecksums = OPA_CHECKSUMS[this.version];
     if (!versionChecksums) {
-      console.warn(
-        `  Warning: No checksums available for OPA v${this.version}, skipping verification`
-      );
+      debug(`no checksums available for OPA v${this.version}, skipping verification`);
       return true;
     }
 
     const platformKey = `${this.getPlatform()}-${this.getArch()}`;
     const expectedChecksum = versionChecksums[platformKey];
     if (!expectedChecksum) {
-      console.warn(`  Warning: No checksum for ${platformKey}, skipping verification`);
+      debug(`no checksum for ${platformKey}, skipping verification`);
       return true;
     }
 
@@ -327,13 +323,11 @@ export class OPABinaryManager {
     const actualChecksum = createHash('sha256').update(fileBuffer).digest('hex');
 
     if (actualChecksum !== expectedChecksum) {
-      console.error(`  Checksum mismatch!`);
-      console.error(`    Expected: ${expectedChecksum}`);
-      console.error(`    Actual:   ${actualChecksum}`);
+      debug('checksum mismatch', { expected: expectedChecksum, actual: actualChecksum });
       return false;
     }
 
-    console.warn(`  Checksum verified: ${actualChecksum.substring(0, 16)}...`);
+    debug(`checksum verified: ${actualChecksum.substring(0, 16)}...`);
     return true;
   }
 

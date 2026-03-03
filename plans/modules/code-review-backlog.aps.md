@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (10/29) |
-<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-005, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (11/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -272,14 +272,16 @@ Change status to **Ready** when:
 - **Dependencies:** None (RT-001 already validates ANVIL_OPA_PATH)
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
 - **Notes:** Original spec referenced `policy.check.ts` in the runtime package,
   but that file already uses `createDebugger` with zero `console.warn` calls.
-  The actual issue is in `opa-binary-manager.ts` in `packages/anvil/policy/`,
-  which already imports `createDebugger('policy')` and uses it for some paths
-  but bypasses it with 10 raw `console.warn`/`console.error` calls in
-  `downloadBinary()` and `verifyChecksum()`. PATH lookup safety is already
-  resolved (`execFileSync`, no shell expansion).
+  The actual issue was in `opa-binary-manager.ts` in `packages/anvil/policy/`,
+  which already imported `createDebugger('policy')` but bypassed it with 10 raw
+  `console.warn`/`console.error` calls in `downloadBinary()` and
+  `verifyChecksum()`. All 10 calls replaced with `debug()` — download progress,
+  checksum verification, and mismatch details now route through the shared
+  logger. PATH lookup safety was already resolved (`execFileSync`, no shell
+  expansion). Validation: `grep -rn "console\.\(warn\|error\)"` returns 0.
 
 ---
 
