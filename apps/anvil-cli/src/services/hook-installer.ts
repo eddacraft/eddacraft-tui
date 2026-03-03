@@ -14,6 +14,17 @@ const log = createDebugger('service');
 /** Marker comment to identify Anvil-managed hooks */
 export const ANVIL_MARKER = '# Anvil-managed hook';
 
+export interface HookInstallResult {
+  success: boolean;
+  message: string;
+  action: 'created' | 'updated' | 'skipped';
+}
+
+export interface HookUninstallResult {
+  success: boolean;
+  message: string;
+}
+
 /**
  * Hook configuration
  */
@@ -256,5 +267,95 @@ exit 0
       const content = readFileSync(hookPath, 'utf-8');
       writeFileSync(backupPath, content);
     }
+  }
+
+  /**
+   * Inject the Anvil marker into hook content, placing it after the shebang
+   * line (if present) so the shebang remains on line 1.
+   */
+  private injectMarker(hookContent: string): string {
+    if (hookContent.startsWith('#!')) {
+      const newlineIdx = hookContent.indexOf('\n');
+      if (newlineIdx !== -1) {
+        return `${hookContent.slice(0, newlineIdx)}\n${ANVIL_MARKER}${hookContent.slice(newlineIdx)}`;
+      }
+    }
+    return `${ANVIL_MARKER}\n${hookContent}`;
+  }
+
+  /**
+   * Install a hook to an absolute hooks directory path.
+   * Supports force mode (with backup) and returns a result object.
+   */
+  installTo(hooksDir: string, hookName: string, options?: { force?: boolean }): HookInstallResult {
+    log(`installTo: hookName=${hookName} dir=${hooksDir} force=${options?.force}`);
+    const hookPath = join(hooksDir, hookName);
+    const hookContent = this.loadHookScript(hookName);
+    const markedContent = this.injectMarker(hookContent);
+
+    if (existsSync(hookPath)) {
+      const existingContent = readFileSync(hookPath, 'utf-8');
+
+      if (existingContent.includes(ANVIL_MARKER)) {
+        writeFileSync(hookPath, markedContent, 'utf-8');
+        chmodSync(hookPath, 0o755);
+        return { success: true, message: `Updated ${hookName}`, action: 'updated' };
+      }
+
+      if (options?.force) {
+        const backupPath = `${hookPath}.anvil-backup`;
+        writeFileSync(backupPath, existingContent, 'utf-8');
+        writeFileSync(hookPath, markedContent, 'utf-8');
+        chmodSync(hookPath, 0o755);
+        return {
+          success: true,
+          message: `Replaced ${hookName} (backup: ${hookName}.anvil-backup)`,
+          action: 'updated',
+        };
+      }
+
+      return {
+        success: false,
+        message: `${hookName} already exists (use --force to overwrite)`,
+        action: 'skipped',
+      };
+    }
+
+    writeFileSync(hookPath, markedContent, 'utf-8');
+    chmodSync(hookPath, 0o755);
+    return { success: true, message: `Created ${hookName}`, action: 'created' };
+  }
+
+  /**
+   * Uninstall a hook from an absolute hooks directory path.
+   * Restores backup if one exists.
+   */
+  uninstallFrom(hooksDir: string, hookName: string): HookUninstallResult {
+    log(`uninstallFrom: hookName=${hookName} dir=${hooksDir}`);
+    const hookPath = join(hooksDir, hookName);
+
+    if (!existsSync(hookPath)) {
+      return { success: true, message: `${hookName} not found (already removed)` };
+    }
+
+    if (!this.isAnvilManagedHook(hookPath)) {
+      return {
+        success: false,
+        message: `${hookName} is not managed by Anvil (skipped)`,
+      };
+    }
+
+    unlinkSync(hookPath);
+
+    const backupPath = `${hookPath}.anvil-backup`;
+    if (existsSync(backupPath)) {
+      const backupContent = readFileSync(backupPath, 'utf-8');
+      writeFileSync(hookPath, backupContent, 'utf-8');
+      chmodSync(hookPath, 0o755);
+      unlinkSync(backupPath);
+      return { success: true, message: `Removed ${hookName} (restored backup)` };
+    }
+
+    return { success: true, message: `Removed ${hookName}` };
   }
 }

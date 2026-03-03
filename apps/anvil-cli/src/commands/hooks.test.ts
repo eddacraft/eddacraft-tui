@@ -279,12 +279,12 @@ describe('hooks command', () => {
       const { createHooksCommand } = await import('./hooks.js');
       const command = createHooksCommand();
 
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const statusCmd = command.commands.find((c) => c.name() === 'status');
       await statusCmd!.parseAsync(['node', 'test']);
 
-      // Check that status was output
+      // Check that status was output (human output goes to stderr)
       const calls = consoleSpy.mock.calls.map((call) => call[0]);
       const output = calls.join('\n');
 

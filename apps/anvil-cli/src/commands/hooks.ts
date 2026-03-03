@@ -6,19 +6,11 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { createDebugger } from '@eddacraft/anvil-core';
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  unlinkSync,
-  chmodSync,
-  statSync,
-} from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
-import { HookInstaller, ANVIL_MARKER } from '../services/hook-installer.js';
+import { HookInstaller } from '../services/hook-installer.js';
 import { CliError } from '../utils/cli-error.js';
 
 const log = createDebugger('cli');
@@ -45,15 +37,6 @@ function resolveGitDir(workspaceRoot: string): string | null {
 }
 
 /**
- * Check if a hook file contains the Anvil marker
- */
-function isAnvilManagedHook(hookPath: string): boolean {
-  if (!existsSync(hookPath)) return false;
-  const content = readFileSync(hookPath, 'utf-8');
-  return content.includes(ANVIL_MARKER);
-}
-
-/**
  * Check if Husky is being used in the project
  */
 function detectHusky(workspaceRoot: string): { detected: boolean; huskyDir: string | null } {
@@ -73,102 +56,6 @@ function detectHusky(workspaceRoot: string): { detected: boolean; huskyDir: stri
     detected: huskyDirExists || hasHuskyDep,
     huskyDir: huskyDirExists ? huskyDir : null,
   };
-}
-
-/**
- * Inject the Anvil marker into hook content, placing it after the shebang
- * line (if present) so the shebang remains on line 1.
- */
-function injectMarker(hookContent: string): string {
-  if (hookContent.startsWith('#!')) {
-    const newlineIdx = hookContent.indexOf('\n');
-    if (newlineIdx !== -1) {
-      return `${hookContent.slice(0, newlineIdx)}\n${ANVIL_MARKER}${hookContent.slice(newlineIdx)}`;
-    }
-  }
-  return `${ANVIL_MARKER}\n${hookContent}`;
-}
-
-function installHook(
-  hooksDir: string,
-  hookName: string,
-  hookContent: string,
-  force: boolean
-): { success: boolean; message: string; action: 'created' | 'updated' | 'skipped' } {
-  const hookPath = join(hooksDir, hookName);
-  const markedContent = injectMarker(hookContent);
-
-  // Check if hook already exists
-  if (existsSync(hookPath)) {
-    const existingContent = readFileSync(hookPath, 'utf-8');
-
-    // If it's already an Anvil hook, update it
-    if (existingContent.includes(ANVIL_MARKER)) {
-      writeFileSync(hookPath, markedContent, 'utf-8');
-      chmodSync(hookPath, 0o755);
-      return { success: true, message: `Updated ${hookName}`, action: 'updated' };
-    }
-
-    // If force is set, overwrite
-    if (force) {
-      // Backup existing hook
-      const backupPath = `${hookPath}.anvil-backup`;
-      writeFileSync(backupPath, existingContent, 'utf-8');
-      writeFileSync(hookPath, markedContent, 'utf-8');
-      chmodSync(hookPath, 0o755);
-      return {
-        success: true,
-        message: `Replaced ${hookName} (backup: ${hookName}.anvil-backup)`,
-        action: 'updated',
-      };
-    }
-
-    // Otherwise, skip
-    return {
-      success: false,
-      message: `${hookName} already exists (use --force to overwrite)`,
-      action: 'skipped',
-    };
-  }
-
-  // Create new hook
-  writeFileSync(hookPath, markedContent, 'utf-8');
-  chmodSync(hookPath, 0o755);
-  return { success: true, message: `Created ${hookName}`, action: 'created' };
-}
-
-/**
- * Uninstall a Git hook
- */
-function uninstallHook(hooksDir: string, hookName: string): { success: boolean; message: string } {
-  const hookPath = join(hooksDir, hookName);
-
-  if (!existsSync(hookPath)) {
-    return { success: true, message: `${hookName} not found (already removed)` };
-  }
-
-  // Check if it's an Anvil-managed hook
-  if (!isAnvilManagedHook(hookPath)) {
-    return {
-      success: false,
-      message: `${hookName} is not managed by Anvil (skipped)`,
-    };
-  }
-
-  // Remove the hook
-  unlinkSync(hookPath);
-
-  // Restore backup if exists
-  const backupPath = `${hookPath}.anvil-backup`;
-  if (existsSync(backupPath)) {
-    const backupContent = readFileSync(backupPath, 'utf-8');
-    writeFileSync(hookPath, backupContent, 'utf-8');
-    chmodSync(hookPath, 0o755);
-    unlinkSync(backupPath);
-    return { success: true, message: `Removed ${hookName} (restored backup)` };
-  }
-
-  return { success: true, message: `Removed ${hookName}` };
 }
 
 export function createHooksCommand(): Command {
@@ -198,13 +85,14 @@ export function createHooksCommand(): Command {
 
         try {
           const workspaceRoot = getWorkspaceRoot();
+          const hookInstaller = new HookInstaller();
 
           // Warn on Windows about limited shell hook support
           if (process.platform === 'win32') {
-            console.log(
+            console.error(
               chalk.yellow(
-                '\nWarning: Git hooks use shell scripts (#!/bin/sh) which require' +
-                  '\na POSIX-compatible shell (Git Bash, WSL, or MSYS2) on Windows.' +
+                '\nWarning: Git hooks use POSIX shell scripts which require' +
+                  '\na compatible shell (Git Bash, WSL, or MSYS2) on Windows.' +
                   '\nHooks may not work in PowerShell or cmd.exe.\n'
               )
             );
@@ -235,10 +123,10 @@ export function createHooksCommand(): Command {
             spinner.text = 'Installing hooks in .husky directory...';
 
             if (!options.husky && husky.detected) {
-              console.log(
+              console.error(
                 chalk.yellow('\n⚠️  Husky detected - installing hooks in .husky directory')
               );
-              console.log(
+              console.error(
                 chalk.gray('  Use --husky flag to explicitly enable Husky integration\n')
               );
             }
@@ -251,55 +139,51 @@ export function createHooksCommand(): Command {
             }
           }
 
-          const results: Array<{ hook: string; result: ReturnType<typeof installHook> }> = [];
-          const hookInstaller = new HookInstaller();
+          const results: Array<{
+            hook: string;
+            result: ReturnType<typeof hookInstaller.installTo>;
+          }> = [];
 
           // Install pre-commit hook
           if (!options.prePushOnly) {
-            const result = installHook(
-              hooksDir,
-              'pre-commit',
-              hookInstaller.loadHookScript('pre-commit'),
-              !!options.force
-            );
+            const result = hookInstaller.installTo(hooksDir, 'pre-commit', {
+              force: !!options.force,
+            });
             results.push({ hook: 'pre-commit', result });
           }
 
           // Install pre-push hook
           if (!options.preCommitOnly) {
-            const result = installHook(
-              hooksDir,
-              'pre-push',
-              hookInstaller.loadHookScript('pre-push'),
-              !!options.force
-            );
+            const result = hookInstaller.installTo(hooksDir, 'pre-push', {
+              force: !!options.force,
+            });
             results.push({ hook: 'pre-push', result });
           }
 
           spinner.succeed('Git hooks installation complete');
 
           // Display results
-          console.log('');
+          console.error('');
           for (const { result } of results) {
             if (result.success) {
               if (result.action === 'created') {
-                console.log(chalk.green(`  ✓ ${result.message}`));
+                console.error(chalk.green(`  ✓ ${result.message}`));
               } else if (result.action === 'updated') {
-                console.log(chalk.blue(`  ↻ ${result.message}`));
+                console.error(chalk.blue(`  ↻ ${result.message}`));
               }
             } else {
-              console.log(chalk.yellow(`  ⚠ ${result.message}`));
+              console.error(chalk.yellow(`  ⚠ ${result.message}`));
             }
           }
 
           // Show usage info
-          console.log('');
+          console.error('');
           info('Hooks installed successfully');
-          console.log(chalk.gray('  pre-commit: Validates planning documents'));
-          console.log(chalk.gray('  pre-push: Runs quality gates'));
-          console.log('');
-          console.log(chalk.gray('To bypass hooks temporarily:'));
-          console.log(chalk.cyan('  ANVIL_SKIP_HOOKS=1 git push'));
+          console.error(chalk.gray('  pre-commit: Validates planning documents'));
+          console.error(chalk.gray('  pre-push: Runs quality gates'));
+          console.error('');
+          console.error(chalk.gray('To bypass hooks temporarily:'));
+          console.error(chalk.cyan('  ANVIL_SKIP_HOOKS=1 git push'));
         } catch (err) {
           if (err instanceof CliError) throw err;
           const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -323,6 +207,7 @@ export function createHooksCommand(): Command {
 
       try {
         const workspaceRoot = getWorkspaceRoot();
+        const hookInstaller = new HookInstaller();
         const gitDir = resolveGitDir(workspaceRoot);
 
         if (!gitDir) {
@@ -342,19 +227,19 @@ export function createHooksCommand(): Command {
         const results: Array<{
           hook: string;
           dir: string;
-          result: ReturnType<typeof uninstallHook>;
+          result: ReturnType<typeof hookInstaller.uninstallFrom>;
         }> = [];
 
         for (const { dir, name } of hooksDirs) {
           if (!options.prePushOnly) {
-            const result = uninstallHook(dir, 'pre-commit');
+            const result = hookInstaller.uninstallFrom(dir, 'pre-commit');
             if (result.success || !result.message.includes('not found')) {
               results.push({ hook: 'pre-commit', dir: name, result });
             }
           }
 
           if (!options.preCommitOnly) {
-            const result = uninstallHook(dir, 'pre-push');
+            const result = hookInstaller.uninstallFrom(dir, 'pre-push');
             if (result.success || !result.message.includes('not found')) {
               results.push({ hook: 'pre-push', dir: name, result });
             }
@@ -364,12 +249,12 @@ export function createHooksCommand(): Command {
         spinner.succeed('Git hooks removal complete');
 
         // Display results
-        console.log('');
+        console.error('');
         for (const { result } of results) {
           if (result.success) {
-            console.log(chalk.green(`  ✓ ${result.message}`));
+            console.error(chalk.green(`  ✓ ${result.message}`));
           } else {
-            console.log(chalk.yellow(`  ⚠ ${result.message}`));
+            console.error(chalk.yellow(`  ⚠ ${result.message}`));
           }
         }
 
@@ -391,6 +276,7 @@ export function createHooksCommand(): Command {
       log('hooks status');
       try {
         const workspaceRoot = getWorkspaceRoot();
+        const hookInstaller = new HookInstaller();
         const gitDir = resolveGitDir(workspaceRoot);
 
         if (!gitDir) {
@@ -423,7 +309,7 @@ export function createHooksCommand(): Command {
               location: name,
               hook: hookName,
               installed,
-              anvilManaged: installed && isAnvilManagedHook(hookPath),
+              anvilManaged: installed && hookInstaller.isAnvilManagedHook(hookPath),
             });
           }
         }
@@ -435,32 +321,32 @@ export function createHooksCommand(): Command {
           return;
         }
 
-        console.log(chalk.bold('\nAnvil Git Hooks Status\n'));
+        console.error(chalk.bold('\nAnvil Git Hooks Status\n'));
 
         for (const { dir, name, exists } of locations) {
           if (!exists) continue;
 
-          console.log(chalk.cyan(`${name}:`));
+          console.error(chalk.cyan(`${name}:`));
 
           for (const hookName of ['pre-commit', 'pre-push']) {
             const hookPath = join(dir, hookName);
 
             if (!existsSync(hookPath)) {
-              console.log(chalk.gray(`  ${hookName}: not installed`));
-            } else if (isAnvilManagedHook(hookPath)) {
-              console.log(chalk.green(`  ${hookName}: ✓ installed (Anvil-managed)`));
+              console.error(chalk.gray(`  ${hookName}: not installed`));
+            } else if (hookInstaller.isAnvilManagedHook(hookPath)) {
+              console.error(chalk.green(`  ${hookName}: ✓ installed (Anvil-managed)`));
             } else {
-              console.log(chalk.yellow(`  ${hookName}: ⚠ exists (not Anvil-managed)`));
+              console.error(chalk.yellow(`  ${hookName}: ⚠ exists (not Anvil-managed)`));
             }
           }
-          console.log('');
+          console.error('');
         }
 
         // Show Husky detection
         if (husky.detected) {
-          console.log(chalk.blue('ℹ Husky detected in this project'));
+          console.error(chalk.blue('ℹ Husky detected in this project'));
           if (husky.huskyDir) {
-            console.log(chalk.gray(`  Using: ${husky.huskyDir}`));
+            console.error(chalk.gray(`  Using: ${husky.huskyDir}`));
           }
         }
       } catch (err) {

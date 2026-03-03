@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (7/29) |
-<!-- Complete: CRB-003, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (8/29) |
+<!-- Complete: CRB-002, CRB-003, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -138,9 +138,11 @@ Change status to **Ready** when:
   duplication)
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 - **Notes:** CLIH-005 (Complete 2026-02-09) addressed the initial consolidation.
-  Verify whether residual duplication exists before promoting to Ready.
+  CRB-002 (Complete 2026-03-03) moved remaining standalone functions
+  (installHook, uninstallHook, isAnvilManagedHook, injectMarker) from
+  commands/hooks.ts into HookInstaller service. grep -c "#!/" returns 0.
 
 ---
 

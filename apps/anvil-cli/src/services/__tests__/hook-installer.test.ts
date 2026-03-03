@@ -180,6 +180,107 @@ describe('HookInstaller', () => {
     });
   });
 
+  describe('installTo', () => {
+    it('should create hook file with marker', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+      const result = installer.installTo(dir, 'pre-commit');
+
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('created');
+      expect(result.message).toContain('Created pre-commit');
+
+      const content = readFileSync(join(dir, 'pre-commit'), 'utf-8');
+      expect(content).toContain(ANVIL_MARKER);
+    });
+
+    it('should update existing Anvil hook without backup', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'pre-commit'), `${ANVIL_MARKER}\nold content`, 'utf-8');
+
+      const result = installer.installTo(dir, 'pre-commit');
+
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('updated');
+      expect(existsSync(join(dir, 'pre-commit.anvil-backup'))).toBe(false);
+    });
+
+    it('should skip existing non-Anvil hook without force', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'pre-commit'), '#!/bin/sh\necho "custom"', 'utf-8');
+
+      const result = installer.installTo(dir, 'pre-commit');
+
+      expect(result.success).toBe(false);
+      expect(result.action).toBe('skipped');
+      expect(result.message).toContain('--force');
+    });
+
+    it('should overwrite with force and create backup', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'pre-commit'), '#!/bin/sh\necho "custom"', 'utf-8');
+
+      const result = installer.installTo(dir, 'pre-commit', { force: true });
+
+      expect(result.success).toBe(true);
+      expect(result.action).toBe('updated');
+      expect(existsSync(join(dir, 'pre-commit.anvil-backup'))).toBe(true);
+      expect(readFileSync(join(dir, 'pre-commit.anvil-backup'), 'utf-8')).toContain('custom');
+    });
+  });
+
+  describe('uninstallFrom', () => {
+    it('should remove Anvil-managed hook', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'pre-commit'), `${ANVIL_MARKER}\n#!/bin/sh\necho test`, 'utf-8');
+
+      const result = installer.uninstallFrom(dir, 'pre-commit');
+
+      expect(result.success).toBe(true);
+      expect(existsSync(join(dir, 'pre-commit'))).toBe(false);
+    });
+
+    it('should return success for non-existent hook', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+
+      const result = installer.uninstallFrom(dir, 'pre-commit');
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('not found');
+    });
+
+    it('should skip non-Anvil hook', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'pre-commit'), '#!/bin/sh\necho "custom"', 'utf-8');
+
+      const result = installer.uninstallFrom(dir, 'pre-commit');
+
+      expect(result.success).toBe(false);
+      expect(result.message).toContain('not managed by Anvil');
+      expect(existsSync(join(dir, 'pre-commit'))).toBe(true);
+    });
+
+    it('should restore backup when uninstalling', () => {
+      const dir = join(tempDir, 'hooks');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, 'pre-commit'), `${ANVIL_MARKER}\n#!/bin/sh\necho anvil`, 'utf-8');
+      writeFileSync(join(dir, 'pre-commit.anvil-backup'), '#!/bin/sh\necho original', 'utf-8');
+
+      const result = installer.uninstallFrom(dir, 'pre-commit');
+
+      expect(result.success).toBe(true);
+      expect(result.message).toContain('restored backup');
+      expect(readFileSync(join(dir, 'pre-commit'), 'utf-8')).toContain('original');
+      expect(existsSync(join(dir, 'pre-commit.anvil-backup'))).toBe(false);
+    });
+  });
+
   describe('backupExistingHook', () => {
     it('should backup non-Anvil hook to .backup file', () => {
       mkdirSync(join(tempDir, hooksDir), { recursive: true });
