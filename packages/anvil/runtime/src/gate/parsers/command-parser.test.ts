@@ -69,7 +69,8 @@ describe('parseCommand', () => {
       const result = parseCommand('git checkout -- file.txt');
       expect(result.command).toBe('git');
       expect(result.subcommand).toBe('checkout');
-      expect(result.flags).toContain('--');
+      // `--` is the POSIX end-of-options separator, not a flag
+      expect(result.flags).toEqual([]);
       expect(result.args).toContain('file.txt');
     });
 
