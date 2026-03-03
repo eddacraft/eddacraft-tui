@@ -15,6 +15,9 @@ interface WaitlistSubmitResult {
   success: boolean;
   error?: string;
   warning?: string;
+  emailSent?: boolean;
+  emailStatus?: string;
+  isNewSignup?: boolean;
 }
 
 async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
@@ -26,12 +29,29 @@ async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
     });
     const data = (await response.json()) as {
       error?: string;
+      warning?: string;
+      emailSent?: boolean;
+      emailStatus?: string;
+      isNewSignup?: boolean;
     };
     if (!response.ok) {
-      return { success: false, error: data.error || 'Failed to join waitlist' };
+      return {
+        success: false,
+        error: data.error || 'Failed to join waitlist',
+        warning: data.warning,
+        emailSent: data.emailSent,
+        emailStatus: data.emailStatus,
+        isNewSignup: data.isNewSignup,
+      };
     }
 
-    return { success: true };
+    return {
+      success: true,
+      warning: data.warning,
+      emailSent: data.emailSent,
+      emailStatus: data.emailStatus,
+      isNewSignup: data.isNewSignup,
+    };
   } catch {
     return { success: false, error: 'Network error. Please try again.' };
   }
