@@ -13,9 +13,9 @@ const recommendedTsConfig = eslintReact.configs['recommended-typescript'] ?? {};
 export const reactConfig = [
   {
     files: ['**/*.jsx', '**/*.tsx'],
-    plugins: recommendedTsConfig.plugins,
-    rules: recommendedTsConfig.rules,
-    languageOptions: recommendedTsConfig.languageOptions,
+    plugins: recommendedTsConfig.plugins ?? {},
+    rules: recommendedTsConfig.rules ?? {},
+    languageOptions: recommendedTsConfig.languageOptions ?? {},
   },
 ];
 
