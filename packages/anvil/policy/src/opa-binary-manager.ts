@@ -286,10 +286,11 @@ export class OPABinaryManager {
 
     await this.downloadFile(url, binaryPath);
 
-    const checksumValid = this.verifyChecksum(binaryPath);
-    if (!checksumValid) {
+    try {
+      this.verifyChecksum(binaryPath);
+    } catch (err) {
       unlinkSync(binaryPath);
-      throw new Error('OPA binary checksum verification failed - possible tampering detected');
+      throw err;
     }
 
     if (platform() !== 'win32') {
@@ -324,7 +325,10 @@ export class OPABinaryManager {
 
     if (actualChecksum !== expectedChecksum) {
       debug('checksum mismatch', { expected: expectedChecksum, actual: actualChecksum });
-      return false;
+      throw new Error(
+        `OPA binary checksum verification failed - possible tampering detected. ` +
+        `Expected: ${expectedChecksum}, actual: ${actualChecksum}`,
+      );
     }
 
     debug(`checksum verified: ${actualChecksum.substring(0, 16)}...`);
