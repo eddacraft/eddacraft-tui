@@ -250,7 +250,7 @@ export function createPlan(params: {
     proposed_changes: params.changes || [],
     provenance: params.provenance,
     validations: params.validations || {
-      required_checks: DEFAULT_REQUIRED_CHECKS,
+      required_checks: [...DEFAULT_REQUIRED_CHECKS],
       skip_checks: [],
     },
   } satisfies Omit<APSPlan, 'hash'>;
