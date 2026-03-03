@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (8/29) |
-<!-- Complete: CRB-002, CRB-003, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (9/29) |
+<!-- Complete: CRB-002, CRB-003, CRB-005, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -297,7 +297,12 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Parse failures in `runAudit()` now throw instead of returning `null`,
+  so the caller's catch block surfaces them as `passed: false` with an error
+  message rather than silently reporting "No vulnerabilities found." Two
+  `console.error` calls replaced with `log()` (shared debugger). Two new tests
+  verify parse failure and command error are surfaced as check failures.
 
 ---
 

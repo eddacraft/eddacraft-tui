@@ -101,4 +101,31 @@ describe('DependencyCheck', () => {
     expect(result).toHaveProperty('message');
     expect(result.check).toBe('dependency');
   });
+
+  it('should surface audit parse failure as a check failure', async () => {
+    const check = new DependencyCheck();
+    const internal = check as unknown as DependencyCheckInternals;
+    vi.spyOn(internal, 'runAudit').mockRejectedValue(
+      new Error('Failed to parse pnpm audit output: Unexpected token')
+    );
+    vi.spyOn(internal, 'detectPackageManager').mockReturnValue('pnpm');
+
+    const result = await check.run(mockContext);
+
+    expect(result.passed).toBe(false);
+    expect(result.error).toContain('Failed to parse pnpm audit output');
+    expect(result.message).toBe('Dependency check failed');
+  });
+
+  it('should surface audit command errors as a check failure', async () => {
+    const check = new DependencyCheck();
+    const internal = check as unknown as DependencyCheckInternals;
+    vi.spyOn(internal, 'runAudit').mockRejectedValue(new Error('ENOENT: pnpm not found'));
+    vi.spyOn(internal, 'detectPackageManager').mockReturnValue('pnpm');
+
+    const result = await check.run(mockContext);
+
+    expect(result.passed).toBe(false);
+    expect(result.error).toContain('pnpm not found');
+  });
 });
