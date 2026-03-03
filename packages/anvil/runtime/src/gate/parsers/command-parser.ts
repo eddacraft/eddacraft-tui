@@ -224,7 +224,7 @@ function unwrapCommand(cmd: string, depth = 0): UnwrapResult {
   }
 
   if (isPrivilegedWrapper(firstToken)) {
-    const sudoFlagsWithArgs = ['-u', '-g', '-H', '-C', '-h', '-p', '-r', '-t', '-T', '-U'];
+    const sudoFlagsWithArgs = ['-u', '-g', '-H', '-h', '-p', '-r', '-t', '-T', '-U', '-D', '-a'];
     let startIndex = 1;
     while (startIndex < tokens.length) {
       const token = tokens[startIndex];
@@ -291,6 +291,20 @@ function expandCombinedFlags(flags: string[]): string[] {
   return expanded;
 }
 
+function isLikelySubcommand(arg: string): boolean {
+  // Exclude obvious flags
+  if (arg.startsWith('-')) {
+    return false;
+  }
+
+  // Exclude obvious file paths
+  if (arg.startsWith('/') || arg.startsWith('./') || arg.startsWith('../')) {
+    return false;
+  }
+
+  return true;
+}
+
 function extractSubcommand(command: string, args: string[]): string | undefined {
   const commandsWithSubcommands = [
     'git',
@@ -305,7 +319,7 @@ function extractSubcommand(command: string, args: string[]): string | undefined 
 
   if (commandsWithSubcommands.includes(command) && args.length > 0) {
     const firstArg = args[0];
-    if (!firstArg.startsWith('-') && !firstArg.includes('/') && !firstArg.includes('=')) {
+    if (isLikelySubcommand(firstArg)) {
       return firstArg;
     }
   }
@@ -328,10 +342,16 @@ function parseFromTokens(tokens: string[], rawCmd: string, wrappers: string[]): 
 
   const [command, ...rest] = tokens;
 
-  const rawFlags = rest.filter((t) => t.startsWith('-'));
+  // Respect the conventional `--` end-of-options separator: everything after it is an argument.
+  const separatorIndex = rest.indexOf('--');
+  const beforeSeparator = separatorIndex === -1 ? rest : rest.slice(0, separatorIndex);
+  const afterSeparator = separatorIndex === -1 ? [] : rest.slice(separatorIndex + 1);
+
+  const rawFlags = beforeSeparator.filter((t) => t.startsWith('-'));
   const flags = expandCombinedFlags(rawFlags);
 
-  const args = rest.filter((t) => !t.startsWith('-'));
+  const earlyArgs = beforeSeparator.filter((t) => !t.startsWith('-'));
+  const args = [...earlyArgs, ...afterSeparator];
   const subcommand = extractSubcommand(command, args);
   const remainingArgs = subcommand ? args.slice(1) : args;
 
@@ -371,10 +391,16 @@ export function parseCommand(cmd: string): ParsedCommand {
 
   const [command, ...rest] = tokens;
 
-  const rawFlags = rest.filter((t) => t.startsWith('-'));
+  // Respect the conventional `--` end-of-options separator: everything after it is an argument.
+  const separatorIndex = rest.indexOf('--');
+  const beforeSeparator = separatorIndex === -1 ? rest : rest.slice(0, separatorIndex);
+  const afterSeparator = separatorIndex === -1 ? [] : rest.slice(separatorIndex + 1);
+
+  const rawFlags = beforeSeparator.filter((t) => t.startsWith('-'));
   const flags = expandCombinedFlags(rawFlags);
 
-  const args = rest.filter((t) => !t.startsWith('-'));
+  const earlyArgs = beforeSeparator.filter((t) => !t.startsWith('-'));
+  const args = [...earlyArgs, ...afterSeparator];
   const subcommand = extractSubcommand(command, args);
   const remainingArgs = subcommand ? args.slice(1) : args;
 
