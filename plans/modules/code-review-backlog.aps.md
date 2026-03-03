@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (7/29) |
-<!-- Complete: CRB-003, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (9/29) |
+<!-- Complete: CRB-003, CRB-007, CRB-008, CRB-009, CRB-018, CRB-025, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -618,9 +618,11 @@ Change status to **Ready** when:
 - **Dependencies:** CRB-006 (vitest config strategy is a prerequisite)
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 - **Notes:** Overlaps with CRB-006 but is broader — affects all dev commands,
-  not just vitest.
+  not just vitest. Verified 2026-03-03 — CONTRIBUTING.md has a Development
+  Workflow section documenting essential commands, package-specific dev commands,
+  and a before-submitting checklist. All `pnpm` commands assume repo root.
 
 ---
 
@@ -640,7 +642,10 @@ Change status to **Ready** when:
   should say)
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Verified 2026-03-03 — README.md paths match actual project
+  structure. No obvious drift detected in spot check of all referenced
+  directories and packages.
 
 ---
 
