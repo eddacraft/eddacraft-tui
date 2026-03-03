@@ -10,7 +10,11 @@ import { existsSync, readFileSync, mkdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
 import { success, error, info } from '../utils/output.js';
-import { HookInstaller } from '../services/hook-installer.js';
+import {
+  HookInstaller,
+  type HookInstallResult,
+  type HookUninstallResult,
+} from '../services/hook-installer.js';
 import { CliError } from '../utils/cli-error.js';
 
 const log = createDebugger('cli');
@@ -141,7 +145,7 @@ export function createHooksCommand(): Command {
 
           const results: Array<{
             hook: string;
-            result: ReturnType<typeof hookInstaller.installTo>;
+            result: HookInstallResult;
           }> = [];
 
           // Install pre-commit hook
@@ -227,7 +231,7 @@ export function createHooksCommand(): Command {
         const results: Array<{
           hook: string;
           dir: string;
-          result: ReturnType<typeof hookInstaller.uninstallFrom>;
+          result: HookUninstallResult;
         }> = [];
 
         for (const { dir, name } of hooksDirs) {

@@ -298,7 +298,11 @@ exit 0
 
       if (existingContent.includes(ANVIL_MARKER)) {
         writeFileSync(hookPath, markedContent, 'utf-8');
-        chmodSync(hookPath, 0o755);
+        try {
+          chmodSync(hookPath, 0o755);
+        } catch {
+          // Chmod may not be available on Windows
+        }
         return { success: true, message: `Updated ${hookName}`, action: 'updated' };
       }
 
@@ -306,7 +310,11 @@ exit 0
         const backupPath = `${hookPath}.anvil-backup`;
         writeFileSync(backupPath, existingContent, 'utf-8');
         writeFileSync(hookPath, markedContent, 'utf-8');
-        chmodSync(hookPath, 0o755);
+        try {
+          chmodSync(hookPath, 0o755);
+        } catch {
+          // Chmod may not be available on Windows
+        }
         return {
           success: true,
           message: `Replaced ${hookName} (backup: ${hookName}.anvil-backup)`,
@@ -322,7 +330,11 @@ exit 0
     }
 
     writeFileSync(hookPath, markedContent, 'utf-8');
-    chmodSync(hookPath, 0o755);
+    try {
+      chmodSync(hookPath, 0o755);
+    } catch {
+      // Chmod may not be available on Windows
+    }
     return { success: true, message: `Created ${hookName}`, action: 'created' };
   }
 
@@ -351,7 +363,11 @@ exit 0
     if (existsSync(backupPath)) {
       const backupContent = readFileSync(backupPath, 'utf-8');
       writeFileSync(hookPath, backupContent, 'utf-8');
-      chmodSync(hookPath, 0o755);
+      try {
+        chmodSync(hookPath, 0o755);
+      } catch {
+        // Chmod may not be available on Windows
+      }
       unlinkSync(backupPath);
       return { success: true, message: `Removed ${hookName} (restored backup)` };
     }

@@ -194,6 +194,19 @@ describe('HookInstaller', () => {
       expect(content).toContain(ANVIL_MARKER);
     });
 
+    it.skipIf(process.platform === 'win32')(
+      'should set executable permissions on created hook',
+      () => {
+        const dir = join(tempDir, 'hooks');
+        mkdirSync(dir, { recursive: true });
+
+        installer.installTo(dir, 'pre-commit');
+        const hookPath = join(dir, 'pre-commit');
+        const stat = statSync(hookPath);
+        expect(stat.mode & 0o111).toBeGreaterThan(0);
+      }
+    );
+
     it('should update existing Anvil hook without backup', () => {
       const dir = join(tempDir, 'hooks');
       mkdirSync(dir, { recursive: true });
