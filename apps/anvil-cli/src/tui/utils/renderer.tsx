@@ -36,7 +36,9 @@ export function renderTUI<P extends object>(
   return {
     instance,
     cleanup: () => instance.unmount(),
-    waitUntilExit: () => instance.waitUntilExit(),
+    waitUntilExit: async () => {
+      await instance.waitUntilExit();
+    },
   };
 }
 
