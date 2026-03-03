@@ -547,7 +547,7 @@ Change status to **Ready** when:
   symlinks pointing outside the storage root and verify that read/write
   operations through the symlink are rejected; both relative and absolute
   symlink targets are tested
-- **Validation:** `pnpm -F @eddacraft/platform-storage test -- --testNamePattern="symlink|escape"`
+- **Validation:** `pnpm -F @eddacraft/anvil-platform-storage test -- --testNamePattern="symlink|escape"`
   passes with at least 3 symlink-specific test cases
 - **Files:** `packages/platform/storage/src/file-storage.test.ts`
 - **Notes:** Path-escape tests already exist (traversal via `../` and absolute
