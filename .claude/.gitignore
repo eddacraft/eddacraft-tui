@@ -1,1 +1,18 @@
-/home/aneki/Projects/src/code-env/.claude/.gitignore
+# Local settings (contains secrets)
+settings.local.json
+
+# Session logs
+logs/
+
+# Memory file (can contain sensitive context)
+memory.json
+
+# Autonomous state files
+autonomous-state.json
+
+# Setup metadata
+.setup-meta
+
+# Temporary files
+*.tmp
+*.bak

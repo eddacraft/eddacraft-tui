@@ -1,6 +1,6 @@
 import js from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
-import reactPlugin from 'eslint-plugin-react';
+import eslintReact from '@eslint-react/eslint-plugin';
 import nxPlugin from '@nx/eslint-plugin';
 import globals from 'globals';
 import typescriptEslint from 'typescript-eslint';
@@ -57,6 +57,7 @@ export default typescriptEslint.config(
       parser: (await import('jsonc-eslint-parser')).default,
     },
     rules: {
+      '@typescript-eslint/no-unused-expressions': 'off',
       '@nx/dependency-checks': [
         'error',
         {
@@ -87,16 +88,14 @@ export default typescriptEslint.config(
   // React files
   {
     files: ['**/*.jsx', '**/*.tsx'],
-    ...reactPlugin.configs.flat.recommended,
-    settings: {
-      react: {
-        version: 'detect',
+    ...eslintReact.configs['recommended-typescript'],
+    languageOptions: {
+      ...eslintReact.configs['recommended-typescript'].languageOptions,
+      parserOptions: {
+        ...eslintReact.configs['recommended-typescript'].languageOptions?.parserOptions,
+        project: false,
+        tsconfigRootDir: import.meta.dirname,
       },
-    },
-    rules: {
-      ...reactPlugin.configs.flat.recommended.rules,
-      // Not needed with React 17+ automatic JSX runtime (Next.js, Vite, etc.)
-      'react/react-in-jsx-scope': 'off',
     },
   },
   {
@@ -122,6 +121,9 @@ export default typescriptEslint.config(
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       'no-console': ['warn', { allow: ['warn', 'error'] }],
+      // New ESLint v10 rules — downgrade to warn until codebase is updated
+      'no-useless-assignment': 'warn',
+      'preserve-caught-error': 'warn',
       // Prefer node: protocol for Node.js built-in imports (e.g., 'node:fs' instead of 'fs')
       'unicorn/prefer-node-protocol': 'error',
     },

@@ -130,11 +130,12 @@ describe('Init Wizard Steps', () => {
       expect(props.onNext).toHaveBeenCalledWith({ configTemplate: 'strict' });
     });
 
-    it('calls onCancel on Escape', () => {
+    it('calls onCancel on Escape', async () => {
       const props = createMockStepProps();
       const { stdin } = render(<ModeStep {...props} />);
 
       stdin.write('\u001B'); // Escape
+      await new Promise((r) => setTimeout(r, 100));
 
       expect(props.onCancel).toHaveBeenCalled();
     });
@@ -202,11 +203,12 @@ describe('Init Wizard Steps', () => {
       expect(props.onBack).toHaveBeenCalled();
     });
 
-    it('calls onCancel on Escape', () => {
+    it('calls onCancel on Escape', async () => {
       const props = createMockStepProps();
       const { stdin } = render(<FormatStep {...props} />);
 
       stdin.write('\u001B'); // Escape
+      await new Promise((r) => setTimeout(r, 100));
 
       expect(props.onCancel).toHaveBeenCalled();
     });
@@ -289,11 +291,12 @@ describe('Init Wizard Steps', () => {
       expect(props.onBack).not.toHaveBeenCalled();
     });
 
-    it('calls onCancel on Escape', () => {
+    it('calls onCancel on Escape', async () => {
       const props = createMockStepProps();
       const { stdin } = render(<DirectoryStep {...props} />);
 
       stdin.write('\u001B'); // Escape
+      await new Promise((r) => setTimeout(r, 100));
 
       expect(props.onCancel).toHaveBeenCalled();
     });
@@ -398,11 +401,12 @@ describe('Init Wizard Steps', () => {
       expect(props.onBack).toHaveBeenCalled();
     });
 
-    it('calls onCancel on Escape', () => {
+    it('calls onCancel on Escape', async () => {
       const props = createMockStepProps();
       const { stdin } = render(<ChecksStep {...props} />);
 
       stdin.write('\u001B'); // Escape
+      await new Promise((r) => setTimeout(r, 100));
 
       expect(props.onCancel).toHaveBeenCalled();
     });
@@ -535,11 +539,12 @@ describe('Init Wizard Steps', () => {
       expect(props.onBack).toHaveBeenCalled();
     });
 
-    it('calls onCancel on Escape', () => {
+    it('calls onCancel on Escape', async () => {
       const props = createMockStepProps();
       const { stdin } = render(<SummaryStep {...props} />);
 
       stdin.write('\u001B'); // Escape
+      await new Promise((r) => setTimeout(r, 100));
 
       expect(props.onCancel).toHaveBeenCalled();
     });
@@ -690,12 +695,13 @@ describe.skip('InitWizard', () => {
     );
   });
 
-  it('calls onCancel when escape is pressed', () => {
+  it('calls onCancel when escape is pressed', async () => {
     const { stdin } = render(
       <InitWizard context={mockContext} onComplete={mockOnComplete} onCancel={mockOnCancel} />
     );
 
     stdin.write('\u001B'); // Escape
+    await new Promise((r) => setTimeout(r, 100));
 
     expect(mockOnCancel).toHaveBeenCalled();
   });

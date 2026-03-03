@@ -3,7 +3,7 @@
  * @module @eddacraft/anvil-eslint-config/react
  */
 
-import reactPlugin from 'eslint-plugin-react';
+import eslintReact from '@eslint-react/eslint-plugin';
 
 /**
  * React-specific ESLint rules
@@ -11,12 +11,7 @@ import reactPlugin from 'eslint-plugin-react';
 export const reactConfig = [
   {
     files: ['**/*.jsx', '**/*.tsx'],
-    ...reactPlugin.configs.flat.recommended,
-    settings: {
-      react: {
-        version: 'detect',
-      },
-    },
+    ...eslintReact.configs['recommended-typescript'],
   },
 ];
 
