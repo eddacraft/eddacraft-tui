@@ -5,13 +5,17 @@
 
 import eslintReact from '@eslint-react/eslint-plugin';
 
+const recommendedTsConfig = eslintReact.configs['recommended-typescript'] ?? {};
+
 /**
  * React-specific ESLint rules
  */
 export const reactConfig = [
   {
     files: ['**/*.jsx', '**/*.tsx'],
-    ...eslintReact.configs['recommended-typescript'],
+    plugins: recommendedTsConfig.plugins,
+    rules: recommendedTsConfig.rules,
+    languageOptions: recommendedTsConfig.languageOptions,
   },
 ];
 
