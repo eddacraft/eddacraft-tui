@@ -63,15 +63,9 @@ export async function POST(request: Request) {
     let emailStatus = 'skipped';
 
     if (isNewSignup) {
-      try {
-        await sendWaitlistConfirmation(result[0].email);
-        emailSent = true;
-        emailStatus = 'sent';
-      } catch (emailError: unknown) {
-        const msg = emailError instanceof Error ? emailError.message : String(emailError);
-        console.error('Waitlist confirmation email failed:', msg);
-        emailStatus = 'failed';
-      }
+      const delivery = await sendWaitlistConfirmation(result[0].email);
+      emailSent = delivery.sent;
+      emailStatus = delivery.sent ? 'sent' : 'failed';
     }
 
     return NextResponse.json({
