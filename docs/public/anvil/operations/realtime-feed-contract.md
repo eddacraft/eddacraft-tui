@@ -1,14 +1,16 @@
 # Real-time Operations Feed Contract (Draft)
 
-This document defines the minimum event feed contract required by dashboard operations views.
+This document defines the minimum event feed contract required by dashboard
+operations views.
 
 ## Event feed schema
 
 Required fields per event:
+
 - `eventId` (string)
 - `timestamp` (ISO-8601 UTC)
 - `source` (service/component name)
-- `severity` (`info` | `warn` | `error`)
+- `severity` (`info` | `warning` | `error`)
 - `type` (machine-readable event type)
 - `summary` (human-readable short text)
 - `metadata` (object; optional key-value details)
@@ -22,4 +24,5 @@ Required fields per event:
 
 - Clients must retry reconnect with bounded exponential backoff.
 - Feed consumers must deduplicate by `eventId` on reconnect.
-- If real-time transport is unavailable, UI must fallback to periodic polling with degraded-mode indicator.
+- If real-time transport is unavailable, UI must fallback to periodic polling
+  with degraded-mode indicator.
