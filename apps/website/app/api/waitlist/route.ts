@@ -59,14 +59,28 @@ export async function POST(request: Request) {
 
     const isNewSignup = result[0].is_new;
 
+    let emailSent = false;
+    let emailStatus = 'skipped';
+
     if (isNewSignup) {
-      await sendWaitlistConfirmation(result[0].email);
+      try {
+        await sendWaitlistConfirmation(result[0].email);
+        emailSent = true;
+        emailStatus = 'sent';
+      } catch (emailError: unknown) {
+        const msg = emailError instanceof Error ? emailError.message : String(emailError);
+        console.error('Waitlist confirmation email failed:', msg);
+        emailStatus = 'failed';
+      }
     }
 
     return NextResponse.json({
       success: true,
       message: 'Added to waitlist',
       email: result[0].email,
+      isNewSignup,
+      emailSent,
+      emailStatus,
     });
   } catch (error: unknown) {
     if (error instanceof Error) {
