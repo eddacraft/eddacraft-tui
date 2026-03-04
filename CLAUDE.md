@@ -57,7 +57,7 @@ These hooks run automatically and affect how Claude operates:
 | Hook                   | Trigger                  | What it does                     | Active?                                     |
 | ---------------------- | ------------------------ | -------------------------------- | ------------------------------------------- |
 | `security-guard.sh`    | PreToolUse (Bash)        | Blocks dangerous shell commands  | Always                                      |
-| `forge.sh`             | PreToolUse (Bash)        | Pre-commit review negotiation    | `CLAUDE_FORGE_ENABLED=false` (off)          |
+| `forge.sh`             | PreToolUse (Bash)        | Pre-commit review negotiation    | `CLAUDE_FORGE_ENABLED=true` (on)            |
 | `codex-review.sh`      | PreToolUse (Bash)        | GPT review before commits        | `CLAUDE_CODEX_REVIEW_PRECOMMIT=false` (off) |
 | `post-edit.sh`         | PostToolUse (Write/Edit) | Auto-format and lint after edits | `CLAUDE_POST_EDIT_LINT=false` (off)         |
 | `codex-review-post.sh` | PostToolUse (Bash)       | GPT suggestions after commits    | `CLAUDE_CODEX_REVIEW=true` + async          |
@@ -67,7 +67,7 @@ These hooks run automatically and affect how Claude operates:
 | `session-start.sh`     | SessionStart             | Environment check                | Always                                      |
 | `kindling-capture.sh`  | PostToolUse              | Kindling integration             | Always                                      |
 
-Current settings (from `settings.json`): Forge is **off**, pre-commit codex
+Current settings (from `settings.json`): Forge is **on**, pre-commit codex
 review is **off**, post-edit lint is **off**, TDD strict is **off**, agent
 triggers are **off**, auto-consult is **off**. Codex review runs async
 post-commit only.
@@ -86,7 +86,7 @@ post-commit only.
 | `CLAUDE_AGENT_TRIGGERS`         | `false`       | Parse TRIGGER: lines from agent output     |
 | `CLAUDE_NOTIFICATION_COOLDOWN`  | `60`          | Seconds between desktop notifications      |
 | `CLAUDE_CODE_MAX_SUBAGENTS`     | `5`           | Max concurrent subagents                   |
-| `CLAUDE_FORGE_ENABLED`          | `false`       | Pre-commit review via forge-reviewer agent |
+| `CLAUDE_FORGE_ENABLED`          | `true`        | Pre-commit review via forge-reviewer agent |
 | `CLAUDE_FORGE_MAX_ROUNDS`       | `3`           | Max negotiation rounds before auto-defer   |
 | `CLAUDE_FORGE_AUTO_DEFER_NITS`  | `true`        | Auto-defer nit findings without arguing    |
 
