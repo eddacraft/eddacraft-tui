@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { FileStorage, createFileStorage } from './file-storage.js';
 
@@ -94,6 +94,67 @@ describe('FileStorage', () => {
       // Listing the base directory should work (empty path resolves to base)
       const files = await storage.list('.');
       expect(Array.isArray(files)).toBe(true);
+    });
+  });
+
+  describe.skipIf(process.platform === 'win32')('symlink escape prevention', () => {
+    let outsideDir: string;
+
+    beforeEach(() => {
+      outsideDir = mkdtempSync(join(tmpdir(), 'filestorage-outside-'));
+      writeFileSync(join(outsideDir, 'secret.txt'), 'sensitive data');
+    });
+
+    afterEach(() => {
+      rmSync(outsideDir, { recursive: true, force: true });
+    });
+
+    it('should reject read through symlink file pointing outside base', async () => {
+      symlinkSync(join(outsideDir, 'secret.txt'), join(tempDir, 'escape-link'));
+
+      await expect(storage.read('escape-link')).rejects.toThrow(/Path escapes base directory/);
+    });
+
+    it('should reject read through symlink with absolute target outside base', async () => {
+      symlinkSync(outsideDir, join(tempDir, 'outside-dir-link'));
+
+      await expect(storage.read('outside-dir-link/secret.txt')).rejects.toThrow(
+        /Path escapes base directory/
+      );
+    });
+
+    it('should reject read through symlinked intermediate directory', async () => {
+      mkdirSync(join(tempDir, 'legit'));
+      symlinkSync(outsideDir, join(tempDir, 'legit', 'escape'));
+
+      await expect(storage.read('legit/escape/secret.txt')).rejects.toThrow(
+        /Path escapes base directory/
+      );
+    });
+
+    it('should reject write through symlink pointing outside base', async () => {
+      symlinkSync(join(outsideDir, 'secret.txt'), join(tempDir, 'write-link'));
+
+      await expect(storage.write('write-link', 'overwritten')).rejects.toThrow(
+        /Path escapes base directory/
+      );
+      // Verify original file was not modified
+      const content = await fs.readFile(join(outsideDir, 'secret.txt'), 'utf-8');
+      expect(content).toBe('sensitive data');
+    });
+
+    it('should reject delete through symlink pointing outside base', async () => {
+      symlinkSync(join(outsideDir, 'secret.txt'), join(tempDir, 'delete-link'));
+
+      await expect(storage.delete('delete-link')).rejects.toThrow(/Path escapes base directory/);
+    });
+
+    it('should allow symlink that points within the base directory', async () => {
+      await fs.writeFile(join(tempDir, 'real-file.txt'), 'safe content');
+      symlinkSync(join(tempDir, 'real-file.txt'), join(tempDir, 'internal-link'));
+
+      const content = await storage.read('internal-link');
+      expect(content).toBe('safe content');
     });
   });
 

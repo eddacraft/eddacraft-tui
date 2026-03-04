@@ -559,14 +559,19 @@ Change status to **Ready** when:
 - **Validation:** `pnpm -F @eddacraft/anvil-platform-storage test -- --testNamePattern="symlink|escape"`
   passes with at least 3 symlink-specific test cases
 - **Files:** `packages/platform/storage/src/file-storage.test.ts`
-- **Notes:** Path-escape tests already exist (traversal via `../` and absolute
-  paths). This item adds symlink-specific tests — creating symlinks that point
-  outside the storage root and verifying operations through them are rejected.
+- **Background:** Path-escape tests already exist (traversal via `../` and
+  absolute paths). This item adds symlink-specific tests — creating symlinks
+  that point outside the storage root and verifying operations through them are
+  rejected.
 - **Dependencies:** None (the symlink guard is already implemented; this adds
   test coverage)
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** Added 6 symlink-specific tests: symlink file pointing outside base
+  (read, write, delete), symlinked intermediate directory, absolute symlink
+  target outside base, and internal symlink (allowed). All tests skipped on
+  Windows where symlinks require admin. Total tests in file: 39 (up from 33).
 
 ---
 
