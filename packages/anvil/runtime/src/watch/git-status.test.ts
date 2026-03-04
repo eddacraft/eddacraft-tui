@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const toFwd = (p: string): string => p.replace(/\\/g, '/');
