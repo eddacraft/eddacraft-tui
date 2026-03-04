@@ -12,7 +12,7 @@ import { describe, it, expect } from 'vitest';
 import { ResultsDashboard, type InitAnalysisResults } from '../ResultsDashboard.js';
 import type { ProjectContext } from '../../../services/project-detector.js';
 import type { QuickWinsAnalysis } from '../../../services/quick-wins.js';
-import type { HistoricalAnalysis } from '../../../services/historical-analyser.js';
+import type { HistoricalAnalysis } from '../../../services/historical-analyzer.js';
 
 function createMinimalProject(): ProjectContext {
   return {
