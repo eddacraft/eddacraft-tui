@@ -114,7 +114,9 @@ function printPlainTextStatus(data: StatusData, projectRoot: string): void {
       console.error(chalk.hex(theme.colours.smoke)(`  Format: ${data.profile.format}`));
     }
     if (data.profile.coverageThreshold) {
-      console.error(chalk.hex(theme.colours.smoke)(`  Coverage: ${data.profile.coverageThreshold}%`));
+      console.error(
+        chalk.hex(theme.colours.smoke)(`  Coverage: ${data.profile.coverageThreshold}%`)
+      );
     }
     if (data.profile.checks.length > 0) {
       const enabled = data.profile.checks.filter((c) => c.enabled).map((c) => c.name);
@@ -125,7 +127,9 @@ function printPlainTextStatus(data: StatusData, projectRoot: string): void {
 
   console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} RECENT RESULTS`));
   if (!data.recent.hasCache || data.recent.results.length === 0) {
-    console.error(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No validation history yet`));
+    console.error(
+      chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No validation history yet`)
+    );
   } else {
     for (const result of data.recent.results) {
       const icon = result.passed ? theme.icons.success : theme.icons.error;
