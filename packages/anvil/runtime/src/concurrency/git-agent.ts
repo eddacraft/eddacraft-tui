@@ -71,30 +71,29 @@ export interface CommitAgentInfo {
  * Parse trailers from commit message
  */
 export function parseCommitTrailers(commitMessage: string): Record<string, string> {
-  const trailers: Record<string, string> = {};
-  const lines = commitMessage.split('\n');
+  const lines = commitMessage.trimEnd().split('\n');
 
-  // Trailers are at the end, after a blank line
-  let inTrailers = false;
+  // Collect trailer-like lines from the end, confirm them when we hit a blank line
+  const pending: Record<string, string> = {};
 
   for (let i = lines.length - 1; i >= 0; i--) {
     const line = lines[i].trim();
 
     if (line === '') {
-      if (inTrailers) break;
-      inTrailers = true;
-      continue;
+      // Blank line: if we collected trailers, they're confirmed (preceded by blank line)
+      return Object.keys(pending).length > 0 ? pending : {};
     }
 
-    if (inTrailers) {
-      const match = line.match(/^([A-Za-z][A-Za-z0-9-]*)\s*:\s*(.+)$/);
-      if (match) {
-        trailers[match[1]] = match[2];
-      }
+    const match = line.match(/^([A-Za-z][A-Za-z0-9-]*)\s*:\s*(.+)$/);
+    if (match) {
+      pending[match[1]] = match[2];
+    } else {
+      // Non-trailer line before a blank line — not a trailer block
+      return {};
     }
   }
 
-  return trailers;
+  return {};
 }
 
 /**

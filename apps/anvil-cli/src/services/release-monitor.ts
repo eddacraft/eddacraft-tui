@@ -19,10 +19,12 @@ interface WorkflowRun {
   headBranch: string;
 }
 
+type MatchType = 'exact' | 'tag' | 'publish-fallback';
+
 function findTriggeredRun(
   workspaceRoot: string,
   tagName: string
-): { run: WorkflowRun; exact: boolean } | null {
+): { run: WorkflowRun; matchType: MatchType } | null {
   try {
     const output = execFileSync(
       'gh',
@@ -42,15 +44,15 @@ function findTriggeredRun(
 
     // Best match: Publish workflow triggered by this tag
     const exactMatch = runs.find((r) => r.name === 'Publish to NPM' && r.headBranch === tagName);
-    if (exactMatch) return { run: exactMatch, exact: true };
+    if (exactMatch) return { run: exactMatch, matchType: 'exact' };
 
-    // Good match: any run on this tag
+    // Good match: any run on this tag (but not the exact Publish workflow)
     const tagMatch = runs.find((r) => r.headBranch === tagName);
-    if (tagMatch) return { run: tagMatch, exact: true };
+    if (tagMatch) return { run: tagMatch, matchType: 'tag' };
 
     // Fallback: most recent Publish workflow (may not be ours)
     const publishMatch = runs.find((r) => r.name === 'Publish to NPM');
-    if (publishMatch) return { run: publishMatch, exact: false };
+    if (publishMatch) return { run: publishMatch, matchType: 'publish-fallback' };
 
     return null;
   } catch {
@@ -90,11 +92,17 @@ export async function monitorWorkflow(
     return undefined;
   }
 
-  const { run, exact } = result;
-  if (!exact) {
+  const { run, matchType } = result;
+  if (matchType === 'publish-fallback') {
     console.log(
       chalk.yellow(
         `  ⚠ Could not find a run matching tag ${tagName}; showing most recent Publish run`
+      )
+    );
+  } else if (matchType === 'tag') {
+    console.log(
+      chalk.yellow(
+        `  ⚠ Found a run for tag ${tagName}, but not the exact 'Publish to NPM' workflow`
       )
     );
   }
