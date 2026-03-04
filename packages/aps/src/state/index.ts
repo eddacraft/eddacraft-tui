@@ -8,9 +8,9 @@
  * - Lock/unlock/status operations
  */
 
-import { promises as fs } from 'node:fs';
+import { promises as fs, constants as fsConstants } from 'node:fs';
 import { dirname, join, isAbsolute, resolve } from 'node:path';
-import { createHash } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import { execSync } from 'node:child_process';
 import { z } from 'zod';
 import { TaskStatusSchema, type Task, type TaskStatus } from '../types/index.js';
@@ -174,48 +174,89 @@ export function getLocksDir(projectRoot: string): string {
 }
 
 /**
- * Atomically acquire a lock file using O_EXCL (kernel-level atomicity).
- * Returns true if the lock was acquired, false if already held.
+ * Get the lock file path for a task
  */
-export async function acquireLockFile(
+export function getTaskLockPath(projectRoot: string, taskId: string): string {
+  return join(getLocksDir(projectRoot), `${taskId}.lock`);
+}
+
+/**
+ * Atomically acquire a task lock using O_EXCL.
+ * Returns the lock metadata on success, or null if the lock is already held.
+ */
+async function acquireTaskLock(
   projectRoot: string,
   taskId: string,
-  lockedBy: string
-): Promise<boolean> {
-  const lockDir = getLocksDir(projectRoot);
-  await fs.mkdir(lockDir, { recursive: true });
-  const lockPath = join(lockDir, `${taskId}.lock`);
+  lockedBy: string,
+  lockedAt: string
+): Promise<{ lockedBy: string; lockedAt: string } | null> {
+  const lockPath = getTaskLockPath(projectRoot, taskId);
+  const lockDir = dirname(lockPath);
 
-  let fd: import('node:fs/promises').FileHandle | undefined;
+  await fs.mkdir(lockDir, { recursive: true });
+
+  const lockData = JSON.stringify({ locked_by: lockedBy, locked_at: lockedAt });
+
+  let handle: import('node:fs/promises').FileHandle | undefined;
   try {
-    // 'wx' = O_CREAT | O_EXCL | O_WRONLY — fails with EEXIST if file exists
-    fd = await fs.open(lockPath, 'wx');
-    await fd.writeFile(
-      JSON.stringify({ locked_by: lockedBy, locked_at: new Date().toISOString() })
+    // O_WRONLY | O_CREAT | O_EXCL — fails atomically if file exists
+    handle = await fs.open(
+      lockPath,
+      fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL
     );
-    await fd.close();
-    fd = undefined;
-    return true;
+    await handle.writeFile(lockData, 'utf-8');
+    await handle.close();
+    handle = undefined;
+    return { lockedBy, lockedAt };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      return false;
+      return null;
     }
-    // Clean up partially-created lock file on write/close failure
-    try {
-      if (fd) await fd.close().catch(() => {});
-      await fs.unlink(lockPath).catch(() => {});
-    } catch {
-      // Best-effort cleanup — don't mask the original error
+    // Clean up only if this process created the file (handle was assigned).
+    // If open() itself failed, we don't own the lock and must not delete it.
+    if (handle) {
+      try {
+        await handle.close().catch(() => {});
+        await fs.unlink(lockPath);
+      } catch {
+        // Best-effort cleanup
+      }
     }
     throw error;
   }
 }
 
 /**
- * Release a lock file. Safe to call if the lock file doesn't exist.
+ * Read lock metadata from an existing lock file.
+ * Returns null if the lock file does not exist.
  */
-export async function releaseLockFile(projectRoot: string, taskId: string): Promise<void> {
-  const lockPath = join(getLocksDir(projectRoot), `${taskId}.lock`);
+async function readTaskLock(
+  projectRoot: string,
+  taskId: string
+): Promise<{ locked_by: string; locked_at: string } | null> {
+  const lockPath = getTaskLockPath(projectRoot, taskId);
+  try {
+    const content = await fs.readFile(lockPath, 'utf-8');
+    try {
+      return JSON.parse(content);
+    } catch {
+      // File exists but contains empty/partial JSON — the winning process
+      // created the file (O_EXCL) but hasn't finished writing metadata yet.
+      return { locked_by: 'unknown', locked_at: 'unknown' };
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Release a task lock by deleting the lock file.
+ */
+async function releaseTaskLock(projectRoot: string, taskId: string): Promise<void> {
+  const lockPath = getTaskLockPath(projectRoot, taskId);
   try {
     await fs.unlink(lockPath);
   } catch (error) {
@@ -253,11 +294,21 @@ export async function writeStateFile(projectRoot: string, state: StateFile): Pro
   const statePath = getStateFilePath(projectRoot);
   const stateDir = dirname(statePath);
 
+  let tmpPath: string | undefined;
   try {
     await fs.mkdir(stateDir, { recursive: true });
     const content = JSON.stringify(state, null, 2);
-    await fs.writeFile(statePath, content, 'utf-8');
+    // Atomic write: write to temp file, then rename
+    tmpPath = `${statePath}.${randomBytes(6).toString('hex')}.tmp`;
+    await fs.writeFile(tmpPath, content, 'utf-8');
+    await fs.rename(tmpPath, statePath);
+    tmpPath = undefined;
   } catch (error) {
+    if (tmpPath) {
+      await fs.unlink(tmpPath).catch(() => {
+        // Best-effort cleanup of orphaned temp files
+      });
+    }
     throw new StateError(
       `Failed to write state file: ${error instanceof Error ? error.message : String(error)}`,
       statePath
@@ -657,28 +708,54 @@ export class TaskLocker {
       }
 
       // Backward-compat guard: honour state.json for tasks locked before lockfiles existed
-      const currentState = await getTaskState(this.projectRoot, taskId);
-      if (currentState?.status === 'locked') {
+      const preCheckState = await getTaskState(this.projectRoot, taskId);
+      if (preCheckState?.status === 'locked') {
         return {
           success: false,
           taskId,
-          error: `Task "${taskId}" is already locked by ${currentState.locked_by} at ${currentState.locked_at}`,
+          error: `Task "${taskId}" is already locked by ${preCheckState.locked_by} at ${preCheckState.locked_at}`,
         };
       }
 
-      // Atomic lock acquisition via O_EXCL — first lock wins at the kernel level
-      const acquired = await acquireLockFile(this.projectRoot, taskId, this.user);
+      // Atomically acquire lock file (O_EXCL — first lock wins)
+      const lockedAt = new Date().toISOString();
+      const acquired = await acquireTaskLock(this.projectRoot, taskId, this.user, lockedAt);
       if (!acquired) {
-        return {
-          success: false,
-          taskId,
-          error: `Task "${taskId}" is already locked (concurrent acquisition)`,
-        };
+        const existingLock = await readTaskLock(this.projectRoot, taskId);
+
+        // Tight race: lock file can disappear between EEXIST and readTaskLock().
+        // Retry once before returning "already locked".
+        if (!existingLock) {
+          const retriedAcquire = await acquireTaskLock(
+            this.projectRoot,
+            taskId,
+            this.user,
+            lockedAt
+          );
+          if (retriedAcquire) {
+            // proceed as lock owner
+          } else {
+            return {
+              success: false,
+              taskId,
+              error: `Task "${taskId}" is already locked by unknown at unknown`,
+            };
+          }
+        } else {
+          const by = existingLock.locked_by ?? 'unknown';
+          const at = existingLock.locked_at ?? 'unknown';
+          return {
+            success: false,
+            taskId,
+            error: `Task "${taskId}" is already locked by ${by} at ${at}`,
+          };
+        }
       }
 
+      // Lock acquired — create provenance and execution plan
       try {
-        // Create provenance and execution plan
         const provenance = createProvenance(task, this.projectRoot, this.user);
+        provenance.locked_at = lockedAt; // Use the same timestamp as the lock file
         const executionPlan = createExecutionPlan(task, provenance);
 
         // Write execution plan
@@ -688,8 +765,8 @@ export class TaskLocker {
         const relativeExecPath = `.anvil/executions/${taskId}.json`;
         const taskState: TaskState = {
           status: 'locked',
-          locked_at: provenance.locked_at,
-          locked_by: provenance.locked_by,
+          locked_at: lockedAt,
+          locked_by: this.user,
           execution_file: relativeExecPath,
           source: task.sourcePath
             ? {
@@ -707,8 +784,8 @@ export class TaskLocker {
           executionPlanPath: execPath,
         };
       } catch (error) {
-        // Release the lock file if post-acquisition steps fail
-        await releaseLockFile(this.projectRoot, taskId);
+        // If anything fails after acquiring the lock, release it
+        await releaseTaskLock(this.projectRoot, taskId);
         throw error;
       }
     } catch (error) {
@@ -747,11 +824,11 @@ export class TaskLocker {
         };
       }
 
-      // Delete execution plan file and release lock
+      // Delete execution plan file
       await deleteExecutionPlan(this.projectRoot, taskId);
-      await releaseLockFile(this.projectRoot, taskId);
 
-      // Update state to cancelled
+      // Write state transition before releasing lock file to prevent a race
+      // where another process acquires the lock between release and state write
       const taskState: TaskState = {
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
@@ -759,6 +836,13 @@ export class TaskLocker {
       };
 
       await updateTaskState(this.projectRoot, taskId, taskState);
+      try {
+        await releaseTaskLock(this.projectRoot, taskId);
+      } catch (releaseError) {
+        // Revert state to locked so the task is not wedged
+        await updateTaskState(this.projectRoot, taskId, currentState).catch(() => {});
+        throw releaseError;
+      }
 
       return {
         success: true,
@@ -798,10 +882,8 @@ export class TaskLocker {
         };
       }
 
-      // Release the lock file (keep execution plan for audit)
-      await releaseLockFile(this.projectRoot, taskId);
-
-      // Update state to completed
+      // Write state transition before releasing lock file to prevent a race
+      // where another process acquires the lock between release and state write
       const taskState: TaskState = {
         ...currentState,
         status: 'completed',
@@ -809,6 +891,13 @@ export class TaskLocker {
       };
 
       await updateTaskState(this.projectRoot, taskId, taskState);
+      try {
+        await releaseTaskLock(this.projectRoot, taskId);
+      } catch (releaseError) {
+        // Revert state to locked so the task is not wedged
+        await updateTaskState(this.projectRoot, taskId, currentState).catch(() => {});
+        throw releaseError;
+      }
 
       return {
         success: true,

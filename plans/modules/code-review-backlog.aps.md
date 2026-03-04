@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (13/29) |
-<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-011, CRB-015, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (14/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-015, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -481,9 +481,15 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 - **Risks:** Race window is small but real in parallel agent execution.
   File-level locking behaviour varies across operating systems.
+- **Notes:** Replaced the check-then-write lock pattern with per-task lock
+  files using `O_EXCL` (atomic create-or-fail). Lock files live at
+  `.anvil/locks/{taskId}.lock`. State file writes use atomic temp+rename.
+  Lock files are released on unlock, complete, and on failure after
+  acquisition. Concurrent lock test verifies exactly one of two
+  simultaneous lockers wins. 5 new tests added (39 total in state module).
 
 ---
 
