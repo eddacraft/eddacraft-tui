@@ -65,9 +65,6 @@ export interface LoadOptions {
 
   /** Whether to recursively load linked modules (default: true) */
   recursive?: boolean;
-
-  /** Maximum depth for recursive loading (default: 10) */
-  maxDepth?: number;
 }
 
 /**
@@ -81,7 +78,6 @@ export async function loadPlan(filePath: string, options: LoadOptions = {}): Pro
   const absolutePath = isAbsolute(filePath) ? filePath : resolve(filePath);
   const baseDir = options.baseDir ?? dirname(absolutePath);
   const recursive = options.recursive ?? true;
-  const maxDepth = options.maxDepth ?? 10;
 
   const content = await readFile(absolutePath);
 
@@ -89,7 +85,7 @@ export async function loadPlan(filePath: string, options: LoadOptions = {}): Pro
   const isIndex = detectIndexFile(content);
 
   if (isIndex) {
-    return loadMultiModulePlan(absolutePath, content, baseDir, recursive, maxDepth);
+    return loadMultiModulePlan(absolutePath, content, baseDir, recursive);
   } else {
     return loadSingleFilePlan(absolutePath, content);
   }
@@ -160,8 +156,7 @@ async function loadMultiModulePlan(
   indexPath: string,
   content: string,
   baseDir: string,
-  recursive: boolean,
-  _maxDepth: number // TODO: implement depth limiting for nested index files
+  recursive: boolean
 ): Promise<LoadedPlan> {
   const index = await parseIndex(content, indexPath);
 

@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (11/29) |
-<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (12/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-011, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -502,7 +502,11 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Notes:** The loader doesn't recursively load nested index files, so depth
+  limiting has no purpose. Removed `maxDepth` from `LoadOptions` interface,
+  `loadPlan()`, and `loadMultiModulePlan()`. Validation: `grep -rn "maxDepth"
+  packages/aps/src/` returns 0 matches.
 
 ---
 
