@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Track execFileSync calls for argument safety verification
 const execFileSyncCalls: Array<{ cmd: string; args: string[] }> = [];
@@ -49,6 +49,10 @@ describe('git-agent — command safety (CRB-014)', () => {
     execFileSyncError = null;
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe('parseCommitTrailers', () => {
     it('should parse valid trailers', () => {
       // Trailing newline matches real git %B output — parseCommitTrailers
@@ -90,7 +94,9 @@ describe('git-agent — command safety (CRB-014)', () => {
     });
 
     it('should reject trailers with invalid key format', () => {
-      const message = 'fix: commit\n\n; rm -rf /: true\n../../../etc: value';
+      // Trailing newline is required — parseCommitTrailers walks backwards
+      // and needs the empty last element to trigger trailer collection
+      const message = 'fix: commit\n\n; rm -rf /: true\n../../../etc: value\n';
       const trailers = parseCommitTrailers(message);
 
       expect(trailers['; rm -rf /']).toBeUndefined();

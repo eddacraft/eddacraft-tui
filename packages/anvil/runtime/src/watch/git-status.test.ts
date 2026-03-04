@@ -1,4 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+const toFwd = (p: string): string => p.replace(/\\/g, '/');
 
 // Track execFile calls for argument safety verification
 const execFileCalls: Array<{ cmd: string; args: string[] }> = [];
@@ -55,6 +57,10 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
     execFileError = null;
   });
 
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   describe('argument escaping with special characters', () => {
     it('should pass file paths with spaces as a single argument', async () => {
       const checker = new GitStatusChecker('/workspace');
@@ -64,7 +70,9 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
 
       const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
       expect(call).toBeDefined();
-      expect(call!.args).toContain('path with spaces/file.ts');
+      const pathArg = call!.args.find((a) => a.includes('path with spaces'));
+      expect(pathArg).toBeDefined();
+      expect(toFwd(pathArg!)).toBe('path with spaces/file.ts');
       // Verify it's a single element, not split by spaces
       expect(call!.args.filter((a) => a.includes('path with spaces'))).toHaveLength(1);
     });
@@ -126,6 +134,31 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
       const dashDashIndex = call!.args.indexOf('--');
       const pathIndex = call!.args.indexOf('--exec=malicious');
       expect(dashDashIndex).toBeLessThan(pathIndex);
+    });
+  });
+
+  describe('path traversal prevention', () => {
+    it('should pass ../ traversal paths without shell interpretation', async () => {
+      const checker = new GitStatusChecker('/workspace');
+      execFileStdout = '';
+
+      await checker.getFileStatus('/workspace/../../../etc/passwd');
+
+      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
+      expect(call).toBeDefined();
+      // execFile ensures the path is a single arg, not shell-expanded
+      const pathArg = call!.args.find((a) => a.includes('..'));
+      expect(pathArg).toBeDefined();
+    });
+
+    it('should pass absolute paths outside workspace as a single argument', async () => {
+      const checker = new GitStatusChecker('/workspace');
+      execFileStdout = '';
+
+      await checker.getFileStatus('/etc/passwd');
+
+      const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
+      expect(call).toBeDefined();
     });
   });
 
