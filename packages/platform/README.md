@@ -59,7 +59,7 @@ const planId = generatePlanId(); // 'aps-a1b2c3d4'
 
 | Package   | Status   | Source           |
 | --------- | -------- | ---------------- |
-| config    | Complete | New              |
+| config    | Stub     | New              |
 | storage   | Complete | New              |
 | crypto    | Complete | core/src/crypto/ |
 | telemetry | Pending  | New              |
