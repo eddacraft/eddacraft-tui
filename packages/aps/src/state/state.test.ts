@@ -24,6 +24,9 @@ import {
   formatAllTaskStatus,
   getStateFilePath,
   getExecutionsDir,
+  getLocksDir,
+  acquireLockFile,
+  releaseLockFile,
   type StateFile,
   type TaskState,
 } from './index.js';
@@ -297,6 +300,58 @@ describe('Provenance', () => {
       expect(provenance.locked_by).toBe(getCurrentUser());
     });
   });
+
+  describe('Lock File Operations', () => {
+    let tempDir: string;
+
+    beforeEach(async () => {
+      tempDir = await createTempDir();
+    });
+
+    afterEach(async () => {
+      await cleanupTempDir(tempDir);
+    });
+
+    it('acquireLockFile should succeed on first call', async () => {
+      const acquired = await acquireLockFile(tempDir, 'TASK-001', 'user1');
+      expect(acquired).toBe(true);
+    });
+
+    it('acquireLockFile should fail on second call (same task)', async () => {
+      await acquireLockFile(tempDir, 'TASK-001', 'user1');
+      const acquired = await acquireLockFile(tempDir, 'TASK-001', 'user2');
+      expect(acquired).toBe(false);
+    });
+
+    it('acquireLockFile should succeed for different tasks', async () => {
+      const a = await acquireLockFile(tempDir, 'TASK-001', 'user1');
+      const b = await acquireLockFile(tempDir, 'TASK-002', 'user1');
+      expect(a).toBe(true);
+      expect(b).toBe(true);
+    });
+
+    it('releaseLockFile should remove the lock', async () => {
+      await acquireLockFile(tempDir, 'TASK-001', 'user1');
+      await releaseLockFile(tempDir, 'TASK-001');
+
+      // Should be able to acquire again
+      const acquired = await acquireLockFile(tempDir, 'TASK-001', 'user2');
+      expect(acquired).toBe(true);
+    });
+
+    it('releaseLockFile should not throw for non-existent lock', async () => {
+      await expect(releaseLockFile(tempDir, 'NONEXISTENT')).resolves.not.toThrow();
+    });
+
+    it('concurrent acquireLockFile calls should have exactly one winner', async () => {
+      const results = await Promise.all(
+        Array.from({ length: 10 }, (_, i) => acquireLockFile(tempDir, 'RACE-001', `agent-${i}`))
+      );
+
+      const winners = results.filter(Boolean);
+      expect(winners).toHaveLength(1);
+    });
+  });
 });
 
 describe('TaskLocker', () => {
@@ -407,6 +462,114 @@ describe('TaskLocker', () => {
       // but the error should NOT be about validation
       expect(result.success).toBe(false);
       expect(result.error).not.toContain('validation failed');
+    });
+
+    it('should handle concurrent lock attempts atomically (exactly one wins)', async () => {
+      const lockers = Array.from(
+        { length: 5 },
+        (_, i) =>
+          new TaskLocker({
+            projectRoot: tempDir,
+            planPath: planPath,
+            user: `agent-${i}`,
+          })
+      );
+
+      // Fire all lock attempts concurrently
+      const results = await Promise.all(lockers.map((locker) => locker.lock('TEST-001')));
+
+      const successes = results.filter((r) => r.success);
+      const failures = results.filter((r) => !r.success);
+
+      // Exactly one should win
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(4);
+
+      // Failures should mention "already locked"
+      for (const failure of failures) {
+        expect(failure.error).toContain('already locked');
+      }
+
+      // State should reflect the winner
+      const state = await getTaskState(tempDir, 'TEST-001');
+      expect(state?.status).toBe('locked');
+    });
+
+    it('should create and clean up lock files correctly', async () => {
+      const locker = new TaskLocker({
+        projectRoot: tempDir,
+        planPath: planPath,
+        user: 'testuser',
+      });
+
+      // Lock creates a lock file
+      const result = await locker.lock('TEST-001');
+      expect(result.success).toBe(true);
+
+      const lockPath = join(getLocksDir(tempDir), 'TEST-001.lock');
+      const lockExists = await fs.stat(lockPath).then(
+        () => true,
+        () => false
+      );
+      expect(lockExists).toBe(true);
+
+      // Unlock removes the lock file
+      await locker.unlock('TEST-001');
+      const lockExistsAfter = await fs.stat(lockPath).then(
+        () => true,
+        () => false
+      );
+      expect(lockExistsAfter).toBe(false);
+    });
+
+    it('should clean up lock file when complete is called', async () => {
+      const locker = new TaskLocker({
+        projectRoot: tempDir,
+        planPath: planPath,
+        user: 'testuser',
+      });
+
+      await locker.lock('TEST-001');
+
+      const lockPath = join(getLocksDir(tempDir), 'TEST-001.lock');
+      const lockExists = await fs.stat(lockPath).then(
+        () => true,
+        () => false
+      );
+      expect(lockExists).toBe(true);
+
+      await locker.complete('TEST-001');
+      const lockExistsAfter = await fs.stat(lockPath).then(
+        () => true,
+        () => false
+      );
+      expect(lockExistsAfter).toBe(false);
+    });
+
+    it('should allow re-locking after unlock', async () => {
+      const locker1 = new TaskLocker({
+        projectRoot: tempDir,
+        planPath: planPath,
+        user: 'user1',
+      });
+
+      const result1 = await locker1.lock('TEST-001');
+      expect(result1.success).toBe(true);
+
+      await locker1.unlock('TEST-001');
+
+      // A different user should now be able to lock
+      const locker2 = new TaskLocker({
+        projectRoot: tempDir,
+        planPath: planPath,
+        user: 'user2',
+      });
+
+      const result2 = await locker2.lock('TEST-001');
+      expect(result2.success).toBe(true);
+
+      const state = await getTaskState(tempDir, 'TEST-001');
+      expect(state?.locked_by).toBe('user2');
     });
   });
 

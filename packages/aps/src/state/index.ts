@@ -149,6 +149,7 @@ export type ExecutionPlan = z.infer<typeof ExecutionPlanSchema>;
 
 const STATE_FILE_NAME = 'state.json';
 const EXECUTIONS_DIR = 'executions';
+const LOCKS_DIR = 'locks';
 const ANVIL_DIR = '.anvil';
 
 /**
@@ -163,6 +164,56 @@ export function getStateFilePath(projectRoot: string): string {
  */
 export function getExecutionsDir(projectRoot: string): string {
   return join(projectRoot, ANVIL_DIR, EXECUTIONS_DIR);
+}
+
+/**
+ * Get the path to the locks directory
+ */
+export function getLocksDir(projectRoot: string): string {
+  return join(projectRoot, ANVIL_DIR, LOCKS_DIR);
+}
+
+/**
+ * Atomically acquire a lock file using O_EXCL (kernel-level atomicity).
+ * Returns true if the lock was acquired, false if already held.
+ */
+export async function acquireLockFile(
+  projectRoot: string,
+  taskId: string,
+  lockedBy: string
+): Promise<boolean> {
+  const lockDir = getLocksDir(projectRoot);
+  await fs.mkdir(lockDir, { recursive: true });
+  const lockPath = join(lockDir, `${taskId}.lock`);
+
+  try {
+    // 'wx' = O_CREAT | O_EXCL | O_WRONLY — fails with EEXIST if file exists
+    const fd = await fs.open(lockPath, 'wx');
+    await fd.writeFile(
+      JSON.stringify({ locked_by: lockedBy, locked_at: new Date().toISOString() })
+    );
+    await fd.close();
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Release a lock file. Safe to call if the lock file doesn't exist.
+ */
+export async function releaseLockFile(projectRoot: string, taskId: string): Promise<void> {
+  const lockPath = join(getLocksDir(projectRoot), `${taskId}.lock`);
+  try {
+    await fs.unlink(lockPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+  }
 }
 
 /**
@@ -596,45 +647,53 @@ export class TaskLocker {
         };
       }
 
-      // Check current state (first lock wins)
-      const currentState = await getTaskState(this.projectRoot, taskId);
-      if (currentState?.status === 'locked') {
+      // Atomic lock acquisition via O_EXCL — first lock wins at the kernel level
+      const acquired = await acquireLockFile(this.projectRoot, taskId, this.user);
+      if (!acquired) {
+        // Read existing lock details for the error message
+        const currentState = await getTaskState(this.projectRoot, taskId);
         return {
           success: false,
           taskId,
-          error: `Task "${taskId}" is already locked by ${currentState.locked_by} at ${currentState.locked_at}`,
+          error: `Task "${taskId}" is already locked by ${currentState?.locked_by ?? 'unknown'} at ${currentState?.locked_at ?? 'unknown'}`,
         };
       }
 
-      // Create provenance and execution plan
-      const provenance = createProvenance(task, this.projectRoot, this.user);
-      const executionPlan = createExecutionPlan(task, provenance);
+      try {
+        // Create provenance and execution plan
+        const provenance = createProvenance(task, this.projectRoot, this.user);
+        const executionPlan = createExecutionPlan(task, provenance);
 
-      // Write execution plan
-      const execPath = await writeExecutionPlan(this.projectRoot, executionPlan);
+        // Write execution plan
+        const execPath = await writeExecutionPlan(this.projectRoot, executionPlan);
 
-      // Update state
-      const relativeExecPath = `.anvil/executions/${taskId}.json`;
-      const taskState: TaskState = {
-        status: 'locked',
-        locked_at: provenance.locked_at,
-        locked_by: provenance.locked_by,
-        execution_file: relativeExecPath,
-        source: task.sourcePath
-          ? {
-              file: task.sourcePath,
-              line: task.sourceLineNumber,
-            }
-          : undefined,
-      };
+        // Update state
+        const relativeExecPath = `.anvil/executions/${taskId}.json`;
+        const taskState: TaskState = {
+          status: 'locked',
+          locked_at: provenance.locked_at,
+          locked_by: provenance.locked_by,
+          execution_file: relativeExecPath,
+          source: task.sourcePath
+            ? {
+                file: task.sourcePath,
+                line: task.sourceLineNumber,
+              }
+            : undefined,
+        };
 
-      await updateTaskState(this.projectRoot, taskId, taskState);
+        await updateTaskState(this.projectRoot, taskId, taskState);
 
-      return {
-        success: true,
-        taskId,
-        executionPlanPath: execPath,
-      };
+        return {
+          success: true,
+          taskId,
+          executionPlanPath: execPath,
+        };
+      } catch (error) {
+        // Release the lock file if post-acquisition steps fail
+        await releaseLockFile(this.projectRoot, taskId);
+        throw error;
+      }
     } catch (error) {
       return {
         success: false,
@@ -671,8 +730,9 @@ export class TaskLocker {
         };
       }
 
-      // Delete execution plan file
+      // Delete execution plan file and release lock
       await deleteExecutionPlan(this.projectRoot, taskId);
+      await releaseLockFile(this.projectRoot, taskId);
 
       // Update state to cancelled
       const taskState: TaskState = {
@@ -721,7 +781,10 @@ export class TaskLocker {
         };
       }
 
-      // Update state to completed (keep execution plan for audit)
+      // Release the lock file (keep execution plan for audit)
+      await releaseLockFile(this.projectRoot, taskId);
+
+      // Update state to completed
       const taskState: TaskState = {
         ...currentState,
         status: 'completed',
