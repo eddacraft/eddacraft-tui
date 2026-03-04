@@ -81,14 +81,15 @@ vi.mock('beautiful-mermaid', () => ({
   renderMermaid: vi.fn(() => '<svg></svg>'),
 }));
 
-vi.mock('node:fs', () => ({
-  existsSync: vi.fn(() => false),
-}));
+vi.mock('node:fs', () => {
+  const mock = { existsSync: vi.fn(() => false) };
+  return { ...mock, default: mock };
+});
 
-vi.mock('node:fs/promises', () => ({
-  mkdir: vi.fn(),
-  writeFile: vi.fn(),
-}));
+vi.mock('node:fs/promises', () => {
+  const mock = { mkdir: vi.fn(), writeFile: vi.fn() };
+  return { ...mock, default: mock };
+});
 
 import { createArchitectureCommand } from './architecture.js';
 

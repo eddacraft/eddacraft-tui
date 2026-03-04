@@ -29,10 +29,10 @@ vi.mock('../utils/file-io.js', () => ({
   getWorkspaceRoot: () => '/mock/workspace',
 }));
 
-vi.mock('node:fs', () => ({
-  writeFileSync: vi.fn(),
-  existsSync: vi.fn(() => false),
-}));
+vi.mock('node:fs', () => {
+  const mock = { writeFileSync: vi.fn(), existsSync: vi.fn(() => false) };
+  return { ...mock, default: mock };
+});
 
 import { createNewCommand } from './new.js';
 

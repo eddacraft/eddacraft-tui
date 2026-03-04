@@ -41,9 +41,10 @@ vi.mock('../utils/file-io.js', () => ({
   getWorkspaceRoot: () => '/mock/workspace',
 }));
 
-vi.mock('node:child_process', () => ({
-  execFileSync: vi.fn(() => 'main'),
-}));
+vi.mock('node:child_process', () => {
+  const mock = { execFileSync: vi.fn(() => 'main') };
+  return { ...mock, default: mock };
+});
 
 vi.mock('./plan/index.js', () => ({
   createValidateSubcommand: () => new Command('validate').description('Validate APS doc'),
