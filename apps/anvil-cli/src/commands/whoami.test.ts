@@ -33,7 +33,8 @@ describe('whoami command', () => {
   });
 
   it('should display session info when authenticated', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     mockLoadAuth.mockReturnValue({
       user: { email: 'test@example.com' },
@@ -45,9 +46,9 @@ describe('whoami command', () => {
     const command = createWhoamiCommand();
     await command.parseAsync([], { from: 'user' });
 
-    const output = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(output).toContain('test@example.com');
-    expect(output).toContain('gate:read, gate:write');
+    const allOutput = [...logSpy.mock.calls, ...stderrSpy.mock.calls].map((c) => c[0]).join('\n');
+    expect(allOutput).toContain('test@example.com');
+    expect(allOutput).toContain('gate:read, gate:write');
   });
 
   it('should throw CliError when not authenticated', async () => {

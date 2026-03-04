@@ -72,7 +72,7 @@ vi.mock('chalk', () => ({
   },
 }));
 
-vi.mock('YAML', () => ({
+vi.mock('yaml', () => ({
   default: { stringify: vi.fn(() => 'yaml content') },
 }));
 

@@ -57,14 +57,15 @@ describe('start command', () => {
 
 describe('showWelcome', () => {
   it('should show plain welcome when TUI is not available', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     mockIsTUIAvailable.mockReturnValue(false);
 
     await showWelcome();
 
-    const output = consoleSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(output).toContain('LOGO');
-    expect(output).toContain('anvil init');
+    const allOutput = [...logSpy.mock.calls, ...stderrSpy.mock.calls].map((c) => c[0]).join('\n');
+    expect(allOutput).toContain('LOGO');
+    expect(allOutput).toContain('anvil init');
     expect(mockMarkFirstRunComplete).toHaveBeenCalled();
   });
 
