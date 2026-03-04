@@ -224,7 +224,7 @@ function unwrapCommand(cmd: string, depth = 0): UnwrapResult {
   }
 
   if (isPrivilegedWrapper(firstToken)) {
-    const sudoFlagsWithArgs = ['-u', '-g', '-H', '-h', '-p', '-r', '-t', '-T', '-U', '-D', '-a'];
+    const sudoFlagsWithArgs = ['-u', '-g', '-C', '-h', '-p', '-r', '-t', '-T', '-U', '-D', '-a'];
     let startIndex = 1;
     while (startIndex < tokens.length) {
       const token = tokens[startIndex];
@@ -273,6 +273,24 @@ function unwrapCommand(cmd: string, depth = 0): UnwrapResult {
   return { unwrapped: trimmed, wrappers: [] };
 }
 
+/**
+ * Split tokens at the conventional `--` end-of-options separator.
+ * Everything before it is options/args; everything after is purely arguments.
+ */
+function splitAtSeparator(rest: string[]): { rawFlags: string[]; flags: string[]; args: string[] } {
+  const separatorIndex = rest.indexOf('--');
+  const beforeSeparator = separatorIndex === -1 ? rest : rest.slice(0, separatorIndex);
+  const afterSeparator = separatorIndex === -1 ? [] : rest.slice(separatorIndex + 1);
+
+  const rawFlags = beforeSeparator.filter((t) => t.startsWith('-'));
+  const flags = expandCombinedFlags(rawFlags);
+
+  const earlyArgs = beforeSeparator.filter((t) => !t.startsWith('-'));
+  const args = [...earlyArgs, ...afterSeparator];
+
+  return { rawFlags, flags, args };
+}
+
 function expandCombinedFlags(flags: string[]): string[] {
   const expanded: string[] = [];
 
@@ -302,6 +320,12 @@ function isLikelySubcommand(arg: string): boolean {
     return false;
   }
 
+  // Exclude assignment-like tokens (e.g. FOO=bar, foo=1) — these are commonly
+  // config or env-style arguments, not subcommands.
+  if (arg.includes('=')) {
+    return false;
+  }
+
   return true;
 }
 
@@ -318,9 +342,10 @@ function extractSubcommand(command: string, args: string[]): string | undefined 
   ];
 
   if (commandsWithSubcommands.includes(command) && args.length > 0) {
-    const firstArg = args[0];
-    if (isLikelySubcommand(firstArg)) {
-      return firstArg;
+    for (const arg of args) {
+      if (isLikelySubcommand(arg)) {
+        return arg;
+      }
     }
   }
 
@@ -341,19 +366,11 @@ function parseFromTokens(tokens: string[], rawCmd: string, wrappers: string[]): 
   }
 
   const [command, ...rest] = tokens;
-
-  // Respect the conventional `--` end-of-options separator: everything after it is an argument.
-  const separatorIndex = rest.indexOf('--');
-  const beforeSeparator = separatorIndex === -1 ? rest : rest.slice(0, separatorIndex);
-  const afterSeparator = separatorIndex === -1 ? [] : rest.slice(separatorIndex + 1);
-
-  const rawFlags = beforeSeparator.filter((t) => t.startsWith('-'));
-  const flags = expandCombinedFlags(rawFlags);
-
-  const earlyArgs = beforeSeparator.filter((t) => !t.startsWith('-'));
-  const args = [...earlyArgs, ...afterSeparator];
+  const { flags, args } = splitAtSeparator(rest);
   const subcommand = extractSubcommand(command, args);
-  const remainingArgs = subcommand ? args.slice(1) : args;
+  const subIdx = subcommand ? args.indexOf(subcommand) : -1;
+  const remainingArgs =
+    subIdx !== -1 ? [...args.slice(0, subIdx), ...args.slice(subIdx + 1)] : args;
 
   return {
     raw: rawCmd,
@@ -390,19 +407,11 @@ export function parseCommand(cmd: string): ParsedCommand {
   }
 
   const [command, ...rest] = tokens;
-
-  // Respect the conventional `--` end-of-options separator: everything after it is an argument.
-  const separatorIndex = rest.indexOf('--');
-  const beforeSeparator = separatorIndex === -1 ? rest : rest.slice(0, separatorIndex);
-  const afterSeparator = separatorIndex === -1 ? [] : rest.slice(separatorIndex + 1);
-
-  const rawFlags = beforeSeparator.filter((t) => t.startsWith('-'));
-  const flags = expandCombinedFlags(rawFlags);
-
-  const earlyArgs = beforeSeparator.filter((t) => !t.startsWith('-'));
-  const args = [...earlyArgs, ...afterSeparator];
+  const { flags, args } = splitAtSeparator(rest);
   const subcommand = extractSubcommand(command, args);
-  const remainingArgs = subcommand ? args.slice(1) : args;
+  const subIdx = subcommand ? args.indexOf(subcommand) : -1;
+  const remainingArgs =
+    subIdx !== -1 ? [...args.slice(0, subIdx), ...args.slice(subIdx + 1)] : args;
 
   debug('parseCommand result', { command, subcommand, flags });
   return {

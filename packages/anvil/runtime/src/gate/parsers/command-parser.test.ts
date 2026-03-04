@@ -242,6 +242,51 @@ describe('parseCommand', () => {
     });
   });
 
+  describe('end-of-options separator (--)', () => {
+    it('treats tokens after -- as args even if they start with -', () => {
+      const result = parseCommand('rm -- -rf');
+      expect(result.command).toBe('rm');
+      expect(result.flags).toEqual([]);
+      expect(result.args).toContain('-rf');
+    });
+
+    it('handles sudo -- with inner command', () => {
+      const result = parseCommand('sudo -- rm -rf /tmp');
+      expect(result.command).toBe('rm');
+      expect(result.wrapperChain).toContain('sudo');
+    });
+
+    it('keeps flags before -- and args after', () => {
+      const result = parseCommand('grep -r -- -pattern file');
+      expect(result.command).toBe('grep');
+      expect(result.flags).toContain('-r');
+      expect(result.args).toContain('-pattern');
+      expect(result.args).toContain('file');
+    });
+  });
+
+  describe('sudo -C flag handling', () => {
+    it('unwraps sudo -C with numeric argument', () => {
+      const result = parseCommand('sudo -C 3 rm -rf /tmp');
+      expect(result.command).toBe('rm');
+      expect(result.wrapperChain).toContain('sudo');
+    });
+  });
+
+  describe('subcommand exclusion for assignment tokens', () => {
+    it('does not treat foo=bar as a subcommand', () => {
+      const result = parseCommand('git -c foo=bar status');
+      expect(result.command).toBe('git');
+      expect(result.subcommand).toBe('status');
+    });
+
+    it('does not treat VAR=value as a subcommand for npm', () => {
+      const result = parseCommand('npm --prefix=./app install');
+      expect(result.command).toBe('npm');
+      expect(result.subcommand).toBe('install');
+    });
+  });
+
   describe('edge cases', () => {
     it('handles empty command', () => {
       const result = parseCommand('');
