@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     if (isNewSignup) {
       const delivery = await sendWaitlistConfirmation(result[0].email);
       emailSent = delivery.sent;
-      emailStatus = delivery.sent ? 'sent' : 'failed';
+      emailStatus = delivery.sent ? 'sent' : (delivery.code ?? 'failed');
     }
 
     return NextResponse.json({
