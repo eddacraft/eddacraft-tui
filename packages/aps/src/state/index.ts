@@ -186,17 +186,26 @@ export async function acquireLockFile(
   await fs.mkdir(lockDir, { recursive: true });
   const lockPath = join(lockDir, `${taskId}.lock`);
 
+  let fd: import('node:fs/promises').FileHandle | undefined;
   try {
     // 'wx' = O_CREAT | O_EXCL | O_WRONLY — fails with EEXIST if file exists
-    const fd = await fs.open(lockPath, 'wx');
+    fd = await fs.open(lockPath, 'wx');
     await fd.writeFile(
       JSON.stringify({ locked_by: lockedBy, locked_at: new Date().toISOString() })
     );
     await fd.close();
+    fd = undefined;
     return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
       return false;
+    }
+    // Clean up partially-created lock file on write/close failure
+    try {
+      if (fd) await fd.close().catch(() => {});
+      await fs.unlink(lockPath).catch(() => {});
+    } catch {
+      // Best-effort cleanup — don't mask the original error
     }
     throw error;
   }
@@ -647,15 +656,23 @@ export class TaskLocker {
         };
       }
 
-      // Atomic lock acquisition via O_EXCL — first lock wins at the kernel level
-      const acquired = await acquireLockFile(this.projectRoot, taskId, this.user);
-      if (!acquired) {
-        // Read existing lock details for the error message
-        const currentState = await getTaskState(this.projectRoot, taskId);
+      // Backward-compat guard: honour state.json for tasks locked before lockfiles existed
+      const currentState = await getTaskState(this.projectRoot, taskId);
+      if (currentState?.status === 'locked') {
         return {
           success: false,
           taskId,
-          error: `Task "${taskId}" is already locked by ${currentState?.locked_by ?? 'unknown'} at ${currentState?.locked_at ?? 'unknown'}`,
+          error: `Task "${taskId}" is already locked by ${currentState.locked_by} at ${currentState.locked_at}`,
+        };
+      }
+
+      // Atomic lock acquisition via O_EXCL — first lock wins at the kernel level
+      const acquired = await acquireLockFile(this.projectRoot, taskId, this.user);
+      if (!acquired) {
+        return {
+          success: false,
+          taskId,
+          error: `Task "${taskId}" is already locked (concurrent acquisition)`,
         };
       }
 

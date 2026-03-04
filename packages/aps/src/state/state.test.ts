@@ -546,6 +546,27 @@ describe('TaskLocker', () => {
       expect(lockExistsAfter).toBe(false);
     });
 
+    it('should reject lock when state.json says locked but no .lock file exists (backward compat)', async () => {
+      // Simulate a task locked before lockfiles existed: state.json says locked, no .lock file
+      await updateTaskState(tempDir, 'TEST-001', {
+        status: 'locked',
+        locked_at: '2025-01-01T00:00:00.000Z',
+        locked_by: 'legacy-user',
+      });
+
+      const locker = new TaskLocker({
+        projectRoot: tempDir,
+        planPath: planPath,
+        user: 'new-user',
+      });
+
+      const result = await locker.lock('TEST-001');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('already locked');
+      expect(result.error).toContain('legacy-user');
+    });
+
     it('should allow re-locking after unlock', async () => {
       const locker1 = new TaskLocker({
         projectRoot: tempDir,
