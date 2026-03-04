@@ -205,7 +205,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Anvil is ready to use');
       expect(output).toContain('Next steps');
     });
@@ -512,7 +512,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--org', 'my-org'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Detected:');
       expect(output).toContain('starter profile');
       expect(output).toContain('policies active');
@@ -563,7 +563,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Anvil is ready to use');
     });
   });
@@ -579,7 +579,7 @@ describe('init command', () => {
         await command.parseAsync(['--non-interactive'], { from: 'user' });
 
         // Init should still succeed despite the architecture failure
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Anvil is ready to use');
         expect(output).toContain('Reason: No source files found');
       });
@@ -591,7 +591,7 @@ describe('init command', () => {
         await command.parseAsync(['--non-interactive'], { from: 'user' });
 
         // Init should still succeed
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Anvil is ready to use');
         // Non-Error values don't produce a "Reason:" line
         expect(output).not.toContain('Reason:');
@@ -664,7 +664,7 @@ describe('init command', () => {
         const command = createInitCommand();
         await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         // Should still succeed overall
         expect(output).toContain('Anvil is ready to use');
         // Should display the error reason
@@ -680,7 +680,7 @@ describe('init command', () => {
         const command = createInitCommand();
         await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Anvil is ready to use');
         // Non-Error values don't produce a "Reason:" line
         expect(output).not.toContain('Reason:');
@@ -692,7 +692,7 @@ describe('init command', () => {
         const command = createInitCommand();
         await command.parseAsync(['--non-interactive', '--no-analysis'], { from: 'user' });
 
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Skipping automatic analysis');
         expect(output).toContain('Anvil is ready to use');
       });
@@ -708,7 +708,7 @@ describe('init command', () => {
 
         // The renderTUI null is caught by the analysis catch block, not outer catch
         // Init should still succeed
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Anvil is ready to use');
         expect(output).toContain('Reason: Could not render results dashboard');
         // Next steps should be shown since dashboard wasn't displayed
@@ -742,7 +742,7 @@ describe('init command', () => {
         const command = createInitCommand();
         await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Anvil is ready to use');
         expect(formatLayerDiagram).toHaveBeenCalled();
       });
@@ -795,7 +795,7 @@ describe('init command', () => {
         const command = createInitCommand();
         await command.parseAsync(['--org', 'my-org'], { from: 'user' });
 
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Hook installation skipped');
         expect(output).toContain('starter profile');
       });
@@ -812,7 +812,7 @@ describe('init command', () => {
         const command = createInitCommand();
         await command.parseAsync(['--non-interactive', '--quick'], { from: 'user' });
 
-        const output = consoleOutput.join('\n');
+        const output = [...consoleOutput, ...consoleErrors].join('\n');
         expect(output).toContain('Anvil is ready to use');
         expect(output).toContain('Reason: Cannot read directory');
       });

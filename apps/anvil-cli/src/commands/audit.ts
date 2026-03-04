@@ -113,51 +113,51 @@ function formatResultsJSON(result: RepoScanResult): void {
 }
 
 function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
-  console.log('');
-  console.log(chalk.bold.cyan('Repository Scan Results'));
-  console.log(chalk.dim('═'.repeat(50)));
-  console.log('');
+  console.error('');
+  console.error(chalk.bold.cyan('Repository Scan Results'));
+  console.error(chalk.dim('═'.repeat(50)));
+  console.error('');
 
   // Project overview
-  console.log(chalk.bold('Project Overview'));
-  console.log(chalk.dim('─'.repeat(30)));
-  console.log(`  Framework:    ${chalk.yellow(result.project.framework)}`);
-  console.log(
+  console.error(chalk.bold('Project Overview'));
+  console.error(chalk.dim('─'.repeat(30)));
+  console.error(`  Framework:    ${chalk.yellow(result.project.framework)}`);
+  console.error(
     `  Size:         ${result.project.size} (${result.project.fileCount.toLocaleString()} files)`
   );
   if (result.project.monorepo !== 'none') {
-    console.log(
+    console.error(
       `  Monorepo:     ${result.project.monorepo} (${result.project.workspacePackages.length} packages)`
     );
   }
-  console.log(`  TypeScript:   ${result.project.tsStrictness}`);
-  console.log('');
+  console.error(`  TypeScript:   ${result.project.tsStrictness}`);
+  console.error('');
 
   // Current issues
-  console.log(chalk.bold('Current Issues'));
-  console.log(chalk.dim('─'.repeat(30)));
-  console.log(`  Files scanned:  ${result.currentIssues.filesScanned}`);
-  console.log(`  Checks run:     ${result.currentIssues.checksRun.join(', ')}`);
-  console.log('');
+  console.error(chalk.bold('Current Issues'));
+  console.error(chalk.dim('─'.repeat(30)));
+  console.error(`  Files scanned:  ${result.currentIssues.filesScanned}`);
+  console.error(`  Checks run:     ${result.currentIssues.checksRun.join(', ')}`);
+  console.error('');
 
   if (result.currentIssues.totalWarnings === 0) {
-    console.log(chalk.green('  ✓ No issues found!'));
+    console.error(chalk.green('  ✓ No issues found!'));
   } else {
     const { bySeverity } = result.currentIssues;
-    console.log(`  Total issues:   ${chalk.bold(result.currentIssues.totalWarnings)}`);
+    console.error(`  Total issues:   ${chalk.bold(result.currentIssues.totalWarnings)}`);
     if (bySeverity.errors > 0) {
-      console.log(`    ${chalk.red('✗')} Errors:    ${chalk.red(bySeverity.errors)}`);
+      console.error(`    ${chalk.red('✗')} Errors:    ${chalk.red(bySeverity.errors)}`);
     }
     if (bySeverity.warnings > 0) {
-      console.log(`    ${chalk.yellow('⚠')} Warnings:  ${chalk.yellow(bySeverity.warnings)}`);
+      console.error(`    ${chalk.yellow('⚠')} Warnings:  ${chalk.yellow(bySeverity.warnings)}`);
     }
     if (bySeverity.info > 0) {
-      console.log(`    ${chalk.blue('ℹ')} Info:      ${chalk.blue(bySeverity.info)}`);
+      console.error(`    ${chalk.blue('ℹ')} Info:      ${chalk.blue(bySeverity.info)}`);
     }
 
     if (result.currentIssues.topIssues.length > 0) {
-      console.log('');
-      console.log(chalk.dim('  Top issues:'));
+      console.error('');
+      console.error(chalk.dim('  Top issues:'));
       const issuesToShow = verbose
         ? result.currentIssues.topIssues
         : result.currentIssues.topIssues.slice(0, 5);
@@ -168,68 +168,68 @@ function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
             : issue.severity === 'warning'
               ? chalk.yellow('⚠')
               : chalk.blue('ℹ');
-        console.log(
+        console.error(
           `    ${severityIcon} [${chalk.dim(issue.id)}] ${issue.title}: ${chalk.bold(issue.count)}`
         );
       }
     }
   }
-  console.log('');
+  console.error('');
 
   // Historical analysis
   if (result.historical.totalCommits > 0) {
-    console.log(chalk.bold('Historical Analysis'));
-    console.log(chalk.dim('─'.repeat(30)));
-    console.log(`  Commits analysed:     ${result.historical.totalCommits}`);
-    console.log(
+    console.error(chalk.bold('Historical Analysis'));
+    console.error(chalk.dim('─'.repeat(30)));
+    console.error(`  Commits analysed:     ${result.historical.totalCommits}`);
+    console.error(
       `  Anvil would have caught: ${chalk.yellow.bold(result.historical.totalViolations)} issues`
     );
-    console.log(`  Average per commit:   ${result.historical.avgViolationsPerCommit.toFixed(1)}`);
+    console.error(`  Average per commit:   ${result.historical.avgViolationsPerCommit.toFixed(1)}`);
 
     if (result.historical.patternOccurrences.length > 0) {
-      console.log('');
-      console.log(chalk.dim('  Most common patterns:'));
+      console.error('');
+      console.error(chalk.dim('  Most common patterns:'));
       const patternsToShow = verbose
         ? result.historical.patternOccurrences
         : result.historical.patternOccurrences.slice(0, 3);
       for (const pattern of patternsToShow) {
-        console.log(`    • ${pattern.patternName}: ${chalk.bold(pattern.count)}`);
+        console.error(`    • ${pattern.patternName}: ${chalk.bold(pattern.count)}`);
       }
     }
 
     if (result.historical.totalViolations > 0) {
-      console.log('');
+      console.error('');
       const avgPerCommit = result.historical.totalViolations / result.historical.totalCommits;
-      console.log(
+      console.error(
         chalk.dim(
           `  💡 Anvil would have prevented ~${chalk.yellow(avgPerCommit.toFixed(1))} issues per commit on average`
         )
       );
     }
   } else {
-    console.log(chalk.dim('Historical Analysis: No git history available'));
+    console.error(chalk.dim('Historical Analysis: No git history available'));
   }
-  console.log('');
+  console.error('');
 
   // Timing
-  console.log(chalk.dim(`Scan completed in ${result.totalDurationMs}ms`));
-  console.log('');
+  console.error(chalk.dim(`Scan completed in ${result.totalDurationMs}ms`));
+  console.error('');
 
   // Next steps
   if (result.currentIssues.totalWarnings > 0 || result.historical.totalViolations > 0) {
-    console.log(chalk.bold('Next Steps'));
-    console.log(chalk.dim('─'.repeat(30)));
+    console.error(chalk.bold('Next Steps'));
+    console.error(chalk.dim('─'.repeat(30)));
     if (result.currentIssues.hasBlockingWarnings) {
-      console.log(
+      console.error(
         `  ${chalk.red('1.')} Fix blocking errors: ${chalk.cyan('anvil check --all --verbose')}`
       );
     }
-    console.log(
+    console.error(
       `  ${chalk.dim('•')} Review issues in detail: ${chalk.cyan('anvil check --all --verbose')}`
     );
-    console.log(`  ${chalk.dim('•')} Set up continuous monitoring: ${chalk.cyan('anvil watch')}`);
-    console.log(`  ${chalk.dim('•')} Install git hooks: ${chalk.cyan('anvil hooks install')}`);
-    console.log('');
+    console.error(`  ${chalk.dim('•')} Set up continuous monitoring: ${chalk.cyan('anvil watch')}`);
+    console.error(`  ${chalk.dim('•')} Install git hooks: ${chalk.cyan('anvil hooks install')}`);
+    console.error('');
   }
 }
 

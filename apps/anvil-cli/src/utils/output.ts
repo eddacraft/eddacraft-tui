@@ -2,7 +2,7 @@ import chalk from 'chalk';
 import type { GateRunResult, GateRunResultWithCache } from '@eddacraft/anvil-runtime';
 
 export function success(message: string): void {
-  console.log(chalk.green('✓'), message);
+  console.error(chalk.green('✓'), message);
 }
 
 export function error(message: string): void {
@@ -14,44 +14,48 @@ export function warning(message: string): void {
 }
 
 export function info(message: string): void {
-  console.log(chalk.blue('ℹ'), message);
+  console.error(chalk.blue('ℹ'), message);
+}
+
+export function data(content: string): void {
+  process.stdout.write(content + '\n');
 }
 
 export function formatValidationErrors(errors: Array<{ message: string; path?: string }>): void {
   if (errors.length === 0) return;
 
-  console.log(chalk.red('\nValidation Errors:'));
+  console.error(chalk.red('\nValidation Errors:'));
   errors.forEach((error, index) => {
-    console.log(chalk.red(`  ${index + 1}. ${error.message}`));
+    console.error(chalk.red(`  ${index + 1}. ${error.message}`));
     if (error.path) {
-      console.log(chalk.gray(`     at ${error.path}`));
+      console.error(chalk.gray(`     at ${error.path}`));
     }
   });
 }
 
 export function formatGateResults(results: GateRunResult): void {
-  console.log(chalk.bold('\nGate Results:'));
-  console.log(
+  console.error(chalk.bold('\nGate Results:'));
+  console.error(
     chalk.bold(`Overall: ${results.overall ? chalk.green('PASSED') : chalk.red('FAILED')}`)
   );
-  console.log(chalk.bold(`Score: ${results.score.toFixed(1)}%`));
+  console.error(chalk.bold(`Score: ${results.score.toFixed(1)}%`));
 
-  console.log(chalk.bold('\nCheck Results:'));
+  console.error(chalk.bold('\nCheck Results:'));
   results.checks.forEach((check) => {
     const status = check.passed ? chalk.green('PASS') : chalk.red('FAIL');
     const score = check.score ? ` (${check.score.toFixed(1)}%)` : '';
-    console.log(`  ${status} ${check.check}${score}: ${check.message}`);
+    console.error(`  ${status} ${check.check}${score}: ${check.message}`);
 
     if (check.error) {
-      console.log(chalk.gray(`    Error: ${check.error}`));
+      console.error(chalk.gray(`    Error: ${check.error}`));
     }
   });
 
-  console.log(chalk.bold('\nSummary:'));
-  console.log(`  Total: ${results.summary.total}`);
-  console.log(`  Passed: ${chalk.green(results.summary.passed)}`);
-  console.log(`  Failed: ${chalk.red(results.summary.failed)}`);
-  console.log(`  Skipped: ${chalk.yellow(results.summary.skipped)}`);
+  console.error(chalk.bold('\nSummary:'));
+  console.error(`  Total: ${results.summary.total}`);
+  console.error(`  Passed: ${chalk.green(results.summary.passed)}`);
+  console.error(`  Failed: ${chalk.red(results.summary.failed)}`);
+  console.error(`  Skipped: ${chalk.yellow(results.summary.skipped)}`);
 }
 
 /**

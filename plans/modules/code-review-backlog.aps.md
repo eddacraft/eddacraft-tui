@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (9/29) |
-<!-- Complete: CRB-002, CRB-003, CRB-005, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (10/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-005, CRB-007, CRB-008, CRB-009, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
@@ -117,7 +117,7 @@ Change status to **Ready** when:
   this extends the policy to stdout/stderr split)
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
 - **Risks:** Changing output streams may break scripts that parse stdout.
   Requires audit of downstream consumers before implementation.
 

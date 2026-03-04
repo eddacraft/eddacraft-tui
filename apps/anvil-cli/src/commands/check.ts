@@ -101,16 +101,16 @@ export async function promptForWarning(
 ): Promise<InteractiveAction> {
   const icon = w.severity === 'error' ? '✗' : w.severity === 'warning' ? '⚠' : 'ℹ';
 
-  console.log('');
-  console.log(chalk.bold(`  ${icon} [${w.id}] ${w.title}`));
-  console.log(chalk.gray(`    ${w.location.file}:${w.location.line}`));
-  console.log(`    ${w.message}`);
+  console.error('');
+  console.error(chalk.bold(`  ${icon} [${w.id}] ${w.title}`));
+  console.error(chalk.gray(`    ${w.location.file}:${w.location.line}`));
+  console.error(`    ${w.message}`);
 
   if (showNudge && w.nudge) {
-    console.log(chalk.green(`\n    → ${w.nudge}`));
+    console.error(chalk.green(`\n    → ${w.nudge}`));
   }
 
-  console.log('');
+  console.error('');
 
   const choices: Array<{ name: string; value: InteractiveAction }> = [
     { name: '[s]kip — move to next warning', value: 'skip' },
@@ -165,26 +165,26 @@ export async function runInteractiveReview(
     return results;
   }
 
-  console.log(chalk.bold(`\n🔍 Interactive review: ${reviewable.length} warning(s) to review\n`));
+  console.error(chalk.bold(`\n🔍 Interactive review: ${reviewable.length} warning(s) to review\n`));
 
   for (let i = 0; i < reviewable.length; i++) {
     const w = reviewable[i];
-    console.log(chalk.gray(`  [${i + 1}/${reviewable.length}]`));
+    console.error(chalk.gray(`  [${i + 1}/${reviewable.length}]`));
 
     const action = await promptForWarning(w, askFn, showNudge);
     results.push({ warning: w, action });
 
     if (action === 'quit') {
-      console.log(chalk.gray('\n  Review stopped.'));
+      console.error(chalk.gray('\n  Review stopped.'));
       break;
     }
 
     if (action === 'fix') {
-      console.log(chalk.cyan(`    ℹ Fix for ${w.id} noted — apply fixes after review.`));
+      console.error(chalk.cyan(`    ℹ Fix for ${w.id} noted — apply fixes after review.`));
     }
 
     if (action === 'suppress') {
-      console.log(
+      console.error(
         chalk.yellow(
           `    ℹ Add \`// @anvil-ignore ${w.id}: <reason>\` above line ${w.location.line} in ${w.location.file}`
         )
@@ -197,11 +197,11 @@ export async function runInteractiveReview(
   const fixed = results.filter((r) => r.action === 'fix').length;
   const suppressed = results.filter((r) => r.action === 'suppress').length;
 
-  console.log(chalk.bold('\n  Review summary:'));
-  if (skipped > 0) console.log(`    Skipped: ${skipped}`);
-  if (fixed > 0) console.log(`    To fix: ${fixed}`);
-  if (suppressed > 0) console.log(`    To suppress: ${suppressed}`);
-  console.log('');
+  console.error(chalk.bold('\n  Review summary:'));
+  if (skipped > 0) console.error(`    Skipped: ${skipped}`);
+  if (fixed > 0) console.error(`    To fix: ${fixed}`);
+  if (suppressed > 0) console.error(`    To suppress: ${suppressed}`);
+  console.error('');
 
   return results;
 }
@@ -215,9 +215,9 @@ function formatWarning(w: Warning, verbose: boolean, nudgeConfig: NudgeConfig): 
   const colorFn = severityColors[w.severity] ?? chalk.white;
   const icon = w.severity === 'error' ? '✗' : w.severity === 'warning' ? '⚠' : 'ℹ';
 
-  console.log(colorFn(`  ${icon} [${w.id}] ${w.title}`));
-  console.log(chalk.gray(`    ${w.location.file}:${w.location.line}`));
-  console.log(`    ${w.message}`);
+  console.error(colorFn(`  ${icon} [${w.id}] ${w.title}`));
+  console.error(chalk.gray(`    ${w.location.file}:${w.location.line}`));
+  console.error(`    ${w.message}`);
 
   if (verbose) {
     if (
@@ -225,12 +225,12 @@ function formatWarning(w: Warning, verbose: boolean, nudgeConfig: NudgeConfig): 
       nudgeConfig.enabled &&
       meetsNudgeThreshold(w.severity, nudgeConfig.severityThreshold)
     ) {
-      console.log(chalk.green(`    → ${w.nudge}`));
+      console.error(chalk.green(`    → ${w.nudge}`));
     }
-    console.log(chalk.gray(`    Why: ${w.explanation}`));
-    console.log(chalk.cyan(`    Fix: ${w.suggestion}`));
+    console.error(chalk.gray(`    Why: ${w.explanation}`));
+    console.error(chalk.cyan(`    Fix: ${w.suggestion}`));
   }
-  console.log('');
+  console.error('');
 }
 
 function formatResultsJSON(files: string[], result: AnalyzeResult): void {
@@ -271,34 +271,34 @@ function formatResultsHuman(
     return;
   }
 
-  console.log(chalk.bold('\nWarnings:\n'));
+  console.error(chalk.bold('\nWarnings:\n'));
 
   const errors = warnings.filter((w) => w.severity === 'error' && !w.suppressed);
   const warns = warnings.filter((w) => w.severity === 'warning' && !w.suppressed);
   const infos = warnings.filter((w) => w.severity === 'info' && !w.suppressed);
 
   if (errors.length > 0) {
-    console.log(chalk.red.bold('Errors:'));
+    console.error(chalk.red.bold('Errors:'));
     errors.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
   if (warns.length > 0) {
-    console.log(chalk.yellow.bold('Warnings:'));
+    console.error(chalk.yellow.bold('Warnings:'));
     warns.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
   if (infos.length > 0 && verbose) {
-    console.log(chalk.blue.bold('Info:'));
+    console.error(chalk.blue.bold('Info:'));
     infos.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
-  console.log(chalk.bold('Summary:'));
-  console.log(`  Total: ${summary.total}`);
-  if (summary.errors > 0) console.log(`  Errors: ${chalk.red(summary.errors)}`);
-  if (summary.warnings > 0) console.log(`  Warnings: ${chalk.yellow(summary.warnings)}`);
-  if (summary.info > 0) console.log(`  Info: ${chalk.blue(summary.info)}`);
-  if (summary.suppressed > 0) console.log(`  Suppressed: ${chalk.gray(summary.suppressed)}`);
-  console.log(`  Time: ${result.executionTimeMs}ms`);
+  console.error(chalk.bold('Summary:'));
+  console.error(`  Total: ${summary.total}`);
+  if (summary.errors > 0) console.error(`  Errors: ${chalk.red(summary.errors)}`);
+  if (summary.warnings > 0) console.error(`  Warnings: ${chalk.yellow(summary.warnings)}`);
+  if (summary.info > 0) console.error(`  Info: ${chalk.blue(summary.info)}`);
+  if (summary.suppressed > 0) console.error(`  Suppressed: ${chalk.gray(summary.suppressed)}`);
+  console.error(`  Time: ${result.executionTimeMs}ms`);
 }
 
 async function getSourceFiles(
@@ -573,9 +573,9 @@ export function createCheckCommand(): Command {
           formatResultsJSON(filesToAnalyse, result);
         } else {
           if (options.all) {
-            console.log(chalk.gray(`\nChecked ${filesToAnalyse.length} file(s)\n`));
+            console.error(chalk.gray(`\nChecked ${filesToAnalyse.length} file(s)\n`));
           } else if (options.changed) {
-            console.log(chalk.gray(`\nChecked ${filesToAnalyse.length} changed file(s)\n`));
+            console.error(chalk.gray(`\nChecked ${filesToAnalyse.length} changed file(s)\n`));
           }
           formatResultsHuman(result, options.verbose ?? false, nudgeConfig);
 
@@ -584,7 +584,7 @@ export function createCheckCommand(): Command {
           }
 
           if (result.provenance_id) {
-            console.log(chalk.gray(`\nProvenance: ${result.provenance_id}`));
+            console.error(chalk.gray(`\nProvenance: ${result.provenance_id}`));
           }
         }
 

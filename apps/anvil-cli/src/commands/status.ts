@@ -73,13 +73,13 @@ function formatJsonOutput(data: StatusData, projectRoot: string): string {
 }
 
 function printPlainTextStatus(data: StatusData, projectRoot: string): void {
-  console.log(chalk.bold('\nANVIL STATUS\n'));
-  console.log(chalk.hex(theme.colours.smoke)(`Project: ${data.projectName ?? data.projectRoot}`));
-  console.log('');
+  console.error(chalk.bold('\nANVIL STATUS\n'));
+  console.error(chalk.hex(theme.colours.smoke)(`Project: ${data.projectName ?? data.projectRoot}`));
+  console.error('');
 
-  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} HOOKS`));
+  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} HOOKS`));
   if (!data.hooks.huskyInstalled) {
-    console.log(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Husky not installed`));
+    console.error(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Husky not installed`));
   } else {
     for (const hook of data.hooks.hooks) {
       const icon =
@@ -94,56 +94,60 @@ function printPlainTextStatus(data: StatusData, projectRoot: string): void {
           : hook.state === 'disabled'
             ? chalk.hex(theme.colours.molten)
             : chalk.hex(theme.colours.slag);
-      console.log(colour(`  ${icon} ${hook.name}: ${hook.state}`));
+      console.error(colour(`  ${icon} ${hook.name}: ${hook.state}`));
     }
   }
-  console.log('');
+  console.error('');
 
-  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} CONFIGURATION`));
+  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} CONFIGURATION`));
   if (!data.profile.hasConfig) {
-    console.log(
+    console.error(
       chalk.hex(theme.colours.molten)(
         `  ${theme.icons.warning} No .anvilrc found — run \`anvil init\``
       )
     );
   } else {
     if (data.profile.planningDir) {
-      console.log(chalk.hex(theme.colours.smoke)(`  Plans: ${data.profile.planningDir}`));
+      console.error(chalk.hex(theme.colours.smoke)(`  Plans: ${data.profile.planningDir}`));
     }
     if (data.profile.format) {
-      console.log(chalk.hex(theme.colours.smoke)(`  Format: ${data.profile.format}`));
+      console.error(chalk.hex(theme.colours.smoke)(`  Format: ${data.profile.format}`));
     }
     if (data.profile.coverageThreshold) {
-      console.log(chalk.hex(theme.colours.smoke)(`  Coverage: ${data.profile.coverageThreshold}%`));
+      console.error(
+        chalk.hex(theme.colours.smoke)(`  Coverage: ${data.profile.coverageThreshold}%`)
+      );
     }
     if (data.profile.checks.length > 0) {
       const enabled = data.profile.checks.filter((c) => c.enabled).map((c) => c.name);
-      console.log(chalk.hex(theme.colours.smoke)(`  Checks: ${enabled.join(', ') || 'none'}`));
+      console.error(chalk.hex(theme.colours.smoke)(`  Checks: ${enabled.join(', ') || 'none'}`));
     }
   }
-  console.log('');
+  console.error('');
 
-  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} RECENT RESULTS`));
+  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} RECENT RESULTS`));
   if (!data.recent.hasCache || data.recent.results.length === 0) {
-    console.log(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No validation history yet`));
+    console.error(
+      chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No validation history yet`)
+    );
   } else {
     for (const result of data.recent.results) {
       const icon = result.passed ? theme.icons.success : theme.icons.error;
       const colour = result.passed ? chalk.hex(theme.colours.steel) : chalk.hex(theme.colours.slag);
-      console.log(
+      console.error(
         colour(`  ${icon} ${result.planPath} — ${result.passedChecks}/${result.totalChecks} checks`)
       );
     }
   }
-  console.log('');
+  console.error('');
 
   // Provenance history
   const store = createProvenanceStore(projectRoot);
   if (store.isInitialised()) {
     const stats = store.getStatistics();
-    console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} PROVENANCE`));
+    console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} PROVENANCE`));
     if (stats.total === 0) {
-      console.log(
+      console.error(
         chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No provenance records yet`)
       );
     } else {
@@ -154,15 +158,15 @@ function printPlainTextStatus(data: StatusData, projectRoot: string): void {
           : stats.passRate >= 50
             ? chalk.hex(theme.colours.molten)
             : chalk.hex(theme.colours.slag);
-      console.log(chalk.hex(theme.colours.smoke)(`  Total runs: ${stats.total}`));
-      console.log(
+      console.error(chalk.hex(theme.colours.smoke)(`  Total runs: ${stats.total}`));
+      console.error(
         passColour(`  Pass rate: ${passRateStr} (${stats.passed} passed, ${stats.failed} failed)`)
       );
       if (stats.lastCheck) {
-        console.log(chalk.hex(theme.colours.smoke)(`  Last check: ${stats.lastCheck}`));
+        console.error(chalk.hex(theme.colours.smoke)(`  Last check: ${stats.lastCheck}`));
       }
     }
-    console.log('');
+    console.error('');
   }
 }
 
