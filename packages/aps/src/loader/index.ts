@@ -65,6 +65,9 @@ export interface LoadOptions {
 
   /** Whether to recursively load linked modules (default: true) */
   recursive?: boolean;
+
+  /** Maximum nesting depth for recursive index loading (default: 3) */
+  maxDepth?: number;
 }
 
 /**
@@ -78,6 +81,7 @@ export async function loadPlan(filePath: string, options: LoadOptions = {}): Pro
   const absolutePath = isAbsolute(filePath) ? filePath : resolve(filePath);
   const baseDir = options.baseDir ?? dirname(absolutePath);
   const recursive = options.recursive ?? true;
+  const maxDepth = options.maxDepth ?? 3;
 
   const content = await readFile(absolutePath);
 
@@ -85,7 +89,7 @@ export async function loadPlan(filePath: string, options: LoadOptions = {}): Pro
   const isIndex = detectIndexFile(content);
 
   if (isIndex) {
-    return loadMultiModulePlan(absolutePath, content, baseDir, recursive);
+    return loadMultiModulePlan(absolutePath, content, baseDir, recursive, maxDepth);
   } else {
     return loadSingleFilePlan(absolutePath, content);
   }
@@ -156,8 +160,18 @@ async function loadMultiModulePlan(
   indexPath: string,
   content: string,
   baseDir: string,
-  recursive: boolean
+  recursive: boolean,
+  maxDepth: number,
+  depth = 0
 ): Promise<LoadedPlan> {
+  if (depth > maxDepth) {
+    throw new ParseError(
+      `Maximum nesting depth (${maxDepth}) exceeded at "${indexPath}". ` +
+        'Increase maxDepth or check for circular index references.',
+      indexPath
+    );
+  }
+
   const index = await parseIndex(content, indexPath);
 
   const modules = new Map<string, LoadedModule>();
@@ -179,6 +193,75 @@ async function loadMultiModulePlan(
 
     if (recursive) {
       const moduleContent = await readFile(resolvedPath);
+
+      // Check if this module is itself an index file (nested plan).
+      // Guard against false positives (e.g. a leaf spec with a heading like
+      // "## Modules impacted"): probe with parseIndex first — only treat as
+      // nested if it actually yields modules. Errors from the full recursive
+      // load are NOT caught so depth violations, duplicate IDs, and malformed
+      // nested metadata propagate correctly.
+      if (detectIndexFile(moduleContent)) {
+        let isRealIndex = false;
+        try {
+          const probe = await parseIndex(moduleContent, resolvedPath);
+          isRealIndex = probe.modules.length > 0;
+        } catch {
+          // parseIndex failed — not a valid index, fall through to leaf
+        }
+
+        if (isRealIndex) {
+          const nestedBaseDir = dirname(resolvedPath);
+          const nestedPlan = await loadMultiModulePlan(
+            resolvedPath,
+            moduleContent,
+            nestedBaseDir,
+            recursive,
+            maxDepth,
+            depth + 1
+          );
+
+          // Merge nested modules into the parent plan, propagating parent deps
+          const parentDeps = moduleMeta.dependencies ?? [];
+          const nestedChildIds: string[] = [];
+          for (const [nestedId, nestedModule] of nestedPlan.modules) {
+            if (modules.has(nestedId)) {
+              throw new ParseError(
+                `Duplicate module ID "${nestedId}" when merging nested index "${resolvedPath}"`,
+                indexPath
+              );
+            }
+            const mergedDeps = [...new Set([...parentDeps, ...nestedModule.dependsOn])];
+            modules.set(nestedId, { ...nestedModule, dependsOn: mergedDeps });
+            allTasks.push(...nestedModule.tasks);
+            dependencyGraph.set(nestedId, mergedDeps);
+            nestedChildIds.push(nestedId);
+          }
+
+          // Insert the parent module ID as a virtual node that depends on all
+          // its nested children. This preserves sibling references like
+          // "frontend -> subsystem" — the parent ID stays in the graph and
+          // transitively depends on all flattened children.
+          if (modules.has(moduleId)) {
+            throw new ParseError(
+              `Duplicate module ID "${moduleId}" when inserting virtual parent for nested index "${resolvedPath}"`,
+              indexPath
+            );
+          }
+          const virtualDeps = [...new Set([...parentDeps, ...nestedChildIds])];
+          modules.set(moduleId, {
+            id: moduleId,
+            metadata: moduleMeta,
+            tasks: [],
+            resolvedPath,
+            dependsOn: virtualDeps,
+          });
+          dependencyGraph.set(moduleId, virtualDeps);
+
+          continue;
+        }
+        // Fall through to leaf parsing — detected heading was a false positive
+      }
+
       const moduleDoc = await parseDocument(moduleContent, resolvedPath);
 
       // Merge metadata from index with any from the leaf spec
@@ -196,6 +279,12 @@ async function loadMultiModulePlan(
         dependsOn: moduleMeta.dependencies ?? [],
       };
 
+      if (modules.has(moduleId)) {
+        throw new ParseError(
+          `Duplicate module ID "${moduleId}" in index "${indexPath}"`,
+          indexPath
+        );
+      }
       modules.set(moduleId, loadedModule);
       allTasks.push(...moduleDoc.tasks);
       dependencyGraph.set(moduleId, moduleMeta.dependencies ?? []);

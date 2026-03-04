@@ -503,10 +503,12 @@ Change status to **Ready** when:
 - **Confidence:** high
 - **Priority:** Low
 - **Status:** Complete
-- **Notes:** The loader doesn't recursively load nested index files, so depth
-  limiting has no purpose. Removed `maxDepth` from `LoadOptions` interface,
-  `loadPlan()`, and `loadMultiModulePlan()`. Validation: `grep -rn "maxDepth"
-  packages/aps/src/` returns 0 matches.
+- **Notes:** Implemented depth tracking in `loadMultiModulePlan`. When a module
+  path points to another index file (nested plan), the loader now recurses with
+  `depth + 1` and throws `ParseError` when `maxDepth` is exceeded. Added nested
+  index test fixtures (`examples/nested-index/`) and 4 tests covering recursive
+  nested loading, task extraction from nested modules, depth limit enforcement,
+  and successful loading within limits.
 
 ---
 

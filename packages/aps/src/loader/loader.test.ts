@@ -88,6 +88,65 @@ describe('loadPlan', () => {
     });
   });
 
+  describe('nested index files', () => {
+    it('should recursively load nested index files', async () => {
+      const plan = await loadPlan(join(EXAMPLES_DIR, 'nested-index/APS.md'));
+
+      expect(plan.isMultiModule).toBe(true);
+      // core (leaf) + subsystem (virtual parent) + api and workers (from nested subsystem index)
+      expect(plan.modules.has('core')).toBe(true);
+      expect(plan.modules.has('subsystem')).toBe(true);
+      expect(plan.modules.has('api')).toBe(true);
+      expect(plan.modules.has('workers')).toBe(true);
+
+      // Virtual parent node has no tasks, depends on its children
+      const subsystem = plan.modules.get('subsystem')!;
+      expect(subsystem.tasks).toEqual([]);
+      expect(subsystem.dependsOn).toEqual(expect.arrayContaining(['api', 'workers']));
+
+      // Dependency graph: parent deps propagated to nested modules
+      expect(plan.dependencyGraph.get('core')).toEqual([]);
+      expect(plan.dependencyGraph.get('api')).toEqual(expect.arrayContaining(['core']));
+      expect(plan.dependencyGraph.get('workers')).toEqual(expect.arrayContaining(['core', 'api']));
+      // Sibling modules depending on 'subsystem' resolve correctly
+      expect(plan.dependencyGraph.get('subsystem')).toEqual(
+        expect.arrayContaining(['core', 'api', 'workers'])
+      );
+    });
+
+    it('should load tasks from nested modules', async () => {
+      const plan = await loadPlan(join(EXAMPLES_DIR, 'nested-index/APS.md'));
+
+      const coreTasks = getModuleTasks(plan, 'core');
+      expect(coreTasks.length).toBe(1);
+      expect(coreTasks[0].id).toBe('CORE-001');
+
+      const apiTasks = getModuleTasks(plan, 'api');
+      expect(apiTasks.length).toBe(1);
+      expect(apiTasks[0].id).toBe('API-001');
+
+      const workerTasks = getModuleTasks(plan, 'workers');
+      expect(workerTasks.length).toBe(1);
+      expect(workerTasks[0].id).toBe('WORK-001');
+    });
+
+    it('should throw when maxDepth is exceeded', async () => {
+      await expect(
+        loadPlan(join(EXAMPLES_DIR, 'nested-index/APS.md'), { maxDepth: 0 })
+      ).rejects.toThrow(ParseError);
+      await expect(
+        loadPlan(join(EXAMPLES_DIR, 'nested-index/APS.md'), { maxDepth: 0 })
+      ).rejects.toThrow(/Maximum nesting depth/);
+    });
+
+    it('should succeed when maxDepth is sufficient', async () => {
+      const plan = await loadPlan(join(EXAMPLES_DIR, 'nested-index/APS.md'), { maxDepth: 1 });
+
+      expect(plan.modules.has('api')).toBe(true);
+      expect(plan.modules.has('workers')).toBe(true);
+    });
+  });
+
   describe('error handling', () => {
     it('should throw ParseError for non-existent file', async () => {
       await expect(loadPlan('/non/existent/path.aps.md')).rejects.toThrow(ParseError);
@@ -101,6 +160,17 @@ describe('loadPlan', () => {
       // This tests that case-insensitive detection works
       const plan = await loadPlan(join(EXAMPLES_DIR, 'system-ecommerce/APS.md'));
       expect(plan.isMultiModule).toBe(true);
+    });
+
+    it('should not misclassify leaf spec with "Modules impacted" heading as nested index', async () => {
+      const plan = await loadPlan(join(EXAMPLES_DIR, 'false-positive-modules/APS.md'));
+
+      expect(plan.isMultiModule).toBe(true);
+      expect(plan.modules.has('leaf')).toBe(true);
+
+      const leafModule = plan.modules.get('leaf')!;
+      expect(leafModule.tasks.length).toBe(1);
+      expect(leafModule.tasks[0].id).toBe('LEAF-001');
     });
   });
 });
