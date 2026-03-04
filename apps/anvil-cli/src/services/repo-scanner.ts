@@ -2,7 +2,7 @@ import { glob } from 'glob';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { GateRunner, createCacheProvider, type AnalyzeResult } from '@eddacraft/anvil-runtime';
 import { ProjectDetector, type ProjectContext } from './project-detector.js';
-import { HistoricalAnalyzer, type HistoricalAnalysis } from './historical-analyser.js';
+import { HistoricalAnalyzer, type HistoricalAnalysis } from './historical-analyzer.js';
 
 const log = createDebugger('service');
 

@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { HistoricalAnalyzer } from '../historical-analyser.js';
+import { HistoricalAnalyzer } from '../historical-analyzer.js';
 import {
   createTestWorkspace,
   type TestWorkspace,

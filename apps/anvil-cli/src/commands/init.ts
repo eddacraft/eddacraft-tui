@@ -31,7 +31,7 @@ import { renderTUI } from '../tui/utils/renderer.js';
 import { InitWizard, type WizardState, type WizardContext } from '../tui/commands/init/index.js';
 import { ProjectDetector } from '../services/project-detector.js';
 import { SampleAnalyzer } from '../services/sample-analyzer.js';
-import { HistoricalAnalyzer } from '../services/historical-analyser.js';
+import { HistoricalAnalyzer } from '../services/historical-analyzer.js';
 import { RepoScanner } from '../services/repo-scanner.js';
 import { QuickWinsIdentifier } from '../services/quick-wins.js';
 import { SmartDefaultsGenerator } from '../services/smart-defaults.js';
