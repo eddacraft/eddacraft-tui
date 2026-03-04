@@ -124,8 +124,10 @@
     },
     "onlyBuiltDependencies": [
       "esbuild",
+      "node-pty",
       "nx",
-      "better-sqlite3"
+      "protobufjs",
+      "sharp"
     ],
     "ignoredBuiltDependencies": [
       "@devm33/node-pty",
