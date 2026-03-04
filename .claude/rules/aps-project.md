@@ -7,10 +7,10 @@
 ## Active Modules
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
-- CRB: code-review-backlog (12/29) — In Progress
+- CRB: code-review-backlog (13/29) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
-- SECB: security-review-backlog (6/8) — In Progress
+- SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
 - DASHCORE: dashboard-core-views (0/9) — Ready
@@ -46,16 +46,8 @@
 <!-- Extracted from non-Complete work items' Files: fields -->
 
 ```text
-.claude/agents/forge-reviewer.md: PBLU-049
-.claude/hooks/forge-defer.sh: PBLU-047
-.claude/hooks/forge-report.sh: PBLU-023, PBLU-048
-.claude/hooks/forge.sh: PBLU-017, PBLU-018, PBLU-019, PBLU-046
-.github/workflows/temper.yml: PBLU-024
-.gitignore: PBLU-050
-README.md: PBLU-040, PBLU-052
 apps/anvil-cli/src/commands/*.ts: CRB-001, CRB-019, CRB-020, CRB-021, CRB-023
-apps/anvil-cli/src/commands/audit-spinner.test.ts: PBLU-032
-apps/anvil-cli/src/commands/audit.ts: PBLU-043, CRB-026
+apps/anvil-cli/src/commands/audit.ts: CRB-026
 apps/anvil-cli/src/commands/architecture-validate.ts: ARCHCFG-003
 apps/anvil-cli/src/commands/architecture-validate.test.ts: ARCHCFG-003
 apps/anvil-cli/src/commands/architecture-watch.ts: OPAE-016
@@ -65,12 +57,9 @@ apps/anvil-cli/src/commands/ember.test.ts: EMBER-011
 apps/anvil-cli/src/commands/edda.ts: EDDA-013, EDDA-014, EDDA-015
 apps/anvil-cli/src/commands/edda.test.ts: EDDA-013
 apps/anvil-cli/src/commands/exception.ts: OPAE-027
-apps/anvil-cli/src/commands/export.ts: PBLU-027
 apps/anvil-cli/src/commands/gate.ts: AIGUARD-003
 apps/anvil-cli/src/commands/gate.test.ts: AIGUARD-003
-apps/anvil-cli/src/commands/hooks.ts: PBLU-044, CRB-002
-apps/anvil-cli/src/commands/init.test.ts: PBLU-036, PBLU-055
-apps/anvil-cli/src/commands/mcp-config-path.test.ts: PBLU-033
+apps/anvil-cli/src/commands/hooks.ts: CRB-002
 apps/anvil-cli/src/commands/policy-debug.ts: OPAE-013
 apps/anvil-cli/src/commands/policy-validate.ts: POLVAL-005
 apps/anvil-cli/src/commands/policy-watch.ts: OPAE-015
@@ -79,14 +68,8 @@ apps/anvil-cli/src/commands/pr-comment.ts: OPAE-028, OPAE-029
 apps/anvil-cli/src/commands/stack.ts: STACK-013, STACK-014
 apps/anvil-cli/src/commands/stack.test.ts: STACK-013
 apps/anvil-cli/src/commands/status.ts: EMBER-013, EDDA-017
-apps/anvil-cli/src/commands/tutorial-continuation.test.tsx: PBLU-034, PBLU-053
-apps/anvil-cli/src/commands/tutorial-picker.test.tsx: PBLU-054
-apps/anvil-cli/src/components/NextStepsStep.tsx: PBLU-035
-apps/anvil-cli/src/components/Tutorial.tsx: PBLU-035
 apps/anvil-cli/src/services/_.ts: CRB-021, CRB-023, CRB-024
-apps/anvil-cli/src/services/auth-store.ts: PBLU-030
 apps/anvil-cli/src/services/hook-installer.ts: CRB-002
-apps/anvil-cli/src/test-utils.ts: PBLU-037
 apps/anvil-cli/src/utils/output.ts: CRB-001, CRB-019
 apps/anvil-cli/src/utils/option-coerce.ts: CRB-020
 apps/anvil-cli/vitest.config.ts: CRB-006
@@ -339,18 +322,6 @@ packages/mcp-server/vitest.config.ts: CRB-013
 packages/platform/config/src/loader.ts: CRB-012
 packages/platform/config/src/loader.test.ts: CRB-017
 packages/platform/README.md: CRB-012
-plans/beta-launch-checklist.aps.md: PBLU-038
-plans/modules/03-deferred-finding-filing.aps.md: PBLU-039
-plans/modules/04-temper-workflow.aps.md: PBLU-039
-plans/reviews/cli-beta-review.md: PBLU-041, CRB-028
-plans/reviews/REVIEW.md: SECB-001, SECB-003
-packages/adapters/src/generic/parser.ts: SECB-002
-packages/adapters/src/speckit/parser.ts: SECB-003, SECB-008
-packages/adapters/src/bmad/utils.ts: SECB-003
-packages/anvil/policy/src/bundle-verifier.ts: SECB-001
-packages/aps/src/validator/index.ts: SECB-004
-packages/anvil/runtime/src/gate/parsers/command-parser.ts: SECB-005
-apps/website/app/api/waitlist/route.ts: SECB-006
-packages/anvil/contracts/src/schemas/aps.schema.ts: SECB-007
+plans/reviews/cli-beta-review.md: CRB-028
 vitest.config.ts: CRB-006, CRB-013
 ```

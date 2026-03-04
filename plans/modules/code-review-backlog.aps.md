@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (12/29) |
-<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-011, CRB-026, CRB-027, CRB-028 -->
+| CRB | —     | In Progress (13/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-007, CRB-008, CRB-009, CRB-011, CRB-015, CRB-026, CRB-027, CRB-028 -->
 
 ## Purpose
 
