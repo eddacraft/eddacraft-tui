@@ -87,7 +87,7 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
       const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
       expect(call).toBeDefined();
       // The dangerous string stays as one argument — no shell interpretation
-      expect(call!.args).toContain('file;rm -rf /.ts');
+      expect(call!.args.map(toFwd)).toContain('file;rm -rf /.ts');
     });
 
     it('should pass file paths with backticks as a single argument', async () => {
@@ -98,7 +98,7 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
 
       const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
       expect(call).toBeDefined();
-      expect(call!.args).toContain('file`whoami`.ts');
+      expect(call!.args.map(toFwd)).toContain('file`whoami`.ts');
     });
 
     it('should pass file paths with $() as a single argument', async () => {
@@ -109,7 +109,7 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
 
       const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
       expect(call).toBeDefined();
-      expect(call!.args).toContain('$(cat /etc/passwd).ts');
+      expect(call!.args.map(toFwd)).toContain('$(cat /etc/passwd).ts');
     });
 
     it('should pass file paths with quotes as a single argument', async () => {
@@ -120,7 +120,7 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
 
       const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
       expect(call).toBeDefined();
-      expect(call!.args).toContain('file"with\'quotes.ts');
+      expect(call!.args.map(toFwd)).toContain('file"with\'quotes.ts');
     });
 
     it('should use -- separator to prevent option injection', async () => {
@@ -132,8 +132,9 @@ describe('GitStatusChecker — command safety (CRB-014)', () => {
       const call = execFileCalls.find((c) => c.args.includes('--porcelain'));
       expect(call).toBeDefined();
       // The -- separator prevents --exec from being interpreted as a git option
-      const dashDashIndex = call!.args.indexOf('--');
-      const pathIndex = call!.args.indexOf('--exec=malicious');
+      const fwdArgs = call!.args.map(toFwd);
+      const dashDashIndex = fwdArgs.indexOf('--');
+      const pathIndex = fwdArgs.indexOf('--exec=malicious');
       expect(dashDashIndex).toBeLessThan(pathIndex);
     });
   });
