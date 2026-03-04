@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -110,11 +110,6 @@ vi.mock('@eddacraft/anvil-runtime', () => ({
   }),
 }));
 
-vi.mock('node:path', async () => {
-  const actual = await vi.importActual<typeof import('node:path')>('node:path');
-  return { ...actual, default: actual };
-});
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -175,6 +170,13 @@ function parseResourceText(result: { contents: Array<{ text?: string }> }): unkn
 // ---------------------------------------------------------------------------
 
 describe('MCP Resources', () => {
+  beforeEach(() => {
+    // Re-apply defaults that vi.restoreAllMocks() clears between tests
+    mockStoreLoad.mockResolvedValue(undefined);
+    mockStoreGetAll.mockReturnValue([]);
+    mockStoreGetExpired.mockReturnValue([]);
+  });
+
   afterEach(async () => {
     for (const fn of cleanupFns) {
       await fn();
@@ -722,6 +724,26 @@ describe('MCP Resources', () => {
       const { client } = await createServerWithResource(registerFileWarningsResource);
       const result = await client.readResource({
         uri: 'anvil://file/..%2F..%2F..%2Fetc%2Fpasswd/warnings',
+      });
+
+      const parsed = parseResourceText(result) as { error: string };
+      expect(parsed.error).toContain('outside workspace root');
+    });
+
+    it('rejects path traversal with backslash separators (CRB-016)', async () => {
+      const { client } = await createServerWithResource(registerFileWarningsResource);
+      const result = await client.readResource({
+        uri: 'anvil://file/..%5C..%5C..%5Cetc%5Cpasswd/warnings',
+      });
+
+      const parsed = parseResourceText(result) as { error: string };
+      expect(parsed.error).toContain('outside workspace root');
+    });
+
+    it('rejects path traversal with mixed separators (CRB-016)', async () => {
+      const { client } = await createServerWithResource(registerFileWarningsResource);
+      const result = await client.readResource({
+        uri: 'anvil://file/..%2F..%5Cetc%2Fpasswd/warnings',
       });
 
       const parsed = parseResourceText(result) as { error: string };

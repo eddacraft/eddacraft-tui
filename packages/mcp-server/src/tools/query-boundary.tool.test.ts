@@ -23,6 +23,10 @@ vi.mock('@eddacraft/anvil-core', () => ({
   }),
 }));
 
+vi.mock('../utils/validate-workspace.js', () => ({
+  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

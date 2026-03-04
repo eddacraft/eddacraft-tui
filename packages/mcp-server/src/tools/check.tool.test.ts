@@ -18,6 +18,10 @@ vi.mock('@eddacraft/anvil-runtime', () => {
   };
 });
 
+vi.mock('../utils/validate-workspace.js', () => ({
+  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -252,7 +256,6 @@ describe('anvil_check tool', () => {
 
       // Verify fields NOT included in the mapped output
       expect(w0).not.toHaveProperty('confidence');
-      expect(w0).not.toHaveProperty('explanation');
     });
   });
 

@@ -30,6 +30,10 @@ vi.mock('@eddacraft/anvil-core', () => ({
   baselineExists: (...args: unknown[]) => mockBaselineExists(...args),
 }));
 
+vi.mock('../utils/validate-workspace.js', () => ({
+  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
+}));
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------

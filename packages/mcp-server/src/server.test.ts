@@ -47,6 +47,10 @@ vi.mock('@eddacraft/anvil-core', () => ({
   baselineExists: vi.fn().mockReturnValue(false),
 }));
 
+vi.mock('./utils/validate-workspace.js', () => ({
+  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
+}));
+
 describe('AnvilMcpServer', () => {
   // Track connections for cleanup so transports are closed even if a test fails.
   const cleanupFns: Array<() => Promise<void>> = [];

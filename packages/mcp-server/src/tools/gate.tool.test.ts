@@ -24,8 +24,13 @@ vi.mock('@eddacraft/anvil-runtime', () => {
       loadConfig = mockLoadConfig;
       loadConfigWithDetails = mockLoadConfig;
     },
+    createEmptyPlan: vi.fn(() => ({})),
   };
 });
+
+vi.mock('../utils/validate-workspace.js', () => ({
+  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
