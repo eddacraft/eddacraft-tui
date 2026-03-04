@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitest/config';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const monorepoRoot = resolve(import.meta.dirname, '../..');
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const monorepoRoot = resolve(__dirname, '../..');
 
 export default defineConfig({
   test: {
