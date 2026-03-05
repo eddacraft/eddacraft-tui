@@ -94,7 +94,8 @@
     "cross-spawn": "^7.0.6",
     "@eddacraft/kindling-core": "0.1.2",
     "minimatch": ">=10.2.4",
-    "rollup": ">=4.59.0"
+    "rollup": ">=4.59.0",
+    "axios": ">=1.13.5"
   },
   "pnpm": {
     "overrides": {
@@ -121,7 +122,8 @@
       "eslint>ajv": "6.14.0",
       "@eslint/eslintrc>ajv": "6.14.0",
       "serialize-javascript@<=7.0.2": ">=7.0.3",
-      "svgo@<3.3.3": ">=3.3.3"
+      "svgo@<3.3.3": ">=3.3.3",
+      "axios@<1.13.5": ">=1.13.5"
     },
     "onlyBuiltDependencies": [
       "better-sqlite3",
