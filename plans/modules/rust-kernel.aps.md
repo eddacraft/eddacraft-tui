@@ -11,7 +11,7 @@ Scopes: KERN (main)
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |
-| KERN | —     | Active |
+| KERN | —     | In Progress |
 
 ## Purpose
 

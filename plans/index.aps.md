@@ -184,7 +184,7 @@ modules.
 | Edda                   | Canonical memory — git-backed, provenance-tracked | Draft |
 | Edda Stack Integration | Shared schemas, event bus, layer ports          | Draft  |
 
-### Future — Rust Kernel (KERN, Active)
+### Future — Rust Kernel (KERN, In Progress)
 
 | Phase | Description                                              | Status   | Progress |
 | ----- | -------------------------------------------------------- | -------- | -------- |
@@ -213,7 +213,7 @@ modules.
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
 
-### Future — Ratatui TUI (RATS, Active)
+### Future — Ratatui TUI (RATS, In Progress)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
@@ -463,9 +463,9 @@ waves; 39 tasks total.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | Active | 5/25 | — |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 5/25 | — |
 | [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Proposed | 0/6 | KERN Phase 1 |
-| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Active | 1/7 | KERN Phase 3 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | In Progress | 1/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
