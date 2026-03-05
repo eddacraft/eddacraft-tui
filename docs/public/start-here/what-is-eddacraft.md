@@ -39,7 +39,11 @@ Every change is:
 
 ## The Products
 
-EddaCraft develops three interconnected tools:
+EddaCraft develops tools across three capability areas:
+
+- Deterministic planning
+- Save-time governance
+- Reusable development memory
 
 ### Anvil
 
@@ -69,6 +73,17 @@ sessions. Kindling stores context that matters—without the noise.
 **Best for:** Developers wanting session memory that persists and transfers.
 
 [Learn about Kindling →](/kindling/overview)
+
+### Development Memory System (Kindling + Ember + Edda)
+
+Our memory system turns raw observations into trusted, reusable team knowledge.
+It is designed to reduce repeat mistakes, preserve decision context, and improve
+onboarding for both engineers and agents.
+
+**Best for:** Teams that want capability-first memory workflows: capture,
+review, and canonical preservation.
+
+[Explore the memory system →](/edda-stack/overview)
 
 ## Design Principles
 

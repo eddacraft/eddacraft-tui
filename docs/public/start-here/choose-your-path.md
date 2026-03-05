@@ -15,12 +15,12 @@ Not sure where to start? Pick the path that matches your goal.
 
 You want to understand what EddaCraft offers and whether it fits your needs.
 
-| Goal                                 | Start here                                  |
-| ------------------------------------ | ------------------------------------------- |
-| Understand Anvil's value proposition | [What Anvil does](/anvil/overview)          |
-| See how APS fits into the picture    | [APS Overview](/aps/overview)               |
-| Learn why Kindling exists            | [Kindling Overview](/kindling/overview)     |
-| Grasp the overall architecture       | [Edda Stack Overview](/edda-stack/overview) |
+| Goal                                 | Start here                                     |
+| ------------------------------------ | ---------------------------------------------- |
+| Understand Anvil's value proposition | [What Anvil does](/anvil/overview)             |
+| See how APS fits into the picture    | [APS Overview](/aps/overview)                  |
+| Learn capture workflows              | [Kindling Overview](/kindling/overview)        |
+| Evaluate memory capabilities         | [Memory System Overview](/edda-stack/overview) |
 
 ---
 
@@ -38,16 +38,17 @@ workflows.
 
 ---
 
-## I want capture/memory plumbing
+## I want capture and reusable memory
 
-You need to capture session context and observations for later retrieval.
+You need to capture session context and turn it into reusable team knowledge.
 
-| Goal                      | Start here                                              |
-| ------------------------- | ------------------------------------------------------- |
-| Get Kindling running      | [Install Kindling](/kindling/quickstart/install)        |
-| Create your first capsule | [Create a Capsule](/kindling/quickstart/create-capsule) |
-| Connect to your workflow  | [Custom Adapters](/kindling/adapters/custom)            |
-| Understand the data model | [Observations](/kindling/concepts/observations)         |
+| Goal                                 | Start here                                              |
+| ------------------------------------ | ------------------------------------------------------- |
+| Get Kindling running                 | [Install Kindling](/kindling/quickstart/install)        |
+| Create your first capsule            | [Create a Capsule](/kindling/quickstart/create-capsule) |
+| Connect to your workflow             | [Custom Adapters](/kindling/adapters/custom)            |
+| Understand the data model            | [Observations](/kindling/concepts/observations)         |
+| Understand review + canonical memory | [Memory System Overview](/edda-stack/overview)          |
 
 ---
 
