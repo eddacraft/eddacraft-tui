@@ -1,12 +1,22 @@
 # Watch Mode Performance Analysis: Ink vs Ratatui
 
+> **Superseded:** This analysis correctly identified check execution as the
+> bottleneck (99% of latency) but concluded "performance is not a
+> differentiator" by comparing only TUI render times. The actual question —
+> whether faster check execution lets us run *more checks* in the same time
+> window — was never evaluated. With the Rust kernel
+> ([Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)),
+> the entire watch cycle drops from ~3s to ~200ms, making the Ratatui TUI a
+> natural fit. See [RATS — Ratatui TUI](../modules/ratatui-tui.aps.md) and
+> [ADR-011](./011-rust-core-engine.md) (itself superseded).
+
 ## Question
 
 Would Ratatui improve watch mode responsiveness when typing/saving files?
 
 ## TL;DR
 
-**No.** TUI rendering is <0.5% of total latency. The bottleneck is running checks (lint, test, coverage), not rendering the results.
+**No.** _(Superseded — see note above.)_ TUI rendering is <0.5% of total latency. The bottleneck is running checks (lint, test, coverage), not rendering the results.
 
 ## Watch Mode Latency Breakdown
 

@@ -1,8 +1,16 @@
 # Assessment: Ink vs Ratatui for Anvil TUI
 
+> **Superseded:** This assessment assumed an all-TypeScript stack. With the
+> introduction of the Rust kernel
+> ([Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)),
+> the "two languages" argument against Ratatui dissolves. The Ratatui TUI is now
+> planned as [RATS — Ratatui TUI](../modules/ratatui-tui.aps.md). The analysis
+> below remains valuable reference material. See also
+> [ADR-011](./011-rust-core-engine.md) (itself superseded).
+
 ## Executive Summary
 
-**Recommendation: Stick with Ink**
+**Recommendation: Stick with Ink** _(superseded — see note above)_
 
 Ratatui is an excellent TUI library, but switching would introduce significant complexity without meaningful benefits for Anvil's use case. The technology stack mismatch (Rust vs Node.js/TypeScript) creates integration barriers that outweigh Ratatui's performance advantages.
 
