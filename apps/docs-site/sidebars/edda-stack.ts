@@ -5,9 +5,25 @@ const sidebars: SidebarsConfig = {
     'overview',
     {
       type: 'category',
-      label: 'Components',
+      label: 'Capabilities',
       collapsed: false,
-      items: ['components/kindling', 'components/ember', 'components/edda'],
+      items: [
+        {
+          type: 'doc',
+          id: 'components/kindling',
+          label: 'Capture Signals (Kindling)',
+        },
+        {
+          type: 'doc',
+          id: 'components/ember',
+          label: 'Review Candidates (Ember)',
+        },
+        {
+          type: 'doc',
+          id: 'components/edda',
+          label: 'Canonical Memory (Edda)',
+        },
+      ],
     },
     {
       type: 'doc',
@@ -16,8 +32,13 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'doc',
+      id: 'enterprise-questions',
+      label: 'Enterprise Questions',
+    },
+    {
+      type: 'doc',
       id: 'roadmap',
-      label: 'Roadmap',
+      label: 'Capability Roadmap',
     },
   ],
 };
