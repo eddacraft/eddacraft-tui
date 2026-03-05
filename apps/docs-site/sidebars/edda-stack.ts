@@ -11,12 +11,12 @@ const sidebars: SidebarsConfig = {
         {
           type: 'doc',
           id: 'components/kindling',
-          label: 'Capture Signals (Kindling)',
+          label: 'Signal Capture (Kindling)',
         },
         {
           type: 'doc',
           id: 'components/ember',
-          label: 'Review Candidates (Ember)',
+          label: 'Candidate Review (Ember)',
         },
         {
           type: 'doc',

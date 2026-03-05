@@ -28,11 +28,11 @@ Internally we call these layers Kindling, Ember, and Edda.
 The stack is intentionally capability-first. Internal names are useful, but the
 value is in the outcomes.
 
-| Capability                | Internal layer | Outcome                                                                |
-| ------------------------- | -------------- | ---------------------------------------------------------------------- |
-| Capture signals           | Kindling       | Useful observations are recorded with context while work is happening  |
-| Evaluate candidates       | Ember          | Potentially reusable knowledge is reviewed instead of blindly promoted |
-| Preserve canonical memory | Edda           | Team-approved truths stay queryable, attributable, and versioned       |
+| Capability                | Internal layer | Status       | Outcome                                                                |
+| ------------------------- | -------------- | ------------ | ---------------------------------------------------------------------- |
+| Capture signals           | Kindling       | Available    | Useful observations are recorded with context while work is happening  |
+| Evaluate candidates       | Ember          | Coming soon  | Potentially reusable knowledge is reviewed instead of blindly promoted |
+| Preserve canonical memory | Edda           | Coming soon  | Team-approved truths stay queryable, attributable, and versioned       |
 
 ## Trust and governance contract
 
