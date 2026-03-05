@@ -27,23 +27,23 @@ interface AuthorshipStatsOptions {
  * Format an AuthorshipLog for display
  */
 function formatAuthorshipLog(log: AuthorshipLog): void {
-  console.log(chalk.bold('\nAI Authorship Log'));
-  console.log(chalk.hex(theme.colours.smoke)('─'.repeat(50)));
-  console.log();
+  console.error(chalk.bold('\nAI Authorship Log'));
+  console.error(chalk.hex(theme.colours.smoke)('─'.repeat(50)));
+  console.error();
 
   // Files with AI attribution
-  console.log(
+  console.error(
     chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} FILES WITH AI ATTRIBUTION`)
   );
 
   const files = Object.keys(log.attestations).sort();
   if (files.length === 0) {
-    console.log(chalk.hex(theme.colours.smoke)('  No files attributed'));
+    console.error(chalk.hex(theme.colours.smoke)('  No files attributed'));
   } else {
     for (const file of files) {
-      console.log(chalk.hex(theme.colours.steel)(`  ${file}`));
+      console.error(chalk.hex(theme.colours.steel)(`  ${file}`));
       for (const attestation of log.attestations[file]) {
-        console.log(
+        console.error(
           chalk.hex(theme.colours.smoke)(
             `    ${attestation.sessionHash.slice(0, 8)}... → lines ${attestation.lineRanges}`
           )
@@ -51,7 +51,7 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
       }
     }
   }
-  console.log();
+  console.error();
 
   // Sessions
   console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} AI SESSIONS`));
@@ -124,7 +124,7 @@ export function createAuthorshipCommand(): Command {
         if (options.json) {
           console.log(JSON.stringify({ found: false, commit }));
         } else {
-          console.log(
+          console.error(
             chalk.hex(theme.colours.molten)(
               `\n${theme.icons.info} No AI authorship information found for ${commit}\n`
             )
