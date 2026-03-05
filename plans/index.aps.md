@@ -184,16 +184,16 @@ modules.
 | Edda                   | Canonical memory — git-backed, provenance-tracked | Draft |
 | Edda Stack Integration | Shared schemas, event bus, layer ports          | Draft  |
 
-### Future — Rust Kernel (KERN, Proposed)
+### Future — Rust Kernel (KERN, Active)
 
 | Phase | Description                                              | Status   | Progress |
 | ----- | -------------------------------------------------------- | -------- | -------- |
-| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace    | Proposed | 0/4      |
-| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Proposed | 0/4 |
-| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Proposed | 0/4 |
-| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Proposed | 0/4 |
-| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks      | Proposed | 0/4      |
-| 5 — Daemon (Deferred) | Unix socket, JSON-RPC, session management        | Proposed | 0/3      |
+| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI | Done     | 5/5      |
+| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Draft    | 0/4 |
+| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Draft    | 0/4 |
+| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Draft    | 0/4 |
+| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks, cross-compilation | Draft    | 0/5 |
+| 5 — Daemon (Deferred) | Unix socket, JSON-RPC, session management        | Draft    | 0/3      |
 
 **Module:** [KERN — Rust Kernel](./modules/rust-kernel.aps.md)
 **Spec:** [Rust Kernel Specification](../docs/architecture/rust-kernel-spec.md)
@@ -206,29 +206,58 @@ modules.
 | RENG-001 | Port secret scan to Rust (regex + entropy)               | Proposed |
 | RENG-002 | Port anti-pattern detection (uses kernel ASTs)           | Proposed |
 | RENG-003 | Port command safety check                                | Proposed |
-| RENG-004 | Merge architecture check into kernel dependency graph    | Proposed |
+| RENG-004 | Validate architecture check parity with kernel invariants | Proposed |
 | RENG-005 | Benchmark all ported checks vs JS                        | Proposed |
 | RENG-006 | Feature flag + dual-run for ported checks                | Proposed |
 
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
 
-### Future — Ratatui TUI (RATS, Proposed)
+### Future — Ratatui TUI (RATS, Active)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
-| RATS-001 | eddacraft-tui shared crate (theme, keyboard, widgets)    | Proposed |
-| RATS-002 | Watch dashboard (live gate results, file status)         | Proposed |
-| RATS-003 | Gate result viewer (interactive)                         | Proposed |
-| RATS-004 | APS onboarding wizard                                    | Proposed |
+| RATS-001 | eddacraft-tui shared crate (theme, keyboard, widgets)    | Done     |
+| RATS-002 | Watch dashboard (live gate results, file status)         | Draft    |
+| RATS-003 | Gate result viewer (interactive)                         | Draft    |
+| RATS-004 | APS onboarding wizard                                    | Draft    |
+| RATS-005 | Ink-to-Ratatui migration path                            | Draft    |
+| RATS-006 | Terminal platform compatibility testing                   | Draft    |
+| RATS-007 | `anvil watch` TUI integration entry point                | Draft    |
 
 **Module:** [RATS — Ratatui TUI](./modules/ratatui-tui.aps.md)
 **Depends on:** KERN (consumes kernel events)
 
-**Why these are future:** Gated on KERN Phase 0 spike validation. The TypeScript
-CLI stays — the Rust kernel adds structural graph analysis as a new capability
-(KERN), existing checks port to Rust for speed (RENG), and TUI surfaces move to
-Ratatui (RATS). RENG and RATS depend on KERN but don't block it. See
+### Future — Ink-to-Ratatui Port (PORT, Proposed)
+
+| Task | Description                                                   | Status   |
+| ---- | ------------------------------------------------------------- | -------- |
+| PORT-001 | Port shared layout and display components                | Draft    |
+| PORT-002 | Port composite panel components                          | Draft    |
+| PORT-010 | Port welcome surface                                     | Draft    |
+| PORT-011 | Port doctor surface                                      | Draft    |
+| PORT-012 | Port status dashboard surface                            | Draft    |
+| PORT-020 | Port init wizard surface                                 | Draft    |
+| PORT-021 | Port audit results surface                               | Draft    |
+| PORT-022 | Port template browser surface                            | Draft    |
+| PORT-023 | Port gate explorer surface                               | Draft    |
+| PORT-030 | Port watch dashboard surface                             | Draft    |
+| PORT-040 | Port tutorial orchestrator and picker                    | Draft    |
+| PORT-041 | Port policy tutorial path                                | Draft    |
+| PORT-042 | Port architecture tutorial path                          | Draft    |
+| PORT-043 | Port drift tutorial path                                 | Draft    |
+| PORT-044 | Port CI tutorial path                                    | Draft    |
+
+**Module:** [PORT — Ink-to-Ratatui Port](./modules/ink-to-ratatui-port.aps.md)
+**Depends on:** RATS-001 (shared component library, complete)
+
+**Why these are future:** Gated on KERN Phase 0 spike validation (now complete).
+The TypeScript CLI stays — the Rust kernel adds structural graph analysis as a
+new capability (KERN), existing checks port to Rust for speed (RENG), TUI
+surfaces move to Ratatui (RATS), and existing Ink surfaces are ported
+systematically (PORT). PORT can start immediately since RATS-001 is complete and
+most Ink surfaces are purely presentational. RENG and RATS depend on KERN but
+don't block it. See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan. ADR-011 is
 [superseded](./decisions/011-rust-core-engine.md).
@@ -434,7 +463,10 @@ waves; 39 tasks total.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Proposed | 0/24 | ADR-011 acceptance |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | Active | 5/25 | — |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Proposed | 0/6 | KERN Phase 1 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Active | 1/7 | KERN Phase 3 |
+| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-dotnet](./modules/lang-dotnet.aps.md) | DNLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
