@@ -163,7 +163,7 @@ Change status to **Ready** when:
 
 ### KERN-005: Rust CI pipeline (cargo test, clippy, fmt)
 
-- **Status:** Done
+- **Status:** Draft _(validated externally; pending monorepo CI wiring)_
 - **Intent:** Establish a Rust CI pipeline in GitHub Actions that runs `cargo
   test`, `cargo clippy`, and `cargo fmt --check` on every PR alongside the
   existing pnpm pipeline

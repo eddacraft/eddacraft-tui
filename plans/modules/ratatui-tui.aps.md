@@ -11,7 +11,7 @@ Scopes: RATS (main)
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |
-| RATS | —     | In Progress |
+| RATS | —     | Proposed |
 
 ## Purpose
 

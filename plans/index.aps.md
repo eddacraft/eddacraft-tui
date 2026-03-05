@@ -188,7 +188,7 @@ modules.
 
 | Phase | Description                                              | Status   | Progress |
 | ----- | -------------------------------------------------------- | -------- | -------- |
-| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI _(validated in external Rust workspace)_ | Done     | 5/5      |
+| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI _(validated in external Rust workspace)_ | In Progress | 4/5 |
 | 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Draft    | 0/4 |
 | 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Draft    | 0/4 |
 | 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Draft    | 0/4 |
@@ -213,7 +213,7 @@ modules.
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
 
-### Future — Ratatui TUI (RATS, In Progress)
+### Future — Ratatui TUI (RATS, Proposed)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
@@ -463,9 +463,9 @@ waves; 39 tasks total.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 5/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Proposed | 0/6 | KERN Phase 1 |
-| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | In Progress | 1/7 | KERN Phase 3 |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 4/25 | — |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Proposed | 0/6 | KERN Phase 1, KERN Phase 2 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Proposed | 1/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
