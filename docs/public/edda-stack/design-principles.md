@@ -1,191 +1,80 @@
 ---
 id: design-principles
-title: Design Principles
-description: Core principles guiding the Edda Stack design.
+title: Memory System Design Principles
+description:
+  Principles for trustworthy, reusable development memory at team scale.
 sidebar_position: 2
 ---
 
 # Design Principles
 
-The principles that guide Edda Stack design.
+These principles exist to protect one thing: memory quality over time.
 
-## 1. Provenance Matters
+## 1. Signal over volume
 
-Every piece of knowledge traces to its origin.
+More notes are not automatically better memory.
 
-### Why
+- Capture broadly, curate narrowly.
+- Only promote entries that are reusable and evidenced.
+- Treat canonical memory as a scarce resource.
 
-- **Verification** — Know where knowledge came from
-- **Attribution** — Credit contributors
-- **Context** — Understand when/why it was captured
-- **Updates** — Find related observations when knowledge changes
+## 2. Human accountability is mandatory
 
-### How
+AI can suggest; people decide.
 
-```
-Edda Entry: "Stripe uses cents"
-├── Verified by: alice@example.com (2024-01-15)
-├── Source: Ember entry ember_abc123
-│   └── Source: Kindling observation obs_xyz789
-│       ├── Captured: 2024-01-14T10:30:00Z
-│       ├── Actor: bob@example.com
-│       └── Context: src/payments/checkout.ts
-```
+- Promotion requires human rationale and attribution.
+- Confidence is asserted by reviewers, not inferred by heuristics.
+- Governance is explicit, not implied.
 
-## 2. Progressive Refinement
+## 3. Provenance must be queryable
 
-Raw → Candidate → Verified
+Every canonical entry needs a traceable chain.
 
-### Why
+- Where did this come from?
+- Who approved it?
+- What changed since last version?
 
-- **Signal vs Noise** — Not everything deserves curation
-- **Quality** — Each layer adds verification
-- **Scalability** — Low friction capture, high quality output
-- **Natural Selection** — Valuable knowledge surfaces naturally
+If these questions cannot be answered quickly, trust degrades.
 
-### How
+## 4. Retrieval is deterministic first
 
-```
-100 observations captured (Kindling)
-    ↓ Promotion
- 20 candidates reviewed (Ember)
-    ↓ Verification
-  5 entries curated (Edda)
-```
+Teams need predictable behaviour before clever behaviour.
 
-## 3. Human in the Loop
+- Exact and structured retrieval come first.
+- Ranking and semantic enrichment can be added later.
+- Debuggable retrieval beats opaque retrieval.
 
-AI assists; humans verify.
+## 5. Low-friction capture, high-rigour curation
 
-### Why
+Capture should be quick enough to do during active work, while promotion should
+be deliberate enough to avoid polluting canonical memory.
 
-- **Accuracy** — AI can be wrong
-- **Nuance** — Context matters
-- **Trust** — Team trusts human-verified knowledge
-- **Learning** — Humans learn through review
+This asymmetry is intentional.
 
-### How
+## 6. Local-first and portable by default
 
-AI suggests:
+Teams should keep control over their memory data.
 
-- "This observation might be worth promoting"
-- "This seems similar to existing entry X"
-- "Consider adding to category Y"
+- Works without central infrastructure
+- Compatible with normal tooling (files, git, CLI)
+- Portability by design, not afterthought
 
-Humans decide:
+## 7. Version everything that matters
 
-- Approve/reject promotions
-- Verify accuracy
-- Edit and improve
+Canonical memory should evolve through explicit supersession, not silent edits.
 
-## 4. Mechanical First
+- Preserve history
+- Keep previous versions queryable
+- Make organisational learning auditable
 
-Exact retrieval before semantic search.
+## 8. Compose incrementally
 
-### Why
+Teams can start small and still get value.
 
-- **Predictability** — Find what you stored
-- **Debuggability** — Understand why results appear
-- **Speed** — Simple search is fast
-- **Foundation** — Semantic optional, not required
-
-### How
-
-```bash
-# Mechanical: exact match
-kindling search "OAuth2 PKCE"
-→ Returns observations containing "OAuth2 PKCE"
-
-# Semantic (future): understanding
-kindling search --semantic "authentication flow for SPAs"
-→ Returns observations about OAuth2, PKCE, token handling...
-```
-
-## 5. Local-First
-
-Data lives on your machine by default.
-
-### Why
-
-- **Privacy** — Your observations stay yours
-- **Speed** — No network latency
-- **Reliability** — Works offline
-- **Control** — You own your data
-
-### How
-
-```
-~/.kindling/
-├── capsules/
-│   └── my-project.db    # Your data, your machine
-└── config.json
-```
-
-Sync and sharing are opt-in, not default.
-
-## 6. Minimal Friction
-
-Capture should be instant.
-
-### Why
-
-- **Timing** — Context is freshest immediately
-- **Adoption** — Tools that interrupt get abandoned
-- **Volume** — More capture = more knowledge
-
-### How
-
-```bash
-# One command, done
-kindling observe "The API rate limits at 100/min"
-
-# Or even faster
-/m "The API rate limits at 100/min"
-```
-
-## 7. Composable
-
-Each layer works independently.
-
-### Why
-
-- **Adoption** — Start with what you need
-- **Flexibility** — Mix with other tools
-- **Testing** — Verify each layer
-- **Evolution** — Upgrade independently
-
-### How
-
-Kindling works without Ember or Edda:
-
-```bash
-kindling observe "..."
-kindling search "..."
-kindling export
-```
-
-Add Ember later. Add Edda later. Or don't.
-
-## 8. Team Scale
-
-Individual → Team → Organisation
-
-### Why
-
-- **Solo value** — Useful for one person
-- **Team value** — Multiplied when shared
-- **Org value** — Compound knowledge asset
-
-### How
-
-```
-Developer captures → Kindling (personal)
-    ↓
-Team promotes → Ember (team-visible)
-    ↓
-Org verifies → Edda (org-wide)
-```
+- Start with capture
+- Add candidate review when ready
+- Add canonical governance when the team needs higher trust
 
 ---
 
-**Back to:** [Edda Stack Overview →](/edda-stack/overview)
+**Back to:** [Development Memory System Overview →](/edda-stack/overview)

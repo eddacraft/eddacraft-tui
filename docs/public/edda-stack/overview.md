@@ -1,188 +1,104 @@
 ---
 id: overview
-title: Edda Stack Overview
-description: The layered architecture for governed development memory.
+title: Development Memory System Overview
+description:
+  Capture signals, promote reusable knowledge, and preserve trusted decisions.
 sidebar_position: 1
 ---
 
-# Edda Stack
+# Development Memory System
 
-The Edda Stack is EddaCraft's architecture for capturing, promoting, and
-curating development knowledge.
+Most teams do not lose velocity because they cannot write code. They lose
+velocity because they keep relearning the same lessons.
 
-## The Vision
+This is a three-stage capability system to capture signals, review candidates,
+and preserve trusted decisions for reuse.
 
-Development generates valuable knowledge:
+Internally we call these layers Kindling, Ember, and Edda.
 
-- Decisions made and why
-- Problems solved and how
-- Patterns discovered and when to use them
+## What people care about
 
-But this knowledge is lost. Chat histories clear. Memory fades. The same lessons
-get relearned.
+- Fewer repeated incidents and regressions
+- Faster onboarding for new engineers and agents
+- Clear decision history: what changed, why, and by whom
+- High-trust memory that does not fill with noise
 
-The Edda Stack preserves and promotes knowledge systematically.
+## Capability model (first)
 
-## The Layers
+The stack is intentionally capability-first. Internal names are useful, but the
+value is in the outcomes.
 
-```
-┌─────────────────────────────────────────────────┐
-│                     Edda                         │
-│            Curated, verified knowledge           │
-│                  (Coming Soon)                   │
-└─────────────────────┬───────────────────────────┘
-                      │ Promotion
-┌─────────────────────▼───────────────────────────┐
-│                    Ember                         │
-│         Candidate knowledge awaiting review      │
-│                  (Coming Soon)                   │
-└─────────────────────┬───────────────────────────┘
-                      │ Capture
-┌─────────────────────▼───────────────────────────┐
-│                   Kindling                       │
-│           Raw observations from sessions         │
-│                  (Available Now)                 │
-└─────────────────────────────────────────────────┘
-```
+| Capability                | Internal layer | Outcome                                                                |
+| ------------------------- | -------------- | ---------------------------------------------------------------------- |
+| Capture signals           | Kindling       | Useful observations are recorded with context while work is happening  |
+| Evaluate candidates       | Ember          | Potentially reusable knowledge is reviewed instead of blindly promoted |
+| Preserve canonical memory | Edda           | Team-approved truths stay queryable, attributable, and versioned       |
 
-### Kindling (Capture)
+## Trust and governance contract
 
-**Status: Available Now**
+Canonical memory entries in this system are expected to be:
 
-Raw observations captured during development:
+- Human-approved, not AI-autopublished
+- Attributed with owner and rationale
+- Linked to source observations and promotion history
+- Versioned through explicit supersession
 
-```bash
-kindling observe "The API requires idempotency keys for POST requests"
-```
+This is how memory stays trustworthy as teams and agents scale.
 
-- Fast capture, minimal friction
-- Structured storage
-- Local-first, portable
+## What this does not do by default
 
-[Kindling Documentation →](/kindling/overview)
+- It does not auto-promote all captured notes.
+- It does not treat AI suggestions as canonical truth.
+- It does not optimise for memory volume over memory quality.
 
-### Ember (Candidate)
+## How it works in practice
 
-**Status: Planned**
+1. Capture raw observations during implementation, debugging, and reviews.
+2. Promote only high-signal observations for review.
+3. Approve canonical memory with human attribution and rationale.
+4. Reuse these memories in future decisions, planning, and coding tasks.
 
-Observations flagged as potentially valuable:
+## Why the three-layer design exists
 
-```
-Observation: "API requires idempotency keys"
-→ Promoted to Ember (high utility, verified accurate)
-→ Tagged for team review
-```
+The system separates speed from trust:
 
-Ember will provide:
+- Capture stays low-friction so teams do not skip it.
+- Curation stays deliberate so memory quality does not collapse.
+- Canonical memory stays durable so governance and audits remain possible.
 
-- Automatic promotion suggestions
-- Human review workflow
-- Team sharing
-- Deduplication
+## What to adopt first
 
-### Edda (Curated)
+Start with the capture layer and one team workflow:
 
-**Status: Planned**
+- Capture discoveries and gotchas daily.
+- Review candidates weekly.
+- Promote only high-confidence entries to canonical memory.
 
-Verified, reusable knowledge:
+This gives immediate value without forcing full process change on day one.
 
-```
-Entry: "Idempotency Keys"
-- All POST requests to /payments require X-Idempotency-Key header
-- Keys should be UUIDs, unique per logical operation
-- Server returns cached response for duplicate keys
-- Source: API documentation + team experience
-```
+## 2-week pilot (low-friction rollout)
 
-Edda will provide:
+Week 1:
 
-- Verified accuracy
-- Team-wide visibility
-- Search and discovery
-- Integration with development tools
+- Capture high-signal observations during active work.
+- Tag by component or domain to improve retrieval.
 
-## The Flow
+Week 2:
 
-### 1. Capture (Kindling)
+- Run one review session for candidates.
+- Promote only 1-3 entries that pass quality checks.
 
-During a session, observations are captured:
+Pilot success signals:
 
-```bash
-kindling observe "Stripe uses cents not dollars for amounts"
-kindling observe "Webhook signature must use raw body"
-kindling observe "Test card: 4242424242424242"
-```
+- Lower repeated incident frequency
+- Faster onboarding for common tasks
+- Quicker decision turnaround on known issues
 
-### 2. Promote (Ember)
+## Internal names vs external message
 
-After the session, valuable observations are promoted:
-
-```
-Review session observations:
-
-[✓] "Stripe uses cents not dollars" → Promote to Ember
-[✓] "Webhook signature uses raw body" → Promote to Ember
-[ ] "Test card: 4242..." → Keep in Kindling (reference only)
-```
-
-### 3. Curate (Edda)
-
-Team reviews and curates:
-
-```
-New Ember entry: "Stripe uses cents not dollars"
-
-Review options:
-- Verify and promote to Edda
-- Edit and improve
-- Merge with existing entry
-- Reject (inaccurate or duplicate)
-```
-
-### 4. Apply
-
-Curated knowledge is surfaced:
-
-```
-You're editing: src/payments/checkout.ts
-
-Relevant Edda entries:
-- "Stripe amounts are in cents, not dollars"
-- "Always verify webhook signatures"
-```
-
-## What Exists Today
-
-| Component    | Status    | Description                     |
-| ------------ | --------- | ------------------------------- |
-| **Kindling** | Available | Observation capture and storage |
-| **Ember**    | Planned   | Promotion and review workflow   |
-| **Edda**     | Planned   | Curated knowledge base          |
-
-Kindling is fully functional today. Start capturing observations and benefit
-from the stack as it grows.
-
-## Why This Architecture?
-
-### Progressive Refinement
-
-Raw captures → Candidates → Verified knowledge
-
-Not everything deserves curation. The stack filters naturally.
-
-### Human in the Loop
-
-AI can suggest, but humans verify. Critical for accuracy.
-
-### Provenance Matters
-
-Every piece of knowledge traces to its origin. Who observed it, when, how it was
-verified.
-
-### Team Scale
-
-Individual observations → Team candidates → Organisation knowledge
+Externally, lead with capability language: capture, review, preserve, reuse.
+Internally, Kindling/Ember/Edda provide precise terms for architecture and APIs.
 
 ---
 
-**Next:** [Component details →](/edda-stack/components/kindling)
+**Next:** [Capabilities and components →](/edda-stack/components/kindling)

@@ -1,150 +1,66 @@
 ---
 id: kindling
-title: Kindling (Capture)
-description: The capture layer of the Edda Stack.
+title: Signal Capture (Kindling)
+description:
+  Capture development observations with enough context for later reuse.
 sidebar_position: 1
 ---
 
-# Kindling (Capture Layer)
+# Signal Capture (Kindling)
 
-Kindling is the foundation of the Edda Stack—where observations begin.
+Kindling is the capture capability in the memory system. It records useful
+development observations at the moment they occur.
 
-## Role in the Stack
+## Why this capability matters
 
-```
-Edda Stack
-│
-├── Edda (Curated)      ← Verified knowledge
-│       ▲
-├── Ember (Candidate)   ← Promoted observations
-│       ▲
-└── Kindling (Capture)  ← Raw observations [YOU ARE HERE]
-```
+- Prevents knowledge loss between sessions
+- Reduces repeated debugging and rediscovery
+- Creates evidence for later review and promotion
 
-Kindling captures observations during development. It's optimised for:
+## What good capture looks like
 
-- **Speed** — Capture quickly, don't interrupt flow
-- **Structure** — Enough metadata for later use
-- **Simplicity** — Works without the rest of the stack
+Capture entries that can help someone else act faster later:
 
-## Current Status
+- Root causes and failure modes
+- Constraints and non-obvious behaviour
+- Architectural decisions with rationale
+- Operational gotchas and workarounds
 
-**Available Now**
+## Capture quality rules
 
-Kindling is fully functional:
+- Write what happened, not just that something was "broken"
+- Include context (component, API, command, environment)
+- Keep one observation per entry for easier reuse
 
-- CLI for capture and search
-- SQLite storage
-- Adapter framework
-- Export capabilities
-
-[Full Kindling Documentation →](/kindling/overview)
-
-## Quick Start
+## Example
 
 ```bash
-# Install
-pnpm add -g @eddacraft/kindling
-# or: npm install -g @eddacraft/kindling
-# or: yarn global add @eddacraft/kindling
-# or: bun add -g @eddacraft/kindling
-
-# Initialise
-kindling init
-
-# Capture
-kindling observe "API uses OAuth2 with PKCE"
-
-# Search
-kindling search "OAuth"
-
-# Export
-kindling export --format markdown
+kindling observe "Webhook validation fails if request body is parsed before signature check"
 ```
 
-## Integration with Stack
+This is high-signal because it includes the trigger and the consequence.
 
-### Promotion to Ember (Future)
+## How it connects to the rest of the system
 
-When Ember is available:
+- Captured observations feed candidate review in Ember.
+- Reviewed candidates become canonical memory in Edda.
+- Provenance chain stays intact across layers.
 
-```bash
-# Flag observation for promotion
-kindling promote obs_abc123
+## Operating contract
 
-# Or via review interface
-kindling review --session today
-```
+- **Inputs:** Live development observations, debugging outcomes, non-obvious
+  constraints
+- **Decision point:** Is this worth preserving for future reuse?
+- **Outputs:** Structured, searchable observations with context
+- **Evidence:** Timestamped capture record linked to session context
 
-### Context for Edda (Future)
+## Current role in adoption
 
-Kindling observations provide source data for Edda entries:
+If you adopt only one part of the system first, start here. Capture delivers
+immediate value with minimal process change.
 
-```
-Edda Entry: "OAuth2 PKCE Flow"
-Sources:
-  - obs_abc123: "API uses OAuth2 with PKCE" (2024-01-15)
-  - obs_def456: "PKCE prevents code interception" (2024-01-15)
-```
-
-## What to Capture
-
-Kindling works best when you capture:
-
-### Discoveries
-
-```bash
-kindling observe "The cache TTL is 5 minutes" --kind discovery
-```
-
-### Decisions
-
-```bash
-kindling observe "Using Redis for sessions due to TTL support" --kind decision
-```
-
-### Gotchas
-
-```bash
-kindling observe "Don't use sync writes in production" --kind gotcha
-```
-
-### References
-
-```bash
-kindling observe "See RFC 7231 for status codes" --kind reference
-```
-
-## Best Practices
-
-### Capture During Flow
-
-Don't wait—capture while context is fresh:
-
-```bash
-# Right after solving a problem
-kindling observe "The bug was caused by race condition in auth"
-```
-
-### Be Specific
-
-```bash
-# ❌ Vague
-kindling observe "API issue"
-
-# ✓ Specific
-kindling observe "API returns 500 when payload > 1MB"
-```
-
-### Tag Consistently
-
-Establish conventions:
-
-```bash
-kindling observe "..." --tag api --tag auth
-kindling observe "..." --tag bug --tag performance
-```
+[Full Kindling documentation →](/kindling/overview)
 
 ---
 
-**Next:** [Design Principles →](/edda-stack/design-principles)
+**Next:** [Candidate Review (Ember) →](/edda-stack/components/ember)
