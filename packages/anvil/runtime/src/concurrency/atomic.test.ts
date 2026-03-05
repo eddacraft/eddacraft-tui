@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -24,6 +24,7 @@ import {
   getFileMtime,
   sleepWithJitter,
 } from './atomic.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 function makeTmpDir(): string {
   return mkdtempSync(join(tmpdir(), 'atomic-test-'));
@@ -36,8 +37,8 @@ describe('atomicWriteJson', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   it('writes valid JSON to file', async () => {
@@ -91,8 +92,8 @@ describe('atomicWriteText', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   it('writes text content to file', async () => {
@@ -117,8 +118,8 @@ describe('readJsonSafe', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   it('reads valid JSON file', async () => {
@@ -150,8 +151,8 @@ describe('readJsonWithRetry', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   it('reads valid JSON on first attempt', async () => {
@@ -183,8 +184,8 @@ describe('file lock operations', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   describe('acquireFileLock', () => {
@@ -274,8 +275,8 @@ describe('utility functions', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   describe('unlinkSafe', () => {

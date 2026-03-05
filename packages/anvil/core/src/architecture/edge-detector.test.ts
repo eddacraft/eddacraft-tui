@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 import {
   createEdgeFingerprint,
@@ -25,8 +26,8 @@ describe('Edge Detector', () => {
     mkdirSync(testDir, { recursive: true });
   });
 
-  afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   describe('createEdgeFingerprint', () => {

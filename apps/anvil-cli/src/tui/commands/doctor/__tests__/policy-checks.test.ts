@@ -9,8 +9,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import {
   PolicyConfigCheck,
   PolicyDirectoryCheck,
@@ -18,16 +18,17 @@ import {
   PolicyOrgVersionCheck,
 } from '../checks/PolicyCheck.js';
 import type { DiagnosticContext } from '../types.js';
+import { safeCleanup } from '../../../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('PolicyChecks', () => {
   const tempDir = path.join(process.cwd(), 'tmp-policy-checks-test');
 
   beforeEach(() => {
-    fs.mkdirSync(tempDir, { recursive: true });
+    mkdirSync(tempDir, { recursive: true });
   });
 
-  afterEach(() => {
-    fs.rmSync(tempDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   const ctx = (): DiagnosticContext => ({
@@ -54,8 +55,8 @@ describe('PolicyChecks', () => {
 
     it('should pass when .anvil/config.yml exists', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
-      fs.writeFileSync(path.join(anvilDir, 'config.yml'), 'policies: {}', 'utf-8');
+      mkdirSync(anvilDir, { recursive: true });
+      writeFileSync(path.join(anvilDir, 'config.yml'), 'policies: {}', 'utf-8');
 
       const check = new PolicyConfigCheck();
       const result = await check.run(ctx());
@@ -84,7 +85,7 @@ describe('PolicyChecks', () => {
 
     it('should warn when directory exists but has no .rego files', async () => {
       const policyDir = path.join(tempDir, '.anvil', 'policies');
-      fs.mkdirSync(policyDir, { recursive: true });
+      mkdirSync(policyDir, { recursive: true });
 
       const check = new PolicyDirectoryCheck();
       const result = await check.run(ctx());
@@ -96,9 +97,9 @@ describe('PolicyChecks', () => {
 
     it('should warn when policies have no tests', async () => {
       const policyDir = path.join(tempDir, '.anvil', 'policies');
-      fs.mkdirSync(policyDir, { recursive: true });
-      fs.writeFileSync(path.join(policyDir, 'secret-scan.rego'), '# policy', 'utf-8');
-      fs.writeFileSync(path.join(policyDir, 'coverage_min.rego'), '# policy', 'utf-8');
+      mkdirSync(policyDir, { recursive: true });
+      writeFileSync(path.join(policyDir, 'secret-scan.rego'), '# policy', 'utf-8');
+      writeFileSync(path.join(policyDir, 'coverage_min.rego'), '# policy', 'utf-8');
 
       const check = new PolicyDirectoryCheck();
       const result = await check.run(ctx());
@@ -112,9 +113,9 @@ describe('PolicyChecks', () => {
 
     it('should pass when all policies have tests', async () => {
       const policyDir = path.join(tempDir, '.anvil', 'policies');
-      fs.mkdirSync(policyDir, { recursive: true });
-      fs.writeFileSync(path.join(policyDir, 'secret-scan.rego'), '# policy', 'utf-8');
-      fs.writeFileSync(path.join(policyDir, 'secret-scan_test.rego'), '# test', 'utf-8');
+      mkdirSync(policyDir, { recursive: true });
+      writeFileSync(path.join(policyDir, 'secret-scan.rego'), '# policy', 'utf-8');
+      writeFileSync(path.join(policyDir, 'secret-scan_test.rego'), '# test', 'utf-8');
 
       const check = new PolicyDirectoryCheck();
       const result = await check.run(ctx());
@@ -125,10 +126,10 @@ describe('PolicyChecks', () => {
 
     it('should report partial test coverage', async () => {
       const policyDir = path.join(tempDir, '.anvil', 'policies');
-      fs.mkdirSync(policyDir, { recursive: true });
-      fs.writeFileSync(path.join(policyDir, 'secret-scan.rego'), '# policy', 'utf-8');
-      fs.writeFileSync(path.join(policyDir, 'secret-scan_test.rego'), '# test', 'utf-8');
-      fs.writeFileSync(path.join(policyDir, 'coverage_min.rego'), '# policy', 'utf-8');
+      mkdirSync(policyDir, { recursive: true });
+      writeFileSync(path.join(policyDir, 'secret-scan.rego'), '# policy', 'utf-8');
+      writeFileSync(path.join(policyDir, 'secret-scan_test.rego'), '# test', 'utf-8');
+      writeFileSync(path.join(policyDir, 'coverage_min.rego'), '# policy', 'utf-8');
       // coverage_min has no test
 
       const check = new PolicyDirectoryCheck();
@@ -167,8 +168,8 @@ describe('PolicyChecks', () => {
 
     it('should warn when no team policies defined', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
-      fs.writeFileSync(
+      mkdirSync(anvilDir, { recursive: true });
+      writeFileSync(
         path.join(anvilDir, 'config.yml'),
         'policies:\n  org:\n    source: test',
         'utf-8'
@@ -183,14 +184,14 @@ describe('PolicyChecks', () => {
 
     it('should warn when reasons are missing', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
+      mkdirSync(anvilDir, { recursive: true });
       const yaml = `policies:
   team:
     - name: secret-scan
       owner: "@security"
       enforcement: block
 `;
-      fs.writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
+      writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
 
       const check = new PolicyDocumentationCheck();
       const result = await check.run(ctx());
@@ -201,14 +202,14 @@ describe('PolicyChecks', () => {
 
     it('should warn when owners are missing', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
+      mkdirSync(anvilDir, { recursive: true });
       const yaml = `policies:
   team:
     - name: secret-scan
       reason: "Prevent leaks"
       enforcement: block
 `;
-      fs.writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
+      writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
 
       const check = new PolicyDocumentationCheck();
       const result = await check.run(ctx());
@@ -219,7 +220,7 @@ describe('PolicyChecks', () => {
 
     it('should pass when team policies have reasons and owners', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
+      mkdirSync(anvilDir, { recursive: true });
       const yaml = `policies:
   team:
     - name: secret-scan
@@ -227,7 +228,7 @@ describe('PolicyChecks', () => {
       owner: "@security"
       enforcement: block
 `;
-      fs.writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
+      writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
 
       const check = new PolicyDocumentationCheck();
       const result = await check.run(ctx());
@@ -254,8 +255,8 @@ describe('PolicyChecks', () => {
 
     it('should skip when no org source configured', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
-      fs.writeFileSync(path.join(anvilDir, 'config.yml'), 'policies:\n  team: []', 'utf-8');
+      mkdirSync(anvilDir, { recursive: true });
+      writeFileSync(path.join(anvilDir, 'config.yml'), 'policies:\n  team: []', 'utf-8');
 
       const check = new PolicyOrgVersionCheck();
       const result = await check.run(ctx());
@@ -266,12 +267,12 @@ describe('PolicyChecks', () => {
 
     it('should warn when org source has no pinned ref', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
+      mkdirSync(anvilDir, { recursive: true });
       const yaml = `policies:
   org:
     source: "git@github.com:acme/policies.git"
 `;
-      fs.writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
+      writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
 
       const check = new PolicyOrgVersionCheck();
       const result = await check.run(ctx());
@@ -283,13 +284,13 @@ describe('PolicyChecks', () => {
 
     it('should pass when org source has pinned ref', async () => {
       const anvilDir = path.join(tempDir, '.anvil');
-      fs.mkdirSync(anvilDir, { recursive: true });
+      mkdirSync(anvilDir, { recursive: true });
       const yaml = `policies:
   org:
     source: "git@github.com:acme/policies.git"
     ref: "v1.0.0"
 `;
-      fs.writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
+      writeFileSync(path.join(anvilDir, 'config.yml'), yaml, 'utf-8');
 
       const check = new PolicyOrgVersionCheck();
       const result = await check.run(ctx());

@@ -5,9 +5,10 @@ import { LayerValidator } from './architecture/layer-validator.js';
 import { DependencyAnalyzer, type CruiserViolation } from './architecture/dependency-analyzer.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
 
 /** Normalise path to forward slashes for cross-platform assertions */
 const toForwardSlash = (p: string): string => p.replace(/\\/g, '/');
@@ -70,11 +71,9 @@ describe('ArchitectureCheck', () => {
     analyzer = (check as any).analyzer;
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     vi.restoreAllMocks();
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+    await safeCleanup(testDir);
   });
 
   describe('metadata', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -13,6 +13,7 @@ import {
   getAgentContributions,
   getAiCommitPercentage,
 } from './git-agent.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 /**
  * CRB-014: Tests for git command composition in concurrency/git-agent.ts
@@ -220,8 +221,8 @@ describe('git command composition (real repo)', () => {
     git('commit', '-F', join(tmpDir, '.commit-msg'));
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   describe('getCommitAgentInfo', () => {

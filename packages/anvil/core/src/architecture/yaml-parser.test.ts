@@ -5,9 +5,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import YAML from 'yaml';
 import { minimatch } from 'minimatch';
 import {
@@ -78,10 +79,8 @@ describe('yaml-parser', () => {
     testDir = makeTempDir();
   });
 
-  afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   // --- getArchitectureYamlPath -------------------------------------------

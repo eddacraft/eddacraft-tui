@@ -2,10 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
-import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import { registerFixTool } from './fix.tool.js';
 
 describe('anvil_fix tool', () => {
@@ -32,7 +32,7 @@ describe('anvil_fix tool', () => {
   afterEach(async () => {
     await client.close();
     await server.close();
-    rmSync(tmpDir, { recursive: true, force: true });
+    await safeCleanup(tmpDir);
   });
 
   function parseResult(

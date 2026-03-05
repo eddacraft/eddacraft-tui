@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 // Create a unique temp directory for each test
 function createTempDir(): string {
@@ -14,10 +15,8 @@ function createTempDir(): string {
 }
 
 // Clean up temp directory
-function cleanupTempDir(dir: string): void {
-  if (existsSync(dir)) {
-    rmSync(dir, { recursive: true, force: true });
-  }
+async function cleanupTempDir(dir: string): Promise<void> {
+  await safeCleanup(dir);
 }
 
 // Initialise a git repo in the temp directory
@@ -44,9 +43,9 @@ describe('hooks command', () => {
     process.chdir(tempDir);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     process.chdir(originalCwd);
-    cleanupTempDir(tempDir);
+    await cleanupTempDir(tempDir);
     vi.restoreAllMocks();
   });
 

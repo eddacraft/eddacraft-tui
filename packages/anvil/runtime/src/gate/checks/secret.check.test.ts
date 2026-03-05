@@ -2,10 +2,11 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { SecretCheck, SecretFinding } from './secret.check.js';
 import { EntropyDetector } from './secret/entropy-detector.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execSync } from 'node:child_process';
+import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('SecretCheck', () => {
   let secretCheck: SecretCheck;
@@ -56,8 +57,8 @@ describe('SecretCheck', () => {
     };
   });
 
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   it('should pass when no secrets are found', async () => {
@@ -480,8 +481,8 @@ describe('SecretCheck', () => {
       mkdirSync(gitTempDir, { recursive: true });
     });
 
-    afterEach(() => {
-      rmSync(gitTempDir, { recursive: true, force: true });
+    afterEach(async () => {
+      await safeCleanup(gitTempDir);
     });
 
     it('should scan git history when enabled', async () => {

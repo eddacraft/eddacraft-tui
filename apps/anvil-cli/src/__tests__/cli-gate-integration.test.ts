@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -17,6 +17,7 @@ import {
 } from '@eddacraft/anvil-core';
 import { GateRunner, GateConfigManager } from '@eddacraft/anvil-runtime';
 import { savePlan, loadPlan } from '../utils/file-io.js';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 describe('CLI + Gate Integration Tests', () => {
   const originalCwd = process.cwd();
@@ -45,13 +46,11 @@ describe('CLI + Gate Integration Tests', () => {
     process.chdir(tempDir);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Restore original working directory
     process.chdir(originalCwd);
 
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+    await safeCleanup(tempDir);
   });
 
   describe('Gate Configuration', () => {

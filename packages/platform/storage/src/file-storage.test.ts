@@ -5,8 +5,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { promises as fs } from 'node:fs';
 import { join } from 'node:path';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import { FileStorage, createFileStorage } from './file-storage.js';
 
 describe('FileStorage', () => {
@@ -18,8 +19,8 @@ describe('FileStorage', () => {
     storage = new FileStorage(tempDir);
   });
 
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   describe('path traversal prevention (security-critical)', () => {
@@ -105,8 +106,8 @@ describe('FileStorage', () => {
       writeFileSync(join(outsideDir, 'secret.txt'), 'sensitive data');
     });
 
-    afterEach(() => {
-      rmSync(outsideDir, { recursive: true, force: true });
+    afterEach(async () => {
+      await safeCleanup(outsideDir);
     });
 
     it('should reject read through symlink file pointing outside base', async () => {

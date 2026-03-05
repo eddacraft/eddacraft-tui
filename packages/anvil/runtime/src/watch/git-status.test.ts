@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import path, { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { GitStatusChecker, getChangedFiles } from './git-status.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 /**
  * CRB-014: Tests for git command composition in watch/git-status.ts
@@ -37,8 +38,8 @@ beforeEach(() => {
   checker = new GitStatusChecker(tmpDir);
 });
 
-afterEach(() => {
-  rmSync(tmpDir, { recursive: true, force: true });
+afterEach(async () => {
+  await safeCleanup(tmpDir);
 });
 
 describe('GitStatusChecker', () => {
@@ -51,7 +52,7 @@ describe('GitStatusChecker', () => {
       const nonRepo = mkdtempSync(join(tmpdir(), 'not-a-repo-'));
       const nonRepoChecker = new GitStatusChecker(nonRepo);
       expect(await nonRepoChecker.isGitRepository()).toBe(false);
-      rmSync(nonRepo, { recursive: true, force: true });
+      await safeCleanup(nonRepo);
     });
   });
 

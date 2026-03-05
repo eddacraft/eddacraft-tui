@@ -17,9 +17,10 @@ import {
   waitForTextWithContext,
   type Session,
 } from './tuistory-utils.js';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('Init Wizard TUI Tests', () => {
   let session: Session | null = null;
@@ -34,16 +35,12 @@ describe('Init Wizard TUI Tests', () => {
     testDir = mkdtempSync(join(tmpdir(), 'anvil-init-test-'));
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     safeClose(session);
     session = null;
 
     // Clean up temp directory
-    try {
-      rmSync(testDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+    await safeCleanup(testDir);
   });
 
   describe('Wizard Launch', () => {

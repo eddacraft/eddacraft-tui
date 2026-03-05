@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import { EntryPointDetector, createEntryPointDetector } from './entry-detector.js';
 
 describe('EntryPointDetector', () => {
@@ -19,11 +20,8 @@ describe('EntryPointDetector', () => {
     detector = createEntryPointDetector(testDir);
   });
 
-  afterEach(() => {
-    // Clean up test directory
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   describe('detectEntryPoint', () => {

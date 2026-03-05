@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 // vi.hoisted ensures these are available when vi.mock factories execute
 const mocks = vi.hoisted(() => {
@@ -112,10 +113,10 @@ beforeEach(() => {
   mocks.closeDatabaseFn.mockClear();
 });
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
   if (tempDir) {
-    rmSync(tempDir, { recursive: true, force: true });
+    await safeCleanup(tempDir);
   }
 });
 

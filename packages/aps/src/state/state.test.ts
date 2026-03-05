@@ -7,6 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import {
   readStateFile,
   writeStateFile,
@@ -46,11 +47,7 @@ async function createTempDir(): Promise<string> {
 
 // Helper to clean up temp directory
 async function cleanupTempDir(tempDir: string): Promise<void> {
-  try {
-    await fs.rm(tempDir, { recursive: true, force: true });
-  } catch {
-    // Ignore cleanup errors
-  }
+  await safeCleanup(tempDir);
 }
 
 // Sample task for testing

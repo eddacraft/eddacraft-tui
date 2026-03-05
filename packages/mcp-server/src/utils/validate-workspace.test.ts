@@ -1,15 +1,16 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import { validateWorkspaceRoot, validateWorkspaceRootAgainstServer } from './validate-workspace.js';
 
 describe('validateWorkspaceRoot', () => {
   let tmpDir: string;
 
-  afterEach(() => {
+  afterEach(async () => {
     if (tmpDir) {
-      rmSync(tmpDir, { recursive: true, force: true });
+      await safeCleanup(tmpDir);
     }
   });
 
@@ -42,9 +43,9 @@ describe('validateWorkspaceRoot', () => {
 describe('validateWorkspaceRootAgainstServer', () => {
   let tmpDir: string;
 
-  afterEach(() => {
+  afterEach(async () => {
     if (tmpDir) {
-      rmSync(tmpDir, { recursive: true, force: true });
+      await safeCleanup(tmpDir);
     }
   });
 
@@ -68,7 +69,7 @@ describe('validateWorkspaceRootAgainstServer', () => {
     expect(result).toBe(sub);
   });
 
-  it('rejects a path outside the server root', () => {
+  it('rejects a path outside the server root', async () => {
     tmpDir = mkdtempSync(join(tmpdir(), 'anvil-vw-'));
     const outside = mkdtempSync(join(tmpdir(), 'anvil-vw-outside-'));
     try {
@@ -76,7 +77,7 @@ describe('validateWorkspaceRootAgainstServer', () => {
         "outside the server's allowed root"
       );
     } finally {
-      rmSync(outside, { recursive: true, force: true });
+      await safeCleanup(outside);
     }
   });
 

@@ -6,11 +6,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { QueueManager, createQueueManager } from './queue-manager.js';
 import type { AgentInfo } from './types.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 function makeTmpDir(): string {
   return mkdtempSync(join(tmpdir(), 'queue-mgr-test-'));
@@ -39,8 +40,8 @@ describe('QueueManager', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   describe('join', () => {

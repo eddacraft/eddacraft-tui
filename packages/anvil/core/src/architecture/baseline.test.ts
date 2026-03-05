@@ -3,9 +3,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import {
   BASELINE_FILENAME,
   ANVIL_DIR,
@@ -49,10 +50,8 @@ describe('Baseline Path Utilities', () => {
       mkdirSync(testDir, { recursive: true });
     });
 
-    afterEach(() => {
-      if (existsSync(testDir)) {
-        rmSync(testDir, { recursive: true, force: true });
-      }
+    afterEach(async () => {
+      await safeCleanup(testDir);
     });
 
     it('should return false when baseline does not exist', () => {
@@ -77,10 +76,8 @@ describe('Baseline Load/Save', () => {
     mkdirSync(testDir, { recursive: true });
   });
 
-  afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   describe('loadBaseline', () => {
@@ -511,10 +508,8 @@ describe('BaselineManager', () => {
     manager = createBaselineManager(testDir);
   });
 
-  afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   describe('exists', () => {

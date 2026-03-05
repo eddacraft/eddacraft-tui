@@ -12,10 +12,11 @@ import {
   type PublicKeyConfig,
   type SignatureManifest,
 } from './bundle-verifier.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash, generateKeyPairSync, createSign } from 'node:crypto';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 describe('BundleVerifier', () => {
   let tempDir: string;
@@ -64,10 +65,8 @@ describe('BundleVerifier', () => {
     verifier = new BundleVerifier(config);
   });
 
-  afterEach(() => {
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   describe('initialization', () => {

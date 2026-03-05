@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import {
   saveSnapshot,
   loadSnapshot,
@@ -23,7 +24,7 @@ describe('SnapshotStorage', () => {
   });
 
   afterEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await safeCleanup(testDir);
   });
 
   describe('saveSnapshot', () => {
@@ -236,7 +237,7 @@ describe('SnapshotStore', () => {
   });
 
   afterEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await safeCleanup(testDir);
   });
 
   it('should save and load snapshot', async () => {
@@ -289,12 +290,11 @@ describe('SnapshotStorage Security', () => {
 
   beforeEach(async () => {
     testDir = await fs.mkdtemp(path.join(os.tmpdir(), 'anvil-drift-security-'));
-    // Create a file outside snapshots directory to test path traversal prevention
     await fs.writeFile(path.join(testDir, 'secrets.json'), '{"secret":"data"}', 'utf-8');
   });
 
   afterEach(async () => {
-    await fs.rm(testDir, { recursive: true, force: true });
+    await safeCleanup(testDir);
   });
 
   describe('path traversal prevention', () => {

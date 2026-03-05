@@ -8,9 +8,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
 import { SpecKitFormatAdapter } from '@eddacraft/anvil-adapters';
@@ -73,12 +74,7 @@ Add authentication routes to Express app.
   });
 
   afterEach(async () => {
-    // Clean up test directory
-    try {
-      await rm(testDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+    await safeCleanup(testDir);
   });
 
   describe('Format Detection and Validation', () => {

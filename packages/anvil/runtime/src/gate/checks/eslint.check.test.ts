@@ -7,9 +7,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { ESLintCheck } from './eslint.check.js';
 import { CheckContext, PlanData } from '../../types/gate.types.js';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('ESLintCheck', () => {
   let eslintCheck: ESLintCheck;
@@ -62,10 +63,8 @@ describe('ESLintCheck', () => {
     };
   });
 
-  afterEach(() => {
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   describe('check metadata', () => {

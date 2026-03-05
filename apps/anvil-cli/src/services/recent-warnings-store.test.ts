@@ -1,8 +1,9 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Warning } from '@eddacraft/anvil-core';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import { loadRecentWarnings, saveRecentWarnings } from './recent-warnings-store.js';
 
 const tempDirs: string[] = [];
@@ -34,7 +35,7 @@ async function createWorkspace(): Promise<string> {
 
 afterEach(async () => {
   for (const dir of tempDirs.splice(0)) {
-    await rm(dir, { recursive: true, force: true });
+    await safeCleanup(dir);
   }
 });
 

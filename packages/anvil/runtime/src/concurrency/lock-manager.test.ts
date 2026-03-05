@@ -7,12 +7,13 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { LockManager } from './lock-manager.js';
 import { atomicWriteJson, readJsonSafe, tryAcquireFileLock, unlinkSafe } from './atomic.js';
 import type { AgentInfo } from './types.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,8 +53,8 @@ describe('LockManager', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   // -----------------------------------------------------------------------
@@ -235,7 +236,7 @@ describe('LockManager', () => {
         const cleaned = await mgr.cleanupExpiredLocks();
         expect(cleaned).toBe(0);
       } finally {
-        rmSync(freshDir, { recursive: true, force: true });
+        await safeCleanup(freshDir);
       }
     });
   });
@@ -494,8 +495,8 @@ describe('atomic operations', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   // -----------------------------------------------------------------------

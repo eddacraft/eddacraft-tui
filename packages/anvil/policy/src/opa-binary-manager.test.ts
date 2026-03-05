@@ -6,9 +6,10 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OPABinaryManager } from './opa-binary-manager.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, platform, arch } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 // Windows CI runners are slower with filesystem operations in temp dirs;
 // bump the per-test timeout to prevent flaky timeouts on ensureBinary().
@@ -35,13 +36,13 @@ describe('OPABinaryManager', { timeout: 15_000 }, () => {
     });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Restore environment
     process.env = originalEnv;
 
     // Clean up temp directory
-    if (existsSync(tempCacheDir)) {
-      rmSync(tempCacheDir, { recursive: true, force: true });
+    if (tempCacheDir) {
+      await safeCleanup(tempCacheDir);
     }
 
     vi.restoreAllMocks();

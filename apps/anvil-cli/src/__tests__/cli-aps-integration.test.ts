@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync, realpathSync } from 'node:fs';
+import { mkdirSync, existsSync, writeFileSync, realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -18,6 +18,7 @@ import {
   APS_SCHEMA_VERSION,
 } from '@eddacraft/anvil-core';
 import { loadPlan, savePlan, findPlanById, getWorkspaceRoot } from '../utils/file-io.js';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 describe('CLI + APS Integration Tests', () => {
   const originalCwd = process.cwd();
@@ -43,14 +44,12 @@ describe('CLI + APS Integration Tests', () => {
     process.chdir(tempDir);
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Restore original working directory
     process.chdir(originalCwd);
 
     // Clean up
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+    await safeCleanup(tempDir);
   });
 
   describe('Plan Creation', () => {

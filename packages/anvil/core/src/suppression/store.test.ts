@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import { SuppressionStore } from './store.js';
 import type { ParsedSuppression } from './parser.js';
 
@@ -15,7 +16,7 @@ describe('SuppressionStore', () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tempDir, { recursive: true, force: true });
+    await safeCleanup(tempDir);
   });
 
   describe('load', () => {

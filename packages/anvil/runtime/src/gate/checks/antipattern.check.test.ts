@@ -3,8 +3,9 @@ import { AntipatternCheck } from './antipattern.check.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
 import { join } from 'node:path';
-import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
 
 const createMockPlan = (changes: Array<{ type: string; path: string }>): APSPlan => ({
   id: 'aps-12345678',
@@ -57,10 +58,8 @@ describe('AntipatternCheck', () => {
     mkdirSync(testDir, { recursive: true });
   });
 
-  afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   describe('metadata', () => {

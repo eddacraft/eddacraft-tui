@@ -6,11 +6,12 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { BundleManager, type BundleConfig } from './bundle-manager.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer, type Server, type IncomingMessage, type ServerResponse } from 'node:http';
 import { gzipSync } from 'node:zlib';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 // tar module is a dependency of bundle-manager, tested implicitly through extraction
 
 // Pre-create a minimal gzipped tarball for testing
@@ -154,9 +155,9 @@ describe('BundleManager', { timeout: 30000 }, () => {
     }
 
     // Clean up temp directory
-    if (tempCacheDir && existsSync(tempCacheDir)) {
+    if (tempCacheDir) {
       try {
-        rmSync(tempCacheDir, { recursive: true, force: true });
+        await safeCleanup(tempCacheDir);
       } catch {
         // Ignore cleanup errors
       }
@@ -345,7 +346,7 @@ describe('BundleManager', { timeout: 30000 }, () => {
 
       // Manually delete the bundle directory
       const bundleDir = join(tempCacheDir, 'missing-files');
-      rmSync(bundleDir, { recursive: true, force: true });
+      await safeCleanup(bundleDir);
 
       const path = await manager.getBundle('missing-files');
       expect(path).toBeNull();

@@ -3,11 +3,12 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { FileCacheProvider } from './file-cache.js';
+import { safeCleanup } from '../../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('FileCacheProvider', () => {
   let testDir: string;
@@ -21,12 +22,8 @@ describe('FileCacheProvider', () => {
     });
   });
 
-  afterEach(() => {
-    try {
-      rmSync(testDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   describe('get/set', () => {

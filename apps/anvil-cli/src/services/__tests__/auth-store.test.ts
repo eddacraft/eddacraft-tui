@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, rmSync, readFileSync, statSync, existsSync } from 'node:fs';
+import { mkdtempSync, readFileSync, statSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -10,6 +10,7 @@ import {
   setAuthDir,
   type StoredAuth,
 } from '../auth-store.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 let tempDir: string;
 
@@ -18,10 +19,10 @@ beforeAll(() => {
   setAuthDir(tempDir);
 });
 
-afterAll(() => {
+afterAll(async () => {
   setAuthDir(null);
   if (tempDir && existsSync(tempDir)) {
-    rmSync(tempDir, { recursive: true, force: true });
+    await safeCleanup(tempDir);
   }
 });
 

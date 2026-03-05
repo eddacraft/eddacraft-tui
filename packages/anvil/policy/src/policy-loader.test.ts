@@ -6,9 +6,10 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { PolicyLoader } from './policy-loader.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 describe('PolicyLoader', () => {
   let loader: PolicyLoader;
@@ -22,10 +23,8 @@ describe('PolicyLoader', () => {
     mkdirSync(policyDir, { recursive: true });
   });
 
-  afterEach(() => {
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   describe('policy discovery', () => {

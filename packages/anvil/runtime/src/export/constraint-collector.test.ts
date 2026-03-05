@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -16,6 +16,7 @@ import {
 import { ANVIL_DIR, BASELINE_FILENAME } from '@eddacraft/anvil-core/architecture';
 import type { ArchitectureBaseline } from '@eddacraft/anvil-core/architecture';
 import { PATTERNS } from '@eddacraft/anvil-core/antipattern';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('ConstraintCollector', () => {
   let testDir: string;
@@ -25,10 +26,8 @@ describe('ConstraintCollector', () => {
     mkdirSync(testDir, { recursive: true });
   });
 
-  afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   describe('without baseline', () => {
@@ -432,10 +431,8 @@ describe('collectConstraints', () => {
     mkdirSync(testDir, { recursive: true });
   });
 
-  afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(testDir);
   });
 
   it('should collect constraints with default configuration', async () => {

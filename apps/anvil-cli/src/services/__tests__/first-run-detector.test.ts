@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { existsSync, mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
@@ -8,6 +8,7 @@ import {
   isWelcomeSkipped,
   getMarkerPath,
 } from '../first-run-detector.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('first-run-detector', () => {
   let testDir: string;
@@ -18,8 +19,8 @@ describe('first-run-detector', () => {
     delete process.env.ANVIL_SKIP_WELCOME;
   });
 
-  afterEach(() => {
-    rmSync(testDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(testDir);
     delete process.env.ANVIL_SKIP_WELCOME;
   });
 

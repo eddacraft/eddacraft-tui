@@ -5,9 +5,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { HookInstaller, ANVIL_MARKER, AVAILABLE_HOOKS } from '../hook-installer.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('HookInstaller', () => {
   let tempDir: string;
@@ -20,8 +21,8 @@ describe('HookInstaller', () => {
     installer = new HookInstaller();
   });
 
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   describe('AVAILABLE_HOOKS', () => {

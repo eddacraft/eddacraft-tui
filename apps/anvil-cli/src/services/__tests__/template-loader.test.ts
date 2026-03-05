@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   TemplateLoader,
@@ -10,6 +10,7 @@ import {
   getDefaultTemplatesDir,
   type TemplateMetadata,
 } from '../template-loader.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 const TEST_DIR = join(process.cwd(), 'tmp-template-loader-test');
 
@@ -69,8 +70,8 @@ describe('TemplateLoader', () => {
     mkdirSync(TEST_DIR, { recursive: true });
   });
 
-  afterEach(() => {
-    rmSync(TEST_DIR, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(TEST_DIR);
   });
 
   describe('loadTemplates', () => {
@@ -558,8 +559,8 @@ describe('YAML formatting variations', () => {
     mkdirSync(TEST_DIR, { recursive: true });
   });
 
-  afterEach(() => {
-    rmSync(TEST_DIR, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(TEST_DIR);
   });
 
   it('parses multi-line YAML description (indented block scalar)', async () => {

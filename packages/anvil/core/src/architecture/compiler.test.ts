@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { compileArchitecture, needsCompilation } from './compiler.js';
-import { mkdir, writeFile, rm, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import YAML from 'yaml';
 import type { ArchitectureDefinition } from './definition-schema.js';
 
@@ -31,7 +32,7 @@ describe('compiler', () => {
   });
 
   afterEach(async () => {
-    await rm(testDir, { recursive: true, force: true });
+    await safeCleanup(testDir);
   });
 
   describe('compileArchitecture', () => {

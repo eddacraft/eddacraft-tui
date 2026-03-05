@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GateConfigManager } from './gate-config.js';
-import { writeFileSync, rmSync, existsSync, mkdirSync } from 'node:fs';
+import { writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('GateConfigManager', () => {
   let configManager: GateConfigManager;
@@ -14,10 +15,8 @@ describe('GateConfigManager', () => {
     configManager = new GateConfigManager(tempDir);
   });
 
-  afterEach(() => {
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   it('should return default config when no config file exists', () => {

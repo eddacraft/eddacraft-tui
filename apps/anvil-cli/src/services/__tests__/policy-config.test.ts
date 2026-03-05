@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, mkdirSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import YAML from 'yaml';
 import {
@@ -25,6 +25,7 @@ import {
   type PolicyEntry,
 } from '../policy-config.js';
 import { createTestWorkspace, type TestWorkspace } from '../../__tests__/helpers/test-workspace.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('PolicyConfigManager', () => {
   let workspace: TestWorkspace;
@@ -105,9 +106,9 @@ describe('PolicyConfigManager', () => {
   });
 
   describe('save()', () => {
-    it('should create .anvil directory if missing', () => {
+    it('should create .anvil directory if missing', async () => {
       // Remove the .anvil dir that createTestWorkspace makes
-      rmSync(join(workspace.root, '.anvil'), { recursive: true, force: true });
+      await safeCleanup(join(workspace.root, '.anvil'));
 
       configMgr.save({ policies: { team: [] } });
       expect(existsSync(join(workspace.root, '.anvil', 'config.yml'))).toBe(true);

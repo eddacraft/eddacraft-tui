@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import { execSync, spawnSync } from 'node:child_process';
 import {
   collectEnvironment,
@@ -25,8 +26,8 @@ describe('Provenance System', () => {
     mkdirSync(tempDir, { recursive: true });
   });
 
-  afterEach(() => {
-    rmSync(tempDir, { recursive: true, force: true });
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   describe('collectEnvironment', () => {

@@ -6,9 +6,10 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import {
   ArchitectureAnalyzer,
   createArchitectureAnalyzer,
@@ -95,10 +96,8 @@ describe('ArchitectureAnalyzer', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    if (existsSync(tmpDir)) {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   // =========================================================================
@@ -485,13 +484,13 @@ describe('ArchitectureAnalyzer', () => {
 // ===========================================================================
 
 describe('createArchitectureAnalyzer', () => {
-  it('should return an ArchitectureAnalyzer instance', () => {
+  it('should return an ArchitectureAnalyzer instance', async () => {
     const tmpDir = makeTmpDir();
     try {
       const analyzer = createArchitectureAnalyzer(tmpDir);
       expect(analyzer).toBeInstanceOf(ArchitectureAnalyzer);
     } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
+      await safeCleanup(tmpDir);
     }
   });
 
@@ -503,10 +502,9 @@ describe('createArchitectureAnalyzer', () => {
       });
       const result = await analyzer.analyse(['src/style.css', 'src/app.ts']);
 
-      // Only .css matched
       expect(result.moduleCount).toBe(1);
     } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
+      await safeCleanup(tmpDir);
     }
   });
 });
@@ -522,10 +520,8 @@ describe('analyseArchitecture', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    if (existsSync(tmpDir)) {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   it('should analyse files and return an AnalysisResult', async () => {
@@ -562,7 +558,6 @@ describe('inferBaseline', () => {
 
   beforeEach(() => {
     tmpDir = makeTmpDir();
-    // Create a minimal project structure with real files
     mkdirSync(join(tmpDir, 'src', 'controllers'), { recursive: true });
     mkdirSync(join(tmpDir, 'src', 'services'), { recursive: true });
     mkdirSync(join(tmpDir, 'src', 'utils'), { recursive: true });
@@ -573,10 +568,8 @@ describe('inferBaseline', () => {
     writeFileSync(join(tmpDir, 'src', 'index.ts'), 'export {};');
   });
 
-  afterEach(() => {
-    if (existsSync(tmpDir)) {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   it('should scan workspace and return result + baseline', async () => {
@@ -622,7 +615,7 @@ describe('inferBaseline', () => {
       expect(result.moduleCount).toBe(0);
       expect(baseline.baseline_snapshot.module_count).toBe(0);
     } finally {
-      rmSync(emptyDir, { recursive: true, force: true });
+      await safeCleanup(emptyDir);
     }
   });
 
@@ -647,10 +640,8 @@ describe('error handling', () => {
     tmpDir = makeTmpDir();
   });
 
-  afterEach(() => {
-    if (existsSync(tmpDir)) {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tmpDir);
   });
 
   it('should handle corrupt baseline gracefully during analyse', async () => {

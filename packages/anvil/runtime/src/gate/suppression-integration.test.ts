@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as os from 'node:os';
 import { GateRunner } from './gate-runner.js';
 import { SuppressionStore } from '@eddacraft/anvil-core';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('Suppression Integration', () => {
   let tempDir: string;
@@ -16,7 +17,7 @@ describe('Suppression Integration', () => {
   });
 
   afterEach(async () => {
-    await fs.rm(tempDir, { recursive: true, force: true });
+    await safeCleanup(tempDir);
   });
 
   describe('analyzeFiles with suppressions', () => {

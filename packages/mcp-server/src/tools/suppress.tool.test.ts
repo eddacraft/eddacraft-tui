@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { mkdirSync, writeFileSync, readFileSync, rmSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 import { registerSuppressTool } from './suppress.tool.js';
 
 describe('anvil_suppress tool', () => {
@@ -29,7 +30,7 @@ describe('anvil_suppress tool', () => {
   afterEach(async () => {
     await client.close();
     await server.close();
-    rmSync(tmpDir, { recursive: true, force: true });
+    await safeCleanup(tmpDir);
     vi.useRealTimers();
   });
 

@@ -1,11 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createMcpConfigCommand } from '../mcp-config.js';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
 });
 
@@ -80,8 +81,8 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
       ).rejects.toThrow('outside workspace');
     } finally {
       process.chdir(originalCwd);
-      rmSync(workspace, { recursive: true, force: true });
-      rmSync(outsideDir, { recursive: true, force: true });
+      await safeCleanup(workspace);
+      await safeCleanup(outsideDir);
     }
   });
 
@@ -106,8 +107,8 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
       ).rejects.toThrow('outside workspace');
     } finally {
       process.chdir(originalCwd);
-      rmSync(workspace, { recursive: true, force: true });
-      rmSync(outsideDir, { recursive: true, force: true });
+      await safeCleanup(workspace);
+      await safeCleanup(outsideDir);
     }
   });
 
@@ -147,7 +148,7 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
           process.env[key] = val;
         }
       }
-      rmSync(tempHome, { recursive: true, force: true });
+      await safeCleanup(tempHome);
     }
   });
 

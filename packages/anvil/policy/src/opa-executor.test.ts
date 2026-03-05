@@ -7,9 +7,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { OPAExecutor, type OPAInput } from './opa-executor.js';
 import { type LoadedPolicy } from './policy-loader.js';
-import { existsSync, mkdirSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir, platform } from 'node:os';
+import { safeCleanup } from '../../../../tools/test-utils/safe-cleanup.js';
 
 describe('OPAExecutor', () => {
   let executor: OPAExecutor;
@@ -77,10 +78,8 @@ violation[msg] {
     ];
   });
 
-  afterEach(() => {
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   describe('initialization', () => {

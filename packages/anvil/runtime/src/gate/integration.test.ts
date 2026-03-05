@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { GateRunner } from './gate-runner.js';
 import { GateConfigManager } from './gate-config.js';
-import { writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
 describe('Gate Integration Tests', () => {
   let gateRunner: GateRunner;
@@ -18,10 +19,8 @@ describe('Gate Integration Tests', () => {
     configManager = new GateConfigManager(tempDir);
   });
 
-  afterEach(() => {
-    if (existsSync(tempDir)) {
-      rmSync(tempDir, { recursive: true, force: true });
-    }
+  afterEach(async () => {
+    await safeCleanup(tempDir);
   });
 
   it('should run complete gate workflow', async () => {
