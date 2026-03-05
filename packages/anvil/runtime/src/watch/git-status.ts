@@ -11,7 +11,7 @@ import { relative, resolve } from 'node:path';
 import type { GitFileStatus } from './types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
 
-const debug = createDebugger('watch:git-status');
+const debug = createDebugger('watch');
 
 const execFileAsync = promisify(execFile);
 
