@@ -85,3 +85,7 @@ infra/import.json
 
 # Morgan local agent helper logs
 /plans/agent-runs/
+
+# Rust / Cargo
+target/
+**/*.rs.bk

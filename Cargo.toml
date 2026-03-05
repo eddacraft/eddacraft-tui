@@ -1,0 +1,55 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/spike",
+    "crates/anvil-kernel-types",
+    "crates/eddacraft-tui",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/EddaCraft/anvil-001"
+
+[workspace.dependencies]
+# Parsing
+tree-sitter = "0.26"
+tree-sitter-typescript = "0.23"
+tree-sitter-javascript = "0.25"
+
+# File watching
+notify = "8"
+
+# Graph
+petgraph = "0.8"
+
+# Serialisation
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# TUI
+ratatui = "0.30"
+crossterm = "0.29"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Testing
+insta = { version = "1", features = ["yaml"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Allow common pedantic false positives
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+lto = "thin"
+strip = true
