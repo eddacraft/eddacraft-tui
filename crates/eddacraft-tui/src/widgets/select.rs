@@ -67,6 +67,9 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
             return;
         }
 
+        // Clamp stale selection index when the item list has shrunk since last render.
+        state.selected = state.selected.min(self.items.len() - 1);
+
         if state.selected < state.offset {
             state.offset = state.selected;
         } else if state.selected >= state.offset + visible_height {

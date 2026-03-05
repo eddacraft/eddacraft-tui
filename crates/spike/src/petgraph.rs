@@ -101,46 +101,75 @@ fn benchmark_graph(label: &str, node_count: usize, edge_count: usize) {
 
     let build_elapsed = build_start.elapsed();
     let rss_after = get_rss_bytes();
-    let rss_delta = rss_after.saturating_sub(rss_before);
 
-    println!("  Build time: {build_elapsed:.1?}");
-    println!(
-        "  RSS delta: {:.2} MB",
-        rss_delta as f64 / (1024.0 * 1024.0)
-    );
-    println!(
-        "  Nodes: {}, Edges: {}",
-        graph.node_count(),
-        graph.edge_count()
-    );
+    // NOTE: RSS delta is approximate — allocator reuse across scenarios in a single process
+    // means later benchmarks may show artificially low deltas. For production validation,
+    // run each scenario in a separate process or use absolute RSS instead.
+    match (rss_before, rss_after) {
+        (Some(before), Some(after)) => {
+            let rss_delta = after.saturating_sub(before);
+            println!("  Build time: {build_elapsed:.1?}");
+            println!(
+                "  RSS delta: {:.2} MB",
+                rss_delta as f64 / (1024.0 * 1024.0)
+            );
+            println!(
+                "  Nodes: {}, Edges: {}",
+                graph.node_count(),
+                graph.edge_count()
+            );
 
-    let query_start = Instant::now();
-    let mut traversed = 0_u64;
-    for idx in graph.node_indices() {
-        for _neighbour in graph.neighbors(idx) {
-            traversed += 1;
+            let query_start = Instant::now();
+            let mut traversed = 0_u64;
+            for idx in graph.node_indices() {
+                for _neighbour in graph.neighbors(idx) {
+                    traversed += 1;
+                }
+            }
+            let query_elapsed = query_start.elapsed();
+            println!("  Full traversal ({traversed} edges visited): {query_elapsed:.1?}");
+
+            if node_count == 2000 {
+                let budget_mb = 500.0;
+                let rss_mb = rss_delta as f64 / (1024.0 * 1024.0);
+                if rss_mb < budget_mb {
+                    println!("  ✓ PASS — {rss_mb:.2} MB < {budget_mb} MB budget");
+                } else {
+                    println!("  ✗ FAIL — {rss_mb:.2} MB exceeds {budget_mb} MB budget");
+                }
+            }
         }
-    }
-    let query_elapsed = query_start.elapsed();
-    println!("  Full traversal ({traversed} edges visited): {query_elapsed:.1?}");
+        _ => {
+            println!("  Build time: {build_elapsed:.1?}");
+            println!("  RSS: unavailable (/proc/self/statm not found — non-Linux platform?)");
+            println!(
+                "  Nodes: {}, Edges: {}",
+                graph.node_count(),
+                graph.edge_count()
+            );
 
-    if node_count == 2000 {
-        let budget_mb = 500.0;
-        let rss_mb = rss_delta as f64 / (1024.0 * 1024.0);
-        if rss_mb < budget_mb {
-            println!("  ✓ PASS — {rss_mb:.2} MB < {budget_mb} MB budget");
-        } else {
-            println!("  ✗ FAIL — {rss_mb:.2} MB exceeds {budget_mb} MB budget");
+            let query_start = Instant::now();
+            let mut traversed = 0_u64;
+            for idx in graph.node_indices() {
+                for _neighbour in graph.neighbors(idx) {
+                    traversed += 1;
+                }
+            }
+            let query_elapsed = query_start.elapsed();
+            println!("  Full traversal ({traversed} edges visited): {query_elapsed:.1?}");
+
+            if node_count == 2000 {
+                println!("  ⚠ SKIP — memory budget check requires /proc (Linux only)");
+            }
         }
     }
     println!();
 }
 
-fn get_rss_bytes() -> usize {
-    std::fs::read_to_string("/proc/self/statm")
-        .ok()
-        .and_then(|s| s.split_whitespace().nth(1)?.parse::<usize>().ok())
-        .map_or(0, |pages| pages * page_size())
+fn get_rss_bytes() -> Option<usize> {
+    let statm = std::fs::read_to_string("/proc/self/statm").ok()?;
+    let pages = statm.split_whitespace().nth(1)?.parse::<usize>().ok()?;
+    Some(pages * page_size())
 }
 
 fn page_size() -> usize {

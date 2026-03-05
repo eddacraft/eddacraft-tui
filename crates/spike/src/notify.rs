@@ -47,6 +47,8 @@ fn benchmark_detection_latency(dir: &Path, iterations: usize) {
     let mut latencies = Vec::with_capacity(iterations);
 
     for i in 0..iterations {
+        while rx.try_recv().is_ok() {}
+
         let write_time = Instant::now();
         let mut f = std::fs::File::create(&test_file).expect("failed to create file");
         f.write_all(format!("iteration {i}\n").as_bytes())
@@ -64,7 +66,6 @@ fn benchmark_detection_latency(dir: &Path, iterations: usize) {
             }
         }
 
-        while rx.try_recv().is_ok() {}
         std::thread::sleep(Duration::from_millis(50));
     }
 
