@@ -3,9 +3,15 @@
 
 # TUI Enhancement
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| TUI   | —     | high     | Draft  |
+| Scope | Owner | Priority | Status     |
+| ----- | ----- | -------- | ---------- |
+| TUI   | —     | high     | Superseded |
+
+> **Superseded** by [RATS — Ratatui TUI](./ratatui-tui.aps.md) and the
+> [Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)
+> document. The OpenTUI/Bun-based approach described here has been replaced by a
+> Ratatui TUI running in the same process as the Rust kernel. See also D-005:
+> Ink over OpenTUI (which itself is superseded by the Rust stack decision).
 
 ## Purpose
 

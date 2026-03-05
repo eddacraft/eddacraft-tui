@@ -126,17 +126,18 @@ Change status to **Ready** when:
 
 ---
 
-### RENG-004: Merge architecture check into kernel dependency graph
+### RENG-004: Validate architecture check parity with kernel invariants
 
 - **Status:** Draft
-- **Intent:** The architecture check (cross-layer boundary violation, new
-  dependency edge detection) merges into the kernel's policy engine rather than
-  being a separate ported check. The kernel already maintains the dependency
-  graph — the architecture check becomes a kernel invariant.
-- **Expected Outcome:** Architecture violations detected by kernel invariants
-  (KERN-032) match current JS architecture check output
+- **Intent:** Validate that the kernel's policy engine (KERN-032 invariants)
+  produces equivalent architecture violation results to the current JS
+  architecture check. RENG-004 owns the parity validation and gap analysis —
+  the invariant implementation itself lives in KERN-032.
+- **Expected Outcome:** Parity report showing kernel invariant output matches
+  current JS architecture check output on all test fixture repos, with any
+  gaps documented and tracked
 - **Validation:** Dual-run comparison on test fixture repos with known
-  architecture violations
+  architecture violations, zero unexplained discrepancies
 - **Files:** Part of KERN-032 (kernel invariants), not a separate crate
 - **Confidence:** high
 - **Priority:** High
@@ -169,7 +170,7 @@ Change status to **Ready** when:
   output and reports discrepancies
 - **Validation:** All three modes work correctly, dual mode catches intentionally
   introduced discrepancies
-- **Files:** `apps/anvil-cli/` (current TypeScript CLI), future Rust CLI crate `crates/anvil-cli/src/engine.rs` (does not exist yet), integration with KERN-042
+- **Files:** `apps/anvil-cli/src/` (TS CLI integration for `--engine` flag), integration with KERN-042
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** RENG-005, KERN-042
