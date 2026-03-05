@@ -228,6 +228,26 @@ describe('GitStatusChecker', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toContain('mod.ts');
     });
+
+    it('includes untracked files when includeUntracked is true', async () => {
+      writeFile('untracked.ts', 'new file');
+
+      const without = await checker.filterUnstaged([join(tmpDir, 'untracked.ts')]);
+      expect(without).toHaveLength(0);
+
+      const withUntracked = await checker.filterUnstaged([join(tmpDir, 'untracked.ts')], true);
+      expect(withUntracked).toHaveLength(1);
+      expect(withUntracked[0]).toContain('untracked.ts');
+    });
+
+    it('excludes files not in the input set even when untracked', async () => {
+      writeFile('included.ts', 'yes');
+      writeFile('excluded.ts', 'no');
+
+      const result = await checker.filterUnstaged([join(tmpDir, 'included.ts')], true);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toContain('included.ts');
+    });
   });
 });
 

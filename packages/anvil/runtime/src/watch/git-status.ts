@@ -86,7 +86,7 @@ export class GitStatusChecker {
   async getUnstagedFiles(): Promise<string[]> {
     return this.getFilesByStatusFilter(
       (status) => status.isUnstaged,
-      'Failed to get unstaged files from git status',
+      'Failed to get unstaged files from git status'
     );
   }
 
@@ -96,7 +96,7 @@ export class GitStatusChecker {
   async getUntrackedFiles(): Promise<string[]> {
     return this.getFilesByStatusFilter(
       (status) => status.isUntracked,
-      'Failed to get untracked files from git status',
+      'Failed to get untracked files from git status'
     );
   }
 
@@ -108,7 +108,7 @@ export class GitStatusChecker {
    */
   private async getFilesByStatusFilter(
     predicate: (status: GitFileStatus) => boolean,
-    errorMessage: string,
+    errorMessage: string
   ): Promise<string[]> {
     try {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
@@ -116,7 +116,7 @@ export class GitStatusChecker {
       });
 
       const files: string[] = [];
-      const lines = stdout.trim().split('\n').filter(Boolean);
+      const lines = stdout.split('\n').filter((l) => l.length >= 3);
 
       for (const line of lines) {
         const status = this.parseStatusLine(line, '');
@@ -147,14 +147,16 @@ export class GitStatusChecker {
     }
 
     // Map the input file paths to a set of absolute paths for fast lookup
-    const inputPathsSet = new Set(filePaths.map((p) => resolve(this.workspaceRoot, this.toRelativePath(p))));
+    const inputPathsSet = new Set(
+      filePaths.map((p) => resolve(this.workspaceRoot, this.toRelativePath(p)))
+    );
 
     try {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: this.workspaceRoot,
       });
 
-      const lines = stdout.trim().split('\n').filter(Boolean);
+      const lines = stdout.split('\n').filter((l) => l.length >= 3);
 
       for (const line of lines) {
         const status = this.parseStatusLine(line, '');
@@ -178,7 +180,7 @@ export class GitStatusChecker {
 
       return results;
     } catch (error) {
-      debug('Failed to get unstaged files from git status', error);
+      debug('Failed to filter unstaged files from git status', error);
       return [];
     }
   }
@@ -212,7 +214,22 @@ export class GitStatusChecker {
     }
 
     const statusCode = line.substring(0, 2);
-    const path = line.substring(3).trim() || defaultPath;
+    let path = line.substring(3).trim() || defaultPath;
+
+    // Handle rename entries: "R  old.ts -> new.ts" — use the new path
+    if (path.includes(' -> ')) {
+      path = path.split(' -> ').pop()!;
+    }
+
+    // Handle git-quoted paths: strip surrounding quotes and unescape
+    if (path.startsWith('"') && path.endsWith('"')) {
+      path = path
+        .slice(1, -1)
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\t/g, '\t')
+        .replace(/\\n/g, '\n');
+    }
 
     const indexStatus = statusCode[0];
     const workTreeStatus = statusCode[1];
@@ -308,13 +325,24 @@ export async function getChangedFiles(
         cwd: workspaceRoot,
       });
 
-      const lines = stdout.trim().split('\n').filter(Boolean);
+      const lines = stdout.split('\n').filter((l) => l.length >= 3);
 
       for (const line of lines) {
-        if (line.length < 3) continue;
-
         const statusCode = line.substring(0, 2);
-        const filePath = line.substring(3).trim();
+        let filePath = line.substring(3).trim();
+
+        // Handle rename entries and git-quoted paths
+        if (filePath.includes(' -> ')) {
+          filePath = filePath.split(' -> ').pop()!;
+        }
+        if (filePath.startsWith('"') && filePath.endsWith('"')) {
+          filePath = filePath
+            .slice(1, -1)
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+            .replace(/\\t/g, '\t')
+            .replace(/\\n/g, '\n');
+        }
         const indexStatus = statusCode[0];
         const workTreeStatus = statusCode[1];
 
