@@ -54,49 +54,49 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
   console.error();
 
   // Sessions
-  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} AI SESSIONS`));
+  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} AI SESSIONS`));
 
   const sessions = Object.entries(log.metadata.prompts);
   for (const [hash, prompt] of sessions) {
-    console.log(chalk.hex(theme.colours.molten)(`  Session: ${hash}`));
-    console.log(chalk.hex(theme.colours.smoke)(`    Tool: ${prompt.agent_id.tool}`));
+    console.error(chalk.hex(theme.colours.molten)(`  Session: ${hash}`));
+    console.error(chalk.hex(theme.colours.smoke)(`    Tool: ${prompt.agent_id.tool}`));
     if (prompt.agent_id.model) {
-      console.log(chalk.hex(theme.colours.smoke)(`    Model: ${prompt.agent_id.model}`));
+      console.error(chalk.hex(theme.colours.smoke)(`    Model: ${prompt.agent_id.model}`));
     }
-    console.log(
+    console.error(
       chalk.hex(theme.colours.smoke)(
         `    Lines: ${chalk.green(`+${prompt.total_additions}`)} ${chalk.red(`-${prompt.total_deletions}`)}`
       )
     );
-    console.log(
+    console.error(
       chalk.hex(theme.colours.smoke)(
         `    Accepted: ${prompt.accepted_lines}, Human-modified: ${prompt.overridden_lines}`
       )
     );
     if (prompt.human_author) {
-      console.log(chalk.hex(theme.colours.smoke)(`    Author: ${prompt.human_author}`));
+      console.error(chalk.hex(theme.colours.smoke)(`    Author: ${prompt.human_author}`));
     }
 
     // Show message summary
     if (prompt.messages.length > 0) {
       const userMsgs = prompt.messages.filter((m) => m.type === 'user').length;
       const assistantMsgs = prompt.messages.filter((m) => m.type === 'assistant').length;
-      console.log(
+      console.error(
         chalk.hex(theme.colours.smoke)(
           `    Conversation: ${userMsgs} user, ${assistantMsgs} assistant messages`
         )
       );
     }
   }
-  console.log();
+  console.error();
 
   // Metadata
-  console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} METADATA`));
-  console.log(chalk.hex(theme.colours.smoke)(`  Schema: ${log.metadata.schema_version}`));
-  console.log(
+  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} METADATA`));
+  console.error(chalk.hex(theme.colours.smoke)(`  Schema: ${log.metadata.schema_version}`));
+  console.error(
     chalk.hex(theme.colours.smoke)(`  Commit: ${log.metadata.base_commit_sha.slice(0, 8)}...`)
   );
-  console.log();
+  console.error();
 }
 
 /**
