@@ -14,6 +14,9 @@ outputs:
   e2e-changed:
     description: 'true if e2e test files changed'
     value: ${{ steps.filter.outputs.e2e-changed }}
+  rust-changed:
+    description: 'true if Rust crates or toolchain changed'
+    value: ${{ steps.filter.outputs.rust-changed }}
 
 runs:
   using: composite
@@ -50,6 +53,7 @@ runs:
         CODE_CHANGED=false
         SOURCE_CHANGED=false
         E2E_CHANGED=false
+        RUST_CHANGED=false
 
         while IFS= read -r file; do
           if [[ -n "$file" ]]; then
@@ -79,6 +83,14 @@ runs:
                [[ "$file" == "playwright.config.ts" ]]; then
               E2E_CHANGED=true
             fi
+
+            # Rust patterns
+            if [[ "$file" =~ ^crates/ ]] || \
+               [[ "$file" == "Cargo.toml" ]] || \
+               [[ "$file" == "Cargo.lock" ]] || \
+               [[ "$file" == "rust-toolchain.toml" ]]; then
+              RUST_CHANGED=true
+            fi
           fi
         done <<< "$CHANGED_FILES"
 
@@ -86,5 +98,6 @@ runs:
         echo "code-changed=$CODE_CHANGED" >> "$GITHUB_OUTPUT"
         echo "source-changed=$SOURCE_CHANGED" >> "$GITHUB_OUTPUT"
         echo "e2e-changed=$E2E_CHANGED" >> "$GITHUB_OUTPUT"
+        echo "rust-changed=$RUST_CHANGED" >> "$GITHUB_OUTPUT"
 
-        echo "Change detection: docs-only=$DOCS_ONLY code=$CODE_CHANGED source=$SOURCE_CHANGED e2e=$E2E_CHANGED"
+        echo "Change detection: docs-only=$DOCS_ONLY code=$CODE_CHANGED source=$SOURCE_CHANGED e2e=$E2E_CHANGED rust=$RUST_CHANGED"
