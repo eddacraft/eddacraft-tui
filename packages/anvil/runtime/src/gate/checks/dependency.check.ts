@@ -513,10 +513,7 @@ export class DependencyCheck extends BaseCheck {
 
     // Add package manager-specific fix command
     if (suggestions.length > 0) {
-      const fixCommand =
-        packageManager === 'yarn'
-          ? `${packageManager} audit fix` // yarn uses 'audit fix'
-          : `${packageManager} audit fix`; // npm and pnpm both use 'audit fix'
+      const fixCommand = `${packageManager} audit fix`;
       suggestions.push(`Run \`${fixCommand}\` to automatically apply available patches`);
     }
 
