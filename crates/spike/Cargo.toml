@@ -1,0 +1,30 @@
+[package]
+name = "anvil-spike"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Validation spikes for tree-sitter, notify-rs, and petgraph"
+
+[[bin]]
+name = "spike-treesitter"
+path = "src/treesitter.rs"
+
+[[bin]]
+name = "spike-notify"
+path = "src/notify.rs"
+
+[[bin]]
+name = "spike-petgraph"
+path = "src/petgraph.rs"
+
+[dependencies]
+tree-sitter = { workspace = true }
+tree-sitter-typescript = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+notify = { workspace = true }
+petgraph = { workspace = true }
+rustix = { version = "1", features = ["param"] }
+serde = { workspace = true }
+
+[lints]
+workspace = true
