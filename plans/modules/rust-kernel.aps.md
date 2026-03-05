@@ -86,12 +86,19 @@ Change status to **Ready** when:
 - [x] Phase 0 spike validates tree-sitter parsing (<1ms per file)
 - [x] Phase 0 spike validates notify-rs detection latency (<20ms p99)
 - [x] Phase 0 spike validates petgraph memory for 2000-node graph (<500MB)
-- [x] Phase 0 spike validates Cargo workspace builds alongside pnpm
-- [x] Cargo workspace structure agreed
+- [x] Phase 0 spike validates Cargo workspace builds alongside pnpm _(validated
+      in external Rust workspace)_
+- [x] Cargo workspace structure agreed _(documented in spec; pending monorepo
+      integration)_
 
 ---
 
 ## Phase 0 — Spike (Validation)
+
+> **Note:** Phase 0 spike work was validated in the standalone
+> [eddacraft-rust-kernel](https://github.com/EddaCraft/eddacraft-rust-kernel)
+> workspace. The `crates/spike/` path references that repo. Spike artefacts will
+> be vendored into this monorepo when Phase 1 begins.
 
 ### KERN-001: Validate tree-sitter TS/JS parsing speed
 
@@ -163,7 +170,9 @@ Change status to **Ready** when:
 - **Expected Outcome:** PRs touching Rust code are gated by Rust quality checks;
   failures block merge
 - **Validation:** CI rejects a PR with a clippy warning or fmt violation
-- **Files:** `.github/workflows/`, `Cargo.toml`
+- **Files:** `.github/workflows/`, `Cargo.toml` _(validated in external Rust
+  workspace; CI steps will be added to this repo's workflow when Rust source
+  lands)_
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** KERN-004

@@ -188,7 +188,7 @@ modules.
 
 | Phase | Description                                              | Status   | Progress |
 | ----- | -------------------------------------------------------- | -------- | -------- |
-| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI | Done     | 5/5      |
+| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI _(validated in external Rust workspace)_ | Done     | 5/5      |
 | 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Draft    | 0/4 |
 | 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Draft    | 0/4 |
 | 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Draft    | 0/4 |

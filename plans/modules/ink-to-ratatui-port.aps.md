@@ -57,6 +57,8 @@ and those are already covered by RATS-002/RATS-003.
 **Depends on:**
 
 - RATS-001 — `eddacraft-tui` shared crate (theme, keyboard, widgets) — **Done**
+  _(implemented in external Rust workspace; will be vendored into this monorepo
+  with KERN Phase 1)_
 - `apps/anvil-cli/src/tui/` — existing Ink surfaces as reference implementations
 - `apps/anvil-cli/src/services/` — service interfaces consumed by audit and
   template browser surfaces

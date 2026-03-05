@@ -86,7 +86,8 @@ Change status to **Ready** when:
   (Anvil, APS, Kindling)
 - **Validation:** Visual parity with current Ink components, keyboard navigation
   works consistently across all widgets
-- **Files:** `crates/eddacraft-tui/`
+- **Files:** `crates/eddacraft-tui/` _(implemented in external Rust workspace;
+  will be vendored into this monorepo with KERN Phase 1)_
 - **Confidence:** medium (Ratatui widget ecosystem is maturing)
 - **Priority:** High
 - **Dependencies:** None (can start with mock data before KERN events are ready;
