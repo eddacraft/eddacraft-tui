@@ -9,9 +9,9 @@ Scopes: KERN (main)
 
 # Rust Kernel
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| KERN | —     | Proposed |
+| ID   | Owner | Status |
+| ---- | ----- | ------ |
+| KERN | —     | Active |
 
 ## Purpose
 
@@ -62,7 +62,10 @@ does not maintain a live graph.
 **Exposes:**
 
 - `anvil-kernel` — main crate (watcher, parser, graph, policy, protocol)
-- `anvil-kernel-types` — shared types (events, graph nodes, config)
+- `anvil-kernel-types` — shared types (events, graph nodes, config). This is the
+  **canonical EngineEvent envelope contract** consumed by RENG and RATS. The
+  event schema is defined in KERN-033; the types crate is the shared dependency
+  boundary.
 - Library API for embedded mode (called by `anvil` binary)
 - Event stream for watch mode (consumed by surfaces)
 
@@ -80,11 +83,11 @@ does not maintain a live graph.
 
 Change status to **Ready** when:
 
-- [ ] Phase 0 spike validates tree-sitter parsing (<1ms per file)
-- [ ] Phase 0 spike validates notify-rs detection latency (<20ms p99)
-- [ ] Phase 0 spike validates petgraph memory for 2000-node graph (<500MB)
-- [ ] Phase 0 spike validates Cargo workspace builds alongside pnpm
-- [ ] Cargo workspace structure agreed
+- [x] Phase 0 spike validates tree-sitter parsing (<1ms per file)
+- [x] Phase 0 spike validates notify-rs detection latency (<20ms p99)
+- [x] Phase 0 spike validates petgraph memory for 2000-node graph (<500MB)
+- [x] Phase 0 spike validates Cargo workspace builds alongside pnpm
+- [x] Cargo workspace structure agreed
 
 ---
 
@@ -92,7 +95,7 @@ Change status to **Ready** when:
 
 ### KERN-001: Validate tree-sitter TS/JS parsing speed
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Confirm tree-sitter parses TypeScript files in <1ms per file
   (100-1000 LOC), making AST-based checks viable at watch-mode speed
 - **Expected Outcome:** Benchmark showing parse time for representative files is
@@ -107,7 +110,7 @@ Change status to **Ready** when:
 
 ### KERN-002: Validate notify-rs file detection latency
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Confirm notify-rs detects file changes with <20ms p99 latency,
   replacing Chokidar's ~75ms
 - **Expected Outcome:** Latency benchmark showing detection time from write to
@@ -122,7 +125,7 @@ Change status to **Ready** when:
 
 ### KERN-003: Validate petgraph memory for 2000-node graph
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Confirm petgraph memory usage is within the <500MB budget for a
   medium repo (~2000 files, ~100k LOC)
 - **Expected Outcome:** Memory measurement showing graph + AST cache fits within
@@ -139,7 +142,7 @@ Change status to **Ready** when:
 
 ### KERN-004: Validate Cargo workspace builds alongside pnpm
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Confirm Cargo workspace and pnpm monorepo coexist without CI
   conflicts
 - **Expected Outcome:** Both `cargo build` and `pnpm build` succeed in CI
@@ -148,6 +151,22 @@ Change status to **Ready** when:
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** None
+
+---
+
+### KERN-005: Rust CI pipeline (cargo test, clippy, fmt)
+
+- **Status:** Done
+- **Intent:** Establish a Rust CI pipeline in GitHub Actions that runs `cargo
+  test`, `cargo clippy`, and `cargo fmt --check` on every PR alongside the
+  existing pnpm pipeline
+- **Expected Outcome:** PRs touching Rust code are gated by Rust quality checks;
+  failures block merge
+- **Validation:** CI rejects a PR with a clippy warning or fmt violation
+- **Files:** `.github/workflows/`, `Cargo.toml`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** KERN-004
 
 ---
 
@@ -423,6 +442,23 @@ Change status to **Ready** when:
 
 ---
 
+### KERN-044: Cross-compilation for Linux, macOS, Windows
+
+- **Status:** Draft
+- **Intent:** Ensure the `anvil` binary cross-compiles for all target platforms
+  (Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64) and passes
+  platform-specific smoke tests
+- **Expected Outcome:** CI produces release binaries for all targets; smoke tests
+  confirm binary runs on each platform
+- **Validation:** CI matrix builds for all targets succeed, smoke test verifies
+  binary startup and basic check on each
+- **Files:** `.github/workflows/`, `Cargo.toml`, `Cross.toml` or equivalent
+- **Confidence:** medium (cross-compilation toolchain setup can be fiddly)
+- **Priority:** High
+- **Dependencies:** KERN-040
+
+---
+
 ## Phase 5 — Daemon Mode (Deferred, architecture-ready)
 
 ### KERN-050: Unix domain socket transport
@@ -495,10 +531,10 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Spike | 4 | Draft |
+| 0 — Spike | 5 | Done |
 | 1 — Watcher + Parser | 4 | Draft |
 | 2 — Semantic Graph | 4 | Draft |
 | 3 — Policy Engine + Events | 4 | Draft |
-| 4 — Integration & Validation | 4 | Draft |
+| 4 — Integration & Validation | 5 | Draft |
 | 5 — Daemon Mode (Deferred) | 3 | Draft |
-| **Total** | **23** | — |
+| **Total** | **25** | — |

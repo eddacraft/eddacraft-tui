@@ -9,9 +9,9 @@ Scopes: RATS (main)
 
 # Ratatui TUI
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| RATS | —     | Proposed |
+| ID   | Owner | Status |
+| ---- | ----- | ------ |
+| RATS | —     | Active |
 
 ## Purpose
 
@@ -67,9 +67,9 @@ navigation, interactive widgets) that Ink cannot match.
 Change status to **Ready** when:
 
 - [ ] KERN module Phase 3 (event emission) is complete
-- [ ] Ratatui component library sufficiency validated (from KERN spike or
+- [x] Ratatui component library sufficiency validated (from KERN spike or
       separate prototype)
-- [ ] EddaCraft theme and keyboard conventions documented
+- [x] EddaCraft theme and keyboard conventions documented
 - [ ] Watch dashboard wireframe approved
 
 ---
@@ -78,7 +78,7 @@ Change status to **Ready** when:
 
 ### RATS-001: eddacraft-tui shared crate (theme, keyboard, widgets)
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Create a shared Ratatui component library with EddaCraft theme,
   keyboard conventions (j/k, space, enter, esc), and reusable widgets (Select,
   MultiSelect, TextInput, ProgressBar, StatusBar)
@@ -89,7 +89,8 @@ Change status to **Ready** when:
 - **Files:** `crates/eddacraft-tui/`
 - **Confidence:** medium (Ratatui widget ecosystem is maturing)
 - **Priority:** High
-- **Dependencies:** None (can start with mock data before KERN events are ready)
+- **Dependencies:** None (can start with mock data before KERN events are ready;
+  this task IS the component library referenced in the Ready Checklist)
 
 ---
 
@@ -146,6 +147,59 @@ Change status to **Ready** when:
 
 ---
 
+## Phase 3 — Integration
+
+### RATS-005: Ink-to-Ratatui migration path
+
+- **Status:** Draft
+- **Intent:** Define and implement the deprecation/migration path from the
+  existing Ink TUI to Ratatui surfaces, including feature flags to switch
+  between Ink and Ratatui rendering for each surface
+- **Expected Outcome:** Users can opt into Ratatui surfaces per-command via
+  config or flag; Ink surfaces remain default until parity is validated
+- **Validation:** Both `--tui=ink` and `--tui=ratatui` flags work for watch
+  command; Ink remains default
+- **Files:** `apps/anvil-cli/src/`, `crates/anvil-tui/`
+- **Confidence:** medium (migration sequencing depends on surface parity)
+- **Priority:** High
+- **Dependencies:** RATS-002
+
+---
+
+### RATS-006: Terminal platform compatibility testing
+
+- **Status:** Draft
+- **Intent:** Validate Ratatui TUI surfaces render correctly across target
+  terminals (iTerm2, WezTerm, GNOME Terminal, Windows Terminal, VS Code
+  integrated terminal) and minimum terminal size (80×24)
+- **Expected Outcome:** Compatibility matrix documenting rendering behaviour
+  across terminals, with fixes for any identified rendering issues
+- **Validation:** Manual or automated screenshot comparison across terminals;
+  80×24 layout does not clip or overflow
+- **Files:** `crates/eddacraft-tui/`, `crates/anvil-tui/`
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** RATS-001, RATS-002
+
+---
+
+### RATS-007: `anvil watch` TUI integration entry point
+
+- **Status:** Draft
+- **Intent:** Wire the Ratatui watch dashboard into the `anvil` binary so that
+  `anvil watch` launches the TUI, connects to the kernel event channel, and
+  renders live updates
+- **Expected Outcome:** `anvil watch` starts the Ratatui dashboard when the
+  Ratatui TUI is selected, consuming real kernel events
+- **Validation:** `anvil watch` launches TUI, displays live gate results on file
+  change
+- **Files:** `crates/anvil-tui/src/main.rs` or `crates/anvil-cli/src/`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** RATS-002, KERN-041
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -159,6 +213,7 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — Shared Components | 1 | Draft |
+| 1 — Shared Components | 1 | Done |
 | 2 — Core Surfaces | 3 | Draft |
-| **Total** | **4** | — |
+| 3 — Integration | 3 | Draft |
+| **Total** | **7** | — |
