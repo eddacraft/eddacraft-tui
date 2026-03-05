@@ -11,7 +11,7 @@ import { relative, resolve } from 'node:path';
 import type { GitFileStatus } from './types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
 
-const debug = createDebugger('gate');
+const debug = createDebugger('watch:git-status');
 
 const execFileAsync = promisify(execFile);
 
@@ -84,32 +84,32 @@ export class GitStatusChecker {
    * Get all files with unstaged changes
    */
   async getUnstagedFiles(): Promise<string[]> {
-    try {
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
-        cwd: this.workspaceRoot,
-      });
-
-      const files: string[] = [];
-      const lines = stdout.trim().split('\n').filter(Boolean);
-
-      for (const line of lines) {
-        const status = this.parseStatusLine(line, '');
-        if (status.isUnstaged && status.path) {
-          files.push(resolve(this.workspaceRoot, status.path));
-        }
-      }
-
-      return files;
-    } catch (error) {
-      debug('Failed to get unstaged files from git status', error);
-      return [];
-    }
+    return this.getFilesByStatusFilter(
+      (status) => status.isUnstaged,
+      'Failed to get unstaged files from git status',
+    );
   }
 
   /**
    * Get all untracked files
    */
   async getUntrackedFiles(): Promise<string[]> {
+    return this.getFilesByStatusFilter(
+      (status) => status.isUntracked,
+      'Failed to get untracked files from git status',
+    );
+  }
+
+  /**
+   * Get files matching a given git status predicate
+   *
+   * @param predicate - Function to test each file status
+   * @param errorMessage - Message to log if the git command fails
+   */
+  private async getFilesByStatusFilter(
+    predicate: (status: GitFileStatus) => boolean,
+    errorMessage: string,
+  ): Promise<string[]> {
     try {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: this.workspaceRoot,
@@ -120,14 +120,14 @@ export class GitStatusChecker {
 
       for (const line of lines) {
         const status = this.parseStatusLine(line, '');
-        if (status.isUntracked && status.path) {
+        if (predicate(status) && status.path) {
           files.push(resolve(this.workspaceRoot, status.path));
         }
       }
 
       return files;
     } catch (error) {
-      debug('Failed to get untracked files from git status', error);
+      debug(errorMessage, error);
       return [];
     }
   }
@@ -142,17 +142,45 @@ export class GitStatusChecker {
   async filterUnstaged(filePaths: string[], includeUntracked = false): Promise<string[]> {
     const results: string[] = [];
 
-    for (const filePath of filePaths) {
-      const status = await this.getFileStatus(filePath);
-
-      if (status.isUnstaged) {
-        results.push(filePath);
-      } else if (includeUntracked && status.isUntracked) {
-        results.push(filePath);
-      }
+    if (filePaths.length === 0) {
+      return results;
     }
 
-    return results;
+    // Map the input file paths to a set of absolute paths for fast lookup
+    const inputPathsSet = new Set(filePaths.map((p) => resolve(this.workspaceRoot, this.toRelativePath(p))));
+
+    try {
+      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
+        cwd: this.workspaceRoot,
+      });
+
+      const lines = stdout.trim().split('\n').filter(Boolean);
+
+      for (const line of lines) {
+        const status = this.parseStatusLine(line, '');
+
+        if (!status.path) {
+          continue;
+        }
+
+        const absPath = resolve(this.workspaceRoot, status.path);
+
+        if (!inputPathsSet.has(absPath)) {
+          continue;
+        }
+
+        if (status.isUnstaged) {
+          results.push(absPath);
+        } else if (includeUntracked && status.isUntracked) {
+          results.push(absPath);
+        }
+      }
+
+      return results;
+    } catch (error) {
+      debug('Failed to get unstaged files from git status', error);
+      return [];
+    }
   }
 
   /**
