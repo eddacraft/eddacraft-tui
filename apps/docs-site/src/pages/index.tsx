@@ -17,7 +17,7 @@ function HomepageHeader() {
         </Heading>
         <p className={styles.heroSubtitle}>{siteConfig.tagline}</p>
         <p className={styles.heroDescription}>
-          Anvil enforces plans and gates. APS defines the plan.
+          Plan with intent, validate with gates, and preserve reusable knowledge.
         </p>
         <div className={styles.buttons}>
           <Link className="button button--primary button--lg" to="/anvil/overview">
@@ -37,7 +37,7 @@ interface ProductTileProps {
   tagline: string;
   description: string;
   href: string;
-  variant: 'anvil' | 'aps';
+  variant: 'anvil' | 'aps' | 'eddastack';
   status?: 'available' | 'coming-soon';
 }
 
@@ -88,6 +88,13 @@ function ProductTiles() {
             href="/aps/overview"
             variant="aps"
           />
+          <ProductTile
+            title="Development Memory System"
+            tagline="Capture, review, preserve"
+            description="Capture high-signal observations, review candidates, and preserve trusted canonical memory for team reuse."
+            href="/edda-stack/overview"
+            variant="eddastack"
+          />
         </div>
       </div>
     </section>
@@ -121,6 +128,13 @@ function ValueProps() {
             <h3>Open Standards</h3>
             <p>APS and Kindling are open source. Build on open foundations without lock-in.</p>
           </div>
+          <div className={styles.valueProp}>
+            <h3>Knowledge That Sticks</h3>
+            <p>
+              Capture what matters, review for quality, and keep canonical guidance queryable as
+              teams and agents scale.
+            </p>
+          </div>
         </div>
       </div>
     </section>
@@ -145,6 +159,9 @@ function QuickLinks() {
               <li>
                 <Link to="/anvil/quickstart">Anvil Quickstart</Link>
               </li>
+              <li>
+                <Link to="/edda-stack/overview">Memory System Overview</Link>
+              </li>
             </ul>
           </div>
           <div className={styles.linkGroup}>
@@ -158,6 +175,9 @@ function QuickLinks() {
               </li>
               <li>
                 <Link to="/anvil/concepts/plans">Plans</Link>
+              </li>
+              <li>
+                <Link to="/edda-stack/design-principles">Memory Design Principles</Link>
               </li>
             </ul>
           </div>

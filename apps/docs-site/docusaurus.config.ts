@@ -94,17 +94,16 @@ const config: Config = {
         editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/kindling/',
       },
     ],
-    // DISABLED for go-live: Edda Stack - placeholder/roadmap
-    // [
-    //   '@docusaurus/plugin-content-docs',
-    //   {
-    //     id: 'edda-stack',
-    //     path: '../../docs/public/edda-stack',
-    //     routeBasePath: 'edda-stack',
-    //     sidebarPath: './sidebars/edda-stack.ts',
-    //     editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/edda-stack/',
-    //   },
-    // ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'edda-stack',
+        path: '../../docs/public/edda-stack',
+        routeBasePath: 'edda-stack',
+        sidebarPath: './sidebars/edda-stack.ts',
+        editUrl: 'https://github.com/EddaCraft/anvil-001/tree/main/docs/public/edda-stack/',
+      },
+    ],
     // Beta - unlisted quickstart for beta testers (not in navbar/footer)
     [
       '@docusaurus/plugin-content-docs',
@@ -146,6 +145,11 @@ const config: Config = {
         {
           label: 'Kindling',
           to: '/kindling/overview',
+          position: 'left',
+        },
+        {
+          label: 'Memory',
+          to: '/edda-stack/overview',
           position: 'left',
         },
         {
