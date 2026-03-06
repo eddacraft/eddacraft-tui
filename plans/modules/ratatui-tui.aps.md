@@ -110,7 +110,7 @@ Change status to **Ready** when:
 - **Files:** `crates/anvil-tui/src/dashboard/`
 - **Confidence:** medium
 - **Priority:** High
-- **Dependencies:** RATS-001, KERN-033 (event emission)
+- **Dependencies:** RATS-001, PORT-030 (watch layout), KERN-033 (event emission)
 
 ---
 
@@ -127,7 +127,7 @@ Change status to **Ready** when:
 - **Files:** `crates/anvil-tui/src/gate_view/`
 - **Confidence:** medium
 - **Priority:** Medium
-- **Dependencies:** RATS-001, KERN-040 (embedded mode)
+- **Dependencies:** RATS-001, PORT-023 (gate layout), KERN-040 (embedded mode)
 
 ---
 
@@ -163,7 +163,7 @@ Change status to **Ready** when:
 - **Files:** `apps/anvil-cli/src/`, `crates/anvil-tui/`
 - **Confidence:** medium (migration sequencing depends on surface parity)
 - **Priority:** High
-- **Dependencies:** RATS-002
+- **Dependencies:** RATS-002, PORT (ported surfaces must exist before the switch is useful)
 
 ---
 
