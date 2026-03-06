@@ -163,7 +163,7 @@ Change status to **Ready** when:
 - **Files:** `apps/anvil-cli/src/`, `crates/anvil-tui/`
 - **Confidence:** medium (migration sequencing depends on surface parity)
 - **Priority:** High
-- **Dependencies:** RATS-002, PORT (ported surfaces must exist before the switch is useful)
+- **Dependencies:** RATS-002, PORT-023, PORT-030
 
 ---
 
