@@ -82,7 +82,7 @@ describe('authorship command', () => {
     });
 
     it('should show "not found" message when no log exists', async () => {
-      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockReadAuthorshipNote.mockResolvedValue(null);
 
       const command = createAuthorshipCommand();
