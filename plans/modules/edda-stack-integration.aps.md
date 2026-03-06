@@ -3,9 +3,9 @@
 
 # Edda Stack Integration
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| STACK | —     | medium   | Draft  |
+| Scope | Owner | Priority | Status      |
+| ----- | ----- | -------- | ----------- |
+| STACK | —     | medium   | In Progress |
 
 ## Purpose
 
@@ -236,57 +236,57 @@ interface EddaMemory {
 
 - **Intent:** Define shared ID formats used across all layers
 - **Expected Outcome:** Zod schemas for ObservationId, ProposalId, MemoryId
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Storage-specific ID generation
 - **Files:**
-  - `packages/edda-stack/contracts/identifiers.ts`
-  - `packages/edda-stack/contracts/identifiers.test.ts`
+  - `packages/edda-stack/src/contracts/identifiers.ts`
+  - `packages/edda-stack/src/contracts/identifiers.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="identifiers"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-002: Timestamp and temporal schemas
 
 - **Intent:** Define shared timestamp conventions (ISO8601)
 - **Expected Outcome:** Timestamp schemas with validation and utilities
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Timezone handling beyond ISO8601
 - **Files:**
-  - `packages/edda-stack/contracts/temporal.ts`
-  - `packages/edda-stack/contracts/temporal.test.ts`
+  - `packages/edda-stack/src/contracts/temporal.ts`
+  - `packages/edda-stack/src/contracts/temporal.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="temporal"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-003: Confidence scale definitions
 
 - **Intent:** Define confidence levels used across Ember and Edda
 - **Expected Outcome:** Shared confidence schema with semantic definitions
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Confidence computation logic
 - **Files:**
-  - `packages/edda-stack/contracts/confidence.ts`
-  - `packages/edda-stack/contracts/confidence.test.ts`
+  - `packages/edda-stack/src/contracts/confidence.ts`
+  - `packages/edda-stack/src/contracts/confidence.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="confidence"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-004: Provenance link schema
 
 - **Intent:** Define cross-layer reference schema for provenance tracking
 - **Expected Outcome:** ProvenanceLink schema with validation rules
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Link resolution implementation
 - **Files:**
-  - `packages/edda-stack/contracts/provenance-link.ts`
-  - `packages/edda-stack/contracts/provenance-link.test.ts`
+  - `packages/edda-stack/src/contracts/provenance.ts`
+  - `packages/edda-stack/src/contracts/provenance.test.ts`
 - **Dependencies:** STACK-001
-- **Validation:** `nx test edda-stack --testNamePattern="provenance-link"`
+- **Validation:** `nx test edda-stack --testNamePattern="provenance"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase B: Type Mappings
 
@@ -294,25 +294,25 @@ interface EddaMemory {
 
 - **Intent:** Define explicit conversion rules between Ember and Edda types
 - **Expected Outcome:** Mapping functions with validation for promotion
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Promotion workflow (business logic)
 - **Files:**
-  - `packages/edda-stack/contracts/type-mappings.ts`
-  - `packages/edda-stack/contracts/type-mappings.test.ts`
+  - `packages/edda-stack/src/contracts/type-mappings.ts`
+  - `packages/edda-stack/src/contracts/type-mappings.test.ts`
 - **Dependencies:** EMBER-001, EDDA-001
 - **Validation:** `nx test edda-stack --testNamePattern="type-mappings"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-006: Observation → Proposal type mapping
 
 - **Intent:** Define conversion rules from Kindling observations to Ember proposals
 - **Expected Outcome:** Mapping functions for observation aggregation
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Aggregation logic
 - **Files:**
-  - `packages/edda-stack/contracts/observation-mappings.ts`
-  - `packages/edda-stack/contracts/observation-mappings.test.ts`
+  - `packages/edda-stack/src/contracts/observation-mappings.ts`
+  - `packages/edda-stack/src/contracts/observation-mappings.test.ts`
 - **Dependencies:** KINDLING-001, EMBER-001
 - **Validation:** `nx test edda-stack --testNamePattern="observation-mappings"`
 - **Confidence:** medium
@@ -324,31 +324,31 @@ interface EddaMemory {
 
 - **Intent:** Define interface contracts for layer boundaries
 - **Expected Outcome:** TypeScript interfaces for Kindling, Ember, Edda ports
-- **Scope:** `packages/edda-stack/ports/`
+- **Scope:** `packages/edda-stack/src/contracts/ports/`
 - **Non-scope:** Implementation
 - **Files:**
-  - `packages/edda-stack/ports/kindling.port.ts`
-  - `packages/edda-stack/ports/ember.port.ts`
-  - `packages/edda-stack/ports/edda.port.ts`
-  - `packages/edda-stack/ports/index.ts`
+  - `packages/edda-stack/src/contracts/ports/kindling.port.ts`
+  - `packages/edda-stack/src/contracts/ports/ember.port.ts`
+  - `packages/edda-stack/src/contracts/ports/edda.port.ts`
+  - `packages/edda-stack/src/contracts/ports/index.ts`
 - **Dependencies:** STACK-001 through STACK-006
 - **Validation:** TypeScript compilation passes
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-008: Event bus for layer communication
 
 - **Intent:** Define event types for cross-layer communication
 - **Expected Outcome:** Event schemas for observation, proposal, promotion events
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Event bus implementation (async/sync choice)
 - **Files:**
-  - `packages/edda-stack/contracts/events.ts`
-  - `packages/edda-stack/contracts/events.test.ts`
+  - `packages/edda-stack/src/contracts/events.ts`
+  - `packages/edda-stack/src/contracts/events.test.ts`
 - **Dependencies:** STACK-004
 - **Validation:** `nx test edda-stack --testNamePattern="events"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase D: Testing Utilities
 
@@ -356,47 +356,46 @@ interface EddaMemory {
 
 - **Intent:** Provide mock implementations for isolated testing
 - **Expected Outcome:** Mock factories for Kindling, Ember, Edda services
-- **Scope:** `packages/edda-stack/testing/`
+- **Scope:** `packages/edda-stack/src/testing/`
 - **Non-scope:** Full integration tests
 - **Files:**
-  - `packages/edda-stack/testing/mocks/kindling.mock.ts`
-  - `packages/edda-stack/testing/mocks/ember.mock.ts`
-  - `packages/edda-stack/testing/mocks/edda.mock.ts`
-  - `packages/edda-stack/testing/index.ts`
+  - `packages/edda-stack/src/testing/mocks/kindling.mock.ts`
+  - `packages/edda-stack/src/testing/mocks/ember.mock.ts`
+  - `packages/edda-stack/src/testing/mocks/edda.mock.ts`
+  - `packages/edda-stack/src/testing/index.ts`
 - **Dependencies:** STACK-007
 - **Validation:** Mocks can substitute for real implementations in tests
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-010: Integration test fixtures
 
 - **Intent:** Provide fixtures for testing full stack flows
 - **Expected Outcome:** Sample observations, proposals, memories for testing
-- **Scope:** `packages/edda-stack/testing/`
+- **Scope:** `packages/edda-stack/src/testing/`
 - **Non-scope:** E2E tests (Playwright)
 - **Files:**
-  - `packages/edda-stack/testing/fixtures/observations.ts`
-  - `packages/edda-stack/testing/fixtures/proposals.ts`
-  - `packages/edda-stack/testing/fixtures/memories.ts`
-  - `packages/edda-stack/testing/fixtures/chains.ts` (full provenance chains)
+  - `packages/edda-stack/src/testing/fixtures/proposals.ts`
+  - `packages/edda-stack/src/testing/fixtures/memories.ts`
+  - `packages/edda-stack/src/testing/fixtures/index.ts`
 - **Dependencies:** STACK-009
 - **Validation:** Fixtures pass schema validation
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-011: Provenance chain validator
 
 - **Intent:** Tool to validate provenance integrity across layers
 - **Expected Outcome:** Validator checks links resolve and form valid chains
-- **Scope:** `packages/edda-stack/testing/`
+- **Scope:** `packages/edda-stack/src/testing/`
 - **Non-scope:** Production monitoring
 - **Files:**
-  - `packages/edda-stack/testing/validators/provenance-chain.ts`
-  - `packages/edda-stack/testing/validators/provenance-chain.test.ts`
+  - `packages/edda-stack/src/testing/validators/provenance-chain.ts`
+  - `packages/edda-stack/src/testing/validators/provenance-chain.test.ts`
 - **Dependencies:** STACK-004, STACK-010
 - **Validation:** `nx test edda-stack --testNamePattern="provenance-chain"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase E: CLI & Configuration
 
@@ -404,42 +403,42 @@ interface EddaMemory {
 
 - **Intent:** Define stack-wide configuration with layer dependencies
 - **Expected Outcome:** Zod schema for stack config, validation of dependencies
-- **Scope:** `packages/edda-stack/`, `core/src/gate/gate-config.ts`
+- **Scope:** `packages/edda-stack/src/`, `core/src/gate/gate-config.ts`
 - **Non-scope:** TUI config editor
 - **Files:**
-  - `packages/edda-stack/config.ts`
+  - `packages/edda-stack/src/config.ts`
   - `core/src/gate/gate-config.ts` (extend schema)
 - **Dependencies:** KINDLING-002, EMBER-003, EDDA-005
 - **Validation:** `nx test edda-stack --testNamePattern="stack.*config"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-013: CLI stack status command
 
 - **Intent:** Add `anvil stack status` to show health of all layers
 - **Expected Outcome:** CLI displays enabled/disabled, counts, health indicators
-- **Scope:** `cli/src/commands/`
+- **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** Detailed diagnostics per layer
 - **Files:**
-  - `cli/src/commands/stack.ts`
-  - `cli/src/commands/stack.test.ts`
+  - `apps/anvil-cli/src/commands/stack.ts`
+  - `apps/anvil-cli/src/commands/stack.test.ts`
 - **Dependencies:** STACK-012
 - **Validation:** `anvil stack status`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-014: CLI stack validate command
 
 - **Intent:** Add `anvil stack validate` to check provenance integrity
 - **Expected Outcome:** CLI validates cross-layer links, reports broken chains
-- **Scope:** `cli/src/commands/`
+- **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** Auto-repair
 - **Files:**
-  - `cli/src/commands/stack.ts` (add validate subcommand)
+  - `apps/anvil-cli/src/commands/stack.ts` (add validate subcommand)
 - **Dependencies:** STACK-011, STACK-013
 - **Validation:** `anvil stack validate`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase F: Documentation
 
@@ -455,7 +454,7 @@ interface EddaMemory {
 - **Dependencies:** STACK-007
 - **Validation:** Manual review
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-016: Migration guide
 
@@ -467,6 +466,54 @@ interface EddaMemory {
   - `docs/guides/stack-migration.md`
 - **Dependencies:** STACK-012
 - **Validation:** Manual review
+- **Confidence:** medium
+- **Status:** Complete
+
+### Phase G: Reconciliation
+
+#### STACK-017: Path drift cleanup in APS plan files
+
+- **Intent:** Align all APS file references with actual package layout
+- **Expected Outcome:** All Scope/Files fields in STACK, EMBER, EDDA plans use
+  correct `src/` paths; index and rules files updated
+- **Scope:** `plans/`, `.claude/rules/`
+- **Non-scope:** Code changes — plan metadata only
+- **Files:**
+  - `plans/modules/edda-stack-integration.aps.md`
+  - `plans/modules/ember.aps.md`
+  - `plans/modules/edda.aps.md`
+  - `plans/index.aps.md`
+  - `.claude/rules/aps-project.md`
+- **Dependencies:** —
+- **Validation:** All file paths in plan tasks resolve to real files
+- **Confidence:** high
+- **Status:** In Progress
+
+#### STACK-018: Retroactive evidence capture
+
+- **Intent:** Record test results and implementation evidence for completed tasks
+- **Expected Outcome:** Execution step files confirm STACK-001–016 pass criteria
+- **Scope:** `plans/execution/`
+- **Non-scope:** New implementation work
+- **Files:**
+  - `plans/execution/STACK-001.steps.md` through `STACK-016.steps.md`
+- **Dependencies:** STACK-017
+- **Validation:** Each steps file references passing test or artefact
+- **Confidence:** high
+- **Status:** Draft
+
+#### STACK-019: Missing deliverable audit
+
+- **Intent:** Identify STACK deliverables that exist in code but lack plan tasks
+- **Expected Outcome:** New tasks or notes for undocumented artefacts (e.g.
+  `ember-proposal.ts`, `edda-memory.ts` live in STACK tree but are owned by
+  EMBER-001 / EDDA-001)
+- **Scope:** `plans/modules/edda-stack-integration.aps.md`
+- **Non-scope:** Creating the missing implementations
+- **Files:**
+  - `plans/modules/edda-stack-integration.aps.md`
+- **Dependencies:** STACK-017
+- **Validation:** Manual review — no orphaned artefacts
 - **Confidence:** medium
 - **Status:** Draft
 
@@ -508,42 +555,42 @@ interface EddaMemory {
 
 ```
 packages/edda-stack/
-├── contracts/                    # Shared type definitions
-│   ├── identifiers.ts            # ID formats
-│   ├── temporal.ts               # Timestamp conventions
-│   ├── confidence.ts             # Confidence scales
-│   ├── provenance-link.ts        # Cross-layer references
-│   ├── type-mappings.ts          # Proposal → Memory
-│   ├── observation-mappings.ts   # Observation → Proposal
-│   ├── events.ts                 # Layer communication events
-│   ├── ember-proposal.ts         # Re-export from ember
-│   ├── edda-memory.ts            # Re-export from edda
+├── src/
+│   ├── contracts/                # Shared type definitions
+│   │   ├── identifiers.ts        # ID formats
+│   │   ├── temporal.ts           # Timestamp conventions
+│   │   ├── confidence.ts         # Confidence scales
+│   │   ├── provenance.ts         # Cross-layer references
+│   │   ├── type-mappings.ts      # Proposal → Memory
+│   │   ├── events.ts             # Layer communication events
+│   │   ├── ember-proposal.ts     # Ember proposal schema
+│   │   ├── edda-memory.ts        # Edda memory schema
+│   │   ├── ports/                # Interface definitions
+│   │   │   ├── kindling.port.ts
+│   │   │   ├── ember.port.ts
+│   │   │   ├── edda.port.ts
+│   │   │   └── index.ts
+│   │   └── index.ts
+│   ├── testing/                  # Test utilities
+│   │   ├── mocks/
+│   │   │   ├── kindling.mock.ts
+│   │   │   ├── ember.mock.ts
+│   │   │   └── edda.mock.ts
+│   │   ├── fixtures/
+│   │   │   ├── proposals.ts
+│   │   │   ├── memories.ts
+│   │   │   └── index.ts
+│   │   ├── validators/
+│   │   │   └── provenance-chain.ts
+│   │   └── index.ts
+│   ├── config.ts                 # Stack configuration
 │   └── index.ts
-├── ports/                        # Interface definitions
-│   ├── kindling.port.ts
-│   ├── ember.port.ts
-│   ├── edda.port.ts
-│   └── index.ts
-├── ember/                        # Ember implementation
+├── ember/                        # Ember implementation (not yet built)
 │   └── (see ember.aps.md)
-├── edda/                         # Edda implementation
+├── edda/                         # Edda implementation (not yet built)
 │   └── (see edda.aps.md)
-├── testing/                      # Test utilities
-│   ├── mocks/
-│   │   ├── kindling.mock.ts
-│   │   ├── ember.mock.ts
-│   │   └── edda.mock.ts
-│   ├── fixtures/
-│   │   ├── observations.ts
-│   │   ├── proposals.ts
-│   │   ├── memories.ts
-│   │   └── chains.ts
-│   ├── validators/
-│   │   └── provenance-chain.ts
-│   └── index.ts
-├── config.ts                     # Stack configuration
 ├── README.md
-└── index.ts
+└── package.json
 ```
 
 **Data flow (single pass):**

@@ -18,6 +18,12 @@ export * from './contracts/index.js';
 // Re-export stack configuration
 export * from './config.js';
 
+// Re-export Ember service layer
+export * from './ember/index.js';
+
+// Re-export Edda service layer
+export * from './edda/index.js';
+
 // Package metadata
 export const PACKAGE_VERSION = '0.1.0';
 export const PACKAGE_NAME = '@eddacraft/anvil-edda-stack';

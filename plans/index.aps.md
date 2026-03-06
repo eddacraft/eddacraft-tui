@@ -457,7 +457,7 @@ waves; 39 tasks total.
 | [kindling-integration](./modules/kindling-integration.aps.md) | KINDLING | Complete | save-time-trust, drift-reporting |
 | [ember](./modules/ember.aps.md) | EMBER | Draft | kindling-integration |
 | [edda](./modules/edda.aps.md) | EDDA | Draft | ember |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Draft | kindling-integration, ember, edda |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | In Progress | kindling-integration, ember, edda |
 
 ### Future (Post-1.0.0)
 
@@ -834,7 +834,7 @@ Ember (interpretation), and Edda (canonical memory).
 
 | Task      | Module | Description                       | Status | Priority |
 | --------- | ------ | --------------------------------- | ------ | -------- |
-| EMBER-001 | ember  | Candidate Memory Proposal schema  | Draft  | high     |
+| EMBER-001 | ember  | Candidate Memory Proposal schema  | Complete  | high     |
 | EMBER-002 | ember  | Proposal type definitions         | Draft  | high     |
 | EMBER-003 | ember  | Ember configuration schema        | Draft  | high     |
 | EMBER-004 | ember  | ProposalStore implementation      | Draft  | high     |
@@ -853,7 +853,7 @@ Ember (interpretation), and Edda (canonical memory).
 
 | Task      | Module | Description                       | Status | Priority |
 | --------- | ------ | --------------------------------- | ------ | -------- |
-| EDDA-001  | edda   | Memory Object schema              | Draft  | high     |
+| EDDA-001  | edda   | Memory Object schema              | Complete  | high     |
 | EDDA-002  | edda   | Memory type definitions           | Draft  | high     |
 | EDDA-003  | edda   | Provenance schema                 | Draft  | high     |
 | EDDA-004  | edda   | Evolution graph schema            | Draft  | high     |
@@ -875,24 +875,24 @@ Ember (interpretation), and Edda (canonical memory).
 
 #### Edda Stack Integration
 
-| Task      | Module | Description                       | Status | Priority |
-| --------- | ------ | --------------------------------- | ------ | -------- |
-| STACK-001 | stack  | Common identifier schemas         | Draft  | high     |
-| STACK-002 | stack  | Timestamp and temporal schemas    | Draft  | high     |
-| STACK-003 | stack  | Confidence scale definitions      | Draft  | high     |
-| STACK-004 | stack  | Provenance link schema            | Draft  | high     |
-| STACK-005 | stack  | Proposal → Memory type mapping    | Draft  | high     |
-| STACK-006 | stack  | Observation → Proposal mapping    | Draft  | medium   |
-| STACK-007 | stack  | Layer port definitions            | Draft  | high     |
-| STACK-008 | stack  | Event bus for layer communication | Draft  | medium   |
-| STACK-009 | stack  | Layer mock factories              | Draft  | high     |
-| STACK-010 | stack  | Integration test fixtures         | Draft  | high     |
-| STACK-011 | stack  | Provenance chain validator        | Draft  | high     |
-| STACK-012 | stack  | Stack configuration schema        | Draft  | high     |
-| STACK-013 | stack  | CLI stack status command          | Draft  | high     |
-| STACK-014 | stack  | CLI stack validate command        | Draft  | high     |
-| STACK-015 | stack  | Stack architecture documentation  | Draft  | medium   |
-| STACK-016 | stack  | Migration guide                   | Draft  | medium   |
+| Task      | Module | Description                       | Status   | Priority |
+| --------- | ------ | --------------------------------- | -------- | -------- |
+| STACK-001 | stack  | Common identifier schemas         | Complete | high     |
+| STACK-002 | stack  | Timestamp and temporal schemas    | Complete | high     |
+| STACK-003 | stack  | Confidence scale definitions      | Complete | high     |
+| STACK-004 | stack  | Provenance link schema            | Complete | high     |
+| STACK-005 | stack  | Proposal → Memory type mapping    | Complete | high     |
+| STACK-006 | stack  | Observation → Proposal mapping    | Draft    | medium   |
+| STACK-007 | stack  | Layer port definitions            | Complete | high     |
+| STACK-008 | stack  | Event bus for layer communication | Complete | medium   |
+| STACK-009 | stack  | Layer mock factories              | Complete | high     |
+| STACK-010 | stack  | Integration test fixtures         | Complete | high     |
+| STACK-011 | stack  | Provenance chain validator        | Complete | high     |
+| STACK-012 | stack  | Stack configuration schema        | Complete | high     |
+| STACK-013 | stack  | CLI stack status command          | Complete | high     |
+| STACK-014 | stack  | CLI stack validate command        | Complete | high     |
+| STACK-015 | stack  | Stack architecture documentation  | Complete | medium   |
+| STACK-016 | stack  | Migration guide                   | Complete | medium   |
 
 ### Task Status — 0.3.0 (Organisational Policy Governance)
 

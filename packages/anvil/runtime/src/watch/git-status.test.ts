@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { platform } from 'node:os';
-import path, { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 
@@ -184,7 +184,7 @@ describe('GitStatusChecker', () => {
       git('add', 'staged.ts');
 
       const files = await checker.getUnstagedFiles();
-      const names = files.map((f) => path.relative(tmpDir, f));
+      const names = files.map((f) => f.replace(tmpDir + sep, ''));
 
       expect(names).toContain('unstaged.ts');
       expect(names).not.toContain('staged.ts');
@@ -205,7 +205,7 @@ describe('GitStatusChecker', () => {
       writeFile('untracked.ts', 'new');
 
       const files = await checker.getUntrackedFiles();
-      const names = files.map((f) => path.relative(tmpDir, f));
+      const names = files.map((f) => f.replace(tmpDir + sep, ''));
 
       expect(names).toContain('untracked.ts');
       expect(names).not.toContain('tracked.ts');

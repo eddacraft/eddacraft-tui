@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status |
 | ----- | ----- | -------- | ------ |
-| EDDA  | —     | medium   | Draft  |
+| EDDA  | —     | medium   | Complete |
 
 ## Purpose
 
@@ -163,19 +163,19 @@ permanence.
 
 ## Acceptance Criteria
 
-- [ ] Memory Object schema defined (Zod) with all required fields
-- [ ] 6 memory types supported (decision, pattern, constraint, warning, doctrine, lesson)
-- [ ] Git-backed storage with YAML format
-- [ ] Promotion workflow requires human decision + attribution
-- [ ] `anvil edda list` shows memory objects with type/confidence
-- [ ] `anvil edda show <id>` displays full memory with provenance
-- [ ] `anvil edda promote <candidate_id>` creates memory from Ember
-- [ ] `anvil edda retire <id>` marks memory as superseded
-- [ ] `anvil edda trace <id>` shows evolution graph
-- [ ] Provenance links resolve to Kindling observations
-- [ ] All memory mutations are versioned (git commits)
-- [ ] No AI-only memory creation (human in the loop)
-- [ ] Schema changes require explicit migration
+- [x] Memory Object schema defined (Zod) with all required fields
+- [x] 6 memory types supported (decision, pattern, constraint, warning, doctrine, lesson)
+- [x] Git-backed storage with YAML format
+- [x] Promotion workflow requires human decision + attribution
+- [x] `anvil edda list` shows memory objects with type/confidence
+- [x] `anvil edda show <id>` displays full memory with provenance
+- [x] `anvil edda promote <candidate_id>` creates memory from Ember
+- [x] `anvil edda retire <id>` marks memory as superseded
+- [x] `anvil edda trace <id>` shows evolution graph
+- [x] Provenance links resolve to Kindling observations
+- [x] All memory mutations are versioned (git commits)
+- [x] No AI-only memory creation (human in the loop)
+- [x] Schema changes require explicit migration
 
 ## Risks & Mitigations
 
@@ -197,71 +197,71 @@ permanence.
 
 - **Intent:** Define the core data model for canonical memory objects
 - **Expected Outcome:** Zod schema for MemoryObject with all required fields
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Storage implementation, promotion workflow
 - **Files:**
-  - `packages/edda-stack/contracts/edda-memory.ts`
-  - `packages/edda-stack/contracts/edda-memory.test.ts`
+  - `packages/edda-stack/src/contracts/edda-memory.ts`
+  - `packages/edda-stack/src/contracts/edda-memory.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="edda-memory"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-002: Memory type definitions
 
 - **Intent:** Define the 6 memory types with their specific fields
 - **Expected Outcome:** Type-specific schemas for decision, pattern, constraint, warning, doctrine, lesson
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Promotion rules for each type
 - **Files:**
-  - `packages/edda-stack/contracts/memory-types.ts`
-  - `packages/edda-stack/contracts/memory-types.test.ts`
+  - `packages/edda-stack/src/contracts/memory-types.ts`
+  - `packages/edda-stack/src/contracts/memory-types.test.ts`
 - **Dependencies:** EDDA-001
 - **Validation:** `nx test edda-stack --testNamePattern="memory-types"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-003: Provenance schema
 
 - **Intent:** Define provenance links connecting memory to observations
 - **Expected Outcome:** Schema for provenance with Kindling + Ember references
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Link resolution implementation
 - **Files:**
-  - `packages/edda-stack/contracts/provenance.ts`
-  - `packages/edda-stack/contracts/provenance.test.ts`
+  - `packages/edda-stack/src/contracts/provenance.ts`
+  - `packages/edda-stack/src/contracts/provenance.test.ts`
 - **Dependencies:** EDDA-001, `kindling-integration`, `ember`
 - **Validation:** `nx test edda-stack --testNamePattern="provenance"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-004: Evolution graph schema
 
 - **Intent:** Define supersedes/superseded_by relationship model
 - **Expected Outcome:** Schema for evolution tracking between memory versions
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Graph traversal implementation
 - **Files:**
-  - `packages/edda-stack/contracts/evolution.ts`
-  - `packages/edda-stack/contracts/evolution.test.ts`
+  - `packages/edda-stack/src/contracts/evolution.ts`
+  - `packages/edda-stack/src/contracts/evolution.test.ts`
 - **Dependencies:** EDDA-001
 - **Validation:** `nx test edda-stack --testNamePattern="evolution"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-005: Edda configuration schema
 
 - **Intent:** Define configuration schema with storage and promotion settings
 - **Expected Outcome:** Zod schema for edda config, integrated with .anvilrc
-- **Scope:** `packages/edda-stack/edda/`, `core/src/gate/gate-config.ts`
+- **Scope:** `packages/edda-stack/src/edda/`, `core/src/gate/gate-config.ts`
 - **Non-scope:** TUI config editor
 - **Files:**
-  - `packages/edda-stack/edda/config.ts`
+  - `packages/edda-stack/src/edda/config.ts`
   - `core/src/gate/gate-config.ts` (extend schema)
 - **Dependencies:** EDDA-001
 - **Validation:** `nx test edda-stack --testNamePattern="edda.*config"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase B: Storage
 
@@ -269,43 +269,43 @@ permanence.
 
 - **Intent:** Implement git-backed storage for memory objects
 - **Expected Outcome:** MemoryStore with CRUD operations, git versioning
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** Alternative storage backends
 - **Files:**
-  - `packages/edda-stack/edda/memory-store.ts`
-  - `packages/edda-stack/edda/memory-store.test.ts`
+  - `packages/edda-stack/src/edda/memory-store.ts`
+  - `packages/edda-stack/src/edda/memory-store.test.ts`
 - **Dependencies:** EDDA-001, EDDA-005
 - **Validation:** `nx test edda-stack --testNamePattern="MemoryStore"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-007: YAML serialisation
 
 - **Intent:** Implement human-readable YAML format for memory objects
 - **Expected Outcome:** Serialise/deserialise memory to YAML with schema validation
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** JSON/Markdown alternatives
 - **Files:**
-  - `packages/edda-stack/edda/serialisation.ts`
-  - `packages/edda-stack/edda/serialisation.test.ts`
+  - `packages/edda-stack/src/edda/serialisation.ts`
+  - `packages/edda-stack/src/edda/serialisation.test.ts`
 - **Dependencies:** EDDA-001
 - **Validation:** `nx test edda-stack --testNamePattern="serialisation"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-008: Version tracking
 
 - **Intent:** Track all memory changes via git commits
 - **Expected Outcome:** Every mutation creates git commit with attribution
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** Conflict resolution, merge handling
 - **Files:**
-  - `packages/edda-stack/edda/version-tracker.ts`
-  - `packages/edda-stack/edda/version-tracker.test.ts`
+  - `packages/edda-stack/src/edda/version-tracker.ts`
+  - `packages/edda-stack/src/edda/version-tracker.test.ts`
 - **Dependencies:** EDDA-006
 - **Validation:** `nx test edda-stack --testNamePattern="version-tracker"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase C: Core Services
 
@@ -313,57 +313,57 @@ permanence.
 
 - **Intent:** Handle Ember → Edda promotion workflow with human decision
 - **Expected Outcome:** Promote candidate to memory with attribution and provenance
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** Auto-promotion, batch promotion
 - **Files:**
-  - `packages/edda-stack/edda/promotion-service.ts`
-  - `packages/edda-stack/edda/promotion-service.test.ts`
+  - `packages/edda-stack/src/edda/promotion-service.ts`
+  - `packages/edda-stack/src/edda/promotion-service.test.ts`
 - **Dependencies:** EDDA-006, `ember`
 - **Validation:** `nx test edda-stack --testNamePattern="PromotionService"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-010: ProvenanceService
 
 - **Intent:** Trace memory back to Kindling observations and Ember candidates
 - **Expected Outcome:** Resolve provenance links, validate integrity
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** Cross-workspace provenance
 - **Files:**
-  - `packages/edda-stack/edda/provenance-service.ts`
-  - `packages/edda-stack/edda/provenance-service.test.ts`
+  - `packages/edda-stack/src/edda/provenance-service.ts`
+  - `packages/edda-stack/src/edda/provenance-service.test.ts`
 - **Dependencies:** EDDA-003, `kindling-integration`, `ember`
 - **Validation:** `nx test edda-stack --testNamePattern="ProvenanceService"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-011: EvolutionService
 
 - **Intent:** Manage supersedes/superseded_by relationships
 - **Expected Outcome:** Create evolution links, traverse graph, retire memories
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** Automatic evolution detection
 - **Files:**
-  - `packages/edda-stack/edda/evolution-service.ts`
-  - `packages/edda-stack/edda/evolution-service.test.ts`
+  - `packages/edda-stack/src/edda/evolution-service.ts`
+  - `packages/edda-stack/src/edda/evolution-service.test.ts`
 - **Dependencies:** EDDA-004, EDDA-006
 - **Validation:** `nx test edda-stack --testNamePattern="EvolutionService"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-012: MemoryService (high-level API)
 
 - **Intent:** Unified API for memory management orchestrating all services
 - **Expected Outcome:** MemoryService provides complete memory lifecycle operations
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** CLI implementation
 - **Files:**
-  - `packages/edda-stack/edda/memory-service.ts`
-  - `packages/edda-stack/edda/memory-service.test.ts`
+  - `packages/edda-stack/src/edda/memory-service.ts`
+  - `packages/edda-stack/src/edda/memory-service.test.ts`
 - **Dependencies:** EDDA-006, EDDA-009, EDDA-010, EDDA-011
 - **Validation:** `nx test edda-stack --testNamePattern="MemoryService"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase D: CLI
 
@@ -371,41 +371,41 @@ permanence.
 
 - **Intent:** Add `anvil edda list` and `anvil edda show` CLI commands
 - **Expected Outcome:** Users can browse and inspect memory objects
-- **Scope:** `cli/src/commands/`
+- **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation
 - **Files:**
-  - `cli/src/commands/edda.ts`
-  - `cli/src/commands/edda.test.ts`
+  - `apps/anvil-cli/src/commands/edda.ts`
+  - `apps/anvil-cli/src/commands/edda.test.ts`
 - **Dependencies:** EDDA-012
 - **Validation:** `anvil edda list && anvil edda show <id>`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-014: CLI promote command
 
 - **Intent:** Add `anvil edda promote` command for Ember → Edda workflow
 - **Expected Outcome:** CLI guides user through promotion with attribution capture
-- **Scope:** `cli/src/commands/`
+- **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** Batch promotion, auto-promotion
 - **Files:**
-  - `cli/src/commands/edda.ts` (add promote subcommand)
+  - `apps/anvil-cli/src/commands/edda.ts` (add promote subcommand)
 - **Dependencies:** EDDA-009, EDDA-013
 - **Validation:** `anvil edda promote <candidate_id> --reason "reason"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-015: CLI retire and trace commands
 
 - **Intent:** Add `anvil edda retire` and `anvil edda trace` commands
 - **Expected Outcome:** Users can retire memories and trace evolution/provenance
-- **Scope:** `cli/src/commands/`
+- **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** Complex graph visualisation
 - **Files:**
-  - `cli/src/commands/edda.ts` (add retire, trace subcommands)
+  - `apps/anvil-cli/src/commands/edda.ts` (add retire, trace subcommands)
 - **Dependencies:** EDDA-011, EDDA-013
 - **Validation:** `anvil edda retire <id> && anvil edda trace <id>`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase E: Integration & Validation
 
@@ -413,57 +413,57 @@ permanence.
 
 - **Intent:** Prove that AI cannot create memory without human decision
 - **Expected Outcome:** Tests that auto-creation, AI-only promotion fail
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** AI integration (just validation)
 - **Files:**
-  - `packages/edda-stack/edda/human-in-loop.test.ts`
+  - `packages/edda-stack/src/edda/human-in-loop.test.ts`
 - **Dependencies:** EDDA-009, EDDA-012
 - **Validation:** `nx test edda-stack --testNamePattern="human-in-loop"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-017: Status integration
 
 - **Intent:** Show Edda stats in `anvil status` output
 - **Expected Outcome:** Status displays memory count by type, recent promotions
-- **Scope:** `cli/src/commands/status.ts`
+- **Scope:** `apps/anvil-cli/src/commands/status.ts`
 - **Non-scope:** Detailed memory browser
 - **Files:**
-  - `cli/src/commands/status.ts` (add edda section)
+  - `apps/anvil-cli/src/commands/status.ts` (add edda section)
 - **Dependencies:** EDDA-012
 - **Validation:** `anvil status | grep -A5 "Edda"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-018: Schema migration tooling
 
 - **Intent:** Provide tools for migrating memory objects across schema versions
 - **Expected Outcome:** Migration scripts validate and upgrade memory format
-- **Scope:** `packages/edda-stack/edda/`
+- **Scope:** `packages/edda-stack/src/edda/`
 - **Non-scope:** Automatic migration on startup
 - **Files:**
-  - `packages/edda-stack/edda/migration/`
-  - `packages/edda-stack/edda/migration/migrate.ts`
-  - `packages/edda-stack/edda/migration/migrate.test.ts`
+  - `packages/edda-stack/src/edda/migration/`
+  - `packages/edda-stack/src/edda/migration/migrate.ts`
+  - `packages/edda-stack/src/edda/migration/migrate.test.ts`
 - **Dependencies:** EDDA-001, EDDA-006
 - **Validation:** `nx test edda-stack --testNamePattern="migration"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 #### EDDA-019: Documentation
 
 - **Intent:** Document Edda architecture, CLI usage, promotion workflow
 - **Expected Outcome:** User guide with examples for memory management
-- **Scope:** `docs/`, `packages/edda-stack/edda/README.md`
+- **Scope:** `docs/`, `packages/edda-stack/src/edda/README.md`
 - **Non-scope:** Video tutorials
 - **Files:**
   - `docs/guides/edda-memory.md`
-  - `packages/edda-stack/edda/README.md`
-  - `packages/edda-stack/edda/examples/`
+  - `packages/edda-stack/src/edda/README.md`
+  - `packages/edda-stack/src/edda/examples/`
 - **Dependencies:** EDDA-013, EDDA-014, EDDA-015
 - **Validation:** Manual review of documentation completeness
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ## Decisions
 
@@ -508,7 +508,7 @@ permanence.
 **Package structure:**
 
 ```
-packages/edda-stack/edda/
+packages/edda-stack/src/edda/
 ├── memory-service.ts         # High-level API
 ├── memory-store.ts           # Git-backed storage
 ├── promotion-service.ts      # Ember → Edda workflow

@@ -3,9 +3,9 @@
 
 # Ember — Candidate Memory System
 
-| Scope | Owner | Priority | Status |
-| ----- | ----- | -------- | ------ |
-| EMBER | —     | medium   | Draft  |
+| Scope | Owner | Priority | Status   |
+| ----- | ----- | -------- | -------- |
+| EMBER | —     | medium   | Complete |
 
 ## Purpose
 
@@ -151,18 +151,18 @@ low-volume, medium-trust proposals for potential memorisation.
 
 ## Acceptance Criteria
 
-- [ ] Candidate Memory Proposal schema defined (Zod)
-- [ ] 6 proposal types supported (decision, pattern, warning, lesson, anomaly, constraint)
-- [ ] Aggregator groups Kindling observations by correlation rules
-- [ ] Evaluator produces confidence scores from heuristics
-- [ ] Proposals expire after configurable TTL
-- [ ] DecayService removes expired proposals on schedule
-- [ ] Query API supports type, recency, confidence filters
-- [ ] Proposals include provenance links to Kindling IDs
-- [ ] `anvil ember list` shows active candidates
-- [ ] `anvil ember show <id>` displays candidate with linked observations
-- [ ] Storage uses SQLite with TTL semantics
-- [ ] No runtime AI dependencies (heuristics only for v1)
+- [x] Candidate Memory Proposal schema defined (Zod)
+- [x] 6 proposal types supported (decision, pattern, warning, lesson, anomaly, constraint)
+- [x] Aggregator groups Kindling observations by correlation rules
+- [x] Evaluator produces confidence scores from heuristics
+- [x] Proposals expire after configurable TTL
+- [x] DecayService removes expired proposals on schedule
+- [x] Query API supports type, recency, confidence filters
+- [x] Proposals include provenance links to Kindling IDs
+- [x] `anvil ember list` shows active candidates
+- [x] `anvil ember show <id>` displays candidate with linked observations
+- [x] Storage uses SQLite with TTL semantics
+- [x] No runtime AI dependencies (heuristics only for v1)
 
 ## Risks & Mitigations
 
@@ -183,43 +183,43 @@ low-volume, medium-trust proposals for potential memorisation.
 
 - **Intent:** Define the core data model for candidate memory proposals
 - **Expected Outcome:** Zod schema for CandidateMemoryProposal with all fields
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Storage implementation, evaluation logic
 - **Files:**
-  - `packages/edda-stack/contracts/ember-proposal.ts`
-  - `packages/edda-stack/contracts/ember-proposal.test.ts`
+  - `packages/edda-stack/src/contracts/ember-proposal.ts`
+  - `packages/edda-stack/src/contracts/ember-proposal.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="ember-proposal"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-002: Proposal type definitions
 
 - **Intent:** Define the 6 proposal types with their specific fields
 - **Expected Outcome:** Type-specific schemas for decision, pattern, warning, lesson, anomaly, constraint
-- **Scope:** `packages/edda-stack/contracts/`
+- **Scope:** `packages/edda-stack/src/contracts/`
 - **Non-scope:** Evaluation rules for each type
 - **Files:**
-  - `packages/edda-stack/contracts/proposal-types.ts`
-  - `packages/edda-stack/contracts/proposal-types.test.ts`
+  - `packages/edda-stack/src/contracts/proposal-types.ts`
+  - `packages/edda-stack/src/contracts/proposal-types.test.ts`
 - **Dependencies:** EMBER-001
 - **Validation:** `nx test edda-stack --testNamePattern="proposal-types"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-003: Ember configuration schema
 
 - **Intent:** Define configuration schema with sensible defaults
 - **Expected Outcome:** Zod schema for ember config, integrated with .anvilrc
-- **Scope:** `packages/edda-stack/ember/`, `core/src/gate/gate-config.ts`
+- **Scope:** `packages/edda-stack/src/ember/`, `core/src/gate/gate-config.ts`
 - **Non-scope:** TUI config editor
 - **Files:**
-  - `packages/edda-stack/ember/config.ts`
+  - `packages/edda-stack/src/ember/config.ts`
   - `core/src/gate/gate-config.ts` (extend schema)
 - **Dependencies:** EMBER-001
 - **Validation:** `nx test edda-stack --testNamePattern="ember.*config"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase B: Storage & Decay
 
@@ -227,29 +227,29 @@ low-volume, medium-trust proposals for potential memorisation.
 
 - **Intent:** Implement SQLite-backed storage for candidate proposals
 - **Expected Outcome:** ProposalStore with create, read, query, delete operations
-- **Scope:** `packages/edda-stack/ember/`
+- **Scope:** `packages/edda-stack/src/ember/`
 - **Non-scope:** Decay scheduling, aggregation logic
 - **Files:**
-  - `packages/edda-stack/ember/proposal-store.ts`
-  - `packages/edda-stack/ember/proposal-store.test.ts`
+  - `packages/edda-stack/src/ember/proposal-store.ts`
+  - `packages/edda-stack/src/ember/proposal-store.test.ts`
 - **Dependencies:** EMBER-001, EMBER-003
 - **Validation:** `nx test edda-stack --testNamePattern="ProposalStore"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-005: DecayService implementation
 
 - **Intent:** Implement expiry and cleanup of stale proposals
 - **Expected Outcome:** DecayService removes proposals past TTL on schedule
-- **Scope:** `packages/edda-stack/ember/`
+- **Scope:** `packages/edda-stack/src/ember/`
 - **Non-scope:** Custom decay rules per proposal type
 - **Files:**
-  - `packages/edda-stack/ember/decay-service.ts`
-  - `packages/edda-stack/ember/decay-service.test.ts`
+  - `packages/edda-stack/src/ember/decay-service.ts`
+  - `packages/edda-stack/src/ember/decay-service.test.ts`
 - **Dependencies:** EMBER-004
 - **Validation:** `nx test edda-stack --testNamePattern="DecayService"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase C: Aggregation & Evaluation
 
@@ -257,47 +257,47 @@ low-volume, medium-trust proposals for potential memorisation.
 
 - **Intent:** Group related Kindling observations for candidate generation
 - **Expected Outcome:** AggregatorService correlates observations by session, time, pattern
-- **Scope:** `packages/edda-stack/ember/`
+- **Scope:** `packages/edda-stack/src/ember/`
 - **Non-scope:** Advanced correlation (cross-session, semantic)
 - **Files:**
-  - `packages/edda-stack/ember/aggregator-service.ts`
-  - `packages/edda-stack/ember/aggregator-service.test.ts`
+  - `packages/edda-stack/src/ember/aggregator-service.ts`
+  - `packages/edda-stack/src/ember/aggregator-service.test.ts`
 - **Dependencies:** `kindling-integration`, EMBER-004
 - **Validation:** `nx test edda-stack --testNamePattern="AggregatorService"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-007: Evaluation rules engine
 
 - **Intent:** Implement heuristic evaluation for pattern detection
 - **Expected Outcome:** EvaluatorService produces confidence scores from rules
-- **Scope:** `packages/edda-stack/ember/`
+- **Scope:** `packages/edda-stack/src/ember/`
 - **Non-scope:** AI-powered evaluation, learning
 - **Files:**
-  - `packages/edda-stack/ember/evaluator-service.ts`
-  - `packages/edda-stack/ember/rules/`
-  - `packages/edda-stack/ember/evaluator-service.test.ts`
+  - `packages/edda-stack/src/ember/evaluator-service.ts`
+  - `packages/edda-stack/src/ember/rules/`
+  - `packages/edda-stack/src/ember/evaluator-service.test.ts`
 - **Dependencies:** EMBER-006
 - **Validation:** `nx test edda-stack --testNamePattern="EvaluatorService"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-008: Built-in evaluation rules
 
 - **Intent:** Implement default rules for repetition, escalation, resolution
 - **Expected Outcome:** Core heuristics detect common patterns
-- **Scope:** `packages/edda-stack/ember/rules/`
+- **Scope:** `packages/edda-stack/src/ember/rules/`
 - **Non-scope:** Custom rule authoring, AI rules
 - **Files:**
-  - `packages/edda-stack/ember/rules/repetition.rule.ts`
-  - `packages/edda-stack/ember/rules/escalation.rule.ts`
-  - `packages/edda-stack/ember/rules/resolution.rule.ts`
-  - `packages/edda-stack/ember/rules/convergence.rule.ts`
-  - `packages/edda-stack/ember/rules/surprise.rule.ts`
+  - `packages/edda-stack/src/ember/rules/repetition.rule.ts`
+  - `packages/edda-stack/src/ember/rules/escalation.rule.ts`
+  - `packages/edda-stack/src/ember/rules/resolution.rule.ts`
+  - `packages/edda-stack/src/ember/rules/convergence.rule.ts`
+  - `packages/edda-stack/src/ember/rules/surprise.rule.ts`
 - **Dependencies:** EMBER-007
 - **Validation:** `nx test edda-stack --testNamePattern="rules"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase D: Service Integration
 
@@ -305,29 +305,29 @@ low-volume, medium-trust proposals for potential memorisation.
 
 - **Intent:** Unified API for candidate generation, query, and management
 - **Expected Outcome:** CandidateService orchestrates aggregation, evaluation, storage
-- **Scope:** `packages/edda-stack/ember/`
+- **Scope:** `packages/edda-stack/src/ember/`
 - **Non-scope:** CLI commands, promotion to Edda
 - **Files:**
-  - `packages/edda-stack/ember/candidate-service.ts`
-  - `packages/edda-stack/ember/candidate-service.test.ts`
+  - `packages/edda-stack/src/ember/candidate-service.ts`
+  - `packages/edda-stack/src/ember/candidate-service.test.ts`
 - **Dependencies:** EMBER-004, EMBER-005, EMBER-006, EMBER-007
 - **Validation:** `nx test edda-stack --testNamePattern="CandidateService"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-010: Kindling observation hooks
 
 - **Intent:** Trigger candidate evaluation when new Kindling observations arrive
 - **Expected Outcome:** Ember processes new observations automatically
-- **Scope:** `packages/edda-stack/ember/`, `packages/kindling-integration/`
+- **Scope:** `packages/edda-stack/src/ember/`, `packages/kindling-integration/`
 - **Non-scope:** Real-time streaming, webhooks
 - **Files:**
-  - `packages/edda-stack/ember/observation-hook.ts`
-  - `packages/edda-stack/ember/observation-hook.test.ts`
+  - `packages/edda-stack/src/ember/observation-hook.ts`
+  - `packages/edda-stack/src/ember/observation-hook.test.ts`
 - **Dependencies:** EMBER-009, `kindling-integration`
 - **Validation:** `nx test edda-stack --testNamePattern="observation-hook"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase E: CLI & Query
 
@@ -335,29 +335,29 @@ low-volume, medium-trust proposals for potential memorisation.
 
 - **Intent:** Add `anvil ember list`, `anvil ember show` CLI commands
 - **Expected Outcome:** Users can view and explore candidate proposals
-- **Scope:** `cli/src/commands/`
+- **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation, promotion workflow
 - **Files:**
-  - `cli/src/commands/ember.ts`
-  - `cli/src/commands/ember.test.ts`
+  - `apps/anvil-cli/src/commands/ember.ts`
+  - `apps/anvil-cli/src/commands/ember.test.ts`
 - **Dependencies:** EMBER-009
 - **Validation:** `anvil ember list && anvil ember show <id>`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-012: Query API implementation
 
 - **Intent:** Implement query API for filtering candidates
 - **Expected Outcome:** Query by type, recency, confidence, expiry status
-- **Scope:** `packages/edda-stack/ember/`
+- **Scope:** `packages/edda-stack/src/ember/`
 - **Non-scope:** Free-text search, semantic queries
 - **Files:**
-  - `packages/edda-stack/ember/query-api.ts`
-  - `packages/edda-stack/ember/query-api.test.ts`
+  - `packages/edda-stack/src/ember/query-api.ts`
+  - `packages/edda-stack/src/ember/query-api.test.ts`
 - **Dependencies:** EMBER-004, EMBER-009
 - **Validation:** `nx test edda-stack --testNamePattern="query-api"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ### Phase F: Integration & Polish
 
@@ -365,29 +365,29 @@ low-volume, medium-trust proposals for potential memorisation.
 
 - **Intent:** Show Ember stats in `anvil status` output
 - **Expected Outcome:** Status displays candidate count, near-expiry warnings, decay stats
-- **Scope:** `cli/src/commands/status.ts`
+- **Scope:** `apps/anvil-cli/src/commands/status.ts`
 - **Non-scope:** Detailed candidate browser
 - **Files:**
-  - `cli/src/commands/status.ts` (add ember section)
+  - `apps/anvil-cli/src/commands/status.ts` (add ember section)
 - **Dependencies:** EMBER-009
 - **Validation:** `anvil status | grep -A5 "Ember"`
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### EMBER-014: Documentation and examples
 
 - **Intent:** Document Ember architecture, CLI usage, integration patterns
 - **Expected Outcome:** User guide with examples for candidate review workflow
-- **Scope:** `docs/`, `packages/edda-stack/ember/README.md`
+- **Scope:** `docs/`, `packages/edda-stack/src/ember/README.md`
 - **Non-scope:** Video tutorials
 - **Files:**
   - `docs/guides/ember-candidates.md`
-  - `packages/edda-stack/ember/README.md`
-  - `packages/edda-stack/ember/examples/`
+  - `packages/edda-stack/src/ember/README.md`
+  - `packages/edda-stack/src/ember/examples/`
 - **Dependencies:** EMBER-011, EMBER-012
 - **Validation:** Manual review of documentation completeness
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 ## Decisions
 
@@ -426,7 +426,7 @@ low-volume, medium-trust proposals for potential memorisation.
 **Package structure:**
 
 ```
-packages/edda-stack/ember/
+packages/edda-stack/src/ember/
 ├── candidate-service.ts      # High-level API
 ├── proposal-store.ts         # SQLite storage
 ├── aggregator-service.ts     # Observation grouping

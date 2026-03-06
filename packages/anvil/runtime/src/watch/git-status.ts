@@ -313,22 +313,22 @@ export class GitStatusChecker {
     }
 
     const statusCode = line.substring(0, 2);
-    const indexStatus = statusCode[0];
     let path = line.substring(3).trim() || defaultPath;
+    const indexStatus = statusCode[0];
+    const workTreeStatus = statusCode[1];
 
-    // Handle rename/copy entries: "R  old.ts -> new.ts" — use the new path
-    if (
-      statusCode[0] === 'R' ||
-      statusCode[0] === 'C' ||
-      statusCode[1] === 'R' ||
-      statusCode[1] === 'C'
-    ) {
+    // Handle rename/copy entries: "R  old.ts -> new.ts" — use the destination
+    const isRenameOrCopy =
+      indexStatus === 'R' ||
+      indexStatus === 'C' ||
+      workTreeStatus === 'R' ||
+      workTreeStatus === 'C';
+    if (isRenameOrCopy && path.includes(' -> ')) {
       path = extractRenamePath(path);
     }
 
+    // Handle git-quoted paths
     path = unescapeGitQuotedPath(path);
-
-    const workTreeStatus = statusCode[1];
 
     // Check if untracked
     if (statusCode === '??') {
@@ -426,19 +426,19 @@ export async function getChangedFiles(
       for (const line of lines) {
         const statusCode = line.substring(0, 2);
         let filePath = line.substring(3).trim();
+        const indexStatus = statusCode[0];
+        const workTreeStatus = statusCode[1];
 
-        // Handle rename/copy entries and git-quoted paths
-        if (
-          statusCode[0] === 'R' ||
-          statusCode[0] === 'C' ||
-          statusCode[1] === 'R' ||
-          statusCode[1] === 'C'
-        ) {
+        // Handle rename/copy and quoted paths
+        const isRenameOrCopy =
+          indexStatus === 'R' ||
+          indexStatus === 'C' ||
+          workTreeStatus === 'R' ||
+          workTreeStatus === 'C';
+        if (isRenameOrCopy && filePath.includes(' -> ')) {
           filePath = extractRenamePath(filePath);
         }
         filePath = unescapeGitQuotedPath(filePath);
-        const indexStatus = statusCode[0];
-        const workTreeStatus = statusCode[1];
 
         const isFileStaged = indexStatus !== ' ' && indexStatus !== '?';
         const isFileUnstaged = workTreeStatus !== ' ' && workTreeStatus !== '?';

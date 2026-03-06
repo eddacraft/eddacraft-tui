@@ -6,6 +6,8 @@ import { createBetaCommand } from './commands/beta.js';
 import { createCheckCommand } from './commands/check.js';
 import { createDoctorCommand } from './commands/doctor.js';
 import { createDriftCommand } from './commands/drift.js';
+import { createEddaCommand } from './commands/edda/index.js';
+import { createEmberCommand } from './commands/ember/index.js';
 import { createExplainCommand } from './commands/explain.js';
 import { createGateCommand } from './commands/gate.js';
 import { createGateConfigCommand } from './commands/gate-config.js';
@@ -102,6 +104,8 @@ async function main(): Promise<void> {
   program.addCommand(createCheckCommand());
   program.addCommand(createDoctorCommand());
   program.addCommand(createDriftCommand());
+  program.addCommand(createEddaCommand());
+  program.addCommand(createEmberCommand());
   program.addCommand(createExplainCommand());
   program.addCommand(createInitCommand());
   program.addCommand(createGateCommand());

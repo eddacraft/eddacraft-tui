@@ -1,5 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { gatherStatusData } from '../services/status-service.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
@@ -7,6 +9,8 @@ import { StatusDashboard } from '../tui/commands/status/index.js';
 import { theme } from '../tui/utils/theme.js';
 import type { StatusData } from '../tui/commands/status/types.js';
 import { createProvenanceStore } from '@eddacraft/anvil-core';
+import { ProposalStore, MemoryStore } from '@eddacraft/anvil-edda-stack';
+import type { EmberStats, EddaStats } from '@eddacraft/anvil-edda-stack';
 
 interface StatusOptions {
   json?: boolean;
@@ -14,9 +18,72 @@ interface StatusOptions {
   tui?: boolean;
 }
 
-function formatJsonOutput(data: StatusData, projectRoot: string): string {
+interface EmberStatsResult {
+  hasDatabase: boolean;
+  stats: EmberStats | null;
+  error?: unknown;
+}
+
+interface EddaStatsResult {
+  hasDatabase: boolean;
+  stats: EddaStats | null;
+  error?: unknown;
+}
+
+async function loadEmberStats(projectRoot: string): Promise<EmberStatsResult> {
+  const emberDbPath = join(projectRoot, '.anvil', 'ember.db');
+  if (!existsSync(emberDbPath)) {
+    return { hasDatabase: false, stats: null };
+  }
+
+  let store: ProposalStore | null = null;
+  try {
+    store = new ProposalStore(emberDbPath);
+    const stats = await store.getStats();
+    return { hasDatabase: true, stats };
+  } catch (error) {
+    return { hasDatabase: true, stats: null, error };
+  } finally {
+    store?.close();
+  }
+}
+
+async function loadEddaStats(projectRoot: string): Promise<EddaStatsResult> {
+  const storagePath = join(projectRoot, '.anvil', 'edda');
+  if (!existsSync(storagePath)) {
+    return { hasDatabase: false, stats: null };
+  }
+
+  try {
+    const store = new MemoryStore({
+      type: 'git' as const,
+      path: storagePath,
+      format: 'yaml' as const,
+    });
+    const stats = await store.getStats();
+    return { hasDatabase: true, stats };
+  } catch (error) {
+    return { hasDatabase: true, stats: null, error };
+  }
+}
+
+async function formatJsonOutput(data: StatusData, projectRoot: string): Promise<string> {
   const store = createProvenanceStore(projectRoot);
   const provenanceStats = store.isInitialised() ? store.getStatistics() : null;
+  const ember = await loadEmberStats(projectRoot);
+  const eddaStats = await loadEddaStats(projectRoot);
+
+  if (ember.error) {
+    console.error(
+      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Ember stats unavailable`)
+    );
+  }
+
+  if (eddaStats.error) {
+    console.error(
+      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Edda stats unavailable`)
+    );
+  }
 
   return JSON.stringify(
     {
@@ -66,13 +133,15 @@ function formatJsonOutput(data: StatusData, projectRoot: string): string {
             },
           }
         : {}),
+      ember: ember.stats,
+      edda: eddaStats.stats,
     },
     null,
     2
   );
 }
 
-function printPlainTextStatus(data: StatusData, projectRoot: string): void {
+async function printPlainTextStatus(data: StatusData, projectRoot: string): Promise<void> {
   console.error(chalk.bold('\nANVIL STATUS\n'));
   console.error(chalk.hex(theme.colours.smoke)(`Project: ${data.projectName ?? data.projectRoot}`));
   console.error('');
@@ -168,6 +237,95 @@ function printPlainTextStatus(data: StatusData, projectRoot: string): void {
     }
     console.error('');
   }
+
+  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} EMBER CANDIDATES`));
+  const ember = await loadEmberStats(projectRoot);
+  if (!ember.hasDatabase) {
+    console.error(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No ember database found`));
+  } else if (ember.error || !ember.stats) {
+    console.error(
+      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Ember stats unavailable`)
+    );
+  } else {
+    const active = ember.stats.by_status.find((entry) => entry.status === 'active')?.count ?? 0;
+    const promoted = ember.stats.by_status.find((entry) => entry.status === 'promoted')?.count ?? 0;
+    const expired = ember.stats.by_status.find((entry) => entry.status === 'expired')?.count ?? 0;
+    const dismissed =
+      ember.stats.by_status.find((entry) => entry.status === 'dismissed')?.count ?? 0;
+
+    const activeColour =
+      active > 0 ? chalk.hex(theme.colours.success) : chalk.hex(theme.colours.smoke);
+    const nearExpiryColour =
+      ember.stats.expiring_soon > 0
+        ? ember.stats.expiring_soon >= 5
+          ? chalk.hex(theme.colours.error)
+          : chalk.hex(theme.colours.warning)
+        : chalk.hex(theme.colours.smoke);
+
+    console.error(activeColour(`  Active: ${active}`));
+    console.error(chalk.hex(theme.colours.smoke)(`  Promoted: ${promoted}`));
+    console.error(chalk.hex(theme.colours.smoke)(`  Expired: ${expired}`));
+    console.error(chalk.hex(theme.colours.smoke)(`  Dismissed: ${dismissed}`));
+    console.error(nearExpiryColour(`  Near expiry: ${ember.stats.expiring_soon}`));
+    console.error(
+      chalk.hex(theme.colours.smoke)(
+        `  Average confidence: ${(ember.stats.avg_confidence ?? 0).toFixed(2)}`
+      )
+    );
+
+    const typeStats = ember.stats.by_type.filter((entry) => entry.count > 0);
+    if (typeStats.length > 0) {
+      console.error(
+        chalk.hex(theme.colours.smoke)(
+          `  By type: ${typeStats.map((entry) => `${entry.type}: ${entry.count}`).join(', ')}`
+        )
+      );
+    }
+  }
+  console.error('');
+
+  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} EDDA MEMORIES`));
+  const eddaStats = await loadEddaStats(projectRoot);
+  if (!eddaStats.hasDatabase) {
+    console.error(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No Edda storage found`));
+  } else if (eddaStats.error || !eddaStats.stats) {
+    console.error(
+      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Edda stats unavailable`)
+    );
+  } else {
+    console.error(chalk.hex(theme.colours.smoke)(`  Active: ${eddaStats.stats.active_count}`));
+    console.error(
+      chalk.hex(theme.colours.smoke)(`  Superseded: ${eddaStats.stats.superseded_count}`)
+    );
+    console.error(chalk.hex(theme.colours.smoke)(`  Retired: ${eddaStats.stats.retired_count}`));
+
+    const byType = eddaStats.stats.by_type.filter((entry) => entry.count > 0);
+    if (byType.length > 0) {
+      console.error(
+        chalk.hex(theme.colours.smoke)(
+          `  By type: ${byType.map((entry) => `${entry.type}: ${entry.count}`).join(', ')}`
+        )
+      );
+    } else {
+      console.error(
+        chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No type breakdown available`)
+      );
+    }
+
+    const byConfidence = eddaStats.stats.by_confidence.filter((entry) => entry.count > 0);
+    if (byConfidence.length > 0) {
+      console.error(
+        chalk.hex(theme.colours.smoke)(
+          `  By confidence: ${byConfidence.map((entry) => `${entry.level}: ${entry.count}`).join(', ')}`
+        )
+      );
+    } else {
+      console.error(
+        chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No confidence breakdown available`)
+      );
+    }
+  }
+  console.error('');
 }
 
 export function createStatusCommand(): Command {
@@ -183,7 +341,7 @@ export function createStatusCommand(): Command {
       const data = gatherStatusData(projectRoot);
 
       if (options.json) {
-        console.log(formatJsonOutput(data, projectRoot));
+        console.log(await formatJsonOutput(data, projectRoot));
         return;
       }
 
@@ -194,7 +352,7 @@ export function createStatusCommand(): Command {
           renderTUI(StatusDashboard, { data, onQuit: resolve });
         });
       } else {
-        printPlainTextStatus(data, projectRoot);
+        await printPlainTextStatus(data, projectRoot);
       }
     });
 

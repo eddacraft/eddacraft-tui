@@ -208,6 +208,81 @@ export {
 } from './edda-memory.js';
 
 // =============================================================================
+// Memory Type Definitions (EDDA-002)
+// =============================================================================
+
+export {
+  // Typed memory schemas (discriminated unions)
+  DecisionMemorySchema,
+  PatternMemorySchema,
+  ConstraintMemorySchema,
+  WarningMemorySchema,
+  DoctrineMemorySchema,
+  LessonMemorySchema,
+  TypedMemorySchema,
+  // Types
+  type DecisionMemory,
+  type PatternMemory,
+  type ConstraintMemory,
+  type WarningMemory,
+  type DoctrineMemory,
+  type LessonMemory,
+  type TypedMemory,
+  type MemoryMetadataByType,
+  // Utilities
+  validateMemoryMetadata,
+  createTypedMemory,
+  parseTypedMemory,
+} from './memory-types.js';
+
+// =============================================================================
+// Evolution Graph (EDDA-004)
+// =============================================================================
+
+export {
+  EvolutionLinkSchema,
+  EvolutionNodeSchema,
+  EvolutionGraphSchema,
+  createEvolutionLink,
+  buildEvolutionGraph,
+  findRootMemory,
+  findLatestMemory,
+  getEvolutionPath,
+  validateEvolutionGraph,
+  type EvolutionLink,
+  type EvolutionNode,
+  type EvolutionGraph,
+} from './evolution.js';
+
+// =============================================================================
+// Typed Proposals — Discriminated Unions (EMBER-002)
+// =============================================================================
+
+export {
+  // Schemas
+  DecisionProposalSchema,
+  PatternProposalSchema,
+  WarningProposalSchema,
+  LessonProposalSchema,
+  AnomalyProposalSchema,
+  ConstraintProposalSchema,
+  TypedProposalSchema,
+  // Types
+  type DecisionProposal,
+  type PatternProposal,
+  type WarningProposal,
+  type LessonProposal,
+  type AnomalyProposal,
+  type ConstraintProposal,
+  type TypedProposal,
+  type ProposalMetadataByType,
+  // Utilities
+  validateProposalMetadata,
+  createTypedProposal,
+  parseTypedProposal,
+} from './proposal-types.js';
+
+// =============================================================================
 // Type Mappings (STACK-005)
 // =============================================================================
 
