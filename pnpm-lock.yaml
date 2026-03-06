@@ -171,7 +171,7 @@ importers:
         specifier: ^1.0.0
         version: 1.0.2
       hono:
-        specifier: ^4.12.2
+        specifier: '>=4.12.4'
         version: 4.12.5
       zod:
         specifier: ^4.3.6
@@ -339,7 +339,7 @@ importers:
         specifier: workspace:*
         version: link:../../packages/anvil/runtime
       hono:
-        specifier: ^4.12.2
+        specifier: '>=4.12.4'
         version: 4.12.5
       zod:
         specifier: ^4.3.6
