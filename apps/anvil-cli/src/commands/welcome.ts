@@ -47,11 +47,11 @@ async function showWelcomeTUI(): Promise<void> {
     });
 
     if (result) {
-      result.waitUntilExit().then(() => {
+      result.waitUntilExit().then(async () => {
         markFirstRunComplete();
 
         if (selectedOption?.command) {
-          runCommand(selectedOption.command);
+          await runCommand(selectedOption.command);
         }
 
         resolve();
@@ -83,12 +83,26 @@ function showWelcomePlain(): void {
   markFirstRunComplete();
 }
 
-function runCommand(command: string): void {
-  const [cmd, ...args] = command.split(' ');
-  // Windows requires shell: true to execute .cmd batch files created by npm.
-  // Linux/macOS don't need it and it triggers DEP0190 deprecation in Node.js v24+.
-  spawn(cmd, args, {
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
+function runCommand(command: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const [cmd, ...args] = command.split(' ');
+    // Windows requires shell: true to execute .cmd batch files created by npm.
+    // Linux/macOS don't need it and it triggers DEP0190 deprecation in Node.js v24+.
+    const child = spawn(cmd, args, {
+      stdio: 'inherit',
+      shell: process.platform === 'win32',
+    });
+
+    child.on('close', (code) => {
+      if (code === 0 || code === null) {
+        resolve();
+      } else {
+        reject(new Error(`Command "${command}" exited with code ${code}`));
+      }
+    });
+
+    child.on('error', (err) => {
+      reject(new Error(`Failed to run "${command}": ${err.message}`));
+    });
   });
 }

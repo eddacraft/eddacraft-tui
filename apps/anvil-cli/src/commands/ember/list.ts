@@ -27,14 +27,14 @@ export function createEmberListCommand(): Command {
     .alias('ls')
     .description('List Ember proposals with filtering')
     .option('--json', 'Output as JSON')
-    .option('--type <type>', 'Filter by proposal type')
+    .option('--type <type>', 'Filter by proposal type (comma-separated for multiple)')
     .option('--status <status>', 'Filter by proposal status', 'active')
     .option('--limit <n>', 'Maximum proposals to display', parseLimit, 20)
     .action(async (options: EmberListOptions) => {
       const workspaceRoot = getWorkspaceRoot();
       const dbPath = join(workspaceRoot, '.anvil', 'ember.db');
 
-      const parsedType = parseType(options.type);
+      const parsedTypes = parseTypes(options.type);
       const parsedStatus = parseStatus(options.status);
 
       if (!existsSync(dbPath)) {
@@ -64,7 +64,7 @@ export function createEmberListCommand(): Command {
       try {
         store = new ProposalStore(dbPath);
         const result = await store.queryProposals({
-          types: parsedType ? [parsedType] : undefined,
+          types: parsedTypes.length > 0 ? parsedTypes : undefined,
           statuses: [parsedStatus],
           include_expired: parsedStatus === 'expired',
           limit: options.limit,
@@ -84,7 +84,7 @@ export function createEmberListCommand(): Command {
                 has_more: result.has_more,
                 filters: {
                   status: parsedStatus,
-                  type: parsedType ?? null,
+                  type: parsedTypes.length > 0 ? parsedTypes : null,
                 },
                 proposals: result.proposals,
               },
@@ -99,7 +99,7 @@ export function createEmberListCommand(): Command {
         console.error(chalk.bold('\nEmber Proposals'));
         console.error(
           chalk.gray(
-            `${result.total} found  |  status: ${parsedStatus}  |  type: ${parsedType ?? 'all'}`
+            `${result.total} found  |  status: ${parsedStatus}  |  type: ${parsedTypes.length > 0 ? parsedTypes.join(', ') : 'all'}`
           )
         );
         console.error(chalk.gray('─'.repeat(124)));
@@ -166,13 +166,16 @@ function parseLimit(value: string): number {
   return parsed;
 }
 
-function parseType(value?: string): ProposalType | undefined {
-  if (!value) return undefined;
-  const parsed = ProposalTypeSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new CliError(`Invalid proposal type: ${value}`);
-  }
-  return parsed.data;
+function parseTypes(value?: string): ProposalType[] {
+  if (!value) return [];
+  return value.split(',').map((v) => {
+    const trimmed = v.trim();
+    const parsed = ProposalTypeSchema.safeParse(trimmed);
+    if (!parsed.success) {
+      throw new CliError(`Invalid proposal type: ${trimmed}`);
+    }
+    return parsed.data;
+  });
 }
 
 function parseStatus(value: string): ProposalStatus {

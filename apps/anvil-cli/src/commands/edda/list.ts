@@ -28,13 +28,13 @@ export function createEddaListCommand(): Command {
     .alias('ls')
     .description('List Edda memories with filtering')
     .option('--json', 'Output as JSON')
-    .option('--type <type>', 'Filter by memory type')
+    .option('--type <type>', 'Filter by memory type (comma-separated for multiple)')
     .option('--status <status>', 'Filter by memory status', 'active')
     .option('--limit <n>', 'Maximum memories to display', parseLimit, 20)
     .action(async (options: EddaListOptions) => {
       const workspaceRoot = getWorkspaceRoot();
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
-      const parsedType = parseType(options.type);
+      const parsedTypes = parseTypes(options.type);
       const parsedStatus = parseStatus(options.status ?? 'active');
 
       if (!existsSync(storagePath)) {
@@ -51,7 +51,7 @@ export function createEddaListCommand(): Command {
                 has_more: false,
                 filters: {
                   status: parsedStatus,
-                  type: parsedType ?? null,
+                  type: parsedTypes.length > 0 ? parsedTypes : null,
                 },
                 memories: [],
               },
@@ -74,7 +74,7 @@ export function createEddaListCommand(): Command {
       if (options.json) {
         try {
           const result = await store.queryMemories({
-            types: parsedType ? [parsedType] : undefined,
+            types: parsedTypes.length > 0 ? parsedTypes : undefined,
             statuses: [parsedStatus],
             include_superseded: parsedStatus === 'superseded',
             limit: options.limit,
@@ -93,7 +93,7 @@ export function createEddaListCommand(): Command {
                 has_more: result.has_more,
                 filters: {
                   status: parsedStatus,
-                  type: parsedType ?? null,
+                  type: parsedTypes.length > 0 ? parsedTypes : null,
                 },
                 memories: result.memories,
               },
@@ -133,7 +133,7 @@ export function createEddaListCommand(): Command {
         console.error(chalk.bold('\nEdda Memories'));
         console.error(
           chalk.gray(
-            `${result.total} found  |  status: ${parsedStatus}  |  type: ${parsedType ?? 'all'}`
+            `${result.total} found  |  status: ${parsedStatus}  |  type: ${parsedTypes.length > 0 ? parsedTypes.join(', ') : 'all'}`
           )
         );
         console.error(chalk.gray('─'.repeat(118)));
@@ -179,13 +179,16 @@ function parseLimit(value: string): number {
   return parsed;
 }
 
-function parseType(value?: string): MemoryType | undefined {
-  if (!value) return undefined;
-  const parsed = MemoryTypeSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new CliError(`Invalid memory type: ${value}`);
-  }
-  return parsed.data;
+function parseTypes(value?: string): MemoryType[] {
+  if (!value) return [];
+  return value.split(',').map((v) => {
+    const trimmed = v.trim();
+    const parsed = MemoryTypeSchema.safeParse(trimmed);
+    if (!parsed.success) {
+      throw new CliError(`Invalid memory type: ${trimmed}`);
+    }
+    return parsed.data;
+  });
 }
 
 function parseStatus(value: string): MemoryStatus {

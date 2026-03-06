@@ -18,17 +18,9 @@ interface TutorialOptions {
   tui?: boolean;
 }
 
-function printTutorialTTYError(options: TutorialOptions): never {
-  if (options.tui === false) {
-    console.error(
-      chalk.hex(theme.colours.molten)(
-        'Tutorial plain-text mode is not available yet. Remove --no-tui to use the interactive tutorial (which requires a TTY).'
-      )
-    );
-  } else {
-    console.error(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
-    console.error(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
-  }
+function printTutorialTTYError(): never {
+  console.error(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
+  console.error(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
 
   throw new CliError('Tutorial requires an interactive terminal');
 }
@@ -148,7 +140,7 @@ async function renderTutorial(
   completedTopics: string[]
 ): Promise<RenderResult> {
   const useTUI = isTUIAvailable({ tui: options.tui });
-  if (!useTUI) printTutorialTTYError(options);
+  if (!useTUI) printTutorialTTYError();
 
   let nextTopic: string | null = null;
   const onSelectTutorial = (topic: string) => {
@@ -289,8 +281,7 @@ export function createTutorialCommand(): Command {
     .argument('[topic]', 'Tutorial topic (core, policies, architecture, drift, ci)')
     .option('--list', 'Show available tutorials')
     .option('--reset', 'Clear previous progress and start fresh')
-    .option('--tui', 'Force TUI mode')
-    .option('--no-tui', 'Force plain text mode (not recommended)')
+    .option('--tui', 'Force TUI mode (default: auto-detect)')
     .action(async (topic: string | undefined, options: TutorialOptions & { list?: boolean }) => {
       if (options.list) {
         console.log(chalk.hex(theme.colours.ember)('\nAvailable tutorials:\n'));

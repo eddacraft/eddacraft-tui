@@ -225,16 +225,13 @@ describe('tutorial TTY error handling', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
-  it('prints --no-tui specific message and exits when --no-tui is passed', async () => {
+  it('does not offer --no-tui option (no plain-text mode)', () => {
     const command = createTutorialCommand();
-    await expect(command.parseAsync(['--no-tui'], { from: 'user' })).rejects.toThrow(CliError);
-
-    const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
-    expect(allStderr).toContain('plain-text mode is not available yet');
-    expect(allStderr).toContain('Remove --no-tui');
+    const noTuiOpt = command.options.find((o) => o.long === '--no-tui');
+    expect(noTuiOpt).toBeUndefined();
   });
 
-  it('prints generic TTY message and exits in non-TTY without --no-tui', async () => {
+  it('prints generic TTY message and exits in non-TTY', async () => {
     const command = createTutorialCommand();
     await expect(command.parseAsync([], { from: 'user' })).rejects.toThrow(CliError);
 
