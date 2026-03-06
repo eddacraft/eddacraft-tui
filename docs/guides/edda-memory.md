@@ -297,7 +297,7 @@ Ember proposal (active)
        ▼
  Human decision:
    Promote ──► anvil edda promote <ember-id> ...  ──► Edda memory (active)
-   Dismiss ──► anvil ember dismiss <ember-id> ...  ──► Ember proposal (dismissed)
+   Dismiss ──► (planned — use CandidateService API) ──► Ember proposal (dismissed)
    (wait)  ──► TTL expires                          ──► Ember proposal (expired)
 ```
 
@@ -305,7 +305,7 @@ To find Ember proposals ready for review:
 
 ```sh
 anvil ember list
-anvil ember list --type pattern,decision --min-confidence 0.6
+anvil ember list --type pattern,decision
 ```
 
 Once you have identified a proposal worth keeping:
