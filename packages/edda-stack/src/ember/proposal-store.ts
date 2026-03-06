@@ -69,16 +69,20 @@ const ALL_TYPES: ProposalType[] = [
   'constraint',
 ];
 
-const SORT_FIELD_MAP: Record<string, string> = {
+const SORT_FIELD_MAP = {
   created_at: 'created_at',
   confidence: 'confidence',
   expires_at: 'expires_at',
-};
+} as const satisfies Record<string, string>;
 
-const SORT_DIRECTION_MAP: Record<string, string> = {
+type SortField = keyof typeof SORT_FIELD_MAP;
+
+const SORT_DIRECTION_MAP = {
   asc: 'ASC',
   desc: 'DESC',
-};
+} as const satisfies Record<string, string>;
+
+type SortDirection = keyof typeof SORT_DIRECTION_MAP;
 
 export class ProposalStore implements IEmberPort {
   private readonly db: DatabaseType;
@@ -265,8 +269,16 @@ export class ProposalStore implements IEmberPort {
 
     const sortBy = query.sort_by ?? 'created_at';
     const sortOrder = query.sort_order ?? 'desc';
-    const orderByField = SORT_FIELD_MAP[sortBy] ?? 'created_at';
-    const orderDirection = SORT_DIRECTION_MAP[sortOrder] ?? 'DESC';
+
+    if (!(sortBy in SORT_FIELD_MAP)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+    if (!(sortOrder in SORT_DIRECTION_MAP)) {
+      throw new Error(`Invalid sort direction: ${sortOrder}`);
+    }
+
+    const orderByField = SORT_FIELD_MAP[sortBy as SortField];
+    const orderDirection = SORT_DIRECTION_MAP[sortOrder as SortDirection];
 
     const limit = query.limit ?? 100;
     const offset = query.offset ?? 0;
