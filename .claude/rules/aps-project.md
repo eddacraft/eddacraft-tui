@@ -283,7 +283,7 @@ packages/edda-stack/src/edda/version-tracker.ts: EDDA-008
 packages/edda-stack/src/edda/version-tracker.test.ts: EDDA-008
 packages/edda-stack/src/ember/aggregator-service.ts: EMBER-006
 packages/edda-stack/src/ember/aggregator-service.test.ts: EMBER-006
-packages/edda-stack/src/ember/candidate-service.ts: EMBER-009, EERB-001, EERB-011
+packages/edda-stack/src/ember/candidate-service.ts: EMBER-009, EERB-001, EERB-003, EERB-011
 packages/edda-stack/src/ember/candidate-service.test.ts: EMBER-009
 packages/edda-stack/src/ember/config.ts: EMBER-003
 packages/edda-stack/src/ember/decay-service.ts: EMBER-005, EERB-003

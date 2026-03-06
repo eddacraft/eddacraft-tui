@@ -101,8 +101,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Expected Outcome:** A single constant or config value controls the prune
   threshold; `decay-service.ts` (30 days) and `candidate-service.ts` (90 days)
   use the same source
-- **Validation:** `grep -rn "PRUNE\|prune.*days\|prune.*threshold"
-  packages/edda-stack/src/ember/` shows a single definition
+- **Validation:** `grep -rn "PRUNE\|prune.*days\|prune.*threshold" packages/edda-stack/src/ember/` shows a single definition
 - **Files:** `packages/edda-stack/src/ember/decay-service.ts`,
   `packages/edda-stack/src/ember/candidate-service.ts`
 - **Dependencies:** None
@@ -171,8 +170,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
   the pattern already established in `edda/utils.ts`
 - **Expected Outcome:** Ember commands import shared colour helpers from a
   single `ember/utils.ts` module; inconsistent colour mappings are resolved
-- **Validation:** `grep -rn "function colourStatus\|function colourConfidence"
-  apps/anvil-cli/src/commands/ember/` shows exactly one definition each
+- **Validation:** `grep -rn "function colourStatus\|function colourConfidence" apps/anvil-cli/src/commands/ember/` shows exactly one definition each
 - **Files:** `apps/anvil-cli/src/commands/ember/list.ts`,
   `apps/anvil-cli/src/commands/ember/show.ts`,
   `apps/anvil-cli/src/commands/ember/promote.ts`
