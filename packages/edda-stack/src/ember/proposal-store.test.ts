@@ -141,25 +141,32 @@ describe('ProposalStore', () => {
     expect(paged.proposals[0]?.confidence).toBeCloseTo(0.6, 5);
   });
 
-  it('falls back to created_at and DESC when sort values are invalid', async () => {
-    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'));
-    const oldest = await store.createProposal({ ...createInput('pattern'), confidence: 0.2 });
-    vi.setSystemTime(new Date('2026-01-01T00:01:00.000Z'));
+  it('throws on invalid sort_by field', async () => {
     await store.createProposal({ ...createInput('pattern'), confidence: 0.5 });
-    vi.setSystemTime(new Date('2026-01-01T00:02:00.000Z'));
-    const newest = await store.createProposal({ ...createInput('pattern'), confidence: 0.8 });
 
-    const result = await store.queryProposals({
-      include_expired: true,
-      sort_by: 'not-a-real-field' as unknown as 'created_at',
-      sort_order: 'sideways' as unknown as 'asc',
-      limit: 10,
-      offset: 0,
-    });
+    expect(() =>
+      store.queryProposals({
+        include_expired: true,
+        sort_by: 'not-a-real-field' as unknown as 'created_at',
+        sort_order: 'desc',
+        limit: 10,
+        offset: 0,
+      })
+    ).toThrow('Invalid sort field: not-a-real-field');
+  });
 
-    expect(result.proposals).toHaveLength(3);
-    expect(result.proposals[0]?.id).toBe(newest.id);
-    expect(result.proposals[2]?.id).toBe(oldest.id);
+  it('throws on invalid sort_order direction', async () => {
+    await store.createProposal({ ...createInput('pattern'), confidence: 0.5 });
+
+    expect(() =>
+      store.queryProposals({
+        include_expired: true,
+        sort_by: 'created_at',
+        sort_order: 'sideways' as unknown as 'asc',
+        limit: 10,
+        offset: 0,
+      })
+    ).toThrow('Invalid sort direction: sideways');
   });
 
   it('finds and processes expired proposals', async () => {
