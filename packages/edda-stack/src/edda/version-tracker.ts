@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Timestamp } from '../contracts/temporal.js';
@@ -19,14 +19,6 @@ function normaliseAuthor(author: string): string {
   }
 
   return `${author} <${author}@anvil.local>`;
-}
-
-function parseAuthor(normalised: string): { name: string; email: string } {
-  const match = normalised.match(/^(.+?)\s*<(.+?)>$/);
-  if (match) {
-    return { name: match[1].trim(), email: match[2] };
-  }
-  return { name: normalised, email: `${normalised}@anvil.local` };
 }
 
 export class VersionTracker {
@@ -53,21 +45,10 @@ export class VersionTracker {
       throw new Error('Cannot track change without file paths');
     }
 
-    const normalisedAuthor = normaliseAuthor(author);
-    const { name, email } = parseAuthor(normalisedAuthor);
+    const safePaths = filePaths.map((filePath) => this.resolveTrackedPath(filePath));
 
-    await this.runGit(['add', ...filePaths]);
-    await this.runGit([
-      '-c',
-      `user.name=${name}`,
-      '-c',
-      `user.email=${email}`,
-      'commit',
-      '-m',
-      message,
-      '--author',
-      normalisedAuthor,
-    ]);
+    await this.runGit(['add', ...safePaths]);
+    await this.runGit(['commit', '-m', message, '--author', normaliseAuthor(author)]);
     const hash = await this.runGit(['rev-parse', 'HEAD']);
     return hash.trim();
   }
@@ -77,12 +58,13 @@ export class VersionTracker {
       return [];
     }
 
+    const safePath = this.resolveTrackedPath(filePath);
     const logOutput = await this.runGit([
       'log',
       `-n${Math.max(limit, 1)}`,
       '--format=%H%x1f%s%x1f%an%x1f%aI',
       '--',
-      filePath,
+      safePath,
     ]);
 
     if (!logOutput.trim()) {
@@ -109,11 +91,44 @@ export class VersionTracker {
   }
 
   async getVersion(filePath: string, commitHash: string): Promise<string> {
-    return this.runGit(['show', `${commitHash}:${filePath}`]);
+    const safePath = this.resolveTrackedPath(filePath);
+    return this.runGit(['show', `${commitHash}:${safePath}`]);
   }
 
   async isInitialised(): Promise<boolean> {
     return existsSync(join(this.storagePath, '.git'));
+  }
+
+  private resolveTrackedPath(filePath: string): string {
+    if (filePath.trim().length === 0) {
+      throw new Error('Git paths must not be empty');
+    }
+
+    if (isAbsolute(filePath)) {
+      throw new Error(`Git path must be relative to storage root: ${filePath}`);
+    }
+
+    const pathSegments = filePath.split(/[\\/]+/);
+    if (pathSegments.some((segment) => segment === '..')) {
+      throw new Error(`Git path must not contain parent-directory traversal: ${filePath}`);
+    }
+
+    const resolvedStoragePath = resolve(this.storagePath);
+    const resolvedTargetPath = resolve(resolvedStoragePath, filePath);
+
+    if (
+      resolvedTargetPath !== resolvedStoragePath &&
+      !resolvedTargetPath.startsWith(resolvedStoragePath + sep)
+    ) {
+      throw new Error(`Git path escapes storage root: ${filePath}`);
+    }
+
+    const relativePath = relative(resolvedStoragePath, resolvedTargetPath);
+    if (relativePath.length === 0) {
+      throw new Error(`Git path must target a file inside storage root: ${filePath}`);
+    }
+
+    return relativePath.split(sep).join('/');
   }
 
   private async runGit(args: string[]): Promise<string> {

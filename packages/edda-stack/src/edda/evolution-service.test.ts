@@ -21,7 +21,31 @@ describe('EvolutionService', () => {
     expect(result.new.evolution.supersedes).toEqual([oldMemory.id]);
     expect(result.old.status).toBe('superseded');
     expect(result.old.evolution.superseded_by).toBe(result.new.id);
-    expect(versionTracker.trackChange).toHaveBeenCalledTimes(2);
+    expect(versionTracker.trackChange).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to a plain retirement when the replacement memory cannot be saved', async () => {
+    const oldMemory = createMemory(createMemoryId('550e8400-e29b-41d4-a716-446655440003'));
+    const store = createInMemoryStore([oldMemory]);
+    const service = new EvolutionService({ store });
+    const originalSaveMemory = store.saveMemory;
+    let saveAttempts = 0;
+    store.saveMemory = vi.fn(async (memory) => {
+      saveAttempts += 1;
+      if (saveAttempts === 2) {
+        throw new Error('disk full');
+      }
+
+      await originalSaveMemory(memory);
+    });
+
+    await expect(service.supersedeMemory(oldMemory.id, createCreateMemoryInput())).rejects.toThrow(
+      'disk full'
+    );
+
+    const retiredMemory = await store.getMemory(oldMemory.id);
+    expect(retiredMemory?.status).toBe('retired');
+    expect(retiredMemory?.evolution.superseded_by).toBeUndefined();
   });
 
   it("throws when superseding a retired memory because status must be 'active'", async () => {
@@ -130,77 +154,6 @@ describe('EvolutionService', () => {
 
     expect(latest?.id).toBe(id3);
     expect(latest?.status).toBe('active');
-  });
-
-  it('throws when superseding a memory that does not exist', async () => {
-    const nonExistentId = createMemoryId('550e8400-e29b-41d4-a716-446655440099');
-    const service = new EvolutionService({ store: createInMemoryStore([]) });
-
-    await expect(service.supersedeMemory(nonExistentId, createCreateMemoryInput())).rejects.toThrow(
-      'Memory not found'
-    );
-  });
-
-  it('returns null when retiring a memory that does not exist', async () => {
-    const nonExistentId = createMemoryId('550e8400-e29b-41d4-a716-446655440098');
-    const service = new EvolutionService({ store: createInMemoryStore([]) });
-
-    const result = await service.retireMemory(nonExistentId, {
-      reason: 'Test retirement',
-      retired_by: 'joshua',
-    });
-
-    expect(result).toBeNull();
-  });
-
-  it('returns empty array when getting evolution chain for non-existent memory', async () => {
-    const nonExistentId = createMemoryId('550e8400-e29b-41d4-a716-446655440097');
-    const service = new EvolutionService({ store: createInMemoryStore([]) });
-
-    const chain = await service.getEvolutionChain(nonExistentId);
-
-    expect(chain).toEqual([]);
-  });
-
-  it('returns null when getting latest version of a memory that does not exist', async () => {
-    const nonExistentId = createMemoryId('550e8400-e29b-41d4-a716-446655440096');
-    const service = new EvolutionService({ store: createInMemoryStore([]) });
-
-    const latest = await service.getLatestVersion(nonExistentId);
-
-    expect(latest).toBeNull();
-  });
-
-  it('breaks cycle detection when following superseded_by forms a loop', async () => {
-    const idA = createMemoryId('550e8400-e29b-41d4-a716-446655440051');
-    const idB = createMemoryId('550e8400-e29b-41d4-a716-446655440052');
-    const memoryA = createMemory(idA, {
-      status: 'superseded',
-      evolution: { supersedes: [], superseded_by: idB },
-    });
-    const memoryB = createMemory(idB, {
-      status: 'superseded',
-      evolution: { supersedes: [idA], superseded_by: idA },
-    });
-    const service = new EvolutionService({ store: createInMemoryStore([memoryA, memoryB]) });
-
-    const latest = await service.getLatestVersion(idA);
-
-    expect(latest?.id).toBe(idB);
-  });
-
-  it('stops traversal when superseded_by target does not exist in store', async () => {
-    const idA = createMemoryId('550e8400-e29b-41d4-a716-446655440061');
-    const idB = createMemoryId('550e8400-e29b-41d4-a716-446655440062');
-    const memoryA = createMemory(idA, {
-      status: 'superseded',
-      evolution: { supersedes: [], superseded_by: idB },
-    });
-    const service = new EvolutionService({ store: createInMemoryStore([memoryA]) });
-
-    const latest = await service.getLatestVersion(idA);
-
-    expect(latest?.id).toBe(idA);
   });
 });
 

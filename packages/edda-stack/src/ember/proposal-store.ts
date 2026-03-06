@@ -347,7 +347,7 @@ export class ProposalStore implements IEmberPort {
     return Promise.resolve(Boolean(row?.found));
   }
 
-  markPromoted(id: ProposalId, memoryId: MemoryId, resolvedBy: string): Promise<void> {
+  async markPromoted(id: ProposalId, memoryId: MemoryId, resolvedBy: string): Promise<void> {
     const resolvedAt = now();
     const resolution = {
       resolved_at: resolvedAt,
@@ -356,7 +356,7 @@ export class ProposalStore implements IEmberPort {
       memory_id: memoryId,
     };
 
-    this.db
+    const result = this.db
       .prepare(
         `UPDATE proposals
          SET status = 'promoted',
@@ -370,10 +370,14 @@ export class ProposalStore implements IEmberPort {
         updated_at: resolvedAt,
       });
 
-    return Promise.resolve();
+    if (result.changes === 0) {
+      throw new Error(`Proposal not found: ${id}`);
+    }
+
+    return;
   }
 
-  markDismissed(id: ProposalId, reason: string, resolvedBy: string): Promise<void> {
+  async markDismissed(id: ProposalId, reason: string, resolvedBy: string): Promise<void> {
     const resolvedAt = now();
     const resolution = {
       resolved_at: resolvedAt,
@@ -381,7 +385,7 @@ export class ProposalStore implements IEmberPort {
       resolution_reason: reason,
     };
 
-    this.db
+    const result = this.db
       .prepare(
         `UPDATE proposals
          SET status = 'dismissed',
@@ -395,7 +399,11 @@ export class ProposalStore implements IEmberPort {
         updated_at: resolvedAt,
       });
 
-    return Promise.resolve();
+    if (result.changes === 0) {
+      throw new Error(`Proposal not found: ${id}`);
+    }
+
+    return;
   }
 
   getExpiredProposals(): Promise<CandidateProposal[]> {

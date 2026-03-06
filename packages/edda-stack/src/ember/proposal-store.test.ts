@@ -235,6 +235,12 @@ describe('ProposalStore', () => {
     expect(await store.getProposal(missingId)).toBeNull();
     expect(await store.updateProposal(missingId, { summary: 'missing' })).toBeNull();
     expect(await store.resolveProposal(missingId, { status: 'dismissed' })).toBeNull();
+    await expect(
+      store.markPromoted(missingId, createMemoryId(randomUUID()), 'agent/promoter')
+    ).rejects.toThrow(`Proposal not found: ${missingId}`);
+    await expect(store.markDismissed(missingId, 'obsolete', 'agent/reviewer')).rejects.toThrow(
+      `Proposal not found: ${missingId}`
+    );
     expect(await store.proposalExists(missingId)).toBe(false);
 
     const created = await store.createProposal(createInput('decision'));

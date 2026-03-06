@@ -277,6 +277,22 @@ describe('MemoryStore (EDDA-006)', () => {
     }
   });
 
+  it('rejects invalid memory objects before writing them to disk', async () => {
+    const storagePath = mkdtempSync(join(tmpdir(), 'edda-store-'));
+    const store = new MemoryStore({ type: 'git', path: storagePath, format: 'yaml' });
+    const invalidMemory = {
+      ...createMemory({}, 14),
+      id: '../outside',
+    } as unknown as MemoryObject;
+
+    try {
+      await expect(store.importMemories([invalidMemory])).rejects.toThrow();
+      expect(await store.exportMemories()).toEqual([]);
+    } finally {
+      rmSync(storagePath, { recursive: true, force: true });
+    }
+  });
+
   it('keeps index consistency when updating existing memory IDs', async () => {
     const storagePath = mkdtempSync(join(tmpdir(), 'edda-store-'));
     const store = new MemoryStore({ type: 'git', path: storagePath, format: 'yaml' });
