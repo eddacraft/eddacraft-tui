@@ -280,7 +280,7 @@ export class DependencyCheck extends BaseCheck {
         return this.createSuccess('No lock file found, skipping dependency check', 100);
       }
 
-      return this.createFailure('Dependency audit error', errorMessage);
+      return this.createFailure('Dependency check failed', errorMessage);
     }
   }
 
@@ -317,13 +317,9 @@ export class DependencyCheck extends BaseCheck {
           try {
             return this.normaliseAuditOutput(stdout, packageManager);
           } catch (parseError) {
-            const stderr = (error as { stderr?: string }).stderr ?? '';
-            throw new Error(
-              `Failed to parse ${packageManager} audit output: ` +
-                `${parseError instanceof Error ? parseError.message : String(parseError)}` +
-                (stderr ? `\nstderr: ${stderr.slice(0, 500)}` : ''),
-              { cause: parseError }
-            );
+            const detail = parseError instanceof Error ? parseError.message : String(parseError);
+            log(`failed to parse ${packageManager} audit output: ${detail}`);
+            throw new Error(`Failed to parse ${packageManager} audit output: ${detail}`);
           }
         }
       }
@@ -458,7 +454,7 @@ export class DependencyCheck extends BaseCheck {
           metadata = parsed.data.vulnerabilities;
         }
       } catch (parseError) {
-        log('Failed to parse Yarn audit line:', parseError);
+        log('failed to parse Yarn audit line', parseError);
         continue;
       }
     }

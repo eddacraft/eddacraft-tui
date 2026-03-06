@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, writeFileSync } from 'node:fs';
+import { platform } from 'node:os';
 import path, { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
+
+const isWindows = platform() === 'win32';
 import { GitStatusChecker, getChangedFiles } from './git-status.js';
 import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 
@@ -206,6 +209,44 @@ describe('GitStatusChecker', () => {
 
       expect(names).toContain('untracked.ts');
       expect(names).not.toContain('tracked.ts');
+    });
+  });
+
+  describe('rename and quoted-path edge cases', () => {
+    it('resolves renamed file to new path', async () => {
+      writeFile('old-name.ts', 'content');
+      git('add', 'old-name.ts');
+      git('commit', '-m', 'add old');
+      git('mv', 'old-name.ts', 'new-name.ts');
+
+      const status = await checker.getFileStatus(join(tmpDir, 'new-name.ts'));
+      expect(status.isStaged).toBe(true);
+      expect(status.path).toBe('new-name.ts');
+    });
+
+    // Windows does not allow '>' in filenames — skip these tests on Windows
+    it.skipIf(isWindows)('does not split on " -> " for non-R/C entries', async () => {
+      // A filename that literally contains " -> " in a non-rename entry
+      const weirdName = 'a -> b.ts';
+      writeFile(weirdName, 'content');
+
+      const status = await checker.getFileStatus(join(tmpDir, weirdName));
+      expect(status.isUntracked).toBe(true);
+      // The path should be preserved as-is (not split)
+      expect(status.path).toContain('->');
+    });
+
+    it.skipIf(isWindows)('preserves full target when rename target contains " -> "', async () => {
+      writeFile('source.ts', 'content');
+      git('add', 'source.ts');
+      git('commit', '-m', 'add source');
+      // Rename to a path containing " -> " in the name
+      const target = 'a -> b -> c.ts';
+      git('mv', 'source.ts', target);
+
+      const status = await checker.getFileStatus(join(tmpDir, target));
+      expect(status.isStaged).toBe(true);
+      expect(status.path).toBe(target);
     });
   });
 

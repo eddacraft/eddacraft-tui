@@ -4,6 +4,7 @@ import {
   info,
   error,
   warning,
+  data,
   formatGateResults,
   formatGateResultsJSON,
   formatValidationErrors,
@@ -24,11 +25,15 @@ const MINIMAL_GATE_RESULT_WITH_CACHE: GateRunResultWithCache = {
 
 describe('output utilities stream policy', () => {
   let stderrSpy: ReturnType<typeof vi.spyOn>;
+  let stdoutSpy: ReturnType<typeof vi.spyOn>;
   let logSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
 
   afterEach(() => {
@@ -56,8 +61,16 @@ describe('output utilities stream policy', () => {
 
     it('warning() writes to stderr', () => {
       warning('caution');
-      expect(stderrSpy).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalled();
       expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('data() writes to stdout', () => {
+    it('writes content followed by newline to stdout', () => {
+      data('{"key":"value"}');
+      expect(stdoutSpy).toHaveBeenCalledWith('{"key":"value"}\n');
+      expect(stderrSpy).not.toHaveBeenCalled();
     });
   });
 

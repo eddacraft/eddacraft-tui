@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -17,10 +20,6 @@ vi.mock('@eddacraft/anvil-runtime', () => {
     },
   };
 });
-
-vi.mock('../utils/validate-workspace.js', () => ({
-  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
-}));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -63,9 +62,11 @@ function makeAnalyzeResult(overrides: Record<string, unknown> = {}) {
 
 describe('anvil_check tool', () => {
   const cleanupFns: Array<() => Promise<void>> = [];
+  let workspaceRoot: string;
 
   beforeEach(() => {
     mockAnalyzeFiles.mockReset();
+    workspaceRoot = mkdtempSync(join(tmpdir(), 'anvil-mcp-check-'));
   });
 
   afterEach(async () => {
@@ -73,6 +74,7 @@ describe('anvil_check tool', () => {
       await fn();
     }
     cleanupFns.length = 0;
+    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -135,7 +137,7 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/app.ts'],
-          workspaceRoot: '/project',
+          workspaceRoot,
         },
       });
 
@@ -167,12 +169,12 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/a.ts', 'src/b.ts'],
-          workspaceRoot: '/my-project',
+          workspaceRoot,
         },
       });
 
       expect(mockAnalyzeFiles).toHaveBeenCalledOnce();
-      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/a.ts', 'src/b.ts'], '/my-project', {
+      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/a.ts', 'src/b.ts'], workspaceRoot, {
         checks: undefined,
       });
     });
@@ -225,7 +227,7 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/a.ts', 'src/app-service.ts'],
-          workspaceRoot: '/project',
+          workspaceRoot,
         },
       });
 
@@ -272,7 +274,7 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/app.ts'],
-          workspaceRoot: '/nonexistent',
+          workspaceRoot,
         },
       });
 
@@ -290,7 +292,7 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/app.ts'],
-          workspaceRoot: '/project',
+          workspaceRoot,
         },
       });
 
@@ -313,12 +315,12 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/app.ts'],
-          workspaceRoot: '/project',
+          workspaceRoot,
           checks: ['architecture'],
         },
       });
 
-      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/app.ts'], '/project', {
+      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/app.ts'], workspaceRoot, {
         checks: ['architecture'],
       });
     });
@@ -331,11 +333,11 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/app.ts'],
-          workspaceRoot: '/project',
+          workspaceRoot,
         },
       });
 
-      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/app.ts'], '/project', {
+      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/app.ts'], workspaceRoot, {
         checks: undefined,
       });
     });
@@ -348,12 +350,12 @@ describe('anvil_check tool', () => {
         name: 'anvil_check',
         arguments: {
           files: ['src/app.ts'],
-          workspaceRoot: '/project',
+          workspaceRoot,
           checks: ['architecture', 'antipattern'],
         },
       });
 
-      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/app.ts'], '/project', {
+      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/app.ts'], workspaceRoot, {
         checks: ['architecture', 'antipattern'],
       });
     });

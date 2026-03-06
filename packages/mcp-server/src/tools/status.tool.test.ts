@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -30,10 +33,6 @@ vi.mock('@eddacraft/anvil-core', () => ({
   baselineExists: (...args: unknown[]) => mockBaselineExists(...args),
 }));
 
-vi.mock('../utils/validate-workspace.js', () => ({
-  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
-}));
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -63,8 +62,11 @@ async function createConnectedPair() {
 // ---------------------------------------------------------------------------
 
 describe('anvil_status tool', () => {
+  let workspaceRoot: string;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    workspaceRoot = mkdtempSync(join(tmpdir(), 'anvil-mcp-status-'));
   });
 
   afterEach(async () => {
@@ -72,6 +74,7 @@ describe('anvil_status tool', () => {
       await fn();
     }
     cleanupFns.length = 0;
+    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -124,7 +127,7 @@ describe('anvil_status tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBeFalsy();
@@ -132,7 +135,7 @@ describe('anvil_status tool', () => {
       const parsed = JSON.parse(content[0].text);
 
       expect(parsed.status).toBe('ok');
-      expect(parsed.workspaceRoot).toBe('/tmp/project');
+      expect(parsed.workspaceRoot).toBe(workspaceRoot);
       expect(parsed.version).toBe('0.1.0');
       expect(parsed.hasBaseline).toBe(true);
       expect(parsed.availableChecks).toEqual(
@@ -162,7 +165,7 @@ describe('anvil_status tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/new-project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBeFalsy();
@@ -183,7 +186,7 @@ describe('anvil_status tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/restricted' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBeFalsy();
@@ -205,11 +208,11 @@ describe('anvil_status tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/home/user/myproject' },
+        arguments: { workspaceRoot },
       });
 
       const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
-      expect(parsed.workspaceRoot).toBe('/home/user/myproject');
+      expect(parsed.workspaceRoot).toBe(workspaceRoot);
     });
 
     it('calls baselineExists with the correct workspace root', async () => {
@@ -224,10 +227,10 @@ describe('anvil_status tool', () => {
       const { client } = await createConnectedPair();
       await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/check-baseline' },
+        arguments: { workspaceRoot },
       });
 
-      expect(mockBaselineExists).toHaveBeenCalledWith('/tmp/check-baseline');
+      expect(mockBaselineExists).toHaveBeenCalledWith(workspaceRoot);
     });
   });
 
@@ -249,7 +252,7 @@ describe('anvil_status tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/broken' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBe(true);
@@ -271,7 +274,7 @@ describe('anvil_status tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/err' },
+        arguments: { workspaceRoot },
       });
 
       const content = result.content as Array<{ type: string; text: string }>;

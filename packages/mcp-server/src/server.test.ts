@@ -1,4 +1,7 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -47,19 +50,21 @@ vi.mock('@eddacraft/anvil-core', () => ({
   baselineExists: vi.fn().mockReturnValue(false),
 }));
 
-vi.mock('./utils/validate-workspace.js', () => ({
-  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
-}));
-
 describe('AnvilMcpServer', () => {
   // Track connections for cleanup so transports are closed even if a test fails.
   const cleanupFns: Array<() => Promise<void>> = [];
+  let workspaceRoot: string;
+
+  beforeEach(() => {
+    workspaceRoot = mkdtempSync(join(tmpdir(), 'anvil-mcp-server-'));
+  });
 
   afterEach(async () => {
     for (const fn of cleanupFns) {
       await fn();
     }
     cleanupFns.length = 0;
+    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -195,7 +200,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/test-project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result).toBeDefined();
@@ -209,7 +214,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/test-project' },
+        arguments: { workspaceRoot },
       });
       const firstItem = (result.content as Array<{ type: string }>)[0];
 
@@ -222,7 +227,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/test-project' },
+        arguments: { workspaceRoot },
       });
       const textItem = (result.content as Array<{ type: string; text: string }>)[0];
 
@@ -241,7 +246,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/test-project' },
+        arguments: { workspaceRoot },
       });
       const textItem = (result.content as Array<{ type: string; text: string }>)[0];
       const parsed = JSON.parse(textItem.text) as Record<string, unknown>;
@@ -254,7 +259,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/test-project' },
+        arguments: { workspaceRoot },
       });
       const textItem = (result.content as Array<{ type: string; text: string }>)[0];
       const parsed = JSON.parse(textItem.text) as Record<string, unknown>;
@@ -268,7 +273,7 @@ describe('AnvilMcpServer', () => {
 
       const result = await client.callTool({
         name: 'anvil_status',
-        arguments: { workspaceRoot: '/tmp/test-project' },
+        arguments: { workspaceRoot },
       });
 
       // isError should be undefined or false for a successful invocation

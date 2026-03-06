@@ -490,15 +490,9 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Complete
+- **Status:** Draft
 - **Risks:** Race window is small but real in parallel agent execution.
   File-level locking behaviour varies across operating systems.
-- **Notes:** Replaced the check-then-write lock pattern with per-task lock
-  files using `O_EXCL` (atomic create-or-fail). Lock files live at
-  `.anvil/locks/{taskId}.lock`. State file writes use atomic temp+rename.
-  Lock files are released on unlock, complete, and on failure after
-  acquisition. Concurrent lock test verifies exactly one of two
-  simultaneous lockers wins. 5 new tests added (39 total in state module).
 
 ---
 

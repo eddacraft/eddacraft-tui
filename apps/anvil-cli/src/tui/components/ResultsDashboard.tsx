@@ -5,7 +5,7 @@ import { QuickWinsPanel } from './QuickWinsPanel.js';
 import { theme } from '../utils/theme.js';
 import type { ProjectContext } from '../../services/project-detector.js';
 import type { QuickWinsAnalysis } from '../../services/quick-wins.js';
-import type { HistoricalAnalysis } from '../../services/historical-analyzer.js';
+import type { HistoricalAnalysis } from '../../services/historical-analyser.js';
 
 export interface InitAnalysisResults {
   /** Project context detection */

@@ -10,11 +10,15 @@ export function error(message: string): void {
 }
 
 export function warning(message: string): void {
-  console.error(chalk.yellow('⚠'), message);
+  console.warn(chalk.yellow('⚠'), message);
 }
 
 export function info(message: string): void {
   console.error(chalk.blue('ℹ'), message);
+}
+
+export function data(content: string): void {
+  process.stdout.write(content + '\n');
 }
 
 export function formatValidationErrors(errors: Array<{ message: string; path?: string }>): void {

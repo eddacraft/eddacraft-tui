@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -21,10 +24,6 @@ vi.mock('@eddacraft/anvil-core', () => ({
     isAllowedDependency: (...args: Parameters<typeof mockIsAllowedDependency>) =>
       mockIsAllowedDependency(...args),
   }),
-}));
-
-vi.mock('../utils/validate-workspace.js', () => ({
-  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
 }));
 
 // ---------------------------------------------------------------------------
@@ -82,9 +81,11 @@ function parseResult(
 describe('anvil_query_boundary tool', () => {
   let server: McpServer;
   let client: Client;
+  let workspaceRoot: string;
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    workspaceRoot = mkdtempSync(join(tmpdir(), 'anvil-mcp-qb-'));
 
     server = new McpServer({ name: 'test-qb', version: '0.0.1' });
     registerQueryBoundaryTool(server);
@@ -99,6 +100,7 @@ describe('anvil_query_boundary tool', () => {
   afterEach(async () => {
     await client.close();
     await server.close();
+    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -129,7 +131,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/controllers/user.ts',
           targetFile: 'src/domain/user.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -159,7 +161,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/domain/user.ts',
           targetFile: 'src/domain/order.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -193,7 +195,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/controllers/user.ts',
           targetFile: 'src/services/user-service.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -226,7 +228,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/domain/user.ts',
           targetFile: 'src/controllers/user-controller.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -263,7 +265,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/random/helper.ts',
           targetFile: 'src/domain/user.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -291,7 +293,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/domain/user.ts',
           targetFile: 'src/random/helper.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -314,7 +316,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/foo.ts',
           targetFile: 'src/bar.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -341,7 +343,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/a.ts',
           targetFile: 'src/b.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -360,7 +362,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/a.ts',
           targetFile: 'src/b.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 
@@ -383,7 +385,7 @@ describe('anvil_query_boundary tool', () => {
         arguments: {
           sourceFile: 'src/a.ts',
           targetFile: 'src/b.ts',
-          workspaceRoot: '/workspace',
+          workspaceRoot,
         },
       });
 

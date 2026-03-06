@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
@@ -28,10 +31,6 @@ vi.mock('@eddacraft/anvil-runtime', () => {
   };
 });
 
-vi.mock('../utils/validate-workspace.js', () => ({
-  validateWorkspaceRootAgainstServer: vi.fn((root: string) => root),
-}));
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -61,8 +60,11 @@ async function createConnectedPair() {
 // ---------------------------------------------------------------------------
 
 describe('anvil_gate tool', () => {
+  let workspaceRoot: string;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    workspaceRoot = mkdtempSync(join(tmpdir(), 'anvil-mcp-gate-'));
   });
 
   afterEach(async () => {
@@ -70,6 +72,7 @@ describe('anvil_gate tool', () => {
       await fn();
     }
     cleanupFns.length = 0;
+    rmSync(workspaceRoot, { recursive: true, force: true });
     vi.restoreAllMocks();
   });
 
@@ -123,7 +126,7 @@ describe('anvil_gate tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_gate',
-        arguments: { workspaceRoot: '/tmp/project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBeFalsy();
@@ -158,13 +161,13 @@ describe('anvil_gate tool', () => {
       await client.callTool({
         name: 'anvil_gate',
         arguments: {
-          workspaceRoot: '/tmp/project',
+          workspaceRoot,
           skipChecks: ['coverage'],
           failFast: true,
         },
       });
 
-      expect(mockRunGate).toHaveBeenCalledWith({}, expect.any(Object), '/tmp/project', {
+      expect(mockRunGate).toHaveBeenCalledWith({}, expect.any(Object), workspaceRoot, {
         skipChecks: ['coverage'],
         failFast: true,
       });
@@ -187,7 +190,7 @@ describe('anvil_gate tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_gate',
-        arguments: { workspaceRoot: '/tmp/project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBeFalsy();
@@ -214,16 +217,13 @@ describe('anvil_gate tool', () => {
       const result = await client.callTool({
         name: 'anvil_gate',
         arguments: {
-          workspaceRoot: '/tmp/project',
+          workspaceRoot,
           targetFiles: ['src/index.ts', 'src/util.ts'],
         },
       });
 
       expect(result.isError).toBeFalsy();
-      expect(mockAnalyzeFiles).toHaveBeenCalledWith(
-        ['src/index.ts', 'src/util.ts'],
-        '/tmp/project'
-      );
+      expect(mockAnalyzeFiles).toHaveBeenCalledWith(['src/index.ts', 'src/util.ts'], workspaceRoot);
       expect(mockRunGate).not.toHaveBeenCalled();
 
       const parsed = JSON.parse((result.content as Array<{ type: string; text: string }>)[0].text);
@@ -250,7 +250,7 @@ describe('anvil_gate tool', () => {
       await client.callTool({
         name: 'anvil_gate',
         arguments: {
-          workspaceRoot: '/tmp/project',
+          workspaceRoot,
           targetFiles: [],
         },
       });
@@ -275,7 +275,7 @@ describe('anvil_gate tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_gate',
-        arguments: { workspaceRoot: '/tmp/project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBe(true);
@@ -291,7 +291,7 @@ describe('anvil_gate tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_gate',
-        arguments: { workspaceRoot: '/tmp/project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBe(true);
@@ -310,7 +310,7 @@ describe('anvil_gate tool', () => {
       const { client } = await createConnectedPair();
       const result = await client.callTool({
         name: 'anvil_gate',
-        arguments: { workspaceRoot: '/tmp/project' },
+        arguments: { workspaceRoot },
       });
 
       expect(result.isError).toBe(true);
@@ -325,7 +325,7 @@ describe('anvil_gate tool', () => {
       const result = await client.callTool({
         name: 'anvil_gate',
         arguments: {
-          workspaceRoot: '/tmp/project',
+          workspaceRoot,
           targetFiles: ['nonexistent.ts'],
         },
       });

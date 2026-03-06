@@ -28,8 +28,9 @@ overrides:
   eslint>ajv: 6.14.0
   '@eslint/eslintrc>ajv': 6.14.0
   serialize-javascript@<=7.0.2: '>=7.0.3'
-  svgo@<3.3.3: '>=3.3.3'
+  hono@<4.12.4: '>=4.12.4'
   '@hono/node-server@<1.19.10': '>=1.19.10'
+  svgo@<3.3.3: '>=3.3.3'
   axios@<1.13.5: '>=1.13.5'
 
 importers:
@@ -2625,12 +2626,12 @@ packages:
     resolution: {integrity: sha512-dr8/3zEaB+p0D2n/IUrlPF1HZm586qgJNXK1a9fhg/PzdtkK7Ksd5l312tJX2yBuALqDYBlG20QEbayqPyxn+g==}
     engines: {node: '>=18.14.1'}
     peerDependencies:
-      hono: ^4
+      hono: '>=4.12.4'
 
   '@hono/zod-validator@0.7.6':
     resolution: {integrity: sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw==}
     peerDependencies:
-      hono: '>=3.9.0'
+      hono: '>=4.12.4'
       zod: ^3.25.0 || ^4.0.0
 
   '@humanfs/core@0.19.1':

@@ -41,26 +41,11 @@ pnpm test:e2e       # End-to-end tests
 
 ### Package-Specific Development
 
-All commands should be run from the **repository root**. Use `pnpm -F` (filter)
-to target specific packages:
-
 ```bash
-pnpm -F @eddacraft/anvil-core test           # Test a package by name
-pnpm -F @eddacraft/anvil-cli test            # Test the CLI
-pnpm -F @eddacraft/anvil-runtime test        # Test the runtime
-
-npx vitest run packages/aps/                 # Run tests by directory path
-npx vitest run --testNamePattern="loader"    # Run tests by name pattern
-
-pnpm link:cli                                # Link CLI for local development
+npx nx build core          # Build specific package
+npx nx test adapters       # Test specific package
+pnpm link:cli              # Link CLI for local development
 ```
-
-The root `vitest.config.ts` has include globs for all packages — running
-`npx vitest run` from the root discovers every test. Each package also has its
-own `vitest.config.ts` for use with `pnpm -F <pkg> test`.
-
-**Avoid** `pnpm -C <dir> test` — it changes the working directory, which can
-break cross-package path alias resolution configured in vitest configs.
 
 ## Code Standards
 

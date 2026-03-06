@@ -16,6 +16,105 @@ const debug = createDebugger('watch');
 const execFileAsync = promisify(execFile);
 
 /**
+ * Unescape a git-quoted path. Git wraps paths in double-quotes and
+ * uses backslash escapes (e.g. `\t`, `\n`, `\\`, `\"`, `\NNN` for octal bytes).
+ */
+function unescapeGitQuotedPath(value: string): string {
+  if (!value.startsWith('"') || !value.endsWith('"')) {
+    return value;
+  }
+
+  const inner = value.slice(1, -1);
+  let result = '';
+  let i = 0;
+
+  while (i < inner.length) {
+    const ch = inner[i];
+
+    if (ch === '\\' && i + 1 < inner.length) {
+      const next = inner[i + 1];
+
+      switch (next) {
+        case '"':
+          result += '"';
+          i += 2;
+          continue;
+        case '\\':
+          result += '\\';
+          i += 2;
+          continue;
+        case 't':
+          result += '\t';
+          i += 2;
+          continue;
+        case 'n':
+          result += '\n';
+          i += 2;
+          continue;
+      }
+
+      // Octal escapes: \NNN (1–3 octal digits)
+      if (next >= '0' && next <= '7') {
+        let octal = '';
+        let j = i + 1;
+        while (j < inner.length && j - (i + 1) < 3 && inner[j] >= '0' && inner[j] <= '7') {
+          octal += inner[j];
+          j += 1;
+        }
+        result += String.fromCharCode(parseInt(octal, 8));
+        i = j;
+        continue;
+      }
+
+      // Fallback: keep the character after backslash as-is
+      result += next;
+      i += 2;
+      continue;
+    }
+
+    result += ch;
+    i += 1;
+  }
+
+  return result;
+}
+
+/**
+ * Extract the destination path from a rename/copy status line.
+ * Handles quoted source paths that may contain ' -> '.
+ */
+function extractRenamePath(raw: string): string {
+  // If the source path is quoted, find the true closing quote (skip escaped quotes)
+  if (raw.startsWith('"')) {
+    let i = 1;
+    while (i < raw.length) {
+      if (raw[i] === '\\') {
+        i += 2; // skip escaped character
+        continue;
+      }
+      if (raw[i] === '"') {
+        break;
+      }
+      i++;
+    }
+    if (i < raw.length) {
+      const arrow = raw.indexOf(' -> ', i);
+      if (arrow !== -1) {
+        return raw.substring(arrow + 4);
+      }
+    }
+  }
+
+  // Unquoted: split at first ' -> '
+  const arrow = raw.indexOf(' -> ');
+  if (arrow !== -1) {
+    return raw.substring(arrow + 4);
+  }
+
+  return raw;
+}
+
+/**
  * Git status checker for filtering watched files
  */
 export class GitStatusChecker {
@@ -214,29 +313,20 @@ export class GitStatusChecker {
     }
 
     const statusCode = line.substring(0, 2);
+    const indexStatus = statusCode[0];
     let path = line.substring(3).trim() || defaultPath;
 
     // Handle rename/copy entries: "R  old.ts -> new.ts" — use the new path
-    // Only split for rename (R) and copy (C) status codes to avoid
-    // mangling filenames that literally contain ' -> '
-    // Check both index (statusCode[0]) and worktree (statusCode[1]) columns
-    const indexStatus = statusCode[0];
-    const isRenameOrCopy =
-      indexStatus === 'R' || indexStatus === 'C' || statusCode[1] === 'R' || statusCode[1] === 'C';
-    if (isRenameOrCopy && path.includes(' -> ')) {
-      path = path.split(' -> ').pop()!;
+    if (
+      statusCode[0] === 'R' ||
+      statusCode[0] === 'C' ||
+      statusCode[1] === 'R' ||
+      statusCode[1] === 'C'
+    ) {
+      path = extractRenamePath(path);
     }
 
-    // Handle git-quoted paths: strip surrounding quotes and unescape
-    // Uses single-pass replacement to avoid \\n (backslash + n) being
-    // misinterpreted as a newline after \\\\ is decoded to \\
-    if (path.startsWith('"') && path.endsWith('"')) {
-      path = path.slice(1, -1).replace(/\\(["\\nt])/g, (_match, ch: string) => {
-        if (ch === 'n') return '\n';
-        if (ch === 't') return '\t';
-        return ch; // handles \\ -> \ and \" -> "
-      });
-    }
+    path = unescapeGitQuotedPath(path);
 
     const workTreeStatus = statusCode[1];
 
@@ -337,25 +427,17 @@ export async function getChangedFiles(
         const statusCode = line.substring(0, 2);
         let filePath = line.substring(3).trim();
 
-        const indexStatus = statusCode[0];
-
-        // Handle rename/copy entries only for R/C status codes (index or worktree)
-        const isRenameOrCopy =
-          indexStatus === 'R' ||
-          indexStatus === 'C' ||
+        // Handle rename/copy entries and git-quoted paths
+        if (
+          statusCode[0] === 'R' ||
+          statusCode[0] === 'C' ||
           statusCode[1] === 'R' ||
-          statusCode[1] === 'C';
-        if (isRenameOrCopy && filePath.includes(' -> ')) {
-          filePath = filePath.split(' -> ').pop()!;
+          statusCode[1] === 'C'
+        ) {
+          filePath = extractRenamePath(filePath);
         }
-        // Handle git-quoted paths with single-pass unescape
-        if (filePath.startsWith('"') && filePath.endsWith('"')) {
-          filePath = filePath.slice(1, -1).replace(/\\(["\\nt])/g, (_match, ch: string) => {
-            if (ch === 'n') return '\n';
-            if (ch === 't') return '\t';
-            return ch;
-          });
-        }
+        filePath = unescapeGitQuotedPath(filePath);
+        const indexStatus = statusCode[0];
         const workTreeStatus = statusCode[1];
 
         const isFileStaged = indexStatus !== ' ' && indexStatus !== '?';

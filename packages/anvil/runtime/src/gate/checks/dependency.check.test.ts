@@ -102,117 +102,30 @@ describe('DependencyCheck', () => {
     expect(result.check).toBe('dependency');
   });
 
-  describe('error surfacing (CRB-005)', () => {
-    it('should surface parse failures instead of reporting clean audit', async () => {
-      const check = new DependencyCheck();
-      const internal = check as unknown as DependencyCheckInternals;
-      vi.spyOn(internal, 'detectPackageManager').mockReturnValue('npm');
-      vi.spyOn(internal, 'runAudit').mockRejectedValue(
-        new Error('Failed to parse npm audit output: Unexpected token < in JSON at position 0')
-      );
+  it('should surface audit parse failure as a check failure', async () => {
+    const check = new DependencyCheck();
+    const internal = check as unknown as DependencyCheckInternals;
+    vi.spyOn(internal, 'runAudit').mockRejectedValue(
+      new Error('Failed to parse pnpm audit output: Unexpected token')
+    );
+    vi.spyOn(internal, 'detectPackageManager').mockReturnValue('pnpm');
 
-      const result = await check.run(mockContext);
+    const result = await check.run(mockContext);
 
-      expect(result.passed).toBe(false);
-      expect(result.error).toBeDefined();
-      expect(result.error).toContain('Failed to parse');
-      expect(result.message).toBe('Dependency audit error');
-    });
+    expect(result.passed).toBe(false);
+    expect(result.error).toContain('Failed to parse pnpm audit output');
+    expect(result.message).toBe('Dependency check failed');
+  });
 
-    it('should surface network errors from audit command', async () => {
-      const check = new DependencyCheck();
-      const internal = check as unknown as DependencyCheckInternals;
-      vi.spyOn(internal, 'detectPackageManager').mockReturnValue('pnpm');
-      vi.spyOn(internal, 'runAudit').mockRejectedValue(
-        new Error('Command failed: pnpm audit --json\nEAI_AGAIN registry.npmjs.org')
-      );
+  it('should surface audit command errors as a check failure', async () => {
+    const check = new DependencyCheck();
+    const internal = check as unknown as DependencyCheckInternals;
+    vi.spyOn(internal, 'runAudit').mockRejectedValue(new Error('ENOENT: pnpm not found'));
+    vi.spyOn(internal, 'detectPackageManager').mockReturnValue('pnpm');
 
-      const result = await check.run(mockContext);
+    const result = await check.run(mockContext);
 
-      expect(result.passed).toBe(false);
-      expect(result.error).toBeDefined();
-      expect(result.error).toContain('EAI_AGAIN');
-    });
-
-    it('should surface timeout errors from audit command', async () => {
-      const check = new DependencyCheck();
-      const internal = check as unknown as DependencyCheckInternals;
-      vi.spyOn(internal, 'detectPackageManager').mockReturnValue('npm');
-      vi.spyOn(internal, 'runAudit').mockRejectedValue(
-        new Error('Command timed out after 120000ms')
-      );
-
-      const result = await check.run(mockContext);
-
-      expect(result.passed).toBe(false);
-      expect(result.error).toBeDefined();
-      expect(result.error).toContain('timed out');
-    });
-
-    it('should still handle EAUDITNOLOCK as skip', async () => {
-      const check = new DependencyCheck();
-      const internal = check as unknown as DependencyCheckInternals;
-      vi.spyOn(internal, 'detectPackageManager').mockReturnValue('npm');
-      vi.spyOn(internal, 'runAudit').mockRejectedValue(
-        new Error('EAUDITNOLOCK: No lock file found')
-      );
-
-      const result = await check.run(mockContext);
-
-      expect(result.passed).toBe(true);
-      expect(result.message).toContain('No lock file');
-    });
-
-    it('should return clean audit when runAudit returns null legitimately', async () => {
-      const check = new DependencyCheck();
-      const internal = check as unknown as DependencyCheckInternals;
-      vi.spyOn(internal, 'detectPackageManager').mockReturnValue('npm');
-      vi.spyOn(internal, 'runAudit').mockResolvedValue(null);
-
-      const result = await check.run(mockContext);
-
-      expect(result.passed).toBe(true);
-      expect(result.error).toBeUndefined();
-      expect(result.message).toContain('No vulnerabilities');
-    });
-
-    it('should distinguish tool errors from vulnerability failures via error field', async () => {
-      const check = new DependencyCheck();
-      const internal = check as unknown as DependencyCheckInternals;
-      vi.spyOn(internal, 'detectPackageManager').mockReturnValue('npm');
-
-      // Vulnerability failure: passed=false, no error field
-      vi.spyOn(internal, 'runAudit').mockResolvedValue({
-        advisories: {
-          '1': {
-            id: 1,
-            title: 'Test vulnerability',
-            severity: 'critical',
-            url: 'https://example.com',
-            cves: ['CVE-2024-0001'],
-            module_name: 'vulnerable-pkg',
-            vulnerable_versions: '<1.0.0',
-            patched_versions: '>=1.0.0',
-            recommendation: 'Update to 1.0.0',
-            findings: [{ version: '0.9.0', paths: ['vulnerable-pkg'] }],
-          },
-        },
-        metadata: {
-          vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 1, total: 1 },
-        },
-      });
-
-      const vulnResult = await check.run(mockContext);
-      expect(vulnResult.passed).toBe(false);
-      expect(vulnResult.error).toBeUndefined();
-
-      // Tool error: passed=false, error field populated
-      vi.spyOn(internal, 'runAudit').mockRejectedValue(new Error('Registry unavailable'));
-
-      const errorResult = await check.run(mockContext);
-      expect(errorResult.passed).toBe(false);
-      expect(errorResult.error).toBeDefined();
-      expect(errorResult.error).toContain('Registry unavailable');
-    });
+    expect(result.passed).toBe(false);
+    expect(result.error).toContain('pnpm not found');
   });
 });

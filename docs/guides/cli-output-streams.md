@@ -17,18 +17,19 @@ is always machine-parseable.
 Import helpers from `../utils/output.js`:
 
 ```ts
-import { success, error, warning, info } from '../utils/output.js';
+import { success, error, warning, info, data } from '../utils/output.js';
 ```
 
-| Function       | Stream | Use for                  |
-| -------------- | ------ | ------------------------ |
-| `success(msg)` | stderr | Completion confirmations |
-| `error(msg)`   | stderr | Error diagnostics        |
-| `warning(msg)` | stderr | Non-fatal issues         |
-| `info(msg)`    | stderr | Informational status     |
+| Function        | Stream | Use for                    |
+| --------------- | ------ | -------------------------- |
+| `success(msg)`  | stderr | Completion confirmations   |
+| `error(msg)`    | stderr | Error diagnostics          |
+| `warning(msg)`  | stderr | Non-fatal issues           |
+| `info(msg)`     | stderr | Informational status       |
+| `data(content)` | stdout | Explicit structured output |
 
-For JSON output, use `console.log(JSON.stringify(...))` directly. This writes to
-stdout.
+For JSON output, either use `data(JSON.stringify(obj, null, 2))` or
+`console.log(JSON.stringify(...))` directly. Both write to stdout.
 
 ## `--json` mode conventions
 
@@ -46,6 +47,6 @@ This ensures `anvil check --json | jq .` always produces valid JSON.
 ## Adding a new command
 
 1. Use `success()`, `info()`, `error()`, `warning()` for all human output.
-2. Use `console.log(JSON.stringify(...))` for structured output.
+2. Use `data()` or `console.log(JSON.stringify(...))` for structured output.
 3. Never use bare `console.log()` for diagnostics or progress text.
 4. Use `process.stderr.write()` for custom progress indicators.
