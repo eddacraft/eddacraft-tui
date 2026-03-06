@@ -50,9 +50,9 @@ export function CaptureStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {SNAPSHOT_OUTPUT_LINES.map((line, index) => (
+          {SNAPSHOT_OUTPUT_LINES.map((line) => (
             <Text
-              key={index}
+              key={line}
               color={line.includes('Snapshot captured') ? theme.colours.steel : theme.colours.ash}
             >
               {line}

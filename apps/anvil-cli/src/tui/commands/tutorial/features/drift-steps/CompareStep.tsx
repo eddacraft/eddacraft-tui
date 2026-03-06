@@ -37,15 +37,15 @@ export function CompareStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {DRIFT_REPORT_HEADER.map((line, index) => (
-            <Text key={index} color={theme.colours.text}>
+          {DRIFT_REPORT_HEADER.map((line) => (
+            <Text key={line} color={theme.colours.text}>
               {line}
             </Text>
           ))}
           <Text color={theme.colours.text}>New edges: 2</Text>
           <Box flexDirection="column" marginLeft={2}>
-            {NEW_EDGES.map((edge, index) => (
-              <Text key={index} color={theme.colours.molten}>
+            {NEW_EDGES.map((edge) => (
+              <Text key={edge} color={theme.colours.molten}>
                 {edge}
               </Text>
             ))}
@@ -53,8 +53,8 @@ export function CompareStep(): React.ReactElement {
           <Text> </Text>
           <Text color={theme.colours.text}>Removed edges: 1</Text>
           <Box flexDirection="column" marginLeft={2}>
-            {REMOVED_EDGES.map((edge, index) => (
-              <Text key={index} color={theme.colours.steel}>
+            {REMOVED_EDGES.map((edge) => (
+              <Text key={edge} color={theme.colours.steel}>
                 {edge}
               </Text>
             ))}

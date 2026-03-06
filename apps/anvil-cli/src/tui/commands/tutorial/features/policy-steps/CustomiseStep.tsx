@@ -57,8 +57,8 @@ export function CustomiseStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {CONFIG_JSON_LINES.map((line, index) => (
-            <Text key={index} color={theme.colours.text}>
+          {CONFIG_JSON_LINES.map((line) => (
+            <Text key={line} color={theme.colours.text}>
               {line}
             </Text>
           ))}

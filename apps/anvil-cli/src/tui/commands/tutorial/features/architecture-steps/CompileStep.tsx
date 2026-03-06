@@ -54,8 +54,8 @@ export function CompileStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {REGO_EXAMPLE_LINES.map((line, index) => (
-            <Text key={index} color={theme.colours.text}>
+          {REGO_EXAMPLE_LINES.map((line) => (
+            <Text key={line} color={theme.colours.text}>
               {line}
             </Text>
           ))}

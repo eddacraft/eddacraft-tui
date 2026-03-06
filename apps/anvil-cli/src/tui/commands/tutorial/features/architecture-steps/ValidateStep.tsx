@@ -38,9 +38,9 @@ export function ValidateStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {VIOLATION_EXAMPLE_LINES.map((line, index) => (
+          {VIOLATION_EXAMPLE_LINES.map((line) => (
             <Text
-              key={index}
+              key={line}
               color={line.startsWith('ARCH-') ? theme.colours.molten : theme.colours.ash}
             >
               {line}

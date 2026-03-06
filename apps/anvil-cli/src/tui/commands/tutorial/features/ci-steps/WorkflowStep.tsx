@@ -48,11 +48,8 @@ export function WorkflowStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {GITHUB_ACTIONS_YAML.map((line, index) => (
-            <Text
-              key={index}
-              color={line.startsWith('#') ? theme.colours.smoke : theme.colours.ash}
-            >
+          {GITHUB_ACTIONS_YAML.map((line) => (
+            <Text key={line} color={line.startsWith('#') ? theme.colours.smoke : theme.colours.ash}>
               {line}
             </Text>
           ))}
@@ -69,8 +66,8 @@ export function WorkflowStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {GITLAB_CI_YAML.map((line, index) => (
-            <Text key={index} color={theme.colours.ash}>
+          {GITLAB_CI_YAML.map((line) => (
+            <Text key={line} color={theme.colours.ash}>
               {line}
             </Text>
           ))}

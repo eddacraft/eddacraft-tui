@@ -45,6 +45,7 @@ export function FixStep({
   useEffect(() => {
     if (fixConfirmed || !warning) return;
 
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const workspaceRoot = getWorkspaceRoot();
     const watcher = createTutorialWatcher(workspaceRoot, (event: WatchEvent) => {
       // Only respond to changes in the target file.
@@ -52,7 +53,7 @@ export function FixStep({
         setPhase('checking');
 
         // Brief delay to show the "Checking..." state, then mark as fixed.
-        setTimeout(() => {
+        timer = setTimeout(() => {
           setPhase('fixed');
           onCompleteRef.current();
         }, 500);
@@ -65,6 +66,7 @@ export function FixStep({
     void watcher.ready.catch(() => {});
 
     return () => {
+      if (timer) clearTimeout(timer);
       watcher.close();
     };
   }, [fixConfirmed, warning]);
