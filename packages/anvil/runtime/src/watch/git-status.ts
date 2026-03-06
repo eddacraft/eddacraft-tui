@@ -216,22 +216,28 @@ export class GitStatusChecker {
     const statusCode = line.substring(0, 2);
     let path = line.substring(3).trim() || defaultPath;
 
-    // Handle rename entries: "R  old.ts -> new.ts" — use the new path
-    if (path.includes(' -> ')) {
+    // Handle rename/copy entries: "R  old.ts -> new.ts" — use the new path
+    // Only split for rename (R) and copy (C) status codes to avoid
+    // mangling filenames that literally contain ' -> '
+    // Check both index (statusCode[0]) and worktree (statusCode[1]) columns
+    const indexStatus = statusCode[0];
+    const isRenameOrCopy =
+      indexStatus === 'R' || indexStatus === 'C' || statusCode[1] === 'R' || statusCode[1] === 'C';
+    if (isRenameOrCopy && path.includes(' -> ')) {
       path = path.split(' -> ').pop()!;
     }
 
     // Handle git-quoted paths: strip surrounding quotes and unescape
+    // Uses single-pass replacement to avoid \\n (backslash + n) being
+    // misinterpreted as a newline after \\\\ is decoded to \\
     if (path.startsWith('"') && path.endsWith('"')) {
-      path = path
-        .slice(1, -1)
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\')
-        .replace(/\\t/g, '\t')
-        .replace(/\\n/g, '\n');
+      path = path.slice(1, -1).replace(/\\(["\\nt])/g, (_match, ch: string) => {
+        if (ch === 'n') return '\n';
+        if (ch === 't') return '\t';
+        return ch; // handles \\ -> \ and \" -> "
+      });
     }
 
-    const indexStatus = statusCode[0];
     const workTreeStatus = statusCode[1];
 
     // Check if untracked
@@ -331,19 +337,25 @@ export async function getChangedFiles(
         const statusCode = line.substring(0, 2);
         let filePath = line.substring(3).trim();
 
-        // Handle rename entries and git-quoted paths
-        if (filePath.includes(' -> ')) {
+        const indexStatus = statusCode[0];
+
+        // Handle rename/copy entries only for R/C status codes (index or worktree)
+        const isRenameOrCopy =
+          indexStatus === 'R' ||
+          indexStatus === 'C' ||
+          statusCode[1] === 'R' ||
+          statusCode[1] === 'C';
+        if (isRenameOrCopy && filePath.includes(' -> ')) {
           filePath = filePath.split(' -> ').pop()!;
         }
+        // Handle git-quoted paths with single-pass unescape
         if (filePath.startsWith('"') && filePath.endsWith('"')) {
-          filePath = filePath
-            .slice(1, -1)
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\')
-            .replace(/\\t/g, '\t')
-            .replace(/\\n/g, '\n');
+          filePath = filePath.slice(1, -1).replace(/\\(["\\nt])/g, (_match, ch: string) => {
+            if (ch === 'n') return '\n';
+            if (ch === 't') return '\t';
+            return ch;
+          });
         }
-        const indexStatus = statusCode[0];
         const workTreeStatus = statusCode[1];
 
         const isFileStaged = indexStatus !== ' ' && indexStatus !== '?';
