@@ -14,7 +14,6 @@ import type { TutorialOption } from '../tui/commands/tutorial/components/Tutoria
 
 interface TutorialOptions {
   reset?: boolean;
-  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
   tui?: boolean;
 }
 

@@ -120,7 +120,7 @@ export function createEddaListCommand(): Command {
 
       try {
         const result = await store.queryMemories({
-          types: parsedType ? [parsedType] : undefined,
+          types: parsedTypes.length > 0 ? parsedTypes : undefined,
           statuses: [parsedStatus],
           include_superseded: parsedStatus === 'superseded',
           limit: options.limit,

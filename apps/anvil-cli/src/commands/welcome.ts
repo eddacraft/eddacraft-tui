@@ -33,7 +33,7 @@ export async function showWelcome(): Promise<void> {
 }
 
 async function showWelcomeTUI(): Promise<void> {
-  return new Promise<void>((resolve) => {
+  return new Promise<void>((resolve, reject) => {
     let selectedOption: QuickStartOption | null = null;
 
     const result = renderTUI(Welcome, {
@@ -47,15 +47,18 @@ async function showWelcomeTUI(): Promise<void> {
     });
 
     if (result) {
-      result.waitUntilExit().then(async () => {
-        markFirstRunComplete();
+      result
+        .waitUntilExit()
+        .then(async () => {
+          markFirstRunComplete();
 
-        if (selectedOption?.command) {
-          await runCommand(selectedOption.command);
-        }
+          if (selectedOption?.command) {
+            await runCommand(selectedOption.command);
+          }
 
-        resolve();
-      });
+          resolve();
+        })
+        .catch(reject);
     } else {
       showWelcomePlain();
       resolve();
@@ -93,16 +96,20 @@ function runCommand(command: string): Promise<void> {
       shell: process.platform === 'win32',
     });
 
-    child.on('close', (code) => {
-      if (code === 0 || code === null) {
+    child.on('close', (code, signal) => {
+      if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`Command "${command}" exited with code ${code}`));
+        const reason =
+          code === null
+            ? `terminated by signal ${signal ?? 'unknown'}`
+            : `exited with code ${code}`;
+        reject(new Error(`Command "${command}" ${reason}`));
       }
     });
 
     child.on('error', (err) => {
-      reject(new Error(`Failed to run "${command}": ${err.message}`));
+      reject(new Error(`Failed to run "${command}": ${err.message}`, { cause: err }));
     });
   });
 }
