@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
+import { debug } from './output.js';
 
 /**
  * Load environment variables from ~/.anvil/.env if it exists.
@@ -25,7 +26,8 @@ export function loadAnvilEnv(): void {
   try {
     content = readFileSync(envPath, 'utf-8');
   } catch {
-    return; // File doesn't exist, nothing to load
+    debug(`loadAnvilEnv: ${envPath} not found, skipping`);
+    return;
   }
 
   for (const line of content.split('\n')) {

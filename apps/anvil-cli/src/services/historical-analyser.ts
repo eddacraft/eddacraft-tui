@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { debug } from '../utils/output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -163,6 +164,7 @@ export class HistoricalAnalyser {
       });
       return true;
     } catch {
+      debug('isGitAvailable: git rev-parse failed, git not available');
       return false;
     }
   }
@@ -289,7 +291,7 @@ export class HistoricalAnalyser {
           estimatedViolations,
         });
       } catch {
-        // Skip commits that fail to analyse
+        debug('analyseCommits: failed to analyse commit, skipping');
         continue;
       }
     }

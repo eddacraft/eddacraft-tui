@@ -8,6 +8,7 @@ import { dirname } from 'node:path';
 import YAML from 'yaml';
 import { createDebugger, validatePathWithinRoot } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../utils/cli-error.js';
+import { debug } from '../utils/output.js';
 import {
   type ArchitectureTemplate,
   type ArchitectureDefinition,
@@ -112,6 +113,7 @@ function printTemplatePreview(template: ArchitectureTemplate): void {
       const ascii = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
       ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
     } catch {
+      debug('architecture: mermaid rendering failed, falling back to arrow notation');
       // Fall back to simple arrow notation
       console.log(`  ${chalk.cyan('Layers:')} ${info.layers.join(' → ')}`);
     }
@@ -327,6 +329,7 @@ async function showArchitectureDefinition(
       console.log('');
     }
   } catch {
+    debug('architecture: diagram rendering failed, skipping');
     // Diagram rendering failed — skip silently, details below are sufficient
   }
 

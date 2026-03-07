@@ -1,12 +1,14 @@
 import { execFileSync, spawn } from 'node:child_process';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
+import { debug } from '../utils/output.js';
 
 function ghAvailable(): boolean {
   try {
     execFileSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe', timeout: 120_000 });
     return true;
   } catch {
+    debug('ghAvailable: gh CLI not found');
     return false;
   }
 }
@@ -54,6 +56,7 @@ function findTriggeredRun(
 
     return null;
   } catch {
+    debug('findTriggeredRun: gh run list failed, returning null');
     return null;
   }
 }

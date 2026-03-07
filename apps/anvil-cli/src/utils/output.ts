@@ -1,6 +1,30 @@
 import chalk from 'chalk';
 import type { GateRunResult, GateRunResultWithCache } from '@eddacraft/anvil-runtime';
 
+let debugEnabled = false;
+
+export function enableDebug(): void {
+  debugEnabled = true;
+}
+
+function isAnvilDebug(): boolean {
+  const value = process.env['ANVIL_DEBUG'];
+  return value === '1' || value?.toLowerCase() === 'true';
+}
+
+export function isDebugEnabled(): boolean {
+  return debugEnabled || isAnvilDebug();
+}
+
+/**
+ * Debug message to stderr, visible only when enableDebug() was called or ANVIL_DEBUG=1.
+ * Intended for silent-fallback paths and catch blocks that return defaults.
+ */
+export function debug(message: string): void {
+  if (!isDebugEnabled()) return;
+  console.error(chalk.dim('[debug]'), chalk.dim(message));
+}
+
 export function success(message: string): void {
   console.error(chalk.green('✓'), message);
 }

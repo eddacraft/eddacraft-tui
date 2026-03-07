@@ -12,6 +12,7 @@ import type {
   ValidationResult,
 } from '../tui/commands/status/types.js';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { debug as outputDebug } from '../utils/output.js';
 
 const debug = createDebugger('validation');
 
@@ -108,6 +109,7 @@ function resolveGitDir(projectRoot: string): string | null {
     const gitDir = resolve(projectRoot, match[1]);
     return existsSync(gitDir) ? gitDir : null;
   } catch {
+    outputDebug('resolveGitDir: failed to resolve git dir from worktree, returning null');
     return null;
   }
 }
@@ -270,7 +272,7 @@ export function gatherRecentResults(projectRoot: string, limit = 5): RecentResul
             }
           }
         } catch {
-          // Cache file unreadable — leave fields undefined
+          outputDebug('getRecentGateRuns: cache file unreadable, skipping');
         }
 
         return {

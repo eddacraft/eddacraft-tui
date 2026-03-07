@@ -21,7 +21,7 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
-import { success, error, info, warning } from '../utils/output.js';
+import { success, error, info, warning, debug } from '../utils/output.js';
 import { coerceNonNegativeInt } from '../utils/option-coerce.js';
 import {
   PolicyLoader,
@@ -552,6 +552,7 @@ export function createPolicyCommand(): Command {
               }
             }
           } catch {
+            debug('policy: failed to read policy source for description');
             // Ignore read errors
           }
         }
@@ -632,7 +633,7 @@ export function createPolicyCommand(): Command {
         const { execFileSync } = await import('node:child_process');
 
         // Check git status of policy files
-        const policyDir = options.dir;
+        const _policyDir = options.dir;
         const configPath = join('.anvil', 'config.yml');
 
         console.log(chalk.bold('\nPolicy Changes:\n'));
@@ -666,56 +667,7 @@ export function createPolicyCommand(): Command {
             console.log('');
           }
         } catch {
-          // Not a git repo or no changes
-        }
-
-        // Check for policy file changes
-        try {
-          const policyDiff = execFileSync(
-            'git',
-            ['diff', '--name-status', 'HEAD', '--', policyDir],
-            { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
-          ).trim();
-
-          if (policyDiff) {
-            hasChanges = true;
-            console.log(chalk.bold('  Policy file changes:'));
-            for (const line of policyDiff.split('\n')) {
-              const [status, ...pathParts] = line.split('\t');
-              const filePath = pathParts.join('\t');
-              const statusLabel =
-                status === 'M'
-                  ? chalk.yellow('modified')
-                  : status === 'A'
-                    ? chalk.green('added')
-                    : status === 'D'
-                      ? chalk.red('deleted')
-                      : chalk.dim(status ?? '');
-              console.log(`    ${statusLabel} ${filePath}`);
-            }
-            console.log('');
-          }
-        } catch {
-          // Not a git repo or no changes
-        }
-
-        // Check for untracked policy files
-        try {
-          const untracked = execFileSync(
-            'git',
-            ['ls-files', '--others', '--exclude-standard', '--', policyDir, configPath],
-            { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
-          ).trim();
-
-          if (untracked) {
-            hasChanges = true;
-            console.log(chalk.bold('  New (untracked):'));
-            for (const file of untracked.split('\n')) {
-              console.log(`    ${chalk.green('new')} ${file}`);
-            }
-            console.log('');
-          }
-        } catch {
+          debug('policy: git ls-files failed');
           // Ignore
         }
 
@@ -1552,6 +1504,7 @@ function deriveBundleName(url: string): string {
 
     return name;
   } catch {
+    debug('policy: URL parsing failed for bundle name, using timestamp fallback');
     // If URL parsing fails, use a hash
     return `bundle-${Date.now().toString(36)}`;
   }

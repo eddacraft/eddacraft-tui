@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import ora from 'ora';
 import chalk from 'chalk';
+import { debug } from '../utils/output.js';
 import { INTERNAL_PACKAGES } from './release-types.js';
 
 function sleep(ms: number): Promise<void> {
@@ -16,6 +17,7 @@ function checkNpmVersion(pkg: string, version: string): boolean {
     });
     return output.trim() === version;
   } catch {
+    debug('checkNpmVersion: npm view failed, returning false');
     return false;
   }
 }
@@ -28,6 +30,7 @@ function checkNpmExists(pkg: string): string | null {
       timeout: 120_000,
     }).trim();
   } catch {
+    debug('checkNpmExists: npm view failed, returning null');
     return null;
   }
 }

@@ -1,5 +1,6 @@
 import { Command } from 'commander';
 import { CliError } from '../utils/cli-error.js';
+import { debug } from '../utils/output.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { coercePort } from '../utils/option-coerce.js';
 
@@ -120,15 +121,18 @@ export function createMcpConfigCommand(): Command {
             try {
               realCwd = realpathSync(workspaceRoot);
             } catch {
+              debug('mcp-config: realpathSync(workspaceRoot) failed, using raw path');
               realCwd = workspaceRoot;
             }
             let realFullPath: string;
             try {
               realFullPath = realpathSync(fullPath);
             } catch {
+              debug('mcp-config: realpathSync(fullPath) failed, trying parent dir');
               try {
                 realFullPath = resolve(realpathSync(dirname(fullPath)), basename(fullPath));
               } catch {
+                debug('mcp-config: realpathSync(dirname) also failed, using raw path');
                 realFullPath = fullPath;
               }
             }

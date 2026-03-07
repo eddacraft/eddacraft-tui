@@ -9,6 +9,7 @@ import {
   hasPackageDependency,
 } from '../utils/tool-detection.js';
 import { readJsonFileSync } from '../utils/file-io.js';
+import { debug } from '../utils/output.js';
 
 /**
  * Package.json shape (extends the generic record from tool-detection)
@@ -235,6 +236,7 @@ export class ProjectDetector {
         return 'loose';
       }
     } catch {
+      debug('detectTypeScriptStrictness: failed to parse tsconfig, returning none');
       return 'none';
     }
   }
@@ -256,6 +258,7 @@ export class ProjectDetector {
 
       return totalCount;
     } catch {
+      debug('estimateFileCount: failed to count files, returning 0');
       return 0;
     }
   }
@@ -288,6 +291,7 @@ export class ProjectDetector {
 
       return count;
     } catch {
+      debug('countFilesRecursive: failed to read directory, returning 0');
       return 0;
     }
   }
@@ -347,7 +351,7 @@ export class ProjectDetector {
         }
       }
     } catch {
-      // Ignore parsing errors
+      debug('detectWorkspacePatterns: failed to parse pnpm-workspace.yaml');
     }
 
     // Check for lerna.json

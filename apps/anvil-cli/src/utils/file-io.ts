@@ -3,6 +3,7 @@ import { join, resolve, extname } from 'node:path';
 import YAML from 'yaml';
 import { APSPlan, validateAPSPlan } from '@eddacraft/anvil-core';
 import { ensureDirSync } from 'fs-extra';
+import { debug } from './output.js';
 
 export async function loadPlan(path: string): Promise<APSPlan> {
   if (!existsSync(path)) {
@@ -86,6 +87,7 @@ export function readJsonFileSync<T = unknown>(filePath: string): T | null {
     }
     return JSON.parse(readFileSync(filePath, 'utf-8')) as T;
   } catch {
+    debug(`readJsonFileSync: failed to parse ${filePath}, returning null`);
     return null;
   }
 }
@@ -117,6 +119,9 @@ export function getWorkspaceRoot(): string {
 
   // No repo-root marker found; use first package.json if we saw one
   if (firstPackageJsonDir) {
+    debug(
+      `getWorkspaceRoot: no repo-root marker found, falling back to package.json at ${firstPackageJsonDir}`
+    );
     return firstPackageJsonDir;
   }
 

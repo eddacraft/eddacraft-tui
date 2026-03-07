@@ -25,7 +25,7 @@ import {
   type ArchitectureSummary,
 } from '../services/architecture-service.js';
 import { renderMermaidAscii } from 'beautiful-mermaid';
-import { success, error, info } from '../utils/output.js';
+import { success, error, info, debug } from '../utils/output.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { InitWizard, type WizardState, type WizardContext } from '../tui/commands/init/index.js';
@@ -132,6 +132,7 @@ export function createInitCommand(): Command {
               const ascii = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
               ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
             } catch {
+              debug('init: mermaid rendering failed, falling back to box diagram');
               // Fall back to box diagram if mermaid rendering fails
               formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
                 console.log(chalk.dim(line))
@@ -772,12 +773,14 @@ async function runDetectAndApplyInit(
           timeout: 30_000,
         }).trim();
       } catch {
+        debug('init: git rev-parse --git-path hooks failed, using default');
         // Fall back to .git/hooks if git command fails
       }
       hookInstaller.installHook(projectRoot, 'pre-commit', hooksDir);
       hookInstaller.installHook(projectRoot, 'pre-push', hooksDir);
       hooksInstalled = true;
     } catch {
+      debug('init: hook installation failed (non-fatal)');
       // Non-fatal: hooks are nice-to-have
     }
   }
