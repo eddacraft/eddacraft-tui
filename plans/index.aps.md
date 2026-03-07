@@ -131,7 +131,8 @@ release must deliver both the core value AND a friction-free first experience.
 | Security CI Pipeline       | Automated security scanning on every PR                  | Complete    | —        |
 | Tutorial Path Continuation | Continue with another tutorial from completion screen     | Complete    | —        |
 | Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Complete    | 57/57    |
-| Code Review Backlog        | 29 architectural recommendations from code review        | In Progress | 13/29    |
+| Code Review Backlog        | 29 architectural recommendations from code review        | In Progress | 24/29    |
+| Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 1/8      |
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
@@ -177,12 +178,13 @@ modules.
 
 ### 0.4.0 — Edda Stack (Memory System)
 
-| Feature                | Description                                    | Status |
-| ---------------------- | ---------------------------------------------- | ------ |
-| Kindling Integration   | Observation layer — session and gate hooks      | In Progress |
-| Ember                  | Interpretive layer — candidate memory proposals | Draft  |
-| Edda                   | Canonical memory — git-backed, provenance-tracked | Draft |
-| Edda Stack Integration | Shared schemas, event bus, layer ports          | Draft  |
+| Feature                | Description                                    | Status      |
+| ---------------------- | ---------------------------------------------- | ----------- |
+| Kindling Integration   | Observation layer — session and gate hooks      | Complete    |
+| Ember                  | Interpretive layer — candidate memory proposals | Complete    |
+| Edda                   | Canonical memory — git-backed, provenance-tracked | Complete  |
+| Edda Stack Integration | Shared schemas, event bus, layer ports          | In Progress |
+| Edda-Ember Review      | Non-critical improvements from consolidated review | In Progress |
 
 ### Future — Rust Kernel (KERN, In Progress)
 
@@ -420,7 +422,8 @@ Task-level detail for all completed work is archived in
 | [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 6/29 | — |
+| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 24/29 | — |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 1/8 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
 
@@ -452,12 +455,13 @@ waves; 39 tasks total.
 
 ### Planned — 0.4.0 (Edda Stack — Memory System)
 
-| Module | Scope | Status | Dependencies |
-| ------ | ----- | ------ | ------------ |
-| [kindling-integration](./modules/kindling-integration.aps.md) | KINDLING | Complete | save-time-trust, drift-reporting |
-| [ember](./modules/ember.aps.md) | EMBER | Draft | kindling-integration |
-| [edda](./modules/edda.aps.md) | EDDA | Draft | ember |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | In Progress | kindling-integration, ember, edda |
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [kindling-integration](./archive/modules/kindling-integration.aps.md) | KINDLING | Complete | 19/19 | save-time-trust, drift-reporting |
+| [ember](./modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
+| [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | In Progress | 16/19 | kindling-integration, ember, edda |
+| [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | In Progress | 0/16 | ember, edda |
 
 ### Future (Post-1.0.0)
 
@@ -808,70 +812,70 @@ Ember (interpretation), and Edda (canonical memory).
 
 #### Kindling Integration (Observation Layer)
 
-| Task         | Module   | Description                         | Status | Priority |
-| ------------ | -------- | ----------------------------------- | ------ | -------- |
-| KINDLING-001 | kindling | Kindling service wrapper            | Draft  | high     |
-| KINDLING-002 | kindling | Configuration schema and loading    | Draft  | high     |
-| KINDLING-003 | kindling | Session observation hooks           | Draft  | high     |
-| KINDLING-004 | kindling | Gate evaluation observations        | Draft  | high     |
-| KINDLING-005 | kindling | Action execution observations       | Draft  | medium   |
-| KINDLING-006 | kindling | Plan lifecycle observations         | Draft  | medium   |
-| KINDLING-007 | kindling | Human input and constraint obs      | Draft  | medium   |
-| KINDLING-008 | kindling | Error observations                  | Draft  | high     |
-| KINDLING-009 | kindling | Query service with scope enforcement| Draft  | high     |
-| KINDLING-010 | kindling | Query limits and throttling         | Draft  | high     |
-| KINDLING-011 | kindling | Malicious AI test suite             | Draft  | high     |
-| KINDLING-012 | kindling | Session query command (run show)    | Draft  | high     |
-| KINDLING-013 | kindling | Plan, gate, action query commands   | Draft  | high     |
-| KINDLING-014 | kindling | Status integration                  | Draft  | medium   |
-| KINDLING-015 | kindling | Sensitive data validation           | Draft  | high     |
-| KINDLING-016 | kindling | Retention and pruning               | Draft  | medium   |
-| KINDLING-017 | kindling | Performance benchmarking            | Draft  | medium   |
-| KINDLING-018 | kindling | Documentation and examples          | Draft  | medium   |
-| KINDLING-019 | kindling | OpenAPI spec generation             | Draft  | medium   |
+| Task         | Module   | Description                         | Status   | Priority |
+| ------------ | -------- | ----------------------------------- | -------- | -------- |
+| KINDLING-001 | kindling | Kindling service wrapper            | Complete | high     |
+| KINDLING-002 | kindling | Configuration schema and loading    | Complete | high     |
+| KINDLING-003 | kindling | Session observation hooks           | Complete | high     |
+| KINDLING-004 | kindling | Gate evaluation observations        | Complete | high     |
+| KINDLING-005 | kindling | Action execution observations       | Complete | medium   |
+| KINDLING-006 | kindling | Plan lifecycle observations         | Complete | medium   |
+| KINDLING-007 | kindling | Human input and constraint obs      | Complete | medium   |
+| KINDLING-008 | kindling | Error observations                  | Complete | high     |
+| KINDLING-009 | kindling | Query service with scope enforcement| Complete | high     |
+| KINDLING-010 | kindling | Query limits and throttling         | Complete | high     |
+| KINDLING-011 | kindling | Malicious AI test suite             | Complete | high     |
+| KINDLING-012 | kindling | Session query command (run show)    | Complete | high     |
+| KINDLING-013 | kindling | Plan, gate, action query commands   | Complete | high     |
+| KINDLING-014 | kindling | Status integration                  | Complete | medium   |
+| KINDLING-015 | kindling | Sensitive data validation           | Complete | high     |
+| KINDLING-016 | kindling | Retention and pruning               | Complete | medium   |
+| KINDLING-017 | kindling | Performance benchmarking            | Complete | medium   |
+| KINDLING-018 | kindling | Documentation and examples          | Complete | medium   |
+| KINDLING-019 | kindling | OpenAPI spec generation             | Complete | medium   |
 
 #### Ember (Interpretive Layer — Candidate Memory)
 
-| Task      | Module | Description                       | Status | Priority |
-| --------- | ------ | --------------------------------- | ------ | -------- |
-| EMBER-001 | ember  | Candidate Memory Proposal schema  | Complete  | high     |
-| EMBER-002 | ember  | Proposal type definitions         | Draft  | high     |
-| EMBER-003 | ember  | Ember configuration schema        | Draft  | high     |
-| EMBER-004 | ember  | ProposalStore implementation      | Draft  | high     |
-| EMBER-005 | ember  | DecayService implementation       | Draft  | high     |
-| EMBER-006 | ember  | AggregatorService foundation      | Draft  | medium   |
-| EMBER-007 | ember  | Evaluation rules engine           | Draft  | medium   |
-| EMBER-008 | ember  | Built-in evaluation rules         | Draft  | medium   |
-| EMBER-009 | ember  | CandidateService (high-level API) | Draft  | high     |
-| EMBER-010 | ember  | Kindling observation hooks        | Draft  | medium   |
-| EMBER-011 | ember  | CLI ember commands                | Draft  | high     |
-| EMBER-012 | ember  | Query API implementation          | Draft  | high     |
-| EMBER-013 | ember  | Status integration                | Draft  | medium   |
-| EMBER-014 | ember  | Documentation and examples        | Draft  | medium   |
+| Task      | Module | Description                       | Status   | Priority |
+| --------- | ------ | --------------------------------- | -------- | -------- |
+| EMBER-001 | ember  | Candidate Memory Proposal schema  | Complete | high     |
+| EMBER-002 | ember  | Proposal type definitions         | Complete | high     |
+| EMBER-003 | ember  | Ember configuration schema        | Complete | high     |
+| EMBER-004 | ember  | ProposalStore implementation      | Complete | high     |
+| EMBER-005 | ember  | DecayService implementation       | Complete | high     |
+| EMBER-006 | ember  | AggregatorService foundation      | Complete | medium   |
+| EMBER-007 | ember  | Evaluation rules engine           | Complete | medium   |
+| EMBER-008 | ember  | Built-in evaluation rules         | Complete | medium   |
+| EMBER-009 | ember  | CandidateService (high-level API) | Complete | high     |
+| EMBER-010 | ember  | Kindling observation hooks        | Complete | medium   |
+| EMBER-011 | ember  | CLI ember commands                | Complete | high     |
+| EMBER-012 | ember  | Query API implementation          | Complete | high     |
+| EMBER-013 | ember  | Status integration                | Complete | medium   |
+| EMBER-014 | ember  | Documentation and examples        | Complete | medium   |
 
 #### Edda (Canonical Memory Layer)
 
-| Task      | Module | Description                       | Status | Priority |
-| --------- | ------ | --------------------------------- | ------ | -------- |
-| EDDA-001  | edda   | Memory Object schema              | Complete  | high     |
-| EDDA-002  | edda   | Memory type definitions           | Draft  | high     |
-| EDDA-003  | edda   | Provenance schema                 | Draft  | high     |
-| EDDA-004  | edda   | Evolution graph schema            | Draft  | high     |
-| EDDA-005  | edda   | Edda configuration schema         | Draft  | high     |
-| EDDA-006  | edda   | Git-backed MemoryStore            | Draft  | high     |
-| EDDA-007  | edda   | YAML serialisation                | Draft  | high     |
-| EDDA-008  | edda   | Version tracking                  | Draft  | medium   |
-| EDDA-009  | edda   | PromotionService                  | Draft  | high     |
-| EDDA-010  | edda   | ProvenanceService                 | Draft  | medium   |
-| EDDA-011  | edda   | EvolutionService                  | Draft  | high     |
-| EDDA-012  | edda   | MemoryService (high-level API)    | Draft  | high     |
-| EDDA-013  | edda   | CLI list and show commands        | Draft  | high     |
-| EDDA-014  | edda   | CLI promote command               | Draft  | high     |
-| EDDA-015  | edda   | CLI retire and trace commands     | Draft  | high     |
-| EDDA-016  | edda   | Human-in-the-loop enforcement     | Draft  | high     |
-| EDDA-017  | edda   | Status integration                | Draft  | medium   |
-| EDDA-018  | edda   | Schema migration tooling          | Draft  | medium   |
-| EDDA-019  | edda   | Documentation                     | Draft  | medium   |
+| Task      | Module | Description                       | Status   | Priority |
+| --------- | ------ | --------------------------------- | -------- | -------- |
+| EDDA-001  | edda   | Memory Object schema              | Complete | high     |
+| EDDA-002  | edda   | Memory type definitions           | Complete | high     |
+| EDDA-003  | edda   | Provenance schema                 | Complete | high     |
+| EDDA-004  | edda   | Evolution graph schema            | Complete | high     |
+| EDDA-005  | edda   | Edda configuration schema         | Complete | high     |
+| EDDA-006  | edda   | Git-backed MemoryStore            | Complete | high     |
+| EDDA-007  | edda   | YAML serialisation                | Complete | high     |
+| EDDA-008  | edda   | Version tracking                  | Complete | medium   |
+| EDDA-009  | edda   | PromotionService                  | Complete | high     |
+| EDDA-010  | edda   | ProvenanceService                 | Complete | medium   |
+| EDDA-011  | edda   | EvolutionService                  | Complete | high     |
+| EDDA-012  | edda   | MemoryService (high-level API)    | Complete | high     |
+| EDDA-013  | edda   | CLI list and show commands        | Complete | high     |
+| EDDA-014  | edda   | CLI promote command               | Complete | high     |
+| EDDA-015  | edda   | CLI retire and trace commands     | Complete | high     |
+| EDDA-016  | edda   | Human-in-the-loop enforcement     | Complete | high     |
+| EDDA-017  | edda   | Status integration                | Complete | medium   |
+| EDDA-018  | edda   | Schema migration tooling          | Complete | medium   |
+| EDDA-019  | edda   | Documentation                     | Complete | medium   |
 
 #### Edda Stack Integration
 
@@ -891,8 +895,36 @@ Ember (interpretation), and Edda (canonical memory).
 | STACK-012 | stack  | Stack configuration schema        | Complete | high     |
 | STACK-013 | stack  | CLI stack status command          | Complete | high     |
 | STACK-014 | stack  | CLI stack validate command        | Complete | high     |
-| STACK-015 | stack  | Stack architecture documentation  | Complete | medium   |
-| STACK-016 | stack  | Migration guide                   | Complete | medium   |
+| STACK-015 | stack  | Stack architecture documentation  | Complete    | medium   |
+| STACK-016 | stack  | Migration guide                   | Complete    | medium   |
+| STACK-017 | stack  | Path drift cleanup in APS plans   | In Progress | medium   |
+| STACK-018 | stack  | Retroactive evidence capture      | Draft       | medium   |
+| STACK-019 | stack  | Missing deliverable audit         | Draft       | medium   |
+
+#### Edda-Ember Review Backlog
+
+Non-critical improvements from the 2026-03-05 consolidated code review of the
+Edda + Ember feature branches. All 10 critical issues resolved; these track
+remaining major and minor improvements.
+
+| Task     | Module | Description                                        | Status | Priority |
+| -------- | ------ | -------------------------------------------------- | ------ | -------- |
+| EERB-001 | eerb   | Race condition in processSession candidate limit   | Draft  | Low      |
+| EERB-002 | eerb   | EscalationRule assumes array order equals temporal  | Draft  | Medium   |
+| EERB-003 | eerb   | Prune threshold duplicated with different values   | Draft  | Medium   |
+| EERB-004 | eerb   | Fallback synthesises fake UUIDs for provenance     | Draft  | Medium   |
+| EERB-005 | eerb   | Duplicated queryProposals call in ember list       | Draft  | Low      |
+| EERB-006 | eerb   | Dismissed count missing from anvil status Ember    | Draft  | Low      |
+| EERB-007 | eerb   | colourStatus/colourConfidence duplicated in ember  | Draft  | Low      |
+| EERB-008 | eerb   | Hardcoded method: 'cli_command' in attribution     | Draft  | Low      |
+| EERB-009 | eerb   | Double search filtering is redundant               | Draft  | Medium   |
+| EERB-010 | eerb   | Hardcoded limit: 100 silently truncates methods    | Draft  | Low      |
+| EERB-011 | eerb   | groupByKind uses O(n²) array spread in loop        | Draft  | Low      |
+| EERB-012 | eerb   | getExpiringsSoon double-s typo                     | Draft  | Low      |
+| EERB-013 | eerb   | SurpriseRule references unknown observation kinds   | Draft  | Low      |
+| EERB-014 | eerb   | validateEvolutionGraph uses .parse() not .safeParse | Draft | Low      |
+| EERB-015 | eerb   | serialisation.ts has manual MemoryIndexEntry type  | Draft  | Low      |
+| EERB-016 | eerb   | migrateV0ToV1 status preservation path untested    | Draft  | Low      |
 
 ### Task Status — 0.3.0 (Organisational Policy Governance)
 
@@ -1017,33 +1049,53 @@ Ember (interpretation), and Edda (canonical memory).
 Architectural recommendations from the 2026-02-16 code review. Non-urgent
 improvements tracked for future work.
 
-| Task    | Module | Description                                         | Status | Priority |
-| ------- | ------ | --------------------------------------------------- | ------ | -------- |
-| CRB-001 | crb    | Standardise stderr/stdout policy across CLI         | Draft  | Medium   |
-| CRB-002 | crb    | Consolidate hook scripts to single source           | Draft  | Medium   |
-| CRB-003 | crb    | Add Zod validation to runtime YAML parsers          | Draft  | Medium   |
-| CRB-004 | crb    | OPA binary manager safer PATH + shared logger       | Draft  | Low      |
-| CRB-005 | crb    | Dependency audit — surface errors deterministically | Draft  | Medium   |
-| CRB-006 | crb    | Monorepo-wide vitest config strategy                | Draft  | Low      |
-| CRB-007 | crb    | Move process.exit from library code to CLI layer    | Draft  | High     |
-| CRB-008 | crb    | Consistent workspace root containment for output    | Draft  | High     |
-| CRB-009 | crb    | OPA checksum table contains placeholder hashes      | Draft  | High     |
-| CRB-010 | crb    | APS task locking is not atomic (race condition)     | Draft  | Medium   |
-| CRB-011 | crb    | APS loader maxDepth parameter ignored               | Draft  | Low      |
-| CRB-012 | crb    | Config loader placeholder vs Complete status drift  | Draft  | Low      |
-| CRB-013 | crb    | MCP server tests not in vitest include globs        | Draft  | Medium   |
-| CRB-014 | crb    | Add tests for git command composition safety        | Draft  | Medium   |
-| CRB-015 | crb    | Add symlink escape tests to file-storage            | Draft  | Medium   |
-| CRB-016 | crb    | Add Windows separator tests to MCP path guards      | Draft  | Low      |
-| CRB-017 | crb    | Add tests for platform/core config loaders          | Draft  | Low      |
-| CRB-018 | crb    | Standardise works-from-repo-root workflow           | Draft  | Medium   |
-| CRB-019 | crb    | Consistent logging/output conventions               | Draft  | Medium   |
-| CRB-020 | crb    | Option parsing/validation inconsistency             | Draft  | Low      |
-| CRB-021 | crb    | Duplicated implementations and naming drift         | Draft  | Low      |
-| CRB-022 | crb    | Large command modules need decomposition            | Draft  | Low      |
-| CRB-023 | crb    | Silent fallbacks without visibility                 | Draft  | Medium   |
-| CRB-024 | crb    | Subprocess calls without timeouts in CI             | Draft  | Medium   |
-| CRB-025 | crb    | Docs and scripts drifting from reality              | Draft  | Low      |
+| Task    | Module | Description                                         | Status   | Priority |
+| ------- | ------ | --------------------------------------------------- | -------- | -------- |
+| CRB-001 | crb    | Standardise stderr/stdout policy across CLI         | Complete | Medium   |
+| CRB-002 | crb    | Consolidate hook scripts to single source           | Complete | Medium   |
+| CRB-003 | crb    | Add Zod validation to runtime YAML parsers          | Complete | Medium   |
+| CRB-004 | crb    | OPA binary manager safer PATH + shared logger       | Complete | Low      |
+| CRB-005 | crb    | Dependency audit — surface errors deterministically | Complete | Medium   |
+| CRB-006 | crb    | Monorepo-wide vitest config strategy                | Complete | Low      |
+| CRB-007 | crb    | Move process.exit from library code to CLI layer    | Complete | High     |
+| CRB-008 | crb    | Consistent workspace root containment for output    | Complete | High     |
+| CRB-009 | crb    | OPA checksum table contains placeholder hashes      | Complete | High     |
+| CRB-010 | crb    | APS task locking is not atomic (race condition)     | Complete | Medium   |
+| CRB-011 | crb    | APS loader maxDepth parameter ignored               | Complete | Low      |
+| CRB-012 | crb    | Config loader placeholder vs Complete status drift  | Complete | Low      |
+| CRB-013 | crb    | MCP server tests not in vitest include globs        | Complete | Medium   |
+| CRB-014 | crb    | Add tests for git command composition safety        | Complete | Medium   |
+| CRB-015 | crb    | Add symlink escape tests to file-storage            | Complete | Medium   |
+| CRB-016 | crb    | Add Windows separator tests to MCP path guards      | Complete | Low      |
+| CRB-017 | crb    | Add tests for platform/core config loaders          | Draft    | Low      |
+| CRB-018 | crb    | Standardise works-from-repo-root workflow           | Draft    | Medium   |
+| CRB-019 | crb    | Consistent logging/output conventions               | Draft    | Medium   |
+| CRB-020 | crb    | Option parsing/validation inconsistency             | Complete | Low      |
+| CRB-021 | crb    | Duplicated implementations and naming drift         | Complete | Low      |
+| CRB-022 | crb    | Large command modules need decomposition            | Draft    | Low      |
+| CRB-023 | crb    | Silent fallbacks without visibility                 | Draft    | Medium   |
+| CRB-024 | crb    | Subprocess calls without timeouts in CI             | Complete | Medium   |
+| CRB-025 | crb    | Docs and scripts drifting from reality              | Draft    | Low      |
+| CRB-026 | crb    | Fix spinner leak on TUI fallback path in audit      | Complete | Medium   |
+| CRB-027 | crb    | Add workspace path containment to policy validate   | Complete | High     |
+| CRB-028 | crb    | Annotate mcp-config symlink guard as fixed          | Complete | Low      |
+| CRB-029 | crb    | Expand test coverage for untested CLI commands      | Complete | Medium   |
+
+### Task Status — 0.1.x (Codebase Maintenance)
+
+Ongoing pattern extraction and shared utility consolidation. Discovery-driven —
+new tasks are added as repeated patterns are found during other work.
+
+| Task      | Module | Description                                         | Status | Priority |
+| --------- | ------ | --------------------------------------------------- | ------ | -------- |
+| MAINT-001 | maint  | CLI option coercion utility (from CRB-020 discovery) | Complete | High     |
+| MAINT-002 | maint  | Error formatting consistency                        | Draft  | Medium   |
+| MAINT-003 | maint  | Workspace root resolution patterns                  | Draft  | Low      |
+| MAINT-004 | maint  | Git operation wrappers                              | Draft  | Medium   |
+| MAINT-005 | maint  | JSON output formatting                              | Draft  | Low      |
+| MAINT-006 | maint  | Nx generator for CLI commands                       | Draft  | Low      |
+| MAINT-007 | maint  | Nx generator for gate checks                        | Draft  | Low      |
+| MAINT-008 | maint  | Spinner/progress patterns                           | Draft  | Low      |
 
 ### Task Status — 0.1.x (Nx Task Migration)
 
