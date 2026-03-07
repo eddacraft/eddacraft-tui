@@ -7,14 +7,20 @@ Deployable applications and their E2E test suites.
 ```
 apps/
 ├── anvil-cli/      # @eddacraft/anvil-cli - CLI application
-├── anvil-api/      # (future) REST/GraphQL API gateway
+├── anvil-api/      # REST/GraphQL API gateway (Hono + Vercel)
 ├── anvil-ui/       # (future) Web UI for plans, runs, and audits
-├── website/        # (future) Marketing website
-├── docs-site/      # (future) Public documentation (Docusaurus)
+├── website/        # Next.js marketing website (Vercel)
+├── docs-site/      # Docusaurus documentation hub (Vercel)
 └── e2e/            # E2E test suites
-    ├── cli-e2e/
-    ├── api-e2e/
-    └── ui-e2e/
+    └── src/
+        ├── adapters/
+        ├── api/
+        ├── cli/
+        ├── contracts/
+        ├── core/
+        ├── helpers/
+        ├── mcp/
+        └── smoke/
 ```
 
 ## Applications
@@ -38,7 +44,7 @@ anvil gate
 | App       | Status   | Source                 |
 | --------- | -------- | ---------------------- |
 | anvil-cli | Complete | cli/ -> apps/anvil-cli |
-| anvil-api | Future   | New                    |
+| anvil-api | Active   | apps/anvil-api         |
 | anvil-ui  | Future   | New                    |
-| website   | Future   | New                    |
-| docs-site | Future   | New                    |
+| website   | Active   | apps/website           |
+| docs-site | Active   | apps/docs-site         |

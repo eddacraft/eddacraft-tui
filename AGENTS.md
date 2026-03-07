@@ -45,7 +45,7 @@ with a marketing website and documentation site deployed on Vercel.
 | `docs/ARCHITECTURE.md`        | System design and package dependency graph                 |
 | `docs/TESTING.md`             | Testing strategy and best practices                        |
 | `docs/MONOREPO_STRUCTURE.md`  | Package layout and dependency rules                        |
-| `plans/decisions/`            | Architecture Decision Records (ADRs D-001 through D-010)   |
+| `plans/decisions/`            | Architecture Decision Records (ADRs D-000 through D-011)   |
 | `packages/adapters/AGENTS.md` | Adapter framework guide (FormatAdapter, registry)          |
 | `packages/aps/AGENTS.md`      | APS document parser and validator                          |
 | `apps/anvil-cli/AGENTS.md`    | CLI commands, services, TUI components                     |
@@ -115,6 +115,7 @@ anvil/
 │   │   └── crypto/         # Hashing, signing, verification
 │   ├── edda-stack/         # Memory stack (Kindling · Ember · Edda)
 │   ├── kindling-integration/ # Kindling memory contracts
+│   ├── mcp-server/          # MCP tools, resources, prompts
 │   ├── eslint-plugin-anvil/  # ESLint test quality rules
 │   ├── vscode-extension/   # VS Code integration
 │   └── tooling/
@@ -122,6 +123,7 @@ anvil/
 │       └── eslint-config/  # Shared ESLint configs
 ├── tools/
 │   ├── scripts/            # Build & utility scripts
+│   ├── codemods/           # Code transformation utilities
 │   └── generators/         # Nx code generators
 ├── plans/                  # .aps.md specs, execution/*.steps.md, decisions/
 └── docs/                   # Architecture, guides
@@ -170,15 +172,15 @@ pushing to avoid failed CI runs.
 
 ## Where to Look
 
-| Task               | Location                                       | Notes                                                  |
-| ------------------ | ---------------------------------------------- | ------------------------------------------------------ |
-| APS schema changes | `packages/anvil/core/src/schema/aps.schema.ts` | Run generate:schema + update-golden-hashes after       |
-| Add gate check     | `packages/anvil/runtime/src/gate/checks/`      | Extend BaseCheck, register in gate-runner.ts           |
-| Add CLI command    | `apps/anvil-cli/src/commands/`                 | Use create{Name}Command() factory pattern              |
-| Add format adapter | `packages/adapters/src/`                       | Implement FormatAdapter, register with AdapterRegistry |
-| TUI components     | `apps/anvil-cli/src/tui/components/`           | Ink/React components with useInput hooks               |
-| Validation rules   | `packages/aps/src/validator/`                  | AST-based with remark-parse                            |
-| **Planning/specs** | `plans/aps-rules.md`                           | **READ FIRST** before creating/editing .aps.md files   |
+| Task               | Location                                                  | Notes                                                  |
+| ------------------ | --------------------------------------------------------- | ------------------------------------------------------ |
+| APS schema changes | `packages/anvil/core/src/contracts/schemas/aps.schema.ts` | Run generate:schema + update-golden-hashes after       |
+| Add gate check     | `packages/anvil/runtime/src/gate/checks/`                 | Extend BaseCheck, register in gate-runner.ts           |
+| Add CLI command    | `apps/anvil-cli/src/commands/`                            | Use create{Name}Command() factory pattern              |
+| Add format adapter | `packages/adapters/src/`                                  | Implement FormatAdapter, register with AdapterRegistry |
+| TUI components     | `apps/anvil-cli/src/tui/components/`                      | Ink/React components with useInput hooks               |
+| Validation rules   | `packages/aps/src/validator/`                             | AST-based with remark-parse                            |
+| **Planning/specs** | `plans/aps-rules.md`                                      | **READ FIRST** before creating/editing .aps.md files   |
 
 ## Conventions (Deviations from Standard)
 
@@ -322,7 +324,7 @@ class MyCheck extends BaseCheck {
 
 ## Environment
 
-- **Node.js**: >=20.0.0
+- **Node.js**: >=20.19.0
 - **pnpm**: >=10.20.0
 - **Prettier**: Single quotes, trailing commas (es5), 100 char (80 for md)
 - **Line endings**: LF (Unix-style)

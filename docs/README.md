@@ -5,11 +5,11 @@ developers.
 
 ## Documentation Locations
 
-| Location               | Purpose                              |
-| ---------------------- | ------------------------------------ |
-| `docs/` (here)         | Internal engineering reference       |
-| `plans/`               | **Source of truth** for all planning |
-| `apps/docs-site/docs/` | Public-facing documentation          |
+| Location       | Purpose                              |
+| -------------- | ------------------------------------ |
+| `docs/` (here) | Internal engineering reference       |
+| `plans/`       | **Source of truth** for all planning |
+| `docs/public/` | Public-facing documentation          |
 
 ## Structure
 
@@ -19,8 +19,15 @@ docs/
 ├── MONOREPO_STRUCTURE.md   # Repository layout
 ├── TESTING.md              # Test strategy and practices
 ├── architecture/           # Architecture deep-dives
+├── assessments/            # Migration and technology assessments
 ├── guides/                 # Internal development guides + runbooks
+├── planning/               # Planning analyses
+├── plans/                  # Dated planning documents
+├── public/                 # Public-facing documentation (anvil, aps, edda-stack, kindling)
+├── research/               # Research notes
 ├── specifications/         # Technical specifications
+├── specs/                  # Detailed specifications (edda)
+├── vision/                 # Vision documents
 └── archive/                # Historical documents (read-only reference)
 ```
 
@@ -55,12 +62,14 @@ plans/
 
 ## For Public Documentation
 
-User-facing documentation is in `apps/docs-site/docs/`:
+User-facing documentation is in `docs/public/`:
 
-- Quickstart guides
-- User guides
-- Troubleshooting
-- API references
+- `docs/public/anvil/` — Anvil quickstart, guides, operations, tutorials
+- `docs/public/aps/` — APS specification, schemas, examples
+- `docs/public/edda-stack/` — Edda stack components and design
+- `docs/public/kindling/` — Kindling adapters, concepts, quickstart
+- `docs/public/beta/` — Beta quickstart
+- `docs/public/start-here/` — Onboarding and glossary
 
 ## Archive
 

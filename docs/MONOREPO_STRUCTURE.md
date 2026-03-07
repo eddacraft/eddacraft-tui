@@ -20,8 +20,8 @@ anvil/
 │   ├── edda-stack/
 │   ├── eslint-plugin-anvil/
 │   ├── kindling-integration/
+│   ├── mcp-server/
 │   ├── platform/
-│   ├── shared/
 │   ├── tooling/
 │   └── vscode-extension/
 ├── tools/               # Generators and scripts
@@ -50,16 +50,11 @@ anvil/
 │   │   ├── policy/         # OPA/Rego wrappers
 │   │   └── sdk/            # Client SDK
 │   │
-│   ├── edda-stack/         # Memory/proposal system
-│   │   ├── contracts/
-│   │   ├── ports/
-│   │   ├── ember/
-│   │   ├── edda/
-│   │   └── testing/
+│   ├── edda-stack/         # Memory/proposal system (single package)
 │   │
 │   ├── adapters/           # Per-integration adapters
+│   ├── mcp-server/         # MCP tools, resources, prompts
 │   ├── platform/           # Cross-cutting infrastructure
-│   ├── shared/             # Shared utilities
 │   └── tooling/            # Build configurations
 │
 ├── tools/                  # Nx generators and scripts

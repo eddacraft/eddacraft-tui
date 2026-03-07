@@ -7,23 +7,42 @@
 ## Structure
 
 ```
-cli/src/
-├── commands/           # CLI commands (17 files)
-│   ├── validate.ts     # Plan validation
-│   ├── gate.ts         # Quality gate execution
-│   ├── export.ts       # Format conversion
-│   ├── init.ts         # Project initialisation
-│   ├── doctor.ts       # Diagnostic checks
+src/
+├── commands/           # CLI commands (24+ files)
+│   ├── architecture.ts # Architecture analysis
+│   ├── audit.ts        # Audit trail
+│   ├── authorship.ts   # AI authorship tracking
+│   ├── beta.ts         # Beta authentication
 │   ├── check.ts        # Anti-pattern checking
-│   ├── watch.ts        # File watching
+│   ├── doctor.ts       # Diagnostic checks
+│   ├── drift.ts        # Drift detection
+│   ├── explain.ts      # Rule explanation
+│   ├── export.ts       # Format conversion
+│   ├── gate.ts         # Quality gate execution
+│   ├── gate-config.ts  # Gate configuration
+│   ├── hooks.ts        # Git hooks management
+│   ├── init.ts         # Project initialisation
+│   ├── login.ts        # Authentication
+│   ├── logout.ts       # Sign out
+│   ├── mcp-config.ts   # MCP server configuration
+│   ├── new.ts          # Project scaffolding
+│   ├── plan.ts         # Plan subcommands
 │   ├── policy.ts       # OPA policy management
-│   └── plan/           # Plan subcommands (load, lock, status)
-├── services/           # Business logic (10 files)
+│   ├── release.ts      # Release management
+│   ├── stack.ts        # Edda stack management
+│   ├── status.ts       # Workspace status
+│   ├── tutorial.ts     # Interactive tutorial
+│   ├── validate.ts     # Plan validation
+│   ├── watch.ts        # File watching
+│   ├── welcome.ts      # Welcome screen
+│   ├── whoami.ts       # Current user info
+│   └── plan/           # Plan subcommands (load, lock, status, unlock, validate)
+├── services/           # Business logic (33 files)
 │   ├── format-detection.ts  # Adapter-based detection
 │   ├── plan-loader.ts       # Multi-format loading
 │   └── environment.ts       # Runtime detection
 ├── tui/                # Terminal UI (Ink/React)
-│   ├── components/     # Reusable components (10 files)
+│   ├── components/     # Reusable components (13 files)
 │   └── commands/       # Full-screen TUI views
 ├── types/              # TypeScript definitions
 └── index.ts            # Entry point with shebang

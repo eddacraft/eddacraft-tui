@@ -9,8 +9,8 @@ monorepo.
 tools/
 ├── generators/   # @eddacraft/anvil-generators - Nx generators for scaffolding
 ├── codemods/     # @eddacraft/anvil-codemods - Code transformation utilities
-├── scripts/      # Build and utility scripts (migrate from scripts/)
-└── docker/       # Docker configurations and compose files
+├── scripts/      # Build and utility scripts
+└── test-utils/   # Shared test utilities and helpers
 ```
 
 ## @eddacraft/anvil-generators
@@ -75,5 +75,5 @@ Logs are written to `plans/agent-runs/`.
 | ---------- | -------- | --------------- |
 | generators | Complete | New (MONO-001)  |
 | codemods   | Complete | New (MONO-002)  |
-| scripts    | Pending  | Root `scripts/` |
-| docker     | Pending  | New             |
+| scripts    | Complete | Root `scripts/` |
+| test-utils | Complete | New             |
