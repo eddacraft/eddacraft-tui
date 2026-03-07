@@ -9,9 +9,9 @@ Scopes: PORT (main)
 
 # Ink-to-Ratatui Port
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| PORT | —     | Proposed |
+| ID   | Owner | Status      |
+| ---- | ----- | ----------- |
+| PORT | —     | In Progress |
 
 ## Purpose
 
