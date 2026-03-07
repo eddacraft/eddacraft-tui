@@ -10,15 +10,10 @@ const getAllTemplatesMock = vi.fn();
 const getTemplateMock = vi.fn();
 const renderTemplateMock = vi.fn();
 
-vi.mock('node:fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs')>();
-  return {
-    ...actual,
-    default: actual,
-    writeFileSync: vi.fn(),
-    existsSync: vi.fn(),
-  };
-});
+vi.mock('node:fs', () => ({
+  writeFileSync: vi.fn(),
+  existsSync: vi.fn(),
+}));
 
 vi.mock('@eddacraft/anvil-core', () => ({
   validatePathWithinRoot: validatePathWithinRootMock,
