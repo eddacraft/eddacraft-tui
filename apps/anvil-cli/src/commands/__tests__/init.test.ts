@@ -803,9 +803,9 @@ describe('init command', () => {
 
     describe('--quick analysis failure', () => {
       it('should warn and continue when quick analysis throws', async () => {
-        const SampleAnalyzerModule = await import('../../services/sample-analyzer.js');
+        const SampleAnalyserModule = await import('../../services/sample-analyser.js');
         vi.spyOn(
-          SampleAnalyzerModule.SampleAnalyzer.prototype,
+          SampleAnalyserModule.SampleAnalyser.prototype,
           'selectFiles'
         ).mockRejectedValueOnce(new Error('Cannot read directory'));
 

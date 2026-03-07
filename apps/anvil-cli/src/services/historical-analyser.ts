@@ -87,7 +87,7 @@ export interface HistoricalAnalysisConfig {
 /**
  * Service for analyzing git history to demonstrate preventive value
  */
-export class HistoricalAnalyzer {
+export class HistoricalAnalyser {
   private readonly defaultConfig: HistoricalAnalysisConfig = {
     daysBack: 30,
     maxCommits: 100,
@@ -157,7 +157,10 @@ export class HistoricalAnalyzer {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
+      await execFileAsync('git', ['rev-parse', '--git-dir'], {
+        cwd: this.projectRoot,
+        timeout: 30_000,
+      });
       return true;
     } catch {
       return false;
@@ -187,6 +190,7 @@ export class HistoricalAnalyzer {
       {
         cwd: this.projectRoot,
         maxBuffer: 10 * 1024 * 1024,
+        timeout: 30_000,
       }
     );
 
@@ -269,6 +273,7 @@ export class HistoricalAnalyzer {
           {
             cwd: this.projectRoot,
             maxBuffer: 5 * 1024 * 1024,
+            timeout: 30_000,
           }
         );
 

@@ -15,7 +15,7 @@ import type { EntryPoint, Layers } from '@eddacraft/anvil-core';
 
 // Mock core module
 vi.mock('@eddacraft/anvil-core', () => ({
-  createArchitectureAnalyzer: vi.fn(() => ({
+  createArchitectureAnalyser: vi.fn(() => ({
     analyse: vi.fn(async () => ({
       entryPoints: [],
       layers: {},

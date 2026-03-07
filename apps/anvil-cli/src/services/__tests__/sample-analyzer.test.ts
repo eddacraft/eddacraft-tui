@@ -1,5 +1,5 @@
 /**
- * Unit Tests for SampleAnalyzer
+ * Unit Tests for SampleAnalyser
  *
  * Tests file selection for initial analysis including:
  * - Git-based recent file selection
@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { SampleAnalyzer } from '../sample-analyzer.js';
+import { SampleAnalyser } from '../sample-analyser.js';
 import {
   createTestWorkspace,
   type TestWorkspace,
@@ -25,13 +25,13 @@ const execFileAsync = promisify(execFile);
 const toFwd = (p: string): string => p.replace(/\\/g, '/');
 
 // Git operations in temp dirs are slower on Windows CI runners.
-describe('SampleAnalyzer', { timeout: 30_000 }, () => {
+describe('SampleAnalyser', { timeout: 30_000 }, () => {
   let workspace: TestWorkspace;
-  let analyzer: SampleAnalyzer;
+  let analyser: SampleAnalyser;
 
   beforeEach(() => {
     workspace = createTestWorkspace();
-    analyzer = new SampleAnalyzer(workspace.root);
+    analyser = new SampleAnalyser(workspace.root);
   });
 
   afterEach(() => {
@@ -44,7 +44,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'export const app = 1;', 'utf-8');
       writeFileSync(join(workspace.root, 'src', 'utils.ts'), 'export const utils = 1;', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
       const files = selection.files.map(toFwd);
 
       expect(files.length).toBe(2);
@@ -60,7 +60,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'content', 'utf-8');
       writeFileSync(join(workspace.root, 'lib', 'utils.ts'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
 
       expect(selection.files.length).toBeGreaterThanOrEqual(2);
       expect(selection.strategy).toBe('filesystem');
@@ -72,7 +72,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.test.ts'), 'content', 'utf-8');
       writeFileSync(join(workspace.root, 'src', 'app.spec.ts'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
       const files = selection.files.map(toFwd);
 
       expect(files).toContain('src/app.ts');
@@ -87,7 +87,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'content', 'utf-8');
       writeFileSync(join(workspace.root, 'node_modules', 'pkg', 'index.ts'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
       const files = selection.files.map(toFwd);
 
       expect(files).toContain('src/app.ts');
@@ -103,7 +103,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'dist', 'app.js'), 'content', 'utf-8');
       writeFileSync(join(workspace.root, 'build', 'app.js'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
       const files = selection.files.map(toFwd);
 
       expect(files).toContain('src/app.ts');
@@ -119,7 +119,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
         writeFileSync(join(workspace.root, 'src', `file${i}.ts`), 'content', 'utf-8');
       }
 
-      const selection = await analyzer.selectFiles({ maxFiles: 20 });
+      const selection = await analyser.selectFiles({ maxFiles: 20 });
 
       expect(selection.files.length).toBe(20);
       expect(selection.totalFound).toBe(100);
@@ -129,7 +129,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       mkdirSync(join(workspace.root, 'src'), { recursive: true });
       writeFileSync(join(workspace.root, 'src', 'Component.tsx'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
       const files = selection.files.map(toFwd);
 
       expect(files).toContain('src/Component.tsx');
@@ -140,7 +140,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.js'), 'content', 'utf-8');
       writeFileSync(join(workspace.root, 'src', 'Component.jsx'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
       const files = selection.files.map(toFwd);
 
       expect(files).toContain('src/app.js');
@@ -157,7 +157,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
       await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: workspace.root });
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
 
       expect(selection.gitAvailable).toBe(true);
       if (selection.files.length > 0) {
@@ -172,7 +172,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       initGitRepo(workspace.root);
       // Don't commit anything - git will be available but have no history
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
 
       expect(selection.gitAvailable).toBe(true);
       expect(selection.strategy).toBe('filesystem');
@@ -183,7 +183,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       mkdirSync(join(workspace.root, 'src'), { recursive: true });
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
 
       expect(selection.gitAvailable).toBe(false);
       expect(selection.strategy).toBe('filesystem');
@@ -198,7 +198,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
         writeFileSync(join(workspace.root, 'src', `file${i}.ts`), 'content', 'utf-8');
       }
 
-      const selection = await analyzer.selectFiles({ maxFiles: 10 });
+      const selection = await analyser.selectFiles({ maxFiles: 10 });
 
       expect(selection.files.length).toBe(10);
     });
@@ -208,7 +208,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'content', 'utf-8');
       writeFileSync(join(workspace.root, 'src', 'data.json'), '{}', 'utf-8');
 
-      const selection = await analyzer.selectFiles({
+      const selection = await analyser.selectFiles({
         includePatterns: ['.ts', '.json'],
       });
       const files = selection.files.map(toFwd);
@@ -222,7 +222,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       writeFileSync(join(workspace.root, 'src', 'app.ts'), 'content', 'utf-8');
       writeFileSync(join(workspace.root, 'src', 'generated.ts'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles({
+      const selection = await analyser.selectFiles({
         excludePatterns: ['generated'],
       });
       const files = selection.files.map(toFwd);
@@ -240,7 +240,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
         writeFileSync(join(workspace.root, 'src', `file${i}.ts`), 'content', 'utf-8');
       }
 
-      const stats = await analyzer.getSelectionStats({ maxFiles: 10 });
+      const stats = await analyser.getSelectionStats({ maxFiles: 10 });
 
       expect(stats.totalSourceFiles).toBe(30);
       expect(stats.selectedFiles).toBe(10);
@@ -254,7 +254,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       await execFileAsync('git', ['add', '.'], { cwd: workspace.root });
       await execFileAsync('git', ['commit', '-m', 'initial'], { cwd: workspace.root });
 
-      const stats = await analyzer.getSelectionStats();
+      const stats = await analyser.getSelectionStats();
 
       expect(stats.totalSourceFiles).toBeGreaterThan(0);
     });
@@ -272,7 +272,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
         writeFileSync(join(workspace.root, 'src', fileName), 'content', 'utf-8');
       }
 
-      const selection = await analyzer.selectFiles({ maxFiles: 10 });
+      const selection = await analyser.selectFiles({ maxFiles: 10 });
       const files = selection.files.map(toFwd);
 
       // Should get files from different parts of the list
@@ -294,7 +294,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
         'utf-8'
       );
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
       const files = selection.files.map(toFwd);
 
       expect(files).toContain('src/components/ui/Button.tsx');
@@ -312,7 +312,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
 
       writeFileSync(join(currentPath, 'deep.ts'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
 
       // Should not find the deeply nested file (depth limit is 10)
       expect(selection.files).not.toContain(expect.stringContaining('level14'));
@@ -321,7 +321,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
 
   describe('empty project', () => {
     it('should handle project with no source files', async () => {
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
 
       expect(selection.files.length).toBe(0);
       expect(selection.totalFound).toBe(0);
@@ -332,7 +332,7 @@ describe('SampleAnalyzer', { timeout: 30_000 }, () => {
       mkdirSync(join(workspace.root, 'src'), { recursive: true });
       writeFileSync(join(workspace.root, 'src', 'app.test.ts'), 'content', 'utf-8');
 
-      const selection = await analyzer.selectFiles();
+      const selection = await analyser.selectFiles();
 
       expect(selection.files.length).toBe(0);
     });

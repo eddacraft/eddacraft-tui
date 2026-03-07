@@ -69,13 +69,13 @@ export {
   createBaselineManager,
 } from './baseline.js';
 
-// Architecture analyzer
+// Architecture analyser
 export {
   type AnalysisResult,
-  type AnalyzerOptions,
+  type AnalyserOptions,
   type InferBaselineOptions,
-  ArchitectureAnalyzer,
-  createArchitectureAnalyzer,
+  ArchitectureAnalyser,
+  createArchitectureAnalyser,
   analyseArchitecture,
   inferBaseline,
 } from './analyzer.js';

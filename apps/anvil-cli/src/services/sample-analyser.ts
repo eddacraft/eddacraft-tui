@@ -41,7 +41,7 @@ export interface SampleSelection {
 /**
  * Service for selecting representative files for initial analysis
  */
-export class SampleAnalyzer {
+export class SampleAnalyser {
   private readonly defaultConfig: SampleAnalysisConfig = {
     maxFiles: 50,
     daysBack: 30,
@@ -107,7 +107,10 @@ export class SampleAnalyzer {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
+      await execFileAsync('git', ['rev-parse', '--git-dir'], {
+        cwd: this.projectRoot,
+        timeout: 30_000,
+      });
       return true;
     } catch {
       return false;
@@ -127,6 +130,7 @@ export class SampleAnalyzer {
         {
           cwd: this.projectRoot,
           maxBuffer: 10 * 1024 * 1024,
+          timeout: 30_000,
         }
       );
 

@@ -1,5 +1,5 @@
 /**
- * Dependency Analyzer - Wrapper for dependency-cruiser
+ * Dependency Analyser - Wrapper for dependency-cruiser
  *
  * Handles loading and executing dependency-cruiser for architectural analysis.
  */
@@ -63,9 +63,9 @@ export interface AnalysisResult {
 }
 
 /**
- * Dependency analyzer that wraps dependency-cruiser
+ * Dependency analyser that wraps dependency-cruiser
  */
-export class DependencyAnalyzer {
+export class DependencyAnalyser {
   private cruiseFn: CruiseFn | null = null;
 
   /**

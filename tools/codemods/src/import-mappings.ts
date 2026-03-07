@@ -147,7 +147,7 @@ export const CORE_SYMBOLS = [
   'analyzeArchitecture',
   'detectLayers',
   'validateBoundaries',
-  'ArchitectureAnalyzer',
+  'ArchitectureAnalyser',
 
   // Drift
   'detectDrift',

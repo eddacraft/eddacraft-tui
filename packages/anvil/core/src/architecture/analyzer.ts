@@ -1,5 +1,5 @@
 /**
- * Architecture analyzer
+ * Architecture analyser
  *
  * Main entry point for architecture analysis. Combines layer detection,
  * entry point detection, and dependency analysis.
@@ -51,9 +51,9 @@ export interface AnalysisResult {
 }
 
 /**
- * Analyzer options
+ * Analyser options
  */
-export interface AnalyzerOptions {
+export interface AnalyserOptions {
   /** Custom layers (overrides detection) */
   layers?: Layers;
   /** Include test files in analysis */
@@ -89,16 +89,16 @@ const DEFAULT_INCLUDE_PATTERNS = [
 ];
 
 /**
- * Architecture analyzer
+ * Architecture analyser
  */
-export class ArchitectureAnalyzer {
+export class ArchitectureAnalyser {
   private workspaceRoot: string;
   private layerDetector: LayerDetector;
   private entryPointDetector: EntryPointDetector;
   private baselineManager: BaselineManager;
-  private options: Required<AnalyzerOptions>;
+  private options: Required<AnalyserOptions>;
 
-  constructor(workspaceRoot: string, options: AnalyzerOptions = {}) {
+  constructor(workspaceRoot: string, options: AnalyserOptions = {}) {
     this.workspaceRoot = workspaceRoot;
     this.options = {
       layers: options.layers ?? createDefaultLayers(),
@@ -337,13 +337,13 @@ export class ArchitectureAnalyzer {
 }
 
 /**
- * Create an architecture analyzer
+ * Create an architecture analyser
  */
-export function createArchitectureAnalyzer(
+export function createArchitectureAnalyser(
   workspaceRoot: string,
-  options?: AnalyzerOptions
-): ArchitectureAnalyzer {
-  return new ArchitectureAnalyzer(workspaceRoot, options);
+  options?: AnalyserOptions
+): ArchitectureAnalyser {
+  return new ArchitectureAnalyser(workspaceRoot, options);
 }
 
 /**
@@ -352,9 +352,9 @@ export function createArchitectureAnalyzer(
 export async function analyseArchitecture(
   workspaceRoot: string,
   filePaths: string[],
-  options?: AnalyzerOptions & { createBaseline?: boolean }
+  options?: AnalyserOptions & { createBaseline?: boolean }
 ): Promise<AnalysisResult & { baseline?: ArchitectureBaseline }> {
-  const analyzer = createArchitectureAnalyzer(workspaceRoot, options);
+  const analyzer = createArchitectureAnalyser(workspaceRoot, options);
   const result = await analyzer.analyse(filePaths);
 
   if (options?.createBaseline) {
@@ -368,7 +368,7 @@ export async function analyseArchitecture(
 /**
  * Options for baseline inference
  */
-export interface InferBaselineOptions extends AnalyzerOptions {
+export interface InferBaselineOptions extends AnalyserOptions {
   /** Save baseline to .anvil/architecture.json (default: true) */
   save?: boolean;
 }
@@ -383,7 +383,7 @@ export async function inferBaseline(
   workspaceRoot: string,
   options?: InferBaselineOptions
 ): Promise<{ result: AnalysisResult; baseline: ArchitectureBaseline }> {
-  const analyzer = createArchitectureAnalyzer(workspaceRoot, options);
+  const analyzer = createArchitectureAnalyser(workspaceRoot, options);
   const filePaths = collectSourceFiles(workspaceRoot, options);
   const result = await analyzer.analyse(filePaths);
   const baseline = analyzer.createBaseline(result);
@@ -398,7 +398,7 @@ export async function inferBaseline(
 /**
  * Collect source files from workspace
  */
-function collectSourceFiles(workspaceRoot: string, options?: AnalyzerOptions): string[] {
+function collectSourceFiles(workspaceRoot: string, options?: AnalyserOptions): string[] {
   const includePatterns = options?.includePatterns ?? DEFAULT_INCLUDE_PATTERNS;
   const excludePatterns = options?.excludePatterns ?? DEFAULT_EXCLUDE_PATTERNS;
   const files: string[] = [];
