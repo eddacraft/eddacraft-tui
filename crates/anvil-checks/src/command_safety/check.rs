@@ -46,22 +46,25 @@ fn extract_commands_from_plan(context: &CommandSafetyCheckContext) -> Vec<Comman
             continue;
         };
 
-        if let Some(captures) = code_block_pattern.captures(description)
-            && let Some(body) = captures.get(1)
-        {
-            for line in body.as_str().lines() {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                    commands.push(CommandSource {
-                        command: trimmed.to_string(),
-                        source: change
-                            .path
-                            .clone()
-                            .or_else(|| Some("script_execute".to_string())),
-                    });
+        let mut matched_any_block = false;
+        for captures in code_block_pattern.captures_iter(description) {
+            if let Some(body) = captures.get(1) {
+                matched_any_block = true;
+                for line in body.as_str().lines() {
+                    let trimmed = line.trim();
+                    if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                        commands.push(CommandSource {
+                            command: trimmed.to_string(),
+                            source: change
+                                .path
+                                .clone()
+                                .or_else(|| Some("script_execute".to_string())),
+                        });
+                    }
                 }
             }
-        } else if !description.contains('\n') {
+        }
+        if !matched_any_block && !description.contains('\n') {
             commands.push(CommandSource {
                 command: description.clone(),
                 source: change
@@ -97,6 +100,7 @@ fn load_rules(config: &CommandSafetyConfig) -> Vec<CommandRule> {
                 match override_rule.action {
                     Some(CommandRuleOverrideAction::Disable) => {
                         let _ = rules.remove(rule_index);
+                        continue;
                     }
                     Some(CommandRuleOverrideAction::Block) => {
                         rules[rule_index].action = CommandAction::Block;

@@ -417,11 +417,14 @@ fn split_at_separator(rest: &[String]) -> (Vec<String>, Vec<String>) {
         None => (rest, &[][..]),
     };
 
-    let raw_flags = before_separator
+    let mut raw_flags = before_separator
         .iter()
         .filter(|token| token.starts_with('-'))
         .cloned()
         .collect::<Vec<_>>();
+    if separator_index.is_some() {
+        raw_flags.push("--".to_string());
+    }
     let flags = expand_combined_flags(&raw_flags);
 
     let mut args = before_separator
@@ -681,7 +684,7 @@ mod tests {
     #[test]
     fn honours_double_dash_separator() {
         let parsed = parse_command("git checkout -- --not-a-flag");
-        assert!(parsed.flags.is_empty());
+        assert_eq!(parsed.flags, vec!["--"]);
         assert_eq!(parsed.args, vec!["--not-a-flag"]);
     }
 
