@@ -50,9 +50,9 @@ pub fn calculate_specificity(rule: &CommandRule) -> u8 {
 #[must_use]
 fn normalise_flag(flag: &str) -> String {
     if flag.starts_with("--") {
-        return flag.to_string();
+        return flag.to_lowercase();
     }
-    flag.to_lowercase()
+    flag.to_string()
 }
 
 #[must_use]
@@ -159,8 +159,10 @@ fn match_args(
     };
 
     let mut all_args = parsed.args.clone();
-    if let Some(subcommand) = &parsed.subcommand {
-        all_args.insert(0, subcommand.clone());
+    if rule.subcommand.is_none() {
+        if let Some(subcommand) = &parsed.subcommand {
+            all_args.insert(0, subcommand.clone());
+        }
     }
 
     if let Some(position) = args_config.position {

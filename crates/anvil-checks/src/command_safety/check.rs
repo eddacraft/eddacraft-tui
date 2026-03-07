@@ -34,7 +34,7 @@ fn extract_commands_from_plan(context: &CommandSafetyCheckContext) -> Vec<Comman
         return commands;
     };
 
-    let Ok(code_block_pattern) = Regex::new(r"(?s)```(?:bash|sh|shell)?\n(.*?)```") else {
+    let Ok(code_block_pattern) = Regex::new(r"(?s)```(?:bash|sh|shell)?\r?\n(.*?)```") else {
         return commands;
     };
 
@@ -50,17 +50,43 @@ fn extract_commands_from_plan(context: &CommandSafetyCheckContext) -> Vec<Comman
         for captures in code_block_pattern.captures_iter(description) {
             if let Some(body) = captures.get(1) {
                 matched_any_block = true;
+                let mut continued = String::new();
                 for line in body.as_str().lines() {
                     let trimmed = line.trim();
-                    if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                    if trimmed.is_empty() || trimmed.starts_with('#') {
+                        if !continued.is_empty() {
+                            commands.push(CommandSource {
+                                command: std::mem::take(&mut continued),
+                                source: change
+                                    .path
+                                    .clone()
+                                    .or_else(|| Some("script_execute".to_string())),
+                            });
+                        }
+                        continue;
+                    }
+                    if trimmed.ends_with('\\') {
+                        continued.push_str(trimmed.trim_end_matches('\\'));
+                        continued.push(' ');
+                    } else {
+                        continued.push_str(trimmed);
                         commands.push(CommandSource {
-                            command: trimmed.to_string(),
+                            command: std::mem::take(&mut continued),
                             source: change
                                 .path
                                 .clone()
                                 .or_else(|| Some("script_execute".to_string())),
                         });
                     }
+                }
+                if !continued.is_empty() {
+                    commands.push(CommandSource {
+                        command: continued,
+                        source: change
+                            .path
+                            .clone()
+                            .or_else(|| Some("script_execute".to_string())),
+                    });
                 }
             }
         }

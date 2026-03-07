@@ -165,7 +165,6 @@ impl PatternMatcher {
             r"^[a-z]+:\/\/",
             r"\.(js|ts|css|html|json|md|txt)$",
             r"^[A-Z][A-Z0-9_]+$",
-            r"\s+",
             r"^[a-z][a-z0-9]*[A-Z]",
             r"^[A-Z][a-z]+[A-Z]",
         ];

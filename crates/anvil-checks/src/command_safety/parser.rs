@@ -239,10 +239,15 @@ fn tokenise_with_operators(cmd: &str) -> TokenisedWithOperators {
 
 #[must_use]
 fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
-    tokens
-        .iter()
-        .position(|token| token == "-c")
-        .and_then(|index| tokens.get(index + 1).cloned())
+    for (index, token) in tokens.iter().enumerate() {
+        if token == "-c" {
+            return tokens.get(index + 1).cloned();
+        }
+        if token.starts_with('-') && !token.starts_with("--") && token.ends_with('c') {
+            return tokens.get(index + 1).cloned();
+        }
+    }
+    None
 }
 
 #[must_use]
@@ -261,35 +266,50 @@ fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
 }
 
 #[must_use]
-fn extract_interpreter_command(tokens: &[String], interpreter: Option<&str>) -> Option<String> {
-    let script = tokens
+fn extract_interpreter_commands(tokens: &[String], interpreter: Option<&str>) -> Vec<String> {
+    let script = match tokens
         .iter()
         .position(|token| token == "-c" || token == "-e")
-        .and_then(|index| tokens.get(index + 1))?;
+        .and_then(|index| tokens.get(index + 1))
+    {
+        Some(s) => s,
+        None => return Vec::new(),
+    };
 
-    let mut patterns = vec![
-        Regex::new(r#"os\.system\s*\(\s*['\"](.*?)['\"]\s*\)"#).ok()?,
-        Regex::new(r#"subprocess\.(?:run|call|Popen)\s*\(\s*['\"](.*?)['\"]"#).ok()?,
-        Regex::new(r#"exec\s*\(\s*['\"](.*?)['\"]\s*\)"#).ok()?,
-        Regex::new(r#"execSync\s*\(\s*['\"](.*?)['\"]\s*\)"#).ok()?,
-        Regex::new(r"`([^`]+)`").ok()?,
-        Regex::new(r#"system\s*\(\s*['\"](.*?)['\"]\s*\)"#).ok()?,
-        Regex::new(r#"\beval\b\s*\(\s*['\"](.*?)['\"]\s*\)"#).ok()?,
+    let pattern_strs = [
+        r#"os\.system\s*\(\s*['\"](.*?)['\"]\s*\)"#,
+        r#"subprocess\.(?:run|call|Popen)\s*\(\s*['\"](.*?)['\"]"#,
+        r#"exec\s*\(\s*['\"](.*?)['\"]\s*\)"#,
+        r#"execSync\s*\(\s*['\"](.*?)['\"]\s*\)"#,
+        r"`([^`]+)`",
+        r#"system\s*\(\s*['\"](.*?)['\"]\s*\)"#,
+        r#"\beval\b\s*\(\s*['\"](.*?)['\"]\s*\)"#,
     ];
 
-    if interpreter.is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&cmd)) {
-        patterns.push(Regex::new(r"\$\(\s*(.*?)\s*\)").ok()?);
-    }
+    let mut patterns: Vec<Regex> = pattern_strs
+        .iter()
+        .filter_map(|p| Regex::new(p).ok())
+        .collect();
 
-    for pattern in patterns {
-        if let Some(captures) = pattern.captures(script)
-            && let Some(inner) = captures.get(1)
-        {
-            return Some(inner.as_str().to_string());
+    if interpreter.is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&cmd)) {
+        if let Ok(re) = Regex::new(r"\$\(\s*(.*?)\s*\)") {
+            patterns.push(re);
         }
     }
 
-    None
+    let mut results = Vec::new();
+    for pattern in &patterns {
+        for captures in pattern.captures_iter(script) {
+            if let Some(inner) = captures.get(1) {
+                let cmd = inner.as_str().to_string();
+                if !results.contains(&cmd) {
+                    results.push(cmd);
+                }
+            }
+        }
+    }
+
+    results
 }
 
 #[must_use]
@@ -372,16 +392,18 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         };
     }
 
-    if is_interpreter(first_token)
-        && let Some(inner_cmd) = extract_interpreter_command(&tokens, Some(first_token))
-    {
-        let inner = unwrap_command(&inner_cmd, depth + 1);
-        let mut wrappers = vec![first_token.clone()];
-        wrappers.extend(inner.wrappers);
-        return UnwrapResult {
-            unwrapped: inner.unwrapped,
-            wrappers,
-        };
+    if is_interpreter(first_token) {
+        let inner_cmds = extract_interpreter_commands(&tokens, Some(first_token));
+        if !inner_cmds.is_empty() {
+            let joined = inner_cmds.join(" && ");
+            let inner = unwrap_command(&joined, depth + 1);
+            let mut wrappers = vec![first_token.clone()];
+            wrappers.extend(inner.wrappers);
+            return UnwrapResult {
+                unwrapped: inner.unwrapped,
+                wrappers,
+            };
+        }
     }
 
     UnwrapResult {
@@ -448,17 +470,47 @@ fn is_likely_subcommand(arg: &str) -> bool {
     !arg.contains('=')
 }
 
+/// Global options that consume the next positional token as a value,
+/// preventing it from being treated as a subcommand.
+const GIT_GLOBAL_OPTIONS_WITH_VALUE: &[&str] = &["-C", "-c", "--git-dir", "--work-tree"];
+const DOCKER_GLOBAL_OPTIONS_WITH_VALUE: &[&str] = &["-H", "--host", "--config", "--context"];
+
 #[must_use]
-fn extract_subcommand(command: &str, args: &[String]) -> Option<String> {
+fn global_options_for(command: &str) -> &'static [&'static str] {
+    match command {
+        "git" => GIT_GLOBAL_OPTIONS_WITH_VALUE,
+        "docker" => DOCKER_GLOBAL_OPTIONS_WITH_VALUE,
+        _ => &[],
+    }
+}
+
+#[must_use]
+fn extract_subcommand(command: &str, rest: &[String]) -> Option<String> {
     const COMMANDS_WITH_SUBCOMMANDS: &[&str] = &[
         "git", "npm", "yarn", "pnpm", "docker", "kubectl", "cargo", "go",
     ];
 
-    if COMMANDS_WITH_SUBCOMMANDS.contains(&command) {
-        for arg in args {
-            if is_likely_subcommand(arg) {
-                return Some(arg.clone());
-            }
+    if !COMMANDS_WITH_SUBCOMMANDS.contains(&command) {
+        return None;
+    }
+
+    let global_opts = global_options_for(command);
+    let mut skip_next = false;
+
+    for token in rest {
+        if skip_next {
+            skip_next = false;
+            continue;
+        }
+        if global_opts.contains(&token.as_str()) {
+            skip_next = true;
+            continue;
+        }
+        if token.starts_with('-') {
+            continue;
+        }
+        if is_likely_subcommand(token) {
+            return Some(token.clone());
         }
     }
 
@@ -482,7 +534,7 @@ fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> P
     let command = tokens[0].clone();
     let rest = tokens[1..].to_vec();
     let (flags, args) = split_at_separator(&rest);
-    let subcommand = extract_subcommand(&command, &args);
+    let subcommand = extract_subcommand(&command, &rest);
 
     let remaining_args = if let Some(sub) = &subcommand {
         args.into_iter()
@@ -525,8 +577,7 @@ pub fn parse_command(cmd: &str) -> ParsedCommand {
 
 #[must_use]
 pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
-    let unwrap = unwrap_command(cmd, 0);
-    let tokenised = tokenise_with_operators(&unwrap.unwrapped);
+    let tokenised = tokenise_with_operators(cmd);
 
     if !tokenised.is_compound || tokenised.sub_commands.len() <= 1 {
         return CompoundCommandResult {
@@ -542,7 +593,9 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
     for sub_command in tokenised.sub_commands {
         if !sub_command.tokens.is_empty() {
             let raw_sub = sub_command.tokens.join(" ");
-            let parsed = parse_from_tokens(&sub_command.tokens, &raw_sub, &unwrap.wrappers);
+            let unwrap = unwrap_command(&raw_sub, 0);
+            let inner_tokens = tokenise(&unwrap.unwrapped);
+            let parsed = parse_from_tokens(&inner_tokens, &raw_sub, &unwrap.wrappers);
             commands.push(parsed);
         }
         if let Some(operator) = sub_command.operator {
