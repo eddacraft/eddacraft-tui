@@ -713,8 +713,7 @@ function createVisualiseSubcommand(): Command {
           print(chalk.bold.cyan('  Architecture Dependency Graph'));
           print(chalk.dim(`  Template: ${definition.template}`));
           blank();
-          output.split('\n').forEach((line) => print('  ' + line));
-          blank();
+          data(output);
         }
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
