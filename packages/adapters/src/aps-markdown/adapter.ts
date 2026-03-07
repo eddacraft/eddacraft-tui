@@ -287,7 +287,7 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
    */
   private analyzeContent(content: string): APSMarkdownIndicators {
     // Check for H1 title
-    const hasH1Title = /^#\s+[^\n]+$/m.test(content);
+    const hasH1Title = /^#[ \t]+[^\n]+$/m.test(content);
 
     // Check for **Scope:** or **ID:** field (ID is the current spec, Scope is legacy)
     const hasScopeField =

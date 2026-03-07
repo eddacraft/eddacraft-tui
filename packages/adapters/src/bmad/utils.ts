@@ -179,7 +179,7 @@ export function extractRequirements(content: string): BMADRequirement[] {
     const trimmed = line.trim();
 
     // Match FR-01, NFR-01, US-01 patterns (optionally prefixed by list markers)
-    const reqMatch = trimmed.match(/^(?:[-*+]\s+)?(FR|NFR|US)-(\d{2}):[ \t]*(.+)$/);
+    const reqMatch = trimmed.match(/^(?:[-*+][ \t]+)?(FR|NFR|US)-(\d{2}):[ \t]*(.+)$/);
     if (reqMatch) {
       const [, typeStr, numStr, description] = reqMatch;
       requirements.push({
@@ -209,7 +209,7 @@ export function extractUserStories(content: string): BMADUserStory[] {
     const line = lines[i];
 
     // Match US-01: Title format
-    const storyMatch = line.trim().match(/^(?:[-*+]\s+)?(US-\d{2}):[ \t]*(.+)$/);
+    const storyMatch = line.trim().match(/^(?:[-*+][ \t]+)?(US-\d{2}):[ \t]*(.+)$/);
     if (!storyMatch) continue;
 
     const [, id, title] = storyMatch;
@@ -224,17 +224,17 @@ export function extractUserStories(content: string): BMADUserStory[] {
     while (j < lines.length && j < i + 10) {
       const storyLine = lines[j].trim();
 
-      const asMatch = storyLine.match(/^As an?\s+(.+?)(?:,[^\S\n]*)?$/i);
+      const asMatch = storyLine.match(/^As an?[ \t]+(.+?)(?:,[ \t]*)?$/i);
       if (asMatch) {
         story.userType = asMatch[1];
       }
 
-      const wantMatch = storyLine.match(/^I want\s+(.+?)(?:,[^\S\n]*)?$/i);
+      const wantMatch = storyLine.match(/^I want[ \t]+(.+?)(?:,[ \t]*)?$/i);
       if (wantMatch) {
         story.action = wantMatch[1];
       }
 
-      const soThatMatch = storyLine.match(/^so that\s+(.+?)(?:\.[^\S\n]*)?$/i);
+      const soThatMatch = storyLine.match(/^so that[ \t]+(.+?)(?:\.[ \t]*)?$/i);
       if (soThatMatch) {
         story.benefit = soThatMatch[1];
       }

@@ -16,13 +16,23 @@
 import type { ImportEdge } from './edge-detector.js';
 import { resolveImportPath } from './edge-detector.js';
 
-// HTML attribute extraction helper — uses indexOf to avoid regex backtracking
+// HTML attribute extraction helper — uses indexOf with word-boundary check
+// to avoid regex backtracking and substring false-matches (e.g. data-src vs src)
 function extractAttr(tag: string, attr: string): string | null {
-  const idx = tag.indexOf(attr);
-  if (idx === -1) return null;
-  const afterAttr = tag.substring(idx + attr.length);
-  const m = afterAttr.match(/=[ \t]*["']([^"']+)["']/);
-  return m ? m[1] : null;
+  let start = 0;
+  while (start < tag.length) {
+    const idx = tag.indexOf(attr, start);
+    if (idx === -1) return null;
+    // Ensure attr is preceded by whitespace (word boundary for attribute names)
+    if (idx > 0 && !/\s/.test(tag[idx - 1])) {
+      start = idx + 1;
+      continue;
+    }
+    const afterAttr = tag.substring(idx + attr.length);
+    const m = afterAttr.match(/=[ \t]*["']([^"']+)["']/);
+    return m ? m[1] : null;
+  }
+  return null;
 }
 
 // CSS regexes — use [ \t] instead of \s to prevent ReDoS backtracking

@@ -60,7 +60,7 @@ export function extractGoals(content: string): string[] {
   const goals: string[] = [];
 
   // Match Goals/Objectives section
-  const sectionMatch = content.match(/##[ \t]+(?:Goals?|Objectives?)\s*\n+([\s\S]+?)(?=\n##|$)/i);
+  const sectionMatch = content.match(/##[ \t]+(?:Goals?|Objectives?)[ \t]*\n([\s\S]+?)(?=\n##|$)/i);
 
   if (sectionMatch) {
     const section = sectionMatch[1];
@@ -82,8 +82,8 @@ export function extractRequirements(content: string): string[] {
 
   // Match Requirements/Needs/Must Have sections
   const patterns = [
-    /##[ \t]+(?:Requirements?|Needs?|Must[ \t]+Have)[ \t]*\n+([\s\S]+?)(?=\n##|$)/i,
-    /##[ \t]+(?:Functional[ \t]+)?Requirements?[ \t]*\n+([\s\S]+?)(?=\n##|$)/i,
+    /##[ \t]+(?:Requirements?|Needs?|Must[ \t]+Have)[ \t]*\n([\s\S]+?)(?=\n##|$)/i,
+    /##[ \t]+(?:Functional[ \t]+)?Requirements?[ \t]*\n([\s\S]+?)(?=\n##|$)/i,
   ];
 
   for (const pattern of patterns) {
@@ -113,7 +113,7 @@ export function extractTasks(content: string): string[] {
   const tasks: string[] = [];
 
   const patterns = [
-    /##[ \t]+(?:Tasks?|Action[ \t]+Items?|To[ \t]+Do|TODO)[ \t]*\n+([\s\S]+?)(?=\n##|$)/i,
+    /##[ \t]+(?:Tasks?|Action[ \t]+Items?|To[ \t]+Do|TODO)[ \t]*\n([\s\S]+?)(?=\n##|$)/i,
   ];
 
   for (const pattern of patterns) {
