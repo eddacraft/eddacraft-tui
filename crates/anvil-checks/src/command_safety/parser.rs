@@ -579,6 +579,32 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
     let tokenised = tokenise_with_operators(cmd);
 
     if !tokenised.is_compound || tokenised.sub_commands.len() <= 1 {
+        // Not compound at the top level — but unwrapping (e.g. bash -c) may
+        // reveal inner operators.  Re-check the unwrapped command.
+        let unwrap = unwrap_command(cmd, 0);
+        if !unwrap.wrappers.is_empty() {
+            let inner = tokenise_with_operators(&unwrap.unwrapped);
+            if inner.is_compound && inner.sub_commands.len() > 1 {
+                let mut commands = Vec::new();
+                let mut operators = Vec::new();
+                for sub in inner.sub_commands {
+                    if !sub.tokens.is_empty() {
+                        let raw_sub = sub.tokens.join(" ");
+                        let tokens = tokenise(&raw_sub);
+                        let parsed = parse_from_tokens(&tokens, &raw_sub, &unwrap.wrappers);
+                        commands.push(parsed);
+                    }
+                    if let Some(op) = sub.operator {
+                        operators.push(op);
+                    }
+                }
+                return CompoundCommandResult {
+                    is_compound: true,
+                    commands,
+                    operators,
+                };
+            }
+        }
         return CompoundCommandResult {
             is_compound: false,
             commands: vec![parse_command(cmd)],
@@ -593,9 +619,25 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
         if !sub_command.tokens.is_empty() {
             let raw_sub = sub_command.tokens.join(" ");
             let unwrap = unwrap_command(&raw_sub, 0);
-            let inner_tokens = tokenise(&unwrap.unwrapped);
-            let parsed = parse_from_tokens(&inner_tokens, &raw_sub, &unwrap.wrappers);
-            commands.push(parsed);
+            // Re-check unwrapped result for inner operators
+            let inner = tokenise_with_operators(&unwrap.unwrapped);
+            if inner.is_compound && inner.sub_commands.len() > 1 {
+                for sub in inner.sub_commands {
+                    if !sub.tokens.is_empty() {
+                        let inner_raw = sub.tokens.join(" ");
+                        let tokens = tokenise(&inner_raw);
+                        let parsed = parse_from_tokens(&tokens, &inner_raw, &unwrap.wrappers);
+                        commands.push(parsed);
+                    }
+                    if let Some(op) = sub.operator {
+                        operators.push(op);
+                    }
+                }
+            } else {
+                let inner_tokens = tokenise(&unwrap.unwrapped);
+                let parsed = parse_from_tokens(&inner_tokens, &raw_sub, &unwrap.wrappers);
+                commands.push(parsed);
+            }
         }
         if let Some(operator) = sub_command.operator {
             operators.push(operator);
@@ -695,6 +737,17 @@ mod tests {
         assert!(result.is_compound);
         assert_eq!(result.commands.len(), 3);
         assert_eq!(result.operators, vec!["|", ";"]);
+    }
+
+    #[test]
+    fn unwraps_bash_compound_inner_commands() {
+        let result = parse_compound_command("bash -c \"echo ok && rm -rf /\"");
+        assert!(result.is_compound);
+        assert_eq!(result.commands.len(), 2);
+        assert_eq!(result.commands[0].command, "echo");
+        assert_eq!(result.commands[1].command, "rm");
+        assert_eq!(result.commands[1].flags, vec!["-r", "-f"]);
+        assert_eq!(result.commands[1].args, vec!["/"]);
     }
 
     #[test]
