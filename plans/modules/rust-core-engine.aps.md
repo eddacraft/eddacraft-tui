@@ -9,9 +9,9 @@ Scopes: RENG (main)
 
 # Rust Engine Ports
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| RENG | —     | Proposed |
+| ID   | Owner | Status      |
+| ---- | ----- | ----------- |
+| RENG | —     | In Progress |
 
 ## Purpose
 
@@ -81,7 +81,7 @@ Change status to **Ready** when:
 
 ### RENG-001: Port secret scan to Rust
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Port all secret detection regex patterns and Shannon entropy
   calculation to Rust. This is self-contained — no AST parsing needed.
 - **Expected Outcome:** Rust secret scanner produces identical results to JS
@@ -97,7 +97,7 @@ Change status to **Ready** when:
 
 ### RENG-002: Port anti-pattern detection to Rust
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Port anti-pattern pattern matching to Rust, operating on
   tree-sitter ASTs from the kernel's parser. Covers all 7+ high-confidence
   patterns plus HTML/CSS anti-patterns.
@@ -113,7 +113,7 @@ Change status to **Ready** when:
 
 ### RENG-003: Port command safety check to Rust
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Port AI command safety validation to Rust. String analysis and
   pattern matching — self-contained, no AST needed.
 - **Expected Outcome:** Same safety verdicts as JS implementation
@@ -147,7 +147,7 @@ Change status to **Ready** when:
 
 ### RENG-005: Benchmark all ported checks vs JS
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Run criterion.rs benchmarks for all ported checks alongside their
   JS originals to validate speedup estimates
 - **Expected Outcome:** Benchmark report showing actual speedup factors for each
@@ -199,10 +199,10 @@ Change status to **Ready** when:
 
 | Item | Status |
 | ---- | ------ |
-| RENG-001 Secret scan | Draft |
-| RENG-002 Anti-pattern detection | Draft |
-| RENG-003 Command safety | Draft |
+| RENG-001 Secret scan | Done |
+| RENG-002 Anti-pattern detection | Done |
+| RENG-003 Command safety | Done |
 | RENG-004 Architecture check merge | Draft |
-| RENG-005 Benchmarks | Draft |
+| RENG-005 Benchmarks | Done |
 | RENG-006 Feature flag + dual-run | Draft |
 | **Total** | **6 items** |

@@ -1,0 +1,22 @@
+[package]
+name = "anvil-checks"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Anvil quality gate checks ported to Rust - secret scan, anti-pattern detection, command safety"
+
+[dependencies]
+regex = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "checks"
+harness = false
+
+[lints]
+workspace = true
