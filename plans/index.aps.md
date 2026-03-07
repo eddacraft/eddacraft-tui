@@ -452,6 +452,15 @@ waves; 39 tasks total.
 | [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | opa-architecture-integration |
 | [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | opa-architecture-integration, architecture-safety |
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
+| [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
+| [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | opa-enhancements, opa-agent-orchestration, drift-reporting |
+| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Ready | compliance-reporting, policy-lifecycle, eval-harness-integration |
+| [contextual-policy-assertions](./modules/contextual-policy-assertions.aps.md) | CPOL | Ready | opa-enhancements, opa-agent-orchestration |
+| [io-risk-controls](./modules/io-risk-controls.aps.md) | IORISK | Ready | opa-enhancements, opa-agent-orchestration |
+| [gateway-control-plane-patterns](./modules/gateway-control-plane-patterns.aps.md) | GATE | Ready | opa-agent-orchestration, mcp-server |
+| [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
+| [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
+| [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
 
 ### Planned — 0.4.0 (Edda Stack — Memory System)
 
@@ -969,6 +978,86 @@ remaining major and minor improvements.
 | OPAE-035 | opae   | Bundle versioning                       | Draft  | high     |
 | OPAE-036 | opae   | Bundle inheritance                      | Draft  | medium   |
 
+#### OPA Agent Orchestration
+
+| Task     | Module | Description                                | Status | Priority |
+| -------- | ------ | ------------------------------------------ | ------ | -------- |
+| OPAG-001 | opag   | Orchestration contract                     | Draft  | high     |
+| OPAG-002 | opag   | Checkpoint policy runner                   | Draft  | high     |
+| OPAG-003 | opag   | Remediation-first guidance model           | Draft  | high     |
+| OPAG-004 | opag   | Exception workflow lifecycle               | Draft  | high     |
+| OPAG-005 | opag   | Audit event stream                         | Draft  | high     |
+| OPAG-006 | opag   | CLI/IDE/MCP/CI surface adapters           | Draft  | medium   |
+| OPAG-007 | opag   | Rollout controls and latency guardrails    | Draft  | medium   |
+
+#### Eval Harness Integration
+
+| Task     | Module | Description                            | Status | Priority |
+| -------- | ------ | -------------------------------------- | ------ | -------- |
+| EVAL-001 | eval   | EvalHarnessPort contract               | Draft  | high     |
+| EVAL-002 | eval   | Framework adapter                      | Draft  | high     |
+| EVAL-003 | eval   | CI regression command                  | Draft  | high     |
+| EVAL-004 | eval   | Canonical result persistence           | Draft  | high     |
+| EVAL-005 | eval   | Policy-linked remediation              | Draft  | high     |
+
+#### Compliance Evidence Workspace
+
+| Task     | Module | Description                            | Status | Priority |
+| -------- | ------ | -------------------------------------- | ------ | -------- |
+| CEWS-001 | cews   | Control-evidence model                 | Draft  | high     |
+| CEWS-002 | cews   | Evidence ingestion and linking         | Draft  | high     |
+| CEWS-003 | cews   | Workspace views/contracts              | Draft  | medium   |
+| CEWS-004 | cews   | Export packs                           | Draft  | medium   |
+
+#### Contextual Policy Assertions
+
+| Task     | Module | Description                            | Status | Priority |
+| -------- | ------ | -------------------------------------- | ------ | -------- |
+| CPOL-001 | cpol   | Assertion schema                       | Draft  | high     |
+| CPOL-002 | cpol   | Context adapters                       | Draft  | high     |
+| CPOL-003 | cpol   | Guidance outputs                       | Draft  | high     |
+
+#### IO Risk Controls
+
+| Task       | Module | Description                          | Status | Priority |
+| ---------- | ------ | ------------------------------------ | ------ | -------- |
+| IORISK-001 | iorisk | IO risk taxonomy                     | Draft  | high     |
+| IORISK-002 | iorisk | Scanner pipeline                     | Draft  | high     |
+| IORISK-003 | iorisk | Policy output integration            | Draft  | high     |
+
+#### Gateway Control Plane Patterns
+
+| Task     | Module | Description                            | Status | Priority |
+| -------- | ------ | -------------------------------------- | ------ | -------- |
+| GATE-001 | gate   | Reference topologies                   | Draft  | medium   |
+| GATE-002 | gate   | Enforcement contract                   | Draft  | high     |
+| GATE-003 | gate   | Observability event model              | Draft  | medium   |
+
+#### Adversarial Testing Catalog
+
+| Task    | Module | Description                      | Status | Priority |
+| ------- | ------ | -------------------------------- | ------ | -------- |
+| ATC-001 | atc    | Adversarial probe taxonomy       | Draft  | high     |
+| ATC-002 | atc    | Probe pack registry              | Draft  | high     |
+| ATC-003 | atc    | Eval harness integration         | Draft  | high     |
+| ATC-004 | atc    | Adversarial trend reporting      | Draft  | medium   |
+
+#### Prompt Attack Regression Packs
+
+| Task     | Module | Description                     | Status | Priority |
+| -------- | ------ | ------------------------------- | ------ | -------- |
+| PATT-001 | patt   | Attack scenario schema          | Draft  | high     |
+| PATT-002 | patt   | Attack pack runner              | Draft  | high     |
+| PATT-003 | patt   | CI threshold policy integration | Draft  | high     |
+
+#### Trust Center Automation
+
+| Task      | Module | Description                    | Status | Priority |
+| --------- | ------ | ------------------------------ | ------ | -------- |
+| TRUST-001 | trust  | Trust artifact model           | Draft  | high     |
+| TRUST-002 | trust  | Publishing pipeline            | Draft  | high     |
+| TRUST-003 | trust  | Freshness and ownership rules  | Draft  | medium   |
+
 #### Organisational Policy Hierarchy
 
 | Task        | Module  | Description                            | Status | Priority |
@@ -1212,6 +1301,12 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 - **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
   watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
   ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
+- **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
+  evaluation, remediation guidance, and auditable exception workflows
+  ([ADR](./decisions/012-opa-agent-orchestration.md))
+- **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
+  adapter contracts for CI-native trust regression testing
+  ([ADR](./decisions/013-eval-harness-adoption.md))
 
 ## Open Questions
 
