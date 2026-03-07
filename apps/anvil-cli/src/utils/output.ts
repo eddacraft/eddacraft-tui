@@ -159,5 +159,5 @@ export function formatGateResultsJSON(results: GateRunResultWithCache): void {
     timing: results.timing,
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  json(output);
 }

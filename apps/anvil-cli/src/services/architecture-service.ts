@@ -8,7 +8,7 @@
 import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
-  createArchitectureAnalyser,
+  createArchitectureAnalyzer,
   createBaselineManager,
   createBaseline,
   type ArchitectureBaseline,
@@ -81,7 +81,7 @@ export async function analyseProjectArchitecture(
   const sourceFiles = collectSourceFiles(projectRoot, projectRoot);
 
   // Create analyser and run analysis
-  const analyser = createArchitectureAnalyser(projectRoot);
+  const analyser = createArchitectureAnalyzer(projectRoot);
   const result = await analyser.analyse(sourceFiles);
 
   // Group files by layer (result.assignments is LayerAssignment[])

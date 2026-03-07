@@ -515,3 +515,5 @@ export class HistoricalAnalyser {
     };
   }
 }
+
+export { HistoricalAnalyser as HistoricalAnalyzer };

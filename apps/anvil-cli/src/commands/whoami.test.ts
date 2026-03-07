@@ -1,22 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-const loadAuthMock = vi.fn();
-const errorMock = vi.fn();
-const printMock = vi.fn((...args: Parameters<typeof console.error>) => {
-  console.error(...args);
-});
-const blankMock = vi.fn(() => {
-  console.error('');
-});
+// vi.hoisted ensures these are available when vi.mock factories execute
+const mocks = vi.hoisted(() => ({
+  loadAuth: vi.fn(),
+  error: vi.fn(),
+  print: vi.fn((...args: Parameters<typeof console.error>) => {
+    console.error(...args);
+  }),
+  blank: vi.fn(() => {
+    console.error('');
+  }),
+}));
 
 vi.mock('../services/auth-store.js', () => ({
-  loadAuth: loadAuthMock,
+  loadAuth: mocks.loadAuth,
 }));
 
 vi.mock('../utils/output.js', () => ({
-  error: errorMock,
-  print: printMock,
-  blank: blankMock,
+  error: mocks.error,
+  print: mocks.print,
+  blank: mocks.blank,
 }));
 
 describe('whoami command', () => {
@@ -45,7 +48,7 @@ describe('whoami command', () => {
   });
 
   it('should print session details when authenticated', async () => {
-    loadAuthMock.mockReturnValue({
+    mocks.loadAuth.mockReturnValue({
       user: { email: 'dev@eddacraft.dev' },
       scopes: ['read', 'write'],
       expiresAt: '2099-01-01T00:00:00.000Z',
@@ -60,6 +63,6 @@ describe('whoami command', () => {
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Session Info'));
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('dev@eddacraft.dev'));
-    expect(errorMock).not.toHaveBeenCalled();
+    expect(mocks.error).not.toHaveBeenCalled();
   });
 });
