@@ -112,12 +112,12 @@ describe('output utilities stream policy', () => {
   });
 
   describe('formatGateResultsJSON writes to stdout', () => {
-    it('outputs JSON via console.log', () => {
+    it('outputs JSON via stdout.write', () => {
       formatGateResultsJSON(MINIMAL_GATE_RESULT_WITH_CACHE);
-      expect(logSpy).toHaveBeenCalled();
+      expect(stdoutSpy).toHaveBeenCalled();
       expect(stderrSpy).not.toHaveBeenCalled();
 
-      const output = logSpy.mock.calls[0][0] as string;
+      const output = stdoutSpy.mock.calls[0][0] as string;
       const parsed = JSON.parse(output);
       expect(parsed.version).toBe('1.0.0');
       expect(parsed.overall).toBe(true);
