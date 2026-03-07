@@ -422,7 +422,7 @@ Task-level detail for all completed work is archived in
 | [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 23/29 | — |
+| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 28/29 | — |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 1/8 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
@@ -1067,15 +1067,15 @@ improvements tracked for future work.
 | CRB-014 | crb    | Add tests for git command composition safety        | Complete | Medium   |
 | CRB-015 | crb    | Add symlink escape tests to file-storage            | Complete | Medium   |
 | CRB-016 | crb    | Add Windows separator tests to MCP path guards      | Complete | Low      |
-| CRB-017 | crb    | Add tests for platform/core config loaders          | Draft    | Low      |
-| CRB-018 | crb    | Standardise works-from-repo-root workflow           | Draft    | Medium   |
-| CRB-019 | crb    | Consistent logging/output conventions               | Draft    | Medium   |
+| CRB-017 | crb    | Add tests for platform/core config loaders          | Complete | Low      |
+| CRB-018 | crb    | Standardise works-from-repo-root workflow           | Complete | Medium   |
+| CRB-019 | crb    | Consistent logging/output conventions               | Complete | Medium   |
 | CRB-020 | crb    | Option parsing/validation inconsistency             | Complete | Low      |
 | CRB-021 | crb    | Duplicated implementations and naming drift         | Complete | Low      |
 | CRB-022 | crb    | Large command modules need decomposition            | Draft    | Low      |
-| CRB-023 | crb    | Silent fallbacks without visibility                 | Draft    | Medium   |
+| CRB-023 | crb    | Silent fallbacks without visibility                 | Complete | Medium   |
 | CRB-024 | crb    | Subprocess calls without timeouts in CI             | Complete | Medium   |
-| CRB-025 | crb    | Docs and scripts drifting from reality              | Draft    | Low      |
+| CRB-025 | crb    | Docs and scripts drifting from reality              | Complete | Low      |
 | CRB-026 | crb    | Fix spinner leak on TUI fallback path in audit      | Complete | Medium   |
 | CRB-027 | crb    | Add workspace path containment to policy validate   | Complete | High     |
 | CRB-028 | crb    | Annotate mcp-config symlink guard as fixed          | Complete | Low      |
