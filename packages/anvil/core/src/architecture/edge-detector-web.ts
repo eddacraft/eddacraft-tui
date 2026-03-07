@@ -44,7 +44,7 @@ function extractAttr(tag: string, attr: string): string | null {
 // CSS regexes — use [ \t] instead of \s to prevent ReDoS backtracking
 const CSS_IMPORT_REGEX =
   /@import[ \t]+(?:url\([ \t]*(?:["']([^"']+)["']|([^)\s]+))[ \t]*\)|["']([^"']+)["'])/g;
-const CSS_URL_REGEX = /url\([ \t]*(?:"([^")+]+)"|'([^')]+)'|([^"'\s)]+))[ \t]*\)/g;
+const CSS_URL_REGEX = /url\([ \t]*(?:"([^"]+)"|'([^']+)'|([^"'\s)]+))[ \t]*\)/g;
 
 /**
  * Check if a URL is external (http/https, data:, or protocol-relative //)
