@@ -152,11 +152,11 @@ export function serializeToBMAD(plan: APSPlan): string {
       let title = story.description.replace(/^US-\d{2}:\s*/, '');
 
       // Check if description contains "As a... I want... so that..." pattern
-      const storyMatch = title.match(/\(As a (.+?), I want (.+?), so that (.+?)\)/);
+      const storyMatch = title.match(/\(As a ([^,]+), I want ([^,]+), so that ([^)]+)\)/);
 
       if (storyMatch) {
         const [, userType, action, benefit] = storyMatch;
-        title = title.replace(/\(As a .+?\)/, '').trim();
+        title = title.replace(/\(As a [^)]+\)/, '').trim();
 
         lines.push(`### ${storyId}: ${title}`);
         lines.push('');
@@ -166,7 +166,7 @@ export function serializeToBMAD(plan: APSPlan): string {
         lines.push('');
 
         // Extract acceptance criteria if present
-        const criteriaMatch = title.match(/- Acceptance criteria: (.+)$/);
+        const criteriaMatch = title.match(/- Acceptance criteria: ([^\n]+)$/);
         if (criteriaMatch) {
           const criteria = criteriaMatch[1].split(';').map((c) => c.trim());
           lines.push('**Acceptance Criteria:**');

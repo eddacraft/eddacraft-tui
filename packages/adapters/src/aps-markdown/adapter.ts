@@ -287,7 +287,7 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
    */
   private analyzeContent(content: string): APSMarkdownIndicators {
     // Check for H1 title
-    const hasH1Title = /^#\s+.+$/m.test(content);
+    const hasH1Title = /^#\s+[^\n]+$/m.test(content);
 
     // Check for **Scope:** or **ID:** field (ID is the current spec, Scope is legacy)
     const hasScopeField =
@@ -309,7 +309,7 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
     const hasIntentField = /\*\*Intent:\*\*/i.test(content);
 
     // Check for **Path:** with .aps.md links
-    const apsLinkPattern = /\*\*Path:\*\*\s*\[.*?\]\([^)]*\.aps\.md\)/gi;
+    const apsLinkPattern = /\*\*Path:\*\*\s*\[[^\]]*\]\([^)]*\.aps\.md\)/gi;
     const apsLinkMatches = content.match(apsLinkPattern) || [];
     const hasAPSModuleLinks = apsLinkMatches.length > 0;
     const apsLinkCount = apsLinkMatches.length;

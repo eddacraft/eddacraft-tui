@@ -215,9 +215,16 @@ exit 0
     }
 
     // Write hook file with Anvil marker (after shebang if present)
-    const markedContent = hookContent.startsWith('#!')
-      ? hookContent.replace('\n', `\n${ANVIL_MARKER}\n`)
-      : `${ANVIL_MARKER}\n${hookContent}`;
+    let markedContent: string;
+    if (hookContent.startsWith('#!')) {
+      const firstNewline = hookContent.indexOf('\n');
+      markedContent =
+        hookContent.slice(0, firstNewline) +
+        `\n${ANVIL_MARKER}\n` +
+        hookContent.slice(firstNewline + 1);
+    } else {
+      markedContent = `${ANVIL_MARKER}\n${hookContent}`;
+    }
     writeFileSync(hookPath, markedContent, { mode: 0o755 });
 
     // Make executable

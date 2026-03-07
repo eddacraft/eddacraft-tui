@@ -115,17 +115,17 @@ export function debug(namespace: DebugNamespace, message: string, data?: unknown
   /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
-      console.debug(`${prefix} ${sanitizedMessage}:`, sanitizeForLog(data.message));
+      console.debug('%s %s: %s', prefix, sanitizedMessage, sanitizeForLog(data.message));
       if (data.stack) {
-        console.debug(`${prefix} Stack:`, sanitizeForLog(data.stack));
+        console.debug('%s Stack: %s', prefix, sanitizeForLog(data.stack));
       }
     } else if (typeof data === 'string') {
-      console.debug(`${prefix} ${sanitizedMessage}:`, sanitizeForLog(data));
+      console.debug('%s %s: %s', prefix, sanitizedMessage, sanitizeForLog(data));
     } else {
-      console.debug(`${prefix} ${sanitizedMessage}:`, data);
+      console.debug('%s %s:', prefix, sanitizedMessage, data);
     }
   } else {
-    console.debug(`${prefix} ${sanitizedMessage}`);
+    console.debug('%s %s', prefix, sanitizedMessage);
   }
   /* eslint-enable no-console */
 }

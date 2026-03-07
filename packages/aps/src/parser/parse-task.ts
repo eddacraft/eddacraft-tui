@@ -24,7 +24,7 @@ export function parseTaskHeading(heading: Heading): { id: string; title: string 
 
   const text = extractPlainText(heading);
   // Extract ID and title - ID must match TASK_ID_REGEX format
-  const match = text.match(/^([A-Z0-9]{1,10}-\d{3}):\s*(.+)$/);
+  const match = text.match(/^([A-Z0-9]{1,10}-\d{3}):\s*(.+)/);
 
   if (!match) {
     throw new ParseError(
