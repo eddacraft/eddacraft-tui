@@ -1,7 +1,6 @@
+// @vitest-environment node
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-const writeFileSyncMock = vi.fn();
-const existsSyncMock = vi.fn();
 const validatePathWithinRootMock = vi.fn();
 const isTUIAvailableMock = vi.fn();
 const getWorkspaceRootMock = vi.fn();
@@ -12,12 +11,12 @@ const getTemplateMock = vi.fn();
 const renderTemplateMock = vi.fn();
 
 vi.mock('node:fs', async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
+  const actual = await importOriginal<typeof import('node:fs')>();
   return {
     ...actual,
-    default: { ...actual, writeFileSync: writeFileSyncMock, existsSync: existsSyncMock },
-    writeFileSync: writeFileSyncMock,
-    existsSync: existsSyncMock,
+    default: actual,
+    writeFileSync: vi.fn(),
+    existsSync: vi.fn(),
   };
 });
 
@@ -42,13 +41,15 @@ vi.mock('../utils/file-io.js', () => ({
   getWorkspaceRoot: getWorkspaceRootMock,
 }));
 
+import { writeFileSync, existsSync } from 'node:fs';
+
 describe('new command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     loadTemplatesMock.mockResolvedValue(undefined);
     getWorkspaceRootMock.mockReturnValue('/tmp/workspace');
     validatePathWithinRootMock.mockReturnValue('/tmp/workspace/output.md');
-    existsSyncMock.mockReturnValue(false);
+    vi.mocked(existsSync).mockReturnValue(false);
     isTUIAvailableMock.mockReturnValue(false);
     getAllTemplatesMock.mockReturnValue([
       {
@@ -111,7 +112,7 @@ describe('new command', () => {
 
     expect(loadTemplatesMock).toHaveBeenCalledTimes(1);
     expect(getTemplateMock).toHaveBeenCalledWith('feature-spec');
-    expect(writeFileSyncMock).toHaveBeenCalledWith(
+    expect(vi.mocked(writeFileSync)).toHaveBeenCalledWith(
       '/tmp/workspace/output.md',
       '# Feature Spec',
       'utf-8'
