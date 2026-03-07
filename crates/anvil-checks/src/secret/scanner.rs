@@ -16,10 +16,10 @@ pub fn scan_content(
 
         for pattern in &patterns {
             let maybe_match = pattern.regex.find(line);
-            let matched_value = match maybe_match {
-                Some(match_result) => match_result.as_str(),
-                None => continue,
+            let Some(matched_range) = maybe_match else {
+                continue;
             };
+            let matched_value = matched_range.as_str();
 
             if matcher.is_allowlisted(matched_value) {
                 continue;
@@ -34,7 +34,11 @@ pub fn scan_content(
                 finding_type: FindingType::Pattern,
                 pattern_name: pattern.name.clone(),
                 redacted_match: matcher.redact_secret(matched_value),
-                redacted_line: matcher.redact_line(line.trim()),
+                redacted_line: matcher.redact_range_in_line(
+                    line,
+                    matched_range.start(),
+                    matched_range.end(),
+                ),
             });
         }
     }
@@ -97,5 +101,19 @@ mod tests {
 
         assert_eq!(findings.len(), 1);
         assert_eq!(findings[0].finding_type, FindingType::Pattern);
+    }
+
+    #[test]
+    fn redacts_unquoted_pattern_match_in_output_line() {
+        let config = SecretCheckConfig::default();
+        let github_token = format!("ghp_{}{}", "a".repeat(20), "b".repeat(20));
+        let content = format!("const token = {github_token};");
+
+        let findings = scan_content(&content, "src/test.ts", &config);
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].finding_type, FindingType::Pattern);
+        assert!(findings[0].redacted_line.contains("[REDACTED]"));
+        assert!(!findings[0].redacted_line.contains(&github_token));
     }
 }

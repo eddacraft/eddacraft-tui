@@ -65,6 +65,21 @@ fn is_interpreter(cmd: &str) -> bool {
 }
 
 #[must_use]
+fn is_environment_assignment(token: &str) -> bool {
+    let Some((name, _value)) = token.split_once('=') else {
+        return false;
+    };
+    let mut characters = name.chars();
+    let Some(first) = characters.next() else {
+        return false;
+    };
+    if first != '_' && !first.is_ascii_alphabetic() {
+        return false;
+    }
+    characters.all(|character| character == '_' || character.is_ascii_alphanumeric())
+}
+
+#[must_use]
 fn split_by_operators(tokens: &[ShellToken]) -> Vec<SubCommandTokens> {
     let mut commands = Vec::new();
     let mut current_tokens: Vec<String> = Vec::new();
@@ -586,8 +601,25 @@ fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> P
         };
     }
 
-    let command = tokens[0].clone();
-    let rest = tokens[1..].to_vec();
+    let command_index = tokens
+        .iter()
+        .take_while(|token| is_environment_assignment(token))
+        .count();
+
+    if command_index >= tokens.len() {
+        return ParsedCommand {
+            raw: raw_cmd.to_string(),
+            command: String::new(),
+            subcommand: None,
+            flags: Vec::new(),
+            args: Vec::new(),
+            unwrapped: tokens.join(" "),
+            wrapper_chain: wrappers.to_vec(),
+        };
+    }
+
+    let command = tokens[command_index].clone();
+    let rest = tokens[command_index + 1..].to_vec();
     let (flags, _args) = split_at_separator(&rest);
     let subcommand = extract_subcommand(&command, &rest);
 
@@ -1045,5 +1077,13 @@ mod tests {
         let parsed = parse_command("env --chdir /tmp rm -rf /");
         assert_eq!(parsed.command, "rm");
         assert_eq!(parsed.wrapper_chain, vec!["env"]);
+    }
+
+    #[test]
+    fn strips_leading_environment_assignments() {
+        let parsed = parse_command("FOO=bar BAR=baz rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
     }
 }

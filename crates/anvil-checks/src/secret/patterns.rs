@@ -103,6 +103,17 @@ pub struct CompiledPattern {
     pub regex: Regex,
 }
 
+static QUOTED_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"(['"])([^'"\r\n]{8,})(['"])"#).expect("quoted redaction pattern is valid")
+});
+static ASSIGNMENT_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"([:=]\s*)(['"]?)([^\s'"]{8,})(['"]?)"#)
+        .expect("assignment redaction pattern is valid")
+});
+static BARE_REDACTION_PATTERN: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"[A-Za-z0-9_./+=:@%-]{16,}").expect("bare redaction pattern is valid")
+});
+
 pub fn compile_secret_patterns(custom_patterns: &[SecretPatternDef]) -> Vec<CompiledPattern> {
     let mut compiled = Vec::new();
 
@@ -191,20 +202,35 @@ impl PatternMatcher {
     }
 
     pub fn redact_line(&self, line: &str) -> String {
-        let Ok(pattern) = Regex::new(r#"'[a-zA-Z0-9_/+=-]{16,}'|\"[a-zA-Z0-9_/+=-]{16,}\""#) else {
-            return line.to_string();
+        let quoted_redacted =
+            QUOTED_REDACTION_PATTERN.replace_all(line, |captures: &regex::Captures<'_>| {
+                let opening = captures.get(1).map_or("\"", |value| value.as_str());
+                let closing = captures.get(3).map_or(opening, |value| value.as_str());
+                format!("{opening}[REDACTED]{closing}")
+            });
+        let assignment_redacted = ASSIGNMENT_REDACTION_PATTERN.replace_all(
+            quoted_redacted.as_ref(),
+            |captures: &regex::Captures<'_>| {
+                let prefix = captures.get(1).map_or("", |value| value.as_str());
+                let opening = captures.get(2).map_or("", |value| value.as_str());
+                let closing = captures.get(4).map_or("", |value| value.as_str());
+                format!("{prefix}{opening}[REDACTED]{closing}")
+            },
+        );
+
+        BARE_REDACTION_PATTERN
+            .replace_all(assignment_redacted.as_ref(), "[REDACTED]")
+            .into_owned()
+    }
+
+    pub fn redact_range_in_line(&self, line: &str, start: usize, end: usize) -> String {
+        let (Some(prefix), Some(segment), Some(suffix)) =
+            (line.get(..start), line.get(start..end), line.get(end..))
+        else {
+            return self.redact_line(line);
         };
 
-        pattern
-            .replace_all(line, |captures: &regex::Captures<'_>| {
-                let matched = captures.get(0).map_or("", |value| value.as_str());
-                if matched.starts_with('"') {
-                    "\"[REDACTED]\"".to_string()
-                } else {
-                    "'[REDACTED]'".to_string()
-                }
-            })
-            .into_owned()
+        format!("{prefix}{}{suffix}", self.redact_line(segment))
     }
 }
 
@@ -316,6 +342,17 @@ mod tests {
         assert_eq!(
             matcher.redact_line("token = 'abcdefghijklmnop'"),
             "token = '[REDACTED]'"
+        );
+
+        let github_token = format!("ghp_{}{}", "a".repeat(20), "b".repeat(20));
+        let line = format!("token = {github_token}");
+        let range_start = line.find(&github_token).unwrap_or(0);
+        let range_end = range_start + github_token.len();
+
+        assert_eq!(matcher.redact_line(&line), "token = [REDACTED]");
+        assert_eq!(
+            matcher.redact_range_in_line(&line, range_start, range_end),
+            "token = [REDACTED]"
         );
     }
 

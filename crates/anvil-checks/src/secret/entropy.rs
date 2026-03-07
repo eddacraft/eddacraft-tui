@@ -48,10 +48,10 @@ pub fn detect_high_entropy_strings(
             let Some(captures) = pattern.captures(line) else {
                 continue;
             };
-            let candidate = match captures.get(1) {
-                Some(candidate) => candidate.as_str(),
-                None => continue,
+            let Some(candidate_match) = captures.get(1) else {
+                continue;
             };
+            let candidate = candidate_match.as_str();
 
             if candidate.len() < config.min_entropy_length {
                 continue;
@@ -71,7 +71,11 @@ pub fn detect_high_entropy_strings(
                     finding_type: FindingType::Entropy,
                     pattern_name: "High Entropy String".to_string(),
                     redacted_match: matcher.redact_secret(candidate),
-                    redacted_line: matcher.redact_line(line.trim()),
+                    redacted_line: matcher.redact_range_in_line(
+                        line,
+                        candidate_match.start(),
+                        candidate_match.end(),
+                    ),
                 });
             }
         }
