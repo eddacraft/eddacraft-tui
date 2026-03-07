@@ -1,44 +1,93 @@
 # Changelog
 
-All notable changes to this project will be documented in this file.
+All notable changes to this product are documented here.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+This changelog contains customer-relevant changes only. Internal refactors and
+engineering maintenance are recorded in the
+[Engineering History](./ENGINEERING-HISTORY.md).
 
 ## [Unreleased]
 
-### Changed
+## [0.2.0] — Edda Stack
 
-- Release workflow now defaults to publishing `@eddacraft/anvil-cli` only.
-- Added conditional release mode so beta tags (`v*-beta*`) are always CLI-only.
-- Added `docs/guides/release-runbook.md` with step-by-step release and
-  verification checklist.
+Anvil gains a memory system. Edda Stack introduces three layers — observation,
+interpretation, and canonical memory — that let the platform learn from your
+codebase over time.
 
-### Planned for 0.2.0 — Web Dashboard
+### Added
 
-- Browser-based dashboard for exploring Anvil data
-- Overview, gates history, warnings, architecture graphs
-- AI builder interface with json-render
-- Operations and administration views
+- **Edda canonical memories** — persistent, version-tracked knowledge store for
+  project patterns and decisions (`EDDA`)
+  - `anvil edda list` — list memories with filtering by type, confidence, and
+    age
+  - `anvil edda show <id>` — display full memory details including provenance
+    chain
+  - `anvil edda promote` — promote an Ember candidate to canonical memory
+  - `anvil edda retire` — retire an outdated memory
+  - `anvil edda trace` — trace evolution chain and provenance for a memory
+- **Ember candidate proposals** — interpretive layer that surfaces patterns from
+  observations (`EMBER`)
+  - `anvil ember list` — list proposals with filtering by status and type
+  - `anvil ember show <id>` — display full proposal details
+  - `anvil ember promote` — mark a proposal as promoted
+- **Stack health monitoring** — coordination and status for the memory system
+  (`STACK`)
+  - `anvil stack status` — show Edda Stack health and component status
+  - `anvil stack validate` — validate configuration and provenance integrity
 
-### Planned for 0.3.0 — Organisational Policy Governance
+## [0.1.3]
 
-- OPA enhancements (YAML-first rules, policy library, debugger)
-- Multi-level org → team → project policy hierarchy
-- Policy lifecycle management (versioning, canary rollout)
-- Compliance reporting (SOC 2, ISO 27001 mapping)
-- Policy federation and fleet sync
+Hardening, reliability, and quality-of-life improvements across the CLI.
+Prepares the foundation for the Rust core engine (see ADR-011).
 
-### Planned for 0.4.0 — Edda Stack (Memory System)
+### Added
 
-- Kindling (observation layer)
-- Ember (interpretive layer)
-- Edda (canonical memory)
+- BMAD v6 YAML document type support in format adapter
+- `--json` output flag for `anvil hooks status` and `anvil plan create`
+- Tutorial continuation — continue to another learning path after completing one
+- APS nested index loading with configurable depth limiting (`CRB-011`)
+- APS atomic task locking — prevents race conditions in multi-agent workflows
+  (`CRB-010`)
+
+### Improved
+
+- CLI error messages now surface network errors clearly instead of raw "fetch
+  failed"
+- Dependency audit errors are surfaced instead of silently reported as clean
+- Watch mode signal handler is more reliable under rapid restarts
+- Tutorial completion persists when switching topics via the picker
+- `--reset core` preserves non-core tutorial progress
+- Windows compatibility across path handling, permissions, and signal handling
+
+### Fixed
+
+- Exit code consistency across CLI commands (`ISS-001`, `ISS-002`, `ISS-005`,
+  `ISS-007`)
+- Missing Ember database now returns a clean exit instead of an unhandled error
+- Memory store rejects invalid sort parameters instead of producing unexpected
+  results
+- Comma-separated `--type` values now parsed correctly in list commands
+
+### Security
+
+- Input validation hardening across parsers, adapters, and plan loader
+- Subprocess execution hardened across the codebase
+- Dependency patches:
+  - minimatch >= 9.0.7 (`CVE-2026-27904`)
+  - axios >= 1.13.5 (`CVE-2026-25639`)
+  - svgo (billion laughs DoS)
+  - tar >= 7.5.10
+  - serialize-javascript, ajv, undici
+
+### Developer
+
+- CLI stderr/stdout stream policy standardised — all diagnostic output routes to
+  stderr, structured data to stdout
+- Git hook scripts consolidated to a single source of truth
+- Default API URL changed to `eddacraft-api.vercel.app`
+- ADR-011: Rust core engine architecture decision published
 
 ## [0.1.2-beta] - 2026-02-22
-
-CLI error handling improvements and watch mode signal handler reliability.
 
 ### Fixed
 
@@ -53,168 +102,65 @@ Patch release focused on npm publish/install reliability for
 ### Fixed
 
 - Published CLI metadata no longer exposes `workspace:*` runtime dependencies to
-  npm consumers.
-- Release workflow publishes CLI-required workspace packages using
-  `pnpm publish` and skips already published versions.
-
-### Documentation
-
-- Updated release workflow notes in `README.md` to reflect workspace package
-  publishing behaviour.
+  npm consumers
+- Release workflow publishes CLI-required workspace packages and skips already
+  published versions
 
 ## [0.1.0] - 2026-02-21
 
-Initial pre-release of Anvil - the deterministic development automation platform
+Initial pre-release of Anvil — the deterministic development automation platform
 that makes AI-generated code safe to merge by catching architecture boundary
 violations and anti-patterns at save time.
 
 ### Added
 
-#### Core Analysis Engine
-
-- `anvil check <files>` - Analyse files for architecture violations and
+- `anvil check <files>` — analyse files for architecture violations and
   anti-patterns
-- `anvil check --changed` - Git-aware file detection for staged/unstaged changes
-- `anvil check --staged` - Check only staged files
-- `anvil check --since <ref>` - Check files changed since a git reference
-- `anvil watch --source` - Real-time feedback on file changes
-- Parallel analysis with intelligent caching for sub-2-second feedback
-- Architecture boundary detection with automatic baseline inference
-- New cross-boundary edge detection
-
-#### Anti-pattern Detection
-
-- 7 high-confidence AI escape-hatch patterns
+- `anvil check --changed` — git-aware file detection for staged/unstaged changes
+- `anvil check --staged` — check only staged files
+- `anvil check --since <ref>` — check files changed since a git reference
+- `anvil watch --source` — real-time feedback on file changes with sub-2-second
+  latency
+- 7 high-confidence AI escape-hatch anti-pattern detectors
 - Pattern suppression with time-boxing and mandatory explanations
-- Configurable severity levels
-
-#### Onboarding Experience
-
-- `anvil init` - Visual TUI wizard for project setup
-- `anvil status` - Quick health check dashboard
-- `anvil doctor` - Diagnose setup issues
-- First-run welcome experience
-- Ink-based TUI components
-
-#### CI/CD Integration
-
-- GitHub Action for PR checks
-- PR comment annotations
-- Status check integration
-
-#### VS Code Extension
-
-- Anti-pattern detection on file save (< 100ms feedback)
-- Architecture gate results in tree view
-- OPA policy failure display with remediation hints
-- Click-to-navigate for all violation types
-- APS and Rego syntax highlighting
-- Analysis caching for unchanged files
-- Diagnostics panel integration
-
-#### Format Adapters
-
-- APS Markdown adapter for native `.aps.md` planning documents
-- Extensible adapter registry for format detection
-- Support for task-to-change conversion
-
-#### Monorepo Architecture
-
-- Hexagonal architecture with clear separation:
-  - `packages/anvil/contracts` - Schemas and types (zero dependencies)
-  - `packages/anvil/ports` - Interface definitions
-  - `packages/anvil/core` - Pure domain logic
-  - `packages/anvil/runtime` - Orchestration and I/O
-  - `packages/anvil/policy` - OPA/Rego wrappers
-- Platform packages:
-  - `packages/platform/config` - Configuration loading
-  - `packages/platform/crypto` - Hashing and signing
-  - `packages/platform/storage` - File system abstractions
-- Tooling packages:
-  - `packages/tooling/eslint-config` - Shared ESLint configuration
-  - `packages/tooling/tsconfig` - Shared TypeScript configurations
-  - `packages/eslint-plugin-anvil` - Custom ESLint rules
-- Supporting packages:
-  - `packages/adapters` - Format adapters
-  - `packages/aps` - APS parsing and validation
-  - `packages/edda-stack` - Edda integration
-  - `packages/kindling-integration` - Kindling integration
-
-#### Developer Tools
-
-- `tools/generators` - Nx generators for scaffolding
-- `tools/codemods` - Import path migration tools
-- Documentation site (`apps/docs-site`)
+- Architecture boundary detection with automatic baseline inference
+- Architecture templates: Layered, Hexagonal, Clean, DDD, Monorepo, Serverless,
+  Nx Workspace, Starter
+- `anvil architecture visualise` — Mermaid-based dependency graph rendering
+- Interactive architecture wizard with live diagram previews
+- `anvil drift snapshot` — capture current architecture state
+- `anvil drift compare` — show changes between snapshots
+- `anvil drift report` — visualise trends over time
+- `anvil explain <id>` — deep-dive into warnings with context
+- OPA/Rego policy framework with remote bundles, checksum verification, and
+  authentication
+- `anvil gate` — run quality gates on the codebase
+- `anvil init` — visual TUI wizard for project setup
+- `anvil status` — quick health check dashboard
+- `anvil doctor` — diagnose setup issues
+- `anvil tutorial` — interactive scan-watch-fix tutorial
+- GitHub Action for PR checks with comment annotations
+- VS Code extension with anti-pattern detection, architecture gate display, OPA
+  policy violations, and click-to-navigate
+- MCP tool server for real-time validation
+- llms.txt export for AI tool consumption
+- Command safety validation for AI tool commands
+- HTML/CSS anti-pattern detection
+- APS Markdown adapter for `.aps.md` planning documents
+- `anvil plan load`, `anvil plan validate`, `anvil plan status` — APS planning
+  document management
 
 ### Security
 
-- 3 critical MCP server vulnerabilities resolved (workspace root validation,
-  newline injection, HTTP authentication)
-- 10 high-severity fixes across runtime, MCP, adapters, storage, APS, and VS
-  Code extension (path traversal, TOCTOU races, cache integrity, prompt
-  injection, symlink following)
-- 4 medium CLI findings resolved (path traversal in scaffold, numeric arg
-  validation, API URL hardening, email validation)
-- OPA binary SHA-256 checksum verification with HTTPS-only downloads
-- Auth token storage with `0o600`/`0o700` permissions
-- API response validation with Zod schemas throughout
-- `shell: false` on all subprocess spawns (no shell injection)
-- Resolved Dependabot alerts via pnpm overrides:
-  - tar >= 7.5.4
-  - lodash >= 4.17.23
-  - undici >= 7.18.2
-  - diff >= 4.0.4
+- 17 findings resolved across MCP server, runtime, CLI, adapters, storage, APS,
+  and VS Code extension (3 critical, 10 high, 4 medium)
+- External binary integrity verification
+- Credential storage hardened with restrictive permissions
+- API response validation strengthened throughout
 
-### Documentation
-
-- Quick Start Guide
-- Complete command reference
-- Demo showing Anvil catching real issues
-- Actionable error messages
-
-#### Drift Visibility
-
-- `anvil explain <id>` - Deep-dive into warnings
-- `anvil drift snapshot` - Capture current state
-- `anvil drift compare` - Show changes over time
-- `anvil drift report` - Visualise trends
-
-#### OPA & Architecture
-
-- OPA architecture integration with YAML-first definitions
-- Architecture templates (Layered, Hexagonal, Clean, DDD, Monorepo, Serverless,
-  Nx Workspace, Starter)
-- Remote policy bundles with HTTPS download, checksum verification, signature
-  verification, and authentication
-- `anvil architecture visualise` with Mermaid-based dependency graph rendering
-- Interactive architecture wizard with live diagram previews
-
-#### AI Tool Integration
-
-- llms.txt export for AI tool consumption
-- Command safety validation for AI tool commands
-- MCP tool server with real-time validation
-
-#### HTML/CSS Support
-
-- Configurable file extensions for analysis
-- HTML anti-pattern detection (inline styles, scripts, event handlers)
-- CSS anti-pattern detection (`!important` abuse, `@import` performance)
-- HTML/CSS edge detection
-
-#### Tutorial & First Run
-
-- Tutorial overhaul with scan-watch-fix flow
-- Intelligent first-run experience with post-init analysis
-
-#### Infrastructure as Code
-
-- Pulumi-based infrastructure management (TypeScript)
-- Vercel project configuration (website + docs-site)
-- Azure DNS zone and record management
-- CI/CD pipeline with preview on PR, apply on merge
-
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
+[0.2.0]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
 [0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
