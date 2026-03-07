@@ -7,8 +7,8 @@
 pnpm-lock.yaml
 **/next-env.d.ts
 # Build artifacts from Docusaurus docs site
-apps/docs-site/build/
-apps/docs-site/.docusaurus/
+/apps/docs-site/build/
+/apps/docs-site/.docusaurus/
 # Temper workflow contains large multi-line prompt blocks that break YAML parsing
 .github/workflows/temper.yml
 # Claude review workflow must match default branch exactly for action validation

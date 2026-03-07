@@ -35,11 +35,11 @@ need to `cd` into a package directory — use the patterns below instead.
 ### Essential Commands (repo root)
 
 ```bash
-pnpm build          # Build all 22 packages (Nx orchestrated, honours dependency graph)
+pnpm build          # Build all packages (Nx orchestrated, honours dependency graph)
 pnpm test           # Run all unit tests (excludes E2E)
-pnpm lint           # ESLint + markdownlint with auto-fix
+pnpm lint           # ESLint + markdownlint (markdownlint auto-fixes; ESLint does not)
 pnpm lint:check     # Same as lint but without auto-fix (CI mode)
-pnpm typecheck      # TypeScript strict mode across all packages
+pnpm typecheck      # TypeScript strict mode across all packages (excludes anvil-vscode)
 pnpm format         # Prettier format (write mode)
 pnpm format:check   # Prettier format (check mode, CI)
 ```
@@ -64,16 +64,16 @@ pnpm -F @eddacraft/anvil-core test
 pnpm -F @eddacraft/anvil-aps test
 pnpm -F @eddacraft/anvil-cli test
 
-# Using Nx (by project name — shorter)
-npx nx test core
-npx nx test aps
-npx nx build cli
+# Using Nx (by project name)
+pnpm exec nx test core
+pnpm exec nx test @eddacraft/anvil-aps
+pnpm exec nx build @eddacraft/anvil-cli
 
 # Test with pattern filter
-npx nx test core --testNamePattern="validator"
+pnpm exec nx test core --testNamePattern="validator"
 
 # Run a specific package script
-pnpm -F @eddacraft/anvil-core run generate:schema
+pnpm -F @eddacraft/anvil-aps run generate-templates
 ```
 
 Both `pnpm -F <package-name>` and `pnpm -C <relative-path>` work for targeting
@@ -93,7 +93,7 @@ pnpm unlink:cli     # Remove global link
 
 ```bash
 # Per-project coverage
-pnpm nx test core --coverage
+pnpm exec nx test core --coverage
 
 # Full monorepo coverage
 pnpm test:coverage
