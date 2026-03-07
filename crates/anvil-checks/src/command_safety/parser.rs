@@ -144,14 +144,14 @@ fn tokenise_shell(cmd: &str) -> Vec<ShellToken> {
                 current.push('#');
             }
             '&' => {
+                if !current.is_empty() {
+                    tokens.push(ShellToken::Word(std::mem::take(&mut current)));
+                }
                 if chars.peek() == Some(&'&') {
                     let _ = chars.next();
-                    if !current.is_empty() {
-                        tokens.push(ShellToken::Word(std::mem::take(&mut current)));
-                    }
                     tokens.push(ShellToken::Operator("&&".to_string()));
                 } else {
-                    current.push('&');
+                    tokens.push(ShellToken::Operator("&".to_string()));
                 }
             }
             '|' => {
@@ -471,7 +471,8 @@ fn is_likely_subcommand(arg: &str) -> bool {
 
 /// Global options that consume the next positional token as a value,
 /// preventing it from being treated as a subcommand.
-const GIT_GLOBAL_OPTIONS_WITH_VALUE: &[&str] = &["-C", "-c", "--git-dir", "--work-tree"];
+const GIT_GLOBAL_OPTIONS_WITH_VALUE: &[&str] =
+    &["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"];
 const DOCKER_GLOBAL_OPTIONS_WITH_VALUE: &[&str] = &["-H", "--host", "--config", "--context"];
 
 #[must_use]
@@ -817,6 +818,29 @@ mod tests {
     fn returns_empty_for_blank_command() {
         let parsed = parse_command("   ");
         assert!(parsed.command.is_empty());
+    }
+
+    #[test]
+    fn treats_background_ampersand_as_separator() {
+        let result = parse_compound_command("echo ok & rm -rf /");
+        assert!(result.is_compound);
+        assert_eq!(result.commands.len(), 2);
+        assert_eq!(result.commands[0].command, "echo");
+        assert_eq!(result.commands[1].command, "rm");
+        assert_eq!(result.commands[1].flags, vec!["-r", "-f"]);
+    }
+
+    #[test]
+    fn skips_git_namespace_global_option() {
+        let parsed = parse_command("git --namespace foo reset --hard");
+        assert_eq!(parsed.subcommand.as_deref(), Some("reset"));
+        assert!(parsed.flags.contains(&"--hard".to_string()));
+    }
+
+    #[test]
+    fn skips_git_exec_path_global_option() {
+        let parsed = parse_command("git --exec-path /usr/lib/git status");
+        assert_eq!(parsed.subcommand.as_deref(), Some("status"));
     }
 
     #[test]
