@@ -1216,7 +1216,7 @@ export function parseModuleYaml(content: string): BMADModuleYaml | null {
         i = list.endIndex;
         continue;
       }
-      const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(\S.+)$/);
+      const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(\S.*)$/);
       if (kvMatch) {
         const [, key, value] = kvMatch;
         const val = parseSimpleYamlValue(value);
