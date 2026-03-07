@@ -8,6 +8,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSy
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { debug } from '../utils/output.js';
 
 const log = createDebugger('service');
 
@@ -93,7 +94,7 @@ export class HookInstaller {
         return readFileSync(scriptPath, 'utf-8');
       }
     } catch {
-      // Fallback to embedded scripts if files not found
+      debug('getScriptContent: script file not found, falling back to embedded');
     }
 
     // Fallback embedded scripts (for when running from source without build)

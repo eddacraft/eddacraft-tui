@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { debug } from '../utils/output.js';
 import type { ReleaseState } from './release-types.js';
 
 const STATE_FILENAME = '.anvil/release-state.json';
@@ -16,6 +17,7 @@ export function loadReleaseState(workspaceRoot: string): ReleaseState | null {
     const raw = readFileSync(filePath, 'utf8');
     return JSON.parse(raw) as ReleaseState;
   } catch {
+    debug('loadReleaseState: failed to read/parse release state, returning null');
     return null;
   }
 }

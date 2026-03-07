@@ -10,6 +10,7 @@ import { APSValidator } from '@eddacraft/anvil-core';
 import type { APSPlan } from '@eddacraft/anvil-core';
 import { AdapterRegistry } from '@eddacraft/anvil-adapters';
 import { FormatDetectionService } from './format-detection.js';
+import { debug } from '../utils/output.js';
 import type {
   PlanLoaderService,
   LoadPlanOptions,
@@ -134,6 +135,7 @@ export class PlanLoader implements PlanLoaderService {
         // Fall back to YAML
         data = YAML.parse(content);
       } catch {
+        debug('loadAPSPlan: YAML parse failed after JSON parse failed');
         throw new PlanLoadErrorImpl('Invalid APS format: must be valid JSON or YAML');
       }
     }
@@ -176,7 +178,7 @@ export class PlanLoader implements PlanLoaderService {
         JSON.parse(content);
         return true;
       } catch {
-        // Not valid JSON
+        debug('isNativeAPS: JSON parse failed, not native APS');
       }
     }
 

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
-import { blank, print } from '../utils/output.js';
+import { blank, print, debug } from '../utils/output.js';
 
 const CHANGELOG_PATH = 'CHANGELOG.md';
 
@@ -15,6 +15,7 @@ function getLatestTag(workspaceRoot: string): string | null {
       timeout: 30_000,
     }).trim();
   } catch {
+    debug('getLatestTag: git describe failed, no tags found');
     return null;
   }
 }
@@ -32,6 +33,7 @@ function getCommitsSinceTag(workspaceRoot: string, tag: string | null): string[]
       .split('\n')
       .filter((line) => line.length > 0);
   } catch {
+    debug('getCommitsSinceTag: git log failed, returning empty list');
     return [];
   }
 }

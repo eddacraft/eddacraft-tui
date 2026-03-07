@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { print } from '../utils/output.js';
+import { print, debug } from '../utils/output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -114,6 +114,7 @@ export class SampleAnalyser {
       });
       return true;
     } catch {
+      debug('isGitAvailable: git rev-parse failed, git not available');
       return false;
     }
   }
@@ -175,6 +176,7 @@ export class SampleAnalyser {
         const stats = statSync(fullPath);
         return { file, mtime: stats.mtime.getTime() };
       } catch {
+        debug('selectFiles: statSync failed, using mtime 0');
         return { file, mtime: 0 };
       }
     });
@@ -218,11 +220,11 @@ export class SampleAnalyser {
             }
           }
         } catch {
-          // Skip files we can't stat
+          debug('findFilesRecursive: statSync failed, skipping entry');
         }
       }
     } catch {
-      // Skip directories we can't read
+      debug('findFilesRecursive: readdirSync failed, skipping directory');
     }
   }
 
@@ -282,7 +284,7 @@ export class SampleAnalyser {
         const gitFiles = await this.getRecentlyChangedFiles(fullConfig);
         recentFiles = gitFiles.length;
       } catch {
-        // Ignore errors
+        debug('summarise: failed to get recent git files, continuing');
       }
     }
 

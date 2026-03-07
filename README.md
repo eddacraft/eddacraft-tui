@@ -4,7 +4,7 @@
 [![NX](https://img.shields.io/badge/managed%20with-Nx-143055.svg?style=flat-square)](https://nx.dev/)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js->=20.0.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js->=20.19.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
 EddaCraft monorepo. Currently home to **Anvil** — a deterministic development
 automation platform that catches architecture drift and AI anti-patterns at file
@@ -17,14 +17,14 @@ and tooling.
 
 ### Apps
 
-| Directory        | Package                      | Description                              | Deployment          |
-| ---------------- | ---------------------------- | ---------------------------------------- | ------------------- |
-| `apps/anvil-cli` | `@eddacraft/anvil-cli`       | CLI application (Commander.js + Ink TUI) | npm (`publish.yml`) |
-| `apps/docs-site` | `@eddacraft/anvil-docs-site` | Docusaurus documentation site            | Vercel              |
-| `apps/website`   | `@eddacraft/anvil-website`   | Marketing website (Next.js)              | Vercel              |
-| `apps/anvil-api` | —                            | API service                              | —                   |
-| `apps/anvil-ui`  | —                            | Web UI                                   | —                   |
-| `apps/e2e`       | —                            | End-to-end test suites (Playwright)      | —                   |
+| Directory        | Package                    | Description                              | Deployment          |
+| ---------------- | -------------------------- | ---------------------------------------- | ------------------- |
+| `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js + Ink TUI) | npm (`publish.yml`) |
+| `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site            | Vercel              |
+| `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)              | Vercel              |
+| `apps/anvil-api` | —                          | API service                              | —                   |
+| `apps/anvil-ui`  | —                          | Web UI                                   | —                   |
+| `apps/e2e`       | —                          | End-to-end test suites (Playwright)      | —                   |
 
 ### Packages — Anvil Core
 
@@ -54,7 +54,7 @@ and tooling.
 | `packages/vscode-extension`     | `anvil-vscode`                          | VS Code integration                       |
 | `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts     |
 | `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Kindling · Ember · Edda memory stack      |
-| `packages/shared`               | —                                       | Shared utilities                          |
+| `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts         |
 
 ### Packages — Tooling
 
@@ -75,7 +75,7 @@ and tooling.
 
 ### Prerequisites
 
-- **Node.js** >= 20.0.0
+- **Node.js** >= 20.19.0
 - **pnpm** >= 10.20.0
 
 ### Setup

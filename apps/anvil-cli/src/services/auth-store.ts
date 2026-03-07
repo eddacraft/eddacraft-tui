@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync, unlinkSync, existsSync, chmodSy
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { z } from 'zod';
+import { debug } from '../utils/output.js';
 
 const StoredAuthSchema = z.object({
   token: z.string(),
@@ -47,6 +48,7 @@ export function loadAuth(): StoredAuth | null {
 
     return data;
   } catch {
+    debug('loadAuth: failed to read/parse auth credentials, returning null');
     return null;
   }
 }

@@ -8,6 +8,10 @@ import {
   print,
   blank,
   json,
+  debug,
+  enableDebug,
+  resetDebug,
+  isDebugEnabled,
   formatGateResults,
   formatGateResultsJSON,
   formatValidationErrors,
@@ -146,6 +150,61 @@ describe('output utilities stream policy', () => {
       ]);
       expect(stderrSpy).toHaveBeenCalled();
       expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('debug() writes to stderr only when enabled', () => {
+    const originalEnv = process.env['ANVIL_DEBUG'];
+
+    afterEach(() => {
+      resetDebug();
+      if (originalEnv === undefined) {
+        delete process.env['ANVIL_DEBUG'];
+      } else {
+        process.env['ANVIL_DEBUG'] = originalEnv;
+      }
+    });
+
+    it('is silent by default', () => {
+      delete process.env['ANVIL_DEBUG'];
+      debug('should not appear');
+      expect(stderrSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(stdoutSpy).not.toHaveBeenCalled();
+    });
+
+    it('writes to stderr after enableDebug()', () => {
+      enableDebug();
+      debug('test message');
+      expect(stderrSpy).toHaveBeenCalled();
+      const call = stderrSpy.mock.calls[0];
+      expect(call.join(' ')).toContain('[debug]');
+      expect(call.join(' ')).toContain('test message');
+    });
+
+    it('writes to stderr when ANVIL_DEBUG=1', () => {
+      process.env['ANVIL_DEBUG'] = '1';
+      debug('env debug');
+      expect(stderrSpy).toHaveBeenCalled();
+      const call = stderrSpy.mock.calls[0];
+      expect(call.join(' ')).toContain('[debug]');
+    });
+
+    it('writes to stderr when ANVIL_DEBUG=true (case-insensitive)', () => {
+      process.env['ANVIL_DEBUG'] = 'True';
+      debug('env debug true');
+      expect(stderrSpy).toHaveBeenCalled();
+    });
+
+    it('isDebugEnabled() reflects env var state', () => {
+      delete process.env['ANVIL_DEBUG'];
+      const withoutEnv = isDebugEnabled();
+      process.env['ANVIL_DEBUG'] = '1';
+      expect(isDebugEnabled()).toBe(true);
+      process.env['ANVIL_DEBUG'] = '';
+      if (!withoutEnv) {
+        expect(isDebugEnabled()).toBe(withoutEnv);
+      }
     });
   });
 });

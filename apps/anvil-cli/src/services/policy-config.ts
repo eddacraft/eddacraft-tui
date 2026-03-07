@@ -13,6 +13,7 @@ import { join, dirname } from 'node:path';
 import YAML from 'yaml';
 import { z } from 'zod';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { debug } from '../utils/output.js';
 
 const log = createDebugger('service');
 
@@ -492,6 +493,7 @@ export class PolicyConfigManager {
           path: join(policyDir, f),
         }));
     } catch {
+      debug('listPolicies: failed to read policy directory, returning empty list');
       return [];
     }
   }

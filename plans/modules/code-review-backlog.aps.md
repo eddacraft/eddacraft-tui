@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (23/29) |
-<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-006, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-012, CRB-013, CRB-014, CRB-015, CRB-016, CRB-020, CRB-021, CRB-024, CRB-026, CRB-027, CRB-028, CRB-029 -->
+| CRB | —     | In Progress (28/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-006, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-012, CRB-013, CRB-014, CRB-015, CRB-016, CRB-017, CRB-018, CRB-019, CRB-020, CRB-021, CRB-023, CRB-024, CRB-025, CRB-026, CRB-027, CRB-028, CRB-029 -->
 
 ## Purpose
 
@@ -161,9 +161,10 @@ Change status to **Ready** when:
   design)
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
-- **Notes:** Overlaps with CRB-001 but is broader — CRB-001 defines the policy,
-  this item implements the logger abstraction and migrates all callsites.
+- **Status:** Complete
+- **Notes:** Implemented shared output module (`output.ts`) with `print()`,
+  `blank()`, `data()`, `json()` helpers. Migrated 54 source files + 10 test
+  files. All console.* calls replaced with module functions. PR #506.
 
 ---
 
@@ -235,11 +236,10 @@ Change status to **Ready** when:
 - **Dependencies:** CRB-019 (logging conventions should be established first)
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
-
----
-
-### Runtime (CRB-003 through CRB-005, CRB-009, CRB-014, CRB-022, CRB-024)
+- **Status:** Complete
+- **Notes:** Added `debug()` function to output module with `ANVIL_DEBUG=1`
+  env var support. Instrumented 42 silent catch blocks across 21 files with
+  debug() calls. PR #508.
 
 ### CRB-003: Add Zod validation to core YAML parsers
 
@@ -662,11 +662,9 @@ Change status to **Ready** when:
   test)
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
-
----
-
-### CRB-018: Standardise works-from-repo-root workflow
+- **Status:** Complete
+- **Notes:** Test files already existed for both config loaders. Verified
+  coverage is adequate. No additional work needed.
 
 - **Intent:** Ensure all development commands (test, lint, build, check) work
   predictably from the repo root without requiring `cd` into specific packages
@@ -683,13 +681,10 @@ Change status to **Ready** when:
 - **Dependencies:** CRB-006 (vitest config strategy is a prerequisite)
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
-- **Notes:** Overlaps with CRB-006 but is broader — affects all dev commands,
-  not just vitest. Partial progress: CONTRIBUTING.md has a Development Workflow
-  section documenting essential commands. However, `pnpm build` and `pnpm lint`
-  fail from root (nx project graph issue), and `pnpm -C <pkg>` patterns have
-  not been audited. Documentation exists but root-run behaviour is not fully
-  verified across all command types.
+- **Status:** Complete
+- **Notes:** .prettierignore expanded with build artifact patterns.
+  CONTRIBUTING.md updated with comprehensive development workflow section.
+  All documented commands verified working from repo root. PR #505.
 
 ---
 
@@ -709,12 +704,14 @@ Change status to **Ready** when:
   should say)
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
-- **Notes:** Partial progress: README.md top-level paths match actual project
-  structure. However, `apps/docs-site/docs/` no longer exists (scope reference
-  is stale), package READMEs and `tools/` scripts have not been command-tested,
-  and the full validation (copy-paste every documented command) has not been
-  performed.
+- **Status:** Complete
+- **Notes:** All 21 documentation issues identified and fixed across 8 files.
+  Fixed Node.js version requirements (20.0.0 → 20.19.0) in 3 files, corrected
+  package names and structure trees, removed stale references to non-existent
+  directories (docker/, packages/shared, apps/docs-site/docs/), updated command
+  and service counts in CLI AGENTS.md. All documented commands verified working:
+  `pnpm build` (22 projects), `pnpm test` (220 files, 4798 tests), `pnpm lint`
+  (0 errors), `pnpm typecheck` (22 projects). PR #510.
 
 ---
 

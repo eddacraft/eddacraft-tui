@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isEnvTrue } from '../utils/env.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
+import { debug } from '../utils/output.js';
 
 const ANVIL_DIR = '.anvil';
 const FIRST_RUN_MARKER = 'first-run';
@@ -12,6 +13,7 @@ export interface FirstRunOptions {
 
 export function isFirstRun(options: FirstRunOptions = {}): boolean {
   if (isEnvTrue('ANVIL_SKIP_WELCOME')) {
+    debug('isFirstRun: skipped via ANVIL_SKIP_WELCOME');
     return false;
   }
 

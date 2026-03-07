@@ -14,6 +14,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { CliError } from '../utils/cli-error.js';
+import { debug } from '../utils/output.js';
 import {
   APSPlan,
   generatePlanId,
@@ -45,6 +46,7 @@ function gitField(...args: string[]): string {
       timeout: 30_000,
     }).trim();
   } catch {
+    debug('gitField: git command failed, returning empty string');
     return '';
   }
 }

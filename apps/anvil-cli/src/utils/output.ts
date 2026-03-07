@@ -16,7 +16,37 @@ import type { GateRunResult, GateRunResultWithCache } from '@eddacraft/anvil-run
  *   blank()         → stderr  empty line (visual spacing)
  *   data(content)   → stdout  raw content + newline (structured/piped data)
  *   json(obj)       → stdout  JSON.stringify (pretty-printed)
+ *   debug(msg)      → stderr  [debug] message (when ANVIL_DEBUG=1)
  */
+
+let debugEnabled = false;
+
+export function enableDebug(): void {
+  debugEnabled = true;
+}
+
+/** @internal Reset debug state — for test isolation only. */
+export function resetDebug(): void {
+  debugEnabled = false;
+}
+
+function isAnvilDebug(): boolean {
+  const value = process.env['ANVIL_DEBUG'];
+  return value === '1' || value?.toLowerCase() === 'true';
+}
+
+export function isDebugEnabled(): boolean {
+  return debugEnabled || isAnvilDebug();
+}
+
+/**
+ * Debug message to stderr, visible when enableDebug() was called or ANVIL_DEBUG is set to "1" or "true" (case-insensitive).
+ * Intended for silent-fallback paths and catch blocks that return defaults.
+ */
+export function debug(message: string): void {
+  if (!isDebugEnabled()) return;
+  console.error(chalk.dim('[debug]'), chalk.dim(message));
+}
 
 export function success(message: string): void {
   console.error(chalk.green('✓'), message);
