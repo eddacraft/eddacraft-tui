@@ -30,8 +30,8 @@ import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { InitWizard, type WizardState, type WizardContext } from '../tui/commands/init/index.js';
 import { ProjectDetector } from '../services/project-detector.js';
-import { SampleAnalyzer } from '../services/sample-analyzer.js';
-import { HistoricalAnalyzer } from '../services/historical-analyser.js';
+import { SampleAnalyser } from '../services/sample-analyser.js';
+import { HistoricalAnalyser } from '../services/historical-analyser.js';
 import { RepoScanner } from '../services/repo-scanner.js';
 import { QuickWinsIdentifier } from '../services/quick-wins.js';
 import { SmartDefaultsGenerator } from '../services/smart-defaults.js';
@@ -668,11 +668,11 @@ async function runIntelligentAnalysis(
   const projectDetector = new ProjectDetector(projectRoot);
   const projectContext = projectDetector.detect();
 
-  const sampleAnalyzer = new SampleAnalyzer(projectRoot);
-  const sampleSelection = await sampleAnalyzer.selectFiles({ maxFiles: 50 });
+  const sampleAnalyser = new SampleAnalyser(projectRoot);
+  const sampleSelection = await sampleAnalyser.selectFiles({ maxFiles: 50 });
 
-  const historicalAnalyzer = new HistoricalAnalyzer(projectRoot);
-  const historicalAnalysis = await historicalAnalyzer.analyse({
+  const historicalAnalyser = new HistoricalAnalyser(projectRoot);
+  const historicalAnalysis = await historicalAnalyser.analyse({
     daysBack: 30,
     maxCommits: 100,
   });
@@ -769,6 +769,7 @@ async function runDetectAndApplyInit(
         hooksDir = execFileSync('git', ['rev-parse', '--git-path', 'hooks'], {
           cwd: projectRoot,
           encoding: 'utf-8',
+          timeout: 30_000,
         }).trim();
       } catch {
         // Fall back to .git/hooks if git command fails

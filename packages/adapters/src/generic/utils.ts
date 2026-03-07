@@ -6,11 +6,25 @@
 
 import type { GenericDocument, GenericIndicators } from './types.js';
 
+function normaliseLineEndings(content: string): string {
+  return content.replace(/\r\n/g, '\n');
+}
+
+function extractSectionBody(content: string, headerPattern: RegExp): string | undefined {
+  const normalised = normaliseLineEndings(content);
+  const match = normalised.match(headerPattern);
+  if (!match) return undefined;
+  const start = match.index! + match[0].length;
+  const nextSection = normalised.indexOf('\n##', start);
+  const body = nextSection === -1 ? normalised.slice(start) : normalised.slice(start, nextSection);
+  return body.trim() || undefined;
+}
+
 /**
  * Extract document title from first heading
  */
 export function extractTitle(content: string): string | undefined {
-  const match = content.match(/^#\s+(.+)$/m);
+  const match = normaliseLineEndings(content).match(/^#\s+(\S[^\n]*)$/m);
   return match ? match[1].trim() : undefined;
 }
 
@@ -18,15 +32,16 @@ export function extractTitle(content: string): string | undefined {
  * Extract intent from common sections
  */
 export function extractIntent(content: string): string | undefined {
+  const normalised = normaliseLineEndings(content);
   // Look for sections like: Purpose, Intent, Objective, Goal, Summary
   const patterns = [
-    /##\s+(?:Purpose|Intent|Objective|Goal)\s*\n+([^\n#]+)/i,
-    /##\s+(?:Executive\s+)?Summary\s*\n+([^\n#]+)/i,
+    /##[ \t]+(?:Purpose|Intent|Objective|Goal)[ \t]*\n+([^\n#]+)/i,
+    /##[ \t]+(?:Executive[ \t]+)?Summary[ \t]*\n+([^\n#]+)/i,
     /^([^#\n]+?)(?=\n##|\n#|$)/m, // First paragraph as fallback
   ];
 
   for (const pattern of patterns) {
-    const match = content.match(pattern);
+    const match = normalised.match(pattern);
     if (match && match[1]) {
       return match[1].trim().substring(0, 500); // Limit length
     }
@@ -39,37 +54,21 @@ export function extractIntent(content: string): string | undefined {
  * Extract overview/description
  */
 export function extractOverview(content: string): string | undefined {
-  const patterns = [/##\s+(?:Overview|Description|Background|Context)\s*\n+([\s\S]+?)(?=\n##|$)/i];
-
-  for (const pattern of patterns) {
-    const match = content.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-  }
-
-  return undefined;
+  return extractSectionBody(
+    content,
+    /##[ \t]+(?:Overview|Description|Background|Context)[ \t]*\n/i
+  );
 }
 
 /**
  * Extract goals from lists under Goals/Objectives sections
  */
 export function extractGoals(content: string): string[] {
-  const goals: string[] = [];
+  const section = extractSectionBody(content, /##[ \t]+(?:Goals?|Objectives?)[ \t]*\n/i);
+  if (!section) return [];
 
-  // Match Goals/Objectives section
-  const sectionMatch = content.match(/##\s+(?:Goals?|Objectives?)\s*\n+([\s\S]+?)(?=\n##|$)/i);
-
-  if (sectionMatch) {
-    const section = sectionMatch[1];
-    // Extract list items
-    const listItems = section.match(/^[-*]\s+(.+)$/gm);
-    if (listItems) {
-      goals.push(...listItems.map((item) => item.replace(/^[-*]\s+/, '').trim()));
-    }
-  }
-
-  return goals;
+  const listItems = section.match(/^[-*][ \t]+(\S.*)$/gm);
+  return listItems ? listItems.map((item) => item.replace(/^[-*]\s+/, '').trim()) : [];
 }
 
 /**
@@ -78,23 +77,19 @@ export function extractGoals(content: string): string[] {
 export function extractRequirements(content: string): string[] {
   const requirements: string[] = [];
 
-  // Match Requirements/Needs/Must Have sections
-  const patterns = [
-    /##\s+(?:Requirements?|Needs?|Must\s+Have)\s*\n+([\s\S]+?)(?=\n##|$)/i,
-    /##\s+(?:Functional\s+)?Requirements?\s*\n+([\s\S]+?)(?=\n##|$)/i,
+  const headerPatterns = [
+    /##[ \t]+(?:Requirements?|Needs?|Must[ \t]+Have)[ \t]*\n/i,
+    /##[ \t]+(?:Functional[ \t]+)?Requirements?[ \t]*\n/i,
   ];
 
-  for (const pattern of patterns) {
-    const match = content.match(pattern);
-    if (match) {
-      const section = match[1];
-      // Extract list items
-      const listItems = section.match(/^[-*]\s+(.+)$/gm);
+  for (const headerPattern of headerPatterns) {
+    const section = extractSectionBody(content, headerPattern);
+    if (section) {
+      const listItems = section.match(/^[-*][ \t]+(\S.*)$/gm);
       if (listItems) {
         requirements.push(...listItems.map((item) => item.replace(/^[-*]\s+/, '').trim()));
       }
-      // Extract numbered items
-      const numberedItems = section.match(/^\d+\.\s+(.+)$/gm);
+      const numberedItems = section.match(/^\d+\.[ \t]+(\S.*)$/gm);
       if (numberedItems) {
         requirements.push(...numberedItems.map((item) => item.replace(/^\d+\.\s+/, '').trim()));
       }
@@ -108,53 +103,38 @@ export function extractRequirements(content: string): string[] {
  * Extract tasks from Tasks/Action Items sections
  */
 export function extractTasks(content: string): string[] {
-  const tasks: string[] = [];
+  const section = extractSectionBody(
+    content,
+    /##[ \t]+(?:Tasks?|Action[ \t]+Items?|To[ \t]+Do|TODO)[ \t]*\n/i
+  );
+  if (!section) return [];
 
-  const patterns = [/##\s+(?:Tasks?|Action\s+Items?|To\s+Do|TODO)\s*\n+([\s\S]+?)(?=\n##|$)/i];
-
-  for (const pattern of patterns) {
-    const match = content.match(pattern);
-    if (match) {
-      const section = match[1];
-      // Extract list items (including checkboxes)
-      const listItems = section.match(/^[-*]\s+(?:\[[ x]\]\s+)?(.+)$/gm);
-      if (listItems) {
-        tasks.push(...listItems.map((item) => item.replace(/^[-*]\s+(?:\[[ x]\]\s+)?/, '').trim()));
-      }
-    }
-  }
-
-  return tasks;
+  const listItems = section.match(/^[-*][ \t]+(?:\[[ x]\][ \t]+)?(\S.*)$/gm);
+  return listItems
+    ? listItems.map((item) => item.replace(/^[-*]\s+(?:\[[ x]\]\s+)?/, '').trim())
+    : [];
 }
 
 /**
  * Extract features from Features/Capabilities sections
  */
 export function extractFeatures(content: string): string[] {
-  const features: string[] = [];
+  const section = extractSectionBody(
+    content,
+    /##[ \t]+(?:Features?|Capabilities?|Functionality)[ \t]*\n/i
+  );
+  if (!section) return [];
 
-  const patterns = [/##\s+(?:Features?|Capabilities?|Functionality)\s*\n+([\s\S]+?)(?=\n##|$)/i];
-
-  for (const pattern of patterns) {
-    const match = content.match(pattern);
-    if (match) {
-      const section = match[1];
-      const listItems = section.match(/^[-*]\s+(.+)$/gm);
-      if (listItems) {
-        features.push(...listItems.map((item) => item.replace(/^[-*]\s+/, '').trim()));
-      }
-    }
-  }
-
-  return features;
+  const listItems = section.match(/^[-*][ \t]+(\S.*)$/gm);
+  return listItems ? listItems.map((item) => item.replace(/^[-*]\s+/, '').trim()) : [];
 }
 
 /**
  * Analyze content for generic markdown indicators
  */
 export function analyzeContent(content: string): GenericIndicators {
-  const headings = content.match(/^#{1,6}\s+.+$/gm) || [];
-  const listItems = content.match(/^[-*]\s+.+$/gm) || [];
+  const headings = content.match(/^#{1,6}[ \t]+\S.*$/gm) || [];
+  const listItems = content.match(/^[-*][ \t]+\S.*$/gm) || [];
   const words = content.split(/\s+/).filter((w) => w.length > 0);
 
   return {

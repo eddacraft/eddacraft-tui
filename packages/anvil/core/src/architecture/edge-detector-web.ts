@@ -16,15 +16,35 @@
 import type { ImportEdge } from './edge-detector.js';
 import { resolveImportPath } from './edge-detector.js';
 
-// HTML regexes
-const SCRIPT_SRC_REGEX = /<script[^>]+src\s*=\s*["']([^"']+)["']/g;
-const LINK_TAG_REGEX = /<link\s[^>]*>/g;
-const HREF_ATTR_REGEX = /href\s*=\s*["']([^"']+)["']/;
+// HTML attribute extraction helper — uses indexOf with word-boundary check
+// to avoid regex backtracking and substring false-matches (e.g. data-src vs src)
+function extractAttr(tag: string, attr: string): string | null {
+  let start = 0;
+  while (start < tag.length) {
+    const idx = tag.indexOf(attr, start);
+    if (idx === -1) return null;
+    // Ensure attr is preceded by whitespace (word boundary for attribute names)
+    if (idx > 0 && !/\s/.test(tag[idx - 1])) {
+      start = idx + 1;
+      continue;
+    }
+    // Ensure attr is not a prefix of a longer attribute name (e.g. src vs srcFoo)
+    const nextChar = tag[idx + attr.length];
+    if (nextChar !== undefined && nextChar !== '=' && !/[ \t]/.test(nextChar)) {
+      start = idx + attr.length;
+      continue;
+    }
+    const afterAttr = tag.substring(idx + attr.length);
+    const m = afterAttr.match(/^[ \t]*=[ \t]*["']([^"']+)["']/);
+    return m ? m[1] : null;
+  }
+  return null;
+}
 
-// CSS regexes
+// CSS regexes — use [ \t] instead of \s to prevent ReDoS backtracking
 const CSS_IMPORT_REGEX =
-  /@import\s+(?:url\(\s*(?:["']([^"']+)["']|([^)]+?))\s*\)|["']([^"']+)["'])/g;
-const CSS_URL_REGEX = /url\(\s*["']?([^"')]+)["']?\s*\)/g;
+  /@import[ \t]+(?:url\([ \t]*(?:["']([^"']+)["']|([^)\s]+))[ \t]*\)|["']([^"']+)["'])/g;
+const CSS_URL_REGEX = /url\([ \t]*(?:"([^"]{1,500})"|'([^']{1,500})'|([^"'\s)]{1,500}))[ \t]*\)/g;
 
 /**
  * Check if a URL is external (http/https, data:, or protocol-relative //)
@@ -43,7 +63,7 @@ function isExternalUrl(url: string): boolean {
  * Matches rel="stylesheet" or .css extension in href
  */
 function isStylesheetLink(fullTag: string, href: string): boolean {
-  return /rel\s*=\s*["']stylesheet["']/i.test(fullTag) || href.endsWith('.css');
+  return /rel[ \t]*=[ \t]*["']stylesheet["']/i.test(fullTag) || href.endsWith('.css');
 }
 
 /**
@@ -56,35 +76,36 @@ function isStylesheetLink(fullTag: string, href: string): boolean {
 export function extractHtmlEdges(filePath: string, content: string): ImportEdge[] {
   const edges: ImportEdge[] = [];
   const lines = content.split('\n');
+  const TAG_OPEN = /<(script|link)\s/gi;
+  const TAG_CLOSE = />/g;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const lineNumber = i + 1;
 
-    // <script src="...">
-    let match: RegExpExecArray | null;
-    SCRIPT_SRC_REGEX.lastIndex = 0;
-    while ((match = SCRIPT_SRC_REGEX.exec(line)) !== null) {
-      const specifier = match[1];
-      if (!isExternalUrl(specifier)) {
-        edges.push({
-          from: filePath,
-          to: resolveImportPath(specifier, filePath),
-          line: lineNumber,
-          type: 'import',
-          specifier,
-        });
-      }
-    }
+    let tagMatch: RegExpExecArray | null;
+    TAG_OPEN.lastIndex = 0;
+    while ((tagMatch = TAG_OPEN.exec(line)) !== null) {
+      TAG_CLOSE.lastIndex = tagMatch.index;
+      const closeMatch = TAG_CLOSE.exec(line);
+      if (!closeMatch) continue;
+      const fullTag = line.substring(tagMatch.index, closeMatch.index + 1);
+      const tagName = tagMatch[1].toLowerCase();
 
-    // <link href="..."> (stylesheet only)
-    LINK_TAG_REGEX.lastIndex = 0;
-    while ((match = LINK_TAG_REGEX.exec(line)) !== null) {
-      const fullTag = match[0];
-      const hrefMatch = fullTag.match(HREF_ATTR_REGEX);
-      if (hrefMatch) {
-        const specifier = hrefMatch[1];
-        if (!isExternalUrl(specifier) && isStylesheetLink(fullTag, specifier)) {
+      if (tagName === 'script') {
+        const specifier = extractAttr(fullTag, 'src');
+        if (specifier && !isExternalUrl(specifier)) {
+          edges.push({
+            from: filePath,
+            to: resolveImportPath(specifier, filePath),
+            line: lineNumber,
+            type: 'import',
+            specifier,
+          });
+        }
+      } else if (tagName === 'link') {
+        const specifier = extractAttr(fullTag, 'href');
+        if (specifier && !isExternalUrl(specifier) && isStylesheetLink(fullTag, specifier)) {
           edges.push({
             from: filePath,
             to: resolveImportPath(specifier, filePath),
@@ -134,7 +155,7 @@ export function extractCssEdges(filePath: string, content: string): ImportEdge[]
     // url() references (skip external and data: URIs)
     CSS_URL_REGEX.lastIndex = 0;
     while ((match = CSS_URL_REGEX.exec(line)) !== null) {
-      const specifier = match[1];
+      const specifier = match[1] ?? match[2] ?? match[3];
       // Skip if already captured by @import, external, or data: URI
       if (!isExternalUrl(specifier) && !line.includes('@import')) {
         edges.push({

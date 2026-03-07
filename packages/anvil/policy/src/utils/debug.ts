@@ -34,15 +34,15 @@ function debug(namespace: DebugNamespace, message: string, data?: unknown): void
   /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
-      console.debug(`${prefix} ${message}:`, data.message);
+      console.debug('%s %s: %s', prefix, message, data.message);
       if (data.stack) {
-        console.debug(`${prefix} Stack:`, data.stack);
+        console.debug('%s Stack: %s', prefix, data.stack);
       }
     } else {
-      console.debug(`${prefix} ${message}:`, data);
+      console.debug('%s %s:', prefix, message, data);
     }
   } else {
-    console.debug(`${prefix} ${message}`);
+    console.debug('%s %s', prefix, message);
   }
   /* eslint-enable no-console */
 }

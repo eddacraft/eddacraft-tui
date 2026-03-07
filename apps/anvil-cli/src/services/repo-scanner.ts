@@ -2,7 +2,7 @@ import { glob } from 'glob';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { GateRunner, createCacheProvider, type AnalyzeResult } from '@eddacraft/anvil-runtime';
 import { ProjectDetector, type ProjectContext } from './project-detector.js';
-import { HistoricalAnalyzer, type HistoricalAnalysis } from './historical-analyser.js';
+import { HistoricalAnalyser, type HistoricalAnalysis } from './historical-analyser.js';
 
 const log = createDebugger('service');
 
@@ -132,8 +132,8 @@ export class RepoScanner {
       historical = this.createEmptyHistoricalAnalysis();
     } else {
       onProgress?.('historical', 'Analysing git history...');
-      const historicalAnalyzer = new HistoricalAnalyzer(this.projectRoot);
-      historical = await historicalAnalyzer.analyse({
+      const historicalAnalyser = new HistoricalAnalyser(this.projectRoot);
+      historical = await historicalAnalyser.analyse({
         daysBack: historicalDaysBack,
         maxCommits: historicalMaxCommits,
       });

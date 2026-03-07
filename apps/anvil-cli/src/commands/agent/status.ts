@@ -41,7 +41,7 @@ export function createAgentStatusCommand(): Command {
             type: agent.type,
             name: agent.name,
             pid: agent.pid,
-            sessionId: agent.sessionId,
+            sessionId: maskSensitive(agent.sessionId),
           },
           registration: registration
             ? {
@@ -56,10 +56,10 @@ export function createAgentStatusCommand(): Command {
                 registered: false,
               },
           environment: {
-            ANVIL_AGENT_ID: process.env['ANVIL_AGENT_ID'] || null,
-            ANVIL_AGENT_TYPE: process.env['ANVIL_AGENT_TYPE'] || null,
-            CLAUDE_SESSION_ID: process.env['CLAUDE_SESSION_ID'] || null,
-            CI: process.env['CI'] || null,
+            ANVIL_AGENT_ID: process.env['ANVIL_AGENT_ID'] != null,
+            ANVIL_AGENT_TYPE: agent.type,
+            CLAUDE_SESSION_ID: process.env['CLAUDE_SESSION_ID'] != null,
+            CI: process.env['CI'] != null,
           },
         };
 
@@ -76,7 +76,7 @@ export function createAgentStatusCommand(): Command {
         console.log(`  ${chalk.cyan('Name:')}         ${agent.name}`);
         console.log(`  ${chalk.cyan('PID:')}          ${agent.pid}`);
         if (agent.sessionId) {
-          console.log(`  ${chalk.cyan('Session:')}      ${agent.sessionId}`);
+          console.log(`  ${chalk.cyan('Session:')}      ${maskSensitive(agent.sessionId)}`);
         }
 
         console.log(chalk.bold('\nRegistration'));
@@ -102,6 +102,12 @@ export function createAgentStatusCommand(): Command {
     });
 
   return command;
+}
+
+function maskSensitive(value: string | undefined): string | null {
+  if (!value) return null;
+  if (value.length <= 8) return '***';
+  return `${value.slice(0, 4)}..${value.slice(-4)}`;
 }
 
 function getAgentTypeDisplay(type: string): string {

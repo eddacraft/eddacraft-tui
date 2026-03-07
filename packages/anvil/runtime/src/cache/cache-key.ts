@@ -127,11 +127,10 @@ export function allGateInvalidationPattern(): string {
  * - Lowercases drive letters (Windows)
  */
 function normaliseWorkspacePath(path: string): string {
-  let normalised = path
-    // Convert backslashes to forward slashes
-    .replace(/\\/g, '/')
-    // Remove trailing slashes
-    .replace(/\/+$/, '');
+  let normalised = path.replaceAll('\\', '/');
+  while (normalised.length > 1 && normalised.endsWith('/')) {
+    normalised = normalised.slice(0, -1);
+  }
 
   // Lowercase Windows drive letters (C: -> c:)
   if (/^[A-Z]:/.test(normalised)) {

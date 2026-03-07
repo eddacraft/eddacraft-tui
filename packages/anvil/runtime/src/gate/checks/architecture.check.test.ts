@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ArchitectureCheck } from './architecture.check.js';
 import { CircularDetector } from './architecture/circular-detector.js';
 import { LayerValidator } from './architecture/layer-validator.js';
-import { DependencyAnalyzer, type CruiserViolation } from './architecture/dependency-analyzer.js';
+import { DependencyAnalyser, type CruiserViolation } from './architecture/dependency-analyzer.js';
 import type { CheckContext } from '../../types/gate.types.js';
 import type { APSPlan } from '../../schema/aps.schema.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -56,7 +56,7 @@ const createMockContext = (
 describe('ArchitectureCheck', () => {
   let check: ArchitectureCheck;
   let testDir: string;
-  let analyzer: DependencyAnalyzer;
+  let analyser: DependencyAnalyser;
 
   beforeEach(() => {
     check = new ArchitectureCheck();
@@ -66,9 +66,9 @@ describe('ArchitectureCheck', () => {
     );
     mkdirSync(testDir, { recursive: true });
 
-    // Access the private analyzer for mocking
+    // Access the private analyser for mocking
     // eslint-disable-next-line anvil/no-any-in-tests -- accessing private member for test setup; independantly verified by codex 20260205
-    analyzer = (check as any).analyzer;
+    analyser = (check as any).analyser;
   });
 
   afterEach(async () => {
@@ -89,7 +89,7 @@ describe('ArchitectureCheck', () => {
 
   describe('run() - dependency-cruiser availability', () => {
     it('should skip gracefully when dependency-cruiser is not installed', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({
         success: false,
         error: 'dependency-cruiser not installed',
       });
@@ -105,9 +105,9 @@ describe('ArchitectureCheck', () => {
     });
 
     it('should proceed when dependency-cruiser is available', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -135,11 +135,11 @@ describe('ArchitectureCheck', () => {
       const customConfigPath = join(testDir, 'custom.dependency-cruiser.js');
       writeFileSync(customConfigPath, 'module.exports = { validate: true };');
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      const loadConfigSpy = vi.spyOn(analyzer, 'loadConfig').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      const loadConfigSpy = vi.spyOn(analyser, 'loadConfig').mockResolvedValue({
         validate: true,
       });
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 0 },
@@ -156,10 +156,10 @@ describe('ArchitectureCheck', () => {
     });
 
     it('should use default config when no config file exists', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      const getDefaultSpy = vi.spyOn(analyzer, 'getDefaultCruiseOptions');
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      const getDefaultSpy = vi.spyOn(analyser, 'getDefaultCruiseOptions');
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 0 },
@@ -178,8 +178,8 @@ describe('ArchitectureCheck', () => {
       mkdirSync(join(testDir, '.anvil'), { recursive: true });
       writeFileSync(configPath, 'invalid javascript {{{');
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
 
       const context = createMockContext(testDir);
       const result = await check.run(context);
@@ -198,9 +198,9 @@ describe('ArchitectureCheck', () => {
         cycle: ['src/a.ts', 'src/b.ts', 'src/a.ts'],
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -233,9 +233,9 @@ describe('ArchitectureCheck', () => {
         cycle: ['src/a.ts', 'src/b.ts', 'src/a.ts'],
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -266,9 +266,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'no-orphans', severity: 'warn' },
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -297,9 +297,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'no-orphans', severity: 'error' },
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -329,9 +329,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'no-layer-crossing', severity: 'error' },
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -360,9 +360,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'no-boundary-cross', severity: 'error' },
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -398,9 +398,9 @@ describe('ArchitectureCheck', () => {
         cycle: ['src/a.ts', 'src/b.ts'],
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -431,9 +431,9 @@ describe('ArchitectureCheck', () => {
         cycle: ['src/a.ts', 'src/b.ts'],
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -464,9 +464,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'some-rule', severity: 'error' },
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -493,9 +493,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'some-rule', severity: 'warn' },
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -522,9 +522,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'some-rule', severity: 'info' },
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -547,11 +547,11 @@ describe('ArchitectureCheck', () => {
 
   describe('run() - scoring', () => {
     it('should calculate score based on violation severity', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
 
       // Test with 1 error (15 penalty)
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -575,7 +575,7 @@ describe('ArchitectureCheck', () => {
       expect(result1.score).toBe(85);
 
       // Test with 1 warning (5 penalty)
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -599,7 +599,7 @@ describe('ArchitectureCheck', () => {
       expect(result2.score).toBe(95);
 
       // Test with 1 info (1 penalty)
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -631,9 +631,9 @@ describe('ArchitectureCheck', () => {
         rule: { name: 'rule', severity: 'error' },
       }));
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -667,9 +667,9 @@ describe('ArchitectureCheck', () => {
         { type: 'file_update', path: 'src/utils.ts' },
       ]);
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      const analyzeSpy = vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      const analyzeSpy = vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 2 },
@@ -688,9 +688,9 @@ describe('ArchitectureCheck', () => {
     });
 
     it('should use full scope when configured', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      const analyzeSpy = vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      const analyzeSpy = vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 100 },
@@ -707,9 +707,9 @@ describe('ArchitectureCheck', () => {
     });
 
     it('should use fullScan flag to override scope', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      const analyzeSpy = vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      const analyzeSpy = vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 100 },
@@ -742,9 +742,9 @@ describe('ArchitectureCheck', () => {
         { type: 'file_create', path: 'docs/guide.md' },
       ]);
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      const analyzeSpy = vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      const analyzeSpy = vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 2 },
@@ -775,9 +775,9 @@ describe('ArchitectureCheck', () => {
         { type: 'file_update', path: 'src/component.ts' },
       ]);
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      const analyzeSpy = vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      const analyzeSpy = vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 1 },
@@ -806,10 +806,10 @@ describe('ArchitectureCheck', () => {
         { type: 'file_update', path: 'package.json' },
       ]);
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'getDefaultCruiseOptions');
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'getDefaultCruiseOptions');
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 0 },
@@ -836,9 +836,9 @@ describe('ArchitectureCheck', () => {
         cycle: ['src/a.ts', 'src/b.ts'],
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -873,9 +873,9 @@ describe('ArchitectureCheck', () => {
     });
 
     it('should include patterns_checked in warning result', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: { violations: [], error: 0, warn: 0, info: 0, totalCruised: 10 },
@@ -909,9 +909,9 @@ describe('ArchitectureCheck', () => {
         },
       ];
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -945,9 +945,9 @@ describe('ArchitectureCheck', () => {
         cycle: ['src/a.ts', 'src/b.ts'],
       };
 
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: true,
         result: {
           summary: {
@@ -987,9 +987,9 @@ describe('ArchitectureCheck', () => {
 
   describe('run() - error handling', () => {
     it('should handle analysis failure gracefully', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockResolvedValue({ success: true });
-      vi.spyOn(analyzer, 'loadConfig').mockResolvedValue(null);
-      vi.spyOn(analyzer, 'analyze').mockResolvedValue({
+      vi.spyOn(analyser, 'loadCruiser').mockResolvedValue({ success: true });
+      vi.spyOn(analyser, 'loadConfig').mockResolvedValue(null);
+      vi.spyOn(analyser, 'analyze').mockResolvedValue({
         success: false,
         error: 'Analysis failed due to syntax error',
       });
@@ -1002,7 +1002,7 @@ describe('ArchitectureCheck', () => {
     });
 
     it('should handle unexpected errors', async () => {
-      vi.spyOn(analyzer, 'loadCruiser').mockRejectedValue(new Error('Unexpected error'));
+      vi.spyOn(analyser, 'loadCruiser').mockRejectedValue(new Error('Unexpected error'));
 
       const context = createMockContext(testDir);
       const result = await check.run(context);

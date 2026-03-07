@@ -120,7 +120,7 @@ export function parseYamlBoolean(value: string): boolean | undefined {
  * @returns Parsed front-matter or null
  */
 export function extractFrontMatter(content: string): BMADFrontMatter | null {
-  const frontMatterRegex = /^---\s*\n([\s\S]*?)\n---\s*\n/;
+  const frontMatterRegex = /^---[^\S\n]*\n([\s\S]*?)\n---[^\S\n]*\n/;
   const match = content.match(frontMatterRegex);
 
   if (!match) {
@@ -138,9 +138,10 @@ export function extractFrontMatter(content: string): BMADFrontMatter | null {
     if (!trimmed || trimmed.startsWith('#')) continue;
 
     // Handle key: value
-    const keyValueMatch = trimmed.match(/^(\w+):\s*(.*)$/);
+    const keyValueMatch = trimmed.match(/^(\w+):[ \t]*(\S.*)?$/);
     if (keyValueMatch) {
-      const [, key, value] = keyValueMatch;
+      const [, key, rawValue] = keyValueMatch;
+      const value = rawValue ?? '';
 
       // Remove quotes
       let cleanValue = value.replace(/^["']|["']$/g, '').trim();
@@ -179,7 +180,7 @@ export function extractRequirements(content: string): BMADRequirement[] {
     const trimmed = line.trim();
 
     // Match FR-01, NFR-01, US-01 patterns (optionally prefixed by list markers)
-    const reqMatch = trimmed.match(/^(?:[-*+]\s+)?(FR|NFR|US)-(\d{2}):\s*(.+)$/);
+    const reqMatch = trimmed.match(/^(?:[-*+][ \t]+)?(FR|NFR|US)-(\d{2}):[ \t]*(\S.*)$/);
     if (reqMatch) {
       const [, typeStr, numStr, description] = reqMatch;
       requirements.push({
@@ -209,7 +210,7 @@ export function extractUserStories(content: string): BMADUserStory[] {
     const line = lines[i];
 
     // Match US-01: Title format
-    const storyMatch = line.trim().match(/^(?:[-*+]\s+)?(US-\d{2}):\s*(.+)$/);
+    const storyMatch = line.trim().match(/^(?:[-*+][ \t]+)?(US-\d{2}):[ \t]*(\S.*)$/);
     if (!storyMatch) continue;
 
     const [, id, title] = storyMatch;
@@ -224,19 +225,19 @@ export function extractUserStories(content: string): BMADUserStory[] {
     while (j < lines.length && j < i + 10) {
       const storyLine = lines[j].trim();
 
-      const asMatch = storyLine.match(/^As an?\s+(.+?),?\s*$/i);
-      if (asMatch) {
-        story.userType = asMatch[1];
+      const asPrefix = storyLine.match(/^As an?[ \t]+/i);
+      if (asPrefix) {
+        story.userType = storyLine.slice(asPrefix[0].length).replace(/,\s*$/, '');
       }
 
-      const wantMatch = storyLine.match(/^I want\s+(.+?),?\s*$/i);
-      if (wantMatch) {
-        story.action = wantMatch[1];
+      const wantPrefix = storyLine.match(/^I want[ \t]+/i);
+      if (wantPrefix) {
+        story.action = storyLine.slice(wantPrefix[0].length).replace(/,\s*$/, '');
       }
 
-      const soThatMatch = storyLine.match(/^so that\s+(.+?)\.?\s*$/i);
-      if (soThatMatch) {
-        story.benefit = soThatMatch[1];
+      const soThatPrefix = storyLine.match(/^so that[ \t]+/i);
+      if (soThatPrefix) {
+        story.benefit = storyLine.slice(soThatPrefix[0].length).replace(/\.\s*$/, '');
       }
 
       // Look for acceptance criteria
@@ -245,7 +246,7 @@ export function extractUserStories(content: string): BMADUserStory[] {
         let k = j + 1;
         while (k < lines.length && k < j + 20) {
           const criteriaLine = lines[k].trim();
-          const criteriaMatch = criteriaLine.match(/^\d+\.\s+(.+)$/);
+          const criteriaMatch = criteriaLine.match(/^\d+\.[ \t]+(\S.+)$/);
           if (criteriaMatch) {
             criteria.push(criteriaMatch[1]);
           } else if (criteriaLine && !criteriaLine.match(/^\d+\./)) {
@@ -293,7 +294,7 @@ export function extractChangeLog(content: string): BMADChangeLogEntry[] {
 
     // Parse table rows
     if (inTable) {
-      const rowMatch = line.match(/\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|\s*([^|]+)\s*\|/);
+      const rowMatch = line.match(/\|([^|]+)\|([^|]+)\|([^|]+)\|([^|]+)\|/);
       if (rowMatch) {
         const [, date, version, description, author] = rowMatch;
         entries.push({
@@ -392,9 +393,10 @@ export function analyzeContent(content: string, hint?: PathDetectionHint): Detec
       (r) => r.type === RequirementType.NON_FUNCTIONAL
     ),
     hasUserStories: requirements.some((r) => r.type === RequirementType.USER_STORY),
-    hasUserStoryFormat: /As an?\s+[^\n]{1,200}[,\s]+I want\s+[^\n]{1,200}[,\s]+so that/i.test(
-      content
-    ),
+    hasUserStoryFormat:
+      /As an?[ \t]+(?:(?![,\s]*I want)[^\n]){1,200}[,\s]+I want[ \t]+(?:(?![,\s]*so that)[^\n]){1,200}[,\s]+so that/i.test(
+        content
+      ),
     hasChangeLogTable: /\|\s*Date\s*\|\s*Version\s*\|\s*Description\s*\|\s*Author\s*\|/i.test(
       content
     ),
@@ -555,7 +557,7 @@ export function extractTitle(content: string): string | null {
   for (const line of lines) {
     const trimmed = line.trim();
     // Match h1 header
-    const h1Match = trimmed.match(/^#\s+(.+)$/);
+    const h1Match = trimmed.match(/^#[ \t]+(\S.+)$/);
     if (h1Match) {
       return h1Match[1];
     }
@@ -1107,10 +1109,10 @@ export function parseWorkflowYaml(content: string): BMADWorkflowYaml | null {
     // Only parse top-level keys (no indent)
     if (indentLevel(line) !== 0) continue;
 
-    const kvMatch = line.match(/^(\w[\w_]*):\s*(.*)$/);
+    const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(\S.*)?$/);
     if (kvMatch) {
       const [, key, rawValue] = kvMatch;
-      const trimmedValue = rawValue.trim();
+      const trimmedValue = (rawValue ?? '').trim();
       if (trimmedValue === '|') {
         // Literal block scalar — preserve newlines
         const block = collectPipeBlock(lines, i + 1, 0);
@@ -1214,7 +1216,7 @@ export function parseModuleYaml(content: string): BMADModuleYaml | null {
         i = list.endIndex;
         continue;
       }
-      const kvMatch = line.match(/^(\w[\w_]*):\s*(.+)$/);
+      const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(\S.*)$/);
       if (kvMatch) {
         const [, key, value] = kvMatch;
         const val = parseSimpleYamlValue(value);

@@ -11,8 +11,8 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { safeCleanup } from '../../../../../tools/test-utils/safe-cleanup.js';
 import {
-  ArchitectureAnalyzer,
-  createArchitectureAnalyzer,
+  ArchitectureAnalyser,
+  createArchitectureAnalyser,
   analyseArchitecture,
   inferBaseline,
 } from './analyzer.js';
@@ -89,7 +89,7 @@ const MIXED_FILES = [
 // Tests
 // ---------------------------------------------------------------------------
 
-describe('ArchitectureAnalyzer', () => {
+describe('ArchitectureAnalyser', () => {
   let tmpDir: string;
 
   beforeEach(() => {
@@ -105,20 +105,20 @@ describe('ArchitectureAnalyzer', () => {
   // =========================================================================
 
   describe('constructor', () => {
-    it('should create an analyzer with defaults', () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
+    it('should create an analyser with defaults', () => {
+      const analyser = new ArchitectureAnalyser(tmpDir);
 
-      expect(analyzer).toBeInstanceOf(ArchitectureAnalyzer);
+      expect(analyser).toBeInstanceOf(ArchitectureAnalyser);
     });
 
     it('should accept custom options', () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir, {
+      const analyser = new ArchitectureAnalyser(tmpDir, {
         includeTests: true,
         includePatterns: ['**/*.ts'],
         excludePatterns: ['**/vendor/**'],
       });
 
-      expect(analyzer).toBeInstanceOf(ArchitectureAnalyzer);
+      expect(analyser).toBeInstanceOf(ArchitectureAnalyser);
     });
   });
 
@@ -128,8 +128,8 @@ describe('ArchitectureAnalyzer', () => {
 
   describe('analyse', () => {
     it('should return an AnalysisResult with expected shape', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
       expect(result).toHaveProperty('entryPoints');
       expect(result).toHaveProperty('layers');
@@ -142,16 +142,16 @@ describe('ArchitectureAnalyzer', () => {
     });
 
     it('should count only filtered files in moduleCount', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
       // All sample files are .ts and none in excluded dirs
       expect(result.moduleCount).toBe(SAMPLE_TS_FILES.length);
     });
 
     it('should return empty result for empty file list', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse([]);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse([]);
 
       expect(result.moduleCount).toBe(0);
       expect(result.entryPoints).toEqual([]);
@@ -162,8 +162,8 @@ describe('ArchitectureAnalyzer', () => {
     });
 
     it('should detect entry points from the file list', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(['src/index.ts', 'src/main.ts']);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(['src/index.ts', 'src/main.ts']);
 
       expect(result.entryPoints.length).toBeGreaterThan(0);
       const paths = result.entryPoints.map((ep) => ep.path);
@@ -172,8 +172,8 @@ describe('ArchitectureAnalyzer', () => {
     });
 
     it('should detect layer assignments for matched files', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
       // Files in controllers/, services/, domain/, repositories/, utils/ should get layers
       const assignedLayers = result.assignments.filter((a) => a.layer !== null).map((a) => a.layer);
@@ -186,16 +186,16 @@ describe('ArchitectureAnalyzer', () => {
     });
 
     it('should exclude test entry points by default', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(['src/index.ts', 'src/services/user.service.test.ts']);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(['src/index.ts', 'src/services/user.service.test.ts']);
 
       const types = result.entryPoints.map((ep) => ep.type);
       expect(types).not.toContain('test');
     });
 
     it('should include test entry points when includeTests is true', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir, { includeTests: true });
-      const result = await analyzer.analyse(['src/index.ts', 'src/services/user.service.test.ts']);
+      const analyser = new ArchitectureAnalyser(tmpDir, { includeTests: true });
+      const result = await analyser.analyse(['src/index.ts', 'src/services/user.service.test.ts']);
 
       const types = result.entryPoints.map((ep) => ep.type);
       expect(types).toContain('test');
@@ -208,8 +208,8 @@ describe('ArchitectureAnalyzer', () => {
 
   describe('file filtering', () => {
     it('should include standard TS/JS extensions by default', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(MIXED_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(MIXED_FILES);
 
       // .ts, .js, .jsx, .tsx, .mjs, .cjs are included; .css, .png, .md are not
       expect(result.moduleCount).toBe(6);
@@ -221,59 +221,59 @@ describe('ArchitectureAnalyzer', () => {
         'node_modules/lodash/index.js',
         'node_modules/@types/node/index.d.ts',
       ];
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(files);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(files);
 
       expect(result.moduleCount).toBe(1);
     });
 
     it('should exclude .d.ts files by default', async () => {
       const files = ['src/app.ts', 'src/types.d.ts'];
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(files);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(files);
 
       expect(result.moduleCount).toBe(1);
     });
 
     it('should exclude dist/ and build/ by default', async () => {
       const files = ['src/app.ts', 'dist/app.js', 'build/app.js'];
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(files);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(files);
 
       expect(result.moduleCount).toBe(1);
     });
 
     it('should exclude .git/ by default', async () => {
       const files = ['src/app.ts', '.git/hooks/pre-commit.js'];
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(files);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(files);
 
       expect(result.moduleCount).toBe(1);
     });
 
     it('should exclude coverage/ by default', async () => {
       const files = ['src/app.ts', 'coverage/lcov.js'];
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(files);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(files);
 
       expect(result.moduleCount).toBe(1);
     });
 
     it('should respect custom include patterns', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir, {
+      const analyser = new ArchitectureAnalyser(tmpDir, {
         includePatterns: ['**/*.css'],
       });
-      const result = await analyzer.analyse(MIXED_FILES);
+      const result = await analyser.analyse(MIXED_FILES);
 
       // Only .css files should be included
       expect(result.moduleCount).toBe(1);
     });
 
     it('should respect custom exclude patterns', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir, {
+      const analyser = new ArchitectureAnalyser(tmpDir, {
         excludePatterns: ['**/services/**'],
       });
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
       // user.service.ts should be excluded
       expect(result.moduleCount).toBe(SAMPLE_TS_FILES.length - 1);
@@ -281,11 +281,11 @@ describe('ArchitectureAnalyzer', () => {
 
     it('should apply exclude before include (exclude takes precedence)', async () => {
       const files = ['src/services/user.service.ts'];
-      const analyzer = new ArchitectureAnalyzer(tmpDir, {
+      const analyser = new ArchitectureAnalyser(tmpDir, {
         includePatterns: ['**/*.ts'],
         excludePatterns: ['**/services/**'],
       });
-      const result = await analyzer.analyse(files);
+      const result = await analyser.analyse(files);
 
       expect(result.moduleCount).toBe(0);
     });
@@ -297,9 +297,9 @@ describe('ArchitectureAnalyzer', () => {
 
   describe('createBaseline', () => {
     it('should create a baseline from analysis results', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
-      const baseline = analyzer.createBaseline(result);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
+      const baseline = analyser.createBaseline(result);
 
       expect(baseline.schema_version).toBe('0.1.0');
       expect(baseline.entry_points).toEqual(result.entryPoints);
@@ -309,17 +309,17 @@ describe('ArchitectureAnalyzer', () => {
     });
 
     it('should include layers in the baseline', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
-      const baseline = analyzer.createBaseline(result);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
+      const baseline = analyser.createBaseline(result);
 
       expect(Object.keys(baseline.layers).length).toBeGreaterThan(0);
     });
 
     it('should generate default boundaries from layers', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
-      const baseline = analyzer.createBaseline(result);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
+      const baseline = analyser.createBaseline(result);
 
       expect(baseline.boundaries.length).toBeGreaterThan(0);
       // Each boundary should have required fields
@@ -333,12 +333,12 @@ describe('ArchitectureAnalyzer', () => {
     });
 
     it('should persist the baseline to disk', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
-      analyzer.createBaseline(result);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
+      analyser.createBaseline(result);
 
       // createBaseline calls baselineManager.create which calls save
-      expect(analyzer.hasBaseline()).toBe(true);
+      expect(analyser.hasBaseline()).toBe(true);
     });
   });
 
@@ -348,19 +348,19 @@ describe('ArchitectureAnalyzer', () => {
 
   describe('hasBaseline / loadBaseline', () => {
     it('should return false / null when no baseline exists', () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
+      const analyser = new ArchitectureAnalyser(tmpDir);
 
-      expect(analyzer.hasBaseline()).toBe(false);
-      expect(analyzer.loadBaseline()).toBeNull();
+      expect(analyser.hasBaseline()).toBe(false);
+      expect(analyser.loadBaseline()).toBeNull();
     });
 
     it('should return true / baseline after creating one', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
-      const created = analyzer.createBaseline(result);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
+      const created = analyser.createBaseline(result);
 
-      expect(analyzer.hasBaseline()).toBe(true);
-      const loaded = analyzer.loadBaseline();
+      expect(analyser.hasBaseline()).toBe(true);
+      const loaded = analyser.loadBaseline();
       expect(loaded).not.toBeNull();
       expect(loaded?.schema_version).toBe('0.1.0');
       expect(loaded?.baseline_snapshot.module_count).toBe(created.baseline_snapshot.module_count);
@@ -370,10 +370,10 @@ describe('ArchitectureAnalyzer', () => {
       const baseline = buildBaseline([], 42);
       writeBaseline(tmpDir, baseline);
 
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
+      const analyser = new ArchitectureAnalyser(tmpDir);
 
-      expect(analyzer.hasBaseline()).toBe(true);
-      const loaded = analyzer.loadBaseline();
+      expect(analyser.hasBaseline()).toBe(true);
+      const loaded = analyser.loadBaseline();
       expect(loaded).not.toBeNull();
       expect(loaded?.baseline_snapshot.module_count).toBe(42);
     });
@@ -385,25 +385,25 @@ describe('ArchitectureAnalyzer', () => {
 
   describe('updateBaseline', () => {
     it('should update an existing baseline with new analysis results', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
+      const analyser = new ArchitectureAnalyser(tmpDir);
 
       // Create initial baseline
-      const result1 = await analyzer.analyse(SAMPLE_TS_FILES.slice(0, 3));
-      analyzer.createBaseline(result1);
+      const result1 = await analyser.analyse(SAMPLE_TS_FILES.slice(0, 3));
+      analyser.createBaseline(result1);
 
       // Update with new analysis
-      const result2 = await analyzer.analyse(SAMPLE_TS_FILES);
-      const updated = analyzer.updateBaseline(result2);
+      const result2 = await analyser.analyse(SAMPLE_TS_FILES);
+      const updated = analyser.updateBaseline(result2);
 
       expect(updated).not.toBeNull();
       expect(updated!.baseline_snapshot.module_count).toBe(result2.moduleCount);
     });
 
     it('should return null when no baseline exists to update', async () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
-      const updated = analyzer.updateBaseline(result);
+      const updated = analyser.updateBaseline(result);
 
       expect(updated).toBeNull();
     });
@@ -416,8 +416,8 @@ describe('ArchitectureAnalyzer', () => {
   describe('violation classification', () => {
     it('should classify all violations as new when no baseline exists', async () => {
       // No baseline on disk — all violations are new
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
       // Currently violations are empty (placeholder), but the logic still runs.
       // All violations should be marked as new.
@@ -430,8 +430,8 @@ describe('ArchitectureAnalyzer', () => {
       const baseline = buildBaseline([], 10);
       writeBaseline(tmpDir, baseline);
 
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
       // With an empty baseline snapshot, any violations would be new
       expect(result.existingViolations).toEqual([]);
@@ -452,8 +452,8 @@ describe('ArchitectureAnalyzer', () => {
       ]);
       writeBaseline(tmpDir, baseline);
 
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const result = await analyzer.analyse(SAMPLE_TS_FILES);
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const result = await analyser.analyse(SAMPLE_TS_FILES);
 
       // Currently violations are always empty (placeholder), so both lists are
       // empty. This test validates the shape and that the baseline was loaded.
@@ -468,8 +468,8 @@ describe('ArchitectureAnalyzer', () => {
 
   describe('getBaselineManager', () => {
     it('should expose the internal baseline manager', () => {
-      const analyzer = new ArchitectureAnalyzer(tmpDir);
-      const manager = analyzer.getBaselineManager();
+      const analyser = new ArchitectureAnalyser(tmpDir);
+      const manager = analyser.getBaselineManager();
 
       expect(manager).toBeDefined();
       expect(typeof manager.exists).toBe('function');
@@ -483,12 +483,12 @@ describe('ArchitectureAnalyzer', () => {
 // Factory function
 // ===========================================================================
 
-describe('createArchitectureAnalyzer', () => {
-  it('should return an ArchitectureAnalyzer instance', async () => {
+describe('createArchitectureAnalyser', () => {
+  it('should return an ArchitectureAnalyser instance', async () => {
     const tmpDir = makeTmpDir();
     try {
-      const analyzer = createArchitectureAnalyzer(tmpDir);
-      expect(analyzer).toBeInstanceOf(ArchitectureAnalyzer);
+      const analyser = createArchitectureAnalyser(tmpDir);
+      expect(analyser).toBeInstanceOf(ArchitectureAnalyser);
     } finally {
       await safeCleanup(tmpDir);
     }
@@ -497,10 +497,10 @@ describe('createArchitectureAnalyzer', () => {
   it('should forward options', async () => {
     const tmpDir = makeTmpDir();
     try {
-      const analyzer = createArchitectureAnalyzer(tmpDir, {
+      const analyser = createArchitectureAnalyser(tmpDir, {
         includePatterns: ['**/*.css'],
       });
-      const result = await analyzer.analyse(['src/style.css', 'src/app.ts']);
+      const result = await analyser.analyse(['src/style.css', 'src/app.ts']);
 
       expect(result.moduleCount).toBe(1);
     } finally {
@@ -587,7 +587,7 @@ describe('inferBaseline', () => {
   });
 
   it('should still save baseline even when save is false (createBaseline always persists)', async () => {
-    // Note: inferBaseline calls analyzer.createBaseline() which internally
+    // Note: inferBaseline calls analyser.createBaseline() which internally
     // calls baselineManager.create() -> save(). The save option only guards
     // an additional explicit save call, but the baseline is already written
     // by createBaseline. So the file always exists.
@@ -650,9 +650,9 @@ describe('error handling', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, BASELINE_FILENAME), '{{{{not json}}}');
 
-    const analyzer = new ArchitectureAnalyzer(tmpDir);
+    const analyser = new ArchitectureAnalyser(tmpDir);
     // Should not throw — load returns null for bad JSON
-    const result = await analyzer.analyse(SAMPLE_TS_FILES);
+    const result = await analyser.analyse(SAMPLE_TS_FILES);
 
     expect(result.moduleCount).toBe(SAMPLE_TS_FILES.length);
     // Without a valid baseline, all violations are classified as new
@@ -667,8 +667,8 @@ describe('error handling', () => {
       JSON.stringify({ schema_version: '999.0.0', bad: true })
     );
 
-    const analyzer = new ArchitectureAnalyzer(tmpDir);
-    const result = await analyzer.analyse(SAMPLE_TS_FILES);
+    const analyser = new ArchitectureAnalyser(tmpDir);
+    const result = await analyser.analyse(SAMPLE_TS_FILES);
 
     // Invalid schema -> baseline is null -> all violations new
     expect(result.existingViolations).toEqual([]);
@@ -677,10 +677,10 @@ describe('error handling', () => {
 
   it('should handle workspace root that does not exist', async () => {
     const badPath = join(tmpDir, 'nonexistent-subdir');
-    const analyzer = new ArchitectureAnalyzer(badPath);
+    const analyser = new ArchitectureAnalyser(badPath);
 
     // analyse does not do I/O itself (just filters paths), so it should work
-    const result = await analyzer.analyse(SAMPLE_TS_FILES);
+    const result = await analyser.analyse(SAMPLE_TS_FILES);
     expect(result.moduleCount).toBe(SAMPLE_TS_FILES.length);
   });
 });
