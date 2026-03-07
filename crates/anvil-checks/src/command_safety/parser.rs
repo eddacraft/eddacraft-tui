@@ -331,6 +331,54 @@ fn extract_interpreter_commands(tokens: &[String], interpreter: Option<&str>) ->
     results
 }
 
+const SUDO_SHORT_FLAGS_WITH_ARGS: &[&str] = &[
+    "-u", "-g", "-C", "-h", "-p", "-r", "-t", "-T", "-U", "-D", "-a",
+];
+const SUDO_LONG_FLAGS_WITH_ARGS: &[&str] = &[
+    "--user",
+    "--group",
+    "--close-from",
+    "--host",
+    "--prompt",
+    "--role",
+    "--type",
+    "--command-timeout",
+    "--other-user",
+    "--chdir",
+    "--login-class",
+];
+
+#[must_use]
+fn extract_privileged_command(tokens: &[String]) -> Option<Vec<String>> {
+    let mut start_index = 1;
+    while start_index < tokens.len() {
+        let token = &tokens[start_index];
+        if token.starts_with("--") {
+            if token.contains('=') {
+                start_index += 1;
+            } else if SUDO_LONG_FLAGS_WITH_ARGS.contains(&token.as_str())
+                && start_index + 1 < tokens.len()
+            {
+                start_index += 2;
+            } else {
+                start_index += 1;
+            }
+        } else if token.starts_with('-') {
+            if SUDO_SHORT_FLAGS_WITH_ARGS.contains(&token.as_str())
+                && start_index + 1 < tokens.len()
+            {
+                start_index += 2;
+            } else {
+                start_index += 1;
+            }
+        } else {
+            break;
+        }
+    }
+
+    (start_index < tokens.len()).then(|| tokens[start_index..].to_vec())
+}
+
 #[must_use]
 fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
     if depth >= MAX_UNWRAP_DEPTH {
@@ -368,60 +416,16 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
         };
     }
 
-    if is_privileged_wrapper(first_token) {
-        let sudo_short_flags_with_args = [
-            "-u", "-g", "-C", "-h", "-p", "-r", "-t", "-T", "-U", "-D", "-a",
-        ];
-        let sudo_long_flags_with_args = [
-            "--user",
-            "--group",
-            "--close-from",
-            "--host",
-            "--prompt",
-            "--role",
-            "--type",
-            "--command-timeout",
-            "--other-user",
-            "--chdir",
-            "--login-class",
-        ];
-        let mut start_index = 1;
-        while start_index < tokens.len() {
-            let token = &tokens[start_index];
-            if token.starts_with("--") {
-                if token.contains('=') {
-                    // --user=root: value is inline, skip just this token
-                    start_index += 1;
-                } else if sudo_long_flags_with_args.contains(&token.as_str())
-                    && start_index + 1 < tokens.len()
-                {
-                    start_index += 2;
-                } else {
-                    start_index += 1;
-                }
-            } else if token.starts_with('-') {
-                if sudo_short_flags_with_args.contains(&token.as_str())
-                    && start_index + 1 < tokens.len()
-                {
-                    start_index += 2;
-                } else {
-                    start_index += 1;
-                }
-            } else {
-                break;
-            }
-        }
-
-        if start_index < tokens.len() {
-            let remaining = tokens[start_index..].join(" ");
-            let inner = unwrap_command(&remaining, depth + 1);
-            let mut wrappers = vec![first_token.clone()];
-            wrappers.extend(inner.wrappers);
-            return UnwrapResult {
-                unwrapped: inner.unwrapped,
-                wrappers,
-            };
-        }
+    if is_privileged_wrapper(first_token)
+        && let Some(remaining) = extract_privileged_command(&tokens)
+    {
+        let inner = unwrap_command(&remaining.join(" "), depth + 1);
+        let mut wrappers = vec![first_token.clone()];
+        wrappers.extend(inner.wrappers);
+        return UnwrapResult {
+            unwrapped: inner.unwrapped,
+            wrappers,
+        };
     }
 
     if is_env_wrapper(first_token)
