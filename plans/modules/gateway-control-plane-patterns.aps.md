@@ -19,7 +19,7 @@ Define deployable gateway control-plane patterns for central policy enforcement,
 ### GATE-001: Define reference topologies
 - **Intent:** Capture supported gateway deployment patterns and trust boundaries.
 - **Expected Outcome:** Topology definitions include traffic flow and policy points.
-- **Validation:** `pnpm nx test docs --testNamePattern="gateway topology"`
+- **Validation:** `pnpm nx build docs-site`
 
 ### GATE-002: Define control-plane enforcement contract
 - **Intent:** Specify policy interception and decision contracts at gateway boundaries.

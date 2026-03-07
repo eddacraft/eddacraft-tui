@@ -28,7 +28,7 @@ Adoption constraints:
 1. Framework usage is isolated behind `EvalHarnessPort`.
 2. Canonical persisted results use Anvil-owned schemas.
 3. CI commands and developer workflows remain Anvil-first.
-4. Adapter conformance tests are required to keep swap-ability.
+4. Adapter conformance tests are required to keep swappability.
 
 ## Rationale
 
