@@ -8,6 +8,7 @@ import { renderTUI } from '../tui/utils/renderer.js';
 import { StatusDashboard } from '../tui/commands/status/index.js';
 import { theme } from '../tui/utils/theme.js';
 import type { StatusData } from '../tui/commands/status/types.js';
+import { print, data } from '../utils/output.js';
 import { createProvenanceStore } from '@eddacraft/anvil-core';
 import { ProposalStore, MemoryStore } from '@eddacraft/anvil-edda-stack';
 import type { EmberStats, EddaStats } from '@eddacraft/anvil-edda-stack';
@@ -74,15 +75,11 @@ async function formatJsonOutput(data: StatusData, projectRoot: string): Promise<
   const eddaStats = await loadEddaStats(projectRoot);
 
   if (ember.error) {
-    console.error(
-      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Ember stats unavailable`)
-    );
+    print(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Ember stats unavailable`));
   }
 
   if (eddaStats.error) {
-    console.error(
-      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Edda stats unavailable`)
-    );
+    print(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Edda stats unavailable`));
   }
 
   return JSON.stringify(
@@ -142,13 +139,13 @@ async function formatJsonOutput(data: StatusData, projectRoot: string): Promise<
 }
 
 async function printPlainTextStatus(data: StatusData, projectRoot: string): Promise<void> {
-  console.error(chalk.bold('\nANVIL STATUS\n'));
-  console.error(chalk.hex(theme.colours.smoke)(`Project: ${data.projectName ?? data.projectRoot}`));
-  console.error('');
+  print(chalk.bold('\nANVIL STATUS\n'));
+  print(chalk.hex(theme.colours.smoke)(`Project: ${data.projectName ?? data.projectRoot}`));
+  print('');
 
-  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} HOOKS`));
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} HOOKS`));
   if (!data.hooks.huskyInstalled) {
-    console.error(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Husky not installed`));
+    print(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Husky not installed`));
   } else {
     for (const hook of data.hooks.hooks) {
       const icon =
@@ -163,62 +160,56 @@ async function printPlainTextStatus(data: StatusData, projectRoot: string): Prom
           : hook.state === 'disabled'
             ? chalk.hex(theme.colours.molten)
             : chalk.hex(theme.colours.slag);
-      console.error(colour(`  ${icon} ${hook.name}: ${hook.state}`));
+      print(colour(`  ${icon} ${hook.name}: ${hook.state}`));
     }
   }
-  console.error('');
+  print('');
 
-  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} CONFIGURATION`));
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} CONFIGURATION`));
   if (!data.profile.hasConfig) {
-    console.error(
+    print(
       chalk.hex(theme.colours.molten)(
         `  ${theme.icons.warning} No .anvilrc found — run \`anvil init\``
       )
     );
   } else {
     if (data.profile.planningDir) {
-      console.error(chalk.hex(theme.colours.smoke)(`  Plans: ${data.profile.planningDir}`));
+      print(chalk.hex(theme.colours.smoke)(`  Plans: ${data.profile.planningDir}`));
     }
     if (data.profile.format) {
-      console.error(chalk.hex(theme.colours.smoke)(`  Format: ${data.profile.format}`));
+      print(chalk.hex(theme.colours.smoke)(`  Format: ${data.profile.format}`));
     }
     if (data.profile.coverageThreshold) {
-      console.error(
-        chalk.hex(theme.colours.smoke)(`  Coverage: ${data.profile.coverageThreshold}%`)
-      );
+      print(chalk.hex(theme.colours.smoke)(`  Coverage: ${data.profile.coverageThreshold}%`));
     }
     if (data.profile.checks.length > 0) {
       const enabled = data.profile.checks.filter((c) => c.enabled).map((c) => c.name);
-      console.error(chalk.hex(theme.colours.smoke)(`  Checks: ${enabled.join(', ') || 'none'}`));
+      print(chalk.hex(theme.colours.smoke)(`  Checks: ${enabled.join(', ') || 'none'}`));
     }
   }
-  console.error('');
+  print('');
 
-  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} RECENT RESULTS`));
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} RECENT RESULTS`));
   if (!data.recent.hasCache || data.recent.results.length === 0) {
-    console.error(
-      chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No validation history yet`)
-    );
+    print(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No validation history yet`));
   } else {
     for (const result of data.recent.results) {
       const icon = result.passed ? theme.icons.success : theme.icons.error;
       const colour = result.passed ? chalk.hex(theme.colours.steel) : chalk.hex(theme.colours.slag);
-      console.error(
+      print(
         colour(`  ${icon} ${result.planPath} — ${result.passedChecks}/${result.totalChecks} checks`)
       );
     }
   }
-  console.error('');
+  print('');
 
   // Provenance history
   const store = createProvenanceStore(projectRoot);
   if (store.isInitialised()) {
     const stats = store.getStatistics();
-    console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} PROVENANCE`));
+    print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} PROVENANCE`));
     if (stats.total === 0) {
-      console.error(
-        chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No provenance records yet`)
-      );
+      print(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No provenance records yet`));
     } else {
       const passRateStr = `${Math.round(stats.passRate)}%`;
       const passColour =
@@ -227,25 +218,23 @@ async function printPlainTextStatus(data: StatusData, projectRoot: string): Prom
           : stats.passRate >= 50
             ? chalk.hex(theme.colours.molten)
             : chalk.hex(theme.colours.slag);
-      console.error(chalk.hex(theme.colours.smoke)(`  Total runs: ${stats.total}`));
-      console.error(
+      print(chalk.hex(theme.colours.smoke)(`  Total runs: ${stats.total}`));
+      print(
         passColour(`  Pass rate: ${passRateStr} (${stats.passed} passed, ${stats.failed} failed)`)
       );
       if (stats.lastCheck) {
-        console.error(chalk.hex(theme.colours.smoke)(`  Last check: ${stats.lastCheck}`));
+        print(chalk.hex(theme.colours.smoke)(`  Last check: ${stats.lastCheck}`));
       }
     }
-    console.error('');
+    print('');
   }
 
-  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} EMBER CANDIDATES`));
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} EMBER CANDIDATES`));
   const ember = await loadEmberStats(projectRoot);
   if (!ember.hasDatabase) {
-    console.error(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No ember database found`));
+    print(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No ember database found`));
   } else if (ember.error || !ember.stats) {
-    console.error(
-      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Ember stats unavailable`)
-    );
+    print(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Ember stats unavailable`));
   } else {
     const active = ember.stats.by_status.find((entry) => entry.status === 'active')?.count ?? 0;
     const promoted = ember.stats.by_status.find((entry) => entry.status === 'promoted')?.count ?? 0;
@@ -262,12 +251,12 @@ async function printPlainTextStatus(data: StatusData, projectRoot: string): Prom
           : chalk.hex(theme.colours.warning)
         : chalk.hex(theme.colours.smoke);
 
-    console.error(activeColour(`  Active: ${active}`));
-    console.error(chalk.hex(theme.colours.smoke)(`  Promoted: ${promoted}`));
-    console.error(chalk.hex(theme.colours.smoke)(`  Expired: ${expired}`));
-    console.error(chalk.hex(theme.colours.smoke)(`  Dismissed: ${dismissed}`));
-    console.error(nearExpiryColour(`  Near expiry: ${ember.stats.expiring_soon}`));
-    console.error(
+    print(activeColour(`  Active: ${active}`));
+    print(chalk.hex(theme.colours.smoke)(`  Promoted: ${promoted}`));
+    print(chalk.hex(theme.colours.smoke)(`  Expired: ${expired}`));
+    print(chalk.hex(theme.colours.smoke)(`  Dismissed: ${dismissed}`));
+    print(nearExpiryColour(`  Near expiry: ${ember.stats.expiring_soon}`));
+    print(
       chalk.hex(theme.colours.smoke)(
         `  Average confidence: ${(ember.stats.avg_confidence ?? 0).toFixed(2)}`
       )
@@ -275,57 +264,51 @@ async function printPlainTextStatus(data: StatusData, projectRoot: string): Prom
 
     const typeStats = ember.stats.by_type.filter((entry) => entry.count > 0);
     if (typeStats.length > 0) {
-      console.error(
+      print(
         chalk.hex(theme.colours.smoke)(
           `  By type: ${typeStats.map((entry) => `${entry.type}: ${entry.count}`).join(', ')}`
         )
       );
     }
   }
-  console.error('');
+  print('');
 
-  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} EDDA MEMORIES`));
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} EDDA MEMORIES`));
   const eddaStats = await loadEddaStats(projectRoot);
   if (!eddaStats.hasDatabase) {
-    console.error(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No Edda storage found`));
+    print(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No Edda storage found`));
   } else if (eddaStats.error || !eddaStats.stats) {
-    console.error(
-      chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Edda stats unavailable`)
-    );
+    print(chalk.hex(theme.colours.molten)(`  ${theme.icons.warning} Edda stats unavailable`));
   } else {
-    console.error(chalk.hex(theme.colours.smoke)(`  Active: ${eddaStats.stats.active_count}`));
-    console.error(
-      chalk.hex(theme.colours.smoke)(`  Superseded: ${eddaStats.stats.superseded_count}`)
-    );
-    console.error(chalk.hex(theme.colours.smoke)(`  Retired: ${eddaStats.stats.retired_count}`));
+    print(chalk.hex(theme.colours.smoke)(`  Active: ${eddaStats.stats.active_count}`));
+    print(chalk.hex(theme.colours.smoke)(`  Superseded: ${eddaStats.stats.superseded_count}`));
+    print(chalk.hex(theme.colours.smoke)(`  Retired: ${eddaStats.stats.retired_count}`));
 
     const byType = eddaStats.stats.by_type.filter((entry) => entry.count > 0);
     if (byType.length > 0) {
-      console.error(
+      print(
         chalk.hex(theme.colours.smoke)(
           `  By type: ${byType.map((entry) => `${entry.type}: ${entry.count}`).join(', ')}`
         )
       );
     } else {
-      console.error(
-        chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No type breakdown available`)
-      );
+      print(chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No type breakdown available`));
     }
 
     const byConfidence = eddaStats.stats.by_confidence.filter((entry) => entry.count > 0);
     if (byConfidence.length > 0) {
-      console.error(
+      print(
         chalk.hex(theme.colours.smoke)(
           `  By confidence: ${byConfidence.map((entry) => `${entry.level}: ${entry.count}`).join(', ')}`
         )
       );
     } else {
-      console.error(
+      print(
         chalk.hex(theme.colours.smoke)(`  ${theme.icons.info} No confidence breakdown available`)
       );
     }
   }
-  console.error('');
+  print('');
 }
 
 export function createStatusCommand(): Command {
@@ -338,10 +321,10 @@ export function createStatusCommand(): Command {
     .option('--no-tui', 'Use plain text output instead of TUI')
     .action(async (options: StatusOptions) => {
       const projectRoot = process.cwd();
-      const data = gatherStatusData(projectRoot);
+      const statusData = gatherStatusData(projectRoot);
 
       if (options.json) {
-        console.log(await formatJsonOutput(data, projectRoot));
+        data(await formatJsonOutput(statusData, projectRoot));
         return;
       }
 
@@ -349,10 +332,10 @@ export function createStatusCommand(): Command {
 
       if (useTUI) {
         await new Promise<void>((resolve) => {
-          renderTUI(StatusDashboard, { data, onQuit: resolve });
+          renderTUI(StatusDashboard, { data: statusData, onQuit: resolve });
         });
       } else {
-        await printPlainTextStatus(data, projectRoot);
+        await printPlainTextStatus(statusData, projectRoot);
       }
     });
 

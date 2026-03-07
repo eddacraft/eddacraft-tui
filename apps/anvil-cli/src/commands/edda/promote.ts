@@ -15,6 +15,7 @@ import {
 } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { blank, data, print } from '../../utils/output.js';
 import { colourStatus } from './utils.js';
 
 interface EddaPromoteOptions {
@@ -55,18 +56,18 @@ export function createEddaPromoteCommand(): Command {
       if (actor.length === 0) {
         const message = '--by must not be empty';
         if (options.json) {
-          console.log(JSON.stringify({ error: message }, null, 2));
+          data(JSON.stringify({ error: message }, null, 2));
         } else {
-          console.error(chalk.red(message));
+          print(chalk.red(message));
         }
         throw new CliError(message);
       }
       if (actor.length > 100) {
         const message = '--by must be 100 characters or fewer';
         if (options.json) {
-          console.log(JSON.stringify({ error: message }, null, 2));
+          data(JSON.stringify({ error: message }, null, 2));
         } else {
-          console.error(chalk.red(message));
+          print(chalk.red(message));
         }
         throw new CliError(message);
       }
@@ -76,7 +77,7 @@ export function createEddaPromoteCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: message,
@@ -87,7 +88,7 @@ export function createEddaPromoteCommand(): Command {
             )
           );
         } else {
-          console.error(chalk.yellow(message));
+          print(chalk.yellow(message));
         }
         throw new CliError(message);
       }
@@ -124,25 +125,25 @@ export function createEddaPromoteCommand(): Command {
         const memory = await promotionService.promoteProposal(input);
 
         if (options.json) {
-          console.log(JSON.stringify(memory, null, 2));
+          data(JSON.stringify(memory, null, 2));
           return;
         }
 
         spinner?.stop();
-        console.error(chalk.green('Memory promoted successfully'));
-        console.error(`  ${chalk.cyan('ID:')} ${memory.id}`);
-        console.error(`  ${chalk.cyan('Type:')} ${memory.type}`);
-        console.error(`  ${chalk.cyan('Statement:')} ${memory.statement}`);
-        console.error(`  ${chalk.cyan('Status:')} ${colourStatus(memory.status)}`);
-        console.error(`  ${chalk.cyan('Confidence:')} ${memory.confidence}`);
-        console.error(`  ${chalk.cyan('Promoted by:')} ${actor}`);
-        console.error(`  ${chalk.cyan('Reason:')} ${options.reason}`);
-        console.error('');
+        print(chalk.green('Memory promoted successfully'));
+        print(`  ${chalk.cyan('ID:')} ${memory.id}`);
+        print(`  ${chalk.cyan('Type:')} ${memory.type}`);
+        print(`  ${chalk.cyan('Statement:')} ${memory.statement}`);
+        print(`  ${chalk.cyan('Status:')} ${colourStatus(memory.status)}`);
+        print(`  ${chalk.cyan('Confidence:')} ${memory.confidence}`);
+        print(`  ${chalk.cyan('Promoted by:')} ${actor}`);
+        print(`  ${chalk.cyan('Reason:')} ${options.reason}`);
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to promote memory'));
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -152,9 +153,7 @@ export function createEddaPromoteCommand(): Command {
             )
           );
         } else {
-          console.error(
-            chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-          );
+          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }

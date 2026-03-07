@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { RepoScanner, type RepoScanResult } from '../services/repo-scanner.js';
-import { success, error, info } from '../utils/output.js';
+import { success, error, info, print, blank, data } from '../utils/output.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
@@ -109,55 +109,55 @@ function formatResultsJSON(result: RepoScanResult): void {
     totalDurationMs: result.totalDurationMs,
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  data(JSON.stringify(output, null, 2));
 }
 
 function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
-  console.error('');
-  console.error(chalk.bold.cyan('Repository Scan Results'));
-  console.error(chalk.dim('═'.repeat(50)));
-  console.error('');
+  blank();
+  print(chalk.bold.cyan('Repository Scan Results'));
+  print(chalk.dim('═'.repeat(50)));
+  blank();
 
   // Project overview
-  console.error(chalk.bold('Project Overview'));
-  console.error(chalk.dim('─'.repeat(30)));
-  console.error(`  Framework:    ${chalk.yellow(result.project.framework)}`);
-  console.error(
+  print(chalk.bold('Project Overview'));
+  print(chalk.dim('─'.repeat(30)));
+  print(`  Framework:    ${chalk.yellow(result.project.framework)}`);
+  print(
     `  Size:         ${result.project.size} (${result.project.fileCount.toLocaleString()} files)`
   );
   if (result.project.monorepo !== 'none') {
-    console.error(
+    print(
       `  Monorepo:     ${result.project.monorepo} (${result.project.workspacePackages.length} packages)`
     );
   }
-  console.error(`  TypeScript:   ${result.project.tsStrictness}`);
-  console.error('');
+  print(`  TypeScript:   ${result.project.tsStrictness}`);
+  blank();
 
   // Current issues
-  console.error(chalk.bold('Current Issues'));
-  console.error(chalk.dim('─'.repeat(30)));
-  console.error(`  Files scanned:  ${result.currentIssues.filesScanned}`);
-  console.error(`  Checks run:     ${result.currentIssues.checksRun.join(', ')}`);
-  console.error('');
+  print(chalk.bold('Current Issues'));
+  print(chalk.dim('─'.repeat(30)));
+  print(`  Files scanned:  ${result.currentIssues.filesScanned}`);
+  print(`  Checks run:     ${result.currentIssues.checksRun.join(', ')}`);
+  blank();
 
   if (result.currentIssues.totalWarnings === 0) {
-    console.error(chalk.green('  ✓ No issues found!'));
+    print(chalk.green('  ✓ No issues found!'));
   } else {
     const { bySeverity } = result.currentIssues;
-    console.error(`  Total issues:   ${chalk.bold(result.currentIssues.totalWarnings)}`);
+    print(`  Total issues:   ${chalk.bold(result.currentIssues.totalWarnings)}`);
     if (bySeverity.errors > 0) {
-      console.error(`    ${chalk.red('✗')} Errors:    ${chalk.red(bySeverity.errors)}`);
+      print(`    ${chalk.red('✗')} Errors:    ${chalk.red(bySeverity.errors)}`);
     }
     if (bySeverity.warnings > 0) {
-      console.error(`    ${chalk.yellow('⚠')} Warnings:  ${chalk.yellow(bySeverity.warnings)}`);
+      print(`    ${chalk.yellow('⚠')} Warnings:  ${chalk.yellow(bySeverity.warnings)}`);
     }
     if (bySeverity.info > 0) {
-      console.error(`    ${chalk.blue('ℹ')} Info:      ${chalk.blue(bySeverity.info)}`);
+      print(`    ${chalk.blue('ℹ')} Info:      ${chalk.blue(bySeverity.info)}`);
     }
 
     if (result.currentIssues.topIssues.length > 0) {
-      console.error('');
-      console.error(chalk.dim('  Top issues:'));
+      blank();
+      print(chalk.dim('  Top issues:'));
       const issuesToShow = verbose
         ? result.currentIssues.topIssues
         : result.currentIssues.topIssues.slice(0, 5);
@@ -168,68 +168,68 @@ function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
             : issue.severity === 'warning'
               ? chalk.yellow('⚠')
               : chalk.blue('ℹ');
-        console.error(
+        print(
           `    ${severityIcon} [${chalk.dim(issue.id)}] ${issue.title}: ${chalk.bold(issue.count)}`
         );
       }
     }
   }
-  console.error('');
+  blank();
 
   // Historical analysis
   if (result.historical.totalCommits > 0) {
-    console.error(chalk.bold('Historical Analysis'));
-    console.error(chalk.dim('─'.repeat(30)));
-    console.error(`  Commits analysed:     ${result.historical.totalCommits}`);
-    console.error(
+    print(chalk.bold('Historical Analysis'));
+    print(chalk.dim('─'.repeat(30)));
+    print(`  Commits analysed:     ${result.historical.totalCommits}`);
+    print(
       `  Anvil would have caught: ${chalk.yellow.bold(result.historical.totalViolations)} issues`
     );
-    console.error(`  Average per commit:   ${result.historical.avgViolationsPerCommit.toFixed(1)}`);
+    print(`  Average per commit:   ${result.historical.avgViolationsPerCommit.toFixed(1)}`);
 
     if (result.historical.patternOccurrences.length > 0) {
-      console.error('');
-      console.error(chalk.dim('  Most common patterns:'));
+      blank();
+      print(chalk.dim('  Most common patterns:'));
       const patternsToShow = verbose
         ? result.historical.patternOccurrences
         : result.historical.patternOccurrences.slice(0, 3);
       for (const pattern of patternsToShow) {
-        console.error(`    • ${pattern.patternName}: ${chalk.bold(pattern.count)}`);
+        print(`    • ${pattern.patternName}: ${chalk.bold(pattern.count)}`);
       }
     }
 
     if (result.historical.totalViolations > 0) {
-      console.error('');
+      blank();
       const avgPerCommit = result.historical.totalViolations / result.historical.totalCommits;
-      console.error(
+      print(
         chalk.dim(
           `  💡 Anvil would have prevented ~${chalk.yellow(avgPerCommit.toFixed(1))} issues per commit on average`
         )
       );
     }
   } else {
-    console.error(chalk.dim('Historical Analysis: No git history available'));
+    print(chalk.dim('Historical Analysis: No git history available'));
   }
-  console.error('');
+  blank();
 
   // Timing
-  console.error(chalk.dim(`Scan completed in ${result.totalDurationMs}ms`));
-  console.error('');
+  print(chalk.dim(`Scan completed in ${result.totalDurationMs}ms`));
+  blank();
 
   // Next steps
   if (result.currentIssues.totalWarnings > 0 || result.historical.totalViolations > 0) {
-    console.error(chalk.bold('Next Steps'));
-    console.error(chalk.dim('─'.repeat(30)));
+    print(chalk.bold('Next Steps'));
+    print(chalk.dim('─'.repeat(30)));
     if (result.currentIssues.hasBlockingWarnings) {
-      console.error(
+      print(
         `  ${chalk.red('1.')} Fix blocking errors: ${chalk.cyan('anvil check --all --verbose')}`
       );
     }
-    console.error(
+    print(
       `  ${chalk.dim('•')} Review issues in detail: ${chalk.cyan('anvil check --all --verbose')}`
     );
-    console.error(`  ${chalk.dim('•')} Set up continuous monitoring: ${chalk.cyan('anvil watch')}`);
-    console.error(`  ${chalk.dim('•')} Install git hooks: ${chalk.cyan('anvil hooks install')}`);
-    console.error('');
+    print(`  ${chalk.dim('•')} Set up continuous monitoring: ${chalk.cyan('anvil watch')}`);
+    print(`  ${chalk.dim('•')} Install git hooks: ${chalk.cyan('anvil hooks install')}`);
+    blank();
   }
 }
 

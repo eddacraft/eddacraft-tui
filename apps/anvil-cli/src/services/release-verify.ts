@@ -3,6 +3,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import { debug } from '../utils/output.js';
 import { INTERNAL_PACKAGES } from './release-types.js';
+import { print } from '../utils/output.js';
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -56,10 +57,10 @@ export interface VerifyResult {
 
 export async function verifyRelease(version: string, execute: boolean): Promise<VerifyResult> {
   if (!execute) {
-    console.log(`  ${chalk.yellow('[DRY RUN]')} Would verify:`);
-    console.log(chalk.dim(`    npm view @eddacraft/anvil-cli@${version} version`));
-    console.log(chalk.dim(`    npx -y --package @eddacraft/anvil-cli@${version} anvil --help`));
-    console.log(chalk.dim('    Check internal packages not published'));
+    print(`  ${chalk.yellow('[DRY RUN]')} Would verify:`);
+    print(chalk.dim(`    npm view @eddacraft/anvil-cli@${version} version`));
+    print(chalk.dim(`    npx -y --package @eddacraft/anvil-cli@${version} anvil --help`));
+    print(chalk.dim('    Check internal packages not published'));
     return { passed: true, npmPublished: true, smokeCheckPassed: true, internalPackageLeaks: 0 };
   }
 
@@ -77,8 +78,8 @@ export async function verifyRelease(version: string, execute: boolean): Promise<
 
   if (!found) {
     spinner.warn(`@eddacraft/anvil-cli@${version} not found after 2 minutes`);
-    console.log(chalk.dim('  Check manually:'));
-    console.log(chalk.dim(`    npm view @eddacraft/anvil-cli@${version} version`));
+    print(chalk.dim('  Check manually:'));
+    print(chalk.dim(`    npm view @eddacraft/anvil-cli@${version} version`));
   } else {
     spinner.succeed(`@eddacraft/anvil-cli@${version} published`);
     npmPublished = true;
@@ -101,17 +102,17 @@ export async function verifyRelease(version: string, execute: boolean): Promise<
   }
 
   // Check internal packages were NOT published
-  console.log(chalk.dim('  Checking internal packages not published...'));
+  print(chalk.dim('  Checking internal packages not published...'));
   for (const pkg of INTERNAL_PACKAGES) {
     const ver = checkNpmExists(pkg);
     if (ver) {
-      console.log(`  ${chalk.red('✗')} ${pkg} found on npm (${ver}) — unexpected!`);
+      print(`  ${chalk.red('✗')} ${pkg} found on npm (${ver}) — unexpected!`);
       internalPackageLeaks++;
     }
   }
 
   if (internalPackageLeaks === 0) {
-    console.log(`  ${chalk.green('✓')} No internal packages leaked to npm`);
+    print(`  ${chalk.green('✓')} No internal packages leaked to npm`);
   }
 
   const passed = npmPublished && smokeCheckPassed && internalPackageLeaks === 0;

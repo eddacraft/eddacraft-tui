@@ -4,6 +4,7 @@ import semver from 'semver';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import type { ReleaseProfile, VersionFile } from './release-types.js';
+import { blank, print } from '../utils/output.js';
 
 export interface VersionBumpResult {
   previousVersion: string;
@@ -60,7 +61,7 @@ export async function promptForVersion(
   currentVersion: string,
   profile: ReleaseProfile
 ): Promise<string> {
-  console.log(`  Current version: ${chalk.bold(currentVersion)}\n`);
+  print(`  Current version: ${chalk.bold(currentVersion)}\n`);
 
   const choices = buildVersionChoices(currentVersion, profile.prerelease);
 
@@ -144,15 +145,15 @@ export async function bumpVersion(
   const dryRun = !execute;
   const modifiedFiles: string[] = [];
 
-  console.log();
+  blank();
   for (const versionFile of profile.versionFiles) {
     const result = applyVersionToFile(workspaceRoot, versionFile, newVersion, dryRun);
     if (result) {
       modifiedFiles.push(result.path);
       const prefix = dryRun ? chalk.yellow('[DRY RUN]') : chalk.green('  ✓');
-      console.log(`  ${prefix} ${result.path}`);
-      console.log(`    ${chalk.red(`- ${result.before}`)}`);
-      console.log(`    ${chalk.green(`+ ${result.after}`)}`);
+      print(`  ${prefix} ${result.path}`);
+      print(`    ${chalk.red(`- ${result.before}`)}`);
+      print(`    ${chalk.green(`+ ${result.after}`)}`);
     }
   }
 

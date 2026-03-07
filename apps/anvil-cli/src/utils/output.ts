@@ -1,6 +1,24 @@
 import chalk from 'chalk';
 import type { GateRunResult, GateRunResultWithCache } from '@eddacraft/anvil-runtime';
 
+/**
+ * CLI Output Conventions
+ * ─────────────────────
+ * - **stderr** for all human-readable / diagnostic output (status, progress, errors)
+ * - **stdout** for structured data only (JSON, piped content)
+ *
+ * Functions:
+ *   success(msg)    → stderr  ✓ message
+ *   error(msg)      → stderr  ✗ message
+ *   warning(msg)    → stderr  ⚠ message
+ *   info(msg)       → stderr  ℹ message
+ *   print(msg)      → stderr  raw text (chalk-formatted UI output)
+ *   blank()         → stderr  empty line (visual spacing)
+ *   data(content)   → stdout  raw content + newline (structured/piped data)
+ *   json(obj)       → stdout  JSON.stringify (pretty-printed)
+ *   debug(msg)      → stderr  [debug] message (when ANVIL_DEBUG=1)
+ */
+
 let debugEnabled = false;
 
 export function enableDebug(): void {
@@ -46,8 +64,35 @@ export function info(message: string): void {
   console.error(chalk.blue('ℹ'), message);
 }
 
+/**
+ * Write human-readable output to stderr.
+ *
+ * Use for chalk-formatted UI text, tables, progress messages —
+ * anything a human reads but a pipe consumer should not see.
+ */
+export function print(...args: unknown[]): void {
+  console.error(...args);
+}
+
+/**
+ * Write an empty line to stderr (visual spacing).
+ */
+export function blank(): void {
+  console.error('');
+}
+
+/**
+ * Write raw structured data to stdout (pipe-safe).
+ */
 export function data(content: string): void {
   process.stdout.write(content + '\n');
+}
+
+/**
+ * Write a JSON-serialised object to stdout (pipe-safe).
+ */
+export function json(obj: unknown, pretty = true): void {
+  process.stdout.write(JSON.stringify(obj, null, pretty ? 2 : 0) + '\n');
 }
 
 export function formatValidationErrors(errors: Array<{ message: string; path?: string }>): void {
@@ -144,5 +189,5 @@ export function formatGateResultsJSON(results: GateRunResultWithCache): void {
     timing: results.timing,
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  json(output);
 }

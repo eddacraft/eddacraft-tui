@@ -5,6 +5,9 @@ import {
   error,
   warning,
   data,
+  print,
+  blank,
+  json,
   debug,
   enableDebug,
   resetDebug,
@@ -78,13 +81,47 @@ describe('output utilities stream policy', () => {
     });
   });
 
+  describe('print() writes to stderr', () => {
+    it('writes formatted text to stderr', () => {
+      print('hello world');
+      expect(stderrSpy).toHaveBeenCalledWith('hello world');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('passes multiple arguments to stderr', () => {
+      print('prefix', 'suffix');
+      expect(stderrSpy).toHaveBeenCalledWith('prefix', 'suffix');
+    });
+  });
+
+  describe('blank() writes empty line to stderr', () => {
+    it('writes empty string to stderr', () => {
+      blank();
+      expect(stderrSpy).toHaveBeenCalledWith('');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('json() writes to stdout', () => {
+    it('writes pretty-printed JSON to stdout', () => {
+      json({ key: 'value' });
+      expect(stdoutSpy).toHaveBeenCalledWith('{\n  "key": "value"\n}\n');
+      expect(stderrSpy).not.toHaveBeenCalled();
+    });
+
+    it('writes compact JSON when pretty=false', () => {
+      json({ key: 'value' }, false);
+      expect(stdoutSpy).toHaveBeenCalledWith('{"key":"value"}\n');
+    });
+  });
+
   describe('formatGateResultsJSON writes to stdout', () => {
-    it('outputs JSON via console.log', () => {
+    it('outputs JSON via stdout.write', () => {
       formatGateResultsJSON(MINIMAL_GATE_RESULT_WITH_CACHE);
-      expect(logSpy).toHaveBeenCalled();
+      expect(stdoutSpy).toHaveBeenCalled();
       expect(stderrSpy).not.toHaveBeenCalled();
 
-      const output = logSpy.mock.calls[0][0] as string;
+      const output = stdoutSpy.mock.calls[0][0] as string;
       const parsed = JSON.parse(output);
       expect(parsed.version).toBe('1.0.0');
       expect(parsed.overall).toBe(true);

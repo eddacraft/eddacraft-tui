@@ -8,6 +8,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { generateWarningId, WarningSchema, type Warning } from '@eddacraft/anvil-core';
+import { print } from '../utils/output.js';
 
 const RECENT_WARNINGS_FILE = join('.anvil', 'cache', 'recent-warnings.json');
 
@@ -63,7 +64,7 @@ export async function loadRecentWarnings(workspaceRoot: string): Promise<RecentW
   } catch (error) {
     const err = error as NodeJS.ErrnoException;
     if (err?.code !== 'ENOENT') {
-      console.error(`Failed to load recent warnings from "${path}":`, err);
+      print(`Failed to load recent warnings from "${path}":`, err);
     }
     return [];
   }

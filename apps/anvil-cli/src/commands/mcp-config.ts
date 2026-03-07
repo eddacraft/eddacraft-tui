@@ -3,6 +3,7 @@ import { CliError } from '../utils/cli-error.js';
 import { debug } from '../utils/output.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { coercePort } from '../utils/option-coerce.js';
+import { data, print } from '../utils/output.js';
 
 // ---------------------------------------------------------------------------
 // MCP config generation — inlined from @eddacraft/anvil-mcp-server/config
@@ -82,13 +83,13 @@ export function createMcpConfigCommand(): Command {
         try {
           const target = options.target;
           if (!SUPPORTED_TARGETS.includes(target as McpConfigTarget)) {
-            console.error(`Unknown target: ${target}. Supported: ${SUPPORTED_TARGETS.join(', ')}`);
+            print(`Unknown target: ${target}. Supported: ${SUPPORTED_TARGETS.join(', ')}`);
             throw new CliError(`Unknown target: ${target}`);
           }
 
           const transport = options.transport;
           if (transport !== 'stdio' && transport !== 'http') {
-            console.error(`Unknown transport: ${transport}. Supported: stdio, http`);
+            print(`Unknown transport: ${transport}. Supported: stdio, http`);
             throw new CliError(`Unknown transport: ${transport}`);
           }
 
@@ -140,7 +141,7 @@ export function createMcpConfigCommand(): Command {
             const isOutside = rel.startsWith('..') || rel.startsWith(sep) || /^[A-Za-z]:/.test(rel);
             if (isOutside && !options.yes) {
               if (!process.stdin.isTTY) {
-                console.error(
+                print(
                   `Target path is outside workspace: ${fullPath}\n` +
                     `Use --yes to skip confirmation in non-interactive mode.`
                 );
@@ -152,20 +153,20 @@ export function createMcpConfigCommand(): Command {
               });
               rl.close();
               if (answer.toLowerCase() !== 'y') {
-                console.log('Aborted.');
+                print('Aborted.');
                 return;
               }
             }
 
             mkdirSync(dirname(fullPath), { recursive: true });
             writeFileSync(fullPath, JSON.stringify(config.content, null, 2) + '\n', 'utf-8');
-            console.log(`Wrote ${config.configPath}`);
+            print(`Wrote ${config.configPath}`);
           } else {
-            console.log(JSON.stringify(config.content, null, 2));
+            data(JSON.stringify(config.content, null, 2));
           }
         } catch (err) {
           if (err instanceof CliError) throw err;
-          console.error('Error:', err instanceof Error ? err.message : String(err));
+          print('Error:', err instanceof Error ? err.message : String(err));
           throw new CliError(err instanceof Error ? err.message : String(err));
         }
       }

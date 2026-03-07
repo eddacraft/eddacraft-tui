@@ -11,6 +11,7 @@ import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import type { ValidateOptions } from '../types/command-options.js';
 import { CliError } from '../utils/cli-error.js';
+import { print } from '../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -75,23 +76,21 @@ export function createValidateCommand(): Command {
         // Check validation result
         if (!validationResult.valid) {
           spinner.fail(chalk.red('✗ Plan validation failed'));
-          console.error(chalk.red('\nValidation Errors:'));
+          print(chalk.red('\nValidation Errors:'));
 
           if (options.verbose && validationResult.issues) {
             // Show detailed errors
             validationResult.issues.forEach((issue: { path?: string; message: string }) => {
-              console.error(chalk.yellow(`  - ${issue.path || 'root'}:`), issue.message);
+              print(chalk.yellow(`  - ${issue.path || 'root'}:`), issue.message);
             });
           } else if (validationResult.issues) {
             // Show error summary
-            console.error(
-              chalk.red(`  Found ${validationResult.issues.length} validation error(s)`)
-            );
+            print(chalk.red(`  Found ${validationResult.issues.length} validation error(s)`));
             validationResult.issues.slice(0, 3).forEach((issue: { message: string }) => {
-              console.error(chalk.yellow(`  - ${issue.message}`));
+              print(chalk.yellow(`  - ${issue.message}`));
             });
             if (validationResult.issues.length > 3) {
-              console.error(chalk.gray(`  ... and ${validationResult.issues.length - 3} more`));
+              print(chalk.gray(`  ... and ${validationResult.issues.length - 3} more`));
             }
           }
 
@@ -100,9 +99,9 @@ export function createValidateCommand(): Command {
 
         // Show warnings if any
         if (warnings && warnings.length > 0) {
-          console.log(chalk.yellow('\n⚠ Warnings:'));
+          print(chalk.yellow('\n⚠ Warnings:'));
           warnings.forEach((warning) => {
-            console.log(chalk.yellow(`  - ${warning.message}`));
+            print(chalk.yellow(`  - ${warning.message}`));
           });
         }
 
@@ -117,8 +116,8 @@ export function createValidateCommand(): Command {
 
           if (!hashValid) {
             spinner.fail(chalk.red('✗ Hash verification failed'));
-            console.error(chalk.red('\nThe plan hash does not match its content.'));
-            console.error(chalk.yellow('This may indicate the plan has been tampered with.'));
+            print(chalk.red('\nThe plan hash does not match its content.'));
+            print(chalk.yellow('This may indicate the plan has been tampered with.'));
             throw new CliError('Hash verification failed');
           }
         } else if (options.validateHash && sourceFormat) {
@@ -129,48 +128,39 @@ export function createValidateCommand(): Command {
         spinner.succeed(chalk.green('✓ Plan is valid'));
 
         // Display plan details
-        console.log('\n' + chalk.bold('Plan Details:'));
+        print('\n' + chalk.bold('Plan Details:'));
 
         // Show source format if detected
         if (sourceFormat) {
-          console.log(chalk.gray('  Source Format:'), chalk.cyan(sourceFormat.format));
-          console.log(chalk.gray('  Adapter:      '), chalk.cyan(sourceFormat.adapter));
+          print(chalk.gray('  Source Format:'), chalk.cyan(sourceFormat.format));
+          print(chalk.gray('  Adapter:      '), chalk.cyan(sourceFormat.adapter));
         }
 
-        console.log(chalk.gray('  ID:           '), chalk.cyan(plan.id));
-        console.log(chalk.gray('  Schema:       '), chalk.cyan(plan.schema_version));
-        console.log(chalk.gray('  Hash:         '), chalk.cyan(plan.hash.substring(0, 16) + '...'));
-        console.log(chalk.gray('  Intent:       '), chalk.white(plan.intent));
-        console.log(
-          chalk.gray('  Changes:      '),
-          chalk.cyan(plan.proposed_changes.length.toString())
-        );
-        console.log(
-          chalk.gray('  Evidence:     '),
-          chalk.cyan((plan.evidence?.length ?? 0).toString())
-        );
+        print(chalk.gray('  ID:           '), chalk.cyan(plan.id));
+        print(chalk.gray('  Schema:       '), chalk.cyan(plan.schema_version));
+        print(chalk.gray('  Hash:         '), chalk.cyan(plan.hash.substring(0, 16) + '...'));
+        print(chalk.gray('  Intent:       '), chalk.white(plan.intent));
+        print(chalk.gray('  Changes:      '), chalk.cyan(plan.proposed_changes.length.toString()));
+        print(chalk.gray('  Evidence:     '), chalk.cyan((plan.evidence?.length ?? 0).toString()));
 
         if (plan.provenance) {
-          console.log(
-            chalk.gray('  Created By:   '),
-            chalk.cyan(plan.provenance.author || 'unknown')
-          );
-          console.log(chalk.gray('  Created At:   '), chalk.cyan(plan.provenance.timestamp));
+          print(chalk.gray('  Created By:   '), chalk.cyan(plan.provenance.author || 'unknown'));
+          print(chalk.gray('  Created At:   '), chalk.cyan(plan.provenance.timestamp));
         }
 
         if (options.verbose && plan.validations) {
-          console.log('\n' + chalk.bold('Required Checks:'));
+          print('\n' + chalk.bold('Required Checks:'));
           plan.validations.required_checks.forEach((check: string) => {
-            console.log(chalk.gray('  - '), chalk.cyan(check));
+            print(chalk.gray('  - '), chalk.cyan(check));
           });
         }
 
         log(`validate result: PASSED plan=${plan.id}`);
-        console.log(chalk.green('\n✓ All validation checks passed'));
+        print(chalk.green('\n✓ All validation checks passed'));
       } catch (error) {
         if (error instanceof CliError) throw error;
         spinner.fail(chalk.red('Validation failed'));
-        console.error(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
+        print(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
         throw new CliError(error instanceof Error ? error.message : String(error));
       }
     });

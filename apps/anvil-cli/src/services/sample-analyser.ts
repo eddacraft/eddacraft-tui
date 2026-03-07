@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { debug } from '../utils/output.js';
+import { print, debug } from '../utils/output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -86,7 +86,7 @@ export class SampleAnalyser {
         }
       } catch (error) {
         // Fall through to filesystem search
-        console.warn('Git-based file selection failed, falling back to filesystem', error);
+        print('Git-based file selection failed, falling back to filesystem', error);
       }
     }
 
@@ -151,7 +151,7 @@ export class SampleAnalyser {
 
       return existingFiles;
     } catch (error) {
-      throw new Error(`Failed to get git history: ${error}`);
+      throw new Error(`Failed to get git history: ${error}`, { cause: error });
     }
   }
 

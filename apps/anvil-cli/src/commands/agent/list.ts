@@ -10,6 +10,7 @@ import { createDebugger } from '@eddacraft/anvil-core';
 import { createAgentManager } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { blank, data, print } from '../../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -42,18 +43,18 @@ export function createAgentListCommand(): Command {
         }
 
         if (options.json) {
-          console.log(JSON.stringify(agents, null, 2));
+          data(JSON.stringify(agents, null, 2));
           return;
         }
 
         if (agents.length === 0) {
-          console.log(chalk.yellow('\nNo agents registered in this workspace.'));
+          print(chalk.yellow('\nNo agents registered in this workspace.'));
           if (!options.all && allAgents.length > 0) {
-            console.log(
+            print(
               chalk.gray(`(${allAgents.length} stale/terminated agents hidden. Use --all to show)`)
             );
           }
-          console.log('');
+          blank();
           return;
         }
 
@@ -63,23 +64,23 @@ export function createAgentListCommand(): Command {
         const stale = agents.filter((a) => a.state === 'stale').length;
         const terminated = agents.filter((a) => a.state === 'terminated').length;
 
-        console.log(chalk.bold('\nRegistered Agents'));
-        console.log(chalk.gray('─'.repeat(80)));
-        console.log(
+        print(chalk.bold('\nRegistered Agents'));
+        print(chalk.gray('─'.repeat(80)));
+        print(
           chalk.gray(
             `  Active: ${chalk.green(active)}  |  Idle: ${chalk.yellow(idle)}  |  ` +
               `Stale: ${chalk.red(stale)}  |  Terminated: ${chalk.gray(terminated)}`
           )
         );
-        console.log(chalk.gray('─'.repeat(80)));
+        print(chalk.gray('─'.repeat(80)));
 
         // Table header
-        console.log(
+        print(
           chalk.cyan(
             `  ${'ID'.padEnd(30)} ${'Type'.padEnd(12)} ${'State'.padEnd(12)} ${'Last Heartbeat'.padEnd(24)}`
           )
         );
-        console.log(chalk.gray('  ' + '─'.repeat(78)));
+        print(chalk.gray('  ' + '─'.repeat(78)));
 
         for (const reg of agents) {
           const stateDisplay = getStateIcon(reg.state);
@@ -87,23 +88,23 @@ export function createAgentListCommand(): Command {
           const id = truncate(reg.agent.id, 28);
           const type = reg.agent.type.padEnd(12);
 
-          console.log(`  ${id.padEnd(30)} ${type} ${stateDisplay.padEnd(12)} ${timeAgo}`);
+          print(`  ${id.padEnd(30)} ${type} ${stateDisplay.padEnd(12)} ${timeAgo}`);
 
           if (reg.currentOperation) {
-            console.log(chalk.gray(`    └─ ${reg.currentOperation}`));
+            print(chalk.gray(`    └─ ${reg.currentOperation}`));
           }
         }
 
-        console.log('');
+        blank();
 
         // Show command hints
-        console.log(chalk.gray('  Commands:'));
-        console.log(chalk.gray('    anvil agent cleanup    Clean up stale agents'));
-        console.log(chalk.gray('    anvil agent status     Show current agent info'));
-        console.log('');
+        print(chalk.gray('  Commands:'));
+        print(chalk.gray('    anvil agent cleanup    Clean up stale agents'));
+        print(chalk.gray('    anvil agent status     Show current agent info'));
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-        console.error(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
+        print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });

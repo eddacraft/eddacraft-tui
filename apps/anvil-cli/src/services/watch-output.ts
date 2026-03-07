@@ -7,6 +7,7 @@
 import { basename } from 'node:path';
 import chalk from 'chalk';
 import type { WatchStatusEvent, WatchActionResult } from '@eddacraft/anvil-runtime';
+import { blank, print } from '../utils/output.js';
 
 /**
  * Format timestamp for display
@@ -41,25 +42,25 @@ export class WatchOutput {
     gitFilter: boolean;
     profile?: string;
   }): void {
-    console.log('');
-    console.log(chalk.bold('  Anvil Watch Mode'));
-    console.log(chalk.gray('  ─────────────────'));
-    console.log(chalk.gray('  Watching: ') + chalk.cyan(options.patterns.slice(0, 3).join(', ')));
+    blank();
+    print(chalk.bold('  Anvil Watch Mode'));
+    print(chalk.gray('  ─────────────────'));
+    print(chalk.gray('  Watching: ') + chalk.cyan(options.patterns.slice(0, 3).join(', ')));
     if (options.patterns.length > 3) {
-      console.log(chalk.gray(`           + ${options.patterns.length - 3} more patterns`));
+      print(chalk.gray(`           + ${options.patterns.length - 3} more patterns`));
     }
 
     const actionLabel = options.profile
       ? `${options.action} (profile: ${options.profile})`
       : options.action;
-    console.log(chalk.gray('  Action: ') + chalk.yellow(actionLabel));
+    print(chalk.gray('  Action: ') + chalk.yellow(actionLabel));
 
     const filterLabel = options.gitFilter ? 'unstaged changes only' : 'all file changes';
-    console.log(chalk.gray('  Filter: ') + filterLabel);
+    print(chalk.gray('  Filter: ') + filterLabel);
 
-    console.log('');
-    console.log(chalk.gray('  Press Ctrl+C to stop'));
-    console.log('');
+    blank();
+    print(chalk.gray('  Press Ctrl+C to stop'));
+    blank();
   }
 
   /**
@@ -96,12 +97,12 @@ export class WatchOutput {
       this.passCount > 0 || this.failCount > 0
         ? ` (${chalk.green(this.passCount + ' pass')}, ${chalk.red(this.failCount + ' fail')})`
         : '';
-    console.log(chalk.gray(`\n  Watching for changes...${stats}\n`));
+    print(chalk.gray(`\n  Watching for changes...${stats}\n`));
   }
 
   private onReady(event: Extract<WatchStatusEvent, { type: 'ready' }>): void {
     if (this.verbose) {
-      console.log(
+      print(
         chalk.gray(
           `  Ready. Watching ${event.patterns.length} pattern(s), git filter: ${event.gitFilter}`
         )
@@ -113,15 +114,15 @@ export class WatchOutput {
     if (this.verbose) {
       const filtered = event.files.length - event.filtered.length;
       if (filtered > 0) {
-        console.log(chalk.gray(`  ${filtered} file(s) filtered out (staged or excluded)`));
+        print(chalk.gray(`  ${filtered} file(s) filtered out (staged or excluded)`));
       }
     }
   }
 
   private onActionStart(event: Extract<WatchStatusEvent, { type: 'action:start' }>): void {
     const files = event.files.map((f: string) => basename(f)).join(', ');
-    console.log(`${formatTime()} ${chalk.cyan(files)} changed`);
-    console.log(chalk.gray(`  Running ${event.action}...`));
+    print(`${formatTime()} ${chalk.cyan(files)} changed`);
+    print(chalk.gray(`  Running ${event.action}...`));
   }
 
   private onActionComplete(event: Extract<WatchStatusEvent, { type: 'action:complete' }>): void {
@@ -140,21 +141,19 @@ export class WatchOutput {
 
   private onActionError(event: Extract<WatchStatusEvent, { type: 'action:error' }>): void {
     this.failCount++;
-    console.log(chalk.red(`  Error: ${event.error.message}`));
+    print(chalk.red(`  Error: ${event.error.message}`));
     this.showWatching();
   }
 
   private onStopped(): void {
-    console.log('');
-    console.log(chalk.gray('  Watch mode stopped'));
-    console.log(chalk.gray(`  Total: ${this.passCount} passed, ${this.failCount} failed`));
+    blank();
+    print(chalk.gray('  Watch mode stopped'));
+    print(chalk.gray(`  Total: ${this.passCount} passed, ${this.failCount} failed`));
   }
 
   private showSuccessResult(result: WatchActionResult): void {
     if (result.action === 'validate') {
-      console.log(
-        chalk.green(`  ✓ Validation passed`) + chalk.gray(` (${result.executionTimeMs}ms)`)
-      );
+      print(chalk.green(`  ✓ Validation passed`) + chalk.gray(` (${result.executionTimeMs}ms)`));
     } else {
       // Gate result
       const details = result.details as
@@ -168,12 +167,12 @@ export class WatchOutput {
         for (const check of details.checks) {
           const icon = check.passed ? chalk.green('✓') : chalk.red('✗');
           const scoreStr = check.score !== undefined ? ` (${check.score}%)` : '';
-          console.log(`    ${icon} ${check.check}${scoreStr}`);
+          print(`    ${icon} ${check.check}${scoreStr}`);
         }
       }
 
       const scoreStr = details?.score !== undefined ? ` (score: ${details.score.toFixed(1)}%)` : '';
-      console.log(
+      print(
         chalk.green(`  ✓ Gate passed${scoreStr}`) + chalk.gray(` (${result.executionTimeMs}ms)`)
       );
     }
@@ -181,9 +180,9 @@ export class WatchOutput {
 
   private showFailureResult(result: WatchActionResult): void {
     if (result.action === 'validate') {
-      console.log(chalk.red(`  ✗ Validation failed`));
+      print(chalk.red(`  ✗ Validation failed`));
       if (result.error) {
-        console.log(chalk.red(`    ${result.error}`));
+        print(chalk.red(`    ${result.error}`));
       }
     } else {
       // Gate result
@@ -197,13 +196,13 @@ export class WatchOutput {
       if (details?.checks) {
         for (const check of details.checks) {
           if (!check.passed) {
-            console.log(chalk.red(`    ✗ ${check.check}: ${check.message || 'failed'}`));
+            print(chalk.red(`    ✗ ${check.check}: ${check.message || 'failed'}`));
           }
         }
       }
 
       const scoreStr = details?.score !== undefined ? ` (score: ${details.score.toFixed(1)}%)` : '';
-      console.log(chalk.red(`  ✗ Gate failed${scoreStr}`));
+      print(chalk.red(`  ✗ Gate failed${scoreStr}`));
     }
   }
 }

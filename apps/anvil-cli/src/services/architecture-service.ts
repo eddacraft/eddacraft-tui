@@ -8,7 +8,7 @@
 import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import {
-  createArchitectureAnalyser,
+  createArchitectureAnalyzer,
   createBaselineManager,
   createBaseline,
   type ArchitectureBaseline,
@@ -16,6 +16,7 @@ import {
   type Layers,
   type Layer,
 } from '@eddacraft/anvil-core';
+import { print } from '../utils/output.js';
 
 /**
  * Architecture analysis summary for display
@@ -64,7 +65,7 @@ function collectSourceFiles(
     }
   } catch (error) {
     // Log directory access errors to stderr for debugging
-    console.error(`[ArchitectureService] Failed to read directory ${dir}:`, error);
+    print(`[ArchitectureService] Failed to read directory ${dir}:`, error);
   }
 
   return files;
@@ -80,7 +81,7 @@ export async function analyseProjectArchitecture(
   const sourceFiles = collectSourceFiles(projectRoot, projectRoot);
 
   // Create analyser and run analysis
-  const analyser = createArchitectureAnalyser(projectRoot);
+  const analyser = createArchitectureAnalyzer(projectRoot);
   const result = await analyser.analyse(sourceFiles);
 
   // Group files by layer (result.assignments is LayerAssignment[])

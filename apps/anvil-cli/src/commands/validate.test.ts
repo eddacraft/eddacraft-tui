@@ -83,7 +83,7 @@ describe('validate command', () => {
   });
 
   it('should validate native plan and print success on happy path', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { createValidateCommand } = await import('./validate.js');
     const command = createValidateCommand();
@@ -93,6 +93,6 @@ describe('validate command', () => {
     expect(resolvePlanPathOrIdMock).toHaveBeenCalledWith('PLAN-001');
     expect(loadPlanMock).toHaveBeenCalledWith('/tmp/workspace/plan.json');
     expect(verifyHashMock).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Plan Details:'));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Plan Details:'));
   });
 });

@@ -8,7 +8,7 @@ import { dirname } from 'node:path';
 import YAML from 'yaml';
 import { createDebugger, validatePathWithinRoot } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../utils/cli-error.js';
-import { debug } from '../utils/output.js';
+import { print, blank, data, debug } from '../utils/output.js';
 import {
   type ArchitectureTemplate,
   type ArchitectureDefinition,
@@ -84,13 +84,13 @@ const TEMPLATE_INFO: Record<
 
 /** Print the welcome banner */
 function printWelcomeBanner(): void {
-  console.log('');
-  console.log(chalk.bold.cyan('  Anvil Architecture Setup'));
-  console.log(chalk.dim('  ─────────────────────────────────────────'));
-  console.log('');
-  console.log(chalk.dim('  Define your project structure to enforce dependency rules'));
-  console.log(chalk.dim('  and prevent architectural violations.'));
-  console.log('');
+  blank();
+  print(chalk.bold.cyan('  Anvil Architecture Setup'));
+  print(chalk.dim('  ─────────────────────────────────────────'));
+  blank();
+  print(chalk.dim('  Define your project structure to enforce dependency rules'));
+  print(chalk.dim('  and prevent architectural violations.'));
+  blank();
 }
 
 /** Build a mermaid definition from template layer list */
@@ -102,24 +102,24 @@ function templateToMermaid(layers: string[]): string {
 /** Print template details */
 function printTemplatePreview(template: ArchitectureTemplate): void {
   const info = TEMPLATE_INFO[template];
-  console.log('');
-  console.log(chalk.dim('  ─────────────────────────────────────────'));
-  console.log(`  ${chalk.bold(info.title)}`);
-  console.log(`  ${chalk.dim(info.description)}`);
+  blank();
+  print(chalk.dim('  ─────────────────────────────────────────'));
+  print(`  ${chalk.bold(info.title)}`);
+  print(`  ${chalk.dim(info.description)}`);
   if (info.layers.length > 0) {
-    console.log('');
+    blank();
     try {
       const mermaidDef = templateToMermaid(info.layers);
       const ascii = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
-      ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
+      ascii.split('\n').forEach((line) => print(chalk.dim('  ' + line)));
     } catch {
       debug('architecture: mermaid rendering failed, falling back to arrow notation');
       // Fall back to simple arrow notation
-      console.log(`  ${chalk.cyan('Layers:')} ${info.layers.join(' → ')}`);
+      print(`  ${chalk.cyan('Layers:')} ${info.layers.join(' → ')}`);
     }
   }
-  console.log(chalk.dim('  ─────────────────────────────────────────'));
-  console.log('');
+  print(chalk.dim('  ─────────────────────────────────────────'));
+  blank();
 }
 
 /** Run the interactive architecture wizard */
@@ -133,8 +133,8 @@ async function runInteractiveWizard(options: { force?: boolean }): Promise<void>
 
   // Check if architecture already exists
   if (exists && !options.force) {
-    console.log(chalk.yellow('  An architecture definition already exists.'));
-    console.log('');
+    print(chalk.yellow('  An architecture definition already exists.'));
+    blank();
 
     const { action } = await inquirer.prompt<{
       action: 'show' | 'validate' | 'generate' | 'replace' | 'exit';
@@ -174,8 +174,8 @@ async function runInteractiveWizard(options: { force?: boolean }): Promise<void>
   }
 
   // Template selection
-  console.log(chalk.bold('  Choose an Architecture Pattern'));
-  console.log('');
+  print(chalk.bold('  Choose an Architecture Pattern'));
+  blank();
 
   const templates = getAvailableTemplates();
   const choices = templates.map((t) => {
@@ -211,7 +211,7 @@ async function runInteractiveWizard(options: { force?: boolean }): Promise<void>
   ]);
 
   if (!confirmed) {
-    console.log(chalk.dim('\n  Setup cancelled.\n'));
+    print(chalk.dim('\n  Setup cancelled.\n'));
     return;
   }
 
@@ -226,7 +226,7 @@ async function createArchitectureFile(
   template: ArchitectureTemplate,
   layerPaths?: Record<string, string[]>
 ): Promise<void> {
-  console.log('');
+  blank();
   const spinner = ora({
     text: 'Creating architecture configuration...',
     indent: 2,
@@ -263,27 +263,27 @@ async function createArchitectureFile(
     spinner.succeed(chalk.green('Architecture configuration created'));
 
     // Success output - simple and clean
-    console.log('');
-    console.log(chalk.bold.green('  Configuration created successfully'));
-    console.log('');
-    console.log(`  ${chalk.cyan('File:')}     .anvil/${ARCHITECTURE_YAML_FILENAME}`);
-    console.log(`  ${chalk.cyan('Template:')} ${template}`);
-    console.log(`  ${chalk.cyan('Layers:')}   ${Object.keys(layers).length}`);
+    blank();
+    print(chalk.bold.green('  Configuration created successfully'));
+    blank();
+    print(`  ${chalk.cyan('File:')}     .anvil/${ARCHITECTURE_YAML_FILENAME}`);
+    print(`  ${chalk.cyan('Template:')} ${template}`);
+    print(`  ${chalk.cyan('Layers:')}   ${Object.keys(layers).length}`);
 
     // Next steps
-    console.log('');
-    console.log(chalk.bold('  Next Steps'));
-    console.log('');
-    console.log(chalk.white('  1.') + chalk.dim(' Review layer paths in .anvil/architecture.yaml'));
-    console.log(chalk.white('  2.') + chalk.dim(' Generate enforcement configs:'));
-    console.log(chalk.cyan('     anvil arch generate'));
-    console.log(chalk.white('  3.') + chalk.dim(' Run architecture checks:'));
-    console.log(chalk.cyan('     anvil gate --only-checks architecture'));
-    console.log('');
+    blank();
+    print(chalk.bold('  Next Steps'));
+    blank();
+    print(chalk.white('  1.') + chalk.dim(' Review layer paths in .anvil/architecture.yaml'));
+    print(chalk.white('  2.') + chalk.dim(' Generate enforcement configs:'));
+    print(chalk.cyan('     anvil arch generate'));
+    print(chalk.white('  3.') + chalk.dim(' Run architecture checks:'));
+    print(chalk.cyan('     anvil gate --only-checks architecture'));
+    blank();
   } catch (err) {
     if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner.fail('Failed to create architecture configuration');
-    console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    print(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
     throw new CliError('Failed to create architecture configuration');
   }
 }
@@ -296,24 +296,24 @@ async function showArchitectureDefinition(
   const definition = await parseArchitectureDefinition(projectRoot);
 
   if (options.json) {
-    console.log(JSON.stringify(definition, null, 2));
+    data(JSON.stringify(definition, null, 2));
     return;
   }
 
   if (options.yaml) {
-    console.log(YAML.stringify(definition, { indent: 2 }));
+    data(YAML.stringify(definition, { indent: 2 }));
     return;
   }
 
-  console.log('');
-  console.log(chalk.bold.cyan('  Architecture Definition'));
-  console.log(chalk.dim('  ─────────────────────────────────────────'));
-  console.log('');
-  console.log(`  ${chalk.cyan('Template:')}  ${definition.template}`);
-  console.log(`  ${chalk.cyan('Schema:')}    ${definition.schema_version}`);
+  blank();
+  print(chalk.bold.cyan('  Architecture Definition'));
+  print(chalk.dim('  ─────────────────────────────────────────'));
+  blank();
+  print(`  ${chalk.cyan('Template:')}  ${definition.template}`);
+  print(`  ${chalk.cyan('Schema:')}    ${definition.schema_version}`);
 
   // Show dependency graph
-  console.log('');
+  blank();
   try {
     const lines = ['graph TD'];
     for (const [name, layer] of Object.entries(definition.layers)) {
@@ -325,53 +325,53 @@ async function showArchitectureDefinition(
     }
     if (lines.length > 1) {
       const ascii = renderMermaidAscii(lines.join('\n'), { paddingX: 2, paddingY: 1 });
-      ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
-      console.log('');
+      ascii.split('\n').forEach((line) => print(chalk.dim('  ' + line)));
+      blank();
     }
   } catch {
     debug('architecture: diagram rendering failed, skipping');
     // Diagram rendering failed — skip silently, details below are sufficient
   }
 
-  console.log(chalk.bold('  Layers'));
-  console.log('');
+  print(chalk.bold('  Layers'));
+  blank();
   for (const [name, layer] of Object.entries(definition.layers)) {
-    console.log(`  ${chalk.cyan(name)}`);
-    console.log(chalk.dim(`    Patterns:   ${layer.patterns.join(', ')}`));
-    console.log(
+    print(`  ${chalk.cyan(name)}`);
+    print(chalk.dim(`    Patterns:   ${layer.patterns.join(', ')}`));
+    print(
       chalk.dim(
         `    Depends on: ${layer.depends_on.length > 0 ? layer.depends_on.join(', ') : '(none)'}`
       )
     );
     if (layer.description) {
-      console.log(chalk.dim(`    ${layer.description}`));
+      print(chalk.dim(`    ${layer.description}`));
     }
-    console.log('');
+    blank();
   }
 
   if (definition.rules.length > 0) {
-    console.log(chalk.bold('  Custom Rules'));
-    console.log('');
+    print(chalk.bold('  Custom Rules'));
+    blank();
     for (const rule of definition.rules) {
       const arrow = rule.allowed ? chalk.green('→') : chalk.red('✗');
-      console.log(`  ${arrow} ${rule.name}: ${rule.from} → ${rule.to} [${rule.severity}]`);
+      print(`  ${arrow} ${rule.name}: ${rule.from} → ${rule.to} [${rule.severity}]`);
     }
-    console.log('');
+    blank();
   }
 
   if (definition.options) {
-    console.log(chalk.bold('  Options'));
-    console.log('');
-    console.log(chalk.dim(`  Detect circular: ${definition.options.detect_circular}`));
-    console.log(chalk.dim(`  Detect orphans:  ${definition.options.detect_orphans}`));
-    console.log(chalk.dim(`  Default severity: ${definition.options.default_severity}`));
-    console.log('');
+    print(chalk.bold('  Options'));
+    blank();
+    print(chalk.dim(`  Detect circular: ${definition.options.detect_circular}`));
+    print(chalk.dim(`  Detect orphans:  ${definition.options.detect_orphans}`));
+    print(chalk.dim(`  Default severity: ${definition.options.default_severity}`));
+    blank();
   }
 }
 
 /** Validate architecture definition (extracted for reuse) */
 async function validateArchitectureDefinition(projectRoot: string): Promise<void> {
-  console.log('');
+  blank();
   const spinner = ora({ text: 'Validating architecture.yaml...', indent: 2 }).start();
 
   try {
@@ -397,24 +397,24 @@ async function validateArchitectureDefinition(projectRoot: string): Promise<void
 
     if (issues.length > 0) {
       spinner.fail(chalk.red('Validation failed'));
-      console.log('');
+      blank();
       for (const issue of issues) {
-        console.log(chalk.yellow(`  • ${issue}`));
+        print(chalk.yellow(`  • ${issue}`));
       }
-      console.log('');
+      blank();
       throw new CliError('Architecture definition has validation errors');
     }
 
     spinner.succeed(chalk.green('Architecture configuration is valid'));
-    console.log('');
-    console.log(chalk.dim(`  Template: ${definition.template}`));
-    console.log(chalk.dim(`  Layers:   ${Object.keys(definition.layers).length}`));
-    console.log(chalk.dim(`  Rules:    ${definition.rules.length}`));
-    console.log('');
+    blank();
+    print(chalk.dim(`  Template: ${definition.template}`));
+    print(chalk.dim(`  Layers:   ${Object.keys(definition.layers).length}`));
+    print(chalk.dim(`  Rules:    ${definition.rules.length}`));
+    blank();
   } catch (err) {
     if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner.fail('Validation failed');
-    console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    print(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
     throw new CliError('Architecture validation failed');
   }
 }
@@ -424,7 +424,7 @@ async function generateArchitectureConfigs(
   projectRoot: string,
   options: { force?: boolean; skipDc?: boolean; skipRego?: boolean }
 ): Promise<void> {
-  console.log('');
+  blank();
   const spinner = ora({ text: 'Checking configuration status...', indent: 2 }).start();
 
   try {
@@ -435,10 +435,10 @@ async function generateArchitectureConfigs(
 
       if (skipDC && skipRego) {
         spinner.succeed(chalk.green('All configs are up to date'));
-        console.log('');
-        console.log(chalk.dim(`  DC config:   ${getDCConfigPath(projectRoot)}`));
-        console.log(chalk.dim(`  Rego policy: ${getRegoPath(projectRoot)}`));
-        console.log('');
+        blank();
+        print(chalk.dim(`  DC config:   ${getDCConfigPath(projectRoot)}`));
+        print(chalk.dim(`  Rego policy: ${getRegoPath(projectRoot)}`));
+        blank();
         return;
       }
     }
@@ -452,31 +452,29 @@ async function generateArchitectureConfigs(
 
     spinner.succeed(chalk.green('Architecture configs generated'));
 
-    console.log('');
+    blank();
     if (result.dcConfig.regenerated) {
-      console.log(chalk.dim(`  DC config:   ${result.dcConfig.path}`) + chalk.green(' (updated)'));
+      print(chalk.dim(`  DC config:   ${result.dcConfig.path}`) + chalk.green(' (updated)'));
     } else if (!options.skipDc) {
-      console.log(chalk.dim(`  DC config:   ${result.dcConfig.path} (unchanged)`));
+      print(chalk.dim(`  DC config:   ${result.dcConfig.path} (unchanged)`));
     }
 
     if (result.regoPolicy.regenerated) {
-      console.log(
-        chalk.dim(`  Rego policy: ${result.regoPolicy.path}`) + chalk.green(' (updated)')
-      );
+      print(chalk.dim(`  Rego policy: ${result.regoPolicy.path}`) + chalk.green(' (updated)'));
     } else if (!options.skipRego) {
-      console.log(chalk.dim(`  Rego policy: ${result.regoPolicy.path} (unchanged)`));
+      print(chalk.dim(`  Rego policy: ${result.regoPolicy.path} (unchanged)`));
     }
 
-    console.log('');
-    console.log(chalk.bold('  Next Steps'));
-    console.log('');
-    console.log(chalk.dim('  Run architecture checks:'));
-    console.log(chalk.cyan('  anvil gate --only-checks architecture'));
-    console.log('');
+    blank();
+    print(chalk.bold('  Next Steps'));
+    blank();
+    print(chalk.dim('  Run architecture checks:'));
+    print(chalk.cyan('  anvil gate --only-checks architecture'));
+    blank();
   } catch (err) {
     if (err instanceof CliError || err instanceof CliExit) throw err;
     spinner.fail('Failed to generate configs');
-    console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+    print(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
     throw new CliError('Failed to generate architecture configs');
   }
 }
@@ -516,10 +514,10 @@ function createInitSubcommand(): Command {
       const yamlPath = getArchitectureYamlPath(projectRoot);
 
       if (architectureYamlExists(projectRoot) && !options.force) {
-        console.log('');
-        console.log(chalk.yellow(`  ${ARCHITECTURE_YAML_FILENAME} already exists.`));
-        console.log(chalk.dim('  Use --force to overwrite, or edit the existing file.'));
-        console.log('');
+        blank();
+        print(chalk.yellow(`  ${ARCHITECTURE_YAML_FILENAME} already exists.`));
+        print(chalk.dim('  Use --force to overwrite, or edit the existing file.'));
+        blank();
         throw new CliError('Architecture definition already exists');
       }
 
@@ -537,10 +535,10 @@ function createInitSubcommand(): Command {
         // Template specified: validate and optionally customise
         const validated = validateTemplate(options.template);
         if (!validated) {
-          console.log('');
-          console.log(chalk.red(`  Invalid template: ${options.template}`));
-          console.log(chalk.dim(`  Available templates: ${getAvailableTemplates().join(', ')}`));
-          console.log('');
+          blank();
+          print(chalk.red(`  Invalid template: ${options.template}`));
+          print(chalk.dim(`  Available templates: ${getAvailableTemplates().join(', ')}`));
+          blank();
           throw new CliError(`Invalid architecture template: ${options.template}`);
         }
         template = validated;
@@ -584,10 +582,10 @@ function createGenerateSubcommand(): Command {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
-        console.log('');
-        console.log(chalk.red('  No architecture.yaml found.'));
-        console.log(chalk.dim('  Run: anvil arch init'));
-        console.log('');
+        blank();
+        print(chalk.red('  No architecture.yaml found.'));
+        print(chalk.dim('  Run: anvil arch init'));
+        blank();
         throw new CliError('Architecture definition not found for generate');
       }
 
@@ -602,10 +600,10 @@ function createValidateSubcommand(): Command {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
-        console.log('');
-        console.log(chalk.red('  No architecture.yaml found.'));
-        console.log(chalk.dim('  Run: anvil arch init'));
-        console.log('');
+        blank();
+        print(chalk.red('  No architecture.yaml found.'));
+        print(chalk.dim('  Run: anvil arch init'));
+        blank();
         throw new CliError('Architecture definition not found for validate');
       }
 
@@ -622,10 +620,10 @@ function createShowSubcommand(): Command {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
-        console.log('');
-        console.log(chalk.red('  No architecture.yaml found.'));
-        console.log(chalk.dim('  Run: anvil arch init'));
-        console.log('');
+        blank();
+        print(chalk.red('  No architecture.yaml found.'));
+        print(chalk.dim('  Run: anvil arch init'));
+        blank();
         throw new CliError('Architecture definition not found for show');
       }
 
@@ -633,7 +631,7 @@ function createShowSubcommand(): Command {
         await showArchitectureDefinition(projectRoot, options);
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-        console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+        print(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
         throw new CliError('Failed to show architecture definition');
       }
     });
@@ -650,10 +648,10 @@ function createVisualiseSubcommand(): Command {
       const projectRoot = process.cwd();
 
       if (!architectureYamlExists(projectRoot)) {
-        console.log('');
-        console.log(chalk.red('  No architecture.yaml found.'));
-        console.log(chalk.dim('  Run: anvil arch init'));
-        console.log('');
+        blank();
+        print(chalk.red('  No architecture.yaml found.'));
+        print(chalk.dim('  Run: anvil arch init'));
+        blank();
         throw new CliError('Architecture definition not found for visualise');
       }
 
@@ -686,7 +684,7 @@ function createVisualiseSubcommand(): Command {
             try {
               output = await renderMermaid(mermaidDef);
             } catch {
-              console.log(chalk.yellow('  SVG rendering failed — falling back to raw Mermaid'));
+              print(chalk.yellow('  SVG rendering failed — falling back to raw Mermaid'));
               output = mermaidDef;
             }
             break;
@@ -696,7 +694,7 @@ function createVisualiseSubcommand(): Command {
             try {
               output = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
             } catch {
-              console.log(chalk.yellow('  ASCII rendering failed — falling back to raw Mermaid'));
+              print(chalk.yellow('  ASCII rendering failed — falling back to raw Mermaid'));
               output = mermaidDef;
             }
             break;
@@ -709,18 +707,17 @@ function createVisualiseSubcommand(): Command {
             await mkdir(outDir, { recursive: true });
           }
           await writeFile(validatedOutput, output, 'utf-8');
-          console.log(chalk.green(`  Written to ${validatedOutput}`));
+          print(chalk.green(`  Written to ${validatedOutput}`));
         } else {
-          console.log('');
-          console.log(chalk.bold.cyan('  Architecture Dependency Graph'));
-          console.log(chalk.dim(`  Template: ${definition.template}`));
-          console.log('');
-          output.split('\n').forEach((line) => console.log('  ' + line));
-          console.log('');
+          blank();
+          print(chalk.bold.cyan('  Architecture Dependency Graph'));
+          print(chalk.dim(`  Template: ${definition.template}`));
+          blank();
+          data(output);
         }
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-        console.log(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
+        print(chalk.red(err instanceof Error ? err.message : 'Unknown error'));
         throw new CliError('Architecture visualisation failed');
       }
     });
@@ -738,7 +735,7 @@ async function promptLayerPaths(template: ArchitectureTemplate): Promise<Record<
   const defaults = getTemplateDefaults(template);
   const result: Record<string, string[]> = {};
 
-  console.log(chalk.dim('\nEnter glob patterns for each layer (comma-separated):'));
+  print(chalk.dim('\nEnter glob patterns for each layer (comma-separated):'));
 
   for (const [name, def] of Object.entries(defaults)) {
     const answer = await inquirer.prompt([

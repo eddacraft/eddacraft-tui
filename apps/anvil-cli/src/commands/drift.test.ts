@@ -86,7 +86,7 @@ describe('drift command', () => {
   });
 
   it('should list snapshots as JSON on happy path', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     const { createDriftCommand } = await import('./drift.js');
     const command = createDriftCommand();
 
@@ -94,6 +94,7 @@ describe('drift command', () => {
 
     expect(getWorkspaceRootMock).toHaveBeenCalledTimes(1);
     expect(listMock).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('snapshot-a.json'));
+    const output = stdoutWriteSpy.mock.calls.map((call) => String(call[0])).join('');
+    expect(output).toContain('snapshot-a.json');
   });
 });

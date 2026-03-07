@@ -16,6 +16,7 @@ import {
   type LoadedPlan,
   type FilteredPlan,
 } from '@eddacraft/anvil-aps';
+import { blank, data, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface LoadOptions {
@@ -71,11 +72,11 @@ function formatFilesOnly(filtered: FilteredPlan): string {
  * Format human-readable summary
  */
 function formatSummary(plan: LoadedPlan, filtered: FilteredPlan, criteria: FilterCriteria): void {
-  console.log('');
-  console.log(chalk.bold('Plan:'), plan.title);
-  console.log(chalk.bold('Root:'), plan.rootPath);
-  console.log(chalk.bold('Type:'), plan.isMultiModule ? 'Multi-module' : 'Single-file');
-  console.log('');
+  blank();
+  print(chalk.bold('Plan:'), plan.title);
+  print(chalk.bold('Root:'), plan.rootPath);
+  print(chalk.bold('Type:'), plan.isMultiModule ? 'Multi-module' : 'Single-file');
+  blank();
 
   // Show applied filters
   const appliedFilters: string[] = [];
@@ -90,28 +91,28 @@ function formatSummary(plan: LoadedPlan, filtered: FilteredPlan, criteria: Filte
     appliedFilters.push(`confidence: ${criteria.confidences.join(', ')}`);
 
   if (appliedFilters.length > 0) {
-    console.log(chalk.bold('Filters:'), appliedFilters.join(' | '));
-    console.log('');
+    print(chalk.bold('Filters:'), appliedFilters.join(' | '));
+    blank();
   }
 
   // Show modules
-  console.log(chalk.bold.underline('Modules'));
+  print(chalk.bold.underline('Modules'));
   if (filtered.modules.length === 0) {
-    console.log(chalk.gray('  (no matching modules)'));
+    print(chalk.gray('  (no matching modules)'));
   } else {
     for (const module of filtered.modules) {
       const owner = module.metadata.owner ? chalk.gray(` (${module.metadata.owner})`) : '';
       const status = module.metadata.priority ? chalk.cyan(` [${module.metadata.priority}]`) : '';
-      console.log(`  ${chalk.green(module.id)}${owner}${status}`);
-      console.log(chalk.gray(`    ${module.resolvedPath}`));
+      print(`  ${chalk.green(module.id)}${owner}${status}`);
+      print(chalk.gray(`    ${module.resolvedPath}`));
     }
   }
-  console.log('');
+  blank();
 
   // Show tasks
-  console.log(chalk.bold.underline('Tasks'));
+  print(chalk.bold.underline('Tasks'));
   if (filtered.tasks.length === 0) {
-    console.log(chalk.gray('  (no matching tasks)'));
+    print(chalk.gray('  (no matching tasks)'));
   } else {
     for (const task of filtered.tasks) {
       const confidence =
@@ -120,18 +121,18 @@ function formatSummary(plan: LoadedPlan, filtered: FilteredPlan, criteria: Filte
           : task.confidence === 'high'
             ? chalk.green(`[${task.confidence}]`)
             : chalk.gray(`[${task.confidence}]`);
-      console.log(`  ${chalk.cyan(task.id)}: ${task.title} ${confidence}`);
-      console.log(
+      print(`  ${chalk.cyan(task.id)}: ${task.title} ${confidence}`);
+      print(
         chalk.gray(
           `    Intent: ${task.intent.substring(0, 80)}${task.intent.length > 80 ? '...' : ''}`
         )
       );
     }
   }
-  console.log('');
+  blank();
 
   // Summary
-  console.log(
+  print(
     chalk.bold('Summary:'),
     `${filtered.modules.length} module(s), ${filtered.tasks.length} task(s)`
   );
@@ -194,7 +195,7 @@ export function createLoadSubcommand(): Command {
           criteria.priorities = options.priority;
         } else {
           const msg = `Invalid priority values. Must be one of: low, medium, high. Got: ${options.priority.join(', ')}`;
-          console.error(chalk.red('Error:'), msg);
+          print(chalk.red('Error:'), msg);
           throw new CliError(msg);
         }
       }
@@ -203,7 +204,7 @@ export function createLoadSubcommand(): Command {
           criteria.confidences = options.confidence;
         } else {
           const msg = `Invalid confidence values. Must be one of: low, medium, high. Got: ${options.confidence.join(', ')}`;
-          console.error(chalk.red('Error:'), msg);
+          print(chalk.red('Error:'), msg);
           throw new CliError(msg);
         }
       }
@@ -218,16 +219,16 @@ export function createLoadSubcommand(): Command {
           const filtered = filterPlan(plan, criteria);
 
           if (options.json) {
-            console.log(formatAsJson(filtered));
+            data(formatAsJson(filtered));
           } else if (options.text) {
-            console.log(formatAsText(filtered));
+            data(formatAsText(filtered));
           } else if (options.filesOnly) {
-            console.log(formatFilesOnly(filtered));
+            data(formatFilesOnly(filtered));
           }
           throw new CliExit();
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          console.error(error instanceof Error ? error.message : String(error));
+          print(error instanceof Error ? error.message : String(error));
           throw new CliError(error instanceof Error ? error.message : String(error));
         }
       } else {
@@ -243,10 +244,7 @@ export function createLoadSubcommand(): Command {
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red('Failed to load plan'));
-          console.error(
-            chalk.red('Error:'),
-            error instanceof Error ? error.message : String(error)
-          );
+          print(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
           throw new CliError(error instanceof Error ? error.message : 'Failed to load plan');
         }
       }

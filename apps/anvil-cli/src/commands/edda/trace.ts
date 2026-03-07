@@ -11,6 +11,7 @@ import {
 } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { blank, data, print } from '../../utils/output.js';
 import { colourStatus } from './utils.js';
 
 interface EddaTraceOptions {
@@ -31,7 +32,7 @@ export function createEddaTraceCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: message,
@@ -44,7 +45,7 @@ export function createEddaTraceCommand(): Command {
             )
           );
         } else {
-          console.error(chalk.yellow(message));
+          print(chalk.yellow(message));
         }
         throw new CliError(message);
       }
@@ -64,7 +65,7 @@ export function createEddaTraceCommand(): Command {
         const provenance = await provenanceService.getMemoryProvenance(memoryId);
 
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 evolution_chain: evolutionChain,
@@ -79,62 +80,58 @@ export function createEddaTraceCommand(): Command {
 
         spinner?.stop();
 
-        console.error(chalk.bold('\nMemory Evolution Chain'));
-        console.error(chalk.gray('─'.repeat(60)));
+        print(chalk.bold('\nMemory Evolution Chain'));
+        print(chalk.gray('─'.repeat(60)));
 
         if (evolutionChain.length === 0) {
-          console.error(chalk.yellow(`  No evolution chain found for memory: ${id}`));
+          print(chalk.yellow(`  No evolution chain found for memory: ${id}`));
         } else {
           const orderedChain = [...evolutionChain].reverse();
           for (const [index, memory] of orderedChain.entries()) {
-            console.error(
+            print(
               `  [${index + 1}] ${memory.id} (${colourStatus(memory.status)}) - ${formatStatement(memory.statement)}`
             );
 
             if (index < orderedChain.length - 1) {
-              console.error(`  ${chalk.gray('↓ superseded by')}`);
+              print(`  ${chalk.gray('↓ superseded by')}`);
             }
           }
         }
 
-        console.error(chalk.bold('\nProvenance'));
-        console.error(chalk.gray('─'.repeat(60)));
+        print(chalk.bold('\nProvenance'));
+        print(chalk.gray('─'.repeat(60)));
 
         if (!provenance) {
-          console.error(chalk.yellow(`  No provenance found for memory: ${id}`));
-          console.error('');
+          print(chalk.yellow(`  No provenance found for memory: ${id}`));
+          blank();
           return;
         }
 
         const emberSource = provenance.memory.provenance.ember_source;
-        console.error(
-          `  ${chalk.cyan('Ember source:')} ${emberSource ? emberSource.proposal_id : 'None'}`
-        );
-        console.error(
-          `  ${chalk.cyan('Ember type:')} ${emberSource ? emberSource.proposal_type : 'None'}`
-        );
-        console.error(
+        print(`  ${chalk.cyan('Ember source:')} ${emberSource ? emberSource.proposal_id : 'None'}`);
+        print(`  ${chalk.cyan('Ember type:')} ${emberSource ? emberSource.proposal_type : 'None'}`);
+        print(
           `  ${chalk.cyan('Ember confidence:')} ${emberSource ? emberSource.confidence.toFixed(2) : 'None'}`
         );
-        console.error(
+        print(
           `  ${chalk.cyan('Kindling sources:')} ${provenance.memory.provenance.kindling_sources.length}`
         );
-        console.error(
+        print(
           `  ${chalk.cyan('Source sessions:')} ${provenance.memory.provenance.source_sessions.length}`
         );
-        console.error(
+        print(
           `  ${chalk.cyan('Resolution status:')} ${provenance.resolution.complete ? chalk.green('complete') : chalk.yellow('incomplete')}`
         );
-        console.error(
+        print(
           `  ${chalk.cyan('Missing links:')} ${formatList(provenance.resolution.missing_links)}`
         );
-        console.error(`  ${chalk.cyan('Warnings:')} ${formatList(provenance.resolution.warnings)}`);
-        console.error('');
+        print(`  ${chalk.cyan('Warnings:')} ${formatList(provenance.resolution.warnings)}`);
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to trace memory provenance'));
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -144,9 +141,7 @@ export function createEddaTraceCommand(): Command {
             )
           );
         } else {
-          console.error(
-            chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-          );
+          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }

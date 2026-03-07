@@ -1,19 +1,22 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-const isTUIAvailableMock = vi.fn();
-const renderTUIMock = vi.fn();
-const markFirstRunCompleteMock = vi.fn();
+// vi.hoisted ensures these are available when vi.mock factories execute
+const mocks = vi.hoisted(() => ({
+  isTUIAvailable: vi.fn(),
+  renderTUI: vi.fn(),
+  markFirstRunComplete: vi.fn(),
+}));
 
 vi.mock('../tui/utils/tty-detection.js', () => ({
-  isTUIAvailable: isTUIAvailableMock,
+  isTUIAvailable: mocks.isTUIAvailable,
 }));
 
 vi.mock('../tui/utils/renderer.js', () => ({
-  renderTUI: renderTUIMock,
+  renderTUI: mocks.renderTUI,
 }));
 
 vi.mock('../services/first-run-detector.js', () => ({
-  markFirstRunComplete: markFirstRunCompleteMock,
+  markFirstRunComplete: mocks.markFirstRunComplete,
 }));
 
 vi.mock('../tui/commands/welcome/Welcome.js', () => ({
@@ -32,7 +35,7 @@ vi.mock('../tui/commands/welcome/content.js', () => ({
 describe('welcome command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    isTUIAvailableMock.mockReturnValue(false);
+    mocks.isTUIAvailable.mockReturnValue(false);
   });
 
   afterEach(() => {
@@ -55,16 +58,16 @@ describe('welcome command', () => {
   });
 
   it('should render plain welcome output and mark first run complete on happy path', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { createStartCommand } = await import('./welcome.js');
     const command = createStartCommand();
 
     await command.parseAsync(['node', 'test']);
 
-    expect(isTUIAvailableMock).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('ANVIL'));
-    expect(markFirstRunCompleteMock).toHaveBeenCalledTimes(1);
-    expect(renderTUIMock).not.toHaveBeenCalled();
+    expect(mocks.isTUIAvailable).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('ANVIL'));
+    expect(mocks.markFirstRunComplete).toHaveBeenCalledTimes(1);
+    expect(mocks.renderTUI).not.toHaveBeenCalled();
   });
 });

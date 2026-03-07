@@ -21,7 +21,7 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
-import { success, error, info, warning, debug } from '../utils/output.js';
+import { success, error, info, warning, print, blank, data, debug } from '../utils/output.js';
 import { coerceNonNegativeInt } from '../utils/option-coerce.js';
 import {
   PolicyLoader,
@@ -394,19 +394,19 @@ export function createPolicyCommand(): Command {
 
         if (displayPolicies.length === 0) {
           info('No policies found');
-          console.log(chalk.dim('\nRun `anvil policy init` to create example policies'));
+          print(chalk.dim('\nRun `anvil policy init` to create example policies'));
           return;
         }
 
         if (options.json) {
-          console.log(JSON.stringify(displayPolicies, null, 2));
+          data(JSON.stringify(displayPolicies, null, 2));
           return;
         }
 
-        console.log(chalk.bold('\nPolicies:\n'));
+        print(chalk.bold('\nPolicies:\n'));
 
         // Print table header
-        console.log(
+        print(
           chalk.dim('  ') +
             chalk.bold('Name'.padEnd(22)) +
             chalk.bold('Source'.padEnd(10)) +
@@ -414,14 +414,14 @@ export function createPolicyCommand(): Command {
             chalk.bold('Owner'.padEnd(18)) +
             chalk.bold('Reason')
         );
-        console.log(chalk.dim('  ' + '─'.repeat(90)));
+        print(chalk.dim('  ' + '─'.repeat(90)));
 
         for (const p of displayPolicies) {
           const rego = regoByName.get(p.name);
           const tests = rego?.hasTests ? chalk.green(' ✓') : '';
 
           // Pad manually for ANSI-colored strings
-          console.log(
+          print(
             '  ' +
               p.name.padEnd(22).replace(p.name, p.active ? chalk.cyan(p.name) : chalk.dim(p.name)) +
               (p.source as string).padEnd(10).replace(p.source, formatSource(p.source)) +
@@ -435,11 +435,11 @@ export function createPolicyCommand(): Command {
 
           // Show effective date for pending policies
           if (p.effective && !p.active) {
-            console.log(chalk.dim(`                      effective: ${p.effective}`));
+            print(chalk.dim(`                      effective: ${p.effective}`));
           }
         }
 
-        console.log('');
+        blank();
 
         const activeCount = allPolicies.filter((p) => p.active).length;
         const totalCount = allPolicies.length;
@@ -450,24 +450,24 @@ export function createPolicyCommand(): Command {
         } else {
           success(`${activeCount} active policies`);
           if (totalCount > activeCount) {
-            console.log(chalk.dim(`  ${totalCount - activeCount} more hidden. Use --all to show.`));
+            print(chalk.dim(`  ${totalCount - activeCount} more hidden. Use --all to show.`));
           }
         }
 
         // Show org source if configured
         const config = configMgr.load();
         if (config.policies?.org) {
-          console.log('');
+          blank();
           info(
             `Org source: ${chalk.cyan(config.policies.org.source)}${config.policies.org.ref ? ` @ ${config.policies.org.ref}` : ''}`
           );
         }
 
         if (regoResult.errors.length > 0) {
-          console.log('');
+          blank();
           warning(`${regoResult.errors.length} policies failed to load:`);
           for (const err of regoResult.errors) {
-            console.log(chalk.red(`  • ${err.path}: ${err.error}`));
+            print(chalk.red(`  • ${err.path}: ${err.error}`));
           }
         }
       } catch (err) {
@@ -493,47 +493,47 @@ export function createPolicyCommand(): Command {
 
         if (!policy) {
           error(`Policy '${name}' not found`);
-          console.log(chalk.dim('\nRun `anvil policy list --all` to see available policies'));
+          print(chalk.dim('\nRun `anvil policy list --all` to see available policies'));
           throw new CliError(`Policy '${name}' not found`);
         }
 
-        console.log('');
-        console.log(chalk.bold(`Policy: ${policy.name}`));
-        console.log(chalk.dim('─'.repeat(50)));
-        console.log('');
+        blank();
+        print(chalk.bold(`Policy: ${policy.name}`));
+        print(chalk.dim('─'.repeat(50)));
+        blank();
 
-        console.log(`  ${chalk.bold('Source:')}        ${formatSource(policy.source)}`);
-        console.log(`  ${chalk.bold('Enforcement:')}   ${formatEnforcement(policy.enforcement)}`);
-        console.log(
+        print(`  ${chalk.bold('Source:')}        ${formatSource(policy.source)}`);
+        print(`  ${chalk.bold('Enforcement:')}   ${formatEnforcement(policy.enforcement)}`);
+        print(
           `  ${chalk.bold('Status:')}        ${policy.active ? chalk.green('active') : chalk.yellow('inactive')}`
         );
 
         if (policy.owner) {
-          console.log(`  ${chalk.bold('Owner:')}         ${policy.owner}`);
+          print(`  ${chalk.bold('Owner:')}         ${policy.owner}`);
         }
 
         if (policy.effective) {
           const effectiveDate = new Date(policy.effective);
           const isEffective = effectiveDate <= new Date();
-          console.log(
+          print(
             `  ${chalk.bold('Effective:')}     ${policy.effective} ${isEffective ? chalk.green('(in effect)') : chalk.yellow('(pending)')}`
           );
         }
 
         if (policy.tags && policy.tags.length > 0) {
-          console.log(`  ${chalk.bold('Tags:')}          ${policy.tags.join(', ')}`);
+          print(`  ${chalk.bold('Tags:')}          ${policy.tags.join(', ')}`);
         }
 
         if (policy.reason) {
-          console.log('');
-          console.log(chalk.bold('  Why this policy exists:'));
-          console.log(`  ${policy.reason}`);
+          blank();
+          print(chalk.bold('  Why this policy exists:'));
+          print(`  ${policy.reason}`);
         }
 
         if (policy.hasRegoFile && policy.regoPath) {
-          console.log('');
-          console.log(chalk.bold('  Rego file:'));
-          console.log(chalk.dim(`  ${policy.regoPath}`));
+          blank();
+          print(chalk.bold('  Rego file:'));
+          print(chalk.dim(`  ${policy.regoPath}`));
 
           // Show first few comment lines from the rego file as documentation
           try {
@@ -545,10 +545,10 @@ export function createPolicyCommand(): Command {
               .map((line) => line.replace(/^#\s?/, ''));
 
             if (commentLines.length > 0) {
-              console.log('');
-              console.log(chalk.bold('  Description (from source):'));
+              blank();
+              print(chalk.bold('  Description (from source):'));
               for (const line of commentLines) {
-                console.log(chalk.dim(`  ${line}`));
+                print(chalk.dim(`  ${line}`));
               }
             }
           } catch {
@@ -557,11 +557,11 @@ export function createPolicyCommand(): Command {
           }
         }
 
-        console.log('');
-        console.log(chalk.dim('  Commands:'));
-        console.log(chalk.dim(`    anvil policy disable ${name}    # turn it off`));
-        console.log(chalk.dim(`    anvil gate --skip ${name}       # skip just this once`));
-        console.log('');
+        blank();
+        print(chalk.dim('  Commands:'));
+        print(chalk.dim(`    anvil policy disable ${name}    # turn it off`));
+        print(chalk.dim(`    anvil gate --skip ${name}       # skip just this once`));
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to explain policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -596,9 +596,9 @@ export function createPolicyCommand(): Command {
 
           if (partial.length === 0) {
             error(`Could not match '${violation}' to any known policy`);
-            console.log(chalk.dim('\nAvailable policies:'));
+            print(chalk.dim('\nAvailable policies:'));
             for (const p of resolved) {
-              console.log(chalk.dim(`  • ${p.name}`));
+              print(chalk.dim(`  • ${p.name}`));
             }
             throw new CliError(`Could not match '${violation}' to any known policy`);
           }
@@ -636,14 +636,14 @@ export function createPolicyCommand(): Command {
         const policyDir = options.dir;
         const configPath = join('.anvil', 'config.yml');
 
-        console.log(chalk.bold('\nPolicy Changes:\n'));
+        print(chalk.bold('\nPolicy Changes:\n'));
 
         let hasChanges = false;
 
         const printDiffSection = (label: string, diffOutput: string) => {
           if (!diffOutput) return;
           hasChanges = true;
-          console.log(chalk.bold(`  ${label}:`));
+          print(chalk.bold(`  ${label}:`));
           for (const line of diffOutput.split('\n')) {
             const [status, ...pathParts] = line.split('\t');
             const filePath = pathParts.join('\t');
@@ -655,9 +655,9 @@ export function createPolicyCommand(): Command {
                   : status === 'D'
                     ? chalk.red('deleted')
                     : chalk.dim(status ?? '');
-            console.log(`    ${statusLabel} ${filePath}`);
+            print(`    ${statusLabel} ${filePath}`);
           }
-          console.log('');
+          blank();
         };
 
         // Check for config.yml changes
@@ -693,11 +693,11 @@ export function createPolicyCommand(): Command {
           ).trim();
           if (untracked) {
             hasChanges = true;
-            console.log(chalk.bold('  Untracked policy files:'));
+            print(chalk.bold('  Untracked policy files:'));
             for (const file of untracked.split('\n')) {
-              console.log(`    ${chalk.green('new')} ${file}`);
+              print(`    ${chalk.green('new')} ${file}`);
             }
-            console.log('');
+            blank();
           }
         } catch {
           debug('policy: git ls-files for untracked policy files failed');
@@ -740,7 +740,7 @@ export function createPolicyCommand(): Command {
 
         configMgr.disablePolicy(name);
         success(`Disabled policy '${name}'`);
-        console.log(chalk.dim(`  To re-enable: anvil policy enable ${name}`));
+        print(chalk.dim(`  To re-enable: anvil policy enable ${name}`));
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to disable policy: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -799,7 +799,7 @@ export function createPolicyCommand(): Command {
 
         writeFileSync(outputPath, markdown, 'utf-8');
         success(`Generated ${options.output}`);
-        console.log(chalk.dim('  Commit this file so the team can read it in any editor.'));
+        print(chalk.dim('  Commit this file so the team can read it in any editor.'));
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to generate docs: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -882,19 +882,19 @@ export function createPolicyCommand(): Command {
 
         spinner.succeed(`Scaffolded org policy repo at ${options.out}`);
 
-        console.log('');
-        console.log(chalk.bold('Created:'));
-        console.log(chalk.dim(`  ${options.out}/.anvil/config.yml`));
-        console.log(chalk.dim(`  ${options.out}/.anvil/policies/ (${copiedCount} policies)`));
-        console.log(chalk.dim(`  ${options.out}/README.md`));
+        blank();
+        print(chalk.bold('Created:'));
+        print(chalk.dim(`  ${options.out}/.anvil/config.yml`));
+        print(chalk.dim(`  ${options.out}/.anvil/policies/ (${copiedCount} policies)`));
+        print(chalk.dim(`  ${options.out}/README.md`));
 
-        console.log('');
-        console.log(chalk.bold('Next steps:'));
-        console.log(chalk.dim(`  1. cd ${options.out}`));
-        console.log(chalk.dim('  2. git init && git add . && git commit -m "Initial policy repo"'));
-        console.log(chalk.dim(`  3. Push to git@github.com:${options.org}/anvil-policies.git`));
-        console.log(chalk.dim('  4. In your project, add the org source to .anvil/config.yml'));
-        console.log('');
+        blank();
+        print(chalk.bold('Next steps:'));
+        print(chalk.dim(`  1. cd ${options.out}`));
+        print(chalk.dim('  2. git init && git add . && git commit -m "Initial policy repo"'));
+        print(chalk.dim(`  3. Push to git@github.com:${options.org}/anvil-policies.git`));
+        print(chalk.dim('  4. In your project, add the org source to .anvil/config.yml'));
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         error(`Failed to scaffold: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -931,7 +931,7 @@ export function createPolicyCommand(): Command {
         } else {
           spinner.fail(chalk.red('Policy syntax is invalid'));
           for (const err of result.errors) {
-            console.log(chalk.red(`  • ${err}`));
+            print(chalk.red(`  • ${err}`));
           }
           throw new CliError('Policy syntax is invalid');
         }
@@ -968,7 +968,7 @@ export function createPolicyCommand(): Command {
 
         if (discoveryResult.policies.length === 0) {
           spinner.warn('No policies found');
-          console.log(chalk.dim('\nRun `anvil policy init` to create example policies'));
+          print(chalk.dim('\nRun `anvil policy init` to create example policies'));
           return;
         }
 
@@ -986,7 +986,7 @@ export function createPolicyCommand(): Command {
         const testFiles = loader.findTestFiles(discoveryResult.directory);
         if (testFiles.length === 0) {
           spinner.warn('No test files found');
-          console.log(chalk.dim('\nCreate *_test.rego files to add tests'));
+          print(chalk.dim('\nCreate *_test.rego files to add tests'));
           return;
         }
 
@@ -1009,21 +1009,21 @@ export function createPolicyCommand(): Command {
 
         // Show details if verbose or if there are failures
         if (options.verbose || !allPassed) {
-          console.log('');
+          blank();
           for (const detail of result.details) {
             const icon = detail.passed ? chalk.green('✓') : chalk.red('✗');
-            console.log(`  ${icon} ${detail.name}`);
+            print(`  ${icon} ${detail.name}`);
             if (detail.message) {
-              console.log(chalk.dim(`      ${detail.message}`));
+              print(chalk.dim(`      ${detail.message}`));
             }
           }
         }
 
         if (result.errors.length > 0) {
-          console.log('');
+          blank();
           warning('Errors occurred:');
           for (const err of result.errors) {
-            console.log(chalk.red(`  • ${err}`));
+            print(chalk.red(`  • ${err}`));
           }
         }
 
@@ -1056,7 +1056,7 @@ export function createPolicyCommand(): Command {
           const files = readdirSync(policyDir).filter((f) => f.endsWith('.rego'));
           if (files.length > 0) {
             error(`Policy directory already contains ${files.length} policies`);
-            console.log(chalk.dim('\nUse --force to overwrite existing policies'));
+            print(chalk.dim('\nUse --force to overwrite existing policies'));
             throw new CliError('Policy directory already contains policies');
           }
         }
@@ -1092,35 +1092,33 @@ export function createPolicyCommand(): Command {
 
         spinner.succeed(chalk.green(`Created ${copiedCount} example policies`));
 
-        console.log('\n' + chalk.bold('Created policies:'));
-        console.log(
-          chalk.cyan('  • coverage_min.rego') + chalk.dim(' - Enforce minimum test coverage')
-        );
-        console.log(chalk.cyan('  • change_scope.rego') + chalk.dim(' - Limit files per change'));
-        console.log(
+        print('\n' + chalk.bold('Created policies:'));
+        print(chalk.cyan('  • coverage_min.rego') + chalk.dim(' - Enforce minimum test coverage'));
+        print(chalk.cyan('  • change_scope.rego') + chalk.dim(' - Limit files per change'));
+        print(
           chalk.cyan('  • security_baseline.rego') + chalk.dim(' - Security review requirements')
         );
 
-        console.log('\n' + chalk.bold('Next steps:'));
-        console.log(chalk.dim('  1. Review and customise policies in ') + chalk.cyan(options.dir));
-        console.log(chalk.dim('  2. List policies: ') + chalk.cyan('anvil policy list'));
-        console.log(chalk.dim('  3. Run policy tests: ') + chalk.cyan('anvil policy test'));
-        console.log(chalk.dim('  4. Enable policy check in .anvilrc'));
+        print('\n' + chalk.bold('Next steps:'));
+        print(chalk.dim('  1. Review and customise policies in ') + chalk.cyan(options.dir));
+        print(chalk.dim('  2. List policies: ') + chalk.cyan('anvil policy list'));
+        print(chalk.dim('  3. Run policy tests: ') + chalk.cyan('anvil policy test'));
+        print(chalk.dim('  4. Enable policy check in .anvilrc'));
 
         // Show .anvilrc snippet
-        console.log('\n' + chalk.bold('Add to .anvilrc:'));
-        console.log(
+        print('\n' + chalk.bold('Add to .anvilrc:'));
+        print(
           chalk.dim(`  {
-    "name": "policy",
-    "enabled": true,
-    "config": {
-      "policy_dir": "${options.dir}",
-      "severity_threshold": "error"
-    }
-  }`)
+            "name": "policy",
+            "enabled": true,
+            "config": {
+              "policy_dir": "${options.dir}",
+              "severity_threshold": "error"
+            }
+          }`)
         );
 
-        console.log('');
+        blank();
         success('Policy directory initialised!');
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
@@ -1155,30 +1153,28 @@ function truncate(str: string, maxLen: number): string {
 }
 
 function printWhyBlock(policy: ResolvedPolicy): void {
-  console.log('');
-  console.log(
-    `  ${chalk.red('✗')} ${chalk.bold(policy.name)}: ${formatEnforcement(policy.enforcement)}`
-  );
-  console.log('');
+  blank();
+  print(`  ${chalk.red('✗')} ${chalk.bold(policy.name)}: ${formatEnforcement(policy.enforcement)}`);
+  blank();
 
   if (policy.reason) {
-    console.log(`  ${chalk.bold('Why:')} ${policy.reason}`);
+    print(`  ${chalk.bold('Why:')} ${policy.reason}`);
   } else {
-    console.log(chalk.dim(`  No business reason documented for this policy.`));
-    console.log(chalk.dim(`  Add a "reason" field in .anvil/config.yml to document it.`));
+    print(chalk.dim(`  No business reason documented for this policy.`));
+    print(chalk.dim(`  Add a "reason" field in .anvil/config.yml to document it.`));
   }
 
   if (policy.owner) {
-    console.log(`  ${chalk.bold('Owner:')} ${policy.owner}`);
+    print(`  ${chalk.bold('Owner:')} ${policy.owner}`);
   }
 
-  console.log(`  ${chalk.bold('Source:')} ${formatSource(policy.source)} policy`);
+  print(`  ${chalk.bold('Source:')} ${formatSource(policy.source)} policy`);
 
-  console.log('');
-  console.log(chalk.dim(`  anvil policy explain ${policy.name}    # full details`));
-  console.log(chalk.dim(`  anvil policy disable ${policy.name}    # turn it off`));
-  console.log(chalk.dim(`  anvil gate --skip ${policy.name}       # skip just this once`));
-  console.log('');
+  blank();
+  print(chalk.dim(`  anvil policy explain ${policy.name}    # full details`));
+  print(chalk.dim(`  anvil policy disable ${policy.name}    # turn it off`));
+  print(chalk.dim(`  anvil gate --skip ${policy.name}       # skip just this once`));
+  blank();
 }
 
 /**
@@ -1313,24 +1309,24 @@ function createBundleListCommand(): Command {
 
       if (bundles.length === 0) {
         info('No policy bundles configured');
-        console.log(chalk.dim('\nRun `anvil policy bundle add <url>` to add a bundle'));
+        print(chalk.dim('\nRun `anvil policy bundle add <url>` to add a bundle'));
         return;
       }
 
       // Initialize bundle manager to get cache status
       const bundleManager = getBundleManager();
 
-      console.log(chalk.bold('\nConfigured Policy Bundles:\n'));
+      print(chalk.bold('\nConfigured Policy Bundles:\n'));
 
       // Print table header
-      console.log(
+      print(
         chalk.dim('  ') +
           chalk.bold('Name'.padEnd(20)) +
           chalk.bold('URL'.padEnd(40)) +
           chalk.bold('Last Sync'.padEnd(15)) +
           chalk.bold('Status')
       );
-      console.log(chalk.dim('  ' + '-'.repeat(85)));
+      print(chalk.dim('  ' + '-'.repeat(85)));
 
       // Print each bundle
       for (const bundle of bundles) {
@@ -1345,7 +1341,7 @@ function createBundleListCommand(): Command {
         const displayUrl =
           bundle.url.length > maxUrlLen ? bundle.url.slice(0, maxUrlLen - 2) + '..' : bundle.url;
 
-        console.log(
+        print(
           '  ' +
             enabledIndicator +
             chalk.cyan(bundleName.padEnd(20 - enabledIndicator.length)) +
@@ -1355,11 +1351,11 @@ function createBundleListCommand(): Command {
         );
 
         if (entry) {
-          console.log(chalk.dim(`      Size: ${formatSize(entry.size_bytes)}`));
+          print(chalk.dim(`      Size: ${formatSize(entry.size_bytes)}`));
         }
       }
 
-      console.log('');
+      blank();
       success(`${bundles.length} bundle(s) configured`);
     } catch (err) {
       if (err instanceof CliError || err instanceof CliExit) throw err;
@@ -1418,7 +1414,7 @@ function createBundleAddCommand(): Command {
           const existingIndex = config.policy.bundles.findIndex((b) => b.name === bundleName);
           if (existingIndex >= 0) {
             spinner.fail(`Bundle '${bundleName}' already exists`);
-            console.log(chalk.dim('\nUse a different --name or remove the existing bundle first'));
+            print(chalk.dim('\nUse a different --name or remove the existing bundle first'));
             throw new CliError(`Bundle '${bundleName}' already exists`);
           }
 
@@ -1491,17 +1487,17 @@ function createBundleAddCommand(): Command {
                 syncSpinner.succeed(`Bundle downloaded to ${result.path}`);
               } else {
                 syncSpinner.warn(`Download failed: ${result.error}`);
-                console.log(chalk.dim('\nRun `anvil policy bundle sync` to retry'));
+                print(chalk.dim('\nRun `anvil policy bundle sync` to retry'));
               }
             } catch (syncErr) {
               syncSpinner.warn(
                 `Download failed: ${syncErr instanceof Error ? syncErr.message : 'Unknown error'}`
               );
-              console.log(chalk.dim('\nRun `anvil policy bundle sync` to retry'));
+              print(chalk.dim('\nRun `anvil policy bundle sync` to retry'));
             }
           }
 
-          console.log('');
+          blank();
           success('Bundle configuration saved to .anvilrc');
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
@@ -1563,7 +1559,7 @@ function createBundleRemoveCommand(): Command {
 
         if (bundleIndex < 0) {
           spinner.fail(`Bundle '${name}' not found`);
-          console.log(chalk.dim('\nUse `anvil policy bundle list` to see available bundles'));
+          print(chalk.dim('\nUse `anvil policy bundle list` to see available bundles'));
           throw new CliError(`Bundle '${name}' not found for removal`);
         }
 
@@ -1616,7 +1612,7 @@ function createBundleSyncCommand(): Command {
 
         if (bundles.length === 0) {
           spinner.warn('No bundles configured');
-          console.log(chalk.dim('\nRun `anvil policy bundle add <url>` to add a bundle'));
+          print(chalk.dim('\nRun `anvil policy bundle add <url>` to add a bundle'));
           return;
         }
 
@@ -1659,7 +1655,7 @@ function createBundleSyncCommand(): Command {
         spinner.stop();
 
         // Display results
-        console.log(chalk.bold('\nBundle Sync Results:\n'));
+        print(chalk.bold('\nBundle Sync Results:\n'));
 
         let successCount = 0;
         let failCount = 0;
@@ -1668,19 +1664,17 @@ function createBundleSyncCommand(): Command {
           if (result.success) {
             successCount++;
             const updateStatus = result.updated ? chalk.green('updated') : chalk.dim('unchanged');
-            console.log(`  ${chalk.green('✓')} ${result.name}: ${updateStatus}`);
+            print(`  ${chalk.green('✓')} ${result.name}: ${updateStatus}`);
             if (result.path) {
-              console.log(chalk.dim(`      Path: ${result.path}`));
+              print(chalk.dim(`      Path: ${result.path}`));
             }
           } else {
             failCount++;
-            console.log(
-              `  ${chalk.red('✗')} ${result.name}: ${chalk.red(result.error || 'Failed')}`
-            );
+            print(`  ${chalk.red('✗')} ${result.name}: ${chalk.red(result.error || 'Failed')}`);
           }
         }
 
-        console.log('');
+        blank();
 
         if (failCount === 0) {
           success(`All ${successCount} bundle(s) synced successfully`);

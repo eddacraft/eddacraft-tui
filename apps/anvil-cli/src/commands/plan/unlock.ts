@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, type UnlockResult } from '@eddacraft/anvil-aps';
+import { data, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface UnlockOptions {
@@ -42,12 +43,12 @@ export function createUnlockSubcommand(): Command {
           });
 
           const result = await locker.unlock(taskId);
-          console.log(formatAsJson(result));
+          data(formatAsJson(result));
           if (result.success) throw new CliExit();
           throw new CliError('Unlock failed');
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          console.log(
+          data(
             JSON.stringify(
               {
                 success: false,
@@ -75,22 +76,19 @@ export function createUnlockSubcommand(): Command {
 
           if (result.success) {
             spinner.succeed(chalk.green(`Task ${taskId} unlocked (cancelled)`));
-            console.log(chalk.gray('  Previous status:'), chalk.yellow(result.previousStatus));
+            print(chalk.gray('  Previous status:'), chalk.yellow(result.previousStatus));
           } else {
             spinner.fail(chalk.red(`Failed to unlock task ${taskId}`));
-            console.error(chalk.red('  Error:'), result.error);
+            print(chalk.red('  Error:'), result.error);
             if (result.previousStatus) {
-              console.log(chalk.gray('  Current status:'), chalk.yellow(result.previousStatus));
+              print(chalk.gray('  Current status:'), chalk.yellow(result.previousStatus));
             }
             throw new CliError(`Failed to unlock task ${taskId}`);
           }
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red(`Failed to unlock task ${taskId}`));
-          console.error(
-            chalk.red('Error:'),
-            error instanceof Error ? error.message : String(error)
-          );
+          print(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
           throw new CliError(
             error instanceof Error ? error.message : `Failed to unlock task ${taskId}`
           );

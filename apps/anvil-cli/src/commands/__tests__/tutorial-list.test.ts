@@ -84,7 +84,7 @@ describe('tutorial --list', () => {
   });
 
   it('lists all expected tutorials when --list is used', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['--list'], { from: 'user' });
@@ -103,7 +103,7 @@ describe('tutorial --list', () => {
   });
 
   it('shows descriptions for each tutorial', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['--list'], { from: 'user' });
@@ -117,7 +117,7 @@ describe('tutorial --list', () => {
   });
 
   it('handles unknown topic gracefully', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['nonexistent'], { from: 'user' });
@@ -131,7 +131,7 @@ describe('tutorial --list', () => {
 
 describe('tutorial --reset with topic', () => {
   it('resets core tutorial and confirms', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['core', '--reset'], { from: 'user' });
@@ -143,7 +143,7 @@ describe('tutorial --reset with topic', () => {
   });
 
   it('resets a known topic and confirms', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['architecture', '--reset'], { from: 'user' });
@@ -155,7 +155,7 @@ describe('tutorial --reset with topic', () => {
   });
 
   it('resets policies topic and confirms reset', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['policies', '--reset'], { from: 'user' });
@@ -168,7 +168,7 @@ describe('tutorial --reset with topic', () => {
 
   it('removes the policy file and logs cleanup when it exists', async () => {
     mockFs.forceExistsSync = true;
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['policies', '--reset'], { from: 'user' });
@@ -183,7 +183,7 @@ describe('tutorial --reset with topic', () => {
   });
 
   it('resets drift topic', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['drift', '--reset'], { from: 'user' });
@@ -194,7 +194,7 @@ describe('tutorial --reset with topic', () => {
   });
 
   it('resets ci topic', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['ci', '--reset'], { from: 'user' });
@@ -205,7 +205,7 @@ describe('tutorial --reset with topic', () => {
   });
 
   it('rejects --reset with unknown topic', async () => {
-    const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const command = createTutorialCommand();
     await command.parseAsync(['nonexistent', '--reset'], { from: 'user' });
@@ -235,7 +235,7 @@ describe('tutorial TTY error handling', () => {
     const command = createTutorialCommand();
     await expect(command.parseAsync([], { from: 'user' })).rejects.toThrow(CliError);
 
-    const allStderr = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
+    const allStderr = stderrSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('\n');
     expect(allStderr).toContain('requires an interactive terminal');
     expect(allStderr).toContain('TTY environment');
   });
