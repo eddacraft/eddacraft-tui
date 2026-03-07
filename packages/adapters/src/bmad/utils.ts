@@ -138,9 +138,10 @@ export function extractFrontMatter(content: string): BMADFrontMatter | null {
     if (!trimmed || trimmed.startsWith('#')) continue;
 
     // Handle key: value
-    const keyValueMatch = trimmed.match(/^(\w+):[ \t]*(.*)$/);
+    const keyValueMatch = trimmed.match(/^(\w+):[ \t]*(\S.*)?$/);
     if (keyValueMatch) {
-      const [, key, value] = keyValueMatch;
+      const [, key, rawValue] = keyValueMatch;
+      const value = rawValue ?? '';
 
       // Remove quotes
       let cleanValue = value.replace(/^["']|["']$/g, '').trim();
@@ -224,19 +225,19 @@ export function extractUserStories(content: string): BMADUserStory[] {
     while (j < lines.length && j < i + 10) {
       const storyLine = lines[j].trim();
 
-      const asMatch = storyLine.match(/^As an?[ \t]+(.+\S)[ \t]*,?$/i);
-      if (asMatch) {
-        story.userType = asMatch[1];
+      const asPrefix = storyLine.match(/^As an?[ \t]+/i);
+      if (asPrefix) {
+        story.userType = storyLine.slice(asPrefix[0].length).replace(/,\s*$/, '');
       }
 
-      const wantMatch = storyLine.match(/^I want[ \t]+(.+\S)[ \t]*,?$/i);
-      if (wantMatch) {
-        story.action = wantMatch[1];
+      const wantPrefix = storyLine.match(/^I want[ \t]+/i);
+      if (wantPrefix) {
+        story.action = storyLine.slice(wantPrefix[0].length).replace(/,\s*$/, '');
       }
 
-      const soThatMatch = storyLine.match(/^so that[ \t]+(.+\S)[ \t]*\.?$/i);
-      if (soThatMatch) {
-        story.benefit = soThatMatch[1];
+      const soThatPrefix = storyLine.match(/^so that[ \t]+/i);
+      if (soThatPrefix) {
+        story.benefit = storyLine.slice(soThatPrefix[0].length).replace(/\.\s*$/, '');
       }
 
       // Look for acceptance criteria
@@ -245,7 +246,7 @@ export function extractUserStories(content: string): BMADUserStory[] {
         let k = j + 1;
         while (k < lines.length && k < j + 20) {
           const criteriaLine = lines[k].trim();
-          const criteriaMatch = criteriaLine.match(/^\d+\.[ \t]+(.+)$/);
+          const criteriaMatch = criteriaLine.match(/^\d+\.[ \t]+(\S.+)$/);
           if (criteriaMatch) {
             criteria.push(criteriaMatch[1]);
           } else if (criteriaLine && !criteriaLine.match(/^\d+\./)) {
@@ -556,7 +557,7 @@ export function extractTitle(content: string): string | null {
   for (const line of lines) {
     const trimmed = line.trim();
     // Match h1 header
-    const h1Match = trimmed.match(/^#[ \t]+(.+)$/);
+    const h1Match = trimmed.match(/^#[ \t]+(\S.+)$/);
     if (h1Match) {
       return h1Match[1];
     }
@@ -1108,10 +1109,10 @@ export function parseWorkflowYaml(content: string): BMADWorkflowYaml | null {
     // Only parse top-level keys (no indent)
     if (indentLevel(line) !== 0) continue;
 
-    const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(.*)$/);
+    const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(\S.*)?$/);
     if (kvMatch) {
       const [, key, rawValue] = kvMatch;
-      const trimmedValue = rawValue.trim();
+      const trimmedValue = (rawValue ?? '').trim();
       if (trimmedValue === '|') {
         // Literal block scalar — preserve newlines
         const block = collectPipeBlock(lines, i + 1, 0);
@@ -1215,7 +1216,7 @@ export function parseModuleYaml(content: string): BMADModuleYaml | null {
         i = list.endIndex;
         continue;
       }
-      const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(.+)$/);
+      const kvMatch = line.match(/^(\w[\w_]*):[ \t]*(\S.+)$/);
       if (kvMatch) {
         const [, key, value] = kvMatch;
         const val = parseSimpleYamlValue(value);

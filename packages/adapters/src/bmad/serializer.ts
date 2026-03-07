@@ -158,7 +158,7 @@ export function serializeToBMAD(plan: APSPlan): string {
 
       if (storyMatch) {
         const [, userType, action, benefit] = storyMatch;
-        title = title.replace(/\(As a [^)]+\)/, '').trim();
+        title = title.replace(/\(As a [^)]{1,500}\)/, '').trim();
 
         lines.push(`### ${storyId}: ${title}`);
         lines.push('');

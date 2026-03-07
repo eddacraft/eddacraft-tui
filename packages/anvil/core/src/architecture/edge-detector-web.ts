@@ -44,7 +44,7 @@ function extractAttr(tag: string, attr: string): string | null {
 // CSS regexes — use [ \t] instead of \s to prevent ReDoS backtracking
 const CSS_IMPORT_REGEX =
   /@import[ \t]+(?:url\([ \t]*(?:["']([^"']+)["']|([^)\s]+))[ \t]*\)|["']([^"']+)["'])/g;
-const CSS_URL_REGEX = /url\([ \t]*(?:["']([^"')]+)["']|([^"'\s)]+))[ \t]*\)/g;
+const CSS_URL_REGEX = /url\([ \t]*(?:"([^")+]+)"|'([^')]+)'|([^"'\s)]+))[ \t]*\)/g;
 
 /**
  * Check if a URL is external (http/https, data:, or protocol-relative //)
@@ -155,7 +155,7 @@ export function extractCssEdges(filePath: string, content: string): ImportEdge[]
     // url() references (skip external and data: URIs)
     CSS_URL_REGEX.lastIndex = 0;
     while ((match = CSS_URL_REGEX.exec(line)) !== null) {
-      const specifier = match[1] ?? match[2];
+      const specifier = match[1] ?? match[2] ?? match[3];
       // Skip if already captured by @import, external, or data: URI
       if (!isExternalUrl(specifier) && !line.includes('@import')) {
         edges.push({

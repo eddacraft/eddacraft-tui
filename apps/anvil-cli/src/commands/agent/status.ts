@@ -56,10 +56,10 @@ export function createAgentStatusCommand(): Command {
                 registered: false,
               },
           environment: {
-            ANVIL_AGENT_ID: process.env['ANVIL_AGENT_ID'] || null,
-            ANVIL_AGENT_TYPE: process.env['ANVIL_AGENT_TYPE'] || null,
+            ANVIL_AGENT_ID: maskSensitive(process.env['ANVIL_AGENT_ID']),
+            ANVIL_AGENT_TYPE: process.env['ANVIL_AGENT_TYPE'] ?? null,
             CLAUDE_SESSION_ID: maskSensitive(process.env['CLAUDE_SESSION_ID']),
-            CI: process.env['CI'] || null,
+            CI: process.env['CI'] ?? null,
           },
         };
 
