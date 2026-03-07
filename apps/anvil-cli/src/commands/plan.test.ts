@@ -1,30 +1,34 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-const savePlanMock = vi.fn();
-const getWorkspaceRootMock = vi.fn();
-const execFileSyncMock = vi.fn();
-
-const spinner = {
-  text: '',
-  start: vi.fn(),
-  succeed: vi.fn(),
-  fail: vi.fn(),
-  stop: vi.fn(),
-};
-
-spinner.start.mockReturnValue(spinner);
+const { savePlanMock, getWorkspaceRootMock, execFileSyncMock, execFileMock, spinner } = vi.hoisted(
+  () => {
+    const s = {
+      text: '',
+      start: vi.fn(),
+      succeed: vi.fn(),
+      fail: vi.fn(),
+      stop: vi.fn(),
+    };
+    s.start.mockReturnValue(s);
+    return {
+      savePlanMock: vi.fn(),
+      getWorkspaceRootMock: vi.fn(),
+      execFileSyncMock: vi.fn(),
+      execFileMock: vi.fn(),
+      spinner: s,
+    };
+  }
+);
 
 vi.mock('ora', () => ({
   default: vi.fn(() => spinner),
 }));
 
-vi.mock('node:child_process', async (importOriginal) => {
-  const original = await importOriginal<typeof import('node:child_process')>();
-  return {
-    ...original,
-    execFileSync: execFileSyncMock,
-  };
-});
+vi.mock('node:child_process', () => ({
+  default: { execFileSync: execFileSyncMock, execFile: execFileMock },
+  execFileSync: execFileSyncMock,
+  execFile: execFileMock,
+}));
 
 vi.mock('../utils/file-io.js', () => ({
   savePlan: savePlanMock,
