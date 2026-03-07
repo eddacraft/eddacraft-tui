@@ -267,13 +267,12 @@ fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
 
 #[must_use]
 fn extract_interpreter_commands(tokens: &[String], interpreter: Option<&str>) -> Vec<String> {
-    let script = match tokens
+    let Some(script) = tokens
         .iter()
         .position(|token| token == "-c" || token == "-e")
         .and_then(|index| tokens.get(index + 1))
-    {
-        Some(s) => s,
-        None => return Vec::new(),
+    else {
+        return Vec::new();
     };
 
     let pattern_strs = [
