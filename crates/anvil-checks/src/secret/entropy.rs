@@ -91,10 +91,10 @@ mod tests {
 
     #[test]
     fn calculates_known_entropy_values() {
-        assert_eq!(calculate_entropy(""), 0.0);
-        assert_eq!(calculate_entropy("aaaa"), 0.0);
+        assert!((calculate_entropy("") - 0.0).abs() < f64::EPSILON);
+        assert!((calculate_entropy("aaaa") - 0.0).abs() < f64::EPSILON);
         assert!((calculate_entropy("abcd") - 2.0).abs() < f64::EPSILON);
-        assert_eq!(rounded_entropy("abcd"), 2.0);
+        assert!((rounded_entropy("abcd") - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]

@@ -624,7 +624,7 @@ mod tests {
 
     #[test]
     fn handles_backslash_escape_outside_quotes() {
-        let parsed = parse_command(r#"touch my\ file.txt"#);
+        let parsed = parse_command(r"touch my\ file.txt");
         assert_eq!(parsed.args, vec!["my file.txt"]);
     }
 
