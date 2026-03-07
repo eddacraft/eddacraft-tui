@@ -17,7 +17,7 @@ on:
 
 # Prevent multiple Temper runs on the same PR
 concurrency:
-  group: temper-${{ github.event.pull_request.number || inputs.pr_number }}
+  group: temper-${{ github.event.pull_request.number || inputs.pr_number || github.run_id }}
   cancel-in-progress: false
 
 jobs:
