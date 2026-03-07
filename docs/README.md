@@ -69,7 +69,8 @@ User-facing documentation is in `docs/public/`:
 - `docs/public/edda-stack/` — Edda stack components and design
 - `docs/public/kindling/` — Kindling adapters, concepts, quickstart
 - `docs/public/beta/` — Beta quickstart
-- `docs/public/start-here/` — Onboarding and glossary
+- `docs/public/start-here/` — Onboarding and glossary (currently disabled on
+  docs site)
 
 ## Archive
 

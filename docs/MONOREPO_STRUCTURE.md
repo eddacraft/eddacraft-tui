@@ -23,6 +23,7 @@ anvil/
 │   ├── mcp-server/
 │   ├── platform/
 │   ├── tooling/
+│   ├── shared/             # Placeholder for v1.1+ shared utilities
 │   └── vscode-extension/
 ├── tools/               # Generators and scripts
 ├── docs/                # Internal documentation
