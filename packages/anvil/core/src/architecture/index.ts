@@ -80,6 +80,14 @@ export {
   inferBaseline,
 } from './analyzer.js';
 
+// Backward-compat aliases (pre-rename spellings)
+/** @deprecated Use {@link AnalyserOptions} instead */
+export type { AnalyserOptions as AnalyzerOptions } from './analyzer.js';
+/** @deprecated Use {@link ArchitectureAnalyser} instead */
+export { ArchitectureAnalyser as ArchitectureAnalyzer } from './analyzer.js';
+/** @deprecated Use {@link createArchitectureAnalyser} instead */
+export { createArchitectureAnalyser as createArchitectureAnalyzer } from './analyzer.js';
+
 // HTML/CSS edge detection
 export { extractHtmlEdges, extractCssEdges } from './edge-detector-web.js';
 
