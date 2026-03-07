@@ -21,6 +21,11 @@ describe('option coercion utilities', () => {
       expect(() => coercePositiveInt('-5', '--limit')).toThrow(InvalidArgumentError);
     });
 
+    it('rejects blank and whitespace-only input', () => {
+      expect(() => coercePositiveInt('', '--limit')).toThrow(InvalidArgumentError);
+      expect(() => coercePositiveInt('  ', '--limit')).toThrow(InvalidArgumentError);
+    });
+
     it('rejects non-numeric values', () => {
       expect(() => coercePositiveInt('abc', '--limit')).toThrow(InvalidArgumentError);
     });
@@ -48,6 +53,11 @@ describe('option coercion utilities', () => {
       expect(() => coerceNonNegativeInt('-1', '--refresh')).toThrow(
         '--refresh must be a non-negative integer'
       );
+    });
+
+    it('rejects blank and whitespace-only input', () => {
+      expect(() => coerceNonNegativeInt('', '--refresh')).toThrow(InvalidArgumentError);
+      expect(() => coerceNonNegativeInt('  ', '--refresh')).toThrow(InvalidArgumentError);
     });
 
     it('rejects non-numeric values', () => {
