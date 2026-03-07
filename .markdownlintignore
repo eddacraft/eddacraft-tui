@@ -20,7 +20,6 @@ pnpm-lock.yaml
 # Ignore configuration directories
 .claude/**
 .anvil/**
-.verdaccio/**
 
 # Ignore archived documents (legacy format, not worth fixing)
 archive/**
