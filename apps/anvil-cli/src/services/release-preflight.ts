@@ -13,13 +13,18 @@ function runCommand(
   cwd: string
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { cwd, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(stderr || stdout || error.message));
-      } else {
-        resolve({ stdout, stderr });
+    execFile(
+      command,
+      args,
+      { cwd, maxBuffer: 10 * 1024 * 1024, timeout: 300_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr || stdout || error.message, { cause: error }));
+        } else {
+          resolve({ stdout, stderr });
+        }
       }
-    });
+    );
   });
 }
 

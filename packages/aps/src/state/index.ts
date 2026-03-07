@@ -470,6 +470,7 @@ export function getGitCommit(projectRoot: string): string | undefined {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30_000,
     }).trim();
   } catch {
     return undefined;
@@ -485,6 +486,7 @@ export function getGitBranch(projectRoot: string): string | undefined {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30_000,
     }).trim();
   } catch {
     return undefined;

@@ -4,7 +4,7 @@ import inquirer from 'inquirer';
 
 function ghAvailable(): boolean {
   try {
-    execFileSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe' });
+    execFileSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe', timeout: 120_000 });
     return true;
   } catch {
     return false;
@@ -36,7 +36,7 @@ function findTriggeredRun(
         '--json',
         'databaseId,status,name,event,headBranch',
       ],
-      { cwd: workspaceRoot, encoding: 'utf8', stdio: 'pipe' }
+      { cwd: workspaceRoot, encoding: 'utf8', stdio: 'pipe', timeout: 120_000 }
     );
     const runs = JSON.parse(output) as WorkflowRun[];
 

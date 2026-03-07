@@ -41,6 +41,7 @@ function gitField(...args: string[]): string {
     return execFileSync('git', args, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 30_000,
     }).trim();
   } catch {
     return '';

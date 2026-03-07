@@ -360,6 +360,7 @@ export class PolicyCheck extends BaseCheck {
             cwd: workspaceRoot,
             encoding: 'utf-8',
             stdio: ['pipe', 'pipe', 'pipe'],
+            timeout: 30_000,
           }).trim();
         } catch {
           return undefined;

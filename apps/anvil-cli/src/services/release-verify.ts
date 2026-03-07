@@ -12,6 +12,7 @@ function checkNpmVersion(pkg: string, version: string): boolean {
     const output = execFileSync('npm', ['view', `${pkg}@${version}`, 'version'], {
       encoding: 'utf8',
       stdio: 'pipe',
+      timeout: 120_000,
     });
     return output.trim() === version;
   } catch {
@@ -24,6 +25,7 @@ function checkNpmExists(pkg: string): string | null {
     return execFileSync('npm', ['view', '--prefer-online', pkg, 'version'], {
       encoding: 'utf8',
       stdio: 'pipe',
+      timeout: 120_000,
     }).trim();
   } catch {
     return null;
@@ -86,7 +88,7 @@ export async function verifyRelease(version: string, execute: boolean): Promise<
       execFileSync(
         'npx',
         ['-y', '--package', `@eddacraft/anvil-cli@${version}`, 'anvil', '--help'],
-        { encoding: 'utf8', stdio: 'pipe' }
+        { encoding: 'utf8', stdio: 'pipe', timeout: 120_000 }
       );
       smokeSpinner.succeed('anvil --help works from npm');
       smokeCheckPassed = true;

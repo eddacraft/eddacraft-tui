@@ -26,13 +26,16 @@
       "path": "../../packages/anvil/runtime"
     },
     {
+      "path": "../../packages/kindling-integration"
+    },
+    {
+      "path": "../../packages/edda-stack"
+    },
+    {
       "path": "../../packages/anvil/core"
     },
     {
       "path": "../../packages/aps"
-    },
-    {
-      "path": "../../packages/kindling-integration"
     },
     {
       "path": "../../packages/adapters"

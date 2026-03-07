@@ -62,6 +62,7 @@ export class HuskyInstalledCheck implements DiagnosticCheck {
       execFileSync('npx', ['husky', 'init'], {
         cwd: context.projectRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 60_000,
       });
       return {
         success: true,

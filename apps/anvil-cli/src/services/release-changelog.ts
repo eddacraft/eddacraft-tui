@@ -11,6 +11,7 @@ function getLatestTag(workspaceRoot: string): string | null {
     return execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
       cwd: workspaceRoot,
       encoding: 'utf8',
+      timeout: 30_000,
     }).trim();
   } catch {
     return null;
@@ -23,6 +24,7 @@ function getCommitsSinceTag(workspaceRoot: string, tag: string | null): string[]
     const output = execFileSync('git', ['log', range, '--oneline', '--no-decorate'], {
       cwd: workspaceRoot,
       encoding: 'utf8',
+      timeout: 30_000,
     });
     return output
       .trim()

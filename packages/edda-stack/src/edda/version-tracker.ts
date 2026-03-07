@@ -148,17 +148,22 @@ export class VersionTracker {
 
   private runGit(args: string[]): Promise<string> {
     return new Promise((resolve, reject) => {
-      execFile('git', args, { cwd: this.storagePath, encoding: 'utf8' }, (error, stdout) => {
-        if (error) {
-          reject(
-            new Error(`Git command failed (git ${args.join(' ')}): ${error.message}`, {
-              cause: error,
-            })
-          );
-          return;
+      execFile(
+        'git',
+        args,
+        { cwd: this.storagePath, encoding: 'utf8', timeout: 30_000 },
+        (error, stdout) => {
+          if (error) {
+            reject(
+              new Error(`Git command failed (git ${args.join(' ')}): ${error.message}`, {
+                cause: error,
+              })
+            );
+            return;
+          }
+          resolve(typeof stdout === 'string' ? stdout : String(stdout ?? ''));
         }
-        resolve(typeof stdout === 'string' ? stdout : String(stdout ?? ''));
-      });
+      );
     });
   }
 }

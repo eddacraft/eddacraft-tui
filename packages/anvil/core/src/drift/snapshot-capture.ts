@@ -42,7 +42,10 @@ export interface CaptureContext {
 
 async function getGitRef(workspaceRoot: string): Promise<string | undefined> {
   try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot });
+    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
+      cwd: workspaceRoot,
+      timeout: 30_000,
+    });
     return stdout.trim();
   } catch (err) {
     debug('failed to get git ref for workspace', err);

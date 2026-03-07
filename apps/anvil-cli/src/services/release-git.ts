@@ -1,8 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 
-function run(args: string[], cwd: string): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+function run(args: string[], cwd: string, timeout = 30_000): string {
+  return execFileSync('git', args, { cwd, encoding: 'utf8', timeout }).trim();
 }
 
 export function isCleanWorkingTree(workspaceRoot: string): boolean {
@@ -46,8 +46,8 @@ export async function commitTagPush(
     `  ${chalk.green('✓')} Staged ${filesToStage.length} file${filesToStage.length !== 1 ? 's' : ''}`
   );
 
-  // Commit
-  run(['commit', '-m', commitMessage], workspaceRoot);
+  // Commit (120s — pre-commit hooks may be slow)
+  run(['commit', '-m', commitMessage], workspaceRoot, 120_000);
   const hash = run(['rev-parse', '--short', 'HEAD'], workspaceRoot);
   console.log(`  ${chalk.green('✓')} Committed ${chalk.dim(hash)}`);
 
@@ -55,11 +55,11 @@ export async function commitTagPush(
   run(['tag', '-a', tagName, '-m', tagName], workspaceRoot);
   console.log(`  ${chalk.green('✓')} Tagged ${chalk.bold(tagName)}`);
 
-  // Push
-  run(['push', 'origin', 'main'], workspaceRoot);
+  // Push (120s — slow remotes)
+  run(['push', 'origin', 'main'], workspaceRoot, 120_000);
   console.log(`  ${chalk.green('✓')} Pushed main`);
 
-  run(['push', 'origin', tagName], workspaceRoot);
+  run(['push', 'origin', tagName], workspaceRoot, 120_000);
   console.log(`  ${chalk.green('✓')} Pushed tag ${tagName}`);
 
   return { commitHash: hash, tagName };
