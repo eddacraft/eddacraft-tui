@@ -26,7 +26,7 @@ health monitoring.
   pipeline (`EDDA-001..019`, `STACK-001..016`)
 - **Edda/Ember CLI commands** — `edda list`, `edda show`, `edda promote`,
   `edda retire`, `edda trace`, `ember list`, `ember show`, `ember promote`,
-  `stack config`, `stack status`, `stack validate`
+  `stack status`, `stack validate`
 
 ## [0.1.3]
 
@@ -283,7 +283,7 @@ Initial pre-release.
 - API response validation strengthened
 - Subprocess execution hardened across the codebase
 
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
 [0.2.0]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta

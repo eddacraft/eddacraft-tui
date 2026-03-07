@@ -32,7 +32,6 @@ codebase over time.
   - `anvil ember promote` — mark a proposal as promoted
 - **Stack health monitoring** — coordination and status for the memory system
   (`STACK`)
-  - `anvil stack config` — configure stack settings
   - `anvil stack status` — show Edda Stack health and component status
   - `anvil stack validate` — validate configuration and provenance integrity
 
@@ -159,7 +158,7 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
 [0.2.0]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0
 [0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
