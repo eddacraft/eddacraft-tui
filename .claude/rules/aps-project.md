@@ -26,7 +26,7 @@
 - ARCHCFG: architecture-config-validation (0/5) — Draft
 - AIGUARD: ai-guardrail-profile (0/4) — Draft
 - EMBER: ember (1/14) — Draft
-- EERB: edda-ember-review (0/16) — In Progress
+- EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (1/19) — Draft
 - STACK: edda-stack-integration (15/16) — In Progress
 - RENG: rust-core-engine (0/24) — Proposed
