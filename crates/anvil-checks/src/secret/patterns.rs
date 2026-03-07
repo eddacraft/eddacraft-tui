@@ -180,11 +180,12 @@ impl PatternMatcher {
     }
 
     pub fn redact_secret(&self, value: &str) -> String {
-        if value.len() <= 8 {
+        let char_count = value.chars().count();
+        if char_count <= 8 {
             "***".to_string()
         } else {
-            let prefix = &value[..4];
-            let suffix = &value[value.len().saturating_sub(4)..];
+            let prefix: String = value.chars().take(4).collect();
+            let suffix: String = value.chars().skip(char_count - 4).collect();
             format!("{prefix}...{suffix}")
         }
     }
@@ -316,5 +317,16 @@ mod tests {
             matcher.redact_line("token = 'abcdefghijklmnop'"),
             "token = '[REDACTED]'"
         );
+    }
+
+    #[test]
+    fn redact_secret_handles_multibyte_utf8() {
+        let matcher = PatternMatcher::new(&[]);
+        // Each CJK char is 3 bytes — byte-slicing at index 4 would land inside
+        // the second character on a naive &value[..4] slice and panic.
+        let value = "\u{4e16}\u{754c}\u{4f60}\u{597d}\u{5f00}\u{59cb}\u{7ed3}\u{675f}\u{5b8c}";
+        let redacted = matcher.redact_secret(value);
+        assert!(redacted.contains("..."), "should contain ellipsis: {redacted}");
+        assert!(!redacted.contains("***"), "9-char input should not be fully redacted");
     }
 }

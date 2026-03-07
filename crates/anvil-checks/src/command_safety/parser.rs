@@ -533,15 +533,42 @@ fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> P
 
     let command = tokens[0].clone();
     let rest = tokens[1..].to_vec();
-    let (flags, args) = split_at_separator(&rest);
+    let (flags, _args) = split_at_separator(&rest);
     let subcommand = extract_subcommand(&command, &rest);
 
-    let remaining_args = if let Some(sub) = &subcommand {
-        args.into_iter()
-            .filter(|arg| arg != sub)
-            .collect::<Vec<_>>()
-    } else {
-        args
+    let global_opts = global_options_for(&command);
+    let remaining_args = {
+        let mut filtered = Vec::new();
+        let mut skip_next = false;
+        let mut past_separator = false;
+        for token in &rest {
+            if skip_next {
+                skip_next = false;
+                continue;
+            }
+            if !past_separator && token == "--" {
+                past_separator = true;
+                continue;
+            }
+            if past_separator {
+                filtered.push(token.clone());
+                continue;
+            }
+            if global_opts.contains(&token.as_str()) {
+                skip_next = true;
+                continue;
+            }
+            if token.starts_with('-') {
+                continue;
+            }
+            if let Some(sub) = &subcommand {
+                if token == sub {
+                    continue;
+                }
+            }
+            filtered.push(token.clone());
+        }
+        filtered
     };
 
     ParsedCommand {
@@ -573,6 +600,18 @@ pub fn parse_command(cmd: &str) -> ParsedCommand {
     }
 
     parse_from_tokens(&tokens, cmd, &unwrap.wrappers)
+}
+
+#[must_use]
+fn shell_quote(token: &str) -> String {
+    if token.is_empty() {
+        return "''".to_string();
+    }
+    if token.chars().any(|c| matches!(c, ' ' | '\t' | '&' | '|' | ';' | '(' | ')' | '<' | '>' | '\'' | '"' | '\\' | '`' | '$' | '!' | '{' | '}' | '*' | '?' | '[' | '#' | '~')) {
+        let escaped = token.replace('\'', "'\\''");
+        return format!("'{escaped}'");
+    }
+    token.to_string()
 }
 
 #[must_use]
@@ -618,14 +657,14 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
 
     for sub_command in tokenised.sub_commands {
         if !sub_command.tokens.is_empty() {
-            let raw_sub = sub_command.tokens.join(" ");
+            let raw_sub = sub_command.tokens.iter().map(|t| shell_quote(t)).collect::<Vec<_>>().join(" ");
             let unwrap = unwrap_command(&raw_sub, 0);
             // Re-check unwrapped result for inner operators
             let inner = tokenise_with_operators(&unwrap.unwrapped);
             if inner.is_compound && inner.sub_commands.len() > 1 {
                 for sub in inner.sub_commands {
                     if !sub.tokens.is_empty() {
-                        let inner_raw = sub.tokens.join(" ");
+                        let inner_raw = sub.tokens.iter().map(|t| shell_quote(t)).collect::<Vec<_>>().join(" ");
                         let tokens = tokenise(&inner_raw);
                         let parsed = parse_from_tokens(&tokens, &inner_raw, &unwrap.wrappers);
                         commands.push(parsed);
@@ -853,4 +892,32 @@ mod tests {
             vec!["sudo", "env"]
         );
     }
+
+    #[test]
+    fn quoted_shell_payload_preserved_in_compound() {
+        // bash -c "echo ok && rm -rf /" should unwrap the quoted payload,
+        // not split on the inner &&
+        let result = parse_compound_command(r#"bash -c "echo ok && rm -rf /""#);
+        // The inner command is unwrapped through bash -c, so it sees
+        // "echo ok && rm -rf /" as a compound command with two parts
+        assert!(result.is_compound);
+        assert!(result.commands.iter().any(|c| c.wrapper_chain.contains(&"bash".to_string())));
+    }
+
+    #[test]
+    fn global_option_operand_not_in_args() {
+        let parsed = parse_command("git -C repo stash drop");
+        assert_eq!(parsed.subcommand.as_deref(), Some("stash"));
+        // "repo" is the value for -C, not a positional arg
+        assert!(!parsed.args.contains(&"repo".to_string()));
+        assert!(parsed.args.contains(&"drop".to_string()));
+    }
+
+    #[test]
+    fn global_option_operand_not_in_args_git_dir() {
+        let parsed = parse_command("git --git-dir /tmp/.git log --oneline");
+        assert_eq!(parsed.subcommand.as_deref(), Some("log"));
+        assert!(!parsed.args.contains(&"/tmp/.git".to_string()));
+    }
+
 }
