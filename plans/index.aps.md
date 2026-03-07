@@ -131,7 +131,7 @@ release must deliver both the core value AND a friction-free first experience.
 | Security CI Pipeline       | Automated security scanning on every PR                  | Complete    | —        |
 | Tutorial Path Continuation | Continue with another tutorial from completion screen     | Complete    | —        |
 | Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Complete    | 57/57    |
-| Code Review Backlog        | 29 architectural recommendations from code review        | In Progress | 24/29    |
+| Code Review Backlog        | 29 architectural recommendations from code review        | In Progress | 23/29    |
 | Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 1/8      |
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
@@ -422,7 +422,7 @@ Task-level detail for all completed work is archived in
 | [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 24/29 | — |
+| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 23/29 | — |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 1/8 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |

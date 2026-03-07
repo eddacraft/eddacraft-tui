@@ -14,7 +14,7 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (24/29) |
+| CRB | —     | In Progress (23/29) |
 <!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-006, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-012, CRB-013, CRB-014, CRB-015, CRB-016, CRB-020, CRB-021, CRB-024, CRB-026, CRB-027, CRB-028, CRB-029 -->
 
 ## Purpose
@@ -638,7 +638,7 @@ Change status to **Ready** when:
 - **Priority:** Low
 - **Status:** Complete
 - **Completed:** 2026-03-04
-- **Notes:** Windows-style backslash and mixed separator tests added to 6 MCP
+- **Notes:** Windows-style backslash and mixed separator tests added to 8 MCP
   test files (fix, suppress, resources, check, gate, query-boundary, status,
   server). Commit: edc53765.
 
