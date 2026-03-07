@@ -54,16 +54,15 @@ export class EvolutionService {
       created_at: nowTimestamp(),
     });
 
-    const retirementReason = `Superseded by memory ${newMemory.id}`;
     const retiredOldMemory = createRetiredMemory(oldMemory, {
       status: 'superseded',
-      reason: retirementReason,
+      reason: `Superseded by memory ${newMemory.id}`,
       retiredBy: newMemoryInput.created_by,
       supersededBy: newMemory.id,
     });
     const fallbackRetiredMemory = createRetiredMemory(oldMemory, {
       status: 'retired',
-      reason: retirementReason,
+      reason: `Supersede by ${newMemory.id} failed; reverted to retired`,
       retiredBy: newMemoryInput.created_by,
     });
 
@@ -72,13 +71,26 @@ export class EvolutionService {
     try {
       await this.deps.store.saveMemory(newMemory);
     } catch (error) {
-      await this.deps.store.saveMemory(fallbackRetiredMemory);
+      try {
+        await this.deps.store.saveMemory(fallbackRetiredMemory);
+      } catch (rollbackError) {
+        const saveErr = error instanceof Error ? error.message : String(error);
+        const rbErr =
+          rollbackError instanceof Error ? rollbackError.message : String(rollbackError);
+        throw new Error(
+          `Failed to save replacement memory (${saveErr}) and rollback also failed (${rbErr}) — memory ${oldMemoryId} may be stuck in superseded state`,
+          { cause: error }
+        );
+      }
       throw error;
     }
 
     if (this.deps.versionTracker) {
       await this.deps.versionTracker.trackChange(
-        [`memories/${oldMemoryId}.yaml`, `memories/${newMemory.id}.yaml`],
+        [
+          `memories/${oldMemory.type}/${oldMemoryId}.yaml`,
+          `memories/${newMemory.type}/${newMemory.id}.yaml`,
+        ],
         `Superseded memory ${oldMemoryId} with ${newMemory.id}`,
         newMemoryInput.created_by
       );
@@ -107,7 +119,7 @@ export class EvolutionService {
 
     if (this.deps.versionTracker) {
       await this.deps.versionTracker.trackChange(
-        [`memories/${id}.yaml`],
+        [`memories/${memory.type}/${id}.yaml`],
         `Retired memory ${id}`,
         input.retired_by
       );
@@ -138,7 +150,7 @@ export class EvolutionService {
 
     if (this.deps.versionTracker) {
       await this.deps.versionTracker.trackChange(
-        [`memories/${id}.yaml`],
+        [`memories/${memory.type}/${id}.yaml`],
         `Retired memory ${id}`,
         retiredBy
       );
