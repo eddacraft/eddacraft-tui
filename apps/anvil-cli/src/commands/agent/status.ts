@@ -56,10 +56,10 @@ export function createAgentStatusCommand(): Command {
                 registered: false,
               },
           environment: {
-            ANVIL_AGENT_ID: maskSensitive(process.env['ANVIL_AGENT_ID']),
-            ANVIL_AGENT_TYPE: maskSensitive(process.env['ANVIL_AGENT_TYPE']),
-            CLAUDE_SESSION_ID: maskSensitive(process.env['CLAUDE_SESSION_ID']),
-            CI: maskSensitive(process.env['CI']),
+            ANVIL_AGENT_ID: process.env['ANVIL_AGENT_ID'] != null,
+            ANVIL_AGENT_TYPE: agent.type,
+            CLAUDE_SESSION_ID: process.env['CLAUDE_SESSION_ID'] != null,
+            CI: process.env['CI'] != null,
           },
         };
 

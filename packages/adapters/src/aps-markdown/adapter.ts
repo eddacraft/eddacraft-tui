@@ -308,11 +308,18 @@ export class APSMarkdownAdapter extends BaseFormatAdapter {
     // Check for **Intent:** field
     const hasIntentField = /\*\*Intent:\*\*/i.test(content);
 
-    // Check for **Path:** with .aps.md links
-    const apsLinkPattern = /\*\*Path:\*\*[ \t]*\[[^\]]*\]\([^)]{0,500}\.aps\.md\)/gi;
-    const apsLinkMatches = content.match(apsLinkPattern) || [];
-    const hasAPSModuleLinks = apsLinkMatches.length > 0;
-    const apsLinkCount = apsLinkMatches.length;
+    // Check for **Path:** with .aps.md links (indexOf to avoid regex backtracking)
+    let apsLinkCount = 0;
+    let apsSearchPos = 0;
+    while (true) {
+      const pathIdx = content.indexOf('**Path:**', apsSearchPos);
+      if (pathIdx === -1) break;
+      const lineEnd = content.indexOf('\n', pathIdx);
+      const line = content.slice(pathIdx, lineEnd === -1 ? undefined : lineEnd);
+      if (line.includes('.aps.md')) apsLinkCount++;
+      apsSearchPos = pathIdx + 9;
+    }
+    const hasAPSModuleLinks = apsLinkCount > 0;
 
     // Check for **Confidence:** field
     const hasConfidenceField = /\*\*Confidence:\*\*/i.test(content);
