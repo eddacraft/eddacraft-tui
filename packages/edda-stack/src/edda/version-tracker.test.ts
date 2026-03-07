@@ -1,13 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { execFile } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VersionTracker } from './version-tracker.js';
 
-vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
-}));
+const { mockExecFile } = vi.hoisted(() => ({ mockExecFile: vi.fn() }));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return { ...actual, default: { ...actual, execFile: mockExecFile }, execFile: mockExecFile };
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -21,27 +22,33 @@ interface ExecResult {
 }
 
 function queueExecResults(results: ExecResult[]): void {
-  const mockedExecFile = vi.mocked(execFile);
-  mockedExecFile.mockReset();
+  mockExecFile.mockReset();
 
-  mockedExecFile.mockImplementation((_file, _args, _options, callback) => {
-    const next = results.shift();
-    if (!next) {
-      throw new Error('Unexpected execFile call');
+  mockExecFile.mockImplementation(
+    (
+      _file: string,
+      _args: string[],
+      _options: Record<string, unknown>,
+      callback: (...cbArgs: unknown[]) => void
+    ) => {
+      const next = results.shift();
+      if (!next) {
+        throw new Error('Unexpected execFile call');
+      }
+
+      if (!callback) {
+        throw new Error('Expected execFile callback');
+      }
+
+      if (next.error) {
+        callback(next.error, next.stdout ?? '', next.stderr ?? '');
+      } else {
+        callback(null, next.stdout ?? '', next.stderr ?? '');
+      }
+
+      return {} as never;
     }
-
-    if (!callback) {
-      throw new Error('Expected execFile callback');
-    }
-
-    if (next.error) {
-      callback(next.error, next.stdout ?? '', next.stderr ?? '');
-    } else {
-      callback(null, next.stdout ?? '', next.stderr ?? '');
-    }
-
-    return {} as never;
-  });
+  );
 }
 
 describe('VersionTracker (EDDA-008)', () => {
@@ -54,8 +61,8 @@ describe('VersionTracker (EDDA-008)', () => {
     try {
       await tracker.init();
 
-      expect(execFile).toHaveBeenCalledTimes(1);
-      expect(execFile).toHaveBeenCalledWith(
+      expect(mockExecFile).toHaveBeenCalledTimes(1);
+      expect(mockExecFile).toHaveBeenCalledWith(
         'git',
         ['init'],
         expect.objectContaining({ cwd: storagePath, encoding: 'utf8' }),
@@ -85,21 +92,21 @@ describe('VersionTracker (EDDA-008)', () => {
       );
 
       expect(hash).toBe('abc1234def5678');
-      expect(execFile).toHaveBeenNthCalledWith(
+      expect(mockExecFile).toHaveBeenNthCalledWith(
         1,
         'git',
         ['init'],
         expect.any(Object),
         expect.any(Function)
       );
-      expect(execFile).toHaveBeenNthCalledWith(
+      expect(mockExecFile).toHaveBeenNthCalledWith(
         2,
         'git',
         ['add', 'index.yaml', 'memories/pattern/test.yaml'],
         expect.any(Object),
         expect.any(Function)
       );
-      expect(execFile).toHaveBeenNthCalledWith(
+      expect(mockExecFile).toHaveBeenNthCalledWith(
         3,
         'git',
         ['commit', '-m', 'Persist memory update', '--author', 'Memory Agent <agent@eddacraft.dev>'],
@@ -125,7 +132,7 @@ describe('VersionTracker (EDDA-008)', () => {
     try {
       await tracker.trackChange(['index.yaml'], 'Persist memory update', 'joshua');
 
-      expect(execFile).toHaveBeenNthCalledWith(
+      expect(mockExecFile).toHaveBeenNthCalledWith(
         3,
         'git',
         ['commit', '-m', 'Persist memory update', '--author', 'joshua <joshua@anvil.local>'],
@@ -182,7 +189,7 @@ describe('VersionTracker (EDDA-008)', () => {
       const contents = await tracker.getVersion('index.yaml', 'abc123');
 
       expect(contents).toBe('statement: Test\n');
-      expect(execFile).toHaveBeenCalledWith(
+      expect(mockExecFile).toHaveBeenCalledWith(
         'git',
         ['show', 'abc123:index.yaml'],
         expect.objectContaining({ cwd: storagePath, encoding: 'utf8' }),
@@ -216,7 +223,7 @@ describe('VersionTracker (EDDA-008)', () => {
       await expect(
         tracker.trackChange(['../outside.yaml'], 'Persist memory update', 'joshua')
       ).rejects.toThrow('parent-directory traversal');
-      expect(execFile).not.toHaveBeenCalled();
+      expect(mockExecFile).not.toHaveBeenCalled();
     } finally {
       rmSync(storagePath, { recursive: true, force: true });
     }
@@ -231,7 +238,7 @@ describe('VersionTracker (EDDA-008)', () => {
       await expect(tracker.getVersion(absolutePath, 'abc123')).rejects.toThrow(
         'relative to storage root'
       );
-      expect(execFile).not.toHaveBeenCalled();
+      expect(mockExecFile).not.toHaveBeenCalled();
     } finally {
       rmSync(storagePath, { recursive: true, force: true });
     }

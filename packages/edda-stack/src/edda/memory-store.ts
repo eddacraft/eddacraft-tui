@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, posix } from 'node:path';
 import type {
   EddaConfidenceLevel,
   MemoryId,
@@ -406,7 +406,7 @@ export class MemoryStore {
   }
 
   private getRelativeMemoryPath(id: MemoryId, type: MemoryType): string {
-    return join('memories', type, `${id}.yaml`);
+    return posix.join('memories', type, `${id}.yaml`);
   }
 
   private toIndexEntry(memory: MemoryObject, path: string): MemoryIndexEntry {
