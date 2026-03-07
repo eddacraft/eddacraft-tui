@@ -12,6 +12,7 @@ import {
 } from '@eddacraft/anvil-edda-stack';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+import { coercePositiveInt } from '../../utils/option-coerce.js';
 import { colourConfidence, colourStatus } from './utils.js';
 
 interface EddaListOptions {
@@ -172,11 +173,7 @@ export function createEddaListCommand(): Command {
 }
 
 function parseLimit(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    throw new CliError('Limit must be a positive integer');
-  }
-  return parsed;
+  return coercePositiveInt(value, '--limit');
 }
 
 function parseTypes(value?: string): MemoryType[] {

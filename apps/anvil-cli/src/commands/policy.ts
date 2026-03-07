@@ -22,6 +22,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { success, error, info, warning } from '../utils/output.js';
+import { coerceNonNegativeInt } from '../utils/option-coerce.js';
 import {
   PolicyLoader,
   OPAExecutor,
@@ -1442,11 +1443,7 @@ function createBundleAddCommand(): Command {
             name: bundleName,
             url,
             polling_interval: (() => {
-              const val = parseInt(options.refresh || '300000', 10);
-              if (Number.isNaN(val) || val < 0) {
-                throw new Error('--refresh must be a non-negative integer');
-              }
-              return val;
+              return coerceNonNegativeInt(options.refresh || '300000', '--refresh');
             })(),
             enabled: true,
           };
