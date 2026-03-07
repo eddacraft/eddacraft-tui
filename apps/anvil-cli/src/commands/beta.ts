@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { adminInvite, adminRevoke } from '../services/admin-client.js';
 import { success, error, info } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
+import { coercePositiveInt } from '../utils/option-coerce.js';
 
 const emailSchema = z.string().email();
 
@@ -20,11 +21,7 @@ export function createBetaCommand(): Command {
     .option('--name <name>', 'User display name')
     .option('--notes <notes>', 'Internal notes about this user')
     .action(async (options: { email: string; days: string; name?: string; notes?: string }) => {
-      const days = parseInt(options.days, 10);
-      if (Number.isNaN(days) || days <= 0) {
-        error('--days must be a positive integer');
-        throw new CliError('--days must be a positive integer');
-      }
+      const days = coercePositiveInt(options.days, '--days');
 
       if (!emailSchema.safeParse(options.email).success) {
         error('--email must be a valid email address');

@@ -12,6 +12,8 @@ import {
 } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { coercePositiveInt } from '../../utils/option-coerce.js';
+import { colourConfidence, colourStatus } from './utils.js';
 
 interface EmberListOptions {
   json?: boolean;
@@ -160,11 +162,7 @@ export function createEmberListCommand(): Command {
 }
 
 function parseLimit(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    throw new CliError('Limit must be a positive integer');
-  }
-  return parsed;
+  return coercePositiveInt(value, '--limit');
 }
 
 function parseTypes(value?: string): ProposalType[] {
@@ -185,32 +183,6 @@ function parseStatus(value: string): ProposalStatus {
     throw new CliError(`Invalid proposal status: ${value}`);
   }
   return parsed.data;
-}
-
-function colourConfidence(confidence: number): string {
-  const text = confidence.toFixed(2);
-  if (confidence > 0.7) {
-    return chalk.green(text);
-  }
-  if (confidence >= 0.4) {
-    return chalk.yellow(text);
-  }
-  return chalk.red(text);
-}
-
-function colourStatus(status: ProposalStatus): string {
-  switch (status) {
-    case 'active':
-      return chalk.cyan(status);
-    case 'promoted':
-      return chalk.green(status);
-    case 'dismissed':
-      return chalk.yellow(status);
-    case 'expired':
-      return chalk.red(status);
-    default:
-      return status;
-  }
 }
 
 function truncate(value: string, width: number): string {

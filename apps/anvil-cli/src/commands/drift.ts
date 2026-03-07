@@ -15,6 +15,7 @@ import {
 } from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
+import { coercePositiveInt } from '../utils/option-coerce.js';
 import { error, info } from '../utils/output.js';
 
 const log = createDebugger('cli');
@@ -319,7 +320,9 @@ export function createDriftCommand(): Command {
     .command('list')
     .description('List available snapshots')
     .option('--json', 'Output list as JSON')
-    .option('--limit <n>', 'Limit number of results', parseInt)
+    .option('--limit <n>', 'Limit number of results', (v: string) =>
+      coercePositiveInt(v, '--limit')
+    )
     .action(handleList);
 
   return command;

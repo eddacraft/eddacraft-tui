@@ -20,6 +20,7 @@ import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
 import type { GateOptions, GateProfile } from '../types/command-options.js';
 import { success, error, formatGateResults, info, formatGateResultsJSON } from '../utils/output.js';
+import { coerceNonNegativeInt } from '../utils/option-coerce.js';
 import ora from 'ora';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
 import {
@@ -267,11 +268,7 @@ export function createGateCommand(): Command {
         // Parse parallel limit
         let parallelLimit: number | undefined;
         if (options.parallel !== undefined) {
-          parallelLimit = parseInt(options.parallel, 10);
-          if (Number.isNaN(parallelLimit) || parallelLimit < 0) {
-            error('--parallel must be a non-negative integer');
-            throw new CliError('Invalid --parallel value');
-          }
+          parallelLimit = coerceNonNegativeInt(options.parallel, '--parallel');
         }
 
         // Prepare gate options

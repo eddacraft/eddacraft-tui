@@ -8,7 +8,7 @@ import {
 } from '@eddacraft/anvil-core';
 import { theme } from '../tui/utils/theme.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
-import { CliError } from '../utils/cli-error.js';
+import { coercePositiveInt } from '../utils/option-coerce.js';
 
 interface AuthorshipShowOptions {
   json?: boolean;
@@ -148,10 +148,7 @@ export function createAuthorshipCommand(): Command {
     .option('--json', 'Output as JSON')
     .action(async (options: AuthorshipListOptions) => {
       const workspaceRoot = getWorkspaceRoot();
-      const limit = parseInt(options.limit ?? '10', 10);
-      if (Number.isNaN(limit) || limit < 1) {
-        throw new CliError('--limit must be a positive integer');
-      }
+      const limit = coercePositiveInt(options.limit ?? '10', '--limit');
 
       const commits = await listAuthorshipNotes(workspaceRoot);
 

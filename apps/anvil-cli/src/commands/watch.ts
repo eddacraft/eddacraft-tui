@@ -23,6 +23,7 @@ import { PlanLoader } from '../services/plan-loader.js';
 import { createWatchOutput } from '../services/watch-output.js';
 import { error } from '../utils/output.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
+import { coerceNonNegativeInt } from '../utils/option-coerce.js';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
 import {
   emitSessionStart,
@@ -222,11 +223,7 @@ export function createWatchCommand(): Command {
           action,
           debounceMs: (() => {
             if (!options.debounce) return savedConfig?.debounceMs ?? defaultConfig.debounceMs;
-            const val = parseInt(options.debounce, 10);
-            if (Number.isNaN(val) || val < 0) {
-              throw new Error('--debounce must be a non-negative integer');
-            }
-            return val;
+            return coerceNonNegativeInt(options.debounce, '--debounce');
           })(),
           git: {
             unstagedOnly: options.gitFilter !== false,

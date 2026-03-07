@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { CliError } from '../utils/cli-error.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
+import { coercePort } from '../utils/option-coerce.js';
 
 // ---------------------------------------------------------------------------
 // MCP config generation — inlined from @eddacraft/anvil-mcp-server/config
@@ -90,11 +91,7 @@ export function createMcpConfigCommand(): Command {
             throw new CliError(`Unknown transport: ${transport}`);
           }
 
-          const port = parseInt(options.port, 10);
-          if (!Number.isFinite(port) || port < 1 || port > 65535) {
-            console.error(`Invalid port: ${options.port}. Must be an integer between 1 and 65535.`);
-            throw new CliError(`Invalid port: ${options.port}`);
-          }
+          const port = coercePort(options.port, '--port');
 
           const config = generateMcpConfig(target as McpConfigTarget, { transport, port });
 
