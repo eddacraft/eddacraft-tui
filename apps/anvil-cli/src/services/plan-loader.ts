@@ -135,7 +135,7 @@ export class PlanLoader implements PlanLoaderService {
         // Fall back to YAML
         data = YAML.parse(content);
       } catch {
-        debug('loadAPSPlan: JSON parse failed, trying YAML');
+        debug('loadAPSPlan: YAML parse failed after JSON parse failed');
         throw new PlanLoadErrorImpl('Invalid APS format: must be valid JSON or YAML');
       }
     }

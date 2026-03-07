@@ -7,6 +7,11 @@ export function enableDebug(): void {
   debugEnabled = true;
 }
 
+/** @internal Reset debug state — for test isolation only. */
+export function resetDebug(): void {
+  debugEnabled = false;
+}
+
 function isAnvilDebug(): boolean {
   const value = process.env['ANVIL_DEBUG'];
   return value === '1' || value?.toLowerCase() === 'true';
@@ -17,7 +22,7 @@ export function isDebugEnabled(): boolean {
 }
 
 /**
- * Debug message to stderr, visible only when enableDebug() was called or ANVIL_DEBUG=1.
+ * Debug message to stderr, visible when enableDebug() was called or ANVIL_DEBUG is set to "1" or "true" (case-insensitive).
  * Intended for silent-fallback paths and catch blocks that return defaults.
  */
 export function debug(message: string): void {

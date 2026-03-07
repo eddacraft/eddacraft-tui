@@ -633,12 +633,32 @@ export function createPolicyCommand(): Command {
         const { execFileSync } = await import('node:child_process');
 
         // Check git status of policy files
-        const _policyDir = options.dir;
+        const policyDir = options.dir;
         const configPath = join('.anvil', 'config.yml');
 
         console.log(chalk.bold('\nPolicy Changes:\n'));
 
         let hasChanges = false;
+
+        const printDiffSection = (label: string, diffOutput: string) => {
+          if (!diffOutput) return;
+          hasChanges = true;
+          console.log(chalk.bold(`  ${label}:`));
+          for (const line of diffOutput.split('\n')) {
+            const [status, ...pathParts] = line.split('\t');
+            const filePath = pathParts.join('\t');
+            const statusLabel =
+              status === 'M'
+                ? chalk.yellow('modified')
+                : status === 'A'
+                  ? chalk.green('added')
+                  : status === 'D'
+                    ? chalk.red('deleted')
+                    : chalk.dim(status ?? '');
+            console.log(`    ${statusLabel} ${filePath}`);
+          }
+          console.log('');
+        };
 
         // Check for config.yml changes
         try {
@@ -647,28 +667,40 @@ export function createPolicyCommand(): Command {
             ['diff', '--name-status', 'HEAD', '--', configPath],
             { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
           ).trim();
+          printDiffSection('Config changes', configDiff);
+        } catch {
+          debug('policy: git diff for config.yml failed');
+        }
 
-          if (configDiff) {
+        // Check for policy directory changes
+        try {
+          const policyDiff = execFileSync(
+            'git',
+            ['diff', '--name-status', 'HEAD', '--', policyDir],
+            { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
+          ).trim();
+          printDiffSection('Policy file changes', policyDiff);
+        } catch {
+          debug('policy: git diff for policy directory failed');
+        }
+
+        // Check for untracked policy files
+        try {
+          const untracked = execFileSync(
+            'git',
+            ['ls-files', '--others', '--exclude-standard', '--', policyDir],
+            { cwd: workspaceRoot, encoding: 'utf-8', timeout: 30_000 }
+          ).trim();
+          if (untracked) {
             hasChanges = true;
-            console.log(chalk.bold('  Config changes:'));
-            for (const line of configDiff.split('\n')) {
-              const [status, ...pathParts] = line.split('\t');
-              const filePath = pathParts.join('\t');
-              const statusLabel =
-                status === 'M'
-                  ? chalk.yellow('modified')
-                  : status === 'A'
-                    ? chalk.green('added')
-                    : status === 'D'
-                      ? chalk.red('deleted')
-                      : chalk.dim(status ?? '');
-              console.log(`    ${statusLabel} ${filePath}`);
+            console.log(chalk.bold('  Untracked policy files:'));
+            for (const file of untracked.split('\n')) {
+              console.log(`    ${chalk.green('new')} ${file}`);
             }
             console.log('');
           }
         } catch {
-          debug('policy: git ls-files failed');
-          // Ignore
+          debug('policy: git ls-files for untracked policy files failed');
         }
 
         if (!hasChanges) {

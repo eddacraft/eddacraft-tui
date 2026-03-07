@@ -7,6 +7,7 @@ import {
   data,
   debug,
   enableDebug,
+  resetDebug,
   isDebugEnabled,
   formatGateResults,
   formatGateResultsJSON,
@@ -119,6 +120,7 @@ describe('output utilities stream policy', () => {
     const originalEnv = process.env['ANVIL_DEBUG'];
 
     afterEach(() => {
+      resetDebug();
       if (originalEnv === undefined) {
         delete process.env['ANVIL_DEBUG'];
       } else {
