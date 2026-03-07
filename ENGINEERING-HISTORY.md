@@ -14,15 +14,24 @@ work without disclosing exploit mechanics.
 
 ## [Unreleased]
 
+## [0.2.0] — Edda Stack
+
+Product changelog: Edda canonical memories, Ember candidate proposals, Stack
+health monitoring.
+
 ### Features
 
 - **Edda Stack integration** — contracts, storage, services, CLI commands,
   testing utilities, and documentation for the full Kindling → Ember → Edda
-  pipeline (`EDDA-001..019`, `STACK-001..016`). Product changelog: Edda
-  canonical memories, Ember candidate proposals, Stack health monitoring.
+  pipeline (`EDDA-001..019`, `STACK-001..016`)
 - **Edda/Ember CLI commands** — `edda list`, `edda show`, `edda promote`,
   `edda retire`, `edda trace`, `ember list`, `ember show`, `ember promote`,
   `stack config`, `stack status`, `stack validate`
+
+## [0.1.3]
+
+### Features
+
 - **Forge pre-commit review pipeline** — pre-commit hook intercepts
   `git commit`, spawns `forge-reviewer` agent for cross-model review via codex
   MCP, runs structured negotiation (max 3 rounds), deferred findings filed as
@@ -45,10 +54,11 @@ work without disclosing exploit mechanics.
 - Tutorial continuation between learning paths with completion persistence
 - Interactive release command (`anvil release`)
 - Rust CI pipeline with path-based change detection
+- ADR-011: Rust core engine architecture decision published
 
 ### Bug Fixes
 
-See also: product changelog Fixed and Improved sections.
+See also: product changelog 0.1.3 Fixed and Improved sections.
 
 - Exit code consistency across CLI commands (`ISS-001`, `ISS-002`, `ISS-005`,
   `ISS-007`)
@@ -273,7 +283,9 @@ Initial pre-release.
 - API response validation strengthened
 - Subprocess execution hardened across the codebase
 
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
 [0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD

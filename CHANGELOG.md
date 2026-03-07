@@ -8,6 +8,12 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+## [0.2.0] — Edda Stack
+
+Anvil gains a memory system. Edda Stack introduces three layers — observation,
+interpretation, and canonical memory — that let the platform learn from your
+codebase over time.
+
 ### Added
 
 - **Edda canonical memories** — persistent, version-tracked knowledge store for
@@ -29,6 +35,14 @@ engineering maintenance are recorded in the
   - `anvil stack config` — configure stack settings
   - `anvil stack status` — show Edda Stack health and component status
   - `anvil stack validate` — validate configuration and provenance integrity
+
+## [0.1.3]
+
+Hardening, reliability, and quality-of-life improvements across the CLI.
+Prepares the foundation for the Rust core engine (see ADR-011).
+
+### Added
+
 - BMAD v6 YAML document type support in format adapter
 - `--json` output flag for `anvil hooks status` and `anvil plan create`
 - Tutorial continuation — continue to another learning path after completing one
@@ -72,6 +86,7 @@ engineering maintenance are recorded in the
   stderr, structured data to stdout
 - Git hook scripts consolidated to a single source of truth
 - Default API URL changed to `eddacraft-api.vercel.app`
+- ADR-011: Rust core engine architecture decision published
 
 ## [0.1.2-beta] - 2026-02-22
 
@@ -144,7 +159,9 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0
+[0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
 [0.1.0]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.0
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
