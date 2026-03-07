@@ -148,7 +148,8 @@ fn create_warning_from_match(
 }
 
 fn parse_suppression(line: &str) -> Option<(String, String)> {
-    let regex = Regex::new(r"@anvil-ignore\s+(AP-\d{3})(?:\s*--\s*(.+))?").ok()?;
+    let regex =
+        Regex::new(r"(?://|/\*|#|<!--|--)\s*@anvil-ignore\s+(AP-\d{3})(?:\s*--\s*(.+))?").ok()?;
     let captures = regex.captures(line)?;
     let id = captures.get(1).map_or("", |capture| capture.as_str());
     let reason = captures
@@ -424,6 +425,25 @@ mod tests {
 
         assert_eq!(result.warnings.len(), 1);
         assert_eq!(result.warnings[0].location.line, 2);
+    }
+
+    #[test]
+    fn suppression_requires_comment_syntax() {
+        let content =
+            "console.log('@anvil-ignore AP-003 -- not a comment');\nconst value: any = input;";
+        let result = scan_file("src/app.ts", content, None);
+
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].suppressed.is_none());
+    }
+
+    #[test]
+    fn suppression_works_with_hash_comment() {
+        let content = "# @anvil-ignore AP-003 -- legacy\nconst value: any = input;";
+        let result = scan_file("src/app.ts", content, None);
+
+        assert_eq!(result.warnings.len(), 1);
+        assert!(result.warnings[0].suppressed.is_some());
     }
 
     #[test]

@@ -252,11 +252,31 @@ fn extract_shell_wrapper_arg(tokens: &[String]) -> Option<String> {
 
 #[must_use]
 fn extract_env_command(tokens: &[String]) -> Option<Vec<String>> {
+    const ENV_OPTIONS_WITH_VALUE: &[&str] =
+        &["-C", "--chdir", "-S", "--split-string", "-u", "--unset"];
+
     let mut start_index = 1;
     while start_index < tokens.len() {
         let token = &tokens[start_index];
-        if token.contains('=') || token.starts_with('-') {
+        if token.contains('=') {
             start_index += 1;
+        } else if token.starts_with("--") {
+            if token.contains('=') {
+                // --chdir=/tmp: value is inline
+                start_index += 1;
+            } else if ENV_OPTIONS_WITH_VALUE.contains(&token.as_str())
+                && start_index + 1 < tokens.len()
+            {
+                start_index += 2;
+            } else {
+                start_index += 1;
+            }
+        } else if token.starts_with('-') {
+            if ENV_OPTIONS_WITH_VALUE.contains(&token.as_str()) && start_index + 1 < tokens.len() {
+                start_index += 2;
+            } else {
+                start_index += 1;
+            }
         } else {
             break;
         }
@@ -349,14 +369,39 @@ fn unwrap_command(cmd: &str, depth: usize) -> UnwrapResult {
     }
 
     if is_privileged_wrapper(first_token) {
-        let sudo_flags_with_args = [
+        let sudo_short_flags_with_args = [
             "-u", "-g", "-C", "-h", "-p", "-r", "-t", "-T", "-U", "-D", "-a",
+        ];
+        let sudo_long_flags_with_args = [
+            "--user",
+            "--group",
+            "--close-from",
+            "--host",
+            "--prompt",
+            "--role",
+            "--type",
+            "--command-timeout",
+            "--other-user",
+            "--chdir",
+            "--login-class",
         ];
         let mut start_index = 1;
         while start_index < tokens.len() {
             let token = &tokens[start_index];
-            if token.starts_with('-') {
-                if sudo_flags_with_args.contains(&token.as_str()) && start_index + 1 < tokens.len()
+            if token.starts_with("--") {
+                if token.contains('=') {
+                    // --user=root: value is inline, skip just this token
+                    start_index += 1;
+                } else if sudo_long_flags_with_args.contains(&token.as_str())
+                    && start_index + 1 < tokens.len()
+                {
+                    start_index += 2;
+                } else {
+                    start_index += 1;
+                }
+            } else if token.starts_with('-') {
+                if sudo_short_flags_with_args.contains(&token.as_str())
+                    && start_index + 1 < tokens.len()
                 {
                     start_index += 2;
                 } else {
@@ -964,5 +1009,37 @@ mod tests {
         let parsed = parse_command("git --git-dir /tmp/.git log --oneline");
         assert_eq!(parsed.subcommand.as_deref(), Some("log"));
         assert!(!parsed.args.contains(&"/tmp/.git".to_string()));
+    }
+
+    #[test]
+    fn unwraps_sudo_long_option_with_separate_value() {
+        let parsed = parse_command("sudo --user root rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
+        assert_eq!(parsed.wrapper_chain, vec!["sudo"]);
+    }
+
+    #[test]
+    fn unwraps_sudo_long_option_with_equals_value() {
+        let parsed = parse_command("sudo --user=root rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.wrapper_chain, vec!["sudo"]);
+    }
+
+    #[test]
+    fn unwraps_env_chdir_option_with_separate_value() {
+        let parsed = parse_command("env -C /tmp rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.flags, vec!["-r", "-f"]);
+        assert_eq!(parsed.args, vec!["/"]);
+        assert_eq!(parsed.wrapper_chain, vec!["env"]);
+    }
+
+    #[test]
+    fn unwraps_env_long_chdir_option() {
+        let parsed = parse_command("env --chdir /tmp rm -rf /");
+        assert_eq!(parsed.command, "rm");
+        assert_eq!(parsed.wrapper_chain, vec!["env"]);
     }
 }

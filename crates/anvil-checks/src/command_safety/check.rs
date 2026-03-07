@@ -90,14 +90,45 @@ fn extract_commands_from_plan(context: &CommandSafetyCheckContext) -> Vec<Comman
                 }
             }
         }
-        if !matched_any_block && !description.contains('\n') {
-            commands.push(CommandSource {
-                command: description.clone(),
-                source: change
-                    .path
-                    .clone()
-                    .or_else(|| Some("script_execute".to_string())),
-            });
+        if !matched_any_block {
+            let mut continued = String::new();
+            for line in description.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    if !continued.is_empty() {
+                        commands.push(CommandSource {
+                            command: std::mem::take(&mut continued),
+                            source: change
+                                .path
+                                .clone()
+                                .or_else(|| Some("script_execute".to_string())),
+                        });
+                    }
+                    continue;
+                }
+                if trimmed.ends_with('\\') {
+                    continued.push_str(trimmed.trim_end_matches('\\'));
+                    continued.push(' ');
+                } else {
+                    continued.push_str(trimmed);
+                    commands.push(CommandSource {
+                        command: std::mem::take(&mut continued),
+                        source: change
+                            .path
+                            .clone()
+                            .or_else(|| Some("script_execute".to_string())),
+                    });
+                }
+            }
+            if !continued.is_empty() {
+                commands.push(CommandSource {
+                    command: continued,
+                    source: change
+                        .path
+                        .clone()
+                        .or_else(|| Some("script_execute".to_string())),
+                });
+            }
         }
     }
 
@@ -659,5 +690,25 @@ mod tests {
         };
         let result = run_command_safety_check(&context);
         assert_eq!(result.summary.warned, 1);
+    }
+
+    #[test]
+    fn extracts_commands_from_multiline_unfenced_description() {
+        let context = CommandSafetyCheckContext {
+            plan: Some(ScriptPlan {
+                proposed_changes: vec![ScriptChange {
+                    change_type: ScriptChangeType::ScriptExecute,
+                    description: Some(
+                        "git push --force\nThis pushes changes to the remote".to_string(),
+                    ),
+                    path: None,
+                }],
+            }),
+            check_config: None,
+            workspace_root: Some("/home/aneki/project".to_string()),
+        };
+        let result = run_command_safety_check(&context);
+        assert_eq!(result.summary.blocked, 1);
+        assert!(result.blocked[0].command.contains("git push --force"));
     }
 }

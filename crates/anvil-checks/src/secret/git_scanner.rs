@@ -28,7 +28,7 @@ pub fn scan_git_history(
             "-p",
             &depth_flag,
             "--all",
-            "--diff-filter=A",
+            "--diff-filter=AM",
             "--",
             "*.ts",
             "*.js",
