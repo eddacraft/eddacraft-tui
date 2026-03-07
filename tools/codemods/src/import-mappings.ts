@@ -148,6 +148,8 @@ export const CORE_SYMBOLS = [
   'analyzeArchitecture',
   'ArchitectureAnalyser',
   'ArchitectureAnalyzer',
+  'createArchitectureAnalyser',
+  'createArchitectureAnalyzer',
   'AnalyserOptions',
   'AnalyzerOptions',
   'detectLayers',
