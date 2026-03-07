@@ -326,7 +326,13 @@ mod tests {
         // the second character on a naive &value[..4] slice and panic.
         let value = "\u{4e16}\u{754c}\u{4f60}\u{597d}\u{5f00}\u{59cb}\u{7ed3}\u{675f}\u{5b8c}";
         let redacted = matcher.redact_secret(value);
-        assert!(redacted.contains("..."), "should contain ellipsis: {redacted}");
-        assert!(!redacted.contains("***"), "9-char input should not be fully redacted");
+        assert!(
+            redacted.contains("..."),
+            "should contain ellipsis: {redacted}"
+        );
+        assert!(
+            !redacted.contains("***"),
+            "9-char input should not be fully redacted"
+        );
     }
 }

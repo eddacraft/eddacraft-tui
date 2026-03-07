@@ -471,8 +471,14 @@ fn is_likely_subcommand(arg: &str) -> bool {
 
 /// Global options that consume the next positional token as a value,
 /// preventing it from being treated as a subcommand.
-const GIT_GLOBAL_OPTIONS_WITH_VALUE: &[&str] =
-    &["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"];
+const GIT_GLOBAL_OPTIONS_WITH_VALUE: &[&str] = &[
+    "-C",
+    "-c",
+    "--git-dir",
+    "--work-tree",
+    "--namespace",
+    "--exec-path",
+];
 const DOCKER_GLOBAL_OPTIONS_WITH_VALUE: &[&str] = &["-H", "--host", "--config", "--context"];
 
 #[must_use]
@@ -607,7 +613,32 @@ fn shell_quote(token: &str) -> String {
     if token.is_empty() {
         return "''".to_string();
     }
-    if token.chars().any(|c| matches!(c, ' ' | '\t' | '&' | '|' | ';' | '(' | ')' | '<' | '>' | '\'' | '"' | '\\' | '`' | '$' | '!' | '{' | '}' | '*' | '?' | '[' | '#' | '~')) {
+    if token.chars().any(|c| {
+        matches!(
+            c,
+            ' ' | '\t'
+                | '&'
+                | '|'
+                | ';'
+                | '('
+                | ')'
+                | '<'
+                | '>'
+                | '\''
+                | '"'
+                | '\\'
+                | '`'
+                | '$'
+                | '!'
+                | '{'
+                | '}'
+                | '*'
+                | '?'
+                | '['
+                | '#'
+                | '~'
+        )
+    }) {
         let escaped = token.replace('\'', "'\\''");
         return format!("'{escaped}'");
     }
@@ -657,14 +688,24 @@ pub fn parse_compound_command(cmd: &str) -> CompoundCommandResult {
 
     for sub_command in tokenised.sub_commands {
         if !sub_command.tokens.is_empty() {
-            let raw_sub = sub_command.tokens.iter().map(|t| shell_quote(t)).collect::<Vec<_>>().join(" ");
+            let raw_sub = sub_command
+                .tokens
+                .iter()
+                .map(|t| shell_quote(t))
+                .collect::<Vec<_>>()
+                .join(" ");
             let unwrap = unwrap_command(&raw_sub, 0);
             // Re-check unwrapped result for inner operators
             let inner = tokenise_with_operators(&unwrap.unwrapped);
             if inner.is_compound && inner.sub_commands.len() > 1 {
                 for sub in inner.sub_commands {
                     if !sub.tokens.is_empty() {
-                        let inner_raw = sub.tokens.iter().map(|t| shell_quote(t)).collect::<Vec<_>>().join(" ");
+                        let inner_raw = sub
+                            .tokens
+                            .iter()
+                            .map(|t| shell_quote(t))
+                            .collect::<Vec<_>>()
+                            .join(" ");
                         let tokens = tokenise(&inner_raw);
                         let parsed = parse_from_tokens(&tokens, &inner_raw, &unwrap.wrappers);
                         commands.push(parsed);
@@ -901,7 +942,12 @@ mod tests {
         // The inner command is unwrapped through bash -c, so it sees
         // "echo ok && rm -rf /" as a compound command with two parts
         assert!(result.is_compound);
-        assert!(result.commands.iter().any(|c| c.wrapper_chain.contains(&"bash".to_string())));
+        assert!(
+            result
+                .commands
+                .iter()
+                .any(|c| c.wrapper_chain.contains(&"bash".to_string()))
+        );
     }
 
     #[test]
@@ -919,5 +965,4 @@ mod tests {
         assert_eq!(parsed.subcommand.as_deref(), Some("log"));
         assert!(!parsed.args.contains(&"/tmp/.git".to_string()));
     }
-
 }
