@@ -139,8 +139,8 @@ export function QuickWinsPanel({
               <Text color={theme.colours.smoke} bold>
                 Batch Suppressions Available:
               </Text>
-              {topBatches.map((group, idx) => (
-                <BatchGroupRow key={`${group.key}-${idx}`} group={group} />
+              {topBatches.map((group) => (
+                <BatchGroupRow key={group.key} group={group} />
               ))}
 
               {analysis.batchGroups.length > 5 && (

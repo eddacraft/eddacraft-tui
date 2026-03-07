@@ -54,25 +54,31 @@ export class EvolutionService {
       created_at: nowTimestamp(),
     });
 
-    await this.deps.store.saveMemory(newMemory);
-    await this.retireMemoryById(
-      oldMemoryId,
-      newMemory.id,
-      `Superseded by memory ${newMemory.id}`,
-      newMemoryInput.created_by
-    );
+    const retirementReason = `Superseded by memory ${newMemory.id}`;
+    const retiredOldMemory = createRetiredMemory(oldMemory, {
+      status: 'superseded',
+      reason: retirementReason,
+      retiredBy: newMemoryInput.created_by,
+      supersededBy: newMemory.id,
+    });
+    const fallbackRetiredMemory = createRetiredMemory(oldMemory, {
+      status: 'retired',
+      reason: retirementReason,
+      retiredBy: newMemoryInput.created_by,
+    });
 
-    const retiredOldMemory = await this.deps.store.getMemory(oldMemoryId);
-    if (retiredOldMemory === null) {
-      throw new Error(`Failed to retire memory: ${oldMemoryId}`);
+    await this.deps.store.saveMemory(retiredOldMemory);
+
+    try {
+      await this.deps.store.saveMemory(newMemory);
+    } catch (error) {
+      await this.deps.store.saveMemory(fallbackRetiredMemory);
+      throw error;
     }
 
     if (this.deps.versionTracker) {
       await this.deps.versionTracker.trackChange(
-        [
-          `memories/${retiredOldMemory.type}/${oldMemoryId}.yaml`,
-          `memories/${newMemory.type}/${newMemory.id}.yaml`,
-        ],
+        [`memories/${oldMemoryId}.yaml`, `memories/${newMemory.id}.yaml`],
         `Superseded memory ${oldMemoryId} with ${newMemory.id}`,
         newMemoryInput.created_by
       );
@@ -90,24 +96,18 @@ export class EvolutionService {
       return null;
     }
 
-    const retired = MemoryObjectSchema.parse({
-      ...memory,
+    const retired = createRetiredMemory(memory, {
       status: 'retired',
-      evolution: {
-        ...memory.evolution,
-        retired_at: nowTimestamp(),
-        retired_reason: input.reason,
-        retired_by: input.retired_by,
-        superseded_by: input.superseded_by,
-      },
-      updated_at: nowTimestamp(),
+      reason: input.reason,
+      retiredBy: input.retired_by,
+      supersededBy: input.superseded_by,
     });
 
     await this.deps.store.saveMemory(retired);
 
     if (this.deps.versionTracker) {
       await this.deps.versionTracker.trackChange(
-        [`memories/${retired.type}/${id}.yaml`],
+        [`memories/${id}.yaml`],
         `Retired memory ${id}`,
         input.retired_by
       );
@@ -127,24 +127,18 @@ export class EvolutionService {
       return;
     }
 
-    const retired = MemoryObjectSchema.parse({
-      ...memory,
+    const retired = createRetiredMemory(memory, {
       status: supersededBy ? 'superseded' : 'retired',
-      evolution: {
-        ...memory.evolution,
-        retired_at: nowTimestamp(),
-        retired_reason: reason,
-        retired_by: retiredBy,
-        superseded_by: supersededBy,
-      },
-      updated_at: nowTimestamp(),
+      reason,
+      retiredBy,
+      supersededBy,
     });
 
     await this.deps.store.saveMemory(retired);
 
     if (this.deps.versionTracker) {
       await this.deps.versionTracker.trackChange(
-        [`memories/${retired.type}/${id}.yaml`],
+        [`memories/${id}.yaml`],
         `Retired memory ${id}`,
         retiredBy
       );
@@ -222,4 +216,28 @@ export class EvolutionService {
 
 function nowTimestamp(): Timestamp {
   return new Date().toISOString() as Timestamp;
+}
+
+interface RetiredMemoryOptions {
+  status: 'retired' | 'superseded';
+  reason: string;
+  retiredBy: string;
+  supersededBy?: MemoryId;
+}
+
+function createRetiredMemory(memory: MemoryObject, options: RetiredMemoryOptions): MemoryObject {
+  const timestamp = nowTimestamp();
+
+  return MemoryObjectSchema.parse({
+    ...memory,
+    status: options.status,
+    evolution: {
+      ...memory.evolution,
+      retired_at: timestamp,
+      retired_reason: options.reason,
+      retired_by: options.retiredBy,
+      superseded_by: options.supersededBy,
+    },
+    updated_at: timestamp,
+  });
 }

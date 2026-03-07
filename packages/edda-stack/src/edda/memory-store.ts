@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
-import { dirname, join, posix } from 'node:path';
+import { dirname, join } from 'node:path';
 import type {
   EddaConfidenceLevel,
   MemoryId,
@@ -10,6 +10,7 @@ import type {
   MemoryType,
   ProposalId,
 } from '../contracts/index.js';
+import { MemoryObjectSchema } from '../contracts/index.js';
 import type {
   ConfidenceLevelStats,
   EddaStats,
@@ -312,23 +313,27 @@ export class MemoryStore {
   async saveMemory(memory: MemoryObject): Promise<void> {
     this.ensureStorageInitialised();
 
+    const validatedMemory = MemoryObjectSchema.parse(memory);
     const index = this.loadIndex();
-    const existing = index.memories.find((entry) => entry.id === memory.id);
+    const existing = index.memories.find((entry) => entry.id === validatedMemory.id);
 
-    if (existing && existing.path !== this.getRelativeMemoryPath(memory.id, memory.type)) {
+    if (
+      existing &&
+      existing.path !== this.getRelativeMemoryPath(validatedMemory.id, validatedMemory.type)
+    ) {
       const oldPath = join(this.storagePath, existing.path);
       if (existsSync(oldPath)) {
         unlinkSync(oldPath);
       }
     }
 
-    const relativePath = this.getRelativeMemoryPath(memory.id, memory.type);
+    const relativePath = this.getRelativeMemoryPath(validatedMemory.id, validatedMemory.type);
     const fullPath = join(this.storagePath, relativePath);
     mkdirSync(dirname(fullPath), { recursive: true });
-    writeFileSync(fullPath, serialiseMemory(memory), 'utf8');
+    writeFileSync(fullPath, serialiseMemory(validatedMemory), 'utf8');
 
-    const nextEntry = this.toIndexEntry(memory, relativePath);
-    const withoutCurrent = index.memories.filter((entry) => entry.id !== memory.id);
+    const nextEntry = this.toIndexEntry(validatedMemory, relativePath);
+    const withoutCurrent = index.memories.filter((entry) => entry.id !== validatedMemory.id);
 
     this.writeIndex({
       memories: [...withoutCurrent, nextEntry],
@@ -401,7 +406,7 @@ export class MemoryStore {
   }
 
   private getRelativeMemoryPath(id: MemoryId, type: MemoryType): string {
-    return posix.join('memories', type, `${id}.yaml`);
+    return join('memories', type, `${id}.yaml`);
   }
 
   private toIndexEntry(memory: MemoryObject, path: string): MemoryIndexEntry {

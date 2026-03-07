@@ -38,10 +38,12 @@ export function createEmberListCommand(): Command {
       const parsedStatus = parseStatus(options.status);
 
       if (!existsSync(dbPath)) {
+        const message = `No Ember database found at ${dbPath}`;
         if (options.json) {
           console.log(
             JSON.stringify(
               {
+                error: message,
                 database_found: false,
                 database_path: dbPath,
                 total: 0,
@@ -51,11 +53,10 @@ export function createEmberListCommand(): Command {
               2
             )
           );
-          return;
+        } else {
+          console.error(chalk.yellow(message));
         }
-
-        console.error(chalk.yellow(`No Ember database found at ${dbPath}`));
-        return;
+        throw new CliError(message);
       }
 
       const spinner = options.json ? null : ora('Loading Ember proposals...').start();

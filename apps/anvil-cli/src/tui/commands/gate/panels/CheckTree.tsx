@@ -51,8 +51,8 @@ function CheckRow({
 
       {isExpanded && check.details && (
         <Box flexDirection="column" marginLeft={4}>
-          {check.details.slice(0, 5).map((detail, idx) => (
-            <Text key={idx} color={theme.colours.smoke}>
+          {check.details.slice(0, 5).map((detail) => (
+            <Text key={detail} color={theme.colours.smoke}>
               └─ {detail}
             </Text>
           ))}

@@ -1,10 +1,14 @@
 import type { CandidateProposal } from '../contracts/ember-proposal.js';
 import type { IStackEventBus } from '../contracts/events.js';
-import { CandidateService } from './candidate-service.js';
+
+export interface ObservationSessionProcessor {
+  processSession(sessionId: string): Promise<CandidateProposal[]>;
+}
 
 export interface ObservationHookDeps {
-  candidateService: CandidateService;
+  candidateService: ObservationSessionProcessor;
   eventBus?: IStackEventBus;
+  onError?: (error: Error, sessionId: string) => void | Promise<void>;
 }
 
 export class ObservationHook {
@@ -18,7 +22,11 @@ export class ObservationHook {
     }
 
     this._unsubscribe = this.deps.eventBus.subscribe('session_completed', async (event) => {
-      await this.deps.candidateService.processSession(event.payload.session_id);
+      try {
+        await this.deps.candidateService.processSession(event.payload.session_id);
+      } catch (error) {
+        await this.handleProcessingError(event.payload.session_id, error);
+      }
     });
   }
 
@@ -33,5 +41,16 @@ export class ObservationHook {
 
   isActive(): boolean {
     return this._unsubscribe !== undefined;
+  }
+
+  private async handleProcessingError(sessionId: string, error: unknown): Promise<void> {
+    const resolvedError = error instanceof Error ? error : new Error(String(error));
+
+    if (this.deps.onError) {
+      await this.deps.onError(resolvedError, sessionId);
+      return;
+    }
+
+    console.error(`ObservationHook failed to process session ${sessionId}`, resolvedError);
   }
 }

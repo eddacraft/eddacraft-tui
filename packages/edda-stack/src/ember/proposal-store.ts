@@ -69,16 +69,20 @@ const ALL_TYPES: ProposalType[] = [
   'constraint',
 ];
 
-const SORT_FIELD_MAP: Record<string, string> = {
+const SORT_FIELD_MAP = {
   created_at: 'created_at',
   confidence: 'confidence',
   expires_at: 'expires_at',
-};
+} as const satisfies Record<string, string>;
 
-const SORT_DIRECTION_MAP: Record<string, string> = {
+type SortField = keyof typeof SORT_FIELD_MAP;
+
+const SORT_DIRECTION_MAP = {
   asc: 'ASC',
   desc: 'DESC',
-};
+} as const satisfies Record<string, string>;
+
+type SortDirection = keyof typeof SORT_DIRECTION_MAP;
 
 export class ProposalStore implements IEmberPort {
   private readonly db: DatabaseType;
@@ -265,8 +269,16 @@ export class ProposalStore implements IEmberPort {
 
     const sortBy = query.sort_by ?? 'created_at';
     const sortOrder = query.sort_order ?? 'desc';
-    const orderByField = SORT_FIELD_MAP[sortBy] ?? 'created_at';
-    const orderDirection = SORT_DIRECTION_MAP[sortOrder] ?? 'DESC';
+
+    if (!(sortBy in SORT_FIELD_MAP)) {
+      throw new Error(`Invalid sort field: ${sortBy}`);
+    }
+    if (!(sortOrder in SORT_DIRECTION_MAP)) {
+      throw new Error(`Invalid sort direction: ${sortOrder}`);
+    }
+
+    const orderByField = SORT_FIELD_MAP[sortBy as SortField];
+    const orderDirection = SORT_DIRECTION_MAP[sortOrder as SortDirection];
 
     const limit = query.limit ?? 100;
     const offset = query.offset ?? 0;
@@ -335,7 +347,7 @@ export class ProposalStore implements IEmberPort {
     return Promise.resolve(Boolean(row?.found));
   }
 
-  markPromoted(id: ProposalId, memoryId: MemoryId, resolvedBy: string): Promise<void> {
+  async markPromoted(id: ProposalId, memoryId: MemoryId, resolvedBy: string): Promise<void> {
     const resolvedAt = now();
     const resolution = {
       resolved_at: resolvedAt,
@@ -344,7 +356,7 @@ export class ProposalStore implements IEmberPort {
       memory_id: memoryId,
     };
 
-    this.db
+    const result = this.db
       .prepare(
         `UPDATE proposals
          SET status = 'promoted',
@@ -358,10 +370,14 @@ export class ProposalStore implements IEmberPort {
         updated_at: resolvedAt,
       });
 
-    return Promise.resolve();
+    if (result.changes === 0) {
+      throw new Error(`Proposal not found: ${id}`);
+    }
+
+    return;
   }
 
-  markDismissed(id: ProposalId, reason: string, resolvedBy: string): Promise<void> {
+  async markDismissed(id: ProposalId, reason: string, resolvedBy: string): Promise<void> {
     const resolvedAt = now();
     const resolution = {
       resolved_at: resolvedAt,
@@ -369,7 +385,7 @@ export class ProposalStore implements IEmberPort {
       resolution_reason: reason,
     };
 
-    this.db
+    const result = this.db
       .prepare(
         `UPDATE proposals
          SET status = 'dismissed',
@@ -383,7 +399,11 @@ export class ProposalStore implements IEmberPort {
         updated_at: resolvedAt,
       });
 
-    return Promise.resolve();
+    if (result.changes === 0) {
+      throw new Error(`Proposal not found: ${id}`);
+    }
+
+    return;
   }
 
   getExpiredProposals(): Promise<CandidateProposal[]> {

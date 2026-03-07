@@ -33,11 +33,13 @@ export function MermaidDiagram({
 
   return (
     <Box flexDirection="column">
+      {/* eslint-disable @eslint-react/no-array-index-key -- dynamic split may produce duplicate lines */}
       {ascii.split('\n').map((line, i) => (
-        <Text key={i} color={colour ?? theme.colours.ash}>
+        <Text key={`mermaid-${i}`} color={colour ?? theme.colours.ash}>
           {line}
         </Text>
       ))}
+      {/* eslint-enable @eslint-react/no-array-index-key */}
     </Box>
   );
 }

@@ -56,9 +56,10 @@ export function WritePolicyStep(): React.ReactElement {
       }
 
       writeFileSync(policyPath, POLICY_REGO, 'utf-8');
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setWritten(true);
     } catch {
-      // If writing fails, still show the step
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setWritten(true);
     }
   }, []);
@@ -83,11 +84,13 @@ export function WritePolicyStep(): React.ReactElement {
         paddingX={1}
         marginBottom={1}
       >
+        {/* eslint-disable @eslint-react/no-array-index-key -- static display array with duplicate lines */}
         {POLICY_LINES.map((line, index) => (
-          <Text key={index} color={theme.colours.text}>
+          <Text key={`policy-${index}`} color={theme.colours.text}>
             {line}
           </Text>
         ))}
+        {/* eslint-enable @eslint-react/no-array-index-key */}
       </Box>
 
       {written && (

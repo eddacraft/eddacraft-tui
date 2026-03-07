@@ -41,9 +41,9 @@ export function ExitCodesStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
-          {EXIT_CODE_EXAMPLES.map((line, index) => (
+          {EXIT_CODE_EXAMPLES.map((line) => (
             <Text
-              key={index}
+              key={line}
               color={line.startsWith('#') ? theme.colours.smoke : theme.colours.text}
             >
               {line}

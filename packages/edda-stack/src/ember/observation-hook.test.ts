@@ -117,4 +117,31 @@ describe('ObservationHook', () => {
 
     expect(processSessionSpy).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440041');
   });
+
+  it('logs and suppresses session processing failures from the event handler', async () => {
+    const eventBus = new TestEventBus();
+    const candidateService = {
+      processSession: vi.fn(async () => {
+        throw new Error('processing failed');
+      }),
+    };
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const hook = new ObservationHook({ candidateService, eventBus });
+
+    hook.start();
+
+    const event = createSessionCompletedEvent({
+      session_id: createSessionId('550e8400-e29b-41d4-a716-446655440042'),
+      observation_count: 4,
+      started_at: '2026-01-10T12:00:00.000Z',
+      ended_at: '2026-01-10T12:10:00.000Z',
+      outcome: 'failure',
+    });
+
+    await expect(eventBus.publish(event)).resolves.toBeUndefined();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'ObservationHook failed to process session 550e8400-e29b-41d4-a716-446655440042',
+      expect.objectContaining({ message: 'processing failed' })
+    );
+  });
 });

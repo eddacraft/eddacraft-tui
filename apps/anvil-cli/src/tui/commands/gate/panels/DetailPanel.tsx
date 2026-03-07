@@ -83,8 +83,8 @@ export function DetailPanel({ check }: DetailPanelProps): React.ReactElement {
             <Text color={theme.colours.smoke}>Details ({check.details.length}):</Text>
           </Box>
           <Box flexDirection="column" marginLeft={2}>
-            {check.details.map((detail, idx) => (
-              <Text key={idx} color={theme.colours.ash}>
+            {check.details.map((detail) => (
+              <Text key={detail} color={theme.colours.ash}>
                 • {detail}
               </Text>
             ))}

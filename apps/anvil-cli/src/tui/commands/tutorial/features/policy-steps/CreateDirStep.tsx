@@ -15,13 +15,15 @@ export function CreateDirStep(): React.ReactElement {
       const policyDir = join(workspaceRoot, '.anvil', 'policies');
 
       if (existsSync(policyDir)) {
+        // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
         setAlreadyExisted(true);
       } else {
         mkdirSync(policyDir, { recursive: true });
       }
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setCreated(true);
     } catch {
-      // If directory creation fails, still show the step
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setCreated(true);
     }
   }, []);

@@ -45,9 +45,10 @@ export function InspectStep(): React.ReactElement {
           borderColor={theme.colours.charcoal}
           paddingX={1}
         >
+          {/* eslint-disable @eslint-react/no-array-index-key -- static display array with duplicate empty lines */}
           {SNAPSHOT_DATA_LINES.map((line, index) => (
             <Text
-              key={index}
+              key={`snapshot-${index}`}
               color={
                 line.startsWith('Snapshot:') || line.startsWith('Captured:')
                   ? theme.colours.text
@@ -59,9 +60,10 @@ export function InspectStep(): React.ReactElement {
               {line}
             </Text>
           ))}
+          {/* eslint-enable @eslint-react/no-array-index-key */}
           <Box flexDirection="column" marginLeft={2}>
-            {CROSS_BOUNDARY_EDGES.map((edge, index) => (
-              <Text key={index} color={theme.colours.molten}>
+            {CROSS_BOUNDARY_EDGES.map((edge) => (
+              <Text key={edge} color={theme.colours.molten}>
                 {edge}
               </Text>
             ))}

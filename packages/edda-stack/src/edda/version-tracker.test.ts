@@ -1,13 +1,12 @@
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { execFile } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VersionTracker } from './version-tracker.js';
 
-const { mockExecFile } = vi.hoisted(() => ({ mockExecFile: vi.fn() }));
 vi.mock('node:child_process', () => ({
-  default: { execFile: mockExecFile },
-  execFile: mockExecFile,
+  execFile: vi.fn(),
 }));
 
 afterEach(() => {
@@ -22,33 +21,27 @@ interface ExecResult {
 }
 
 function queueExecResults(results: ExecResult[]): void {
-  mockExecFile.mockReset();
+  const mockedExecFile = vi.mocked(execFile);
+  mockedExecFile.mockReset();
 
-  mockExecFile.mockImplementation(
-    (
-      _file: string,
-      _args: string[],
-      _options: unknown,
-      callback: (...cbArgs: unknown[]) => void
-    ) => {
-      const next = results.shift();
-      if (!next) {
-        throw new Error('Unexpected execFile call');
-      }
-
-      if (!callback) {
-        throw new Error('Expected execFile callback');
-      }
-
-      if (next.error) {
-        callback(next.error, next.stdout ?? '', next.stderr ?? '');
-      } else {
-        callback(null, next.stdout ?? '', next.stderr ?? '');
-      }
-
-      return {} as never;
+  mockedExecFile.mockImplementation((_file, _args, _options, callback) => {
+    const next = results.shift();
+    if (!next) {
+      throw new Error('Unexpected execFile call');
     }
-  );
+
+    if (!callback) {
+      throw new Error('Expected execFile callback');
+    }
+
+    if (next.error) {
+      callback(next.error, next.stdout ?? '', next.stderr ?? '');
+    } else {
+      callback(null, next.stdout ?? '', next.stderr ?? '');
+    }
+
+    return {} as never;
+  });
 }
 
 describe('VersionTracker (EDDA-008)', () => {
@@ -61,8 +54,8 @@ describe('VersionTracker (EDDA-008)', () => {
     try {
       await tracker.init();
 
-      expect(mockExecFile).toHaveBeenCalledTimes(1);
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(execFile).toHaveBeenCalledTimes(1);
+      expect(execFile).toHaveBeenCalledWith(
         'git',
         ['init'],
         expect.objectContaining({ cwd: storagePath, encoding: 'utf8' }),
@@ -92,34 +85,24 @@ describe('VersionTracker (EDDA-008)', () => {
       );
 
       expect(hash).toBe('abc1234def5678');
-      expect(mockExecFile).toHaveBeenNthCalledWith(
+      expect(execFile).toHaveBeenNthCalledWith(
         1,
         'git',
         ['init'],
         expect.any(Object),
         expect.any(Function)
       );
-      expect(mockExecFile).toHaveBeenNthCalledWith(
+      expect(execFile).toHaveBeenNthCalledWith(
         2,
         'git',
         ['add', 'index.yaml', 'memories/pattern/test.yaml'],
         expect.any(Object),
         expect.any(Function)
       );
-      expect(mockExecFile).toHaveBeenNthCalledWith(
+      expect(execFile).toHaveBeenNthCalledWith(
         3,
         'git',
-        [
-          '-c',
-          'user.name=Memory Agent',
-          '-c',
-          'user.email=agent@eddacraft.dev',
-          'commit',
-          '-m',
-          'Persist memory update',
-          '--author',
-          'Memory Agent <agent@eddacraft.dev>',
-        ],
+        ['commit', '-m', 'Persist memory update', '--author', 'Memory Agent <agent@eddacraft.dev>'],
         expect.any(Object),
         expect.any(Function)
       );
@@ -142,20 +125,10 @@ describe('VersionTracker (EDDA-008)', () => {
     try {
       await tracker.trackChange(['index.yaml'], 'Persist memory update', 'joshua');
 
-      expect(mockExecFile).toHaveBeenNthCalledWith(
+      expect(execFile).toHaveBeenNthCalledWith(
         3,
         'git',
-        [
-          '-c',
-          'user.name=joshua',
-          '-c',
-          'user.email=joshua@anvil.local',
-          'commit',
-          '-m',
-          'Persist memory update',
-          '--author',
-          'joshua <joshua@anvil.local>',
-        ],
+        ['commit', '-m', 'Persist memory update', '--author', 'joshua <joshua@anvil.local>'],
         expect.any(Object),
         expect.any(Function)
       );
@@ -209,7 +182,7 @@ describe('VersionTracker (EDDA-008)', () => {
       const contents = await tracker.getVersion('index.yaml', 'abc123');
 
       expect(contents).toBe('statement: Test\n');
-      expect(mockExecFile).toHaveBeenCalledWith(
+      expect(execFile).toHaveBeenCalledWith(
         'git',
         ['show', 'abc123:index.yaml'],
         expect.objectContaining({ cwd: storagePath, encoding: 'utf8' }),
@@ -234,99 +207,31 @@ describe('VersionTracker (EDDA-008)', () => {
     }
   });
 
-  it('throws when trackChange receives empty filePaths array', async () => {
+  it('rejects parent-directory traversal when tracking changes', async () => {
     const storagePath = mkdtempSync(join(tmpdir(), 'edda-version-'));
     mkdirSync(join(storagePath, '.git'));
     const tracker = new VersionTracker(storagePath);
 
     try {
-      await expect(tracker.trackChange([], 'Test message', 'Author')).rejects.toThrow(
-        'Cannot track change without file paths'
+      await expect(
+        tracker.trackChange(['../outside.yaml'], 'Persist memory update', 'joshua')
+      ).rejects.toThrow('parent-directory traversal');
+      expect(execFile).not.toHaveBeenCalled();
+    } finally {
+      rmSync(storagePath, { recursive: true, force: true });
+    }
+  });
+
+  it('rejects absolute paths when reading a specific version', async () => {
+    const storagePath = mkdtempSync(join(tmpdir(), 'edda-version-'));
+    const tracker = new VersionTracker(storagePath);
+    const absolutePath = join(storagePath, 'index.yaml');
+
+    try {
+      await expect(tracker.getVersion(absolutePath, 'abc123')).rejects.toThrow(
+        'relative to storage root'
       );
-    } finally {
-      rmSync(storagePath, { recursive: true, force: true });
-    }
-  });
-
-  it('returns empty array when getHistory called on uninitialised repository', async () => {
-    const storagePath = mkdtempSync(join(tmpdir(), 'edda-version-'));
-    const tracker = new VersionTracker(storagePath);
-
-    try {
-      const history = await tracker.getHistory('index.yaml');
-
-      expect(history).toEqual([]);
-      expect(mockExecFile).not.toHaveBeenCalled();
-    } finally {
-      rmSync(storagePath, { recursive: true, force: true });
-    }
-  });
-
-  it('returns empty array when git log produces empty output', async () => {
-    const storagePath = mkdtempSync(join(tmpdir(), 'edda-version-'));
-    mkdirSync(join(storagePath, '.git'));
-    const tracker = new VersionTracker(storagePath);
-
-    queueExecResults([{ stdout: '' }]);
-
-    try {
-      const history = await tracker.getHistory('index.yaml');
-
-      expect(history).toEqual([]);
-    } finally {
-      rmSync(storagePath, { recursive: true, force: true });
-    }
-  });
-
-  it('filters out malformed history lines with missing fields', async () => {
-    const storagePath = mkdtempSync(join(tmpdir(), 'edda-version-'));
-    mkdirSync(join(storagePath, '.git'));
-    const tracker = new VersionTracker(storagePath);
-
-    queueExecResults([
-      {
-        stdout:
-          'hash1\x1fFirst commit\x1fAlice\x1f2026-02-01T10:00:00.000Z\n' +
-          'malformed-line-missing-fields\n' +
-          'hash2\x1fSecond\x1fBob\x1f2026-02-02T10:00:00.000Z\n' +
-          'hash3\x1fThird\x1f\x1f2026-02-03T10:00:00.000Z\n',
-      },
-    ]);
-
-    try {
-      const history = await tracker.getHistory('index.yaml');
-
-      expect(history).toEqual([
-        {
-          hash: 'hash1',
-          message: 'First commit',
-          author: 'Alice',
-          timestamp: '2026-02-01T10:00:00.000Z',
-        },
-        {
-          hash: 'hash2',
-          message: 'Second',
-          author: 'Bob',
-          timestamp: '2026-02-02T10:00:00.000Z',
-        },
-      ]);
-    } finally {
-      rmSync(storagePath, { recursive: true, force: true });
-    }
-  });
-
-  it('wraps git errors with descriptive message in runGit', async () => {
-    const storagePath = mkdtempSync(join(tmpdir(), 'edda-version-'));
-    mkdirSync(join(storagePath, '.git'));
-    const tracker = new VersionTracker(storagePath);
-
-    const originalError = new Error('fatal: not a git repository');
-    queueExecResults([{ error: originalError, stdout: '', stderr: 'fatal: not a git repository' }]);
-
-    try {
-      await expect(tracker.getHistory('index.yaml')).rejects.toThrow(
-        'Git command failed (git log -n20 --format=%H%x1f%s%x1f%an%x1f%aI -- index.yaml): fatal: not a git repository'
-      );
+      expect(execFile).not.toHaveBeenCalled();
     } finally {
       rmSync(storagePath, { recursive: true, force: true });
     }

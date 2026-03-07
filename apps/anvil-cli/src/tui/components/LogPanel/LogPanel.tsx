@@ -78,7 +78,7 @@ function LogEntryRow({
 
     if (lastIndex < message.length) {
       parts.push(
-        <Text key={keyCounter++} color={theme.colours.ash}>
+        <Text key={keyCounter} color={theme.colours.ash}>
           {message.slice(lastIndex)}
         </Text>
       );
@@ -182,7 +182,9 @@ export function LogPanel({
   useEffect(() => {
     if (autoScroll && filteredEntries.length > 0) {
       const newOffset = Math.max(0, filteredEntries.length - maxVisible);
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setScrollOffset(newOffset);
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setSelectedIndex(filteredEntries.length - 1);
     }
   }, [filteredEntries.length, autoScroll, maxVisible]);

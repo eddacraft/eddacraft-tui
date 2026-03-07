@@ -23,12 +23,12 @@ interface GateExplorerProps {
 
 export function GateExplorer({ result, onQuit, onExport }: GateExplorerProps): React.ReactElement {
   const { exit } = useApp();
-  const [state, setState] = useState<GateExplorerState>({
+  const [state, setState] = useState<GateExplorerState>(() => ({
     selectedIndex: 0,
     expandedChecks: new Set(),
     filterStatus: 'all',
     searchTerm: '',
-  });
+  }));
   const [searchMode, setSearchMode] = useState(false);
   const [searchInput, setSearchInput] = useState('');
 

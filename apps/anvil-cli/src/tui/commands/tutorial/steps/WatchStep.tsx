@@ -41,6 +41,7 @@ export function WatchStep({
     if (watchTriggered) return;
 
     const root = getWorkspaceRoot();
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
     setWorkspaceRoot(root);
 
     const watcher = createTutorialWatcher(root, (event: WatchEvent) => {
@@ -72,6 +73,7 @@ export function WatchStep({
   useEffect(() => {
     if (watchTriggered || phase !== 'watching') return;
 
+    // eslint-disable-next-line @eslint-react/web-api/no-leaked-timeout -- cleanup via timers.forEach(clearTimeout) below
     const timers = HINT_TIMEOUTS_MS.map((ms, idx) => setTimeout(() => setHintLevel(idx + 1), ms));
 
     return () => {

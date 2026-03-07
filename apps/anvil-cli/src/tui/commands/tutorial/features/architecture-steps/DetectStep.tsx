@@ -45,11 +45,13 @@ export function DetectStep(): React.ReactElement {
         }
       }
 
+      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
       setDetected(found);
     } catch {
       // If detection fails, show empty result
     }
 
+    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
     setDetecting(false);
   }, []);
 

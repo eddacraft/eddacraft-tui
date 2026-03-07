@@ -384,12 +384,15 @@ Several PORT tasks overlap with RATS tasks. The boundary:
 
 | PORT Task | RATS Task | PORT Scope | RATS Scope |
 | --------- | --------- | ---------- | ---------- |
-| PORT-023 | RATS-003 | Port Ink gate layout | Add kernel event integration |
-| PORT-030 | RATS-002 | Port Ink watch layout | Add kernel event integration |
-| PORT-020 | RATS-004 | Port Ink init wizard | Rebuild with APS onboarding |
+| PORT-023 | RATS-003 | Port Ink gate layout with mock data | Wire live kernel events into PORT-023 layout |
+| PORT-030 | RATS-002 | Port Ink watch layout with mock data | Wire live kernel events into PORT-030 layout |
 
 PORT tasks produce Ratatui surfaces that accept mock/static data. RATS tasks
 wire those surfaces to live kernel events and extend them with new capabilities.
+
+> **Note:** PORT-020 (init wizard port) and RATS-004 (APS onboarding wizard) are
+> independent surfaces — PORT-020 ports the existing `anvil init` flow for Ink
+> parity, while RATS-004 is a new APS-specific onboarding experience.
 
 ## Risks
 
