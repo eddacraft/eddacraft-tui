@@ -65,7 +65,7 @@ describe('explain command', () => {
       howToAddress: { title: 'Fix', content: 'Use strict types' },
       whenToSuppress: { title: 'Suppress', content: 'Only for generated files' },
     });
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const { createExplainCommand } = await import('./explain.js');
     const command = createExplainCommand();
@@ -74,6 +74,7 @@ describe('explain command', () => {
 
     expect(loadRecentWarningsMock).toHaveBeenCalledWith('/tmp/workspace');
     expect(explainByRuleMock).toHaveBeenCalledWith('AP-003');
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"ruleId": "AP-003"'));
+    const output = stdoutWriteSpy.mock.calls.map((call) => String(call[0])).join('');
+    expect(output).toContain('"ruleId": "AP-003"');
   });
 });

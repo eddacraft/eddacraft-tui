@@ -16,6 +16,7 @@ import {
   type Layers,
   type Layer,
 } from '@eddacraft/anvil-core';
+import { print } from '../utils/output.js';
 
 /**
  * Architecture analysis summary for display
@@ -64,7 +65,7 @@ function collectSourceFiles(
     }
   } catch (error) {
     // Log directory access errors to stderr for debugging
-    console.error(`[ArchitectureService] Failed to read directory ${dir}:`, error);
+    print(`[ArchitectureService] Failed to read directory ${dir}:`, error);
   }
 
   return files;

@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { print } from '../utils/output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -146,7 +147,7 @@ export class HistoricalAnalyser {
         dateRange,
       };
     } catch (error) {
-      console.warn('Failed to analyse git history:', error);
+      print('Failed to analyse git history:', error);
       return this.createEmptyAnalysis();
     }
   }

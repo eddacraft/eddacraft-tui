@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../utils/file-io.js';
-import { success, error } from '../utils/output.js';
+import { success, error, blank, print } from '../utils/output.js';
 import inquirer from 'inquirer';
 import { CliError } from '../utils/cli-error.js';
 
@@ -27,15 +27,15 @@ export function createGateConfigCommand(): Command {
 
           if (options.list) {
             const config = configManager.loadConfig();
-            console.log('\nCurrent Gate Configuration:');
-            console.log('========================');
-            console.log(`Overall Score Threshold: ${config.thresholds.overall_score}%`);
-            console.log('\nChecks:');
+            print('\nCurrent Gate Configuration:');
+            print('========================');
+            print(`Overall Score Threshold: ${config.thresholds.overall_score}%`);
+            print('\nChecks:');
             config.checks.forEach((check) => {
               const status = check.enabled ? '✓' : '✗';
-              console.log(`  ${status} ${check.name}: ${check.description}`);
+              print(`  ${status} ${check.name}: ${check.description}`);
               if (check.config && Object.keys(check.config).length > 0) {
-                console.log(`    Config: ${JSON.stringify(check.config, null, 2)}`);
+                print(`    Config: ${JSON.stringify(check.config, null, 2)}`);
               }
             });
             return;
@@ -84,8 +84,9 @@ interface CheckConfigAnswers {
 async function runInteractiveConfig(configManager: GateConfigManager): Promise<void> {
   const config = configManager.loadConfig();
 
-  console.log('\nInteractive Gate Configuration');
-  console.log('=============================\n');
+  print('\nInteractive Gate Configuration');
+  print('=============================');
+  blank();
 
   // Configure overall threshold
   const thresholdResult = (await inquirer.prompt([

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { z } from 'zod';
 import { adminInvite, adminRevoke } from '../services/admin-client.js';
-import { success, error, info } from '../utils/output.js';
+import { success, error, info, blank, print } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
 import { coercePositiveInt } from '../utils/option-coerce.js';
 
@@ -37,15 +37,15 @@ export function createBetaCommand(): Command {
         });
 
         success('Beta access token created');
-        console.log('');
-        console.log(`  ${chalk.bold('User:')}     ${result.user.email}`);
-        console.log(`  ${chalk.bold('Scopes:')}   ${result.scopes.join(', ')}`);
-        console.log(`  ${chalk.bold('Expires:')}  ${new Date(result.expiresAt).toLocaleString()}`);
-        console.log('');
-        console.log(chalk.yellow('  Token (share with user — shown only once):'));
-        console.log('');
-        console.log(`  ${chalk.cyan(result.token)}`);
-        console.log('');
+        blank();
+        print(`  ${chalk.bold('User:')}     ${result.user.email}`);
+        print(`  ${chalk.bold('Scopes:')}   ${result.scopes.join(', ')}`);
+        print(`  ${chalk.bold('Expires:')}  ${new Date(result.expiresAt).toLocaleString()}`);
+        blank();
+        print(chalk.yellow('  Token (share with user — shown only once):'));
+        blank();
+        print(`  ${chalk.cyan(result.token)}`);
+        blank();
       } catch (err) {
         error(err instanceof Error ? err.message : 'Failed to create invite');
         throw new CliError('Failed to create invite');

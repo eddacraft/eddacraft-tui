@@ -12,6 +12,7 @@ import {
   formatValidationIssues,
   type ValidationResult,
 } from '@eddacraft/anvil-aps';
+import { blank, data, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface ValidateOptions {
@@ -54,12 +55,12 @@ export function createValidateSubcommand(): Command {
         // JSON mode - no spinner, structured output
         try {
           const result = await validatePlanningDoc(filePath);
-          console.log(formatAsJson(result, filePath));
+          data(formatAsJson(result, filePath));
           if (result.valid) throw new CliExit();
           throw new CliError('Validation failed');
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          console.log(
+          data(
             JSON.stringify(
               {
                 file: filePath,
@@ -93,8 +94,8 @@ export function createValidateSubcommand(): Command {
 
           // Print issues
           if (result.issues.length > 0) {
-            console.log('');
-            console.log(formatValidationIssues(result));
+            blank();
+            print(formatValidationIssues(result));
           }
 
           if (result.valid) throw new CliExit();
@@ -102,10 +103,7 @@ export function createValidateSubcommand(): Command {
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red('Validation failed'));
-          console.error(
-            chalk.red('Error:'),
-            error instanceof Error ? error.message : String(error)
-          );
+          print(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
           throw new CliError(error instanceof Error ? error.message : 'Validation failed');
         }
       }

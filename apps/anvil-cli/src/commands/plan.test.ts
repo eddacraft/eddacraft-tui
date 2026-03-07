@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const savePlanMock = vi.fn();
 const getWorkspaceRootMock = vi.fn();
+const execFileSyncMock = vi.fn();
 
 const spinner = {
   text: '',
@@ -17,6 +18,14 @@ vi.mock('ora', () => ({
   default: vi.fn(() => spinner),
 }));
 
+vi.mock('node:child_process', async (importOriginal) => {
+  const original = await importOriginal<typeof import('node:child_process')>();
+  return {
+    ...original,
+    execFileSync: execFileSyncMock,
+  };
+});
+
 vi.mock('../utils/file-io.js', () => ({
   savePlan: savePlanMock,
   getWorkspaceRoot: getWorkspaceRootMock,
@@ -26,6 +35,7 @@ describe('plan command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getWorkspaceRootMock.mockReturnValue('/tmp/workspace');
+    execFileSyncMock.mockReturnValue('main');
   });
 
   afterEach(() => {
@@ -54,7 +64,7 @@ describe('plan command', () => {
   });
 
   it('should output JSON from create subcommand on happy path', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const { createPlanCommand } = await import('./plan.js');
     const command = createPlanCommand();
@@ -67,8 +77,10 @@ describe('plan command', () => {
       '--json',
     ]);
 
+    const output = stdoutWriteSpy.mock.calls.map((c) => String(c[0])).join('');
+
     expect(spinner.stop).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"intent"'));
+    expect(output).toContain('"intent"');
     expect(savePlanMock).not.toHaveBeenCalled();
   });
 });

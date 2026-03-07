@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { ProposalStore, createProposalId } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+import { blank, data, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 interface EmberPromoteOptions {
@@ -28,7 +29,7 @@ export function createEmberPromoteCommand(): Command {
       if (!existsSync(dbPath)) {
         const message = `No Ember database found at ${dbPath}`;
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: message,
@@ -40,7 +41,7 @@ export function createEmberPromoteCommand(): Command {
           );
           throw new CliError(message);
         } else {
-          console.error(chalk.yellow(message));
+          print(chalk.yellow(message));
           throw new CliError(message);
         }
       }
@@ -55,9 +56,9 @@ export function createEmberPromoteCommand(): Command {
         if (!existing) {
           const message = `Proposal not found: ${id}`;
           if (options.json) {
-            console.log(JSON.stringify({ error: message }, null, 2));
+            data(JSON.stringify({ error: message }, null, 2));
           } else {
-            console.error(chalk.red(message));
+            print(chalk.red(message));
           }
           throw new CliError(message);
         }
@@ -65,9 +66,9 @@ export function createEmberPromoteCommand(): Command {
         if (existing.status !== 'active') {
           const message = `Proposal ${id} is not active (current status: ${existing.status})`;
           if (options.json) {
-            console.log(JSON.stringify({ error: message }, null, 2));
+            data(JSON.stringify({ error: message }, null, 2));
           } else {
-            console.error(chalk.red(message));
+            print(chalk.red(message));
           }
           throw new CliError(message);
         }
@@ -81,30 +82,30 @@ export function createEmberPromoteCommand(): Command {
         if (!proposal) {
           const message = `Failed to promote proposal: ${id}`;
           if (options.json) {
-            console.log(JSON.stringify({ error: message }, null, 2));
+            data(JSON.stringify({ error: message }, null, 2));
           } else {
-            console.error(chalk.red(message));
+            print(chalk.red(message));
           }
           throw new CliError(message);
         }
 
         if (options.json) {
-          console.log(JSON.stringify(proposal, null, 2));
+          data(JSON.stringify(proposal, null, 2));
           return;
         }
 
-        console.error(chalk.green('Proposal promoted successfully'));
-        console.error(`  ${chalk.cyan('ID:')} ${proposal.id}`);
-        console.error(`  ${chalk.cyan('Type:')} ${proposal.type}`);
-        console.error(`  ${chalk.cyan('Summary:')} ${proposal.summary}`);
-        console.error(`  ${chalk.cyan('Status:')} ${chalk.green(proposal.status)}`);
-        console.error(`  ${chalk.cyan('Resolved by:')} ${options.by}`);
-        console.error(`  ${chalk.cyan('Reason:')} ${options.reason}`);
-        console.error('');
+        print(chalk.green('Proposal promoted successfully'));
+        print(`  ${chalk.cyan('ID:')} ${proposal.id}`);
+        print(`  ${chalk.cyan('Type:')} ${proposal.type}`);
+        print(`  ${chalk.cyan('Summary:')} ${proposal.summary}`);
+        print(`  ${chalk.cyan('Status:')} ${chalk.green(proposal.status)}`);
+        print(`  ${chalk.cyan('Resolved by:')} ${options.by}`);
+        print(`  ${chalk.cyan('Reason:')} ${options.reason}`);
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -114,9 +115,7 @@ export function createEmberPromoteCommand(): Command {
             )
           );
         } else {
-          console.error(
-            chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-          );
+          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       } finally {

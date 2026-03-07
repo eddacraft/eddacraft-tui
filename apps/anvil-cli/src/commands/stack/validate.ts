@@ -15,7 +15,7 @@ import ora from 'ora';
 import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import { StackConfigSchema, isLayerEnabled, getEnabledLayers, type StackConfig } from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { success, error, warning } from '../../utils/output.js';
+import { blank, data, error, print, success, warning } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 /**
@@ -237,14 +237,14 @@ function formatIssue(issue: ValidationIssue): void {
         ? chalk.yellow
         : chalk.blue;
 
-  console.log(`  ${icon} ${severityColor(`[${issue.code}]`)} ${issue.message}`);
+  print(`  ${icon} ${severityColor(`[${issue.code}]`)} ${issue.message}`);
 
   if (issue.path) {
-    console.log(chalk.dim(`      Path: ${issue.path}`));
+    print(chalk.dim(`      Path: ${issue.path}`));
   }
 
   if (issue.suggestion) {
-    console.log(chalk.dim(`      Suggestion: ${issue.suggestion}`));
+    print(chalk.dim(`      Suggestion: ${issue.suggestion}`));
   }
 }
 
@@ -252,9 +252,9 @@ function formatIssue(issue: ValidationIssue): void {
  * Display validation result
  */
 function displayResult(result: ValidationResult): void {
-  console.log('');
-  console.log(chalk.bold.underline('Stack Validation'));
-  console.log('');
+  blank();
+  print(chalk.bold.underline('Stack Validation'));
+  blank();
 
   if (result.issues.length === 0) {
     success('Stack configuration is valid');
@@ -268,42 +268,42 @@ function displayResult(result: ValidationResult): void {
 
   // Display errors first
   if (errors.length > 0) {
-    console.log(chalk.red.bold(`Errors (${errors.length}):`));
-    console.log('');
+    print(chalk.red.bold(`Errors (${errors.length}):`));
+    blank();
     for (const issue of errors) {
       formatIssue(issue);
-      console.log('');
+      blank();
     }
   }
 
   // Then warnings
   if (warnings.length > 0) {
-    console.log(chalk.yellow.bold(`Warnings (${warnings.length}):`));
-    console.log('');
+    print(chalk.yellow.bold(`Warnings (${warnings.length}):`));
+    blank();
     for (const issue of warnings) {
       formatIssue(issue);
-      console.log('');
+      blank();
     }
   }
 
   // Then info
   if (infos.length > 0) {
-    console.log(chalk.blue.bold(`Info (${infos.length}):`));
-    console.log('');
+    print(chalk.blue.bold(`Info (${infos.length}):`));
+    blank();
     for (const issue of infos) {
       formatIssue(issue);
-      console.log('');
+      blank();
     }
   }
 
   // Summary
-  console.log(chalk.bold('Summary:'));
-  console.log(
+  print(chalk.bold('Summary:'));
+  print(
     `  ${chalk.red(result.summary.errors + ' error(s)')}, ` +
       `${chalk.yellow(result.summary.warnings + ' warning(s)')}, ` +
       `${chalk.blue(result.summary.infos + ' info(s)')}`
   );
-  console.log('');
+  blank();
 
   if (result.valid) {
     success('Stack configuration is valid');
@@ -313,7 +313,7 @@ function displayResult(result: ValidationResult): void {
 
   // Config path
   if (result.configPath) {
-    console.log(chalk.dim(`\nConfiguration: ${result.configPath}`));
+    print(chalk.dim(`\nConfiguration: ${result.configPath}`));
   }
 }
 
@@ -335,12 +335,12 @@ export function createValidateSubcommand(): Command {
         try {
           const workspaceRoot = getWorkspaceRoot();
           const result = validateStackConfig(workspaceRoot);
-          console.log(JSON.stringify(result, null, 2));
+          data(JSON.stringify(result, null, 2));
           if (result.valid) throw new CliExit();
           throw new CliError('Validation failed');
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
-          console.log(
+          data(
             JSON.stringify(
               {
                 valid: false,
@@ -371,7 +371,7 @@ export function createValidateSubcommand(): Command {
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
           spinner.fail(chalk.red('Validation failed'));
-          console.error(chalk.red('Error:'), err instanceof Error ? err.message : String(err));
+          print(chalk.red('Error:'), err instanceof Error ? err.message : String(err));
           throw new CliError(err instanceof Error ? err.message : 'Validation failed');
         }
       }

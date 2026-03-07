@@ -9,6 +9,7 @@ import {
 import { theme } from '../tui/utils/theme.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { coercePositiveInt } from '../utils/option-coerce.js';
+import { blank, data, print } from '../utils/output.js';
 
 interface AuthorshipShowOptions {
   json?: boolean;
@@ -27,23 +28,21 @@ interface AuthorshipStatsOptions {
  * Format an AuthorshipLog for display
  */
 function formatAuthorshipLog(log: AuthorshipLog): void {
-  console.error(chalk.bold('\nAI Authorship Log'));
-  console.error(chalk.hex(theme.colours.smoke)('─'.repeat(50)));
-  console.error();
+  print(chalk.bold('\nAI Authorship Log'));
+  print(chalk.hex(theme.colours.smoke)('─'.repeat(50)));
+  blank();
 
   // Files with AI attribution
-  console.error(
-    chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} FILES WITH AI ATTRIBUTION`)
-  );
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} FILES WITH AI ATTRIBUTION`));
 
   const files = Object.keys(log.attestations).sort();
   if (files.length === 0) {
-    console.error(chalk.hex(theme.colours.smoke)('  No files attributed'));
+    print(chalk.hex(theme.colours.smoke)('  No files attributed'));
   } else {
     for (const file of files) {
-      console.error(chalk.hex(theme.colours.steel)(`  ${file}`));
+      print(chalk.hex(theme.colours.steel)(`  ${file}`));
       for (const attestation of log.attestations[file]) {
-        console.error(
+        print(
           chalk.hex(theme.colours.smoke)(
             `    ${attestation.sessionHash.slice(0, 8)}... → lines ${attestation.lineRanges}`
           )
@@ -51,52 +50,50 @@ function formatAuthorshipLog(log: AuthorshipLog): void {
       }
     }
   }
-  console.error();
+  blank();
 
   // Sessions
-  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} AI SESSIONS`));
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} AI SESSIONS`));
 
   const sessions = Object.entries(log.metadata.prompts);
   for (const [hash, prompt] of sessions) {
-    console.error(chalk.hex(theme.colours.molten)(`  Session: ${hash}`));
-    console.error(chalk.hex(theme.colours.smoke)(`    Tool: ${prompt.agent_id.tool}`));
+    print(chalk.hex(theme.colours.molten)(`  Session: ${hash}`));
+    print(chalk.hex(theme.colours.smoke)(`    Tool: ${prompt.agent_id.tool}`));
     if (prompt.agent_id.model) {
-      console.error(chalk.hex(theme.colours.smoke)(`    Model: ${prompt.agent_id.model}`));
+      print(chalk.hex(theme.colours.smoke)(`    Model: ${prompt.agent_id.model}`));
     }
-    console.error(
+    print(
       chalk.hex(theme.colours.smoke)(
         `    Lines: ${chalk.green(`+${prompt.total_additions}`)} ${chalk.red(`-${prompt.total_deletions}`)}`
       )
     );
-    console.error(
+    print(
       chalk.hex(theme.colours.smoke)(
         `    Accepted: ${prompt.accepted_lines}, Human-modified: ${prompt.overridden_lines}`
       )
     );
     if (prompt.human_author) {
-      console.error(chalk.hex(theme.colours.smoke)(`    Author: ${prompt.human_author}`));
+      print(chalk.hex(theme.colours.smoke)(`    Author: ${prompt.human_author}`));
     }
 
     // Show message summary
     if (prompt.messages.length > 0) {
       const userMsgs = prompt.messages.filter((m) => m.type === 'user').length;
       const assistantMsgs = prompt.messages.filter((m) => m.type === 'assistant').length;
-      console.error(
+      print(
         chalk.hex(theme.colours.smoke)(
           `    Conversation: ${userMsgs} user, ${assistantMsgs} assistant messages`
         )
       );
     }
   }
-  console.error();
+  blank();
 
   // Metadata
-  console.error(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} METADATA`));
-  console.error(chalk.hex(theme.colours.smoke)(`  Schema: ${log.metadata.schema_version}`));
-  console.error(
-    chalk.hex(theme.colours.smoke)(`  Commit: ${log.metadata.base_commit_sha.slice(0, 8)}...`)
-  );
-  console.error();
+  print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} METADATA`));
+  print(chalk.hex(theme.colours.smoke)(`  Schema: ${log.metadata.schema_version}`));
+  print(chalk.hex(theme.colours.smoke)(`  Commit: ${log.metadata.base_commit_sha.slice(0, 8)}...`));
+  blank();
 }
 
 /**
@@ -122,9 +119,9 @@ export function createAuthorshipCommand(): Command {
 
       if (!log) {
         if (options.json) {
-          console.log(JSON.stringify({ found: false, commit }));
+          data(JSON.stringify({ found: false, commit }));
         } else {
-          console.error(
+          print(
             chalk.hex(theme.colours.molten)(
               `\n${theme.icons.info} No AI authorship information found for ${commit}\n`
             )
@@ -134,7 +131,7 @@ export function createAuthorshipCommand(): Command {
       }
 
       if (options.json) {
-        console.log(JSON.stringify(log, null, 2));
+        data(JSON.stringify(log, null, 2));
       } else {
         formatAuthorshipLog(log);
       }
@@ -153,18 +150,18 @@ export function createAuthorshipCommand(): Command {
       const commits = await listAuthorshipNotes(workspaceRoot);
 
       if (options.json) {
-        console.log(JSON.stringify({ total: commits.length, commits: commits.slice(0, limit) }));
+        data(JSON.stringify({ total: commits.length, commits: commits.slice(0, limit) }));
         return;
       }
 
       if (commits.length === 0) {
-        console.log(
+        print(
           chalk.hex(theme.colours.molten)(
             `\n${theme.icons.info} No commits with AI authorship found\n`
           )
         );
-        console.log(chalk.hex(theme.colours.smoke)('AI authorship is stored in refs/notes/ai'));
-        console.log(
+        print(chalk.hex(theme.colours.smoke)('AI authorship is stored in refs/notes/ai'));
+        print(
           chalk.hex(theme.colours.smoke)(
             'Use `git fetch origin refs/notes/ai:refs/notes/ai` to fetch from remote\n'
           )
@@ -172,17 +169,17 @@ export function createAuthorshipCommand(): Command {
         return;
       }
 
-      console.log(chalk.bold(`\nCommits with AI authorship (${commits.length} total):`));
-      console.log(chalk.hex(theme.colours.smoke)('─'.repeat(40)));
+      print(chalk.bold(`\nCommits with AI authorship (${commits.length} total):`));
+      print(chalk.hex(theme.colours.smoke)('─'.repeat(40)));
 
       for (const sha of commits.slice(0, limit)) {
-        console.log(chalk.hex(theme.colours.steel)(`  ${sha.slice(0, 8)}`));
+        print(chalk.hex(theme.colours.steel)(`  ${sha.slice(0, 8)}`));
       }
 
       if (commits.length > limit) {
-        console.log(chalk.hex(theme.colours.smoke)(`  ... and ${commits.length - limit} more`));
+        print(chalk.hex(theme.colours.smoke)(`  ... and ${commits.length - limit} more`));
       }
-      console.log();
+      blank();
     });
 
   // Stats subcommand
@@ -197,39 +194,39 @@ export function createAuthorshipCommand(): Command {
       const stats = await getAuthorshipStats(range, workspaceRoot);
 
       if (options.json) {
-        console.log(JSON.stringify(stats, null, 2));
+        data(JSON.stringify(stats, null, 2));
         return;
       }
 
-      console.log(chalk.bold(`\nAI Authorship Statistics for ${range}`));
-      console.log(chalk.hex(theme.colours.smoke)('─'.repeat(50)));
-      console.log();
+      print(chalk.bold(`\nAI Authorship Statistics for ${range}`));
+      print(chalk.hex(theme.colours.smoke)('─'.repeat(50)));
+      blank();
 
-      console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} COVERAGE`));
+      print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} COVERAGE`));
       const percentage =
         stats.totalCommits > 0 ? Math.round((stats.commitsWithAI / stats.totalCommits) * 100) : 0;
-      console.log(
+      print(
         chalk.hex(theme.colours.smoke)(
           `  ${stats.commitsWithAI}/${stats.totalCommits} commits have AI authorship (${percentage}%)`
         )
       );
-      console.log();
+      blank();
 
-      console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} LINE CHANGES`));
-      console.log(
+      print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} LINE CHANGES`));
+      print(
         chalk.hex(theme.colours.smoke)(`  Additions: ${chalk.green(`+${stats.totalAdditions}`)}`)
       );
-      console.log(
+      print(
         chalk.hex(theme.colours.smoke)(`  Deletions: ${chalk.red(`-${stats.totalDeletions}`)}`)
       );
-      console.log();
+      blank();
 
       if (Object.keys(stats.tools).length > 0) {
-        console.log(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} TOOLS USED`));
+        print(chalk.hex(theme.colours.ember).bold(`${theme.icons.bullet} TOOLS USED`));
         for (const [tool, count] of Object.entries(stats.tools).sort((a, b) => b[1] - a[1])) {
-          console.log(chalk.hex(theme.colours.smoke)(`  ${tool}: ${count} session(s)`));
+          print(chalk.hex(theme.colours.smoke)(`  ${tool}: ${count} session(s)`));
         }
-        console.log();
+        blank();
       }
     });
 

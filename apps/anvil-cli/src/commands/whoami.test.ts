@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const loadAuthMock = vi.fn();
 const errorMock = vi.fn();
+const printMock = vi.fn((...args: Parameters<typeof console.error>) => {
+  console.error(...args);
+});
+const blankMock = vi.fn(() => {
+  console.error('');
+});
 
 vi.mock('../services/auth-store.js', () => ({
   loadAuth: loadAuthMock,
@@ -9,6 +15,8 @@ vi.mock('../services/auth-store.js', () => ({
 
 vi.mock('../utils/output.js', () => ({
   error: errorMock,
+  print: printMock,
+  blank: blankMock,
 }));
 
 describe('whoami command', () => {
@@ -43,15 +51,15 @@ describe('whoami command', () => {
       expiresAt: '2099-01-01T00:00:00.000Z',
       verifiedAt: '2098-01-01T00:00:00.000Z',
     });
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { createWhoamiCommand } = await import('./whoami.js');
     const command = createWhoamiCommand();
 
     await command.parseAsync(['node', 'test']);
 
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Session Info'));
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('dev@eddacraft.dev'));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Session Info'));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('dev@eddacraft.dev'));
     expect(errorMock).not.toHaveBeenCalled();
   });
 });

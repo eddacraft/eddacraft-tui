@@ -5,6 +5,9 @@ import {
   error,
   warning,
   data,
+  print,
+  blank,
+  json,
   formatGateResults,
   formatGateResultsJSON,
   formatValidationErrors,
@@ -71,6 +74,40 @@ describe('output utilities stream policy', () => {
       data('{"key":"value"}');
       expect(stdoutSpy).toHaveBeenCalledWith('{"key":"value"}\n');
       expect(stderrSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('print() writes to stderr', () => {
+    it('writes formatted text to stderr', () => {
+      print('hello world');
+      expect(stderrSpy).toHaveBeenCalledWith('hello world');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('passes multiple arguments to stderr', () => {
+      print('prefix', 'suffix');
+      expect(stderrSpy).toHaveBeenCalledWith('prefix', 'suffix');
+    });
+  });
+
+  describe('blank() writes empty line to stderr', () => {
+    it('writes empty string to stderr', () => {
+      blank();
+      expect(stderrSpy).toHaveBeenCalledWith('');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('json() writes to stdout', () => {
+    it('writes pretty-printed JSON to stdout', () => {
+      json({ key: 'value' });
+      expect(stdoutSpy).toHaveBeenCalledWith('{\n  "key": "value"\n}\n');
+      expect(stderrSpy).not.toHaveBeenCalled();
+    });
+
+    it('writes compact JSON when pretty=false', () => {
+      json({ key: 'value' }, false);
+      expect(stdoutSpy).toHaveBeenCalledWith('{"key":"value"}\n');
     });
   });
 

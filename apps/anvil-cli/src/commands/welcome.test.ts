@@ -55,7 +55,7 @@ describe('welcome command', () => {
   });
 
   it('should render plain welcome output and mark first run complete on happy path', async () => {
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const { createStartCommand } = await import('./welcome.js');
     const command = createStartCommand();
@@ -63,7 +63,7 @@ describe('welcome command', () => {
     await command.parseAsync(['node', 'test']);
 
     expect(isTUIAvailableMock).toHaveBeenCalledTimes(1);
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('ANVIL'));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('ANVIL'));
     expect(markFirstRunCompleteMock).toHaveBeenCalledTimes(1);
     expect(renderTUIMock).not.toHaveBeenCalled();
   });

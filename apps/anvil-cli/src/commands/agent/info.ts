@@ -14,6 +14,7 @@ import {
 } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { blank, data, print } from '../../utils/output.js';
 
 interface InfoOptions {
   json?: boolean;
@@ -81,70 +82,70 @@ export function createAgentInfoCommand(): Command {
         };
 
         if (options.json) {
-          console.log(JSON.stringify(info, null, 2));
+          data(JSON.stringify(info, null, 2));
           return;
         }
 
         // Pretty print
-        console.log(chalk.bold('\nMulti-Agent Coordination System'));
-        console.log(chalk.gray('═'.repeat(50)));
+        print(chalk.bold('\nMulti-Agent Coordination System'));
+        print(chalk.gray('═'.repeat(50)));
 
-        console.log(chalk.bold('\nConfiguration'));
-        console.log(chalk.gray('─'.repeat(40)));
-        console.log(
+        print(chalk.bold('\nConfiguration'));
+        print(chalk.gray('─'.repeat(40)));
+        print(
           `  ${chalk.cyan('Lock Timeout:')}      ${config.lockTimeoutMs}ms (${Math.round(config.lockTimeoutMs / 60000)}min)`
         );
-        console.log(`  ${chalk.cyan('Heartbeat:')}         ${config.heartbeatIntervalMs}ms`);
-        console.log(`  ${chalk.cyan('Stale Threshold:')}   ${config.staleThresholdMs}ms`);
-        console.log(`  ${chalk.cyan('Queue Timeout:')}     ${config.queueTimeoutMs}ms`);
-        console.log(`  ${chalk.cyan('Max Queue Size:')}    ${config.maxQueueSize}`);
+        print(`  ${chalk.cyan('Heartbeat:')}         ${config.heartbeatIntervalMs}ms`);
+        print(`  ${chalk.cyan('Stale Threshold:')}   ${config.staleThresholdMs}ms`);
+        print(`  ${chalk.cyan('Queue Timeout:')}     ${config.queueTimeoutMs}ms`);
+        print(`  ${chalk.cyan('Max Queue Size:')}    ${config.maxQueueSize}`);
 
-        console.log(chalk.bold('\nAgents'));
-        console.log(chalk.gray('─'.repeat(40)));
-        console.log(`  ${chalk.cyan('Total:')}      ${agents.length}`);
-        console.log(`  ${chalk.cyan('Active:')}     ${chalk.green(activeAgents.length)}`);
-        console.log(`  ${chalk.cyan('Stale:')}      ${chalk.yellow(info.agents.stale)}`);
-        console.log(`  ${chalk.cyan('Terminated:')} ${chalk.gray(info.agents.terminated)}`);
+        print(chalk.bold('\nAgents'));
+        print(chalk.gray('─'.repeat(40)));
+        print(`  ${chalk.cyan('Total:')}      ${agents.length}`);
+        print(`  ${chalk.cyan('Active:')}     ${chalk.green(activeAgents.length)}`);
+        print(`  ${chalk.cyan('Stale:')}      ${chalk.yellow(info.agents.stale)}`);
+        print(`  ${chalk.cyan('Terminated:')} ${chalk.gray(info.agents.terminated)}`);
 
-        console.log(chalk.bold('\nWatch Lock'));
-        console.log(chalk.gray('─'.repeat(40)));
+        print(chalk.bold('\nWatch Lock'));
+        print(chalk.gray('─'.repeat(40)));
         if (watchLockInfo) {
-          console.log(`  ${chalk.cyan('Status:')}     ${chalk.green('● Held')}`);
-          console.log(`  ${chalk.cyan('Holder:')}     ${watchLockInfo.agentId}`);
-          console.log(`  ${chalk.cyan('Since:')}      ${watchLockInfo.acquiredAt}`);
-          console.log(`  ${chalk.cyan('Expires:')}    ${watchLockInfo.expiresAt}`);
+          print(`  ${chalk.cyan('Status:')}     ${chalk.green('● Held')}`);
+          print(`  ${chalk.cyan('Holder:')}     ${watchLockInfo.agentId}`);
+          print(`  ${chalk.cyan('Since:')}      ${watchLockInfo.acquiredAt}`);
+          print(`  ${chalk.cyan('Expires:')}    ${watchLockInfo.expiresAt}`);
         } else {
-          console.log(`  ${chalk.cyan('Status:')}     ${chalk.gray('○ Available')}`);
+          print(`  ${chalk.cyan('Status:')}     ${chalk.gray('○ Available')}`);
         }
 
         if (queues.length > 0) {
-          console.log(chalk.bold('\nActive Queues'));
-          console.log(chalk.gray('─'.repeat(40)));
+          print(chalk.bold('\nActive Queues'));
+          print(chalk.gray('─'.repeat(40)));
           for (const q of queues) {
-            console.log(`  ${chalk.cyan(`${q.type}:${q.resource}`)}: ${q.entries} waiting`);
+            print(`  ${chalk.cyan(`${q.type}:${q.resource}`)}: ${q.entries} waiting`);
           }
         }
 
-        console.log(chalk.bold('\nStorage Paths'));
-        console.log(chalk.gray('─'.repeat(40)));
-        console.log(`  ${chalk.cyan('Registry:')}   ${config.registryPath}`);
-        console.log(`  ${chalk.cyan('Locks:')}      ${config.lockDir}`);
-        console.log(`  ${chalk.cyan('Queues:')}     ${config.queueDir}`);
+        print(chalk.bold('\nStorage Paths'));
+        print(chalk.gray('─'.repeat(40)));
+        print(`  ${chalk.cyan('Registry:')}   ${config.registryPath}`);
+        print(`  ${chalk.cyan('Locks:')}      ${config.lockDir}`);
+        print(`  ${chalk.cyan('Queues:')}     ${config.queueDir}`);
 
-        console.log('');
+        blank();
 
         // Environment variable hints
-        console.log(chalk.bold('Environment Variables'));
-        console.log(chalk.gray('─'.repeat(40)));
-        console.log(chalk.gray('  Set these to customize agent identification:'));
-        console.log(chalk.gray('    ANVIL_AGENT_ID      Custom agent identifier'));
-        console.log(chalk.gray('    ANVIL_AGENT_TYPE    Agent type (claude, cursor, etc.)'));
-        console.log(chalk.gray('    ANVIL_AGENT_NAME    Human-readable agent name'));
-        console.log(chalk.gray('    ANVIL_SESSION_ID    Session identifier'));
-        console.log('');
+        print(chalk.bold('Environment Variables'));
+        print(chalk.gray('─'.repeat(40)));
+        print(chalk.gray('  Set these to customize agent identification:'));
+        print(chalk.gray('    ANVIL_AGENT_ID      Custom agent identifier'));
+        print(chalk.gray('    ANVIL_AGENT_TYPE    Agent type (claude, cursor, etc.)'));
+        print(chalk.gray('    ANVIL_AGENT_NAME    Human-readable agent name'));
+        print(chalk.gray('    ANVIL_SESSION_ID    Session identifier'));
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-        console.error(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
+        print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });

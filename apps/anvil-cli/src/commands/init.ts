@@ -25,7 +25,7 @@ import {
   type ArchitectureSummary,
 } from '../services/architecture-service.js';
 import { renderMermaidAscii } from 'beautiful-mermaid';
-import { success, error, info } from '../utils/output.js';
+import { success, error, info, print, blank } from '../utils/output.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { InitWizard, type WizardState, type WizardContext } from '../tui/commands/init/index.js';
@@ -76,15 +76,13 @@ export function createInitCommand(): Command {
             return;
           }
 
-          console.log(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
+          print(chalk.bold('\n🔨 Initialising Anvil in current project...\n'));
 
           // Check if .anvilrc already exists
           const anvilrcPath = join(projectRoot, '.anvilrc');
           if (existsSync(anvilrcPath) && !options.force) {
             error('.anvilrc already exists. Use --force to overwrite.');
-            console.log(
-              chalk.dim('\nTip: Run `anvil gate:config --list` to view current configuration')
-            );
+            print(chalk.dim('\nTip: Run `anvil gate:config --list` to view current configuration'));
             throw new CliError('.anvilrc already exists');
           }
 
@@ -92,16 +90,14 @@ export function createInitCommand(): Command {
           const detector = new EnvironmentDetector(projectRoot);
           const env = detector.detect();
 
-          console.log(chalk.cyan('Detected environment:'));
-          console.log(chalk.dim(`  Project: ${env.projectName || '(no package.json)'}`));
-          console.log(chalk.dim(`  Package Manager: ${env.packageManager}`));
-          console.log(chalk.dim(`  Git: ${env.hasGit ? '✓' : '✗'}`));
-          console.log(chalk.dim(`  TypeScript: ${env.hasTypeScript ? '✓' : '✗'}`));
-          console.log(chalk.dim(`  ESLint: ${env.hasEslint ? '✓' : '✗'}`));
-          console.log(
-            chalk.dim(`  Testing: ${env.hasVitest ? 'Vitest' : env.hasJest ? 'Jest' : '✗'}`)
-          );
-          console.log('');
+          print(chalk.cyan('Detected environment:'));
+          print(chalk.dim(`  Project: ${env.projectName || '(no package.json)'}`));
+          print(chalk.dim(`  Package Manager: ${env.packageManager}`));
+          print(chalk.dim(`  Git: ${env.hasGit ? '✓' : '✗'}`));
+          print(chalk.dim(`  TypeScript: ${env.hasTypeScript ? '✓' : '✗'}`));
+          print(chalk.dim(`  ESLint: ${env.hasEslint ? '✓' : '✗'}`));
+          print(chalk.dim(`  Testing: ${env.hasVitest ? 'Vitest' : env.hasJest ? 'Jest' : '✗'}`));
+          blank();
 
           // Analyse project architecture
           const archSpinner = ora('Analysing project structure...').start();
@@ -118,45 +114,43 @@ export function createInitCommand(): Command {
 
             // Display architecture summary
             if (archSummary.entryPoints.length > 0) {
-              console.log(chalk.cyan('\n' + formatEntryPointsSummary(archSummary.entryPoints)));
-              formatEntryPoints(archSummary.entryPoints).forEach((line) =>
-                console.log(chalk.dim(line))
-              );
-              console.log(chalk.dim('\n  Run `anvil status --entry-points` for full details'));
+              print(chalk.cyan('\n' + formatEntryPointsSummary(archSummary.entryPoints)));
+              formatEntryPoints(archSummary.entryPoints).forEach((line) => print(chalk.dim(line)));
+              print(chalk.dim('\n  Run `anvil status --entry-points` for full details'));
             }
 
             // Display layer diagram
-            console.log(chalk.cyan('\nDetected layer structure:'));
+            print(chalk.cyan('\nDetected layer structure:'));
             try {
               const mermaidDef = layersToMermaid(archSummary.layers, archSummary.layerAssignments);
               const ascii = renderMermaidAscii(mermaidDef, { paddingX: 2, paddingY: 1 });
-              ascii.split('\n').forEach((line) => console.log(chalk.dim('  ' + line)));
+              ascii.split('\n').forEach((line) => print(chalk.dim('  ' + line)));
             } catch {
               // Fall back to box diagram if mermaid rendering fails
               formatLayerDiagram(archSummary.layers, archSummary.layerAssignments).forEach((line) =>
-                console.log(chalk.dim(line))
+                print(chalk.dim(line))
               );
             }
-            console.log('');
+            blank();
 
             // Display architecture explanation
             const explanation = generateArchitectureExplanation(archSummary);
-            console.log(''); // Blank line before architecture analysis
+            blank(); // Blank line before architecture analysis
             formatArchitectureExplanation(explanation).forEach((line) => {
               // Use cyan for the header line, white for section headers, dim for content
               if (line.startsWith('Architecture Analysis:')) {
-                console.log(chalk.cyan(line));
+                print(chalk.cyan(line));
               } else if (
                 line.startsWith('  Recommended Template:') ||
                 line.startsWith('  Insights:') ||
                 line.startsWith('  Next Steps:')
               ) {
-                console.log(chalk.white(line));
+                print(chalk.white(line));
               } else {
-                console.log(chalk.dim(line));
+                print(chalk.dim(line));
               }
             });
-            console.log('');
+            blank();
 
             // Ask for confirmation (unless non-interactive)
             if (!options.nonInteractive) {
@@ -193,7 +187,7 @@ export function createInitCommand(): Command {
               chalk.yellow('Could not analyse architecture (will skip baseline creation)')
             );
             if (archError instanceof Error) {
-              console.log(chalk.dim(`  Reason: ${archError.message}`));
+              print(chalk.dim(`  Reason: ${archError.message}`));
             }
           }
 
@@ -274,28 +268,28 @@ export function createInitCommand(): Command {
             spinner.succeed(chalk.green('Anvil initialised successfully!'));
 
             // Show summary
-            console.log('\n' + chalk.bold('Created files:'));
-            console.log(chalk.dim('  ✓ .anvilrc'));
-            console.log(chalk.dim('  ✓ .anvil/'));
+            print('\n' + chalk.bold('Created files:'));
+            print(chalk.dim('  ✓ .anvilrc'));
+            print(chalk.dim('  ✓ .anvil/'));
             if (shouldCreateBaseline && archSummary) {
-              console.log(chalk.dim('  ✓ .anvil/architecture.json'));
+              print(chalk.dim('  ✓ .anvil/architecture.json'));
             }
-            console.log(chalk.dim(`  ✓ ${initOptions.planningDir}/`));
+            print(chalk.dim(`  ✓ ${initOptions.planningDir}/`));
             if (env.hasGit) {
-              console.log(chalk.dim('  ✓ .gitignore (updated)'));
+              print(chalk.dim('  ✓ .gitignore (updated)'));
             }
             if (exampleFiles.length > 0) {
-              console.log(chalk.dim('\n' + chalk.bold('Example files:')));
+              print(chalk.dim('\n' + chalk.bold('Example files:')));
               exampleFiles.forEach((file) => {
                 const relPath = file.replace(projectRoot + '/', '');
-                console.log(chalk.dim(`  ✓ ${relPath}`));
+                print(chalk.dim(`  ✓ ${relPath}`));
               });
             }
 
             // Run intelligent first-run analysis (unless skipped via --no-analysis)
             let dashboardShown = false;
             if (options.analysis !== false) {
-              console.log('');
+              blank();
               const analysisSpinner = ora(
                 options.quick ? 'Analysing project...' : 'Scanning repository...'
               ).start();
@@ -313,7 +307,7 @@ export function createInitCommand(): Command {
 
                 // Show results dashboard if TUI is available
                 if (isTUIAvailable({ tui: options.tui })) {
-                  console.log('');
+                  blank();
 
                   // Prepare stdin for Ink after inquirer prompts
                   await prepareStdinForInk();
@@ -337,13 +331,13 @@ export function createInitCommand(): Command {
                   dashboardShown = true;
                 } else {
                   // Fallback: Show text-based summary
-                  console.log('\n' + chalk.bold('Project Analysis:'));
-                  console.log(chalk.dim(`  Framework: ${analysisResults.project.framework}`));
-                  console.log(chalk.dim(`  Project Size: ${analysisResults.project.size}`));
+                  print('\n' + chalk.bold('Project Analysis:'));
+                  print(chalk.dim(`  Framework: ${analysisResults.project.framework}`));
+                  print(chalk.dim(`  Project Size: ${analysisResults.project.size}`));
 
                   if (analysisResults.historical && analysisResults.historical.totalCommits > 0) {
-                    console.log('\n' + chalk.bold('Historical Insights:'));
-                    console.log(
+                    print('\n' + chalk.bold('Historical Insights:'));
+                    print(
                       chalk.dim(
                         `  Would have caught ${analysisResults.historical.totalViolations} issues in ${analysisResults.historical.totalCommits} commits`
                       )
@@ -353,33 +347,33 @@ export function createInitCommand(): Command {
               } catch (analysisError) {
                 analysisSpinner.warn(chalk.yellow('Analysis skipped - see next steps below'));
                 if (analysisError instanceof Error) {
-                  console.log(chalk.dim(`  Reason: ${analysisError.message}`));
+                  print(chalk.dim(`  Reason: ${analysisError.message}`));
                 }
               }
             } else {
-              console.log('\n' + chalk.dim('Skipping automatic analysis (--no-analysis flag)'));
+              print('\n' + chalk.dim('Skipping automatic analysis (--no-analysis flag)'));
             }
 
             // Show next steps (only if dashboard was not shown)
             if (!dashboardShown) {
-              console.log('\n' + chalk.bold('Next steps:'));
-              console.log(chalk.cyan('  1. Review configuration:'));
-              console.log(chalk.dim('     anvil gate:config --list'));
+              print('\n' + chalk.bold('Next steps:'));
+              print(chalk.cyan('  1. Review configuration:'));
+              print(chalk.dim('     anvil gate:config --list'));
 
               if (exampleFiles.length > 0) {
                 const firstExample = exampleFiles[0].replace(projectRoot + '/', '');
-                console.log(chalk.cyan('  2. Validate example plan:'));
-                console.log(chalk.dim(`     anvil validate ${firstExample}`));
-                console.log(chalk.cyan('  3. Run quality gates:'));
-                console.log(chalk.dim(`     anvil gate ${firstExample}`));
+                print(chalk.cyan('  2. Validate example plan:'));
+                print(chalk.dim(`     anvil validate ${firstExample}`));
+                print(chalk.cyan('  3. Run quality gates:'));
+                print(chalk.dim(`     anvil gate ${firstExample}`));
               } else {
-                console.log(chalk.cyan('  2. Create a planning document in:'));
-                console.log(chalk.dim(`     ${initOptions.planningDir}/`));
-                console.log(chalk.cyan('  3. Validate your plan:'));
-                console.log(chalk.dim('     anvil validate <plan-file>'));
+                print(chalk.cyan('  2. Create a planning document in:'));
+                print(chalk.dim(`     ${initOptions.planningDir}/`));
+                print(chalk.cyan('  3. Validate your plan:'));
+                print(chalk.dim('     anvil validate <plan-file>'));
               }
 
-              console.log('');
+              blank();
             }
 
             success('Anvil is ready to use!');
@@ -783,7 +777,7 @@ async function runDetectAndApplyInit(
   }
 
   // Output — concise, opinionated, done
-  console.log('');
+  blank();
   success(
     `Detected: ${env.hasTypeScript ? 'TypeScript' : 'JavaScript'}${framework !== 'unknown' ? `, ${framework}` : ''}${env.hasVitest ? ', Vitest' : env.hasJest ? ', Jest' : ''}${env.hasEslint ? ', ESLint' : ''}`
   );
@@ -796,8 +790,8 @@ async function runDetectAndApplyInit(
   }
   info(`Org source: ${orgSource}`);
 
-  console.log('');
-  console.log(chalk.dim("Run `anvil policy list` to see what's active."));
-  console.log(chalk.dim("Run `anvil policy tune` when you're ready to customise."));
-  console.log('');
+  blank();
+  print(chalk.dim("Run `anvil policy list` to see what's active."));
+  print(chalk.dim("Run `anvil policy tune` when you're ready to customise."));
+  blank();
 }

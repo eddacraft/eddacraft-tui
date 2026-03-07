@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
+import { blank, print } from '../utils/output.js';
 
 const CHANGELOG_PATH = 'CHANGELOG.md';
 
@@ -63,21 +64,21 @@ export async function updateChangelog(
   const commits = getCommitsSinceTag(workspaceRoot, latestTag);
   const entry = buildChangelogEntry(version, commits);
 
-  console.log(chalk.dim('  Commits since last tag:'));
+  print(chalk.dim('  Commits since last tag:'));
   if (commits.length === 0) {
-    console.log(chalk.dim('    (none)'));
+    print(chalk.dim('    (none)'));
   } else {
     for (const commit of commits.slice(0, 15)) {
-      console.log(chalk.dim(`    ${commit}`));
+      print(chalk.dim(`    ${commit}`));
     }
     if (commits.length > 15) {
-      console.log(chalk.dim(`    ... and ${commits.length - 15} more`));
+      print(chalk.dim(`    ... and ${commits.length - 15} more`));
     }
   }
 
-  console.log();
-  console.log(chalk.bold('  Changelog entry:'));
-  console.log(
+  blank();
+  print(chalk.bold('  Changelog entry:'));
+  print(
     chalk.cyan(
       entry
         .split('\n')
@@ -87,7 +88,7 @@ export async function updateChangelog(
   );
 
   if (!execute) {
-    console.log(`  ${chalk.yellow('[DRY RUN]')} Would prepend to ${CHANGELOG_PATH}`);
+    print(`  ${chalk.yellow('[DRY RUN]')} Would prepend to ${CHANGELOG_PATH}`);
     return [];
   }
 
@@ -101,7 +102,7 @@ export async function updateChangelog(
   ]);
 
   if (!proceed) {
-    console.log(chalk.dim('  Skipping changelog update'));
+    print(chalk.dim('  Skipping changelog update'));
     return [];
   }
 
@@ -120,6 +121,6 @@ export async function updateChangelog(
     writeFileSync(changelogPath, `# Changelog\n\n${entry}`, 'utf8');
   }
 
-  console.log(`  ${chalk.green('✓')} Updated ${CHANGELOG_PATH}`);
+  print(`  ${chalk.green('✓')} Updated ${CHANGELOG_PATH}`);
   return [CHANGELOG_PATH];
 }

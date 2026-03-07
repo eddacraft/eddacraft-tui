@@ -7,6 +7,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { join, basename } from 'node:path';
 import { existsSync } from 'node:fs';
 import { z } from 'zod';
+import { print } from '../utils/output.js';
 
 // Handle YAML multi-line strings (parsed as arrays) and single-line strings
 // Rejects empty arrays to catch parser issues with indented block scalars
@@ -200,7 +201,7 @@ export class TemplateLoader {
         templates.push(template);
         this.templates.set(template.metadata.id, template);
       } catch (error) {
-        console.error(`Warning: Failed to load template ${file}:`, error);
+        print(`Warning: Failed to load template ${file}:`, error);
       }
     }
 

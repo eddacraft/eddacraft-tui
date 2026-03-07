@@ -19,7 +19,15 @@ import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
 import type { GateOptions, GateProfile } from '../types/command-options.js';
-import { success, error, formatGateResults, info, formatGateResultsJSON } from '../utils/output.js';
+import {
+  success,
+  error,
+  formatGateResults,
+  info,
+  formatGateResultsJSON,
+  print,
+  blank,
+} from '../utils/output.js';
 import { coerceNonNegativeInt } from '../utils/option-coerce.js';
 import ora from 'ora';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
@@ -154,16 +162,16 @@ export function createGateCommand(): Command {
 
       // Handle --list-profiles
       if (options.listProfiles) {
-        console.error(chalk.bold('\nAvailable Gate Profiles:\n'));
+        print(chalk.bold('\nAvailable Gate Profiles:\n'));
         for (const [name, profile] of Object.entries(GATE_PROFILES)) {
-          console.error(chalk.cyan(`  ${name}`));
-          console.error(chalk.gray(`    ${profile.description}`));
+          print(chalk.cyan(`  ${name}`));
+          print(chalk.gray(`    ${profile.description}`));
           if (profile.skipChecks && profile.skipChecks.length > 0) {
-            console.error(chalk.gray(`    Skips: ${profile.skipChecks.join(', ')}`));
+            print(chalk.gray(`    Skips: ${profile.skipChecks.join(', ')}`));
           }
-          console.error('');
+          blank();
         }
-        console.error(chalk.gray('Usage: anvil gate [plan] --profile=dev'));
+        print(chalk.gray('Usage: anvil gate [plan] --profile=dev'));
         throw new CliExit();
       }
 
@@ -380,7 +388,7 @@ export function createGateCommand(): Command {
 
         if (showProgress) {
           // Progress mode: show real-time updates
-          console.error(chalk.bold('\nRunning quality gates:\n'));
+          print(chalk.bold('\nRunning quality gates:\n'));
 
           // Track active checks for parallel display
           const activeChecks = new Set<string>();
@@ -458,7 +466,7 @@ export function createGateCommand(): Command {
         }
 
         if (showProgress) {
-          console.error(''); // Add newline after progress
+          blank();
         } else {
           spinner.succeed('Quality gates completed');
         }
@@ -471,42 +479,42 @@ export function createGateCommand(): Command {
 
           // Show cache and timing stats in verbose mode
           if (options.verbose && results.cacheStats) {
-            console.error(chalk.gray('\nCache Statistics:'));
-            console.error(chalk.gray(`  Hits: ${results.cacheStats.hits}`));
-            console.error(chalk.gray(`  Misses: ${results.cacheStats.misses}`));
+            print(chalk.gray('\nCache Statistics:'));
+            print(chalk.gray(`  Hits: ${results.cacheStats.hits}`));
+            print(chalk.gray(`  Misses: ${results.cacheStats.misses}`));
             if (results.cacheStats.timeSavedMs > 0) {
-              console.error(chalk.gray(`  Time saved: ${results.cacheStats.timeSavedMs}ms`));
+              print(chalk.gray(`  Time saved: ${results.cacheStats.timeSavedMs}ms`));
             }
           }
 
           if (options.verbose && results.timing) {
-            console.error(chalk.gray('\nExecution Timing:'));
-            console.error(chalk.gray(`  Total: ${results.timing.totalMs}ms`));
+            print(chalk.gray('\nExecution Timing:'));
+            print(chalk.gray(`  Total: ${results.timing.totalMs}ms`));
             for (const [checkName, timeMs] of Object.entries(results.timing.checks)) {
-              console.error(chalk.gray(`  ${checkName}: ${timeMs}ms`));
+              print(chalk.gray(`  ${checkName}: ${timeMs}ms`));
             }
           }
         }
 
         // Show provenance ID
         if (results.provenance_id && options.output !== 'json') {
-          console.error(chalk.gray(`\nProvenance: ${results.provenance_id}`));
+          print(chalk.gray(`\nProvenance: ${results.provenance_id}`));
         }
 
         // Evidence injection
         if (options.inject) {
           if (isFullScan) {
-            console.error(
+            print(
               chalk.yellow('\n⚠️  Evidence injection not available in full codebase scan mode')
             );
-            console.error(chalk.gray('Provide a plan file to enable evidence injection'));
+            print(chalk.gray('Provide a plan file to enable evidence injection'));
           } else if (!sourceFormat) {
-            console.error(
+            print(
               chalk.yellow(
                 '\n⚠️  Evidence injection only supported for external formats (SpecKit, BMAD)'
               )
             );
-            console.error(chalk.gray('Skipping injection for native APS format'));
+            print(chalk.gray('Skipping injection for native APS format'));
           } else if (planPath) {
             spinner.start('Injecting evidence into source document...');
 
@@ -521,10 +529,10 @@ export function createGateCommand(): Command {
 
             if (writeResult.success) {
               spinner.succeed(chalk.green('✓ Evidence injected successfully'));
-              console.error(chalk.gray('  Updated:'), chalk.cyan(writeResult.filePath));
+              print(chalk.gray('  Updated:'), chalk.cyan(writeResult.filePath));
             } else {
               spinner.fail(chalk.red('✗ Failed to inject evidence'));
-              console.error(chalk.red('  Error:'), writeResult.error);
+              print(chalk.red('  Error:'), writeResult.error);
             }
           }
         }

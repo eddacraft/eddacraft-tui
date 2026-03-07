@@ -218,7 +218,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('test-project');
     });
 
@@ -228,7 +228,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Package Manager: pnpm');
     });
 
@@ -238,7 +238,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Package Manager: npm');
     });
 
@@ -248,7 +248,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Package Manager: yarn');
     });
 
@@ -258,7 +258,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Git: ✓');
     });
 
@@ -268,7 +268,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('TypeScript: ✓');
     });
 
@@ -278,7 +278,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('ESLint: ✓');
     });
 
@@ -292,7 +292,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Testing: Vitest');
     });
 
@@ -300,7 +300,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('(no package.json)');
     });
   });
@@ -323,7 +323,7 @@ describe('init command', () => {
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
       // .gitignore may or may not exist, but output should not mention it
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).not.toContain('.gitignore (updated)');
     });
   });
@@ -447,7 +447,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync([], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).not.toContain('Example files:');
     });
   });
@@ -522,7 +522,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--org', 'my-org'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('anvil policy list');
     });
 
@@ -542,7 +542,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Created files:');
       expect(output).toContain('.anvilrc');
       expect(output).toContain('.anvil/');
@@ -553,7 +553,7 @@ describe('init command', () => {
       const command = createInitCommand();
       await command.parseAsync(['--non-interactive'], { from: 'user' });
 
-      const output = consoleOutput.join('\n');
+      const output = [...consoleOutput, ...consoleErrors].join('\n');
       expect(output).toContain('Next steps:');
       expect(output).toContain('anvil gate:config --list');
       expect(output).toContain('anvil validate');
@@ -768,12 +768,10 @@ describe('init command', () => {
         vi.mocked(isTUIAvailable).mockReturnValueOnce(true);
         const inquirerMod = await import('inquirer');
         vi.mocked(inquirerMod.default.prompt).mockResolvedValueOnce({ archAction: 'skip' });
-        vi.mocked(renderTUI).mockImplementationOnce(
-          (_Component: unknown, props: Record<string, unknown>) => {
-            (props as { onCancel: () => void }).onCancel();
-            return { waitUntilExit: () => Promise.resolve() } as ReturnType<typeof renderTUI>;
-          }
-        );
+        vi.mocked(renderTUI).mockImplementationOnce((_Component: unknown, props: object) => {
+          (props as { onCancel: () => void }).onCancel();
+          return { waitUntilExit: () => Promise.resolve() } as ReturnType<typeof renderTUI>;
+        });
 
         const command = createInitCommand();
         await expect(async () => {

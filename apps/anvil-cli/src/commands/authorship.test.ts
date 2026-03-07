@@ -52,7 +52,7 @@ describe('authorship command', () => {
         base_commit_sha: '0123456789abcdef',
       },
     });
-    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const { createAuthorshipCommand } = await import('./authorship.js');
     const command = createAuthorshipCommand();
@@ -60,6 +60,7 @@ describe('authorship command', () => {
     await command.parseAsync(['node', 'test', 'show', 'HEAD', '--json']);
 
     expect(readAuthorshipNoteMock).toHaveBeenCalledWith('HEAD', '/tmp/workspace');
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"attestations"'));
+    const output = stdoutWriteSpy.mock.calls.map((call) => String(call[0])).join('');
+    expect(output).toContain('"attestations"');
   });
 });
