@@ -452,6 +452,15 @@ waves; 39 tasks total.
 | [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | opa-architecture-integration |
 | [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | opa-architecture-integration, architecture-safety |
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
+| [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
+| [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | opa-enhancements, opa-agent-orchestration, drift-reporting |
+| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Ready | compliance-reporting, policy-lifecycle, eval-harness-integration |
+| [contextual-policy-assertions](./modules/contextual-policy-assertions.aps.md) | CPOL | Ready | opa-enhancements, opa-agent-orchestration |
+| [io-risk-controls](./modules/io-risk-controls.aps.md) | IORISK | Ready | opa-enhancements, opa-agent-orchestration |
+| [gateway-control-plane-patterns](./modules/gateway-control-plane-patterns.aps.md) | GATE | Ready | opa-agent-orchestration, mcp-server |
+| [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
+| [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
+| [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
 
 ### Planned — 0.4.0 (Edda Stack — Memory System)
 
@@ -1212,6 +1221,12 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 - **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
   watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
   ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
+- **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
+  evaluation, remediation guidance, and auditable exception workflows
+  ([ADR](./decisions/012-opa-agent-orchestration.md))
+- **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
+  adapter contracts for CI-native trust regression testing
+  ([ADR](./decisions/013-eval-harness-adoption.md))
 
 ## Open Questions
 
