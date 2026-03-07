@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VersionTracker } from './version-tracker.js';
 
-const { mockExecFile } = vi.hoisted(() => ({ mockExecFile: vi.fn() }));
+const mockExecFile = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({
   default: { execFile: mockExecFile },
   execFile: mockExecFile,
@@ -109,7 +109,17 @@ describe('VersionTracker (EDDA-008)', () => {
       expect(mockExecFile).toHaveBeenNthCalledWith(
         3,
         'git',
-        ['commit', '-m', 'Persist memory update', '--author', 'Memory Agent <agent@eddacraft.dev>'],
+        [
+          '-c',
+          'user.name=Memory Agent',
+          '-c',
+          'user.email=agent@eddacraft.dev',
+          'commit',
+          '-m',
+          'Persist memory update',
+          '--author',
+          'Memory Agent <agent@eddacraft.dev>',
+        ],
         expect.any(Object),
         expect.any(Function)
       );
@@ -135,7 +145,17 @@ describe('VersionTracker (EDDA-008)', () => {
       expect(mockExecFile).toHaveBeenNthCalledWith(
         3,
         'git',
-        ['commit', '-m', 'Persist memory update', '--author', 'joshua <joshua@anvil.local>'],
+        [
+          '-c',
+          'user.name=joshua',
+          '-c',
+          'user.email=joshua@anvil.local',
+          'commit',
+          '-m',
+          'Persist memory update',
+          '--author',
+          'joshua <joshua@anvil.local>',
+        ],
         expect.any(Object),
         expect.any(Function)
       );
