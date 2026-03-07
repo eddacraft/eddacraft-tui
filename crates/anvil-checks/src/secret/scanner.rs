@@ -40,12 +40,13 @@ pub fn scan_content(
     }
 
     if config.enable_entropy {
+        let lines: Vec<&str> = content.lines().collect();
         let entropy_findings = detect_high_entropy_strings(content, file_path, config);
         let new_entropy_findings = entropy_findings
             .into_iter()
             .filter(|finding| {
                 let line_index = finding.line.saturating_sub(1);
-                content.lines().nth(line_index).is_some_and(|line| {
+                lines.get(line_index).is_some_and(|line| {
                     patterns.iter().all(|pattern| !pattern.regex.is_match(line))
                 })
             })

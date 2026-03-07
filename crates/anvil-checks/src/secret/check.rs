@@ -104,7 +104,8 @@ fn normalise_file_path(file: &str, workspace_root: Option<&str>) -> String {
     let file_path = Path::new(file);
     let root_path = Path::new(root);
     if let Ok(relative) = file_path.strip_prefix(root_path) {
-        format!("/{}", relative.display())
+        let relative_str = relative.to_string_lossy().replace('\\', "/");
+        format!("/{relative_str}")
     } else {
         file.to_string()
     }

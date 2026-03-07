@@ -1,3 +1,5 @@
+use std::sync::LazyLock;
+
 use regex::Regex;
 
 use crate::secret::types::SecretPatternDef;
@@ -66,7 +68,7 @@ pub const SECRET_PATTERNS: [SecretPattern; 18] = [
     },
     SecretPattern {
         name: "Heroku API Key",
-        pattern: r#"[h|H]eroku[a-zA-Z0-9_-]*[:=]\s*['\"]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['\"]?"#,
+        pattern: r#"[hH]eroku[a-zA-Z0-9_-]*[:=]\s*['\"]?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['\"]?"#,
     },
     SecretPattern {
         name: "SendGrid API Key",
@@ -158,21 +160,23 @@ impl PatternMatcher {
     }
 
     pub fn looks_like_code(&self, value: &str) -> bool {
-        let patterns = [
-            r"^[a-z][a-zA-Z0-9]*\(",
-            r"^[a-z][a-zA-Z0-9]*\.[a-z]",
-            r"^https?:\/\/",
-            r"^[a-z]+:\/\/",
-            r"\.(js|ts|css|html|json|md|txt)$",
-            r"^[A-Z][A-Z0-9_]+$",
-            r"^[a-z][a-z0-9]*[A-Z]",
-            r"^[A-Z][a-z]+[A-Z]",
-        ];
-
-        patterns
+        static CODE_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
+            [
+                r"^[a-z][a-zA-Z0-9]*\(",
+                r"^[a-z][a-zA-Z0-9]*\.[a-z]",
+                r"^https?:\/\/",
+                r"^[a-z]+:\/\/",
+                r"\.(js|ts|css|html|json|md|txt)$",
+                r"^[A-Z][A-Z0-9_]+$",
+                r"^[a-z][a-z0-9]*[A-Z]",
+                r"^[A-Z][a-z]+[A-Z]",
+            ]
             .iter()
-            .filter_map(|pattern| Regex::new(pattern).ok())
-            .any(|pattern| pattern.is_match(value))
+            .filter_map(|p| Regex::new(p).ok())
+            .collect()
+        });
+
+        CODE_PATTERNS.iter().any(|pattern| pattern.is_match(value))
     }
 
     pub fn redact_secret(&self, value: &str) -> String {
