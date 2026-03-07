@@ -1,7 +1,7 @@
 use std::io;
 use std::process::Command;
 
-use crate::secret::patterns::{compile_secret_patterns, PatternMatcher};
+use crate::secret::patterns::{PatternMatcher, compile_secret_patterns};
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
 pub fn scan_git_history(

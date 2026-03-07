@@ -5,9 +5,10 @@ import { execFile } from 'node:child_process';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { VersionTracker } from './version-tracker.js';
 
-vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
-}));
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:child_process')>();
+  return { ...actual, execFile: vi.fn() };
+});
 
 afterEach(() => {
   vi.clearAllMocks();

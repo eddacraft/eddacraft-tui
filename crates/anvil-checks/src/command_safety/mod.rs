@@ -4,11 +4,11 @@ pub mod parser;
 pub mod rules;
 pub mod types;
 
-pub use check::{run_command_safety_check, CommandSafetyCheckContext};
+pub use check::{CommandSafetyCheckContext, run_command_safety_check};
 pub use matcher::{
-    analyse_command, calculate_specificity, find_matching_rule, MatcherContext, RuleMatcher,
+    MatcherContext, RuleMatcher, analyse_command, calculate_specificity, find_matching_rule,
 };
-pub use parser::{parse_command, parse_compound_command, CommandParser, CompoundCommandResult};
+pub use parser::{CommandParser, CompoundCommandResult, parse_command, parse_compound_command};
 pub use rules::{default_filesystem_rules, default_git_rules};
 pub use types::{
     CommandAction, CommandAnalysisResult, CommandAnalysisSummary, CommandArgConfig,

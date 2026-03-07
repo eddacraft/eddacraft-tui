@@ -599,7 +599,7 @@ impl CommandParser {
 
 #[cfg(test)]
 mod tests {
-    use crate::command_safety::parser::{parse_command, parse_compound_command, CommandParser};
+    use crate::command_safety::parser::{CommandParser, parse_command, parse_compound_command};
 
     #[test]
     fn parses_basic_tokens() {

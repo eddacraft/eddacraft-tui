@@ -206,7 +206,7 @@ impl PatternMatcher {
 
 #[cfg(test)]
 mod tests {
-    use super::{compile_secret_patterns, PatternMatcher, DEFAULT_ALLOWLIST, SECRET_PATTERNS};
+    use super::{DEFAULT_ALLOWLIST, PatternMatcher, SECRET_PATTERNS, compile_secret_patterns};
 
     #[test]
     fn matches_all_default_patterns_with_examples() {

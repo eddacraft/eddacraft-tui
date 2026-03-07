@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::command_safety::matcher::{find_matching_rule, MatcherContext};
+use crate::command_safety::matcher::{MatcherContext, find_matching_rule};
 use crate::command_safety::parser::CommandParser;
 use crate::command_safety::rules::{default_filesystem_rules, default_git_rules};
 use crate::command_safety::types::{
@@ -472,7 +472,7 @@ pub fn run_command_safety_check(context: &CommandSafetyCheckContext) -> CommandS
 
 #[cfg(test)]
 mod tests {
-    use crate::command_safety::check::{run_command_safety_check, CommandSafetyCheckContext};
+    use crate::command_safety::check::{CommandSafetyCheckContext, run_command_safety_check};
     use crate::command_safety::types::{
         CommandAction, CommandAnalysisSummary, CommandRuleOverride, CommandRuleOverrideAction,
         CommandRulesConfig, CommandSafetyConfig, ScriptChange, ScriptChangeType, ScriptPlan,

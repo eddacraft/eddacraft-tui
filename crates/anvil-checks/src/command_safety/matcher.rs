@@ -393,8 +393,8 @@ impl From<&CommandSafetyConfig> for MatcherContext {
 #[cfg(test)]
 mod tests {
     use crate::command_safety::matcher::{
-        analyse_command, calculate_specificity, find_matching_rule, is_home_path, is_root_path,
-        is_temp_path, MatcherContext,
+        MatcherContext, analyse_command, calculate_specificity, find_matching_rule, is_home_path,
+        is_root_path, is_temp_path,
     };
     use crate::command_safety::parser::parse_command;
     use crate::command_safety::types::{

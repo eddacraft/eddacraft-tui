@@ -44,7 +44,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Broad eslint-disable added",
         explanation: "Disabling all ESLint rules hides legitimate issues and makes code harder to maintain. This pattern indicates technical debt that should be addressed.",
         suggestion: "Disable specific rules with /* eslint-disable rule-name */ or fix the underlying issues.",
-        nudge: Some("Don't disable all linting rules. Identify which specific rule is failing and either fix the underlying issue or disable only that one rule with `/* eslint-disable specific-rule */`. Blanket disables hide real problems."),
+        nudge: Some(
+            "Don't disable all linting rules. Identify which specific rule is failing and either fix the underlying issue or disable only that one rule with `/* eslint-disable specific-rule */`. Blanket disables hide real problems.",
+        ),
         file_extensions: None,
         all_file_types: false,
         allowlist: NO_ALLOWLIST,
@@ -61,7 +63,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Rule-specific eslint-disable",
         explanation: "While better than disabling all rules, targeted disables still indicate code that violates linting standards. Consider if the disable is necessary or if the code can be improved.",
         suggestion: "Add a comment explaining why this rule needs to be disabled here.",
-        nudge: Some("Before disabling this rule, try to fix the code so it passes. If the disable is genuinely necessary, add a comment explaining why this specific case can't follow the rule."),
+        nudge: Some(
+            "Before disabling this rule, try to fix the code so it passes. If the disable is genuinely necessary, add a comment explaining why this specific case can't follow the rule.",
+        ),
         file_extensions: None,
         all_file_types: false,
         allowlist: NO_ALLOWLIST,
@@ -78,7 +82,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Explicit any type usage",
         explanation: "Using `any` defeats the purpose of TypeScript by disabling type checking. This can hide bugs and makes refactoring harder.",
         suggestion: "Use `unknown` for truly unknown types, or define a proper interface/type. For third-party libraries, consider using or creating type definitions.",
-        nudge: Some("Don't use `any` here. Think about what type this value actually holds and declare it explicitly. If it comes from an API, define an interface for the response shape. If the type is truly unknown, use `unknown` and narrow it with type guards before use."),
+        nudge: Some(
+            "Don't use `any` here. Think about what type this value actually holds and declare it explicitly. If it comes from an API, define an interface for the response shape. If the type is truly unknown, use `unknown` and narrow it with type guards before use.",
+        ),
         file_extensions: None,
         all_file_types: false,
         allowlist: AP003_ALLOWLIST,
@@ -95,7 +101,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "@ts-ignore suppresses all errors",
         explanation: "@ts-ignore suppresses ALL TypeScript errors on the next line, including legitimate issues. This can hide bugs introduced by code changes.",
         suggestion: "Use @ts-expect-error with a description instead, which fails if the expected error disappears. Better yet, fix the underlying type issue.",
-        nudge: Some("Don't suppress this TypeScript error - fix it. If you must suppress, use `@ts-expect-error` instead so it fails when the underlying issue is resolved. But first, read the actual error message and address the type mismatch directly."),
+        nudge: Some(
+            "Don't suppress this TypeScript error - fix it. If you must suppress, use `@ts-expect-error` instead so it fails when the underlying issue is resolved. But first, read the actual error message and address the type mismatch directly.",
+        ),
         file_extensions: None,
         all_file_types: false,
         allowlist: AP004_ALLOWLIST,
@@ -112,7 +120,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "@ts-expect-error used",
         explanation: "@ts-expect-error is safer than @ts-ignore as it fails when the error disappears. However, it still indicates intentional type system workarounds.",
         suggestion: "Consider if the underlying type issue can be fixed. If not, ensure the @ts-expect-error comment explains why.",
-        nudge: Some("This type error is being suppressed rather than fixed. Read the error message and resolve the type mismatch. If it is a genuine limitation of the type system, keep the `@ts-expect-error` but ensure the comment explains exactly why."),
+        nudge: Some(
+            "This type error is being suppressed rather than fixed. Read the error message and resolve the type mismatch. If it is a genuine limitation of the type system, keep the `@ts-expect-error` but ensure the comment explains exactly why.",
+        ),
         file_extensions: None,
         all_file_types: false,
         allowlist: AP004_ALLOWLIST,
@@ -129,7 +139,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Empty catch block swallows errors",
         explanation: "Empty catch blocks silently swallow errors, making debugging difficult. Errors should be logged, re-thrown, or explicitly handled.",
         suggestion: "At minimum, log the error for debugging. Consider if the error should be re-thrown or if specific recovery logic is needed.",
-        nudge: Some("Don't swallow this error silently. At minimum, log it so failures are visible. Better: decide whether this error is recoverable (handle it) or not (re-throw it). Silent catch blocks make debugging impossible."),
+        nudge: Some(
+            "Don't swallow this error silently. At minimum, log it so failures are visible. Better: decide whether this error is recoverable (handle it) or not (re-throw it). Silent catch blocks make debugging impossible.",
+        ),
         file_extensions: None,
         all_file_types: false,
         allowlist: NO_ALLOWLIST,
@@ -146,7 +158,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Console statement in production code",
         explanation: "Console statements should not appear in production code. They can leak sensitive information, clutter the console, and indicate incomplete debugging.",
         suggestion: "Use a proper logging library with log levels, or remove the console statement. console.error is acceptable for actual error conditions.",
-        nudge: Some("Remove this console statement or replace it with a proper logger that supports log levels. Console output in production leaks information and clutters output. If this is intentional debugging, wrap it in a development-only check."),
+        nudge: Some(
+            "Remove this console statement or replace it with a proper logger that supports log levels. Console output in production leaks information and clutters output. If this is intentional debugging, wrap it in a development-only check.",
+        ),
         file_extensions: None,
         all_file_types: false,
         allowlist: AP007_ALLOWLIST,
@@ -163,7 +177,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Inline style attribute found",
         explanation: "Inline styles mix presentation with structure, making CSS harder to maintain, override, and cache. They also increase HTML file size.",
         suggestion: "Move styles to an external CSS file or use CSS classes. For dynamic styles, use CSS custom properties or a CSS-in-JS solution.",
-        nudge: Some("Move this inline style to a CSS class. Inline styles can't be overridden by stylesheets, break consistency, and make maintenance harder. Define a class in your stylesheet and apply it instead."),
+        nudge: Some(
+            "Move this inline style to a CSS class. Inline styles can't be overridden by stylesheets, break consistency, and make maintenance harder. Define a class in your stylesheet and apply it instead.",
+        ),
         file_extensions: Some(HTML_EXTENSIONS),
         all_file_types: false,
         allowlist: EMAIL_ALLOWLIST,
@@ -180,7 +196,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Inline script block found",
         explanation: "Inline scripts bypass Content Security Policy (CSP), prevent browser caching, and make code harder to test and maintain.",
         suggestion: "Move JavaScript to external .js files referenced with <script src=\"...\">. This enables caching, CSP compliance, and better separation of concerns.",
-        nudge: Some("Move this script to an external `.js` file and reference it with `<script src=\"...\">`. Inline scripts cannot be cached, violate CSP policies, and make code harder to test."),
+        nudge: Some(
+            "Move this script to an external `.js` file and reference it with `<script src=\"...\">`. Inline scripts cannot be cached, violate CSP policies, and make code harder to test.",
+        ),
         file_extensions: Some(HTML_EXTENSIONS),
         all_file_types: false,
         allowlist: EMAIL_ALLOWLIST,
@@ -197,7 +215,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Inline event handler found",
         explanation: "Inline event handlers (onclick, onload, etc.) mix behaviour with HTML structure, bypass CSP, and make code harder to debug and maintain.",
         suggestion: "Use addEventListener() in external JavaScript files instead. For frameworks, use the framework event binding syntax.",
-        nudge: Some("Remove this inline event handler and use `addEventListener()` in an external script instead. Inline handlers mix behaviour with markup and are blocked by strict Content Security Policies."),
+        nudge: Some(
+            "Remove this inline event handler and use `addEventListener()` in an external script instead. Inline handlers mix behaviour with markup and are blocked by strict Content Security Policies.",
+        ),
         file_extensions: Some(HTML_EXTENSIONS),
         all_file_types: false,
         allowlist: EMAIL_ALLOWLIST,
@@ -214,7 +234,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "Deprecated HTML tag used",
         explanation: "Deprecated HTML tags like <font>, <center>, and <marquee> are obsolete. They may not render correctly in modern browsers and indicate outdated practices.",
         suggestion: "Replace deprecated tags with semantic HTML and CSS. For example, use CSS text-align instead of <center>, and CSS font properties instead of <font>.",
-        nudge: Some("Replace this deprecated HTML tag with its modern CSS equivalent. Use CSS for visual presentation instead of presentational HTML elements."),
+        nudge: Some(
+            "Replace this deprecated HTML tag with its modern CSS equivalent. Use CSS for visual presentation instead of presentational HTML elements.",
+        ),
         file_extensions: Some(HTML_EXTENSIONS),
         all_file_types: false,
         allowlist: EMAIL_ALLOWLIST,
@@ -231,7 +253,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "!important used in CSS",
         explanation: "Using !important overrides all other specificity rules, creating maintenance headaches. It often indicates specificity wars or architectural issues in CSS.",
         suggestion: "Increase selector specificity naturally, restructure CSS to avoid conflicts, or use CSS layers (@layer) for better cascade control.",
-        nudge: Some("Don't use `!important` - it breaks the cascade and makes styles nearly impossible to override. Instead, increase the specificity of your selector or restructure your CSS to avoid the conflict."),
+        nudge: Some(
+            "Don't use `!important` - it breaks the cascade and makes styles nearly impossible to override. Instead, increase the specificity of your selector or restructure your CSS to avoid the conflict.",
+        ),
         file_extensions: Some(CSS_EXTENSIONS),
         all_file_types: false,
         allowlist: AP012_ALLOWLIST,
@@ -248,7 +272,9 @@ const PATTERN_DEFS: &[PatternDef] = &[
         title: "CSS @import causes sequential loading",
         explanation: "CSS @import causes browsers to load stylesheets sequentially rather than in parallel, which increases page load time. Each @import blocks rendering until the imported file loads.",
         suggestion: "Use <link> tags in HTML for parallel loading, or use a CSS bundler (PostCSS, Sass, etc.) to inline imports at build time.",
-        nudge: Some("Replace this CSS `@import` with a `<link>` tag in your HTML. `@import` blocks parallel downloads and slows page load. Each `@import` creates a sequential request."),
+        nudge: Some(
+            "Replace this CSS `@import` with a `<link>` tag in your HTML. `@import` blocks parallel downloads and slows page load. Each `@import` creates a sequential request.",
+        ),
         file_extensions: Some(CSS_EXTENSIONS),
         all_file_types: false,
         allowlist: NO_ALLOWLIST,
@@ -329,8 +355,8 @@ pub const PATTERNS: usize = 13;
 #[cfg(test)]
 mod tests {
     use crate::antipattern::patterns::{
-        all_patterns, get_default_patterns, get_enabled_patterns, get_pattern, get_pattern_ids,
-        is_valid_pattern_id, PATTERNS,
+        PATTERNS, all_patterns, get_default_patterns, get_enabled_patterns, get_pattern,
+        get_pattern_ids, is_valid_pattern_id,
     };
 
     #[test]
@@ -378,10 +404,12 @@ mod tests {
 
         if let Some(pattern) = ap003 {
             assert!(pattern.allowlist.iter().any(|item| item == "*.d.ts"));
-            assert!(pattern
-                .allowlist
-                .iter()
-                .any(|item| item == "**/__tests__/**"));
+            assert!(
+                pattern
+                    .allowlist
+                    .iter()
+                    .any(|item| item == "**/__tests__/**")
+            );
         } else {
             panic!("AP-003 pattern missing");
         }

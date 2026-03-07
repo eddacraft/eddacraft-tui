@@ -2,10 +2,10 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::Path;
 
-use crate::antipattern::scanner::{scan_file, ScanOptions};
+use crate::antipattern::scanner::{ScanOptions, scan_file};
 use crate::antipattern::types::{
-    create_warning_result, AntipatternCheckConfig, AntipatternCheckResult, WarningResult,
-    WarningSeverity,
+    AntipatternCheckConfig, AntipatternCheckResult, WarningResult, WarningSeverity,
+    create_warning_result,
 };
 
 const ERROR_PENALTY: usize = 15;
@@ -297,16 +297,20 @@ mod tests {
         assert_eq!(result.files_scanned, 2);
         assert!(result.patterns_checked.contains(&"AP-001".to_string()));
         assert!(result.patterns_checked.contains(&"AP-013".to_string()));
-        assert!(result
-            .warnings
-            .warnings
-            .iter()
-            .any(|warning| warning.id == "AP-003"));
-        assert!(result
-            .warnings
-            .warnings
-            .iter()
-            .any(|warning| warning.id == "AP-008"));
+        assert!(
+            result
+                .warnings
+                .warnings
+                .iter()
+                .any(|warning| warning.id == "AP-003")
+        );
+        assert!(
+            result
+                .warnings
+                .warnings
+                .iter()
+                .any(|warning| warning.id == "AP-008")
+        );
 
         let _ = fs::remove_dir_all(temp_dir);
     }

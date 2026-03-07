@@ -2,8 +2,8 @@ use regex::Regex;
 
 use crate::antipattern::patterns::{get_default_patterns, get_enabled_patterns, get_pattern};
 use crate::antipattern::types::{
-    create_warning_fingerprint, AntiPattern, Location, Suppression, SuppressionScope, Warning,
-    WarningCategory,
+    AntiPattern, Location, Suppression, SuppressionScope, Warning, WarningCategory,
+    create_warning_fingerprint,
 };
 
 const LEGACY_JS_TS_EXTENSIONS: [&str; 6] = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
@@ -315,7 +315,7 @@ pub fn scan_files(files: &[(&str, &str)], options: Option<&ScanOptions>) -> Vec<
 
 #[cfg(test)]
 mod tests {
-    use crate::antipattern::scanner::{scan_file, ScanOptions};
+    use crate::antipattern::scanner::{ScanOptions, scan_file};
 
     #[test]
     fn scans_default_patterns_only() {

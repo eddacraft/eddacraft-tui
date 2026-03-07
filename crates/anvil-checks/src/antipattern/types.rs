@@ -215,9 +215,9 @@ pub fn validate_warning_result_consistency(result: &WarningResult) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::antipattern::types::{
-        count_by_severity, create_warning_fingerprint, create_warning_result,
-        validate_warning_result_consistency, Confidence, Location, Suppression, SuppressionScope,
-        Warning, WarningCategory, WarningSeverity,
+        Confidence, Location, Suppression, SuppressionScope, Warning, WarningCategory,
+        WarningSeverity, count_by_severity, create_warning_fingerprint, create_warning_result,
+        validate_warning_result_consistency,
     };
 
     fn sample_warning(

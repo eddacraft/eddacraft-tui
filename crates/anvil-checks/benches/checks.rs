@@ -1,12 +1,12 @@
 use std::time::Duration;
 
 use anvil_checks::antipattern::scanner::scan_file;
-use anvil_checks::command_safety::matcher::{find_matching_rule, MatcherContext};
+use anvil_checks::command_safety::matcher::{MatcherContext, find_matching_rule};
 use anvil_checks::command_safety::parser::CommandParser;
 use anvil_checks::command_safety::rules::{default_filesystem_rules, default_git_rules};
 use anvil_checks::secret::entropy::calculate_entropy;
-use anvil_checks::secret::{scan_content, SecretCheckConfig};
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use anvil_checks::secret::{SecretCheckConfig, scan_content};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 const SHORT_ENTROPY_STRING: &str = "A7f9K2mN4pQ8xR3s";
 const LONG_ENTROPY_STRING: &str =
@@ -43,7 +43,9 @@ fn base_typescript_line(index: usize) -> String {
         ),
         7 => format!("if (featureFlag{index}) {{ void readFileSync('package.json'); }}"),
         8 => format!("const route{index} = `/api/v1/resource/{index}`;"),
-        _ => format!("export function compute{index}(left: number, right: number): number {{ return left + right + {index}; }}"),
+        _ => format!(
+            "export function compute{index}(left: number, right: number): number {{ return left + right + {index}; }}"
+        ),
     }
 }
 

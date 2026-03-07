@@ -1,5 +1,5 @@
 use crate::secret::entropy::detect_high_entropy_strings;
-use crate::secret::patterns::{compile_secret_patterns, PatternMatcher};
+use crate::secret::patterns::{PatternMatcher, compile_secret_patterns};
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretFinding};
 
 pub fn scan_content(
@@ -72,12 +72,16 @@ mod tests {
         let findings = scan_content(content, "src/test.ts", &config);
 
         assert_eq!(findings.len(), 3);
-        assert!(findings
-            .iter()
-            .any(|f| f.finding_type == FindingType::Pattern));
-        assert!(findings
-            .iter()
-            .any(|f| f.finding_type == FindingType::Entropy));
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.finding_type == FindingType::Pattern)
+        );
+        assert!(
+            findings
+                .iter()
+                .any(|f| f.finding_type == FindingType::Entropy)
+        );
     }
 
     #[test]
