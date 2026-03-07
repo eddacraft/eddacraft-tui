@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 const savePlanMock = vi.fn();
 const getWorkspaceRootMock = vi.fn();
-const execFileSyncMock = vi.fn();
 
 const spinner = {
   text: '',
@@ -18,14 +17,6 @@ vi.mock('ora', () => ({
   default: vi.fn(() => spinner),
 }));
 
-vi.mock('node:child_process', async (importOriginal) => {
-  const original = await importOriginal<typeof import('node:child_process')>();
-  return {
-    ...original,
-    execFileSync: execFileSyncMock,
-  };
-});
-
 vi.mock('../utils/file-io.js', () => ({
   savePlan: savePlanMock,
   getWorkspaceRoot: getWorkspaceRootMock,
@@ -35,7 +26,6 @@ describe('plan command', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getWorkspaceRootMock.mockReturnValue('/tmp/workspace');
-    execFileSyncMock.mockReturnValue('main');
   });
 
   afterEach(() => {
