@@ -35,7 +35,7 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     const command = createMcpConfigCommand();
     await expect(
       command.parseAsync(['-t', 'cursor', '--port', '99999'], { from: 'user' })
-    ).rejects.toThrow('Invalid port');
+    ).rejects.toThrow('--port must be an integer between 1 and 65535');
   });
 
   it('prints config JSON to stdout without --write', async () => {
