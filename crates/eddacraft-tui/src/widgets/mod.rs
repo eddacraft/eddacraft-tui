@@ -1,4 +1,10 @@
+pub mod confirm;
+pub mod container;
+pub mod divider;
+pub mod header;
 pub mod progress_bar;
 pub mod select;
+pub mod spinner;
+pub mod status_badge;
 pub mod status_bar;
 pub mod text_input;

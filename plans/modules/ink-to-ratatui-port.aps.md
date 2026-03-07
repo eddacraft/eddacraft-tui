@@ -138,7 +138,7 @@ Change status to **Ready** when:
 
 ### PORT-001: Port shared layout and display components to eddacraft-tui
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Port Header, Container, Divider, Spinner, StatusBadge, and Confirm
   components to Ratatui equivalents in the `eddacraft-tui` crate
 - **Expected Outcome:** Shared component library covers all layout and feedback

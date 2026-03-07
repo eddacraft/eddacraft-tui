@@ -5,8 +5,14 @@ pub mod widgets;
 pub mod prelude {
     pub use crate::keyboard::{Action, KeyHandler};
     pub use crate::theme::{EddaCraftTheme, Theme};
+    pub use crate::widgets::confirm::{Confirm, ConfirmState};
+    pub use crate::widgets::container::{Container, ContainerVariant};
+    pub use crate::widgets::divider::{Divider, DividerVariant};
+    pub use crate::widgets::header::Header;
     pub use crate::widgets::progress_bar::{ProgressBar, ProgressBarState};
     pub use crate::widgets::select::{Select, SelectState};
+    pub use crate::widgets::spinner::{Spinner, SpinnerState};
+    pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
     pub use crate::widgets::status_bar::StatusBar;
     pub use crate::widgets::text_input::{TextInput, TextInputState};
 }
