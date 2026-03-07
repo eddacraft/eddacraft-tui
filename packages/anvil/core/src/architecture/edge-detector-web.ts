@@ -28,8 +28,14 @@ function extractAttr(tag: string, attr: string): string | null {
       start = idx + 1;
       continue;
     }
+    // Ensure attr is not a prefix of a longer attribute name (e.g. src vs srcFoo)
+    const nextChar = tag[idx + attr.length];
+    if (nextChar !== undefined && nextChar !== '=' && !/[ \t]/.test(nextChar)) {
+      start = idx + attr.length;
+      continue;
+    }
     const afterAttr = tag.substring(idx + attr.length);
-    const m = afterAttr.match(/=[ \t]*["']([^"']+)["']/);
+    const m = afterAttr.match(/^[ \t]*=[ \t]*["']([^"']+)["']/);
     return m ? m[1] : null;
   }
   return null;

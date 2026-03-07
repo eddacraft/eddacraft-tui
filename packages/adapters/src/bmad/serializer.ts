@@ -152,7 +152,9 @@ export function serializeToBMAD(plan: APSPlan): string {
       let title = story.description.replace(/^US-\d{2}:\s*/, '');
 
       // Check if description contains "As a... I want... so that..." pattern
-      const storyMatch = title.match(/\(As a ([^,]+), I want ([^,]+), so that ([^)]+)\)/);
+      const storyMatch = title.match(
+        /\(As a ((?:(?!, I want)[^)])+), I want ((?:(?!, so that)[^)])+), so that ([^)]+)\)/
+      );
 
       if (storyMatch) {
         const [, userType, action, benefit] = storyMatch;

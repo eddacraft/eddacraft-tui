@@ -179,7 +179,7 @@ export function extractRequirements(content: string): BMADRequirement[] {
     const trimmed = line.trim();
 
     // Match FR-01, NFR-01, US-01 patterns (optionally prefixed by list markers)
-    const reqMatch = trimmed.match(/^(?:[-*+][ \t]+)?(FR|NFR|US)-(\d{2}):[ \t]*(.+)$/);
+    const reqMatch = trimmed.match(/^(?:[-*+][ \t]+)?(FR|NFR|US)-(\d{2}):[ \t]*(\S.*)$/);
     if (reqMatch) {
       const [, typeStr, numStr, description] = reqMatch;
       requirements.push({
@@ -209,7 +209,7 @@ export function extractUserStories(content: string): BMADUserStory[] {
     const line = lines[i];
 
     // Match US-01: Title format
-    const storyMatch = line.trim().match(/^(?:[-*+][ \t]+)?(US-\d{2}):[ \t]*(.+)$/);
+    const storyMatch = line.trim().match(/^(?:[-*+][ \t]+)?(US-\d{2}):[ \t]*(\S.*)$/);
     if (!storyMatch) continue;
 
     const [, id, title] = storyMatch;
@@ -224,17 +224,17 @@ export function extractUserStories(content: string): BMADUserStory[] {
     while (j < lines.length && j < i + 10) {
       const storyLine = lines[j].trim();
 
-      const asMatch = storyLine.match(/^As an?[ \t]+(.+?)(?:,[ \t]*)?$/i);
+      const asMatch = storyLine.match(/^As an?[ \t]+(.+\S)[ \t]*,?$/i);
       if (asMatch) {
         story.userType = asMatch[1];
       }
 
-      const wantMatch = storyLine.match(/^I want[ \t]+(.+?)(?:,[ \t]*)?$/i);
+      const wantMatch = storyLine.match(/^I want[ \t]+(.+\S)[ \t]*,?$/i);
       if (wantMatch) {
         story.action = wantMatch[1];
       }
 
-      const soThatMatch = storyLine.match(/^so that[ \t]+(.+?)(?:\.[ \t]*)?$/i);
+      const soThatMatch = storyLine.match(/^so that[ \t]+(.+\S)[ \t]*\.?$/i);
       if (soThatMatch) {
         story.benefit = soThatMatch[1];
       }
@@ -392,9 +392,10 @@ export function analyzeContent(content: string, hint?: PathDetectionHint): Detec
       (r) => r.type === RequirementType.NON_FUNCTIONAL
     ),
     hasUserStories: requirements.some((r) => r.type === RequirementType.USER_STORY),
-    hasUserStoryFormat: /As an?\s+[^\n,]{1,200}[,\s]+I want\s+[^\n,]{1,200}[,\s]+so that/i.test(
-      content
-    ),
+    hasUserStoryFormat:
+      /As an?[ \t]+(?:(?![,\s]*I want)[^\n]){1,200}[,\s]+I want[ \t]+(?:(?![,\s]*so that)[^\n]){1,200}[,\s]+so that/i.test(
+        content
+      ),
     hasChangeLogTable: /\|\s*Date\s*\|\s*Version\s*\|\s*Description\s*\|\s*Author\s*\|/i.test(
       content
     ),
@@ -615,7 +616,7 @@ export function extractIntent(content: string, docType: BMADDocumentType): strin
   // Return first paragraph or first 2 sentences
   const intent = intentLines.join(' ').trim();
   if (intent) {
-    const sentences = intent.match(/[^.!?]*[.!?]+/g);
+    const sentences = intent.match(/[^.!?]+[.!?]+/g);
     if (sentences && sentences.length > 0) {
       return sentences.slice(0, 2).join(' ').trim();
     }

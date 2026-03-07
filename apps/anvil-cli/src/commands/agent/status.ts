@@ -41,7 +41,7 @@ export function createAgentStatusCommand(): Command {
             type: agent.type,
             name: agent.name,
             pid: agent.pid,
-            sessionId: agent.sessionId,
+            sessionId: maskSensitive(agent.sessionId),
           },
           registration: registration
             ? {

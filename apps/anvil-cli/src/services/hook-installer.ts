@@ -218,10 +218,14 @@ exit 0
     let markedContent: string;
     if (hookContent.startsWith('#!')) {
       const firstNewline = hookContent.indexOf('\n');
-      markedContent =
-        hookContent.slice(0, firstNewline) +
-        `\n${ANVIL_MARKER}\n` +
-        hookContent.slice(firstNewline + 1);
+      if (firstNewline === -1) {
+        markedContent = `${hookContent}\n${ANVIL_MARKER}\n`;
+      } else {
+        markedContent =
+          hookContent.slice(0, firstNewline) +
+          `\n${ANVIL_MARKER}\n` +
+          hookContent.slice(firstNewline + 1);
+      }
     } else {
       markedContent = `${ANVIL_MARKER}\n${hookContent}`;
     }
