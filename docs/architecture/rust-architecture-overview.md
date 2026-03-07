@@ -1,7 +1,8 @@
 # Proposed Rust Architecture — Full Overview
 
-> Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN, and supporting
-> architecture documents. This is a reference document — not a plan itself.
+> Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN, TUI (superseded),
+> and supporting architecture documents. This is a reference document — not a
+> plan itself.
 
 ## Executive Summary
 
@@ -408,7 +409,8 @@ These can start immediately without waiting for KERN:
 
 ## Known Issues and Open Questions
 
-From the rust-branches-review (2026-03-05):
+These items were originally captured in an internal "rust-branches-review" note
+dated 2026-03-05 (not included in this repository):
 
 ### Resolved by Plan Evolution
 
