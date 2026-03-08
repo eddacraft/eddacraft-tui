@@ -8,6 +8,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync, chmodSy
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDebugger } from '@eddacraft/anvil-core';
+import { debug } from '../utils/output.js';
 
 const log = createDebugger('service');
 
@@ -93,7 +94,7 @@ export class HookInstaller {
         return readFileSync(scriptPath, 'utf-8');
       }
     } catch {
-      // Fallback to embedded scripts if files not found
+      debug('getScriptContent: script file not found, falling back to embedded');
     }
 
     // Fallback embedded scripts (for when running from source without build)
@@ -215,9 +216,20 @@ exit 0
     }
 
     // Write hook file with Anvil marker (after shebang if present)
-    const markedContent = hookContent.startsWith('#!')
-      ? hookContent.replace('\n', `\n${ANVIL_MARKER}\n`)
-      : `${ANVIL_MARKER}\n${hookContent}`;
+    let markedContent: string;
+    if (hookContent.startsWith('#!')) {
+      const firstNewline = hookContent.indexOf('\n');
+      if (firstNewline === -1) {
+        markedContent = `${hookContent}\n${ANVIL_MARKER}\n`;
+      } else {
+        markedContent =
+          hookContent.slice(0, firstNewline) +
+          `\n${ANVIL_MARKER}\n` +
+          hookContent.slice(firstNewline + 1);
+      }
+    } else {
+      markedContent = `${ANVIL_MARKER}\n${hookContent}`;
+    }
     writeFileSync(hookPath, markedContent, { mode: 0o755 });
 
     // Make executable

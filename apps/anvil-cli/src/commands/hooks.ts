@@ -9,7 +9,7 @@ import { createDebugger } from '@eddacraft/anvil-core';
 import { existsSync, readFileSync, mkdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
-import { success, error, info } from '../utils/output.js';
+import { success, error, info, print, blank, data } from '../utils/output.js';
 import {
   HookInstaller,
   type HookInstallResult,
@@ -93,7 +93,7 @@ export function createHooksCommand(): Command {
 
           // Warn on Windows about limited shell hook support
           if (process.platform === 'win32') {
-            console.error(
+            print(
               chalk.yellow(
                 '\nWarning: Git hooks use POSIX shell scripts which require' +
                   '\na compatible shell (Git Bash, WSL, or MSYS2) on Windows.' +
@@ -127,12 +127,8 @@ export function createHooksCommand(): Command {
             spinner.text = 'Installing hooks in .husky directory...';
 
             if (!options.husky && husky.detected) {
-              console.error(
-                chalk.yellow('\n⚠️  Husky detected - installing hooks in .husky directory')
-              );
-              console.error(
-                chalk.gray('  Use --husky flag to explicitly enable Husky integration\n')
-              );
+              print(chalk.yellow('\n⚠️  Husky detected - installing hooks in .husky directory'));
+              print(chalk.gray('  Use --husky flag to explicitly enable Husky integration\n'));
             }
           } else {
             // Use standard .git/hooks directory
@@ -167,27 +163,27 @@ export function createHooksCommand(): Command {
           spinner.succeed('Git hooks installation complete');
 
           // Display results
-          console.error('');
+          blank();
           for (const { result } of results) {
             if (result.success) {
               if (result.action === 'created') {
-                console.error(chalk.green(`  ✓ ${result.message}`));
+                print(chalk.green(`  ✓ ${result.message}`));
               } else if (result.action === 'updated') {
-                console.error(chalk.blue(`  ↻ ${result.message}`));
+                print(chalk.blue(`  ↻ ${result.message}`));
               }
             } else {
-              console.error(chalk.yellow(`  ⚠ ${result.message}`));
+              print(chalk.yellow(`  ⚠ ${result.message}`));
             }
           }
 
           // Show usage info
-          console.error('');
+          blank();
           info('Hooks installed successfully');
-          console.error(chalk.gray('  pre-commit: Validates planning documents'));
-          console.error(chalk.gray('  pre-push: Runs quality gates'));
-          console.error('');
-          console.error(chalk.gray('To bypass hooks temporarily:'));
-          console.error(chalk.cyan('  ANVIL_SKIP_HOOKS=1 git push'));
+          print(chalk.gray('  pre-commit: Validates planning documents'));
+          print(chalk.gray('  pre-push: Runs quality gates'));
+          blank();
+          print(chalk.gray('To bypass hooks temporarily:'));
+          print(chalk.cyan('  ANVIL_SKIP_HOOKS=1 git push'));
         } catch (err) {
           if (err instanceof CliError) throw err;
           const msg = err instanceof Error ? err.message : 'Unknown error';
@@ -253,12 +249,12 @@ export function createHooksCommand(): Command {
         spinner.succeed('Git hooks removal complete');
 
         // Display results
-        console.error('');
+        blank();
         for (const { result } of results) {
           if (result.success) {
-            console.error(chalk.green(`  ✓ ${result.message}`));
+            print(chalk.green(`  ✓ ${result.message}`));
           } else {
-            console.error(chalk.yellow(`  ⚠ ${result.message}`));
+            print(chalk.yellow(`  ⚠ ${result.message}`));
           }
         }
 
@@ -321,36 +317,36 @@ export function createHooksCommand(): Command {
         const husky = detectHusky(workspaceRoot);
 
         if (options.json) {
-          console.log(JSON.stringify({ hooks, husky }, null, 2));
+          data(JSON.stringify({ hooks, husky }, null, 2));
           return;
         }
 
-        console.error(chalk.bold('\nAnvil Git Hooks Status\n'));
+        print(chalk.bold('\nAnvil Git Hooks Status\n'));
 
         for (const { dir, name, exists } of locations) {
           if (!exists) continue;
 
-          console.error(chalk.cyan(`${name}:`));
+          print(chalk.cyan(`${name}:`));
 
           for (const hookName of ['pre-commit', 'pre-push']) {
             const hookPath = join(dir, hookName);
 
             if (!existsSync(hookPath)) {
-              console.error(chalk.gray(`  ${hookName}: not installed`));
+              print(chalk.gray(`  ${hookName}: not installed`));
             } else if (hookInstaller.isAnvilManagedHook(hookPath)) {
-              console.error(chalk.green(`  ${hookName}: ✓ installed (Anvil-managed)`));
+              print(chalk.green(`  ${hookName}: ✓ installed (Anvil-managed)`));
             } else {
-              console.error(chalk.yellow(`  ${hookName}: ⚠ exists (not Anvil-managed)`));
+              print(chalk.yellow(`  ${hookName}: ⚠ exists (not Anvil-managed)`));
             }
           }
-          console.error('');
+          blank();
         }
 
         // Show Husky detection
         if (husky.detected) {
-          console.error(chalk.blue('ℹ Husky detected in this project'));
+          print(chalk.blue('ℹ Husky detected in this project'));
           if (husky.huskyDir) {
-            console.error(chalk.gray(`  Using: ${husky.huskyDir}`));
+            print(chalk.gray(`  Using: ${husky.huskyDir}`));
           }
         }
       } catch (err) {

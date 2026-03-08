@@ -5,9 +5,7 @@ import {
   MEMORY_SCHEMA_VERSION,
   PromoteProposalInputSchema,
   createMemoryId,
-  createObservationId,
   createPromotionInput,
-  createSessionId,
   expandProvenanceSummary,
 } from '../contracts/index.js';
 import type { CreateMemoryInput, IEmberPort } from '../contracts/ports/index.js';
@@ -66,8 +64,8 @@ export class PromotionService {
       confidence: this.config.min_ember_confidence,
       signals: [],
       provenance: {
-        observation_ids: [createObservationId(uuidv4())],
-        session_ids: [createSessionId(uuidv4())],
+        observation_ids: [input.proposal_id],
+        session_ids: [input.proposal_id],
         proposal_id: input.proposal_id,
         earliest_observation: toTimestamp(input.context.when),
         latest_observation: toTimestamp(input.context.when),

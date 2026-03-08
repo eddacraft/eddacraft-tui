@@ -72,6 +72,7 @@ export async function writeAuthorshipNote(
       ['notes', `--ref=${NOTES_REF}`, 'add', '-f', '-F', tempFile, '--', commitSha],
       {
         cwd: workspaceRoot,
+        timeout: 30_000,
       }
     );
 
@@ -110,6 +111,7 @@ export async function readAuthorshipNote(
       ['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha],
       {
         cwd: workspaceRoot,
+        timeout: 30_000,
       }
     );
 
@@ -131,6 +133,7 @@ export async function listAuthorshipNotes(workspaceRoot: string): Promise<string
   try {
     const { stdout } = await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'list'], {
       cwd: workspaceRoot,
+      timeout: 30_000,
     });
 
     // Format: <note-sha> <commit-sha>
@@ -164,6 +167,7 @@ export async function removeAuthorshipNote(
   try {
     await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'remove', '--', commitSha], {
       cwd: workspaceRoot,
+      timeout: 30_000,
     });
     debug(`Removed authorship note for commit ${commitSha.slice(0, 8)}`);
     return true;
@@ -199,6 +203,7 @@ export async function copyAuthorshipNote(
     // Resolve toSha to full 40-character SHA
     const { stdout } = await execFileAsync('git', ['rev-parse', '--', toSha], {
       cwd: workspaceRoot,
+      timeout: 30_000,
     });
     const resolvedSha = stdout.trim();
 
@@ -234,6 +239,7 @@ export async function pushAuthorshipNotes(remote: string, workspaceRoot: string)
   try {
     await execFileAsync('git', ['push', remote, NOTES_REF], {
       cwd: workspaceRoot,
+      timeout: 60_000,
     });
     debug(`Pushed authorship notes to ${remote}`);
   } catch (error) {
@@ -256,6 +262,7 @@ export async function fetchAuthorshipNotes(remote: string, workspaceRoot: string
   try {
     await execFileAsync('git', ['fetch', remote, `${NOTES_REF}:${NOTES_REF}`], {
       cwd: workspaceRoot,
+      timeout: 60_000,
     });
     debug(`Fetched authorship notes from ${remote}`);
   } catch (error) {
@@ -282,6 +289,7 @@ export async function hasAuthorshipNote(
   try {
     await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha], {
       cwd: workspaceRoot,
+      timeout: 30_000,
     });
     return true;
   } catch {
@@ -322,6 +330,7 @@ export async function getAuthorshipStats(
     // Get list of commits in range
     const { stdout } = await execFileAsync('git', ['rev-list', '--', range], {
       cwd: workspaceRoot,
+      timeout: 30_000,
     });
 
     const commits = stdout.trim().split('\n').filter(Boolean);

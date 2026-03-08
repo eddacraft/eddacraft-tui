@@ -11,7 +11,10 @@ import {
   type ProposalType,
 } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+import { blank, data, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { coercePositiveInt } from '../../utils/option-coerce.js';
+import { colourConfidence, colourStatus } from './utils.js';
 
 interface EmberListOptions {
   json?: boolean;
@@ -40,7 +43,7 @@ export function createEmberListCommand(): Command {
       if (!existsSync(dbPath)) {
         const message = `No Ember database found at ${dbPath}`;
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: message,
@@ -54,7 +57,7 @@ export function createEmberListCommand(): Command {
             )
           );
         } else {
-          console.error(chalk.yellow(message));
+          print(chalk.yellow(message));
         }
         throw new CliError(message);
       }
@@ -75,7 +78,7 @@ export function createEmberListCommand(): Command {
         });
 
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 database_found: true,
@@ -97,19 +100,19 @@ export function createEmberListCommand(): Command {
         }
 
         spinner?.stop();
-        console.error(chalk.bold('\nEmber Proposals'));
-        console.error(
+        print(chalk.bold('\nEmber Proposals'));
+        print(
           chalk.gray(
             `${result.total} found  |  status: ${parsedStatus}  |  type: ${parsedTypes.length > 0 ? parsedTypes.join(', ') : 'all'}`
           )
         );
-        console.error(chalk.gray('─'.repeat(124)));
-        console.error(
+        print(chalk.gray('─'.repeat(124)));
+        print(
           chalk.cyan(
             `  ${'ID'.padEnd(14)} ${'Type'.padEnd(11)} ${'Status'.padEnd(10)} ${'Confidence'.padEnd(12)} ${'Summary'.padEnd(34)} ${'Created'.padEnd(16)} ${'Expires'.padEnd(16)}`
           )
         );
-        console.error(chalk.gray('  ' + '─'.repeat(122)));
+        print(chalk.gray('  ' + '─'.repeat(122)));
 
         for (const proposal of result.proposals) {
           const id = truncate(proposal.id, 12).padEnd(14);
@@ -120,21 +123,21 @@ export function createEmberListCommand(): Command {
           const created = formatRelativeTime(proposal.created_at).padEnd(16);
           const expires = formatRelativeTime(proposal.expires_at).padEnd(16);
 
-          console.error(`  ${id} ${type} ${status} ${confidence} ${summary} ${created} ${expires}`);
+          print(`  ${id} ${type} ${status} ${confidence} ${summary} ${created} ${expires}`);
         }
 
         if (result.proposals.length === 0) {
-          console.error(chalk.gray('  No proposals match the current filters.'));
+          print(chalk.gray('  No proposals match the current filters.'));
         }
 
-        console.error('');
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) {
           throw err;
         }
 
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -145,9 +148,7 @@ export function createEmberListCommand(): Command {
           );
         } else {
           spinner?.fail(chalk.red('Failed to list Ember proposals'));
-          console.error(
-            chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-          );
+          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }
 
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
@@ -160,11 +161,7 @@ export function createEmberListCommand(): Command {
 }
 
 function parseLimit(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    throw new CliError('Limit must be a positive integer');
-  }
-  return parsed;
+  return coercePositiveInt(value, '--limit');
 }
 
 function parseTypes(value?: string): ProposalType[] {
@@ -185,32 +182,6 @@ function parseStatus(value: string): ProposalStatus {
     throw new CliError(`Invalid proposal status: ${value}`);
   }
   return parsed.data;
-}
-
-function colourConfidence(confidence: number): string {
-  const text = confidence.toFixed(2);
-  if (confidence > 0.7) {
-    return chalk.green(text);
-  }
-  if (confidence >= 0.4) {
-    return chalk.yellow(text);
-  }
-  return chalk.red(text);
-}
-
-function colourStatus(status: ProposalStatus): string {
-  switch (status) {
-    case 'active':
-      return chalk.cyan(status);
-    case 'promoted':
-      return chalk.green(status);
-    case 'dismissed':
-      return chalk.yellow(status);
-    case 'expired':
-      return chalk.red(status);
-    default:
-      return status;
-  }
 }
 
 function truncate(value: string, width: number): string {

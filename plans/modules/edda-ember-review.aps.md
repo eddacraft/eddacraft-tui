@@ -2,8 +2,8 @@
 APS Module: Edda-Ember Review Backlog
 ======================================
 Findings from the 2026-03-05 consolidated code review of the Edda + Ember
-feature branches (~85 files, ~13.3k lines). Critical issues are all resolved;
-this module tracks the remaining major and minor improvements.
+feature branches (~85 files, ~13.3k lines). All issues resolved via prior
+merges, hardening PRs, and targeted fixes.
 
 Scope: EERB (Edda-Ember Review Backlog)
 -->
@@ -12,7 +12,7 @@ Scope: EERB (Edda-Ember Review Backlog)
 
 | ID   | Owner | Status |
 | ---- | ----- | ------ |
-| EERB | —     | In Progress (0/16) |
+| EERB | —     | Complete (16/16) |
 
 ## Purpose
 
@@ -69,7 +69,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — SQLite WAL single-writer makes this safe; deferred for future backends
 - **Risks:** Low risk with SQLite WAL (single writer) but latent for concurrent
   backends
 - **Origin:** Review major #1
@@ -89,7 +89,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review major #2
 
 ---
@@ -107,7 +107,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Done — unified in hardening PR #489
 - **Origin:** Review major #3
 
 ---
@@ -125,7 +125,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Done — uses deterministic IDs derived from proposal ID
 - **Origin:** Review major #11
 
 ---
@@ -143,7 +143,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review major #4
 
 ---
@@ -159,7 +159,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review major #5
 
 ---
@@ -177,7 +177,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — extracted to `ember/utils.ts` in PR #497
 - **Origin:** Review major #13
 
 ---
@@ -194,9 +194,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
-- **Notes:** Already uses `this.deps.defaultMethod ?? 'cli_command'` — the dep
-  just needs to be passed at all call sites
+- **Status:** Done — already implemented via `deps.defaultMethod` fallback
 - **Origin:** Review major #12
 
 ---
@@ -215,7 +213,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review major #9
 
 ---
@@ -232,7 +230,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review major #10
 
 ---
@@ -245,7 +243,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
   linear-time grouping
 - **Files:** `packages/edda-stack/src/ember/candidate-service.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review minor #1
 
 ---
@@ -255,7 +253,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Intent:** Rename `getExpiringsSoon` to `getExpiringSoon`
 - **Files:** `packages/edda-stack/src/ember/proposal-store.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review minor #2
 
 ---
@@ -266,7 +264,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
   `UNEXPECTED_KIND_SIGNALS`
 - **Files:** `packages/edda-stack/src/ember/rules/surprise.rule.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — not a bug; `kind_custom` and `kind_metric_recorded` are valid signal names derived from ObservationKind
 - **Origin:** Review minor #3
 
 ---
@@ -277,7 +275,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
   than throwing on the first
 - **Files:** `packages/edda-stack/src/edda/evolution-service.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — won't-fix; internal construction calls where failures are exceptional
 - **Origin:** Review minor #9
 
 ---
@@ -287,7 +285,7 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
 - **Intent:** Replace manual type with `z.infer<typeof MemoryIndexEntrySchema>`
 - **Files:** `packages/edda-stack/src/edda/serialisation.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — fixed in hardening PR #489
 - **Origin:** Review minor #10
 
 ---
@@ -298,5 +296,5 @@ Review document: `plans/reviews/edda-ember-stack-review.md`
   pre-existing memory status values
 - **Files:** `packages/edda-stack/src/edda/migration/migrate.test.ts`
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Done — test already exists ('preserves existing status field during v0 to v1 migration')
 - **Origin:** Review minor #16

@@ -5,6 +5,13 @@ import {
   error,
   warning,
   data,
+  print,
+  blank,
+  json,
+  debug,
+  enableDebug,
+  resetDebug,
+  isDebugEnabled,
   formatGateResults,
   formatGateResultsJSON,
   formatValidationErrors,
@@ -74,13 +81,47 @@ describe('output utilities stream policy', () => {
     });
   });
 
+  describe('print() writes to stderr', () => {
+    it('writes formatted text to stderr', () => {
+      print('hello world');
+      expect(stderrSpy).toHaveBeenCalledWith('hello world');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+
+    it('passes multiple arguments to stderr', () => {
+      print('prefix', 'suffix');
+      expect(stderrSpy).toHaveBeenCalledWith('prefix', 'suffix');
+    });
+  });
+
+  describe('blank() writes empty line to stderr', () => {
+    it('writes empty string to stderr', () => {
+      blank();
+      expect(stderrSpy).toHaveBeenCalledWith('');
+      expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('json() writes to stdout', () => {
+    it('writes pretty-printed JSON to stdout', () => {
+      json({ key: 'value' });
+      expect(stdoutSpy).toHaveBeenCalledWith('{\n  "key": "value"\n}\n');
+      expect(stderrSpy).not.toHaveBeenCalled();
+    });
+
+    it('writes compact JSON when pretty=false', () => {
+      json({ key: 'value' }, false);
+      expect(stdoutSpy).toHaveBeenCalledWith('{"key":"value"}\n');
+    });
+  });
+
   describe('formatGateResultsJSON writes to stdout', () => {
-    it('outputs JSON via console.log', () => {
+    it('outputs JSON via stdout.write', () => {
       formatGateResultsJSON(MINIMAL_GATE_RESULT_WITH_CACHE);
-      expect(logSpy).toHaveBeenCalled();
+      expect(stdoutSpy).toHaveBeenCalled();
       expect(stderrSpy).not.toHaveBeenCalled();
 
-      const output = logSpy.mock.calls[0][0] as string;
+      const output = stdoutSpy.mock.calls[0][0] as string;
       const parsed = JSON.parse(output);
       expect(parsed.version).toBe('1.0.0');
       expect(parsed.overall).toBe(true);
@@ -109,6 +150,61 @@ describe('output utilities stream policy', () => {
       ]);
       expect(stderrSpy).toHaveBeenCalled();
       expect(logSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('debug() writes to stderr only when enabled', () => {
+    const originalEnv = process.env['ANVIL_DEBUG'];
+
+    afterEach(() => {
+      resetDebug();
+      if (originalEnv === undefined) {
+        delete process.env['ANVIL_DEBUG'];
+      } else {
+        process.env['ANVIL_DEBUG'] = originalEnv;
+      }
+    });
+
+    it('is silent by default', () => {
+      delete process.env['ANVIL_DEBUG'];
+      debug('should not appear');
+      expect(stderrSpy).not.toHaveBeenCalled();
+      expect(logSpy).not.toHaveBeenCalled();
+      expect(stdoutSpy).not.toHaveBeenCalled();
+    });
+
+    it('writes to stderr after enableDebug()', () => {
+      enableDebug();
+      debug('test message');
+      expect(stderrSpy).toHaveBeenCalled();
+      const call = stderrSpy.mock.calls[0];
+      expect(call.join(' ')).toContain('[debug]');
+      expect(call.join(' ')).toContain('test message');
+    });
+
+    it('writes to stderr when ANVIL_DEBUG=1', () => {
+      process.env['ANVIL_DEBUG'] = '1';
+      debug('env debug');
+      expect(stderrSpy).toHaveBeenCalled();
+      const call = stderrSpy.mock.calls[0];
+      expect(call.join(' ')).toContain('[debug]');
+    });
+
+    it('writes to stderr when ANVIL_DEBUG=true (case-insensitive)', () => {
+      process.env['ANVIL_DEBUG'] = 'True';
+      debug('env debug true');
+      expect(stderrSpy).toHaveBeenCalled();
+    });
+
+    it('isDebugEnabled() reflects env var state', () => {
+      delete process.env['ANVIL_DEBUG'];
+      const withoutEnv = isDebugEnabled();
+      process.env['ANVIL_DEBUG'] = '1';
+      expect(isDebugEnabled()).toBe(true);
+      process.env['ANVIL_DEBUG'] = '';
+      if (!withoutEnv) {
+        expect(isDebugEnabled()).toBe(withoutEnv);
+      }
     });
   });
 });

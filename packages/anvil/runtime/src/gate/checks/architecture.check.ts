@@ -29,7 +29,7 @@ import {
   type WarningResult,
   type WarningSeverity,
 } from '@eddacraft/anvil-core/antipattern';
-import { DependencyAnalyzer, type CruiserViolation } from './architecture/dependency-analyzer.js';
+import { DependencyAnalyser, type CruiserViolation } from './architecture/dependency-analyzer.js';
 import { CircularDetector } from './architecture/circular-detector.js';
 import { LayerValidator, type ArchitectureCheckConfig } from './architecture/layer-validator.js';
 
@@ -84,7 +84,7 @@ export class ArchitectureCheck extends BaseCheck {
   name = 'architecture';
   description = 'Validate architectural constraints using dependency-cruiser';
 
-  private analyzer = new DependencyAnalyzer();
+  private analyser = new DependencyAnalyser();
   private detector = new CircularDetector();
   private validator = new LayerValidator();
 
@@ -99,7 +99,7 @@ export class ArchitectureCheck extends BaseCheck {
 
     try {
       // Step 1: Load dependency-cruiser
-      const loadResult = await this.analyzer.loadCruiser();
+      const loadResult = await this.analyser.loadCruiser();
       if (!loadResult.success) {
         log('architecture check: dependency-cruiser not installed, skipping');
         return this.createSuccess(
@@ -115,7 +115,7 @@ export class ArchitectureCheck extends BaseCheck {
 
       // Step 2: Load dependency-cruiser config or use defaults
       const configPath = join(context.workspace_root, config.config_file);
-      let cruiseOptions: Record<string, unknown> | null = await this.analyzer.loadConfig(
+      let cruiseOptions: Record<string, unknown> | null = await this.analyser.loadConfig(
         context.workspace_root,
         config.config_file
       );
@@ -130,7 +130,7 @@ export class ArchitectureCheck extends BaseCheck {
         }
         log('architecture check: no config file found, using built-in defaults');
         // Use default rules for circular dependency and orphan detection
-        cruiseOptions = this.analyzer.getDefaultCruiseOptions();
+        cruiseOptions = this.analyser.getDefaultCruiseOptions();
       }
 
       // Step 3: Determine files to analyse
@@ -147,7 +147,7 @@ export class ArchitectureCheck extends BaseCheck {
       log(`architecture check: analysing ${filesToCruise.length} files/patterns`);
 
       // Step 4: Run dependency analysis
-      const analysisResult = await this.analyzer.analyze(filesToCruise, cruiseOptions);
+      const analysisResult = await this.analyser.analyze(filesToCruise, cruiseOptions);
 
       if (!analysisResult.success || !analysisResult.result) {
         if (analysisResult.skipped) {

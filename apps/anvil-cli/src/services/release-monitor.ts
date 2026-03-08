@@ -1,12 +1,14 @@
 import { execFileSync, spawn } from 'node:child_process';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
+import { print, debug } from '../utils/output.js';
 
 function ghAvailable(): boolean {
   try {
-    execFileSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe' });
+    execFileSync('gh', ['--version'], { encoding: 'utf8', stdio: 'pipe', timeout: 120_000 });
     return true;
   } catch {
+    debug('ghAvailable: gh CLI not found');
     return false;
   }
 }
@@ -36,7 +38,7 @@ function findTriggeredRun(
         '--json',
         'databaseId,status,name,event,headBranch',
       ],
-      { cwd: workspaceRoot, encoding: 'utf8', stdio: 'pipe' }
+      { cwd: workspaceRoot, encoding: 'utf8', stdio: 'pipe', timeout: 120_000 }
     );
     const runs = JSON.parse(output) as WorkflowRun[];
 
@@ -54,6 +56,7 @@ function findTriggeredRun(
 
     return null;
   } catch {
+    debug('findTriggeredRun: gh run list failed, returning null');
     return null;
   }
 }
@@ -68,37 +71,37 @@ export async function monitorWorkflow(
   execute: boolean
 ): Promise<number | undefined> {
   if (!execute) {
-    console.log(`  ${chalk.yellow('[DRY RUN]')} Would run:`);
-    console.log(chalk.dim(`    gh run list --repo EddaCraft/anvil-001 --limit 5`));
-    console.log(chalk.dim(`    gh run watch <run-id> --repo EddaCraft/anvil-001`));
+    print(`  ${chalk.yellow('[DRY RUN]')} Would run:`);
+    print(chalk.dim(`    gh run list --repo EddaCraft/anvil-001 --limit 5`));
+    print(chalk.dim(`    gh run watch <run-id> --repo EddaCraft/anvil-001`));
     return undefined;
   }
 
   if (!ghAvailable()) {
-    console.log(chalk.dim('  gh CLI not found — skipping workflow monitoring'));
-    console.log(chalk.dim('  Run manually: gh run list --repo EddaCraft/anvil-001 --limit 5'));
+    print(chalk.dim('  gh CLI not found — skipping workflow monitoring'));
+    print(chalk.dim('  Run manually: gh run list --repo EddaCraft/anvil-001 --limit 5'));
     return undefined;
   }
 
-  console.log(chalk.dim('  Waiting for workflow to start...'));
+  print(chalk.dim('  Waiting for workflow to start...'));
   await sleep(5000);
 
   const result = findTriggeredRun(workspaceRoot, tagName);
   if (!result) {
-    console.log(chalk.dim('  Could not find workflow run. Check manually:'));
-    console.log(chalk.dim('    gh run list --repo EddaCraft/anvil-001 --limit 5'));
+    print(chalk.dim('  Could not find workflow run. Check manually:'));
+    print(chalk.dim('    gh run list --repo EddaCraft/anvil-001 --limit 5'));
     return undefined;
   }
 
   const { run, exact } = result;
   if (!exact) {
-    console.log(
+    print(
       chalk.yellow(
         `  ⚠ Could not find a run matching tag ${tagName}; showing most recent Publish run`
       )
     );
   }
-  console.log(`  ${chalk.green('✓')} Found run #${run.databaseId}: ${run.name} (${run.status})`);
+  print(`  ${chalk.green('✓')} Found run #${run.databaseId}: ${run.name} (${run.status})`);
 
   const { watch } = await inquirer.prompt<{ watch: boolean }>([
     {
@@ -110,7 +113,7 @@ export async function monitorWorkflow(
   ]);
 
   if (watch) {
-    console.log(chalk.dim('  Streaming workflow output (Ctrl+C to stop watching)...\n'));
+    print(chalk.dim('  Streaming workflow output (Ctrl+C to stop watching)...\n'));
     await new Promise<void>((resolve) => {
       const child = spawn(
         'gh',

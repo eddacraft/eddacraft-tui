@@ -21,7 +21,7 @@ import {
   formatAsPrompt,
 } from '@eddacraft/anvil-runtime';
 import type { ExportOptions } from '../types/command-options.js';
-import { error as printError } from '../utils/output.js';
+import { error as printError, print } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
 
 export function createExportCommand(): Command {
@@ -52,9 +52,9 @@ export function createExportCommand(): Command {
         // Handle plan conversion (--to aps, json, yaml, speckit)
         if (!options.to) {
           printError('Either --format or --to must be specified');
-          console.log(chalk.gray('\nExamples:'));
-          console.log(chalk.gray('  Constraint export:'), 'anvil export --format llms.txt');
-          console.log(chalk.gray('  Plan conversion:  '), 'anvil export source.md --to json');
+          print(chalk.gray('\nExamples:'));
+          print(chalk.gray('  Constraint export:'), 'anvil export --format llms.txt');
+          print(chalk.gray('  Plan conversion:  '), 'anvil export source.md --to json');
           throw new CliError('Either --format or --to must be specified');
         }
 
@@ -126,12 +126,12 @@ export function createExportCommand(): Command {
             writeFileSync(outputPath, content, 'utf-8');
 
             spinner.succeed(chalk.green(`✓ Exported to ${chalk.cyan(targetFormat.toUpperCase())}`));
-            console.log(chalk.gray('  Output:'), chalk.cyan(outputPath));
-            console.log(chalk.gray('  Size:  '), chalk.cyan(`${content.length} bytes`));
+            print(chalk.gray('  Output:'), chalk.cyan(outputPath));
+            print(chalk.gray('  Size:  '), chalk.cyan(`${content.length} bytes`));
 
-            console.log(chalk.green('\n✓ Export complete'));
-            console.log(chalk.gray('\nNext steps:'));
-            console.log(chalk.gray('  - Validate:'), `anvil validate ${outputPath}`);
+            print(chalk.green('\n✓ Export complete'));
+            print(chalk.gray('\nNext steps:'));
+            print(chalk.gray('  - Validate:'), `anvil validate ${outputPath}`);
           } else if (targetFormat === 'speckit') {
             // Export to SpecKit
             const adapter = registry.getAdapter('speckit-export');
@@ -182,23 +182,23 @@ export function createExportCommand(): Command {
             }
 
             spinner.succeed(chalk.green(`✓ Exported to SpecKit format`));
-            console.log(chalk.gray('  Output directory:'), chalk.cyan(outputDir));
-            console.log(chalk.gray('  Files created:'));
+            print(chalk.gray('  Output directory:'), chalk.cyan(outputDir));
+            print(chalk.gray('  Files created:'));
             writtenPaths.forEach((path) => {
-              console.log(chalk.gray('    -'), chalk.cyan(basename(path)));
+              print(chalk.gray('    -'), chalk.cyan(basename(path)));
             });
 
             // Show warnings if any
             if (exportResult.warnings && exportResult.warnings.length > 0) {
-              console.log(chalk.yellow('\n⚠ Warnings:'));
+              print(chalk.yellow('\n⚠ Warnings:'));
               exportResult.warnings.forEach((warning: { message: string }) => {
-                console.log(chalk.yellow(`  - ${warning.message}`));
+                print(chalk.yellow(`  - ${warning.message}`));
               });
             }
 
-            console.log(chalk.green('\n✓ Export complete'));
-            console.log(chalk.gray('\nNext steps:'));
-            console.log(chalk.gray('  - Validate:'), `anvil validate ${writtenPaths[0]}`);
+            print(chalk.green('\n✓ Export complete'));
+            print(chalk.gray('\nNext steps:'));
+            print(chalk.gray('  - Validate:'), `anvil validate ${writtenPaths[0]}`);
           } else {
             throw new Error(`Unsupported target format: ${options.to}`);
           }
@@ -276,29 +276,29 @@ async function exportConstraints(
     writeFileSync(finalOutputPath, content, 'utf-8');
 
     spinner.succeed(chalk.green(`✓ Exported constraints as ${normalizedFormat}`));
-    console.log(chalk.gray('  Output:'), chalk.cyan(finalOutputPath));
-    console.log(chalk.gray('  Format:'), chalk.cyan(mimeType));
-    console.log(chalk.gray('  Size:  '), chalk.cyan(`${content.length} bytes`));
+    print(chalk.gray('  Output:'), chalk.cyan(finalOutputPath));
+    print(chalk.gray('  Format:'), chalk.cyan(mimeType));
+    print(chalk.gray('  Size:  '), chalk.cyan(`${content.length} bytes`));
 
     // Show constraint counts
-    console.log(chalk.gray('\n  Constraints exported:'));
+    print(chalk.gray('\n  Constraints exported:'));
     if (constraints.boundaries.length > 0) {
-      console.log(chalk.gray('    - Boundaries:   '), chalk.cyan(constraints.boundaries.length));
+      print(chalk.gray('    - Boundaries:   '), chalk.cyan(constraints.boundaries.length));
     }
     if (constraints.layers.length > 0) {
-      console.log(chalk.gray('    - Layers:       '), chalk.cyan(constraints.layers.length));
+      print(chalk.gray('    - Layers:       '), chalk.cyan(constraints.layers.length));
     }
     if (constraints.antiPatterns.length > 0) {
-      console.log(chalk.gray('    - Anti-patterns:'), chalk.cyan(constraints.antiPatterns.length));
+      print(chalk.gray('    - Anti-patterns:'), chalk.cyan(constraints.antiPatterns.length));
     }
     if (constraints.conventions.length > 0) {
-      console.log(chalk.gray('    - Conventions:  '), chalk.cyan(constraints.conventions.length));
+      print(chalk.gray('    - Conventions:  '), chalk.cyan(constraints.conventions.length));
     }
     if (constraints.suppressions.length > 0) {
-      console.log(chalk.gray('    - Suppressions: '), chalk.cyan(constraints.suppressions.length));
+      print(chalk.gray('    - Suppressions: '), chalk.cyan(constraints.suppressions.length));
     }
 
-    console.log(chalk.green('\n✓ Export complete'));
+    print(chalk.green('\n✓ Export complete'));
   } catch (err) {
     if (err instanceof CliError) throw err;
     spinner.fail(chalk.red('Export failed'));

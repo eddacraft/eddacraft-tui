@@ -99,16 +99,20 @@ describe('PromotionService', () => {
     expect(store.saveMemory).toHaveBeenCalledWith(memory);
   });
 
-  it('promotes without emberPort using synthetic provenance', async () => {
+  it('promotes without emberPort using deterministic provenance derived from proposal ID', async () => {
     const store = createStoreMock();
     const service = new PromotionService({ store });
 
-    const input = createPromotionInput(createProposalId('550e8400-e29b-41d4-a716-446655440099'));
+    const proposalId = createProposalId('550e8400-e29b-41d4-a716-446655440099');
+    const input = createPromotionInput(proposalId);
     const memory = await service.promoteProposal(input);
 
     expect(memory.status).toBe('active');
     expect(memory.provenance.kindling_sources.length).toBeGreaterThanOrEqual(1);
     expect(memory.provenance.source_sessions.length).toBeGreaterThanOrEqual(1);
+    // Offline provenance uses the proposal ID itself — no random UUIDs
+    expect(memory.provenance.kindling_sources[0].observation_id).toBe(proposalId);
+    expect(memory.provenance.source_sessions[0]).toBe(proposalId);
     expect(store.saveMemory).toHaveBeenCalledWith(memory);
   });
 

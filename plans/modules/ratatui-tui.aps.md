@@ -9,9 +9,9 @@ Scopes: RATS (main)
 
 # Ratatui TUI
 
-| ID   | Owner | Status |
-| ---- | ----- | ------ |
-| RATS | —     | Proposed |
+| ID   | Owner | Status      |
+| ---- | ----- | ----------- |
+| RATS | —     | In Progress |
 
 ## Purpose
 

@@ -8,6 +8,7 @@ import { renderTUIAndWait } from '../tui/utils/renderer.js';
 import { Tutorial } from '../tui/commands/tutorial/index.js';
 import { theme } from '../tui/utils/theme.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
+import { blank, print } from '../utils/output.js';
 import { TutorialProgressSchema } from '../tui/commands/tutorial/types.js';
 import type { TutorialProgress } from '../tui/commands/tutorial/types.js';
 import type { TutorialOption } from '../tui/commands/tutorial/components/TutorialPicker.js';
@@ -18,8 +19,8 @@ interface TutorialOptions {
 }
 
 function printTutorialTTYError(): never {
-  console.error(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
-  console.error(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
+  print(chalk.hex(theme.colours.molten)('Tutorial requires an interactive terminal.'));
+  print(chalk.hex(theme.colours.smoke)('Please run in a TTY environment.'));
 
   throw new CliError('Tutorial requires an interactive terminal');
 }
@@ -42,7 +43,7 @@ function loadProgress(workspaceRoot: string): TutorialProgress | null {
     const result = TutorialProgressSchema.safeParse(parsed);
 
     if (!result.success) {
-      console.warn(
+      print(
         chalk.hex(theme.colours.molten)(
           `${theme.icons.warning} Invalid tutorial progress format, starting fresh`
         )
@@ -52,7 +53,7 @@ function loadProgress(workspaceRoot: string): TutorialProgress | null {
 
     return result.data;
   } catch (err) {
-    console.warn(
+    print(
       chalk.hex(theme.colours.molten)(
         `${theme.icons.warning} Could not parse tutorial progress: ${err instanceof Error ? err.message : 'invalid JSON'}`
       )
@@ -179,9 +180,7 @@ async function renderTutorial(
     });
 
     if (cleanedUp) {
-      console.log(
-        chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial files cleaned up`)
-      );
+      print(chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial files cleaned up`));
     }
 
     return { nextTopic, cleanedUp, completed };
@@ -208,7 +207,7 @@ async function renderTutorial(
     });
 
     if (policyCleanedUp) {
-      console.log(
+      print(
         chalk.hex(theme.colours.steel)(`\n${theme.icons.success} Tutorial policy file cleaned up`)
       );
     }
@@ -283,25 +282,25 @@ export function createTutorialCommand(): Command {
     .option('--tui', 'Force TUI mode (default: auto-detect)')
     .action(async (topic: string | undefined, options: TutorialOptions & { list?: boolean }) => {
       if (options.list) {
-        console.log(chalk.hex(theme.colours.ember)('\nAvailable tutorials:\n'));
-        console.log(
+        print(chalk.hex(theme.colours.ember)('\nAvailable tutorials:\n'));
+        print(
           chalk.hex(theme.colours.text)('  anvil tutorial') +
             chalk.hex(theme.colours.smoke)('              Core tutorial (scan, watch, fix)')
         );
         for (const t of AVAILABLE_TUTORIALS) {
-          console.log(
+          print(
             chalk.hex(theme.colours.text)(`  anvil tutorial ${t.topic}`) +
               chalk.hex(theme.colours.smoke)(`${' '.repeat(14 - t.topic.length)}${t.description}`)
           );
         }
-        console.log();
+        blank();
         return;
       }
 
       if (topic && options.reset) {
         const validTopics = TUTORIAL_OPTIONS.map((t) => t.topic);
         if (!validTopics.includes(topic)) {
-          console.log(
+          print(
             chalk.hex(theme.colours.slag)(
               `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
             )
@@ -330,16 +329,14 @@ export function createTutorialCommand(): Command {
             });
           }
 
-          console.log(
-            chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`)
-          );
-          console.log(chalk.hex(theme.colours.smoke)('Run anvil tutorial to start fresh.'));
+          print(chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`));
+          print(chalk.hex(theme.colours.smoke)('Run anvil tutorial to start fresh.'));
           return;
         }
 
         if (topic === 'policies') {
           if (cleanupPolicyTutorialFile(workspaceRoot)) {
-            console.log(
+            print(
               chalk.hex(theme.colours.steel)(`${theme.icons.success} Removed tutorial policy file`)
             );
           }
@@ -355,10 +352,8 @@ export function createTutorialCommand(): Command {
         }
 
         // For architecture, drift, ci — no persistent files are created
-        console.log(
-          chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial '${topic}' reset`)
-        );
-        console.log(
+        print(chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial '${topic}' reset`));
+        print(
           chalk.hex(theme.colours.smoke)(
             `Run ${chalk.hex(theme.colours.text)(`anvil tutorial ${topic}`)} to start fresh.`
           )
@@ -372,10 +367,8 @@ export function createTutorialCommand(): Command {
 
         if (options.reset) {
           cleanupTutorialFiles(workspaceRoot);
-          console.log(
-            chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`)
-          );
-          console.log(chalk.hex(theme.colours.smoke)('Run anvil tutorial to start fresh.'));
+          print(chalk.hex(theme.colours.steel)(`${theme.icons.success} Tutorial progress reset`));
+          print(chalk.hex(theme.colours.smoke)('Run anvil tutorial to start fresh.'));
           return;
         }
       }
@@ -384,7 +377,7 @@ export function createTutorialCommand(): Command {
       if (topic) {
         const validTopics = TUTORIAL_OPTIONS.map((t) => t.topic);
         if (!validTopics.includes(topic)) {
-          console.log(
+          print(
             chalk.hex(theme.colours.slag)(
               `\nUnknown tutorial topic '${topic}'. Run ${chalk.hex(theme.colours.text)('anvil tutorial --list')} to see available tutorials.\n`
             )

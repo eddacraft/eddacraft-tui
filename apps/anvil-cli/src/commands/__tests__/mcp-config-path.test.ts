@@ -35,16 +35,16 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     const command = createMcpConfigCommand();
     await expect(
       command.parseAsync(['-t', 'cursor', '--port', '99999'], { from: 'user' })
-    ).rejects.toThrow('Invalid port');
+    ).rejects.toThrow('--port must be an integer between 1 and 65535');
   });
 
   it('prints config JSON to stdout without --write', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const command = createMcpConfigCommand();
     await command.parseAsync(['-t', 'cursor'], { from: 'user' });
 
-    const output = logSpy.mock.calls.map((c) => c[0]).join('\n');
+    const output = stdoutSpy.mock.calls.map((c) => String(c[0])).join('');
     const parsed = JSON.parse(output);
     expect(parsed.mcpServers).toBeDefined();
     expect(parsed.mcpServers.anvil).toBeDefined();
@@ -113,7 +113,7 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
   });
 
   it('bypasses outside-workspace check when --yes is passed', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Redirect HOME to a temp directory so the test never touches the real filesystem.
     // We write the config to the temp dir so --write succeeds without hitting the real HOME.
@@ -136,7 +136,7 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
       // windsurf writes to ~ which is outside workspace — --yes skips the prompt
       await command.parseAsync(['-t', 'windsurf', '--write', '--yes'], { from: 'user' });
 
-      const output = logSpy.mock.calls.map((c) => c[0]).join('\n');
+      const output = stderrSpy.mock.calls.map((c) => c[0]).join('\n');
       // Should succeed and attempt to write rather than throwing
       expect(output).toContain('Wrote');
     } finally {
@@ -156,19 +156,19 @@ describe('mcp-config --write outside-workspace check (M-6)', () => {
     const targets = ['claude-code', 'cursor', 'windsurf', 'vscode'] as const;
 
     for (const target of targets) {
-      const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      const stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
       const command = createMcpConfigCommand();
       await command.parseAsync(['-t', target], { from: 'user' });
 
-      const output = logSpy.mock.calls.map((c) => c[0]).join('\n');
+      const output = stdoutSpy.mock.calls.map((c) => String(c[0])).join('');
       const parsed = JSON.parse(output);
 
       const serverKey = target === 'vscode' ? 'servers' : 'mcpServers';
       expect(parsed[serverKey]).toBeDefined();
       expect(parsed[serverKey].anvil).toBeDefined();
 
-      logSpy.mockRestore();
+      stdoutSpy.mockRestore();
     }
   });
 });

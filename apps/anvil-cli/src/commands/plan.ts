@@ -14,6 +14,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
 import { CliError } from '../utils/cli-error.js';
+import { debug } from '../utils/output.js';
 import {
   APSPlan,
   generatePlanId,
@@ -25,6 +26,7 @@ import {
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { data, print } from '../utils/output.js';
 import {
   createValidateSubcommand,
   createLoadSubcommand,
@@ -41,8 +43,10 @@ function gitField(...args: string[]): string {
     return execFileSync('git', args, {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 30_000,
     }).trim();
   } catch {
+    debug('gitField: git command failed, returning empty string');
     return '';
   }
 }
@@ -108,7 +112,7 @@ function createCreateSubcommand(): Command {
 
           if (options.json) {
             spinner.stop();
-            console.log(JSON.stringify(completePlan, null, 2));
+            data(JSON.stringify(completePlan, null, 2));
             return;
           }
 
@@ -128,15 +132,15 @@ function createCreateSubcommand(): Command {
 
           log(`plan created: id=${planId} path=${outputPath}`);
           spinner.succeed(chalk.green(`✓ Plan created successfully`));
-          console.log(chalk.gray('  ID:     '), chalk.cyan(planId));
-          console.log(chalk.gray('  Hash:   '), chalk.cyan(hash.substring(0, 16) + '...'));
-          console.log(chalk.gray('  Path:   '), chalk.cyan(outputPath));
-          console.log(chalk.gray('  Intent: '), chalk.white(intent));
+          print(chalk.gray('  ID:     '), chalk.cyan(planId));
+          print(chalk.gray('  Hash:   '), chalk.cyan(hash.substring(0, 16) + '...'));
+          print(chalk.gray('  Path:   '), chalk.cyan(outputPath));
+          print(chalk.gray('  Intent: '), chalk.white(intent));
         } catch (error) {
           if (error instanceof CliError) throw error;
           spinner.fail(chalk.red('Failed to create plan'));
           const msg = error instanceof Error ? error.message : String(error);
-          console.error(chalk.red('Error:'), msg);
+          print(chalk.red('Error:'), msg);
           throw new CliError(msg);
         }
       }

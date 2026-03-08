@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { debug } from '../../../../utils/output.js';
 import { readJsonFileSync } from '../../../../utils/file-io.js';
 
 import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult, FixResult } from '../types.js';
@@ -62,6 +63,7 @@ export class HuskyInstalledCheck implements DiagnosticCheck {
       execFileSync('npx', ['husky', 'init'], {
         cwd: context.projectRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 60_000,
       });
       return {
         success: true,
@@ -101,6 +103,7 @@ export class PreCommitHookCheck implements DiagnosticCheck {
       const gitDir = path.resolve(projectRoot, match[1]);
       return fs.existsSync(gitDir) ? path.join(gitDir, 'hooks') : null;
     } catch {
+      debug('HooksCheck: failed to resolve git hooks dir, returning null');
       return null;
     }
   }

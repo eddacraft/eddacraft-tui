@@ -4,6 +4,7 @@ members = [
     "crates/spike",
     "crates/anvil-kernel-types",
     "crates/eddacraft-tui",
+    "crates/anvil-checks",
 ]
 
 [workspace.package]
@@ -37,6 +38,7 @@ tokio = { version = "1", features = ["full"] }
 
 # Testing
 insta = { version = "1", features = ["yaml"] }
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -489,7 +489,7 @@ export function containsSensitiveData(obs: Observation): {
   }
 
   // Email addresses (may be sensitive depending on context)
-  if (/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g.test(payloadStr)) {
+  if (/[a-zA-Z0-9._%+-]{1,64}@[a-zA-Z0-9]+(?:[.-][a-zA-Z0-9]+)*\.[a-zA-Z]{2,}/g.test(payloadStr)) {
     issues.push('Email addresses detected (may be sensitive)');
   }
 

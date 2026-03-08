@@ -15,7 +15,8 @@ import {
 } from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
-import { error, info } from '../utils/output.js';
+import { coercePositiveInt } from '../utils/option-coerce.js';
+import { error, info, print, blank, data } from '../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -95,17 +96,17 @@ async function handleSnapshot(options: SnapshotOptions): Promise<void> {
     if (spinner) spinner.succeed(`Snapshot saved: ${filePath}`);
 
     if (options.json) {
-      console.log(JSON.stringify(snapshot, null, 2));
+      data(JSON.stringify(snapshot, null, 2));
     } else {
-      console.log('');
-      console.log(chalk.bold('Metrics:'));
-      console.log(`  Boundary violations: ${snapshot.metrics.boundary_violations}`);
-      console.log(`  Anti-patterns:       ${snapshot.metrics.antipattern_count}`);
-      console.log(`  Suppressions:        ${snapshot.metrics.suppression_count}`);
-      console.log(`  Files analysed:      ${snapshot.metrics.files_analysed}`);
+      blank();
+      print(chalk.bold('Metrics:'));
+      print(`  Boundary violations: ${snapshot.metrics.boundary_violations}`);
+      print(`  Anti-patterns:       ${snapshot.metrics.antipattern_count}`);
+      print(`  Suppressions:        ${snapshot.metrics.suppression_count}`);
+      print(`  Files analysed:      ${snapshot.metrics.files_analysed}`);
 
       if (snapshot.name) {
-        console.log('');
+        blank();
         info(`Use 'anvil drift compare ${snapshot.name} <other>' to compare`);
       }
     }
@@ -147,7 +148,7 @@ async function handleCompare(
     if (spinner) spinner.succeed('Comparison complete');
 
     if (options.json) {
-      console.log(
+      data(
         JSON.stringify(
           {
             before: { name: before.name, created_at: before.created_at },
@@ -170,9 +171,9 @@ async function handleCompare(
         )
       );
     } else {
-      console.log('');
+      blank();
       const report = generateReport(comparison, { includeDetails: true });
-      console.log(formatReportAsText(report));
+      print(formatReportAsText(report));
     }
   } catch (err) {
     if (err instanceof CliError || err instanceof CliExit) throw err;
@@ -233,10 +234,10 @@ async function handleReport(options: ReportOptions): Promise<void> {
     if (spinner) spinner.succeed('Report generated');
 
     if (options.json) {
-      console.log(formatReportAsJson(report));
+      data(formatReportAsJson(report));
     } else {
-      console.log('');
-      console.log(formatReportAsText(report));
+      blank();
+      print(formatReportAsText(report));
     }
   } catch (err) {
     if (err instanceof CliError || err instanceof CliExit) throw err;
@@ -268,18 +269,18 @@ async function handleList(options: ListOptions): Promise<void> {
     }
 
     if (options.json) {
-      console.log(JSON.stringify(snapshots, null, 2));
+      data(JSON.stringify(snapshots, null, 2));
     } else {
-      console.log('');
-      console.log(chalk.bold('NAME'.padEnd(20) + ' DATE        METRICS'));
-      console.log(chalk.gray('-'.repeat(60)));
+      blank();
+      print(chalk.bold('NAME'.padEnd(20) + ' DATE        METRICS'));
+      print(chalk.gray('-'.repeat(60)));
 
       for (const meta of snapshots) {
-        console.log(formatMetadata(meta));
+        print(formatMetadata(meta));
       }
 
-      console.log('');
-      console.log(chalk.gray('V=violations, AP=anti-patterns, S=suppressions'));
+      blank();
+      print(chalk.gray('V=violations, AP=anti-patterns, S=suppressions'));
     }
   } catch (err) {
     if (err instanceof CliError || err instanceof CliExit) throw err;
@@ -319,7 +320,9 @@ export function createDriftCommand(): Command {
     .command('list')
     .description('List available snapshots')
     .option('--json', 'Output list as JSON')
-    .option('--limit <n>', 'Limit number of results', parseInt)
+    .option('--limit <n>', 'Limit number of results', (v: string) =>
+      coercePositiveInt(v, '--limit')
+    )
     .action(handleList);
 
   return command;

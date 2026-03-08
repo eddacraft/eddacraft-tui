@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { print, debug } from '../utils/output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -41,7 +42,7 @@ export interface SampleSelection {
 /**
  * Service for selecting representative files for initial analysis
  */
-export class SampleAnalyzer {
+export class SampleAnalyser {
   private readonly defaultConfig: SampleAnalysisConfig = {
     maxFiles: 50,
     daysBack: 30,
@@ -85,7 +86,7 @@ export class SampleAnalyzer {
         }
       } catch (error) {
         // Fall through to filesystem search
-        console.warn('Git-based file selection failed, falling back to filesystem', error);
+        print('Git-based file selection failed, falling back to filesystem', error);
       }
     }
 
@@ -107,9 +108,13 @@ export class SampleAnalyzer {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
+      await execFileAsync('git', ['rev-parse', '--git-dir'], {
+        cwd: this.projectRoot,
+        timeout: 30_000,
+      });
       return true;
     } catch {
+      debug('isGitAvailable: git rev-parse failed, git not available');
       return false;
     }
   }
@@ -127,6 +132,7 @@ export class SampleAnalyzer {
         {
           cwd: this.projectRoot,
           maxBuffer: 10 * 1024 * 1024,
+          timeout: 30_000,
         }
       );
 
@@ -145,7 +151,7 @@ export class SampleAnalyzer {
 
       return existingFiles;
     } catch (error) {
-      throw new Error(`Failed to get git history: ${error}`);
+      throw new Error(`Failed to get git history: ${error}`, { cause: error });
     }
   }
 
@@ -170,6 +176,7 @@ export class SampleAnalyzer {
         const stats = statSync(fullPath);
         return { file, mtime: stats.mtime.getTime() };
       } catch {
+        debug('selectFiles: statSync failed, using mtime 0');
         return { file, mtime: 0 };
       }
     });
@@ -213,11 +220,11 @@ export class SampleAnalyzer {
             }
           }
         } catch {
-          // Skip files we can't stat
+          debug('findFilesRecursive: statSync failed, skipping entry');
         }
       }
     } catch {
-      // Skip directories we can't read
+      debug('findFilesRecursive: readdirSync failed, skipping directory');
     }
   }
 
@@ -277,7 +284,7 @@ export class SampleAnalyzer {
         const gitFiles = await this.getRecentlyChangedFiles(fullConfig);
         recentFiles = gitFiles.length;
       } catch {
-        // Ignore errors
+        debug('summarise: failed to get recent git files, continuing');
       }
     }
 

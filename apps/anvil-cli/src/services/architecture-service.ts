@@ -16,6 +16,7 @@ import {
   type Layers,
   type Layer,
 } from '@eddacraft/anvil-core';
+import { print } from '../utils/output.js';
 
 /**
  * Architecture analysis summary for display
@@ -64,7 +65,7 @@ function collectSourceFiles(
     }
   } catch (error) {
     // Log directory access errors to stderr for debugging
-    console.error(`[ArchitectureService] Failed to read directory ${dir}:`, error);
+    print(`[ArchitectureService] Failed to read directory ${dir}:`, error);
   }
 
   return files;
@@ -79,9 +80,9 @@ export async function analyseProjectArchitecture(
   // Collect source files
   const sourceFiles = collectSourceFiles(projectRoot, projectRoot);
 
-  // Create analyzer and run analysis
-  const analyzer = createArchitectureAnalyzer(projectRoot);
-  const result = await analyzer.analyse(sourceFiles);
+  // Create analyser and run analysis
+  const analyser = createArchitectureAnalyzer(projectRoot);
+  const result = await analyser.analyse(sourceFiles);
 
   // Group files by layer (result.assignments is LayerAssignment[])
   const layerAssignments = new Map<string, string[]>();

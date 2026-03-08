@@ -98,20 +98,24 @@ function extractSuppressionComment(line: string): { comment: string; column: num
     };
   }
 
-  const blockMatch = line.match(/\/\*\*?\s*(@anvil-ignore[^*]*)\s*\*\//);
+  const blockMatch = line.match(/\/\*\*?[ \t]*(@anvil-ignore[^*]*)\*\//);
   if (blockMatch) {
     return {
-      comment: blockMatch[1],
+      comment: blockMatch[1].trimEnd(),
       column: line.indexOf('/*'),
     };
   }
 
-  const htmlMatch = line.match(/<!--\s*(@anvil-ignore.*?)\s*-->/);
-  if (htmlMatch) {
-    return {
-      comment: htmlMatch[1],
-      column: line.indexOf('<!--'),
-    };
+  const htmlStart = line.indexOf('<!--');
+  const htmlEnd = line.indexOf('-->', htmlStart + 4);
+  if (htmlStart !== -1 && htmlEnd !== -1) {
+    const inner = line.substring(htmlStart + 4, htmlEnd).trim();
+    if (inner.startsWith('@anvil-ignore')) {
+      return {
+        comment: inner,
+        column: htmlStart,
+      };
+    }
   }
 
   return null;

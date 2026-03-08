@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { z } from 'zod';
 import { adminInvite, adminRevoke } from '../services/admin-client.js';
-import { success, error, info } from '../utils/output.js';
+import { success, error, info, blank, print } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
+import { coercePositiveInt } from '../utils/option-coerce.js';
 
 const emailSchema = z.string().email();
 
@@ -20,11 +21,7 @@ export function createBetaCommand(): Command {
     .option('--name <name>', 'User display name')
     .option('--notes <notes>', 'Internal notes about this user')
     .action(async (options: { email: string; days: string; name?: string; notes?: string }) => {
-      const days = parseInt(options.days, 10);
-      if (Number.isNaN(days) || days <= 0) {
-        error('--days must be a positive integer');
-        throw new CliError('--days must be a positive integer');
-      }
+      const days = coercePositiveInt(options.days, '--days');
 
       if (!emailSchema.safeParse(options.email).success) {
         error('--email must be a valid email address');
@@ -40,15 +37,15 @@ export function createBetaCommand(): Command {
         });
 
         success('Beta access token created');
-        console.log('');
-        console.log(`  ${chalk.bold('User:')}     ${result.user.email}`);
-        console.log(`  ${chalk.bold('Scopes:')}   ${result.scopes.join(', ')}`);
-        console.log(`  ${chalk.bold('Expires:')}  ${new Date(result.expiresAt).toLocaleString()}`);
-        console.log('');
-        console.log(chalk.yellow('  Token (share with user — shown only once):'));
-        console.log('');
-        console.log(`  ${chalk.cyan(result.token)}`);
-        console.log('');
+        blank();
+        print(`  ${chalk.bold('User:')}     ${result.user.email}`);
+        print(`  ${chalk.bold('Scopes:')}   ${result.scopes.join(', ')}`);
+        print(`  ${chalk.bold('Expires:')}  ${new Date(result.expiresAt).toLocaleString()}`);
+        blank();
+        print(chalk.yellow('  Token (share with user — shown only once):'));
+        blank();
+        print(`  ${chalk.cyan(result.token)}`);
+        blank();
       } catch (err) {
         error(err instanceof Error ? err.message : 'Failed to create invite');
         throw new CliError('Failed to create invite');

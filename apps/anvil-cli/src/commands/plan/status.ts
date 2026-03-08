@@ -8,6 +8,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, formatTaskStatus, type TaskStatusInfo } from '@eddacraft/anvil-aps';
+import { blank, data, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 export interface StatusOptions {
@@ -34,14 +35,14 @@ function formatAsJson(statuses: TaskStatusInfo[], summary: Record<string, number
  * Format summary for human display
  */
 function formatSummaryDisplay(summary: Record<string, number>): void {
-  console.log('');
-  console.log(chalk.bold.underline('Summary'));
-  console.log(`  ${chalk.green('●')} Open:      ${summary.open}`);
-  console.log(`  ${chalk.yellow('●')} Locked:    ${summary.locked}`);
-  console.log(`  ${chalk.blue('●')} Completed: ${summary.completed}`);
-  console.log(`  ${chalk.gray('●')} Cancelled: ${summary.cancelled}`);
-  console.log('');
-  console.log(
+  blank();
+  print(chalk.bold.underline('Summary'));
+  print(`  ${chalk.green('●')} Open:      ${summary.open}`);
+  print(`  ${chalk.yellow('●')} Locked:    ${summary.locked}`);
+  print(`  ${chalk.blue('●')} Completed: ${summary.completed}`);
+  print(`  ${chalk.gray('●')} Cancelled: ${summary.cancelled}`);
+  blank();
+  print(
     chalk.bold('Total:'),
     summary.open + summary.locked + summary.completed + summary.cancelled
   );
@@ -51,12 +52,12 @@ function formatSummaryDisplay(summary: Record<string, number>): void {
  * Format all statuses for human display
  */
 function formatStatusDisplay(statuses: TaskStatusInfo[]): void {
-  console.log('');
-  console.log(chalk.bold.underline('Task Status'));
-  console.log('');
+  blank();
+  print(chalk.bold.underline('Task Status'));
+  blank();
 
   if (statuses.length === 0) {
-    console.log(chalk.gray('  (no tasks found)'));
+    print(chalk.gray('  (no tasks found)'));
     return;
   }
 
@@ -70,55 +71,55 @@ function formatStatusDisplay(statuses: TaskStatusInfo[]): void {
 
   // Show locked tasks first (in progress)
   if (byStatus.locked.length > 0) {
-    console.log(chalk.yellow.bold('Locked (In Progress)'));
+    print(chalk.yellow.bold('Locked (In Progress)'));
     for (const task of byStatus.locked) {
-      console.log(`  ${chalk.yellow('●')} ${chalk.cyan(task.taskId)}`);
+      print(`  ${chalk.yellow('●')} ${chalk.cyan(task.taskId)}`);
       if (task.lockedBy) {
-        console.log(chalk.gray(`      Locked by ${task.lockedBy} at ${task.lockedAt}`));
+        print(chalk.gray(`      Locked by ${task.lockedBy} at ${task.lockedAt}`));
       }
       if (task.source) {
         const loc = task.source.line ? `${task.source.file}:${task.source.line}` : task.source.file;
-        console.log(chalk.gray(`      Source: ${loc}`));
+        print(chalk.gray(`      Source: ${loc}`));
       }
     }
-    console.log('');
+    blank();
   }
 
   // Show open tasks
   if (byStatus.open.length > 0) {
-    console.log(chalk.green.bold('Open'));
+    print(chalk.green.bold('Open'));
     for (const task of byStatus.open) {
-      console.log(`  ${chalk.green('●')} ${chalk.cyan(task.taskId)}`);
+      print(`  ${chalk.green('●')} ${chalk.cyan(task.taskId)}`);
       if (task.source) {
         const loc = task.source.line ? `${task.source.file}:${task.source.line}` : task.source.file;
-        console.log(chalk.gray(`      Source: ${loc}`));
+        print(chalk.gray(`      Source: ${loc}`));
       }
     }
-    console.log('');
+    blank();
   }
 
   // Show completed tasks
   if (byStatus.completed.length > 0) {
-    console.log(chalk.blue.bold('Completed'));
+    print(chalk.blue.bold('Completed'));
     for (const task of byStatus.completed) {
-      console.log(`  ${chalk.blue('●')} ${chalk.cyan(task.taskId)}`);
+      print(`  ${chalk.blue('●')} ${chalk.cyan(task.taskId)}`);
       if (task.completedAt) {
-        console.log(chalk.gray(`      Completed: ${task.completedAt}`));
+        print(chalk.gray(`      Completed: ${task.completedAt}`));
       }
     }
-    console.log('');
+    blank();
   }
 
   // Show cancelled tasks
   if (byStatus.cancelled.length > 0) {
-    console.log(chalk.gray.bold('Cancelled'));
+    print(chalk.gray.bold('Cancelled'));
     for (const task of byStatus.cancelled) {
-      console.log(`  ${chalk.gray('●')} ${chalk.gray(task.taskId)}`);
+      print(`  ${chalk.gray('●')} ${chalk.gray(task.taskId)}`);
       if (task.cancelledAt) {
-        console.log(chalk.gray(`      Cancelled: ${task.cancelledAt}`));
+        print(chalk.gray(`      Cancelled: ${task.cancelledAt}`));
       }
     }
-    console.log('');
+    blank();
   }
 }
 
@@ -146,20 +147,20 @@ export function createStatusSubcommand(): Command {
             // Single task status
             const status = await locker.getStatus(taskId);
             if (status) {
-              console.log(JSON.stringify(status, null, 2));
+              data(JSON.stringify(status, null, 2));
             } else {
-              console.log(JSON.stringify({ error: `Task ${taskId} not found` }, null, 2));
+              data(JSON.stringify({ error: `Task ${taskId} not found` }, null, 2));
               throw new CliError(`Task ${taskId} not found`);
             }
           } else {
             // All tasks
             const statuses = await locker.getAllStatus();
             const summary = await locker.getStatusSummary();
-            console.log(formatAsJson(statuses, summary));
+            data(formatAsJson(statuses, summary));
           }
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: error instanceof Error ? error.message : String(error),
@@ -187,10 +188,10 @@ export function createStatusSubcommand(): Command {
             spinner.stop();
 
             if (status) {
-              console.log('');
-              console.log(formatTaskStatus(status));
+              blank();
+              print(formatTaskStatus(status));
             } else {
-              console.log(chalk.red(`Task ${taskId} not found`));
+              print(chalk.red(`Task ${taskId} not found`));
               throw new CliError(`Task ${taskId} not found`);
             }
           } else {
@@ -210,10 +211,7 @@ export function createStatusSubcommand(): Command {
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
           spinner.fail(chalk.red('Failed to load status'));
-          console.error(
-            chalk.red('Error:'),
-            error instanceof Error ? error.message : String(error)
-          );
+          print(chalk.red('Error:'), error instanceof Error ? error.message : String(error));
           throw new CliError(error instanceof Error ? error.message : 'Failed to load status');
         }
       }

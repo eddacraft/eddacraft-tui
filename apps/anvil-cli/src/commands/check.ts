@@ -20,7 +20,7 @@ import {
 import { CliError, CliExit } from '../utils/cli-error.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
-import { success, error, info } from '../utils/output.js';
+import { success, error, info, print, blank, data } from '../utils/output.js';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
 import {
   emitSessionStart,
@@ -101,16 +101,16 @@ export async function promptForWarning(
 ): Promise<InteractiveAction> {
   const icon = w.severity === 'error' ? '✗' : w.severity === 'warning' ? '⚠' : 'ℹ';
 
-  console.error('');
-  console.error(chalk.bold(`  ${icon} [${w.id}] ${w.title}`));
-  console.error(chalk.gray(`    ${w.location.file}:${w.location.line}`));
-  console.error(`    ${w.message}`);
+  blank();
+  print(chalk.bold(`  ${icon} [${w.id}] ${w.title}`));
+  print(chalk.gray(`    ${w.location.file}:${w.location.line}`));
+  print(`    ${w.message}`);
 
   if (showNudge && w.nudge) {
-    console.error(chalk.green(`\n    → ${w.nudge}`));
+    print(chalk.green(`\n    → ${w.nudge}`));
   }
 
-  console.error('');
+  blank();
 
   const choices: Array<{ name: string; value: InteractiveAction }> = [
     { name: '[s]kip — move to next warning', value: 'skip' },
@@ -165,26 +165,26 @@ export async function runInteractiveReview(
     return results;
   }
 
-  console.error(chalk.bold(`\n🔍 Interactive review: ${reviewable.length} warning(s) to review\n`));
+  print(chalk.bold(`\n🔍 Interactive review: ${reviewable.length} warning(s) to review\n`));
 
   for (let i = 0; i < reviewable.length; i++) {
     const w = reviewable[i];
-    console.error(chalk.gray(`  [${i + 1}/${reviewable.length}]`));
+    print(chalk.gray(`  [${i + 1}/${reviewable.length}]`));
 
     const action = await promptForWarning(w, askFn, showNudge);
     results.push({ warning: w, action });
 
     if (action === 'quit') {
-      console.error(chalk.gray('\n  Review stopped.'));
+      print(chalk.gray('\n  Review stopped.'));
       break;
     }
 
     if (action === 'fix') {
-      console.error(chalk.cyan(`    ℹ Fix for ${w.id} noted — apply fixes after review.`));
+      print(chalk.cyan(`    ℹ Fix for ${w.id} noted — apply fixes after review.`));
     }
 
     if (action === 'suppress') {
-      console.error(
+      print(
         chalk.yellow(
           `    ℹ Add \`// @anvil-ignore ${w.id}: <reason>\` above line ${w.location.line} in ${w.location.file}`
         )
@@ -197,11 +197,11 @@ export async function runInteractiveReview(
   const fixed = results.filter((r) => r.action === 'fix').length;
   const suppressed = results.filter((r) => r.action === 'suppress').length;
 
-  console.error(chalk.bold('\n  Review summary:'));
-  if (skipped > 0) console.error(`    Skipped: ${skipped}`);
-  if (fixed > 0) console.error(`    To fix: ${fixed}`);
-  if (suppressed > 0) console.error(`    To suppress: ${suppressed}`);
-  console.error('');
+  print(chalk.bold('\n  Review summary:'));
+  if (skipped > 0) print(`    Skipped: ${skipped}`);
+  if (fixed > 0) print(`    To fix: ${fixed}`);
+  if (suppressed > 0) print(`    To suppress: ${suppressed}`);
+  blank();
 
   return results;
 }
@@ -215,9 +215,9 @@ function formatWarning(w: Warning, verbose: boolean, nudgeConfig: NudgeConfig): 
   const colorFn = severityColors[w.severity] ?? chalk.white;
   const icon = w.severity === 'error' ? '✗' : w.severity === 'warning' ? '⚠' : 'ℹ';
 
-  console.error(colorFn(`  ${icon} [${w.id}] ${w.title}`));
-  console.error(chalk.gray(`    ${w.location.file}:${w.location.line}`));
-  console.error(`    ${w.message}`);
+  print(colorFn(`  ${icon} [${w.id}] ${w.title}`));
+  print(chalk.gray(`    ${w.location.file}:${w.location.line}`));
+  print(`    ${w.message}`);
 
   if (verbose) {
     if (
@@ -225,12 +225,12 @@ function formatWarning(w: Warning, verbose: boolean, nudgeConfig: NudgeConfig): 
       nudgeConfig.enabled &&
       meetsNudgeThreshold(w.severity, nudgeConfig.severityThreshold)
     ) {
-      console.error(chalk.green(`    → ${w.nudge}`));
+      print(chalk.green(`    → ${w.nudge}`));
     }
-    console.error(chalk.gray(`    Why: ${w.explanation}`));
-    console.error(chalk.cyan(`    Fix: ${w.suggestion}`));
+    print(chalk.gray(`    Why: ${w.explanation}`));
+    print(chalk.cyan(`    Fix: ${w.suggestion}`));
   }
-  console.error('');
+  blank();
 }
 
 function formatResultsJSON(files: string[], result: AnalyzeResult): void {
@@ -256,7 +256,7 @@ function formatResultsJSON(files: string[], result: AnalyzeResult): void {
     summary: result.warnings.summary,
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  data(JSON.stringify(output, null, 2));
 }
 
 function formatResultsHuman(
@@ -271,34 +271,34 @@ function formatResultsHuman(
     return;
   }
 
-  console.error(chalk.bold('\nWarnings:\n'));
+  print(chalk.bold('\nWarnings:\n'));
 
   const errors = warnings.filter((w) => w.severity === 'error' && !w.suppressed);
   const warns = warnings.filter((w) => w.severity === 'warning' && !w.suppressed);
   const infos = warnings.filter((w) => w.severity === 'info' && !w.suppressed);
 
   if (errors.length > 0) {
-    console.error(chalk.red.bold('Errors:'));
+    print(chalk.red.bold('Errors:'));
     errors.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
   if (warns.length > 0) {
-    console.error(chalk.yellow.bold('Warnings:'));
+    print(chalk.yellow.bold('Warnings:'));
     warns.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
   if (infos.length > 0 && verbose) {
-    console.error(chalk.blue.bold('Info:'));
+    print(chalk.blue.bold('Info:'));
     infos.forEach((w) => formatWarning(w, verbose, nudgeConfig));
   }
 
-  console.error(chalk.bold('Summary:'));
-  console.error(`  Total: ${summary.total}`);
-  if (summary.errors > 0) console.error(`  Errors: ${chalk.red(summary.errors)}`);
-  if (summary.warnings > 0) console.error(`  Warnings: ${chalk.yellow(summary.warnings)}`);
-  if (summary.info > 0) console.error(`  Info: ${chalk.blue(summary.info)}`);
-  if (summary.suppressed > 0) console.error(`  Suppressed: ${chalk.gray(summary.suppressed)}`);
-  console.error(`  Time: ${result.executionTimeMs}ms`);
+  print(chalk.bold('Summary:'));
+  print(`  Total: ${summary.total}`);
+  if (summary.errors > 0) print(`  Errors: ${chalk.red(summary.errors)}`);
+  if (summary.warnings > 0) print(`  Warnings: ${chalk.yellow(summary.warnings)}`);
+  if (summary.info > 0) print(`  Info: ${chalk.blue(summary.info)}`);
+  if (summary.suppressed > 0) print(`  Suppressed: ${chalk.gray(summary.suppressed)}`);
+  print(`  Time: ${result.executionTimeMs}ms`);
 }
 
 async function getSourceFiles(
@@ -405,7 +405,7 @@ export function createCheckCommand(): Command {
           if (allFiles.length === 0) {
             spinner?.stop();
             if (options.json) {
-              console.log(
+              data(
                 JSON.stringify(
                   {
                     version: '1.0.0',
@@ -444,7 +444,7 @@ export function createCheckCommand(): Command {
           if (changedFiles.length === 0) {
             spinner?.stop();
             if (options.json) {
-              console.log(
+              data(
                 JSON.stringify(
                   {
                     version: '1.0.0',
@@ -573,9 +573,9 @@ export function createCheckCommand(): Command {
           formatResultsJSON(filesToAnalyse, result);
         } else {
           if (options.all) {
-            console.error(chalk.gray(`\nChecked ${filesToAnalyse.length} file(s)\n`));
+            print(chalk.gray(`\nChecked ${filesToAnalyse.length} file(s)\n`));
           } else if (options.changed) {
-            console.error(chalk.gray(`\nChecked ${filesToAnalyse.length} changed file(s)\n`));
+            print(chalk.gray(`\nChecked ${filesToAnalyse.length} changed file(s)\n`));
           }
           formatResultsHuman(result, options.verbose ?? false, nudgeConfig);
 
@@ -584,7 +584,7 @@ export function createCheckCommand(): Command {
           }
 
           if (result.provenance_id) {
-            console.error(chalk.gray(`\nProvenance: ${result.provenance_id}`));
+            print(chalk.gray(`\nProvenance: ${result.provenance_id}`));
           }
         }
 

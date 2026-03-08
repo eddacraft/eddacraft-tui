@@ -21,8 +21,9 @@ import {
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { createWatchOutput } from '../services/watch-output.js';
-import { error } from '../utils/output.js';
+import { error, print } from '../utils/output.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
+import { coerceNonNegativeInt } from '../utils/option-coerce.js';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
 import {
   emitSessionStart,
@@ -222,11 +223,7 @@ export function createWatchCommand(): Command {
           action,
           debounceMs: (() => {
             if (!options.debounce) return savedConfig?.debounceMs ?? defaultConfig.debounceMs;
-            const val = parseInt(options.debounce, 10);
-            if (Number.isNaN(val) || val < 0) {
-              throw new Error('--debounce must be a non-negative integer');
-            }
-            return val;
+            return coerceNonNegativeInt(options.debounce, '--debounce');
           })(),
           git: {
             unstagedOnly: options.gitFilter !== false,
@@ -245,14 +242,12 @@ export function createWatchCommand(): Command {
 
         const useTUI = isTUIAvailable({ tui: options.tui });
         if (useTUI && options.tui) {
-          console.log(
+          print(
             chalk.yellow(
               '⚠  --tui flag: Watch dashboard TUI not yet integrated. Using standard output.'
             )
           );
-          console.log(
-            chalk.gray('   Dashboard components available at cli/src/tui/commands/watch/')
-          );
+          print(chalk.gray('   Dashboard components available at cli/src/tui/commands/watch/'));
         }
 
         // Create output handler
@@ -453,7 +448,7 @@ export function createWatchCommand(): Command {
 
         // Handle graceful shutdown
         const shutdown = async () => {
-          console.log(chalk.gray('\n  Stopping watch mode...'));
+          print(chalk.gray('\n  Stopping watch mode...'));
 
           // Record session end in Kindling
           if (kindling && sessionId) {

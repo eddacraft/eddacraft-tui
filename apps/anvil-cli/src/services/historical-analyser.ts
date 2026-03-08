@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { print, debug } from '../utils/output.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -87,7 +88,7 @@ export interface HistoricalAnalysisConfig {
 /**
  * Service for analyzing git history to demonstrate preventive value
  */
-export class HistoricalAnalyzer {
+export class HistoricalAnalyser {
   private readonly defaultConfig: HistoricalAnalysisConfig = {
     daysBack: 30,
     maxCommits: 100,
@@ -146,7 +147,7 @@ export class HistoricalAnalyzer {
         dateRange,
       };
     } catch (error) {
-      console.warn('Failed to analyse git history:', error);
+      print('Failed to analyse git history:', error);
       return this.createEmptyAnalysis();
     }
   }
@@ -157,9 +158,13 @@ export class HistoricalAnalyzer {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execFileAsync('git', ['rev-parse', '--git-dir'], { cwd: this.projectRoot });
+      await execFileAsync('git', ['rev-parse', '--git-dir'], {
+        cwd: this.projectRoot,
+        timeout: 30_000,
+      });
       return true;
     } catch {
+      debug('isGitAvailable: git rev-parse failed, git not available');
       return false;
     }
   }
@@ -187,6 +192,7 @@ export class HistoricalAnalyzer {
       {
         cwd: this.projectRoot,
         maxBuffer: 10 * 1024 * 1024,
+        timeout: 30_000,
       }
     );
 
@@ -269,6 +275,7 @@ export class HistoricalAnalyzer {
           {
             cwd: this.projectRoot,
             maxBuffer: 5 * 1024 * 1024,
+            timeout: 30_000,
           }
         );
 
@@ -284,7 +291,7 @@ export class HistoricalAnalyzer {
           estimatedViolations,
         });
       } catch {
-        // Skip commits that fail to analyse
+        debug('analyseCommits: failed to analyse commit, skipping');
         continue;
       }
     }
@@ -509,3 +516,5 @@ export class HistoricalAnalyzer {
     };
   }
 }
+
+export { HistoricalAnalyser as HistoricalAnalyzer };

@@ -17,22 +17,23 @@ import { commitTagPush, isCleanWorkingTree, getCurrentBranch } from './release-g
 import { monitorWorkflow } from './release-monitor.js';
 import { verifyRelease } from './release-verify.js';
 import { CliError } from '../utils/cli-error.js';
+import { blank, print } from '../utils/output.js';
 
 function printHeader(state: ReleaseState, profile: ReleaseProfile): void {
-  console.log();
-  console.log(chalk.bold('  ANVIL RELEASE'));
-  console.log();
-  console.log(`  Profile:         ${chalk.cyan(profile.name)}`);
-  console.log(`  Current version: ${chalk.bold(state.previousVersion)}`);
+  blank();
+  print(chalk.bold('  ANVIL RELEASE'));
+  blank();
+  print(`  Profile:         ${chalk.cyan(profile.name)}`);
+  print(`  Current version: ${chalk.bold(state.previousVersion)}`);
   if (state.version) {
-    console.log(`  Target version:  ${chalk.bold.green(state.version)}`);
+    print(`  Target version:  ${chalk.bold.green(state.version)}`);
   }
-  console.log();
+  blank();
 }
 
 function printStepList(steps: ReleaseStep[]): void {
-  console.log('  ┌─────────────────────────────────────────┐');
-  console.log('  │  Steps                                  │');
+  print('  ┌─────────────────────────────────────────┐');
+  print('  │  Steps                                  │');
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const icon =
@@ -44,14 +45,14 @@ function printStepList(steps: ReleaseStep[]): void {
             ? chalk.dim('–')
             : ' ';
     const label = `${icon} ${i + 1}. ${step.label}`;
-    console.log(`  │  ${label.padEnd(40)}│`);
+    print(`  │  ${label.padEnd(40)}│`);
   }
-  console.log('  └─────────────────────────────────────────┘');
-  console.log();
+  print('  └─────────────────────────────────────────┘');
+  blank();
 }
 
 function printStepHeader(index: number, total: number, label: string): void {
-  console.log(chalk.bold(`  Step ${index + 1}/${total}: ${label}`));
+  print(chalk.bold(`  Step ${index + 1}/${total}: ${label}`));
 }
 
 function updateStepStatus(
@@ -80,32 +81,30 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
   const profile = PROFILES[config.profile];
   if (!profile) {
     if (config.profile === 'stable' || config.profile === 'hotfix') {
-      console.log(chalk.yellow(`\n  Profile '${config.profile}' is not yet implemented.`));
-      console.log(chalk.dim('  Only the beta profile is available in this release.\n'));
+      print(chalk.yellow(`\n  Profile '${config.profile}' is not yet implemented.`));
+      print(chalk.dim('  Only the beta profile is available in this release.\n'));
       throw new CliError(`Profile '${config.profile}' is not yet implemented`);
     }
-    console.error(chalk.red(`  Unknown profile: ${config.profile}`));
+    print(chalk.red(`  Unknown profile: ${config.profile}`));
     throw new CliError(`Unknown profile: ${config.profile}`);
   }
 
   // ── Monorepo guard ──────────────────────────────────────────────────
   if (!existsSync(join(workspaceRoot, 'nx.json'))) {
-    console.error(chalk.red('\n  ✗ Not in the Anvil monorepo root.'));
-    console.error(
-      chalk.dim('    Run this command from the workspace root (where nx.json lives).\n')
-    );
+    print(chalk.red('\n  ✗ Not in the Anvil monorepo root.'));
+    print(chalk.dim('    Run this command from the workspace root (where nx.json lives).\n'));
     throw new CliError('Not in the Anvil monorepo root');
   }
 
   const branch = getCurrentBranch(workspaceRoot);
   if (branch !== 'main' && config.execute) {
-    console.log(chalk.yellow(`\n  ⚠ On branch '${branch}', not main.`));
-    console.log(chalk.dim('    Use --execute only from main. Dry-run is allowed on any branch.\n'));
+    print(chalk.yellow(`\n  ⚠ On branch '${branch}', not main.`));
+    print(chalk.dim('    Use --execute only from main. Dry-run is allowed on any branch.\n'));
     throw new CliError('--execute requires the main branch');
   }
 
   if (config.execute && !isCleanWorkingTree(workspaceRoot)) {
-    console.error(chalk.red('\n  ✗ Working tree is not clean. Commit or stash changes first.\n'));
+    print(chalk.red('\n  ✗ Working tree is not clean. Commit or stash changes first.\n'));
     throw new CliError('Working tree is not clean');
   }
 
@@ -116,9 +115,9 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
     const existing = loadReleaseState(workspaceRoot);
     if (existing) {
       state = existing;
-      console.log(chalk.dim(`\n  Resuming release (started ${existing.startedAt})`));
+      print(chalk.dim(`\n  Resuming release (started ${existing.startedAt})`));
     } else {
-      console.log(chalk.dim('\n  No saved state found, starting fresh.'));
+      print(chalk.dim('\n  No saved state found, starting fresh.'));
       state = createState(workspaceRoot, profile);
     }
   } else {
@@ -130,7 +129,7 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
   printStepList(state.steps);
 
   if (!config.execute) {
-    console.log(chalk.yellow('  Running in dry-run mode. Use --execute to perform changes.\n'));
+    print(chalk.yellow('  Running in dry-run mode. Use --execute to perform changes.\n'));
   }
 
   // ── Run steps ────────────────────────────────────────────────────────
@@ -141,7 +140,7 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
   if (profile.steps.includes('preflight') && !isStepDone(state, 'preflight')) {
     if (config.skipPreflight) {
       updateStepStatus(state, 'preflight', 'skipped');
-      console.log(chalk.dim('  Preflight skipped (--skip-preflight)\n'));
+      print(chalk.dim('  Preflight skipped (--skip-preflight)\n'));
     } else {
       printStepHeader(stepIndex('preflight'), totalSteps, 'Preflight checks');
       updateStepStatus(state, 'preflight', 'running');
@@ -152,11 +151,11 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
       if (result.allPassed) {
         updateStepStatus(state, 'preflight', 'passed');
         const total = (result.totalDurationMs / 1000).toFixed(1);
-        console.log(chalk.dim(`  All checks passed in ${total}s\n`));
+        print(chalk.dim(`  All checks passed in ${total}s\n`));
       } else {
         updateStepStatus(state, 'preflight', 'failed');
         saveReleaseState(workspaceRoot, state);
-        console.error(chalk.red('\n  ✗ Preflight failed. Fix issues and run with --resume.\n'));
+        print(chalk.red('\n  ✗ Preflight failed. Fix issues and run with --resume.\n'));
         throw new CliError('Preflight failed');
       }
       saveReleaseState(workspaceRoot, state);
@@ -176,7 +175,7 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
 
     updateStepStatus(state, 'version', 'passed');
     saveReleaseState(workspaceRoot, state);
-    console.log();
+    blank();
   }
 
   // 3. Changelog
@@ -189,7 +188,7 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
 
     updateStepStatus(state, 'changelog', 'passed');
     saveReleaseState(workspaceRoot, state);
-    console.log();
+    blank();
   }
 
   // 4. Commit + tag + push
@@ -212,12 +211,12 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
       const msg = err instanceof Error ? err.message : String(err);
       updateStepStatus(state, 'commit-tag-push', 'failed', msg);
       saveReleaseState(workspaceRoot, state);
-      console.error(chalk.red(`\n  ✗ Git operation failed: ${msg}`));
-      console.log(chalk.dim('  Check git status and run with --resume.\n'));
+      print(chalk.red(`\n  ✗ Git operation failed: ${msg}`));
+      print(chalk.dim('  Check git status and run with --resume.\n'));
       throw new CliError(`Git operation failed: ${msg}`);
     }
     saveReleaseState(workspaceRoot, state);
-    console.log();
+    blank();
   }
 
   // 5. Monitor
@@ -230,7 +229,7 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
 
     updateStepStatus(state, 'monitor', 'passed');
     saveReleaseState(workspaceRoot, state);
-    console.log();
+    blank();
   }
 
   // 6. Verify
@@ -250,24 +249,22 @@ export async function runRelease(config: ReleaseConfig): Promise<void> {
         failures.push(`${verifyResult.internalPackageLeaks} internal package(s) leaked`);
       updateStepStatus(state, 'verify', 'failed', failures.join('; '));
       saveReleaseState(workspaceRoot, state);
-      console.error(chalk.red(`\n  ✗ Verification failed: ${failures.join('; ')}`));
-      console.log(chalk.dim('  The release was published but verification did not pass.'));
-      console.log(chalk.dim('  Check the failures above and verify manually.\n'));
+      print(chalk.red(`\n  ✗ Verification failed: ${failures.join('; ')}`));
+      print(chalk.dim('  The release was published but verification did not pass.'));
+      print(chalk.dim('  Check the failures above and verify manually.\n'));
       throw new CliError(`Verification failed: ${failures.join('; ')}`);
     }
     saveReleaseState(workspaceRoot, state);
-    console.log();
+    blank();
   }
 
   // ── Done ─────────────────────────────────────────────────────────────
   clearReleaseState(workspaceRoot);
 
   if (config.execute) {
-    console.log(chalk.bold.green(`  ✓ Release ${state.tagName} complete!\n`));
+    print(chalk.bold.green(`  ✓ Release ${state.tagName} complete!\n`));
   } else {
-    console.log(
-      chalk.bold.yellow(`  ✓ Dry run complete. Run with --execute to perform the release.\n`)
-    );
+    print(chalk.bold.yellow(`  ✓ Dry run complete. Run with --execute to perform the release.\n`));
   }
 }
 

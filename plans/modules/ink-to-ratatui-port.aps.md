@@ -9,9 +9,9 @@ Scopes: PORT (main)
 
 # Ink-to-Ratatui Port
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| PORT | —     | Proposed |
+| ID   | Owner | Status      |
+| ---- | ----- | ----------- |
+| PORT | —     | In Progress |
 
 ## Purpose
 
@@ -138,7 +138,7 @@ Change status to **Ready** when:
 
 ### PORT-001: Port shared layout and display components to eddacraft-tui
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Port Header, Container, Divider, Spinner, StatusBadge, and Confirm
   components to Ratatui equivalents in the `eddacraft-tui` crate
 - **Expected Outcome:** Shared component library covers all layout and feedback
@@ -154,7 +154,7 @@ Change status to **Ready** when:
 
 ### PORT-002: Port LogPanel, ParallelProgress, QuickWinsPanel, ResultsDashboard
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Port the composite display components that combine multiple
   primitives into reusable panels
 - **Expected Outcome:** Panel components render structured data (logs, progress

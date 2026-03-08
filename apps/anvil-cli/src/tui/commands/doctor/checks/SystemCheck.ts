@@ -52,6 +52,7 @@ export class GitCheck implements DiagnosticCheck {
       const output = execFileSync('git', ['--version'], {
         encoding: 'utf8',
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 30_000,
       });
       const version = output.trim().replace('git version ', '');
 
@@ -96,6 +97,7 @@ export class GitRepoCheck implements DiagnosticCheck {
         encoding: 'utf8',
         cwd: context.projectRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 30_000,
       });
 
       return {
@@ -134,6 +136,7 @@ export class GitRepoCheck implements DiagnosticCheck {
       execFileSync('git', ['init'], {
         cwd: context.projectRoot,
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 30_000,
       });
       return {
         success: true,

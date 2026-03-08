@@ -12,6 +12,8 @@ import {
 } from '@eddacraft/anvil-edda-stack';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
+import { coercePositiveInt } from '../../utils/option-coerce.js';
+import { blank, data, print } from '../../utils/output.js';
 import { colourConfidence, colourStatus } from './utils.js';
 
 interface EddaListOptions {
@@ -40,7 +42,7 @@ export function createEddaListCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: message,
@@ -60,7 +62,7 @@ export function createEddaListCommand(): Command {
             )
           );
         } else {
-          console.error(chalk.yellow(message));
+          print(chalk.yellow(message));
         }
         throw new CliError(message);
       }
@@ -83,7 +85,7 @@ export function createEddaListCommand(): Command {
             sort_order: 'desc',
           });
 
-          console.log(
+          data(
             JSON.stringify(
               {
                 storage_found: true,
@@ -103,7 +105,7 @@ export function createEddaListCommand(): Command {
           );
           return;
         } catch (err) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -130,19 +132,19 @@ export function createEddaListCommand(): Command {
         });
 
         spinner.stop();
-        console.error(chalk.bold('\nEdda Memories'));
-        console.error(
+        print(chalk.bold('\nEdda Memories'));
+        print(
           chalk.gray(
             `${result.total} found  |  status: ${parsedStatus}  |  type: ${parsedTypes.length > 0 ? parsedTypes.join(', ') : 'all'}`
           )
         );
-        console.error(chalk.gray('─'.repeat(118)));
-        console.error(
+        print(chalk.gray('─'.repeat(118)));
+        print(
           chalk.cyan(
             `  ${'ID'.padEnd(14)} ${'Type'.padEnd(11)} ${'Status'.padEnd(12)} ${'Confidence'.padEnd(12)} ${'Statement'.padEnd(48)} ${'Created'.padEnd(16)}`
           )
         );
-        console.error(chalk.gray('  ' + '─'.repeat(116)));
+        print(chalk.gray('  ' + '─'.repeat(116)));
 
         for (const memory of result.memories) {
           const id = truncate(memory.id, 12).padEnd(14);
@@ -152,18 +154,18 @@ export function createEddaListCommand(): Command {
           const statement = truncate(memory.statement, 46).padEnd(48);
           const created = formatRelativeTime(memory.created_at).padEnd(16);
 
-          console.error(`  ${id} ${type} ${status} ${confidence} ${statement} ${created}`);
+          print(`  ${id} ${type} ${status} ${confidence} ${statement} ${created}`);
         }
 
         if (result.memories.length === 0) {
-          console.error(chalk.gray('  No memories match the current filters.'));
+          print(chalk.gray('  No memories match the current filters.'));
         }
 
-        console.error('');
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner.fail(chalk.red('Failed to list Edda memories'));
-        console.error(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
+        print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });
@@ -172,11 +174,7 @@ export function createEddaListCommand(): Command {
 }
 
 function parseLimit(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-  if (Number.isNaN(parsed) || parsed <= 0) {
-    throw new CliError('Limit must be a positive integer');
-  }
-  return parsed;
+  return coercePositiveInt(value, '--limit');
 }
 
 function parseTypes(value?: string): MemoryType[] {

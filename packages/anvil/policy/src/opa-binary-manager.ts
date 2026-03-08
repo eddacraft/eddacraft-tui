@@ -245,6 +245,7 @@ export class OPABinaryManager {
       const result = execFileSync(cmd, ['opa'], {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 10_000,
       });
       const path = result.trim().split('\n')[0];
       return path && existsSync(path) ? path : null;

@@ -10,6 +10,7 @@ import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { theme } from '../tui/utils/theme.js';
 import { CliError } from '../utils/cli-error.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
+import { print } from '../utils/output.js';
 
 interface NewCommandOptions {
   list?: boolean;
@@ -37,9 +38,7 @@ export function createNewCommand(): Command {
         await runNewCommand(templateId, options);
       } catch (error) {
         if (error instanceof CliError) throw error;
-        console.error(
-          `${theme.icons.error} ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
+        print(`${theme.icons.error} ${error instanceof Error ? error.message : 'Unknown error'}`);
         throw new CliError('Command failed');
       }
     });
@@ -57,7 +56,7 @@ async function runNewCommand(
   const templates = loader.getAllTemplates();
 
   if (templates.length === 0) {
-    console.error(`${theme.icons.error} No templates found`);
+    print(`${theme.icons.error} No templates found`);
     throw new CliError('No templates found');
   }
 
@@ -74,16 +73,16 @@ async function runNewCommand(
       const result = await showTemplateBrowser(templates);
 
       if (!result) {
-        console.log('Template selection cancelled');
+        print('Template selection cancelled');
         return;
       }
 
       const variables = result.variables;
       await generateFromTemplate(loader, result.templateId, variables, options);
     } else {
-      console.log('Available templates:');
+      print('Available templates:');
       printTemplateList(templates, options.category as TemplateMetadata['category'] | undefined);
-      console.log('\nUsage: anvil new <template-id> [--var key=value]');
+      print('\nUsage: anvil new <template-id> [--var key=value]');
       return;
     }
   } else {
@@ -101,10 +100,10 @@ async function generateFromTemplate(
   const template = loader.getTemplate(templateId);
 
   if (!template) {
-    console.error(`${theme.icons.error} Template not found: ${templateId}`);
-    console.log('\nAvailable templates:');
+    print(`${theme.icons.error} Template not found: ${templateId}`);
+    print('\nAvailable templates:');
     loader.getAllTemplates().forEach((t) => {
-      console.log(`  ${t.metadata.id} - ${t.metadata.name}`);
+      print(`  ${t.metadata.id} - ${t.metadata.name}`);
     });
     throw new CliError('Template not found');
   }
@@ -114,13 +113,13 @@ async function generateFromTemplate(
     .map((v) => v.name);
 
   if (missingVars.length > 0) {
-    console.error(`${theme.icons.error} Missing required variables: ${missingVars.join(', ')}`);
-    console.log('\nRequired variables for this template:');
+    print(`${theme.icons.error} Missing required variables: ${missingVars.join(', ')}`);
+    print('\nRequired variables for this template:');
     template.metadata.variables
       .filter((v) => v.required)
       .forEach((v) => {
         const defaultStr = v.default ? ` (default: ${v.default})` : '';
-        console.log(`  --var ${v.name}=<value>  ${v.description}${defaultStr}`);
+        print(`  --var ${v.name}=<value>  ${v.description}${defaultStr}`);
       });
     throw new CliError('Missing required variables');
   }
@@ -133,26 +132,24 @@ async function generateFromTemplate(
   );
 
   if (existsSync(outputPath) && !options.force) {
-    console.error(`${theme.icons.error} File already exists: ${outputPath}`);
-    console.log('Use --force to overwrite');
+    print(`${theme.icons.error} File already exists: ${outputPath}`);
+    print('Use --force to overwrite');
     throw new CliError('File already exists');
   }
 
   writeFileSync(outputPath, rendered.content, 'utf-8');
 
-  console.log(
-    `${theme.icons.success} Created ${outputPath} from template "${template.metadata.name}"`
-  );
+  print(`${theme.icons.success} Created ${outputPath} from template "${template.metadata.name}"`);
 
   if (Object.keys(variables).length > 0) {
-    console.log('\nVariables applied:');
+    print('\nVariables applied:');
     Object.entries(variables).forEach(([key, value]) => {
-      console.log(`  ${key}: ${value}`);
+      print(`  ${key}: ${value}`);
     });
   }
 
-  console.log(`\nNext steps:`);
-  console.log(`  anvil validate ${outputPath}`);
+  print(`\nNext steps:`);
+  print(`  anvil validate ${outputPath}`);
 }
 
 function printTemplateList(
@@ -164,7 +161,7 @@ function printTemplateList(
     : templates;
 
   if (filtered.length === 0) {
-    console.log('No templates found');
+    print('No templates found');
     return;
   }
 
@@ -178,13 +175,13 @@ function printTemplateList(
   }
 
   for (const [category, categoryTemplates] of byCategory) {
-    console.log(`\n${theme.icons.arrow} ${category.toUpperCase()}`);
+    print(`\n${theme.icons.arrow} ${category.toUpperCase()}`);
     for (const template of categoryTemplates) {
-      console.log(`  ${template.metadata.id.padEnd(25)} ${template.metadata.description}`);
+      print(`  ${template.metadata.id.padEnd(25)} ${template.metadata.description}`);
     }
   }
 
-  console.log(`\nTotal: ${filtered.length} templates`);
+  print(`\nTotal: ${filtered.length} templates`);
 }
 
 function parseVariables(vars: string[]): Record<string, string> {

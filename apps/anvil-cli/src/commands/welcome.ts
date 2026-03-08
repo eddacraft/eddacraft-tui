@@ -5,6 +5,7 @@ import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { Welcome } from '../tui/commands/welcome/Welcome.js';
 import { markFirstRunComplete } from '../services/first-run-detector.js';
+import { blank, print } from '../utils/output.js';
 import type { QuickStartOption } from '../tui/commands/welcome/content.js';
 import {
   ANVIL_LOGO,
@@ -67,21 +68,21 @@ async function showWelcomeTUI(): Promise<void> {
 }
 
 function showWelcomePlain(): void {
-  console.log(chalk.cyan.bold(ANVIL_LOGO));
-  console.log(VALUE_PROPOSITION);
-  console.log('');
-  console.log(chalk.bold('Quick Start:'));
-  console.log('');
+  print(chalk.cyan.bold(ANVIL_LOGO));
+  print(VALUE_PROPOSITION);
+  blank();
+  print(chalk.bold('Quick Start:'));
+  blank();
 
   for (const option of QUICK_START_OPTIONS) {
     if (option.command) {
-      console.log(`  ${chalk.cyan(option.command.padEnd(20))} ${option.description}`);
+      print(`  ${chalk.cyan(option.command.padEnd(20))} ${option.description}`);
     }
   }
 
-  console.log('');
-  console.log(chalk.dim('This welcome message appears once. Set ANVIL_SKIP_WELCOME=1 to disable.'));
-  console.log('');
+  blank();
+  print(chalk.dim('This welcome message appears once. Set ANVIL_SKIP_WELCOME=1 to disable.'));
+  blank();
 
   markFirstRunComplete();
 }

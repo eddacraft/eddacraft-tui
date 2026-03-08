@@ -6,6 +6,7 @@ import ora from 'ora';
 import { EvolutionService, MemoryStore, createMemoryId } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { blank, data, print } from '../../utils/output.js';
 import { colourStatus } from './utils.js';
 
 interface EddaRetireOptions {
@@ -29,18 +30,18 @@ export function createEddaRetireCommand(): Command {
       if (actor.length === 0) {
         const message = '--by must not be empty';
         if (options.json) {
-          console.log(JSON.stringify({ error: message }, null, 2));
+          data(JSON.stringify({ error: message }, null, 2));
         } else {
-          console.error(chalk.red(message));
+          print(chalk.red(message));
         }
         throw new CliError(message);
       }
       if (actor.length > 100) {
         const message = '--by must be 100 characters or fewer';
         if (options.json) {
-          console.log(JSON.stringify({ error: message }, null, 2));
+          data(JSON.stringify({ error: message }, null, 2));
         } else {
-          console.error(chalk.red(message));
+          print(chalk.red(message));
         }
         throw new CliError(message);
       }
@@ -50,7 +51,7 @@ export function createEddaRetireCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: message,
@@ -61,7 +62,7 @@ export function createEddaRetireCommand(): Command {
             )
           );
         } else {
-          console.error(chalk.yellow(message));
+          print(chalk.yellow(message));
         }
         throw new CliError(message);
       }
@@ -84,29 +85,29 @@ export function createEddaRetireCommand(): Command {
           const message = `Memory not found: ${id}`;
           spinner?.fail(chalk.red(message));
           if (options.json) {
-            console.log(JSON.stringify({ error: message }, null, 2));
+            data(JSON.stringify({ error: message }, null, 2));
           } else {
-            console.error(chalk.red(message));
+            print(chalk.red(message));
           }
           throw new CliError(message);
         }
 
         if (options.json) {
-          console.log(JSON.stringify(retiredMemory, null, 2));
+          data(JSON.stringify(retiredMemory, null, 2));
           return;
         }
 
         spinner?.stop();
-        console.error(chalk.green('Memory retired successfully'));
-        console.error(`  ${chalk.cyan('ID:')} ${retiredMemory.id}`);
-        console.error(`  ${chalk.cyan('Status:')} ${colourStatus(retiredMemory.status)}`);
-        console.error(`  ${chalk.cyan('Reason:')} ${options.reason}`);
-        console.error('');
+        print(chalk.green('Memory retired successfully'));
+        print(`  ${chalk.cyan('ID:')} ${retiredMemory.id}`);
+        print(`  ${chalk.cyan('Status:')} ${colourStatus(retiredMemory.status)}`);
+        print(`  ${chalk.cyan('Reason:')} ${options.reason}`);
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to retire memory'));
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -116,9 +117,7 @@ export function createEddaRetireCommand(): Command {
             )
           );
         } else {
-          console.error(
-            chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`)
-          );
+          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }

@@ -6,6 +6,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import type { PreflightCheck, PreflightCheckResult, PreflightResult } from './release-types.js';
 import { PREFLIGHT_CHECKS } from './release-types.js';
+import { print } from '../utils/output.js';
 
 function runCommand(
   command: string,
@@ -13,13 +14,18 @@ function runCommand(
   cwd: string
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    execFile(command, args, { cwd, maxBuffer: 10 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error) {
-        reject(new Error(stderr || stdout || error.message));
-      } else {
-        resolve({ stdout, stderr });
+    execFile(
+      command,
+      args,
+      { cwd, maxBuffer: 10 * 1024 * 1024, timeout: 300_000 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr || stdout || error.message, { cause: error }));
+        } else {
+          resolve({ stdout, stderr });
+        }
       }
-    });
+    );
   });
 }
 
@@ -110,7 +116,7 @@ export async function runPreflight(
     } else {
       spinner.fail(`${check.label}`);
       if (result.output) {
-        console.log(chalk.red(result.output.split('\n').slice(0, 20).join('\n')));
+        print(chalk.red(result.output.split('\n').slice(0, 20).join('\n')));
       }
       return { checks: results, allPassed: false, totalDurationMs: Date.now() - totalStart };
     }
@@ -130,7 +136,7 @@ export async function runPreflight(
   } else {
     smokeSpinner.fail('smoke check');
     if (smokeResult.output) {
-      console.log(chalk.red(smokeResult.output.split('\n').slice(0, 20).join('\n')));
+      print(chalk.red(smokeResult.output.split('\n').slice(0, 20).join('\n')));
     }
     return { checks: results, allPassed: false, totalDurationMs: Date.now() - totalStart };
   }

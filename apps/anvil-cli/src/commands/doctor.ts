@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../utils/cli-error.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
+import { blank, data as outputData, print } from '../utils/output.js';
 
 const log = createDebugger('cli');
 import { renderTUI } from '../tui/utils/renderer.js';
@@ -87,26 +88,26 @@ function formatJsonOutput(data: DiagnosticsData): string {
 }
 
 function printPlainTextDiagnostics(data: DiagnosticsData, verbose: boolean): void {
-  console.log(chalk.bold('\nANVIL DOCTOR\n'));
+  print(chalk.bold('\nANVIL DOCTOR\n'));
 
   for (const result of data.results) {
     const icon = getStatusIcon(result.status);
-    console.log(`${icon} ${result.name}: ${result.message}`);
+    print(`${icon} ${result.name}: ${result.message}`);
     if (verbose && result.details) {
-      console.log(chalk.hex(theme.colours.smoke)(`   ${result.details}`));
+      print(chalk.hex(theme.colours.smoke)(`   ${result.details}`));
     }
     if (result.fixable && result.status !== 'pass' && result.suggestion) {
-      console.log(chalk.hex(theme.colours.smoke)(`   ${theme.icons.arrow} ${result.suggestion}`));
+      print(chalk.hex(theme.colours.smoke)(`   ${theme.icons.arrow} ${result.suggestion}`));
     }
   }
 
-  console.log('');
+  blank();
 
   const { summary } = data;
   if (summary.healthy) {
-    console.log(chalk.hex(theme.colours.steel).bold(`${theme.icons.success} All checks passed`));
+    print(chalk.hex(theme.colours.steel).bold(`${theme.icons.success} All checks passed`));
   } else {
-    console.log(chalk.hex(theme.colours.slag).bold(`${theme.icons.error} Issues found`));
+    print(chalk.hex(theme.colours.slag).bold(`${theme.icons.error} Issues found`));
   }
 
   const parts: string[] = [];
@@ -116,17 +117,17 @@ function printPlainTextDiagnostics(data: DiagnosticsData, verbose: boolean): voi
   if (summary.failed > 0) parts.push(chalk.hex(theme.colours.slag)(`${summary.failed} failed`));
   if (summary.skipped > 0) parts.push(chalk.hex(theme.colours.smoke)(`${summary.skipped} skipped`));
 
-  console.log(parts.join(` ${theme.icons.bullet} `));
+  print(parts.join(` ${theme.icons.bullet} `));
 
   if (summary.fixable > 0) {
-    console.log(
+    print(
       chalk.hex(theme.colours.ash)(
         `\n${theme.icons.info} ${summary.fixable} issue(s) can be auto-fixed with: anvil doctor --fix`
       )
     );
   }
 
-  console.log('');
+  blank();
 }
 
 async function runChecksPlain(
@@ -147,11 +148,11 @@ async function runChecksPlain(
       process.stdout.cursorTo(0);
     }
     results.push(result);
-    console.log(`${getStatusIcon(result.status)} ${result.name}: ${result.message}`);
+    print(`${getStatusIcon(result.status)} ${result.name}: ${result.message}`);
   }
 
   if (autoFix) {
-    console.log(chalk.cyan('\nApplying fixes...'));
+    print(chalk.cyan('\nApplying fixes...'));
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       if (result.fixable && result.status !== 'pass') {
@@ -165,9 +166,9 @@ async function runChecksPlain(
               message: `Fixed: ${fixResult.message}`,
               fixable: false,
             };
-            console.log(chalk.green(`  ✓ Fixed: ${check.name}`));
+            print(chalk.green(`  ✓ Fixed: ${check.name}`));
           } else {
-            console.log(chalk.red(`  ✗ Failed to fix ${check.name}: ${fixResult.message}`));
+            print(chalk.red(`  ✗ Failed to fix ${check.name}: ${fixResult.message}`));
           }
         }
       }
@@ -209,7 +210,7 @@ export function createDoctorCommand(): Command {
         log(
           `doctor result: passed=${data.summary.passed} failed=${data.summary.failed} warnings=${data.summary.warnings}`
         );
-        console.log(formatJsonOutput(data));
+        outputData(formatJsonOutput(data));
         if (data.summary.healthy) throw new CliExit();
         throw new CliError('Doctor check failed');
       }

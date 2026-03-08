@@ -14,6 +14,7 @@ import {
 } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { blank, data, print } from '../../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -74,7 +75,7 @@ export function createAgentCleanupCommand(): Command {
           results.staleAgents.length + results.expiredLocks + results.timedOutQueueEntries;
 
         if (options.json) {
-          console.log(
+          data(
             JSON.stringify(
               {
                 dryRun: options.dryRun ?? false,
@@ -91,23 +92,23 @@ export function createAgentCleanupCommand(): Command {
         // Pretty print
         const prefix = options.dryRun ? chalk.yellow('[DRY RUN] ') : '';
 
-        console.log(chalk.bold(`\n${prefix}Cleanup Results`));
-        console.log(chalk.gray('─'.repeat(40)));
+        print(chalk.bold(`\n${prefix}Cleanup Results`));
+        print(chalk.gray('─'.repeat(40)));
 
         if (results.staleAgents.length > 0) {
-          console.log(
+          print(
             `  ${chalk.cyan('Stale Agents:')}    ${chalk.green(results.staleAgents.length)} ${
               options.dryRun ? 'would be' : ''
             } marked stale`
           );
           for (const agentId of results.staleAgents) {
-            console.log(chalk.gray(`    • ${agentId}`));
+            print(chalk.gray(`    • ${agentId}`));
           }
         } else {
-          console.log(`  ${chalk.cyan('Stale Agents:')}    ${chalk.gray('none')}`);
+          print(`  ${chalk.cyan('Stale Agents:')}    ${chalk.gray('none')}`);
         }
 
-        console.log(
+        print(
           `  ${chalk.cyan('Expired Locks:')}   ${
             results.expiredLocks > 0
               ? chalk.green(results.expiredLocks) + ` ${options.dryRun ? 'would be' : ''} removed`
@@ -115,7 +116,7 @@ export function createAgentCleanupCommand(): Command {
           }`
         );
 
-        console.log(
+        print(
           `  ${chalk.cyan('Queue Entries:')}   ${
             results.timedOutQueueEntries > 0
               ? chalk.green(results.timedOutQueueEntries) +
@@ -124,19 +125,19 @@ export function createAgentCleanupCommand(): Command {
           }`
         );
 
-        console.log(chalk.gray('─'.repeat(40)));
+        print(chalk.gray('─'.repeat(40)));
 
         if (totalCleaned === 0) {
-          console.log(chalk.gray('  Nothing to clean up.'));
+          print(chalk.gray('  Nothing to clean up.'));
         } else {
           const action = options.dryRun ? 'would be cleaned' : 'cleaned';
-          console.log(`  ${chalk.green(`Total: ${totalCleaned} items ${action}`)}`);
+          print(`  ${chalk.green(`Total: ${totalCleaned} items ${action}`)}`);
         }
 
-        console.log('');
+        blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-        console.error(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
+        print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });

@@ -19,7 +19,7 @@ import {
   type StackConfig,
 } from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { success, info, warning } from '../../utils/output.js';
+import { blank, data, info, print, success, warning } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 /**
@@ -148,20 +148,20 @@ function formatStatusText(status: LayerStatus['status']): string {
  * Display status in human-readable format
  */
 function displayStatus(result: StackStatusResult): void {
-  console.log('');
-  console.log(chalk.bold.underline('Edda Stack Status'));
-  console.log('');
+  blank();
+  print(chalk.bold.underline('Edda Stack Status'));
+  blank();
 
   // Configuration status
   if (!result.configured) {
     warning('Stack not configured in .anvilrc');
-    console.log(chalk.dim('  Add a "stack" section to enable layers'));
-    console.log('');
+    print(chalk.dim('  Add a "stack" section to enable layers'));
+    blank();
   }
 
   // Layer table header
-  console.log(chalk.bold('Layers:'));
-  console.log('');
+  print(chalk.bold('Layers:'));
+  blank();
 
   // Display each layer
   const layers = ['kindling', 'ember', 'edda'] as const;
@@ -170,14 +170,14 @@ function displayStatus(result: StackStatusResult): void {
     const indicator = formatStatusIndicator(layer.status);
     const statusText = formatStatusText(layer.status);
 
-    console.log(`  ${indicator} ${chalk.cyan(layer.name.padEnd(10))} ${statusText}`);
-    console.log(chalk.dim(`      ${layer.description}`));
-    console.log('');
+    print(`  ${indicator} ${chalk.cyan(layer.name.padEnd(10))} ${statusText}`);
+    print(chalk.dim(`      ${layer.description}`));
+    blank();
   }
 
   // Validation settings
-  console.log(chalk.bold('Validation:'));
-  console.log('');
+  print(chalk.bold('Validation:'));
+  blank();
 
   const provenanceIcon = result.validation.check_provenance_integrity
     ? chalk.green('✓')
@@ -186,9 +186,9 @@ function displayStatus(result: StackStatusResult): void {
     ? chalk.green('✓')
     : chalk.dim('○');
 
-  console.log(`  ${provenanceIcon} Provenance integrity checking`);
-  console.log(`  ${schemaIcon} Schema compatibility checking`);
-  console.log('');
+  print(`  ${provenanceIcon} Provenance integrity checking`);
+  print(`  ${schemaIcon} Schema compatibility checking`);
+  blank();
 
   // Summary
   if (result.enabledCount === 0) {
@@ -201,7 +201,7 @@ function displayStatus(result: StackStatusResult): void {
 
   // Config path
   if (result.configPath) {
-    console.log(chalk.dim(`\nConfiguration: ${result.configPath}`));
+    print(chalk.dim(`\nConfiguration: ${result.configPath}`));
   }
 }
 
@@ -218,10 +218,10 @@ export function createStatusSubcommand(): Command {
         try {
           const workspaceRoot = getWorkspaceRoot();
           const result = getStackStatus(workspaceRoot);
-          console.log(JSON.stringify(result, null, 2));
+          data(JSON.stringify(result, null, 2));
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
-          console.log(
+          data(
             JSON.stringify(
               {
                 error: err instanceof Error ? err.message : 'Unknown error',
@@ -245,7 +245,7 @@ export function createStatusSubcommand(): Command {
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
           spinner.fail(chalk.red('Failed to load stack status'));
-          console.error(chalk.red('Error:'), err instanceof Error ? err.message : String(err));
+          print(chalk.red('Error:'), err instanceof Error ? err.message : String(err));
           throw new CliError(err instanceof Error ? err.message : 'Failed to load stack status');
         }
       }

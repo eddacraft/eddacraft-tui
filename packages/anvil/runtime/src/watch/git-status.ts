@@ -127,6 +127,7 @@ export class GitStatusChecker {
     try {
       await execFileAsync('git', ['rev-parse', '--git-dir'], {
         cwd: this.workspaceRoot,
+        timeout: 30_000,
       });
       return true;
     } catch (error) {
@@ -147,6 +148,7 @@ export class GitStatusChecker {
     try {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain', '--', relativePath], {
         cwd: this.workspaceRoot,
+        timeout: 30_000,
       });
 
       return this.parseStatusLine(stdout.trimEnd(), relativePath);
@@ -212,6 +214,7 @@ export class GitStatusChecker {
     try {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: this.workspaceRoot,
+        timeout: 30_000,
       });
 
       const files: string[] = [];
@@ -253,6 +256,7 @@ export class GitStatusChecker {
     try {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: this.workspaceRoot,
+        timeout: 30_000,
       });
 
       const lines = stdout.split('\n').filter((l) => l.length >= 3);
@@ -411,6 +415,7 @@ export async function getChangedFiles(
     if (since) {
       const { stdout } = await execFileAsync('git', ['diff', '--name-only', since], {
         cwd: workspaceRoot,
+        timeout: 30_000,
       });
       const diffFiles = stdout.trim().split('\n').filter(Boolean);
       for (const file of diffFiles) {
@@ -419,6 +424,7 @@ export async function getChangedFiles(
     } else {
       const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
         cwd: workspaceRoot,
+        timeout: 30_000,
       });
 
       const lines = stdout.split('\n').filter((l) => l.length >= 3);

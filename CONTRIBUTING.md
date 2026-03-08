@@ -29,22 +29,74 @@ pnpm test
 
 ## Development Workflow
 
-### Essential Commands
+All commands are designed to run from the **repository root**. You should never
+need to `cd` into a package directory — use the patterns below instead.
+
+### Essential Commands (repo root)
 
 ```bash
-pnpm build          # Build all packages
-pnpm test           # Run unit tests
-pnpm lint           # Lint and auto-fix
-pnpm typecheck      # TypeScript validation
-pnpm test:e2e       # End-to-end tests
+pnpm build          # Build all packages (Nx orchestrated, honours dependency graph)
+pnpm test           # Run all unit tests (excludes E2E)
+pnpm lint           # ESLint + markdownlint (markdownlint auto-fixes; ESLint does not)
+pnpm lint:check     # Same as lint but without auto-fix (CI mode)
+pnpm typecheck      # TypeScript strict mode across all packages (excludes anvil-vscode)
+pnpm format         # Prettier format (write mode)
+pnpm format:check   # Prettier format (check mode, CI)
 ```
 
-### Package-Specific Development
+### Build Before Test
+
+TypeScript project references require packages to be built before cross-package
+imports resolve at test time:
 
 ```bash
-npx nx build core          # Build specific package
-npx nx test adapters       # Test specific package
-pnpm link:cli              # Link CLI for local development
+pnpm build        # Required once after clone or dependency changes
+pnpm test         # Now cross-package imports work
+```
+
+### Package-Specific Commands
+
+Use `pnpm -F` (filter) or `nx` to target individual packages:
+
+```bash
+# Using pnpm filter (by package name)
+pnpm -F @eddacraft/anvil-core test
+pnpm -F @eddacraft/anvil-aps test
+pnpm -F @eddacraft/anvil-cli test
+
+# Using Nx (by project name)
+pnpm exec nx test core
+pnpm exec nx test @eddacraft/anvil-aps
+pnpm exec nx build @eddacraft/anvil-cli
+
+# Test with pattern filter
+pnpm exec nx test core --testNamePattern="validator"
+
+# Run a specific package script
+pnpm -F @eddacraft/anvil-aps run generate-templates
+```
+
+Both `pnpm -F <package-name>` and `pnpm -C <relative-path>` work for targeting
+packages. The canonical form is `pnpm -F` (by package name) because it does not
+depend on directory structure.
+
+### E2E and CLI Testing
+
+```bash
+pnpm test:e2e       # Playwright E2E tests
+pnpm test:e2e:cli   # CLI-only E2E tests
+pnpm link:cli       # Build + link 'anvil' command globally
+pnpm unlink:cli     # Remove global link
+```
+
+### Coverage
+
+```bash
+# Per-project coverage
+pnpm exec nx test core --coverage
+
+# Full monorepo coverage
+pnpm test:coverage
 ```
 
 ## Code Standards

@@ -145,6 +145,7 @@ export function getCommitAgentInfo(commitRef: string, cwd?: string): CommitAgent
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30_000,
     });
 
     const trailers = parseCommitTrailers(message);
@@ -169,6 +170,7 @@ export function getRecentCommitsAgentInfo(
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30_000,
     })
       .trim()
       .split('\n');
@@ -394,6 +396,7 @@ export function getAgentContributions(
       cwd,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 30_000,
     }).trim();
 
     if (!output) return contributions;
@@ -446,6 +449,7 @@ export function getAiCommitPercentage(sinceRef?: string, cwd?: string): number {
         cwd,
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
+        timeout: 30_000,
       }).trim(),
       10
     );

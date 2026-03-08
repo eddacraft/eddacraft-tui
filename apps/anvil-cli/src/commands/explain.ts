@@ -12,6 +12,7 @@ import {
 } from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { loadRecentWarnings } from '../services/recent-warnings-store.js';
+import { print, blank, data } from '../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -22,41 +23,41 @@ interface ExplainOptions {
 }
 
 function formatSection(title: string, content: string): void {
-  console.log('');
-  console.log(chalk.bold.underline(title));
-  console.log('');
-  console.log(content.trim());
+  blank();
+  print(chalk.bold.underline(title));
+  blank();
+  print(content.trim());
 }
 
 function formatExplanationText(
   explanation: WarningExplanation,
   context?: { file?: string; line?: number }
 ): void {
-  console.log('');
-  console.log(chalk.bold(`  Warning: ${explanation.ruleId} — ${explanation.title}`));
+  blank();
+  print(chalk.bold(`  Warning: ${explanation.ruleId} — ${explanation.title}`));
 
   if (context?.file && context?.line) {
-    console.log(chalk.gray(`  File: ${context.file}:${context.line}`));
+    print(chalk.gray(`  File: ${context.file}:${context.line}`));
   }
 
-  console.log('');
-  console.log(chalk.gray('  ' + '─'.repeat(50)));
+  blank();
+  print(chalk.gray('  ' + '─'.repeat(50)));
 
   formatSection(
     `  ${explanation.whyItMatters.title}`,
     indentContent(explanation.whyItMatters.content, '  ')
   );
 
-  console.log('');
-  console.log(chalk.gray('  ' + '─'.repeat(50)));
+  blank();
+  print(chalk.gray('  ' + '─'.repeat(50)));
 
   formatSection(
     `  ${explanation.howToAddress.title}`,
     indentContent(explanation.howToAddress.content, '  ')
   );
 
-  console.log('');
-  console.log(chalk.gray('  ' + '─'.repeat(50)));
+  blank();
+  print(chalk.gray('  ' + '─'.repeat(50)));
 
   formatSection(
     `  ${explanation.whenToSuppress.title}`,
@@ -64,26 +65,26 @@ function formatExplanationText(
   );
 
   if (explanation.related) {
-    console.log('');
-    console.log(chalk.gray('  ' + '─'.repeat(50)));
-    console.log('');
-    console.log(chalk.bold.underline('  RELATED'));
-    console.log('');
+    blank();
+    print(chalk.gray('  ' + '─'.repeat(50)));
+    blank();
+    print(chalk.bold.underline('  RELATED'));
+    blank();
     if (explanation.related.documentation) {
-      console.log(`  • Documentation: ${explanation.related.documentation}`);
+      print(`  • Documentation: ${explanation.related.documentation}`);
     }
     if (explanation.related.ruleDefinition) {
-      console.log(`  • Rule definition: ${explanation.related.ruleDefinition}`);
+      print(`  • Rule definition: ${explanation.related.ruleDefinition}`);
     }
     if (
       explanation.related.similarWarnings !== undefined &&
       explanation.related.similarWarnings > 0
     ) {
-      console.log(`  • Similar warnings in this file: ${explanation.related.similarWarnings}`);
+      print(`  • Similar warnings in this file: ${explanation.related.similarWarnings}`);
     }
   }
 
-  console.log('');
+  blank();
 }
 
 function indentContent(content: string, indent: string): string {
@@ -94,38 +95,38 @@ function indentContent(content: string, indent: string): string {
 }
 
 function formatExplanationJson(explanation: WarningExplanation): void {
-  console.log(JSON.stringify(explanation, null, 2));
+  data(JSON.stringify(explanation, null, 2));
 }
 
 function listExplainableRules(json: boolean): void {
   const rules = getExplainableRules();
 
   if (json) {
-    console.log(JSON.stringify({ rules }, null, 2));
+    data(JSON.stringify({ rules }, null, 2));
     return;
   }
 
-  console.log('');
-  console.log(chalk.bold('Available rules with explanations:'));
-  console.log('');
+  blank();
+  print(chalk.bold('Available rules with explanations:'));
+  blank();
 
-  console.log(chalk.yellow.bold('Anti-pattern rules:'));
+  print(chalk.yellow.bold('Anti-pattern rules:'));
   const apRules = rules.filter((r) => r.startsWith('AP-'));
   for (const rule of apRules) {
-    console.log(`  ${rule}`);
+    print(`  ${rule}`);
   }
 
-  console.log('');
-  console.log(chalk.cyan.bold('Architecture rules:'));
+  blank();
+  print(chalk.cyan.bold('Architecture rules:'));
   const archRules = rules.filter((r) => r.startsWith('ARCH-') || r.startsWith('BOUND-'));
   for (const rule of archRules) {
-    console.log(`  ${rule}`);
+    print(`  ${rule}`);
   }
 
-  console.log('');
-  console.log(chalk.gray('Usage: anvil explain <rule-id>'));
-  console.log(chalk.gray('       anvil explain AP-003'));
-  console.log(chalk.gray('       anvil explain AP-003-src/file.ts:42'));
+  blank();
+  print(chalk.gray('Usage: anvil explain <rule-id>'));
+  print(chalk.gray('       anvil explain AP-003'));
+  print(chalk.gray('       anvil explain AP-003-src/file.ts:42'));
 }
 
 async function listRecentWarnings(json: boolean): Promise<void> {
@@ -133,27 +134,27 @@ async function listRecentWarnings(json: boolean): Promise<void> {
   const warnings = await loadRecentWarnings(workspaceRoot);
 
   if (json) {
-    console.log(JSON.stringify({ warnings }, null, 2));
+    data(JSON.stringify({ warnings }, null, 2));
     return;
   }
 
-  console.log('');
-  console.log(chalk.bold('Recent warnings (from last `anvil check` run):'));
-  console.log('');
+  blank();
+  print(chalk.bold('Recent warnings (from last `anvil check` run):'));
+  blank();
 
   if (warnings.length === 0) {
-    console.log(chalk.gray('No recent warnings found. Run `anvil check` first.'));
-    console.log('');
+    print(chalk.gray('No recent warnings found. Run `anvil check` first.'));
+    blank();
     return;
   }
 
   for (const warning of warnings) {
     const parsed = parseWarningId(warning.warningId);
     const rule = parsed?.rule ?? warning.warningId;
-    console.log(chalk.yellow(`  ${warning.warningId}`));
-    console.log(chalk.gray(`    ${rule} · ${warning.location.file}:${warning.location.line}`));
-    console.log(`    ${warning.title}`);
-    console.log('');
+    print(chalk.yellow(`  ${warning.warningId}`));
+    print(chalk.gray(`    ${rule} · ${warning.location.file}:${warning.location.line}`));
+    print(`    ${warning.title}`);
+    blank();
   }
 }
 
@@ -188,14 +189,14 @@ async function handleExplainWarningId(warningId: string, options: ExplainOptions
     }
   }
 
-  console.error(chalk.red(`Unknown warning ID or rule: ${warningId}`));
-  console.log('');
-  console.log(chalk.gray('Use --list to see recent warning IDs from check output'));
-  console.log(chalk.gray('Use --rules to see all explainable rules'));
-  console.log(chalk.gray('Format: RULE-ID or RULE-ID-file.ts:line'));
-  console.log(chalk.gray('Examples:'));
-  console.log(chalk.gray('  anvil explain AP-003'));
-  console.log(chalk.gray('  anvil explain AP-003-src/utils.ts:42'));
+  print(chalk.red(`Unknown warning ID or rule: ${warningId}`));
+  blank();
+  print(chalk.gray('Use --list to see recent warning IDs from check output'));
+  print(chalk.gray('Use --rules to see all explainable rules'));
+  print(chalk.gray('Format: RULE-ID or RULE-ID-file.ts:line'));
+  print(chalk.gray('Examples:'));
+  print(chalk.gray('  anvil explain AP-003'));
+  print(chalk.gray('  anvil explain AP-003-src/utils.ts:42'));
   throw new CliError('Unknown warning ID or rule');
 }
 

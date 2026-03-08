@@ -1,7 +1,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { loadAuth } from '../services/auth-store.js';
-import { error } from '../utils/output.js';
+import { blank, error, print } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
 
 export function createWhoamiCommand(): Command {
@@ -15,12 +15,12 @@ export function createWhoamiCommand(): Command {
       throw new CliError('Not authenticated');
     }
 
-    console.log(chalk.bold('\nSession Info\n'));
-    console.log(`  Email:    ${chalk.cyan(auth.user.email)}`);
-    console.log(`  Scopes:   ${auth.scopes.join(', ')}`);
-    console.log(`  Expires:  ${new Date(auth.expiresAt).toLocaleString()}`);
-    console.log(`  Verified: ${new Date(auth.verifiedAt).toLocaleString()}`);
-    console.log('');
+    print(chalk.bold('\nSession Info\n'));
+    print(`  Email:    ${chalk.cyan(auth.user.email)}`);
+    print(`  Scopes:   ${auth.scopes.join(', ')}`);
+    print(`  Expires:  ${new Date(auth.expiresAt).toLocaleString()}`);
+    print(`  Verified: ${new Date(auth.verifiedAt).toLocaleString()}`);
+    blank();
   });
 
   return command;

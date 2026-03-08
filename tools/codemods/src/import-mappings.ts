@@ -143,11 +143,17 @@ export const CORE_SYMBOLS = [
   'formatWarning',
   'WarningFormatter',
 
-  // Architecture
+  // Architecture (both old and new spellings for migration compat)
+  'analyseArchitecture',
   'analyzeArchitecture',
+  'ArchitectureAnalyser',
+  'ArchitectureAnalyzer',
+  'createArchitectureAnalyser',
+  'createArchitectureAnalyzer',
+  'AnalyserOptions',
+  'AnalyzerOptions',
   'detectLayers',
   'validateBoundaries',
-  'ArchitectureAnalyzer',
 
   // Drift
   'detectDrift',

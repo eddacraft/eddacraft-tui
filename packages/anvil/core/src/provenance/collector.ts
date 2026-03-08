@@ -93,22 +93,31 @@ export async function collectGitContext(workspaceRoot: string): Promise<GitConte
 
   try {
     const [branch, commit, commitMessage, author, status, stagedFiles] = await Promise.all([
-      execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: workspaceRoot })
+      execFileAsync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
+        cwd: workspaceRoot,
+        timeout: 30_000,
+      })
         .then((r) => r.stdout.trim())
         .catch(() => undefined),
-      execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot })
+      execFileAsync('git', ['rev-parse', 'HEAD'], { cwd: workspaceRoot, timeout: 30_000 })
         .then((r) => r.stdout.trim())
         .catch(() => undefined),
-      execFileAsync('git', ['log', '-1', '--format=%s'], { cwd: workspaceRoot })
+      execFileAsync('git', ['log', '-1', '--format=%s'], { cwd: workspaceRoot, timeout: 30_000 })
         .then((r) => r.stdout.trim())
         .catch(() => undefined),
-      execFileAsync('git', ['log', '-1', '--format=%an <%ae>'], { cwd: workspaceRoot })
+      execFileAsync('git', ['log', '-1', '--format=%an <%ae>'], {
+        cwd: workspaceRoot,
+        timeout: 30_000,
+      })
         .then((r) => r.stdout.trim())
         .catch(() => undefined),
-      execFileAsync('git', ['status', '--porcelain'], { cwd: workspaceRoot })
+      execFileAsync('git', ['status', '--porcelain'], { cwd: workspaceRoot, timeout: 30_000 })
         .then((r) => r.stdout.trim())
         .catch(() => ''),
-      execFileAsync('git', ['diff', '--name-only', '--cached'], { cwd: workspaceRoot })
+      execFileAsync('git', ['diff', '--name-only', '--cached'], {
+        cwd: workspaceRoot,
+        timeout: 30_000,
+      })
         .then((r) =>
           r.stdout
             .trim()
@@ -132,6 +141,7 @@ export async function collectGitContext(workspaceRoot: string): Promise<GitConte
     try {
       const { stdout } = await execFileAsync('git', ['remote', 'get-url', 'origin'], {
         cwd: workspaceRoot,
+        timeout: 30_000,
       });
       repository = stdout.trim();
     } catch (error) {
@@ -226,6 +236,7 @@ export async function detectAITool(workspaceRoot: string): Promise<AITool | unde
   try {
     const { stdout } = await execFileAsync('git', ['log', '-5', '--format=%s'], {
       cwd: workspaceRoot,
+      timeout: 30_000,
     });
     const messages = stdout.toLowerCase();
 
@@ -302,7 +313,10 @@ export async function createProvenanceRecord(params: {
   // Get current user
   let user: string | undefined;
   try {
-    const { stdout } = await execFileAsync('git', ['config', 'user.name']);
+    const { stdout } = await execFileAsync('git', ['config', 'user.name'], {
+      cwd: workspaceRoot,
+      timeout: 30_000,
+    });
     user = stdout.trim() || undefined;
   } catch (error) {
     debug('Failed to get git user.name, falling back to env vars', error);

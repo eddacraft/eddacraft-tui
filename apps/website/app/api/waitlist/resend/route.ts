@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   }
 
   const trimmedEmail = email.trim().toLowerCase();
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const emailRegex = /^[^\s@]+@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/;
   if (!emailRegex.test(trimmedEmail)) {
     return NextResponse.json({ error: 'Invalid email format' }, { status: 400 });
   }
