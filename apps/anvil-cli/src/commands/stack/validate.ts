@@ -6,7 +6,6 @@
  * Usage:
  *   anvil stack validate           Validate stack configuration
  *   anvil stack validate --json    Output as JSON
- *   anvil stack validate --fix     Attempt to fix issues (future)
  */
 
 import { Command } from 'commander';
@@ -15,7 +14,7 @@ import ora from 'ora';
 import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import { StackConfigSchema, isLayerEnabled, getEnabledLayers, type StackConfig } from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { blank, data, error, print, success, warning } from '../../utils/output.js';
+import { blank, data, error, print, success } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 
 /**
@@ -23,7 +22,6 @@ import { CliError, CliExit } from '../../utils/cli-error.js';
  */
 export interface ValidateOptions {
   json?: boolean;
-  fix?: boolean;
 }
 
 /**
@@ -324,12 +322,7 @@ export function createValidateSubcommand(): Command {
   return new Command('validate')
     .description('Validate stack configuration and provenance integrity')
     .option('--json', 'Output as JSON')
-    .option('--fix', 'Attempt to fix issues (not yet implemented)')
     .action(async (options: ValidateOptions) => {
-      if (options.fix) {
-        warning('--fix is not yet implemented');
-      }
-
       if (options.json) {
         // JSON mode
         try {
