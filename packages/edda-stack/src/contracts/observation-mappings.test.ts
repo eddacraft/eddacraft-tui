@@ -55,6 +55,10 @@ describe('observation-mappings', () => {
       expect(mapObservationKindsToProposalType(['action_failed', 'plan_completed'])).toBe('lesson');
     });
 
+    it('maps success-only signals to lesson', () => {
+      expect(mapObservationKindsToProposalType(['plan_completed'])).toBe('lesson');
+    });
+
     it('maps failure signals to warning', () => {
       expect(mapObservationKindsToProposalType(['error_recorded'])).toBe('warning');
       expect(mapObservationKindsToProposalType(['action_failed'])).toBe('warning');

@@ -1,3 +1,13 @@
+/**
+ * Observation-to-proposal type mapping contracts.
+ *
+ * Defines conversion rules from Kindling observation kinds to Ember proposal
+ * types, both for single observations and aggregated multi-kind inputs.
+ *
+ * @module observation-mappings
+ * @see STACK-006
+ */
+
 import type { ProposalType } from './ember-proposal.js';
 import type { ObservationKind } from './ports/kindling.port.js';
 
@@ -30,6 +40,10 @@ export function mapObservationKindsToProposalType(
 
   if (hasFailureSignal) {
     return 'warning';
+  }
+
+  if (kinds.has('plan_completed')) {
+    return 'lesson';
   }
 
   if (kinds.has('constraint_applied')) {
