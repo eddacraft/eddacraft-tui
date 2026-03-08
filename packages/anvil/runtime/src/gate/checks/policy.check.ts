@@ -2,7 +2,6 @@
  * Policy Check - Evaluate OPA/Rego policies against plans
  */
 
-import { execFileSync } from 'node:child_process';
 import { BaseCheck } from '../check.interface.js';
 import { CheckContext, GateResult } from '../../types/gate.types.js';
 import {
@@ -13,7 +12,12 @@ import {
   type OPAInput,
   type PolicyViolation,
 } from '../policy/index.js';
-import { parseSeverity, createDebugger, type ArchitectureContext } from '@eddacraft/anvil-core';
+import {
+  parseSeverity,
+  createDebugger,
+  gitExecSync,
+  type ArchitectureContext,
+} from '@eddacraft/anvil-core';
 
 const log = createDebugger('check');
 
@@ -356,12 +360,7 @@ export class PolicyCheck extends BaseCheck {
     try {
       const execGit = (args: string[]): string | undefined => {
         try {
-          return execFileSync('git', args, {
-            cwd: workspaceRoot,
-            encoding: 'utf-8',
-            stdio: ['pipe', 'pipe', 'pipe'],
-            timeout: 30_000,
-          }).trim();
+          return gitExecSync(args, { cwd: workspaceRoot });
         } catch {
           return undefined;
         }

@@ -1,12 +1,10 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { tmpdir } from 'node:os';
 import { serializeAuthorshipLog, parseAuthorshipLog } from './serializer.js';
 import type { AuthorshipLog } from './types.js';
 import { createDebugger } from '../../utils/debug.js';
+import { gitExec } from '../../utils/git-operations.js';
 
 const debug = createDebugger('git-ai-notes');
-const execFileAsync = promisify(execFile);
 
 /**
  * Validate a git commit SHA or ref to prevent shell injection
@@ -67,14 +65,9 @@ export async function writeAuthorshipNote(
   try {
     await writeFile(tempFile, content, 'utf-8');
 
-    await execFileAsync(
-      'git',
-      ['notes', `--ref=${NOTES_REF}`, 'add', '-f', '-F', tempFile, '--', commitSha],
-      {
-        cwd: workspaceRoot,
-        timeout: 30_000,
-      }
-    );
+    await gitExec(['notes', `--ref=${NOTES_REF}`, 'add', '-f', '-F', tempFile, '--', commitSha], {
+      cwd: workspaceRoot,
+    });
 
     debug(`Wrote authorship note for commit ${commitSha.slice(0, 8)}`);
   } catch (error) {
@@ -106,14 +99,9 @@ export async function readAuthorshipNote(
   }
 
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha],
-      {
-        cwd: workspaceRoot,
-        timeout: 30_000,
-      }
-    );
+    const { stdout } = await gitExec(['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha], {
+      cwd: workspaceRoot,
+    });
 
     return parseAuthorshipLog(stdout);
   } catch (error) {
@@ -131,14 +119,12 @@ export async function readAuthorshipNote(
  */
 export async function listAuthorshipNotes(workspaceRoot: string): Promise<string[]> {
   try {
-    const { stdout } = await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'list'], {
+    const { stdout } = await gitExec(['notes', `--ref=${NOTES_REF}`, 'list'], {
       cwd: workspaceRoot,
-      timeout: 30_000,
     });
 
     // Format: <note-sha> <commit-sha>
     return stdout
-      .trim()
       .split('\n')
       .filter((line) => line)
       .map((line) => line.split(' ')[1])
@@ -165,9 +151,8 @@ export async function removeAuthorshipNote(
   }
 
   try {
-    await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'remove', '--', commitSha], {
+    await gitExec(['notes', `--ref=${NOTES_REF}`, 'remove', '--', commitSha], {
       cwd: workspaceRoot,
-      timeout: 30_000,
     });
     debug(`Removed authorship note for commit ${commitSha.slice(0, 8)}`);
     return true;
@@ -201,11 +186,10 @@ export async function copyAuthorshipNote(
     if (!existingLog) return false;
 
     // Resolve toSha to full 40-character SHA
-    const { stdout } = await execFileAsync('git', ['rev-parse', '--', toSha], {
+    const { stdout } = await gitExec(['rev-parse', '--', toSha], {
       cwd: workspaceRoot,
-      timeout: 30_000,
     });
-    const resolvedSha = stdout.trim();
+    const resolvedSha = stdout;
 
     // Update base_commit_sha in metadata to point to new commit
     const updatedLog: AuthorshipLog = {
@@ -237,7 +221,7 @@ export async function pushAuthorshipNotes(remote: string, workspaceRoot: string)
   }
 
   try {
-    await execFileAsync('git', ['push', remote, NOTES_REF], {
+    await gitExec(['push', remote, NOTES_REF], {
       cwd: workspaceRoot,
       timeout: 60_000,
     });
@@ -260,7 +244,7 @@ export async function fetchAuthorshipNotes(remote: string, workspaceRoot: string
   }
 
   try {
-    await execFileAsync('git', ['fetch', remote, `${NOTES_REF}:${NOTES_REF}`], {
+    await gitExec(['fetch', remote, `${NOTES_REF}:${NOTES_REF}`], {
       cwd: workspaceRoot,
       timeout: 60_000,
     });
@@ -287,9 +271,8 @@ export async function hasAuthorshipNote(
   }
 
   try {
-    await execFileAsync('git', ['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha], {
+    await gitExec(['notes', `--ref=${NOTES_REF}`, 'show', '--', commitSha], {
       cwd: workspaceRoot,
-      timeout: 30_000,
     });
     return true;
   } catch {
@@ -328,12 +311,11 @@ export async function getAuthorshipStats(
 
   try {
     // Get list of commits in range
-    const { stdout } = await execFileAsync('git', ['rev-list', '--', range], {
+    const { stdout } = await gitExec(['rev-list', '--', range], {
       cwd: workspaceRoot,
-      timeout: 30_000,
     });
 
-    const commits = stdout.trim().split('\n').filter(Boolean);
+    const commits = stdout.split('\n').filter(Boolean);
     stats.totalCommits = commits.length;
 
     // Batch: get all commits that have authorship notes in a single git command

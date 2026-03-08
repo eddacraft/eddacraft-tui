@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
+import { gitExecSync } from '@eddacraft/anvil-core';
 import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { blank, print, debug } from '../utils/output.js';
@@ -9,11 +9,9 @@ const CHANGELOG_PATH = 'CHANGELOG.md';
 
 function getLatestTag(workspaceRoot: string): string | null {
   try {
-    return execFileSync('git', ['describe', '--tags', '--abbrev=0'], {
+    return gitExecSync(['describe', '--tags', '--abbrev=0'], {
       cwd: workspaceRoot,
-      encoding: 'utf8',
-      timeout: 30_000,
-    }).trim();
+    });
   } catch {
     debug('getLatestTag: git describe failed, no tags found');
     return null;
@@ -23,15 +21,10 @@ function getLatestTag(workspaceRoot: string): string | null {
 function getCommitsSinceTag(workspaceRoot: string, tag: string | null): string[] {
   const range = tag ? `${tag}..HEAD` : 'HEAD';
   try {
-    const output = execFileSync('git', ['log', range, '--oneline', '--no-decorate'], {
+    const output = gitExecSync(['log', range, '--oneline', '--no-decorate'], {
       cwd: workspaceRoot,
-      encoding: 'utf8',
-      timeout: 30_000,
     });
-    return output
-      .trim()
-      .split('\n')
-      .filter((line) => line.length > 0);
+    return output.split('\n').filter((line: string) => line.length > 0);
   } catch {
     debug('getCommitsSinceTag: git log failed, returning empty list');
     return [];

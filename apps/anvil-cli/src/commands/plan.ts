@@ -21,10 +21,10 @@ import {
   APS_SCHEMA_VERSION,
   createDebugger,
   validatePathWithinRoot,
+  gitExecSync,
 } from '@eddacraft/anvil-core';
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { createSpinner } from '../utils/spinner.js';
 import {
   createValidateSubcommand,
@@ -39,11 +39,7 @@ const log = createDebugger('cli');
 /** Read a git field, returning '' on failure (e.g. not a git repo). */
 function gitField(...args: string[]): string {
   try {
-    return execFileSync('git', args, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'ignore'],
-      timeout: 30_000,
-    }).trim();
+    return gitExecSync(args);
   } catch {
     debug('gitField: git command failed, returning empty string');
     return '';

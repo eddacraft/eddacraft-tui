@@ -1,8 +1,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { createDebugger } from '../utils/debug.js';
+import { gitRevParse } from '../utils/git-operations.js';
 import {
   type DriftSnapshot,
   type SnapshotViolation,
@@ -23,7 +22,6 @@ import { SuppressionService, type FileSuppressions } from '../suppression/index.
 import { generateHash } from '../crypto/index.js';
 
 const debug = createDebugger('drift');
-const execFileAsync = promisify(execFile);
 
 export interface CaptureOptions {
   name?: string;
@@ -42,11 +40,7 @@ export interface CaptureContext {
 
 async function getGitRef(workspaceRoot: string): Promise<string | undefined> {
   try {
-    const { stdout } = await execFileAsync('git', ['rev-parse', 'HEAD'], {
-      cwd: workspaceRoot,
-      timeout: 30_000,
-    });
-    return stdout.trim();
+    return await gitRevParse(workspaceRoot);
   } catch (err) {
     debug('failed to get git ref for workspace', err);
     return undefined;

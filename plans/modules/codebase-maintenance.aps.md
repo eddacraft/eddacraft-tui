@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 3/8 |
+| MAINT | @team | In Progress | 4/8 |
 
 ## Purpose
 
@@ -126,13 +126,14 @@ When working on any task across the codebase, note repeated patterns:
   `packages/aps/src/state/index.ts`
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Draft
-- **Notes:** Scope revised 2026-03-08 after investigation. Original estimate
-  ("100+ call sites across 19 files") was vastly overstated. Actual: 16 total
-  git subprocess calls across 10 files (7 production, 3 test). CRB-024 already
-  added timeouts to all sites. `git-agent.ts` already serves as a partial
-  wrapper with 4 calls. Remaining: ~12 calls in 6 production files. Single PR,
-  estimated 2–4 hours.
+- **Status:** Complete
+- **Completed:** 2026-03-08
+- **Notes:** Created `git-operations.ts` in `@eddacraft/anvil-core` with
+  `gitExec` (async) and `gitExecSync` (sync) wrappers, typed `GitExecOptions`,
+  `GitOperationError`, and convenience helpers. Migrated 14 production files
+  across core, runtime, and CLI packages. Key design: `trimEnd()` preserves
+  leading whitespace in git porcelain output. Packages `aps` and `edda-stack`
+  excluded (independent dependency trees). 10 co-located tests.
 
 ---
 

@@ -5,15 +5,11 @@
  * to only unstaged changes.
  */
 
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { relative, resolve } from 'node:path';
 import type { GitFileStatus } from './types.js';
-import { createDebugger } from '@eddacraft/anvil-core';
+import { createDebugger, gitExec } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('watch');
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Unescape a git-quoted path. Git wraps paths in double-quotes and
@@ -125,10 +121,7 @@ export class GitStatusChecker {
    */
   async isGitRepository(): Promise<boolean> {
     try {
-      await execFileAsync('git', ['rev-parse', '--git-dir'], {
-        cwd: this.workspaceRoot,
-        timeout: 30_000,
-      });
+      await gitExec(['rev-parse', '--git-dir'], { cwd: this.workspaceRoot });
       return true;
     } catch (error) {
       debug('Failed to check if directory is a git repository', error);
@@ -146,12 +139,11 @@ export class GitStatusChecker {
     const relativePath = this.toRelativePath(filePath);
 
     try {
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain', '--', relativePath], {
+      const { stdout } = await gitExec(['status', '--porcelain', '--', relativePath], {
         cwd: this.workspaceRoot,
-        timeout: 30_000,
       });
 
-      return this.parseStatusLine(stdout.trimEnd(), relativePath);
+      return this.parseStatusLine(stdout, relativePath);
     } catch (error) {
       debug('Git status command failed, treating file as untracked', error);
       return {
@@ -212,13 +204,12 @@ export class GitStatusChecker {
     errorMessage: string
   ): Promise<string[]> {
     try {
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
+      const { stdout } = await gitExec(['status', '--porcelain'], {
         cwd: this.workspaceRoot,
-        timeout: 30_000,
       });
 
       const files: string[] = [];
-      const lines = stdout.split('\n').filter((l) => l.length >= 3);
+      const lines = stdout.split('\n').filter((l: string) => l.length >= 3);
 
       for (const line of lines) {
         const status = this.parseStatusLine(line, '');
@@ -254,12 +245,11 @@ export class GitStatusChecker {
     );
 
     try {
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
+      const { stdout } = await gitExec(['status', '--porcelain'], {
         cwd: this.workspaceRoot,
-        timeout: 30_000,
       });
 
-      const lines = stdout.split('\n').filter((l) => l.length >= 3);
+      const lines = stdout.split('\n').filter((l: string) => l.length >= 3);
 
       for (const line of lines) {
         const status = this.parseStatusLine(line, '');
@@ -413,21 +403,19 @@ export async function getChangedFiles(
 
   try {
     if (since) {
-      const { stdout } = await execFileAsync('git', ['diff', '--name-only', since], {
+      const { stdout } = await gitExec(['diff', '--name-only', since], {
         cwd: workspaceRoot,
-        timeout: 30_000,
       });
-      const diffFiles = stdout.trim().split('\n').filter(Boolean);
+      const diffFiles = stdout.split('\n').filter(Boolean);
       for (const file of diffFiles) {
         files.add(resolve(workspaceRoot, file));
       }
     } else {
-      const { stdout } = await execFileAsync('git', ['status', '--porcelain'], {
+      const { stdout } = await gitExec(['status', '--porcelain'], {
         cwd: workspaceRoot,
-        timeout: 30_000,
       });
 
-      const lines = stdout.split('\n').filter((l) => l.length >= 3);
+      const lines = stdout.split('\n').filter((l: string) => l.length >= 3);
 
       for (const line of lines) {
         const statusCode = line.substring(0, 2);

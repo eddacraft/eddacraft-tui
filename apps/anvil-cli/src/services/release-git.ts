@@ -1,9 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { gitExecSync } from '@eddacraft/anvil-core';
 import chalk from 'chalk';
 import { print } from '../utils/output.js';
 
 function run(args: string[], cwd: string, timeout = 30_000): string {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', timeout }).trim();
+  return gitExecSync(args, { cwd, timeout });
 }
 
 export function isCleanWorkingTree(workspaceRoot: string): boolean {

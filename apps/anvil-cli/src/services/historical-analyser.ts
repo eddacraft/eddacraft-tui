@@ -1,8 +1,5 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { gitExec } from '@eddacraft/anvil-core';
 import { print, debug } from '../utils/output.js';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Commit with potential violations
@@ -158,9 +155,8 @@ export class HistoricalAnalyser {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execFileAsync('git', ['rev-parse', '--git-dir'], {
+      await gitExec(['rev-parse', '--git-dir'], {
         cwd: this.projectRoot,
-        timeout: 30_000,
       });
       return true;
     } catch {
@@ -180,8 +176,7 @@ export class HistoricalAnalyser {
     const since = `${config.daysBack}.days.ago`;
 
     // Get commit log
-    const { stdout } = await execFileAsync(
-      'git',
+    const { stdout } = await gitExec(
       [
         'log',
         `--since=${since}`,
@@ -192,7 +187,6 @@ export class HistoricalAnalyser {
       {
         cwd: this.projectRoot,
         maxBuffer: 10 * 1024 * 1024,
-        timeout: 30_000,
       }
     );
 
@@ -204,14 +198,16 @@ export class HistoricalAnalyser {
       files: string[];
     }> = [];
 
-    const blocks = stdout.split('\n\n').filter((block) => block.trim());
+    const blocks = stdout.split('\n\n').filter((block: string) => block.trim());
 
     for (const block of blocks) {
       const lines = block.split('\n');
       if (lines.length < 1) continue;
 
       const [hash, author, timestamp, message] = lines[0].split('|');
-      const files = lines.slice(1).filter((f) => f.trim() && this.shouldAnalyseFile(f, config));
+      const files = lines
+        .slice(1)
+        .filter((f: string) => f.trim() && this.shouldAnalyseFile(f, config));
 
       if (files.length === 0) continue;
 
@@ -269,15 +265,10 @@ export class HistoricalAnalyser {
     for (const commit of commits) {
       try {
         // Get the diff for this commit
-        const { stdout } = await execFileAsync(
-          'git',
-          ['show', commit.hash, '--pretty=', '--unified=0'],
-          {
-            cwd: this.projectRoot,
-            maxBuffer: 5 * 1024 * 1024,
-            timeout: 30_000,
-          }
-        );
+        const { stdout } = await gitExec(['show', commit.hash, '--pretty=', '--unified=0'], {
+          cwd: this.projectRoot,
+          maxBuffer: 5 * 1024 * 1024,
+        });
 
         // Estimate violations from diff
         const estimatedViolations = this.estimateViolationsFromDiff(stdout, config.antiPatternIds);

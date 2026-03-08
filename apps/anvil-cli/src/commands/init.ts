@@ -33,6 +33,7 @@ import { ProjectDetector } from '../services/project-detector.js';
 import { SampleAnalyser } from '../services/sample-analyser.js';
 import { HistoricalAnalyser } from '../services/historical-analyser.js';
 import { RepoScanner } from '../services/repo-scanner.js';
+import { gitExecSync } from '@eddacraft/anvil-core';
 import { QuickWinsIdentifier } from '../services/quick-wins.js';
 import { SmartDefaultsGenerator } from '../services/smart-defaults.js';
 import { InitResults } from '../tui/commands/init/InitResults.js';
@@ -760,12 +761,9 @@ async function runDetectAndApplyInit(
       // Use git rev-parse to find the hooks directory (works in worktrees)
       let hooksDir = '.git/hooks';
       try {
-        const { execFileSync } = await import('node:child_process');
-        hooksDir = execFileSync('git', ['rev-parse', '--git-path', 'hooks'], {
+        hooksDir = gitExecSync(['rev-parse', '--git-path', 'hooks'], {
           cwd: projectRoot,
-          encoding: 'utf-8',
-          timeout: 30_000,
-        }).trim();
+        });
       } catch {
         debug('init: git rev-parse --git-path hooks failed, using default');
         // Fall back to .git/hooks if git command fails

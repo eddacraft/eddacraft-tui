@@ -5,11 +5,10 @@
  * Supports reading and writing agent identification through commit trailers.
  */
 
-import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createAgentInfo } from './agent.js';
 import type { AgentType, AgentInfo } from './types.js';
-import { createDebugger } from '@eddacraft/anvil-core';
+import { createDebugger, gitExecSync } from '@eddacraft/anvil-core';
 
 const debug = createDebugger('git-agent');
 
@@ -141,12 +140,7 @@ export function extractAgentInfo(trailers: Record<string, string>): CommitAgentI
  */
 export function getCommitAgentInfo(commitRef: string, cwd?: string): CommitAgentInfo | null {
   try {
-    const message = execFileSync('git', ['log', '-1', '--format=%B', commitRef], {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 30_000,
-    });
+    const message = gitExecSync(['log', '-1', '--format=%B', commitRef], { cwd });
 
     const trailers = parseCommitTrailers(message);
     return extractAgentInfo(trailers);
@@ -166,14 +160,7 @@ export function getRecentCommitsAgentInfo(
   const results: Array<{ hash: string; info: CommitAgentInfo }> = [];
 
   try {
-    const hashes = execFileSync('git', ['log', `-${count}`, '--format=%H'], {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 30_000,
-    })
-      .trim()
-      .split('\n');
+    const hashes = gitExecSync(['log', `-${count}`, '--format=%H'], { cwd }).split('\n');
 
     for (const hash of hashes) {
       const info = getCommitAgentInfo(hash, cwd);
@@ -392,12 +379,7 @@ export function getAgentContributions(
     if (sinceRef) args.push(`${sinceRef}..HEAD`);
     args.push('--format=%H|%aI');
 
-    const output = execFileSync('git', args, {
-      cwd,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 30_000,
-    }).trim();
+    const output = gitExecSync(args, { cwd });
 
     if (!output) return contributions;
 
@@ -444,15 +426,7 @@ export function getAiCommitPercentage(sinceRef?: string, cwd?: string): number {
     const revListArgs = ['rev-list', '--count'];
     revListArgs.push(sinceRef ? `${sinceRef}..HEAD` : 'HEAD');
 
-    const totalCount = parseInt(
-      execFileSync('git', revListArgs, {
-        cwd,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 30_000,
-      }).trim(),
-      10
-    );
+    const totalCount = parseInt(gitExecSync(revListArgs, { cwd }), 10);
 
     if (totalCount === 0) return 0;
 

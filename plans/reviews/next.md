@@ -25,35 +25,17 @@ details and evidence.
 | CRB-023 | Silent fallbacks without visibility — emit debug logs | Medium | ✅ Complete — PR #508 (commit d1bbb693, 50+ debug calls) |
 | CRB-025 | Docs and scripts drifting from reality — audit accuracy | Low | ✅ Complete — PR #510 (21 issues fixed across 8 files) |
 
-### MAINT — Codebase Maintenance (3/8 complete)
+### MAINT — Codebase Maintenance (4/8 complete)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
 | MAINT-002 | Error formatting consistency across CLI commands | Medium | ✅ Complete — CRB-019 migration (commit 5a3882b2) |
 | MAINT-003 | Workspace root resolution — consolidate into one utility | Low | ✅ Complete — already consolidated |
-| MAINT-004 | Git operation wrappers — consolidate execFile/spawn calls | Medium | Open — scope revised (see below) |
-| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | 🔄 In Progress — PR #517 (open, ~21 files still use old pattern) |
+| MAINT-004 | Git operation wrappers — consolidate execFile/spawn calls | Medium | ✅ Complete — PR #521 |
+| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | 🔄 In Progress — PR #517 (open, not yet merged) |
 | MAINT-006 | Nx generator for CLI commands | Low | 🔄 In Progress — PR #516 (open, not yet merged) |
 | MAINT-007 | Nx generator for gate checks | Low | 🔄 In Progress — PR #516 (open, not yet merged) |
 | MAINT-008 | Spinner/progress patterns — consolidate ora usage | Low | 🔄 In Progress — PR #517 (open, not yet merged) |
-
-#### MAINT-004: Revised Scope
-
-Investigation found the original estimate ("100+ call sites across 19 files")
-was vastly overstated. Actual scope:
-
-- `execFile`/`execFileSync`/`spawn`/`spawnSync` calls with `'git'` across
-  ~10 files (7+ production, 3 test)
-- `packages/anvil/runtime/src/concurrency/git-agent.ts` already serves as a
-  partial git wrapper (4 calls)
-- Remaining production calls include: `SystemCheck.ts`, `release-changelog.ts`,
-  `plan.ts`, `init.ts`, `release-git.ts`, `policy.check.ts`,
-  `packages/aps/src/state/index.ts`
-- No `runCommand('git', ...)` pattern exists — each call uses Node.js
-  `child_process` directly with explicit timeouts (added in CRB-024)
-
-**Recommendation:** Extend `git-agent.ts` into a shared git operations module
-and migrate the ~12 remaining production calls. Single PR, estimated 2–4 hours.
 
 ### STACK — Edda Stack Integration (17/19)
 
@@ -78,29 +60,28 @@ All findings from `plans/reviews/interim-finds-2026-03-04.md` are resolved.
 
 | ID | Summary | Severity | Status |
 |----|---------|----------|--------|
-| ISS-004 | Pulumi Preview CI check failing on main (pre-existing) | Medium | Archived — infrastructure ops issue, not code (see below) |
+| ISS-004 | Pulumi Preview CI check failing on main (pre-existing) | Medium | ✅ Resolved — Azure secrets provisioned, CI passing on main |
 | ISS-006 | `preserve-caught-error` warnings across CLI/core/runtime (9 total) | Low | ✅ Complete — PR #513 |
 | ISS-007 | `preserve-caught-error` warnings across CLI (4 remaining) | Low | ✅ Complete — subsumed by ISS-006 fix (PR #513) |
 
-#### ISS-004: Reclassified as Infrastructure
+#### ISS-004: Resolved
 
-Investigation found this is not a code bug. The `infra.yml` workflow already has
-a `check-secrets` guard that gracefully skips Pulumi when Azure credentials
-aren't configured. The CI check fails because the required secrets
-(`AZURE_CREDENTIALS`, `PULUMI_ACCESS_TOKEN`, etc.) haven't been set up in GitHub
-repository settings. No code change can fix this — it requires Azure credential
-provisioning in the deployment environment.
+Azure secrets (`ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`,
+`ARM_SUBSCRIPTION_ID`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY`,
+`PULUMI_CONFIG_PASSPHRASE`) are now provisioned in GitHub repository settings.
+The `infra.yml` workflow's `check-secrets` guard works correctly, and all recent
+CI runs on main show `conclusion: success`. No code changes were required.
 
 ### Summary
 
 | Category | Total | Done | In Progress | Remaining |
 |----------|-------|------|-------------|-----------|
 | Code review (CRB) | 29 | 29 | 0 | 0 |
-| Maintenance (MAINT) | 8 | 3 | 4 (PRs #516, #517 open) | 1 (MAINT-004, revised scope) |
+| Maintenance (MAINT) | 8 | 4 | 4 (PRs #516, #517 open) | 0 |
 | Stack reconciliation (STACK) | 4 | 2 | 2 (PR #518 open) | 0 |
 | Interim findings (F-series) | 3 | 3 | 0 | 0 |
-| Issues (ISS) | 3 | 2 | 0 | 1 (ISS-004, reclassified as infra) |
-| **Total** | **47** | **39** | **6** | **2** |
+| Issues (ISS) | 3 | 3 | 0 | 0 |
+| **Total** | **47** | **41** | **6** | **0** |
 
 **Merged this sweep:**
 - Security & correctness: F-001, F-002, F-003, ISS-006/007, APS execSync, CLI flag removal
@@ -120,14 +101,10 @@ provisioning in the deployment environment.
 - CRB-017 (tests already existed for all config loaders)
 
 **Remaining:**
-- MAINT-004 (git wrappers) — scope revised from "100+ sites" to ~12 calls in
-  7 production files. Single PR when prioritised.
-- ISS-004 (Pulumi CI) — reclassified as infrastructure ops. Requires Azure
-  credential setup, not code changes.
+- None. All remediation items are complete or in progress via open PRs.
 
-**Critical path for beta:** No remediation items remain on the critical path.
-MAINT-004 is a quality-of-life improvement. ISS-004 is blocked on infrastructure
-provisioning.
+**Critical path for beta:** No remediation items remain. The backlog is fully
+resolved across PRs #505–#520.
 
 ---
 

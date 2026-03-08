@@ -1,10 +1,7 @@
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
+import { gitExec } from '@eddacraft/anvil-core';
 import { print, debug } from '../utils/output.js';
-
-const execFileAsync = promisify(execFile);
 
 /**
  * Configuration for sample analysis
@@ -108,9 +105,8 @@ export class SampleAnalyser {
   private async isGitAvailable(): Promise<boolean> {
     try {
       // Use git rev-parse which handles worktrees (.git as file) correctly
-      await execFileAsync('git', ['rev-parse', '--git-dir'], {
+      await gitExec(['rev-parse', '--git-dir'], {
         cwd: this.projectRoot,
-        timeout: 30_000,
       });
       return true;
     } catch {
@@ -126,28 +122,28 @@ export class SampleAnalyser {
     try {
       // Get files changed in the last N days
       const since = `${config.daysBack}.days.ago`;
-      const { stdout } = await execFileAsync(
-        'git',
+      const { stdout } = await gitExec(
         ['log', `--since=${since}`, '--name-only', '--pretty=format:', '--diff-filter=AM'],
         {
           cwd: this.projectRoot,
           maxBuffer: 10 * 1024 * 1024,
-          timeout: 30_000,
         }
       );
 
       // Parse output, remove empty lines, deduplicate
       const files = stdout
         .split('\n')
-        .map((f) => f.trim())
-        .filter((f) => f.length > 0)
-        .filter((f) => this.shouldIncludeFile(f, config));
+        .map((f: string) => f.trim())
+        .filter((f: string) => f.length > 0)
+        .filter((f: string) => this.shouldIncludeFile(f, config));
 
       // Remove duplicates while preserving order (most recent first)
       const uniqueFiles = Array.from(new Set(files));
 
       // Filter to only existing files
-      const existingFiles = uniqueFiles.filter((f) => existsSync(join(this.projectRoot, f)));
+      const existingFiles = uniqueFiles.filter((f: string) =>
+        existsSync(join(this.projectRoot, f))
+      );
 
       return existingFiles;
     } catch (error) {

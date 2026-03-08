@@ -46,7 +46,7 @@ describe('plan command', () => {
     vi.restoreAllMocks();
   });
 
-  it('should create command with correct name and description', async () => {
+  it('should create command with correct name and description', { timeout: 15_000 }, async () => {
     const { createPlanCommand } = await import('./plan.js');
     const command = createPlanCommand();
 

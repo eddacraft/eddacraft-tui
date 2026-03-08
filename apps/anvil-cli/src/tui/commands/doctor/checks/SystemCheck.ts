@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process';
+import { gitExecSync } from '@eddacraft/anvil-core';
 
 import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult } from '../types.js';
 
@@ -6,9 +6,18 @@ const MIN_NODE_VERSION = 20;
 
 function isSpawnBlocked(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
-  const err = error as { code?: string; message?: string };
+  const err = error as {
+    code?: string;
+    message?: string;
+    cause?: { code?: string; message?: string };
+  };
   if (err.code === 'EPERM') return true;
   if (typeof err.message === 'string' && err.message.includes('EPERM')) return true;
+  // GitOperationError wraps the original error as `cause`
+  if (err.cause) {
+    if (err.cause.code === 'EPERM') return true;
+    if (typeof err.cause.message === 'string' && err.cause.message.includes('EPERM')) return true;
+  }
   return false;
 }
 
@@ -49,12 +58,8 @@ export class GitCheck implements DiagnosticCheck {
 
   async run(_context: DiagnosticContext): Promise<DiagnosticResult> {
     try {
-      const output = execFileSync('git', ['--version'], {
-        encoding: 'utf8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 30_000,
-      });
-      const version = output.trim().replace('git version ', '');
+      const output = gitExecSync(['--version']);
+      const version = output.replace('git version ', '');
 
       return {
         checkId: this.id,
@@ -93,12 +98,7 @@ export class GitRepoCheck implements DiagnosticCheck {
 
   async run(context: DiagnosticContext): Promise<DiagnosticResult> {
     try {
-      execFileSync('git', ['rev-parse', '--git-dir'], {
-        encoding: 'utf8',
-        cwd: context.projectRoot,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 30_000,
-      });
+      gitExecSync(['rev-parse', '--git-dir'], { cwd: context.projectRoot });
 
       return {
         checkId: this.id,
@@ -133,11 +133,7 @@ export class GitRepoCheck implements DiagnosticCheck {
     context: DiagnosticContext
   ): Promise<{ success: boolean; message: string; commandsRun?: string[] }> {
     try {
-      execFileSync('git', ['init'], {
-        cwd: context.projectRoot,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 30_000,
-      });
+      gitExecSync(['init'], { cwd: context.projectRoot });
       return {
         success: true,
         message: 'Initialised git repository',
