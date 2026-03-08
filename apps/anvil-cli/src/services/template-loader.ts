@@ -288,13 +288,13 @@ export class TemplateLoader {
 
     for (const [key, value] of Object.entries(variables)) {
       const placeholder = new RegExp(`\\{\\{\\s*${escapeRegExp(key)}\\s*\\}\\}`, 'g');
-      content = content.replace(placeholder, value);
+      content = content.replace(placeholder, () => value);
     }
 
     for (const variable of template.metadata.variables) {
       if (variable.default) {
         const placeholder = new RegExp(`\\{\\{\\s*${escapeRegExp(variable.name)}\\s*\\}\\}`, 'g');
-        content = content.replace(placeholder, variable.default);
+        content = content.replace(placeholder, () => variable.default!);
       }
     }
 
