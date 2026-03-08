@@ -77,3 +77,113 @@ Entry format:
   - **expected impact:** Med
   - **status:** candidate
   - **aps link (optional):** GATE-001..003
+
+## 2026-03-08 (desloppify review — overlap & architecture notes)
+
+- **source repo + link:** `peteromallet/desloppify` — https://github.com/peteromallet/desloppify
+  - **what to borrow/adopt:** CI architecture-contract gate pattern (`import-linter`) to enforce layer boundaries in automation
+  - **adopt type:** borrow-pattern
+  - **integration effort:** S
+  - **expected impact:** High
+  - **status:** candidate
+  - **aps link (optional):** ARCHCFG, OPAG, CMDSAF
+  - **overlap with existing Anvil services:**
+    - Overlaps with architecture-safety + architecture-config-validation goals (boundary integrity)
+    - Complements (does not replace) OPA/Rego gate evaluation by adding static import-level contracts
+  - **architecture notes / anti-frankenstein guardrails:**
+    - Keep as a dedicated preflight check in check pipeline, not a second policy engine
+    - Define one canonical failure schema so import-contract failures render through existing diagnostics
+    - Avoid tool-sprawl by wrapping via `ArchitectureContractPort` in runtime
+
+- **source repo + link:** `peteromallet/desloppify` — https://github.com/peteromallet/desloppify
+  - **what to borrow/adopt:** Detector registry metadata model (tier/severity/action-type/judgment-needed) as a single source of truth
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** High
+  - **status:** candidate
+  - **aps link (optional):** OPAG, EVAL, IORISK, ATC, PATT
+  - **overlap with existing Anvil services:**
+    - Overlaps with warning categories and policy-linked remediation in OPAG/EVAL
+    - Can unify divergent detector metadata currently spread across modules/checks
+  - **architecture notes / anti-frankenstein guardrails:**
+    - Create one canonical `FindingTypeRegistry` package used by CLI/MCP/dashboard
+    - Ban ad-hoc detector enums outside registry (lint rule + contract tests)
+    - Keep OPA policy IDs and detector IDs separate; bridge them via explicit mapping table
+
+- **source repo + link:** `peteromallet/desloppify` — https://github.com/peteromallet/desloppify
+  - **what to borrow/adopt:** Suspect-drop guard (prevent auto-resolving when detector counts collapse unexpectedly)
+  - **adopt type:** borrow-pattern
+  - **integration effort:** S
+  - **expected impact:** High
+  - **status:** candidate
+  - **aps link (optional):** DRIFT, EVAL, POLVAL
+  - **overlap with existing Anvil services:**
+    - Aligns with drift-reporting intent and trust-preserving signal quality
+    - Complements suppression lifecycle by preventing silent disappearance from scanner regressions
+  - **architecture notes / anti-frankenstein guardrails:**
+    - Implement in one place: result reconciliation layer (not per-detector)
+    - Emit explicit `integrity_warning` event to Kindling/observability path
+    - Add tunable threshold in config with conservative defaults
+
+- **source repo + link:** `peteromallet/desloppify` — https://github.com/peteromallet/desloppify
+  - **what to borrow/adopt:** Stale-wontfix revalidation loop (time-decayed exception debt)
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** candidate
+  - **aps link (optional):** SUPP, POLLC, COMPLY
+  - **overlap with existing Anvil services:**
+    - Strong overlap with suppressions, policy lifecycle, and compliance evidence requirements
+    - Could consolidate exception debt handling currently split across suppression + reporting workflows
+  - **architecture notes / anti-frankenstein guardrails:**
+    - Reuse existing suppression data model; do not create a second exception store
+    - Model as lifecycle transitions (`active` -> `stale-review` -> `expired`) in one state machine
+    - Ensure all transitions are auditable and surfaced in compliance exports
+
+- **source repo + link:** `peteromallet/desloppify` — https://github.com/peteromallet/desloppify
+  - **what to borrow/adopt:** Packaging smoke gate pattern (build/install/help command sanity in CI)
+  - **adopt type:** borrow-pattern
+  - **integration effort:** S
+  - **expected impact:** Med
+  - **status:** candidate
+  - **aps link (optional):** CLIH, MCPH, RT
+  - **overlap with existing Anvil services:**
+    - Partial overlap with existing CI hardening work; mostly fills release-integrity gap
+  - **architecture notes / anti-frankenstein guardrails:**
+    - Keep this as release pipeline quality gate, not runtime feature
+    - Centralize in one reusable CI workflow template across packages
+
+- **source repo + link:** `peteromallet/desloppify` — https://github.com/peteromallet/desloppify
+  - **what to borrow/adopt:** Queue-first operator loop (`scan` -> `plan` -> `next` -> `resolve`) for deterministic progression
+  - **adopt type:** borrow-pattern
+  - **integration effort:** M
+  - **expected impact:** Med
+  - **status:** candidate
+  - **aps link (optional):** OPAG, EVAL, DASHOPS
+  - **overlap with existing Anvil services:**
+    - Overlaps with APS + emerging GH Projects orchestration experiments
+    - Could conflict with APS flow if treated as a separate planning system
+  - **architecture notes / anti-frankenstein guardrails:**
+    - Keep APS as source-of-truth planning layer; use queue loop as execution UX only
+    - Enforce APS ID linkage on queue items to avoid parallel backlogs
+    - Prefer adapter into existing `next item` selection logic rather than a separate planner
+
+### Cross-cutting integration constraints (to avoid Frankenstein outcomes)
+
+1. **Single source of truth per concern**
+   - Planning truth: APS/GH hybrid resolver
+   - Policy truth: OPA policy packs
+   - Exception truth: suppression lifecycle store
+   - Evidence truth: compliance evidence workspace
+
+2. **Adopt patterns, not product semantics**
+   - Borrow mechanics (contracts, guards, queues), not desloppify scoring philosophy wholesale.
+
+3. **Port-and-adapter rule for every borrowed mechanic**
+   - New external checks must implement Anvil ports/contracts before entering runtime.
+
+4. **No duplicate state machines**
+   - Reuse existing suppression/policy lifecycle states; never add shadow status models.
+
+5. **Canonical diagnostic envelope**
+   - All new check families must emit the same diagnostic schema used by CLI/MCP/dashboard.
