@@ -98,6 +98,34 @@ function escapeRegExp(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function extractLeadingSentences(text: string, maxSentences: number): string | null {
+  let sentenceCount = 0;
+
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i];
+
+    if (char !== '.' && char !== '!' && char !== '?') {
+      continue;
+    }
+
+    let end = i + 1;
+    while (end < text.length) {
+      const next = text[end];
+      if (next !== '.' && next !== '!' && next !== '?') {
+        break;
+      }
+      end++;
+    }
+
+    sentenceCount++;
+    if (sentenceCount >= maxSentences) {
+      return text.slice(0, end).trim();
+    }
+  }
+
+  return sentenceCount > 0 ? text.trim() : null;
+}
+
 /**
  * Parse a YAML boolean value
  *
@@ -591,13 +619,19 @@ export function extractIntent(content: string, docType: BMADDocumentType): strin
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+    let matchedTargetSection = false;
 
     // Check if this is a target section header
     for (const section of sections) {
       if (trimmed.match(new RegExp(`^#{1,3}\\s+${section}\\s*$`, 'i'))) {
         inTargetSection = true;
-        continue;
+        matchedTargetSection = true;
+        break;
       }
+    }
+
+    if (matchedTargetSection) {
+      continue;
     }
 
     // If in target section, collect lines until next header
@@ -615,9 +649,9 @@ export function extractIntent(content: string, docType: BMADDocumentType): strin
   // Return first paragraph or first 2 sentences
   const intent = intentLines.join(' ').trim();
   if (intent) {
-    const sentences = intent.match(/[^.!?]+[.!?]+/g);
-    if (sentences && sentences.length > 0) {
-      return sentences.slice(0, 2).join(' ').trim();
+    const leadingSentences = extractLeadingSentences(intent, 2);
+    if (leadingSentences) {
+      return leadingSentences;
     }
     return intent.substring(0, 200).trim() + (intent.length > 200 ? '...' : '');
   }
