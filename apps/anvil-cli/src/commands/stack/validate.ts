@@ -6,24 +6,22 @@
  * Usage:
  *   anvil stack validate           Validate stack configuration
  *   anvil stack validate --json    Output as JSON
- *   anvil stack validate --fix     Attempt to fix issues (future)
  */
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import { StackConfigSchema, isLayerEnabled, getEnabledLayers, type StackConfig } from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { blank, data, error, print, success, warning } from '../../utils/output.js';
+import { blank, json, error, print, success } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 /**
  * Validate command options
  */
 export interface ValidateOptions {
   json?: boolean;
-  fix?: boolean;
 }
 
 /**
@@ -324,39 +322,28 @@ export function createValidateSubcommand(): Command {
   return new Command('validate')
     .description('Validate stack configuration and provenance integrity')
     .option('--json', 'Output as JSON')
-    .option('--fix', 'Attempt to fix issues (not yet implemented)')
     .action(async (options: ValidateOptions) => {
-      if (options.fix) {
-        warning('--fix is not yet implemented');
-      }
-
       if (options.json) {
         // JSON mode
         try {
           const workspaceRoot = getWorkspaceRoot();
           const result = validateStackConfig(workspaceRoot);
-          data(JSON.stringify(result, null, 2));
+          json(result);
           if (result.valid) throw new CliExit();
           throw new CliError('Validation failed');
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
-          data(
-            JSON.stringify(
-              {
-                valid: false,
-                error: err instanceof Error ? err.message : 'Unknown error',
-                issues: [],
-                summary: { errors: 1, warnings: 0, infos: 0 },
-              },
-              null,
-              2
-            )
-          );
+          json({
+            valid: false,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            issues: [],
+            summary: { errors: 1, warnings: 0, infos: 0 },
+          });
           throw new CliError(err instanceof Error ? err.message : 'Validation failed');
         }
       } else {
         // Human-readable mode
-        const spinner = ora('Validating stack configuration...').start();
+        const spinner = createSpinner('Validating stack configuration...');
 
         try {
           const workspaceRoot = getWorkspaceRoot();

@@ -9,7 +9,7 @@ import {
 import { theme } from '../tui/utils/theme.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { coercePositiveInt } from '../utils/option-coerce.js';
-import { blank, data, print } from '../utils/output.js';
+import { blank, json, print } from '../utils/output.js';
 
 interface AuthorshipShowOptions {
   json?: boolean;
@@ -119,7 +119,7 @@ export function createAuthorshipCommand(): Command {
 
       if (!log) {
         if (options.json) {
-          data(JSON.stringify({ found: false, commit }));
+          json({ found: false, commit }, false);
         } else {
           print(
             chalk.hex(theme.colours.molten)(
@@ -131,7 +131,7 @@ export function createAuthorshipCommand(): Command {
       }
 
       if (options.json) {
-        data(JSON.stringify(log, null, 2));
+        json(log);
       } else {
         formatAuthorshipLog(log);
       }
@@ -150,7 +150,7 @@ export function createAuthorshipCommand(): Command {
       const commits = await listAuthorshipNotes(workspaceRoot);
 
       if (options.json) {
-        data(JSON.stringify({ total: commits.length, commits: commits.slice(0, limit) }));
+        json({ total: commits.length, commits: commits.slice(0, limit) }, false);
         return;
       }
 
@@ -194,7 +194,7 @@ export function createAuthorshipCommand(): Command {
       const stats = await getAuthorshipStats(range, workspaceRoot);
 
       if (options.json) {
-        data(JSON.stringify(stats, null, 2));
+        json(stats);
         return;
       }
 

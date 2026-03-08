@@ -5,15 +5,15 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { resolve } from 'node:path';
 import {
   validatePlanningDoc,
   formatValidationIssues,
   type ValidationResult,
 } from '@eddacraft/anvil-aps';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, data, json, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 export interface ValidateOptions {
   json?: boolean;
@@ -60,22 +60,16 @@ export function createValidateSubcommand(): Command {
           throw new CliError('Validation failed');
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          data(
-            JSON.stringify(
-              {
-                file: filePath,
-                valid: false,
-                error: error instanceof Error ? error.message : String(error),
-              },
-              null,
-              2
-            )
-          );
+          json({
+            file: filePath,
+            valid: false,
+            error: error instanceof Error ? error.message : String(error),
+          });
           throw new CliError(error instanceof Error ? error.message : 'Validation failed');
         }
       } else {
         // Human-readable mode
-        const spinner = ora(`Validating ${path}...`).start();
+        const spinner = createSpinner(`Validating ${path}...`);
 
         try {
           const result = await validatePlanningDoc(filePath);

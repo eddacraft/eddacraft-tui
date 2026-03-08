@@ -3,7 +3,7 @@ import { CliError } from '../utils/cli-error.js';
 import { debug } from '../utils/output.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { coercePort } from '../utils/option-coerce.js';
-import { data, print } from '../utils/output.js';
+import { json, print } from '../utils/output.js';
 
 // ---------------------------------------------------------------------------
 // MCP config generation — inlined from @eddacraft/anvil-mcp-server/config
@@ -162,7 +162,7 @@ export function createMcpConfigCommand(): Command {
             writeFileSync(fullPath, JSON.stringify(config.content, null, 2) + '\n', 'utf-8');
             print(`Wrote ${config.configPath}`);
           } else {
-            data(JSON.stringify(config.content, null, 2));
+            json(config.content);
           }
         } catch (err) {
           if (err instanceof CliError) throw err;

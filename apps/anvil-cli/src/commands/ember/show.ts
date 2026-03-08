@@ -4,7 +4,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { ProposalStore, createProposalId } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { colourConfidence, colourStatus } from './utils.js';
 
@@ -27,16 +27,10 @@ export function createEmberShowCommand(): Command {
       if (!existsSync(dbPath)) {
         const message = `No Ember database found at ${dbPath}`;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: message,
-                database_found: false,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: message,
+            database_found: false,
+          });
           throw new CliError(message);
         } else {
           print(chalk.yellow(message));
@@ -52,7 +46,7 @@ export function createEmberShowCommand(): Command {
         if (!proposal) {
           const message = `Proposal not found: ${id}`;
           if (options.json) {
-            data(JSON.stringify({ error: message }, null, 2));
+            json({ error: message });
           } else {
             print(chalk.red(message));
           }
@@ -60,7 +54,7 @@ export function createEmberShowCommand(): Command {
         }
 
         if (options.json) {
-          data(JSON.stringify(proposal, null, 2));
+          json(proposal);
           return;
         }
 
@@ -117,15 +111,9 @@ export function createEmberShowCommand(): Command {
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
         } else {
           print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }

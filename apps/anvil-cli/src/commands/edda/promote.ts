@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import {
   EddaConfidenceLevelSchema,
   MemoryStore,
@@ -13,9 +12,10 @@ import {
   type MemoryType,
   type PromoteProposalInput,
 } from '@eddacraft/anvil-edda-stack';
+import { createSpinner } from '../../utils/spinner.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 import { colourStatus } from './utils.js';
 
 interface EddaPromoteOptions {
@@ -56,7 +56,7 @@ export function createEddaPromoteCommand(): Command {
       if (actor.length === 0) {
         const message = '--by must not be empty';
         if (options.json) {
-          data(JSON.stringify({ error: message }, null, 2));
+          json({ error: message });
         } else {
           print(chalk.red(message));
         }
@@ -65,7 +65,7 @@ export function createEddaPromoteCommand(): Command {
       if (actor.length > 100) {
         const message = '--by must be 100 characters or fewer';
         if (options.json) {
-          data(JSON.stringify({ error: message }, null, 2));
+          json({ error: message });
         } else {
           print(chalk.red(message));
         }
@@ -77,16 +77,10 @@ export function createEddaPromoteCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: message,
-                storage_found: false,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: message,
+            storage_found: false,
+          });
         } else {
           print(chalk.yellow(message));
         }
@@ -119,13 +113,13 @@ export function createEddaPromoteCommand(): Command {
 
       const spinner = options.json
         ? null
-        : ora('Promoting Ember candidate to Edda memory...').start();
+        : createSpinner('Promoting Ember candidate to Edda memory...');
 
       try {
         const memory = await promotionService.promoteProposal(input);
 
         if (options.json) {
-          data(JSON.stringify(memory, null, 2));
+          json(memory);
           return;
         }
 
@@ -143,15 +137,9 @@ export function createEddaPromoteCommand(): Command {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to promote memory'));
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
         } else {
           print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }

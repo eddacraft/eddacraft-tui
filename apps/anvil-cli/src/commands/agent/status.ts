@@ -10,7 +10,7 @@ import { createDebugger } from '@eddacraft/anvil-core';
 import { createAgentManager, createAgentInfo } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -65,7 +65,7 @@ export function createAgentStatusCommand(): Command {
         };
 
         if (options.json) {
-          data(JSON.stringify(status, null, 2));
+          json(status);
           return;
         }
 

@@ -4,18 +4,18 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { existsSync, readFileSync, mkdirSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { getWorkspaceRoot, readJsonFileSync } from '../utils/file-io.js';
-import { success, error, info, print, blank, data } from '../utils/output.js';
+import { success, error, info, print, blank, json } from '../utils/output.js';
 import {
   HookInstaller,
   type HookInstallResult,
   type HookUninstallResult,
 } from '../services/hook-installer.js';
 import { CliError } from '../utils/cli-error.js';
+import { createSpinner } from '../utils/spinner.js';
 
 const log = createDebugger('cli');
 
@@ -85,7 +85,7 @@ export function createHooksCommand(): Command {
         log(
           `hooks install: force=${options.force} husky=${options.husky} preCommitOnly=${options.preCommitOnly} prePushOnly=${options.prePushOnly}`
         );
-        const spinner = ora('Installing Git hooks...').start();
+        const spinner = createSpinner('Installing Git hooks...');
 
         try {
           const workspaceRoot = getWorkspaceRoot();
@@ -203,7 +203,7 @@ export function createHooksCommand(): Command {
       log(
         `hooks uninstall: preCommitOnly=${options.preCommitOnly} prePushOnly=${options.prePushOnly}`
       );
-      const spinner = ora('Removing Git hooks...').start();
+      const spinner = createSpinner('Removing Git hooks...');
 
       try {
         const workspaceRoot = getWorkspaceRoot();
@@ -317,7 +317,7 @@ export function createHooksCommand(): Command {
         const husky = detectHusky(workspaceRoot);
 
         if (options.json) {
-          data(JSON.stringify({ hooks, husky }, null, 2));
+          json({ hooks, husky });
           return;
         }
 

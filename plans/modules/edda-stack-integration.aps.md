@@ -161,10 +161,9 @@ packages/edda-stack/
 
 ```
 packages/edda-stack/
-├── ember/contracts/     # Ember-specific schemas
-├── edda/contracts/      # Edda-specific schemas
-└── integration/
-    └── mappers/         # Explicit conversion
+├── src/ember/           # Ember-specific schemas
+├── src/edda/            # Edda-specific schemas
+└── src/contracts/       # Shared contracts and explicit conversion mappings
 ```
 
 **Advantages:**
@@ -240,9 +239,9 @@ interface EddaMemory {
 - **Non-scope:** Storage-specific ID generation
 - **Files:**
   - `packages/edda-stack/src/contracts/identifiers.ts`
-  - `packages/edda-stack/src/contracts/identifiers.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="identifiers"`
+- **Validation:** `nx test edda-stack --testNamePattern="Identifiers"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -254,9 +253,9 @@ interface EddaMemory {
 - **Non-scope:** Timezone handling beyond ISO8601
 - **Files:**
   - `packages/edda-stack/src/contracts/temporal.ts`
-  - `packages/edda-stack/src/contracts/temporal.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="temporal"`
+- **Validation:** `nx test edda-stack --testNamePattern="Temporal"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -268,9 +267,9 @@ interface EddaMemory {
 - **Non-scope:** Confidence computation logic
 - **Files:**
   - `packages/edda-stack/src/contracts/confidence.ts`
-  - `packages/edda-stack/src/contracts/confidence.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="confidence"`
+- **Validation:** `nx test edda-stack --testNamePattern="Confidence"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -284,7 +283,7 @@ interface EddaMemory {
   - `packages/edda-stack/src/contracts/provenance.ts`
   - `packages/edda-stack/src/contracts/provenance.test.ts`
 - **Dependencies:** STACK-001
-- **Validation:** `nx test edda-stack --testNamePattern="provenance"`
+- **Validation:** `nx test edda-stack --testNamePattern="Provenance"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -403,11 +402,11 @@ interface EddaMemory {
 
 - **Intent:** Define stack-wide configuration with layer dependencies
 - **Expected Outcome:** Zod schema for stack config, validation of dependencies
-- **Scope:** `packages/edda-stack/src/`, `core/src/gate/gate-config.ts`
+- **Scope:** `packages/edda-stack/src/`, `packages/anvil/runtime/src/gate/gate-config.ts`
 - **Non-scope:** TUI config editor
 - **Files:**
   - `packages/edda-stack/src/config.ts`
-  - `core/src/gate/gate-config.ts` (extend schema)
+  - `packages/anvil/runtime/src/gate/gate-config.ts` (extend schema)
 - **Dependencies:** KINDLING-002, EMBER-003, EDDA-005
 - **Validation:** `nx test edda-stack --testNamePattern="stack.*config"`
 - **Confidence:** high
@@ -496,7 +495,7 @@ interface EddaMemory {
 - **Scope:** `plans/execution/`
 - **Non-scope:** New implementation work
 - **Files:**
-  - `plans/execution/STACK-001.steps.md` through `STACK-016.steps.md`
+  - `plans/execution/`
 - **Dependencies:** STACK-017
 - **Validation:** Each steps file references passing test or artefact
 - **Confidence:** high

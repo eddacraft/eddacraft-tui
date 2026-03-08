@@ -79,7 +79,7 @@ export async function writeAuthorshipNote(
     debug(`Wrote authorship note for commit ${commitSha.slice(0, 8)}`);
   } catch (error) {
     debug('Failed to write authorship note', error);
-    throw new Error(`Failed to write authorship note: ${error}`);
+    throw new Error(`Failed to write authorship note: ${error}`, { cause: error });
   } finally {
     // Clean up temp file
     try {
@@ -244,7 +244,7 @@ export async function pushAuthorshipNotes(remote: string, workspaceRoot: string)
     debug(`Pushed authorship notes to ${remote}`);
   } catch (error) {
     debug('Failed to push authorship notes', error);
-    throw new Error(`Failed to push authorship notes: ${error}`);
+    throw new Error(`Failed to push authorship notes: ${error}`, { cause: error });
   }
 }
 
@@ -267,7 +267,7 @@ export async function fetchAuthorshipNotes(remote: string, workspaceRoot: string
     debug(`Fetched authorship notes from ${remote}`);
   } catch (error) {
     debug('Failed to fetch authorship notes', error);
-    throw new Error(`Failed to fetch authorship notes: ${error}`);
+    throw new Error(`Failed to fetch authorship notes: ${error}`, { cause: error });
   }
 }
 

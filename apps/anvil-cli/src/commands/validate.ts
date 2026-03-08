@@ -4,7 +4,6 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { verifyHash, createDebugger } from '@eddacraft/anvil-core';
 import { loadPlan } from '../utils/file-io.js';
 import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
@@ -12,6 +11,7 @@ import { PlanLoader } from '../services/plan-loader.js';
 import type { ValidateOptions } from '../types/command-options.js';
 import { CliError } from '../utils/cli-error.js';
 import { print } from '../utils/output.js';
+import { createSpinner } from '../utils/spinner.js';
 
 const log = createDebugger('cli');
 
@@ -27,7 +27,7 @@ export function createValidateCommand(): Command {
       log(
         `validate command entered: plan=${planPathOrId} native=${options.native} validateHash=${options.validateHash}`
       );
-      const spinner = ora('Loading plan...').start();
+      const spinner = createSpinner('Loading plan...');
 
       try {
         // Resolve plan path

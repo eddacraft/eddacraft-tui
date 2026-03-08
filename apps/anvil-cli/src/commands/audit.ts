@@ -1,14 +1,14 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { RepoScanner, type RepoScanResult } from '../services/repo-scanner.js';
-import { success, error, info, print, blank, data } from '../utils/output.js';
+import { success, error, info, print, blank, json } from '../utils/output.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 import { renderTUI } from '../tui/utils/renderer.js';
 import { AuditResults } from '../tui/commands/audit/AuditResults.js';
+import { createSpinner } from '../utils/spinner.js';
 
 const log = createDebugger('cli');
 
@@ -109,7 +109,7 @@ function formatResultsJSON(result: RepoScanResult): void {
     totalDurationMs: result.totalDurationMs,
   };
 
-  data(JSON.stringify(output, null, 2));
+  json(output);
 }
 
 function formatResultsHuman(result: RepoScanResult, verbose: boolean): void {
@@ -267,7 +267,7 @@ export function createAuditCommand(): Command {
       const daysBack = rawDaysBack;
       const maxCommits = rawMaxCommits;
 
-      const spinner = options.json ? null : ora('Starting repository audit...').start();
+      const spinner = options.json ? null : createSpinner('Starting repository audit...');
 
       try {
         const workspaceRoot = getWorkspaceRoot();

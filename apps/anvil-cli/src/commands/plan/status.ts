@@ -5,11 +5,11 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, formatTaskStatus, type TaskStatusInfo } from '@eddacraft/anvil-aps';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, data, json, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 export interface StatusOptions {
   plan?: string;
@@ -147,9 +147,9 @@ export function createStatusSubcommand(): Command {
             // Single task status
             const status = await locker.getStatus(taskId);
             if (status) {
-              data(JSON.stringify(status, null, 2));
+              json(status);
             } else {
-              data(JSON.stringify({ error: `Task ${taskId} not found` }, null, 2));
+              json({ error: `Task ${taskId} not found` });
               throw new CliError(`Task ${taskId} not found`);
             }
           } else {
@@ -160,20 +160,14 @@ export function createStatusSubcommand(): Command {
           }
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          data(
-            JSON.stringify(
-              {
-                error: error instanceof Error ? error.message : String(error),
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: error instanceof Error ? error.message : String(error),
+          });
           throw new CliError(error instanceof Error ? error.message : 'Failed to load status');
         }
       } else {
         // Human-readable mode
-        const spinner = ora('Loading task status...').start();
+        const spinner = createSpinner('Loading task status...');
 
         try {
           const locker = new TaskLocker({

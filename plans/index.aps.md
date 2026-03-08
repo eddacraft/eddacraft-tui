@@ -131,8 +131,8 @@ release must deliver both the core value AND a friction-free first experience.
 | Security CI Pipeline       | Automated security scanning on every PR                  | Complete    | —        |
 | Tutorial Path Continuation | Continue with another tutorial from completion screen     | Complete    | —        |
 | Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Complete    | 57/57    |
-| Code Review Backlog        | 29 architectural recommendations from code review        | In Progress | 23/29    |
-| Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 1/8      |
+| Code Review Backlog        | 29 architectural recommendations from code review        | Complete    | 29/29    |
+| Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 3/8      |
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
@@ -422,8 +422,8 @@ Task-level detail for all completed work is archived in
 | [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | In Progress | 28/29 | — |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 1/8 | — |
+| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 | — |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 7/8 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
 
@@ -469,7 +469,7 @@ waves; 39 tasks total.
 | [kindling-integration](./archive/modules/kindling-integration.aps.md) | KINDLING | Complete | 19/19 | save-time-trust, drift-reporting |
 | [ember](./modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
 | [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | In Progress | 16/19 | kindling-integration, ember, edda |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | In Progress | 17/19 | kindling-integration, ember, edda |
 | [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | In Progress | 0/16 | ember, edda |
 
 ### Future (Post-1.0.0)
@@ -906,7 +906,7 @@ Ember (interpretation), and Edda (canonical memory).
 | STACK-014 | stack  | CLI stack validate command        | Complete | high     |
 | STACK-015 | stack  | Stack architecture documentation  | Complete    | medium   |
 | STACK-016 | stack  | Migration guide                   | Complete    | medium   |
-| STACK-017 | stack  | Path drift cleanup in APS plans   | In Progress | medium   |
+| STACK-017 | stack  | Path drift cleanup in APS plans   | Complete | medium   |
 | STACK-018 | stack  | Retroactive evidence capture      | Draft       | medium   |
 | STACK-019 | stack  | Missing deliverable audit         | Draft       | medium   |
 

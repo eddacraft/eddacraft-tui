@@ -8,7 +8,7 @@ import { dirname } from 'node:path';
 import YAML from 'yaml';
 import { createDebugger, validatePathWithinRoot } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../utils/cli-error.js';
-import { print, blank, data, debug } from '../utils/output.js';
+import { print, blank, data, json, debug } from '../utils/output.js';
 import {
   type ArchitectureTemplate,
   type ArchitectureDefinition,
@@ -296,7 +296,7 @@ async function showArchitectureDefinition(
   const definition = await parseArchitectureDefinition(projectRoot);
 
   if (options.json) {
-    data(JSON.stringify(definition, null, 2));
+    json(definition);
     return;
   }
 

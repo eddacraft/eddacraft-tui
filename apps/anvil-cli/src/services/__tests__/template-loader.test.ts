@@ -367,6 +367,62 @@ Content`;
       expect(() => loader.renderTemplate(template, {})).toThrow('Missing required variable');
     });
 
+    it('substitutes variable names containing regex metacharacters', async () => {
+      const templateContent = createTestTemplate('regex-meta', {
+        variables: [
+          { name: 'a+b', description: 'Variable with plus', required: true },
+          { name: 'foo(bar)', description: 'Variable with parens', required: true },
+        ],
+        content: 'Plus: {{ a+b }}, Parens: {{ foo(bar) }}',
+      });
+      writeFileSync(join(TEST_DIR, 'regex-meta.md'), templateContent);
+
+      const loader = new TemplateLoader(TEST_DIR);
+      await loader.loadTemplates();
+
+      const template = loader.getTemplate('regex-meta')!;
+      const rendered = loader.renderTemplate(template, {
+        'a+b': 'plus-value',
+        'foo(bar)': 'paren-value',
+      });
+
+      expect(rendered.content).toBe('Plus: plus-value, Parens: paren-value');
+    });
+
+    it('handles dollar signs in variable values without corruption', async () => {
+      const templateContent = createTestTemplate('dollar-test', {
+        variables: [{ name: 'price', description: 'Price', required: true }],
+        content: 'Cost: {{ price }}',
+      });
+      writeFileSync(join(TEST_DIR, 'dollar.md'), templateContent);
+
+      const loader = new TemplateLoader(TEST_DIR);
+      await loader.loadTemplates();
+
+      const template = loader.getTemplate('dollar-test')!;
+      const rendered = loader.renderTemplate(template, { price: '$100 $& $1' });
+
+      expect(rendered.content).toBe('Cost: $100 $& $1');
+    });
+
+    it('handles dollar signs in default values without corruption', async () => {
+      const templateContent = createTestTemplate('dollar-default', {
+        variables: [
+          { name: 'currency', description: 'Currency symbol', default: '$USD $&', required: false },
+        ],
+        content: 'Symbol: {{ currency }}',
+      });
+      writeFileSync(join(TEST_DIR, 'dollar-default.md'), templateContent);
+
+      const loader = new TemplateLoader(TEST_DIR);
+      await loader.loadTemplates();
+
+      const template = loader.getTemplate('dollar-default')!;
+      const rendered = loader.renderTemplate(template, {});
+
+      expect(rendered.content).toBe('Symbol: $USD $&');
+    });
+
     it('returns variables in result', async () => {
       const templateContent = createTestTemplate('vars-result', {
         variables: [{ name: 'a', description: 'A', required: true }],

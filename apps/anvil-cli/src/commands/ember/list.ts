@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import {
   ProposalStore,
   ProposalStatusSchema,
@@ -10,8 +9,9 @@ import {
   type ProposalStatus,
   type ProposalType,
 } from '@eddacraft/anvil-edda-stack';
+import { createSpinner } from '../../utils/spinner.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { coercePositiveInt } from '../../utils/option-coerce.js';
 import { colourConfidence, colourStatus } from './utils.js';
@@ -43,26 +43,20 @@ export function createEmberListCommand(): Command {
       if (!existsSync(dbPath)) {
         const message = `No Ember database found at ${dbPath}`;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: message,
-                database_found: false,
-                database_path: dbPath,
-                total: 0,
-                proposals: [],
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: message,
+            database_found: false,
+            database_path: dbPath,
+            total: 0,
+            proposals: [],
+          });
         } else {
           print(chalk.yellow(message));
         }
         throw new CliError(message);
       }
 
-      const spinner = options.json ? null : ora('Loading Ember proposals...').start();
+      const spinner = options.json ? null : createSpinner('Loading Ember proposals...');
       let store: ProposalStore | null = null;
 
       try {
@@ -78,24 +72,18 @@ export function createEmberListCommand(): Command {
         });
 
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                database_found: true,
-                database_path: dbPath,
-                total: result.total,
-                limit: result.limit,
-                has_more: result.has_more,
-                filters: {
-                  status: parsedStatus,
-                  type: parsedTypes.length > 0 ? parsedTypes : null,
-                },
-                proposals: result.proposals,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            database_found: true,
+            database_path: dbPath,
+            total: result.total,
+            limit: result.limit,
+            has_more: result.has_more,
+            filters: {
+              status: parsedStatus,
+              type: parsedTypes.length > 0 ? parsedTypes : null,
+            },
+            proposals: result.proposals,
+          });
           return;
         }
 
@@ -137,15 +125,9 @@ export function createEmberListCommand(): Command {
         }
 
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
         } else {
           spinner?.fail(chalk.red('Failed to list Ember proposals'));
           print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
