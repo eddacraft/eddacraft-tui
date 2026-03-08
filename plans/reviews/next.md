@@ -25,45 +25,44 @@ details and evidence.
 | CRB-023 | Silent fallbacks without visibility — emit debug logs | Medium | ✅ Complete — PR #508 (commit d1bbb693, 50+ debug calls) |
 | CRB-025 | Docs and scripts drifting from reality — audit accuracy | Low | ✅ Complete — PR #510 (21 issues fixed across 8 files) |
 
-### MAINT — Codebase Maintenance (7/8 complete)
+### MAINT — Codebase Maintenance (3/8 complete)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
 | MAINT-002 | Error formatting consistency across CLI commands | Medium | ✅ Complete — CRB-019 migration (commit 5a3882b2) |
 | MAINT-003 | Workspace root resolution — consolidate into one utility | Low | ✅ Complete — already consolidated |
 | MAINT-004 | Git operation wrappers — consolidate execFile/spawn calls | Medium | Open — scope revised (see below) |
-| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | ✅ Complete — PR #517 |
-| MAINT-006 | Nx generator for CLI commands | Low | ✅ Complete — PR #516 |
-| MAINT-007 | Nx generator for gate checks | Low | ✅ Complete — PR #516 |
-| MAINT-008 | Spinner/progress patterns — consolidate ora usage | Low | ✅ Complete — PR #517 |
+| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | 🔄 In Progress — PR #517 (open, ~21 files still use old pattern) |
+| MAINT-006 | Nx generator for CLI commands | Low | 🔄 In Progress — PR #516 (open, not yet merged) |
+| MAINT-007 | Nx generator for gate checks | Low | 🔄 In Progress — PR #516 (open, not yet merged) |
+| MAINT-008 | Spinner/progress patterns — consolidate ora usage | Low | 🔄 In Progress — PR #517 (open, not yet merged) |
 
 #### MAINT-004: Revised Scope
 
 Investigation found the original estimate ("100+ call sites across 19 files")
 was vastly overstated. Actual scope:
 
-- **16 total** `execFile`/`execFileSync`/`spawn`/`spawnSync` calls with `'git'`
-  across **10 files** (7 production, 3 test)
+- `execFile`/`execFileSync`/`spawn`/`spawnSync` calls with `'git'` across
+  ~10 files (7+ production, 3 test)
 - `packages/anvil/runtime/src/concurrency/git-agent.ts` already serves as a
   partial git wrapper (4 calls)
-- Remaining production calls: `SystemCheck.ts` (3), `release-changelog.ts` (2),
-  `plan.ts` (1), `init.ts` (1), `release-git.ts` (1), `policy.check.ts` (1)
+- Remaining production calls include: `SystemCheck.ts`, `release-changelog.ts`,
+  `plan.ts`, `init.ts`, `release-git.ts`, `policy.check.ts`,
+  `packages/aps/src/state/index.ts`
 - No `runCommand('git', ...)` pattern exists — each call uses Node.js
   `child_process` directly with explicit timeouts (added in CRB-024)
 
 **Recommendation:** Extend `git-agent.ts` into a shared git operations module
 and migrate the ~12 remaining production calls. Single PR, estimated 2–4 hours.
 
-### STACK — Edda Stack Integration (19/19 complete)
-
-All stack reconciliation items are resolved.
+### STACK — Edda Stack Integration (17/19)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
 | STACK-006 | Observation-to-Proposal type mapping | Medium | ✅ Complete — PR #515 |
 | STACK-017 | Path drift cleanup in APS plan files | High | ✅ Complete — PR #515 |
-| STACK-018 | Retroactive evidence capture for STACK-001–016 | High | ✅ Complete — PR #518 |
-| STACK-019 | Missing deliverable audit | Medium | ✅ Complete — PR #518 |
+| STACK-018 | Retroactive evidence capture for STACK-001–016 | High | 🔄 In Progress — PR #518 (open, not yet merged) |
+| STACK-019 | Missing deliverable audit | Medium | 🔄 In Progress — PR #518 (open, not yet merged) |
 
 ### F-series — Interim Review Findings (3/3 complete)
 
@@ -94,32 +93,35 @@ provisioning in the deployment environment.
 
 ### Summary
 
-| Category | Total | Done | Remaining |
-|----------|-------|------|-----------|
-| Code review (CRB) | 29 | 29 | 0 |
-| Maintenance (MAINT) | 8 | 7 | 1 (MAINT-004, revised scope) |
-| Stack reconciliation (STACK) | 4 | 4 | 0 |
-| Interim findings (F-series) | 3 | 3 | 0 |
-| Issues (ISS) | 3 | 2 | 1 (ISS-004, reclassified as infra) |
-| **Total** | **47** | **45** | **2** |
+| Category | Total | Done | In Progress | Remaining |
+|----------|-------|------|-------------|-----------|
+| Code review (CRB) | 29 | 29 | 0 | 0 |
+| Maintenance (MAINT) | 8 | 3 | 4 (PRs #516, #517 open) | 1 (MAINT-004, revised scope) |
+| Stack reconciliation (STACK) | 4 | 2 | 2 (PR #518 open) | 0 |
+| Interim findings (F-series) | 3 | 3 | 0 | 0 |
+| Issues (ISS) | 3 | 2 | 0 | 1 (ISS-004, reclassified as infra) |
+| **Total** | **47** | **39** | **6** | **2** |
 
-**Completed this sweep (PRs #505–#518):**
+**Merged this sweep:**
 - Security & correctness: F-001, F-002, F-003, ISS-006/007, APS execSync, CLI flag removal
-- Structural: CRB-022 (policy.ts decomposition)
-- Stack reconciliation: STACK-006, STACK-017, STACK-018, STACK-019
-- Maintenance: MAINT-002, MAINT-003, MAINT-005, MAINT-006, MAINT-007, MAINT-008
-- Nx generators: CLI command generator, gate check generator
-- Logging & output: CRB-019 (console.* migration), CRB-023 (debug infrastructure)
-- Documentation: CRB-025 (21 doc issues fixed), CRB-018 (workflow standardisation)
+- Structural: CRB-022 (policy.ts decomposition, PR #514)
+- Stack reconciliation: STACK-006, STACK-017 (PR #515)
+- Maintenance: MAINT-002, MAINT-003
+- Logging & output: CRB-019 (console.* migration, PR #506), CRB-023 (debug infrastructure, PR #508)
+- Documentation: CRB-025 (21 doc issues fixed, PR #510), CRB-018 (workflow standardisation, PR #505)
+
+**In progress (PRs open, not merged):**
+- PR #516: MAINT-006 (CLI command generator), MAINT-007 (gate check generator)
+- PR #517: MAINT-005 (JSON output migration), MAINT-008 (spinner consolidation)
+- PR #518: STACK-018 (retroactive evidence), STACK-019 (deliverable audit)
 
 **Previously resolved (discovered during audit):**
 - F-001, F-002 (commit 0198d82a — release flow fixes, already in main)
 - CRB-017 (tests already existed for all config loaders)
-- CRB-019 (PR #506), CRB-023 (PR #508), CRB-025 (PR #510), CRB-018 (PR #505)
 
 **Remaining:**
-- MAINT-004 (git wrappers) — scope revised from "100+ sites" to 12 calls in 6
-  files. Single PR when prioritised.
+- MAINT-004 (git wrappers) — scope revised from "100+ sites" to ~12 calls in
+  7 production files. Single PR when prioritised.
 - ISS-004 (Pulumi CI) — reclassified as infrastructure ops. Requires Azure
   credential setup, not code changes.
 
@@ -172,7 +174,7 @@ Already mostly complete. Remaining feature work:
 | Ember | EMBER | Complete | 0 |
 | Edda | EDDA | Complete | 0 |
 | Edda-Ember Review | EERB | Complete | 0 |
-| Stack Integration | STACK | Complete | 0 |
+| Stack Integration | STACK | In Progress | 2 (STACK-018, STACK-019 — PR #518 open) |
 
 ### Future — Rust (post-1.0.0)
 

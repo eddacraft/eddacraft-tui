@@ -132,7 +132,7 @@ release must deliver both the core value AND a friction-free first experience.
 | Tutorial Path Continuation | Continue with another tutorial from completion screen     | Complete    | —        |
 | Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Complete    | 57/57    |
 | Code Review Backlog        | 29 architectural recommendations from code review        | Complete    | 29/29    |
-| Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 7/8      |
+| Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 3/8      |
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
@@ -469,7 +469,7 @@ waves; 39 tasks total.
 | [kindling-integration](./archive/modules/kindling-integration.aps.md) | KINDLING | Complete | 19/19 | save-time-trust, drift-reporting |
 | [ember](./modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
 | [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | In Progress | 17/19 | kindling-integration, ember, edda |
 | [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | In Progress | 0/16 | ember, edda |
 
 ### Future (Post-1.0.0)
