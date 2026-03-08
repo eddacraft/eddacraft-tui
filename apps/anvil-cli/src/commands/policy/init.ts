@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readdirSync, copyFileSync, writeFileSync } from 
 import { Command } from 'commander';
 import chalk from 'chalk';
 import ora from 'ora';
+import { validatePathWithinRoot } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { success, error, print, blank } from '../../utils/output.js';
@@ -16,7 +17,7 @@ export function createPolicyInitCommand(): Command {
     .action(async (options: { dir: string; force?: boolean }) => {
       try {
         const workspaceRoot = getWorkspaceRoot();
-        const policyDir = join(workspaceRoot, options.dir);
+        const policyDir = validatePathWithinRoot(options.dir, workspaceRoot);
 
         if (existsSync(policyDir) && !options.force) {
           const files = readdirSync(policyDir).filter((f) => f.endsWith('.rego'));

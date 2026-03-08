@@ -333,7 +333,7 @@ function createPolicyBundleAddCommand(): Command {
           }
 
           blank();
-          success('Bundle configuration saved to .anvilrc');
+          success(`Bundle configuration saved to ${configManager.getConfigPath()}`);
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
           spinner.fail('Failed to add bundle');
