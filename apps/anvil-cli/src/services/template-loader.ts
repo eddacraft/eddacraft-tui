@@ -179,6 +179,17 @@ function parseValue(value: string): unknown {
   return trimmed.replace(/^['"]|['"]$/g, '');
 }
 
+/**
+ * Escape special regex characters for safe interpolation into RegExp patterns.
+ * Prevents regex injection vulnerabilities when variable names contain metacharacters.
+ *
+ * @param str - String to escape (e.g. variable name from template)
+ * @returns Escaped string with metacharacters prefixed with backslash
+ */
+function escapeRegExp(str: string): string {
+  return str.replace(/[-\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
 export class TemplateLoader {
   private templates: Map<string, Template> = new Map();
   private loaded = false;
@@ -276,14 +287,14 @@ export class TemplateLoader {
     }
 
     for (const [key, value] of Object.entries(variables)) {
-      const placeholder = new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'g');
-      content = content.replace(placeholder, value);
+      const placeholder = new RegExp(`\\{\\{\\s*${escapeRegExp(key)}\\s*\\}\\}`, 'g');
+      content = content.replace(placeholder, () => value);
     }
 
     for (const variable of template.metadata.variables) {
       if (variable.default) {
-        const placeholder = new RegExp(`\\{\\{\\s*${variable.name}\\s*\\}\\}`, 'g');
-        content = content.replace(placeholder, variable.default);
+        const placeholder = new RegExp(`\\{\\{\\s*${escapeRegExp(variable.name)}\\s*\\}\\}`, 'g');
+        content = content.replace(placeholder, () => variable.default!);
       }
     }
 

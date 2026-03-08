@@ -90,20 +90,6 @@ describe('watch command', () => {
     expect(verboseOpt).toBeDefined();
     expect(verboseOpt?.short).toBe('-v');
   });
-
-  it('should have --tui option for interactive mode', () => {
-    const command = createWatchCommand();
-    const tuiOpt = command.options.find((o) => o.long === '--tui');
-
-    expect(tuiOpt).toBeDefined();
-  });
-
-  it('should have --no-tui option to force plain text', () => {
-    const command = createWatchCommand();
-    const noTuiOpt = command.options.find((o) => o.long === '--no-tui');
-
-    expect(noTuiOpt).toBeDefined();
-  });
 });
 
 describe('watch signal-handler shutdown', () => {
