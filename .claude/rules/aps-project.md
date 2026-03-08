@@ -28,7 +28,7 @@
 - EMBER: ember (1/14) — Draft
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (1/19) — Draft
-- STACK: edda-stack-integration (15/16) — In Progress
+- STACK: edda-stack-integration (17/19) — In Progress
 - RENG: rust-core-engine (0/24) — Proposed
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
@@ -53,13 +53,13 @@ apps/anvil-cli/src/commands/architecture-validate.ts: ARCHCFG-003
 apps/anvil-cli/src/commands/architecture-validate.test.ts: ARCHCFG-003
 apps/anvil-cli/src/commands/architecture-watch.ts: OPAE-016
 apps/anvil-cli/src/commands/architecture.ts: OPAE-005
-apps/anvil-cli/src/commands/ember.ts: EMBER-011
-apps/anvil-cli/src/commands/ember.test.ts: EMBER-011
+apps/anvil-cli/src/commands/ember/index.ts: EMBER-011
+apps/anvil-cli/src/commands/ember/ember.test.ts: EMBER-011
 apps/anvil-cli/src/commands/ember/list.ts: EERB-005, EERB-007
 apps/anvil-cli/src/commands/ember/show.ts: EERB-007
 apps/anvil-cli/src/commands/ember/promote.ts: EERB-007
-apps/anvil-cli/src/commands/edda.ts: EDDA-013, EDDA-014, EDDA-015
-apps/anvil-cli/src/commands/edda.test.ts: EDDA-013
+apps/anvil-cli/src/commands/edda/index.ts: EDDA-013, EDDA-014, EDDA-015
+apps/anvil-cli/src/commands/edda/edda.test.ts: EDDA-013
 apps/anvil-cli/src/commands/exception.ts: OPAE-027
 apps/anvil-cli/src/commands/gate.ts: AIGUARD-003
 apps/anvil-cli/src/commands/gate.test.ts: AIGUARD-003
@@ -168,7 +168,7 @@ core/src/architecture/module-boundaries.ts: OPAE-002
 core/src/gate/checks/architecture-config-validation.check.ts: ARCHCFG-004
 core/src/gate/checks/architecture-config-validation.check.test.ts: ARCHCFG-004
 core/src/gate/checks/policy-pack-validation.check.ts: POLVAL-005
-core/src/gate/gate-config.ts: EMBER-003, EDDA-005, STACK-012
+packages/anvil/runtime/src/gate/gate-config.ts: EMBER-003, EDDA-005, STACK-012
 core/src/gate/policy/annotation-generator.ts: OPAE-030
 core/src/gate/policy/audit-trail.ts: OPAE-026
 core/src/gate/policy/bundle-inheritance.ts: OPAE-036
@@ -235,17 +235,17 @@ packages/aps/src/loader/index.ts: CRB-011
 packages/aps/src/state/index.ts: CRB-010
 packages/edda-stack/src/config.ts: STACK-012
 packages/edda-stack/src/contracts/confidence.ts: STACK-003
-packages/edda-stack/src/contracts/confidence.test.ts: STACK-003
+packages/edda-stack/src/contracts/contracts.test.ts: STACK-003
 packages/edda-stack/src/contracts/edda-memory.ts: EDDA-001
-packages/edda-stack/src/contracts/edda-memory.test.ts: EDDA-001
+packages/edda-stack/src/contracts/contracts.test.ts: EDDA-001
 packages/edda-stack/src/contracts/ember-proposal.ts: EMBER-001
-packages/edda-stack/src/contracts/ember-proposal.test.ts: EMBER-001
+packages/edda-stack/src/contracts/contracts.test.ts: EMBER-001
 packages/edda-stack/src/contracts/events.ts: STACK-008
 packages/edda-stack/src/contracts/events.test.ts: STACK-008
 packages/edda-stack/src/contracts/evolution.ts: EDDA-004
 packages/edda-stack/src/contracts/evolution.test.ts: EDDA-004
 packages/edda-stack/src/contracts/identifiers.ts: STACK-001
-packages/edda-stack/src/contracts/identifiers.test.ts: STACK-001
+packages/edda-stack/src/contracts/contracts.test.ts: STACK-001
 packages/edda-stack/src/contracts/memory-types.ts: EDDA-002
 packages/edda-stack/src/contracts/memory-types.test.ts: EDDA-002
 packages/edda-stack/src/contracts/observation-mappings.ts: STACK-006
@@ -257,13 +257,13 @@ packages/edda-stack/src/contracts/provenance.test.ts: STACK-004
 packages/edda-stack/src/contracts/provenance.ts: EDDA-003
 packages/edda-stack/src/contracts/provenance.test.ts: EDDA-003
 packages/edda-stack/src/contracts/temporal.ts: STACK-002
-packages/edda-stack/src/contracts/temporal.test.ts: STACK-002
+packages/edda-stack/src/contracts/contracts.test.ts: STACK-002
 packages/edda-stack/src/contracts/type-mappings.ts: STACK-005
 packages/edda-stack/src/contracts/type-mappings.test.ts: STACK-005
 packages/edda-stack/src/edda/config.ts: EDDA-005
 packages/edda-stack/src/edda/evolution-service.ts: EDDA-011, EERB-008, EERB-014
 packages/edda-stack/src/edda/evolution-service.test.ts: EDDA-011
-packages/edda-stack/src/edda/examples/: EDDA-019
+packages/edda-stack/src/edda/: EDDA-019
 packages/edda-stack/src/edda/human-in-loop.test.ts: EDDA-016
 packages/edda-stack/src/edda/memory-service.ts: EDDA-012
 packages/edda-stack/src/edda/memory-service.test.ts: EDDA-012
@@ -290,7 +290,7 @@ packages/edda-stack/src/ember/decay-service.ts: EMBER-005, EERB-003
 packages/edda-stack/src/ember/decay-service.test.ts: EMBER-005
 packages/edda-stack/src/ember/evaluator-service.ts: EMBER-007
 packages/edda-stack/src/ember/evaluator-service.test.ts: EMBER-007
-packages/edda-stack/src/ember/examples/: EMBER-014
+packages/edda-stack/src/ember/: EMBER-014
 packages/edda-stack/src/ember/observation-hook.ts: EMBER-010
 packages/edda-stack/src/ember/observation-hook.test.ts: EMBER-010
 packages/edda-stack/src/ember/proposal-store.ts: EMBER-004, EERB-012
@@ -309,9 +309,9 @@ packages/edda-stack/src/contracts/ports/ember.port.ts: STACK-007
 packages/edda-stack/src/contracts/ports/index.ts: STACK-007
 packages/edda-stack/src/contracts/ports/kindling.port.ts: STACK-007
 packages/edda-stack/README.md: STACK-015
-packages/edda-stack/src/testing/fixtures/chains.ts: STACK-010
+packages/edda-stack/src/testing/fixtures/index.ts: STACK-010
 packages/edda-stack/src/testing/fixtures/memories.ts: STACK-010
-packages/edda-stack/src/testing/fixtures/observations.ts: STACK-010
+packages/edda-stack/src/testing/fixtures/proposals.ts: STACK-010
 packages/edda-stack/src/testing/fixtures/proposals.ts: STACK-010
 packages/edda-stack/src/testing/index.ts: STACK-009
 packages/edda-stack/src/testing/mocks/edda.mock.ts: STACK-009

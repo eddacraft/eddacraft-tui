@@ -201,9 +201,9 @@ permanence.
 - **Non-scope:** Storage implementation, promotion workflow
 - **Files:**
   - `packages/edda-stack/src/contracts/edda-memory.ts`
-  - `packages/edda-stack/src/contracts/edda-memory.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="edda-memory"`
+- **Validation:** `nx test edda-stack --testNamePattern="Edda Memory"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -253,11 +253,11 @@ permanence.
 
 - **Intent:** Define configuration schema with storage and promotion settings
 - **Expected Outcome:** Zod schema for edda config, integrated with .anvilrc
-- **Scope:** `packages/edda-stack/src/edda/`, `core/src/gate/gate-config.ts`
+- **Scope:** `packages/edda-stack/src/edda/`, `packages/anvil/runtime/src/gate/gate-config.ts`
 - **Non-scope:** TUI config editor
 - **Files:**
   - `packages/edda-stack/src/edda/config.ts`
-  - `core/src/gate/gate-config.ts` (extend schema)
+  - `packages/anvil/runtime/src/gate/gate-config.ts` (extend schema)
 - **Dependencies:** EDDA-001
 - **Validation:** `nx test edda-stack --testNamePattern="edda.*config"`
 - **Confidence:** high
@@ -374,8 +374,8 @@ permanence.
 - **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation
 - **Files:**
-  - `apps/anvil-cli/src/commands/edda.ts`
-  - `apps/anvil-cli/src/commands/edda.test.ts`
+  - `apps/anvil-cli/src/commands/edda/index.ts`
+  - `apps/anvil-cli/src/commands/edda/edda.test.ts`
 - **Dependencies:** EDDA-012
 - **Validation:** `anvil edda list && anvil edda show <id>`
 - **Confidence:** high
@@ -388,7 +388,7 @@ permanence.
 - **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** Batch promotion, auto-promotion
 - **Files:**
-  - `apps/anvil-cli/src/commands/edda.ts` (add promote subcommand)
+  - `apps/anvil-cli/src/commands/edda/index.ts` (add promote subcommand)
 - **Dependencies:** EDDA-009, EDDA-013
 - **Validation:** `anvil edda promote <candidate_id> --reason "reason"`
 - **Confidence:** high
@@ -401,7 +401,7 @@ permanence.
 - **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** Complex graph visualisation
 - **Files:**
-  - `apps/anvil-cli/src/commands/edda.ts` (add retire, trace subcommands)
+  - `apps/anvil-cli/src/commands/edda/index.ts` (add retire, trace subcommands)
 - **Dependencies:** EDDA-011, EDDA-013
 - **Validation:** `anvil edda retire <id> && anvil edda trace <id>`
 - **Confidence:** high
@@ -459,7 +459,7 @@ permanence.
 - **Files:**
   - `docs/guides/edda-memory.md`
   - `packages/edda-stack/src/edda/README.md`
-  - `packages/edda-stack/src/edda/examples/`
+  - `packages/edda-stack/src/edda/`
 - **Dependencies:** EDDA-013, EDDA-014, EDDA-015
 - **Validation:** Manual review of documentation completeness
 - **Confidence:** high
@@ -519,7 +519,7 @@ packages/edda-stack/src/edda/
 ├── config.ts                 # Configuration schema
 ├── migration/                # Schema migration tools
 │   └── migrate.ts
-├── examples/                 # Usage examples
+├── store-interfaces.ts       # Shared Edda storage contracts
 ├── README.md
 └── index.ts
 ```
