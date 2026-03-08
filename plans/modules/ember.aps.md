@@ -189,7 +189,7 @@ low-volume, medium-trust proposals for potential memorisation.
   - `packages/edda-stack/src/contracts/ember-proposal.ts`
   - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="ember-proposal"`
+- **Validation:** `nx test edda-stack --testNamePattern="Ember Proposals"`
 - **Confidence:** high
 - **Status:** Complete
 

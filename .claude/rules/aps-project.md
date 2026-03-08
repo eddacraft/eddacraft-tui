@@ -249,7 +249,7 @@ packages/edda-stack/src/contracts/contracts.test.ts: STACK-001
 packages/edda-stack/src/contracts/memory-types.ts: EDDA-002
 packages/edda-stack/src/contracts/memory-types.test.ts: EDDA-002
 packages/edda-stack/src/contracts/observation-mappings.ts: STACK-006
-packages/edda-stack/src/contracts/type-mappings.test.ts: STACK-006
+packages/edda-stack/src/contracts/observation-mappings.test.ts: STACK-006
 packages/edda-stack/src/contracts/proposal-types.ts: EMBER-002
 packages/edda-stack/src/contracts/proposal-types.test.ts: EMBER-002
 packages/edda-stack/src/contracts/provenance.ts: STACK-004

@@ -203,7 +203,7 @@ permanence.
   - `packages/edda-stack/src/contracts/edda-memory.ts`
   - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="edda-memory"`
+- **Validation:** `nx test edda-stack --testNamePattern="Edda Memory"`
 - **Confidence:** high
 - **Status:** Complete
 

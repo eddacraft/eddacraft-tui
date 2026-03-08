@@ -163,8 +163,7 @@ packages/edda-stack/
 packages/edda-stack/
 ├── src/ember/           # Ember-specific schemas
 ├── src/edda/            # Edda-specific schemas
-└── integration/
-    └── mappers/         # Explicit conversion
+└── src/contracts/       # Shared contracts and explicit conversion mappings
 ```
 
 **Advantages:**
@@ -242,7 +241,7 @@ interface EddaMemory {
   - `packages/edda-stack/src/contracts/identifiers.ts`
   - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="identifiers"`
+- **Validation:** `nx test edda-stack --testNamePattern="Identifiers"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -256,7 +255,7 @@ interface EddaMemory {
   - `packages/edda-stack/src/contracts/temporal.ts`
   - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="temporal"`
+- **Validation:** `nx test edda-stack --testNamePattern="Temporal"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -270,7 +269,7 @@ interface EddaMemory {
   - `packages/edda-stack/src/contracts/confidence.ts`
   - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
-- **Validation:** `nx test edda-stack --testNamePattern="confidence"`
+- **Validation:** `nx test edda-stack --testNamePattern="Confidence"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -284,7 +283,7 @@ interface EddaMemory {
   - `packages/edda-stack/src/contracts/provenance.ts`
   - `packages/edda-stack/src/contracts/provenance.test.ts`
 - **Dependencies:** STACK-001
-- **Validation:** `nx test edda-stack --testNamePattern="provenance"`
+- **Validation:** `nx test edda-stack --testNamePattern="Provenance"`
 - **Confidence:** high
 - **Status:** Complete
 
@@ -312,7 +311,7 @@ interface EddaMemory {
 - **Non-scope:** Aggregation logic
 - **Files:**
   - `packages/edda-stack/src/contracts/observation-mappings.ts`
-  - `packages/edda-stack/src/contracts/type-mappings.test.ts`
+  - `packages/edda-stack/src/contracts/observation-mappings.test.ts`
 - **Dependencies:** KINDLING-001, EMBER-001
 - **Validation:** `nx test edda-stack --testNamePattern="observation-mappings"`
 - **Confidence:** medium
