@@ -11,6 +11,7 @@ import { BMADFormatAdapter } from '../bmad/format-adapter.js';
 import {
   analyzePath,
   expandVariables,
+  extractIntent,
   parseYamlBoolean,
   hasHyphenatedVariables,
   isAgentYamlContent,
@@ -22,7 +23,7 @@ import {
   parseTeamYaml,
   parseModuleYaml,
 } from '../bmad/utils.js';
-import { BMAD_FOLDERS, BMAD_UPSTREAM_VERSION } from '../bmad/types.js';
+import { BMADDocumentType, BMAD_FOLDERS, BMAD_UPSTREAM_VERSION } from '../bmad/types.js';
 import type { ParseContext, PathDetectionHint } from '../base/types.js';
 
 // Get __dirname equivalent for ES modules
@@ -219,6 +220,23 @@ describe('BMADFormatAdapter', () => {
         expect(result.data.intent).toBeDefined();
         expect(result.data.intent.toLowerCase()).toContain('authentication');
       }
+    });
+
+    it('should handle long overview text without punctuation efficiently', () => {
+      const longOverview = `Feature ${'word '.repeat(20000)}tail`;
+      const content = `---
+name: Long Overview
+---
+
+## Overview
+
+${longOverview}`;
+
+      const intent = extractIntent(content, BMADDocumentType.UNKNOWN);
+
+      expect(intent.length).toBeLessThanOrEqual(203);
+      expect(intent.startsWith('Feature word')).toBe(true);
+      expect(intent.endsWith('...')).toBe(true);
     });
 
     it('should parse YAML front-matter metadata', async () => {
