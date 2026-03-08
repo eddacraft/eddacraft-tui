@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 1/8 |
+| MAINT | @team | In Progress | 3/8 |
 
 ## Purpose
 
@@ -77,7 +77,13 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `apps/anvil-cli/src/commands/*.ts`, `apps/anvil-cli/src/utils/`
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Draft
+- **Status:** Complete
+- **Completed:** 2026-03-08
+- **Notes:** Resolved via CRB-019 console.*migration (commit 5a3882b2, PR #506).
+  All CLI command implementation files now use shared output module (`output.ts`)
+  with `print()`, `blank()`, `data()`, `json()` helpers. No direct console.error
+  calls remain in command implementation files (test files may still reference
+  console.* for spying/mocking purposes, which is expected).
 
 ---
 
@@ -93,7 +99,11 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `apps/anvil-cli/src/commands/*.ts`, `apps/anvil-cli/src/services/`
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Completed:** 2026-03-08
+- **Notes:** Already consolidated. `getWorkspaceRoot()` in
+  `apps/anvil-cli/src/utils/file-io.ts` (line 98) is the single canonical
+  utility used by ~30+ command files. No divergent implementations exist.
 
 ---
 
@@ -106,14 +116,23 @@ When working on any task across the codebase, note repeated patterns:
   direct `execFile('git', ...)` calls are replaced with wrapper calls
 - **Validation:** Direct `execFile.*git` / `spawn.*git` calls outside the
   wrapper module are eliminated
-- **Files:** `packages/anvil/core/src/provenance/`, `packages/anvil/runtime/src/`,
-  `apps/anvil-cli/src/services/`, `packages/edda-stack/src/`
-- **Confidence:** medium
+- **Files:** `packages/anvil/runtime/src/concurrency/git-agent.ts` (extend),
+  `apps/anvil-cli/src/services/release-changelog.ts`,
+  `apps/anvil-cli/src/services/release-git.ts`,
+  `apps/anvil-cli/src/commands/plan.ts`,
+  `apps/anvil-cli/src/commands/init.ts`,
+  `apps/anvil-cli/src/tui/components/SystemCheck.ts`,
+  `packages/anvil/runtime/src/gate/checks/policy.check.ts`,
+  `packages/aps/src/state/index.ts`
+- **Confidence:** high
 - **Priority:** Medium
 - **Status:** Draft
-- **Notes:** CRB-024 added timeouts to all subprocess calls, but the underlying
-  pattern is still duplicated — each call site constructs its own execFile
-  invocation with timeout, error handling, and cwd resolution
+- **Notes:** Scope revised 2026-03-08 after investigation. Original estimate
+  ("100+ call sites across 19 files") was vastly overstated. Actual: 16 total
+  git subprocess calls across 10 files (7 production, 3 test). CRB-024 already
+  added timeouts to all sites. `git-agent.ts` already serves as a partial
+  wrapper with 4 calls. Remaining: ~12 calls in 6 production files. Single PR,
+  estimated 2–4 hours.
 
 ---
 
@@ -129,7 +148,10 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `apps/anvil-cli/src/commands/*.ts`, `apps/anvil-cli/src/utils/`
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** In Progress
+- **Notes:** Shared `json()` helper added to `output.ts` (PR #517, open).
+  Migration of existing `data(JSON.stringify(...))` call sites is incomplete —
+  ~21 files in `apps/anvil-cli/src/commands/` still use the old pattern.
 
 ---
 
@@ -144,7 +166,9 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `tools/generators/`
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** In Progress
+- **Notes:** Generator scaffolded in PR #516 (open, not yet merged).
+  `tools/generators/src/generators/command/` does not exist on main yet.
 
 ---
 
@@ -159,7 +183,9 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `tools/generators/`, `packages/anvil/runtime/src/gate/`
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** In Progress
+- **Notes:** Generator scaffolded in PR #516 (open, not yet merged).
+  `tools/generators/src/generators/gate-check/` does not exist on main yet.
 
 ---
 
@@ -175,4 +201,7 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `apps/anvil-cli/src/commands/*.ts`, `apps/anvil-cli/src/utils/spinner.ts`
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** In Progress
+- **Notes:** Shared spinner utility planned in PR #517 (open, not yet merged).
+  ~27 command files still import and call `ora()` directly; no
+  `createSpinner()` usages exist in `apps/anvil-cli/src/commands/` yet.

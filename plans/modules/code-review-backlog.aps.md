@@ -14,8 +14,8 @@ Scopes: CRB (main), grouped by area: CLI, RT (runtime), INFRA
 
 | ID  | Owner | Status |
 | --- | ----- | ------ |
-| CRB | —     | In Progress (28/29) |
-<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-006, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-012, CRB-013, CRB-014, CRB-015, CRB-016, CRB-017, CRB-018, CRB-019, CRB-020, CRB-021, CRB-023, CRB-024, CRB-025, CRB-026, CRB-027, CRB-028, CRB-029 -->
+| CRB | —     | Complete (29/29) |
+<!-- Complete: CRB-001, CRB-002, CRB-003, CRB-004, CRB-005, CRB-006, CRB-007, CRB-008, CRB-009, CRB-010, CRB-011, CRB-012, CRB-013, CRB-014, CRB-015, CRB-016, CRB-017, CRB-018, CRB-019, CRB-020, CRB-021, CRB-022, CRB-023, CRB-024, CRB-025, CRB-026, CRB-027, CRB-028, CRB-029 -->
 
 ## Purpose
 
@@ -383,7 +383,10 @@ Change status to **Ready** when:
 - **Dependencies:** None
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** Draft
+- **Status:** Complete
+- **Completed:** 2026-03-08
+- **Notes:** `policy.ts` (1,400+ lines) decomposed into 14 focused subcommand
+  files in `commands/policy/` directory. Public API unchanged. PR #514.
 
 ---
 

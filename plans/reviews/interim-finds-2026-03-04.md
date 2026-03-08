@@ -21,6 +21,8 @@ blocked by dependency install/network failure)
 - **Reference:** `apps/anvil-cli/src/services/release-preflight.ts:65`
 - **Details:** `runSmokeCheck()` calls `runCommand('ls', [tmpDir], workspaceRoot)`.
   This is Unix-specific and can fail even when `pnpm pack` succeeds.
+- **Status:** ✅ Resolved — commit `0198d82a`. `release-preflight.ts:71` now uses
+  `readdirSync(tmpDir)` instead of Unix `ls`.
 
 ### F-002: Workflow monitor can mark non-publish run as exact match
 
@@ -31,6 +33,9 @@ blocked by dependency install/network failure)
 - **Reference:** `apps/anvil-cli/src/services/release-monitor.ts:48-49`
 - **Details:** Any run with `headBranch === tagName` is returned with
   `exact: true`, even if workflow name is not `Publish to NPM`.
+- **Status:** ✅ Resolved — commit `0198d82a`. `release-monitor.ts:46` now checks
+  `r.name === 'Publish to NPM' && r.headBranch === tagName` before setting
+  `exact: true`.
 
 ### F-003: Template rendering builds regex from unescaped variable names
 
@@ -41,6 +46,8 @@ blocked by dependency install/network failure)
 - **Reference:** `apps/anvil-cli/src/services/template-loader.ts:278,284`
 - **Details:** Variable names are interpolated into `new RegExp(...)` without
   escaping metacharacters.
+- **Status:** ✅ Resolved — PR #513. Regex metacharacters are now escaped before
+  interpolation.
 
 ---
 

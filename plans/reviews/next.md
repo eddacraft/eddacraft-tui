@@ -1,7 +1,7 @@
 # What's Next
 
-Compiled 2026-03-07. Two lists: (1) remediation work needed for beta quality,
-(2) feature work across all modules.
+Compiled 2026-03-07, updated 2026-03-08. Two lists: (1) remediation work needed
+for beta quality, (2) feature work across all modules.
 
 ---
 
@@ -10,72 +10,124 @@ Compiled 2026-03-07. Two lists: (1) remediation work needed for beta quality,
 Everything that fixes existing code — bug fixes, code review items, security
 hardening, test gaps, maintenance, and documentation drift.
 
-### CRB — Code Review Backlog (23/29 complete)
+### CRB — Code Review Backlog (29/29 complete)
+
+All 29 code review backlog items are resolved. See
+[code-review-backlog.aps.md](../modules/code-review-backlog.aps.md) for full
+details and evidence.
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
-| CRB-017 | Add tests for platform/core config loaders | Medium | Draft |
-| CRB-018 | Standardise works-from-repo-root workflow | Medium | Draft |
-| CRB-019 | Consistent logging/output conventions (stderr/stdout) | Medium | Draft |
-| CRB-022 | Large command modules need decomposition (e.g. policy.ts) | Low | Draft |
-| CRB-023 | Silent fallbacks without visibility — emit debug logs | Medium | Draft |
-| CRB-025 | Docs and scripts drifting from reality — audit accuracy | Low | Draft |
+| CRB-017 | Add tests for platform/core config loaders | Medium | ✅ Resolved — tests already exist (loader.test.ts: 241 lines, config.test.ts) |
+| CRB-018 | Standardise works-from-repo-root workflow | Medium | ✅ Complete — PR #505 |
+| CRB-019 | Consistent logging/output conventions (stderr/stdout) | Medium | ✅ Complete — PR #506 (commit 5a3882b2) |
+| CRB-022 | Large command modules need decomposition (e.g. policy.ts) | Low | ✅ Complete — PR #514 |
+| CRB-023 | Silent fallbacks without visibility — emit debug logs | Medium | ✅ Complete — PR #508 (commit d1bbb693, 50+ debug calls) |
+| CRB-025 | Docs and scripts drifting from reality — audit accuracy | Low | ✅ Complete — PR #510 (21 issues fixed across 8 files) |
 
-### MAINT — Codebase Maintenance (1/8 complete)
-
-| ID | Summary | Priority | Status |
-|----|---------|----------|--------|
-| MAINT-002 | Error formatting consistency across CLI commands | Medium | Draft |
-| MAINT-003 | Workspace root resolution — consolidate into one utility | Low | Draft |
-| MAINT-004 | Git operation wrappers — consolidate execFile/spawn calls | Medium | Draft |
-| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | Draft |
-| MAINT-006 | Nx generator for CLI commands | Low | Draft |
-| MAINT-007 | Nx generator for gate checks | Low | Draft |
-| MAINT-008 | Spinner/progress patterns — consolidate ora usage | Low | Draft |
-
-### STACK — Edda Stack Integration (16/19 complete)
+### MAINT — Codebase Maintenance (3/8 complete)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
-| STACK-006 | Observation-to-Proposal type mapping | Medium | Draft |
-| STACK-017 | Path drift cleanup in APS plan files | High | In Progress |
-| STACK-018 | Retroactive evidence capture for STACK-001–016 | High | Draft |
-| STACK-019 | Missing deliverable audit | Medium | Draft |
+| MAINT-002 | Error formatting consistency across CLI commands | Medium | ✅ Complete — CRB-019 migration (commit 5a3882b2) |
+| MAINT-003 | Workspace root resolution — consolidate into one utility | Low | ✅ Complete — already consolidated |
+| MAINT-004 | Git operation wrappers — consolidate execFile/spawn calls | Medium | Open — scope revised (see below) |
+| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | 🔄 In Progress — PR #517 (open, ~21 files still use old pattern) |
+| MAINT-006 | Nx generator for CLI commands | Low | 🔄 In Progress — PR #516 (open, not yet merged) |
+| MAINT-007 | Nx generator for gate checks | Low | 🔄 In Progress — PR #516 (open, not yet merged) |
+| MAINT-008 | Spinner/progress patterns — consolidate ora usage | Low | 🔄 In Progress — PR #517 (open, not yet merged) |
 
-### F-series — Interim Review Findings (untracked)
+#### MAINT-004: Revised Scope
 
-From `plans/reviews/interim-finds-2026-03-04.md`. These are confirmed findings
-not yet tracked as APS work items.
+Investigation found the original estimate ("100+ call sites across 19 files")
+was vastly overstated. Actual scope:
 
-| ID | Summary | Priority |
-|----|---------|----------|
-| F-001 | Release smoke check uses Unix `ls` — breaks on Windows | P1 |
-| F-002 | Workflow monitor marks wrong run as exact match | P1 |
-| F-003 | Template rendering builds regex from unescaped variable names | P2 |
+- `execFile`/`execFileSync`/`spawn`/`spawnSync` calls with `'git'` across
+  ~10 files (7+ production, 3 test)
+- `packages/anvil/runtime/src/concurrency/git-agent.ts` already serves as a
+  partial git wrapper (4 calls)
+- Remaining production calls include: `SystemCheck.ts`, `release-changelog.ts`,
+  `plan.ts`, `init.ts`, `release-git.ts`, `policy.check.ts`,
+  `packages/aps/src/state/index.ts`
+- No `runCommand('git', ...)` pattern exists — each call uses Node.js
+  `child_process` directly with explicit timeouts (added in CRB-024)
+
+**Recommendation:** Extend `git-agent.ts` into a shared git operations module
+and migrate the ~12 remaining production calls. Single PR, estimated 2–4 hours.
+
+### STACK — Edda Stack Integration (17/19)
+
+| ID | Summary | Priority | Status |
+|----|---------|----------|--------|
+| STACK-006 | Observation-to-Proposal type mapping | Medium | ✅ Complete — PR #515 |
+| STACK-017 | Path drift cleanup in APS plan files | High | ✅ Complete — PR #515 |
+| STACK-018 | Retroactive evidence capture for STACK-001–016 | High | 🔄 In Progress — PR #518 (open, not yet merged) |
+| STACK-019 | Missing deliverable audit | Medium | 🔄 In Progress — PR #518 (open, not yet merged) |
+
+### F-series — Interim Review Findings (3/3 complete)
+
+All findings from `plans/reviews/interim-finds-2026-03-04.md` are resolved.
+
+| ID | Summary | Priority | Status |
+|----|---------|----------|--------|
+| F-001 | Release smoke check uses Unix `ls` — breaks on Windows | P1 | ✅ Resolved — commit 0198d82a (readdirSync replaces ls) |
+| F-002 | Workflow monitor marks wrong run as exact match | P1 | ✅ Resolved — commit 0198d82a (name + headBranch check) |
+| F-003 | Template rendering builds regex from unescaped variable names | P2 | ✅ Complete — PR #513 |
 
 ### ISS — Standalone Issues
 
-From `plans/issues.md`. Only active (non-resolved) items.
+| ID | Summary | Severity | Status |
+|----|---------|----------|--------|
+| ISS-004 | Pulumi Preview CI check failing on main (pre-existing) | Medium | Archived — infrastructure ops issue, not code (see below) |
+| ISS-006 | `preserve-caught-error` warnings across CLI/core/runtime (9 total) | Low | ✅ Complete — PR #513 |
+| ISS-007 | `preserve-caught-error` warnings across CLI (4 remaining) | Low | ✅ Complete — subsumed by ISS-006 fix (PR #513) |
 
-| ID | Summary | Severity |
-|----|---------|----------|
-| ISS-004 | Pulumi Preview CI check failing on main (pre-existing) | Medium |
-| ISS-006 | `preserve-caught-error` warnings across CLI/core/runtime (9 total) | Low |
-| ISS-007 | `preserve-caught-error` warnings across CLI (4 remaining) | Low |
+#### ISS-004: Reclassified as Infrastructure
+
+Investigation found this is not a code bug. The `infra.yml` workflow already has
+a `check-secrets` guard that gracefully skips Pulumi when Azure credentials
+aren't configured. The CI check fails because the required secrets
+(`AZURE_CREDENTIALS`, `PULUMI_ACCESS_TOKEN`, etc.) haven't been set up in GitHub
+repository settings. No code change can fix this — it requires Azure credential
+provisioning in the deployment environment.
 
 ### Summary
 
-| Category | Count |
-|----------|-------|
-| Code review (CRB) | 6 |
-| Maintenance (MAINT) | 7 |
-| Stack reconciliation (STACK) | 4 |
-| Interim findings (F-series) | 3 |
-| Issues (ISS) | 3 |
-| **Total** | **23** |
+| Category | Total | Done | In Progress | Remaining |
+|----------|-------|------|-------------|-----------|
+| Code review (CRB) | 29 | 29 | 0 | 0 |
+| Maintenance (MAINT) | 8 | 3 | 4 (PRs #516, #517 open) | 1 (MAINT-004, revised scope) |
+| Stack reconciliation (STACK) | 4 | 2 | 2 (PR #518 open) | 0 |
+| Interim findings (F-series) | 3 | 3 | 0 | 0 |
+| Issues (ISS) | 3 | 2 | 0 | 1 (ISS-004, reclassified as infra) |
+| **Total** | **47** | **39** | **6** | **2** |
 
-**Critical path for beta:** F-001, F-002 (release flow), STACK-017 (plan
-accuracy), CRB-025 (documentation drift).
+**Merged this sweep:**
+- Security & correctness: F-001, F-002, F-003, ISS-006/007, APS execSync, CLI flag removal
+- Structural: CRB-022 (policy.ts decomposition, PR #514)
+- Stack reconciliation: STACK-006, STACK-017 (PR #515)
+- Maintenance: MAINT-002, MAINT-003
+- Logging & output: CRB-019 (console.* migration, PR #506), CRB-023 (debug infrastructure, PR #508)
+- Documentation: CRB-025 (21 doc issues fixed, PR #510), CRB-018 (workflow standardisation, PR #505)
+
+**In progress (PRs open, not merged):**
+- PR #516: MAINT-006 (CLI command generator), MAINT-007 (gate check generator)
+- PR #517: MAINT-005 (JSON output migration), MAINT-008 (spinner consolidation)
+- PR #518: STACK-018 (retroactive evidence), STACK-019 (deliverable audit)
+
+**Previously resolved (discovered during audit):**
+- F-001, F-002 (commit 0198d82a — release flow fixes, already in main)
+- CRB-017 (tests already existed for all config loaders)
+
+**Remaining:**
+- MAINT-004 (git wrappers) — scope revised from "100+ sites" to ~12 calls in
+  7 production files. Single PR when prioritised.
+- ISS-004 (Pulumi CI) — reclassified as infrastructure ops. Requires Azure
+  credential setup, not code changes.
+
+**Critical path for beta:** No remediation items remain on the critical path.
+MAINT-004 is a quality-of-life improvement. ISS-004 is blocked on infrastructure
+provisioning.
 
 ---
 
@@ -122,7 +174,7 @@ Already mostly complete. Remaining feature work:
 | Ember | EMBER | Complete | 0 |
 | Edda | EDDA | Complete | 0 |
 | Edda-Ember Review | EERB | Complete | 0 |
-| Stack Integration | STACK | In Progress | 1 feature (STACK-006) + 3 reconciliation |
+| Stack Integration | STACK | In Progress | 2 (STACK-018, STACK-019 — PR #518 open) |
 
 ### Future — Rust (post-1.0.0)
 
@@ -151,10 +203,10 @@ Already mostly complete. Remaining feature work:
 | 0.1.x (current) | 2 | ~10 |
 | 0.2.0 (dashboard) | 5 | 39 |
 | 0.3.0 (policy governance) | 8 | ~79 |
-| 0.4.0 (memory system) | 4 | ~4 remaining |
+| 0.4.0 (memory system) | 4 | 0 remaining |
 | Future — Rust | 4 | ~48 |
 | Future — Other | 6 | ~54+ |
-| **Total** | **29** | **~234** |
+| **Total** | **29** | **~230** |
 
 **Next actionable wave:** Dashboard Foundation (DASH, 9 tasks, Ready status) is
 the first feature module that can start immediately.
