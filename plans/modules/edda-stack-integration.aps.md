@@ -487,7 +487,7 @@ interface EddaMemory {
 - **Dependencies:** —
 - **Validation:** All file paths in plan tasks resolve to real files
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Complete
 
 #### STACK-018: Retroactive evidence capture
 
@@ -500,7 +500,7 @@ interface EddaMemory {
 - **Dependencies:** STACK-017
 - **Validation:** Each steps file references passing test or artefact
 - **Confidence:** high
-- **Status:** Draft
+- **Status:** Complete
 
 #### STACK-019: Missing deliverable audit
 
@@ -515,7 +515,10 @@ interface EddaMemory {
 - **Dependencies:** STACK-017
 - **Validation:** Manual review — no orphaned artefacts
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
+- **Audit Result:** 44 non-test, non-index source files audited. 42 tracked by
+  STACK, EMBER, EDDA, or EERB plan tasks. 2 untracked files identified (see
+  Notes below).
 
 ## Decisions
 
@@ -653,3 +656,33 @@ Promotion must be deliberate and attributable
 - TUI stack explorer (visualise data flow)
 - AI-assisted promotion suggestions (human decides)
 - Stack metrics dashboard (Prometheus/Grafana)
+
+## STACK-019 Audit: Untracked Source Files
+
+Full source tree audit of `packages/edda-stack/src/` (excluding test files and
+barrel `index.ts` files). **44 non-test, non-index files examined; 42 tracked.**
+
+### Untracked files
+
+#### `contracts/edda-extended.ts` (~938 lines)
+
+Extended Edda contracts covering governance, RBAC, enforcement hooks, knowledge
+graph types, and additional memory schemas. Pure TypeScript interfaces — no
+runtime code.
+
+- **Conceptual owner:** EDDA module (extends the canonical memory layer)
+- **Likely origin:** Emerged during EDDA implementation but never received a
+  dedicated plan task
+- **Recommendation:** No action required for v1. If these contracts are consumed
+  by future features (governance, RBAC), create a task at that point. Currently
+  unused outside the file itself.
+
+#### `edda/store-interfaces.ts` (~41 lines)
+
+Internal interfaces (`IMemoryStoreOperations`, `IVersionTracker`) extracted from
+`memory-store.ts` for dependency inversion.
+
+- **Conceptual owner:** EDDA-006 (memory store implementation)
+- **Likely origin:** Implementation detail extracted during EDDA-006 work
+- **Recommendation:** No action required. This is an internal refactoring
+  artefact — a supporting file for EDDA-006, not a standalone deliverable.

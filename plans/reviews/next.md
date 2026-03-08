@@ -1,7 +1,7 @@
 # What's Next
 
-Compiled 2026-03-07. Two lists: (1) remediation work needed for beta quality,
-(2) feature work across all modules.
+Compiled 2026-03-07, updated 2026-03-08. Two lists: (1) remediation work needed
+for beta quality, (2) feature work across all modules.
 
 ---
 
@@ -10,72 +10,82 @@ Compiled 2026-03-07. Two lists: (1) remediation work needed for beta quality,
 Everything that fixes existing code — bug fixes, code review items, security
 hardening, test gaps, maintenance, and documentation drift.
 
-### CRB — Code Review Backlog (23/29 complete)
+### CRB — Code Review Backlog (24/29 complete)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
 | CRB-017 | Add tests for platform/core config loaders | Medium | Draft |
 | CRB-018 | Standardise works-from-repo-root workflow | Medium | Draft |
 | CRB-019 | Consistent logging/output conventions (stderr/stdout) | Medium | Draft |
-| CRB-022 | Large command modules need decomposition (e.g. policy.ts) | Low | Draft |
+| CRB-022 | Large command modules need decomposition (e.g. policy.ts) | Low | ✅ Complete — PR #514 |
 | CRB-023 | Silent fallbacks without visibility — emit debug logs | Medium | Draft |
 | CRB-025 | Docs and scripts drifting from reality — audit accuracy | Low | Draft |
 
-### MAINT — Codebase Maintenance (1/8 complete)
+### MAINT — Codebase Maintenance (7/8 complete)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
-| MAINT-002 | Error formatting consistency across CLI commands | Medium | Draft |
-| MAINT-003 | Workspace root resolution — consolidate into one utility | Low | Draft |
-| MAINT-004 | Git operation wrappers — consolidate execFile/spawn calls | Medium | Draft |
-| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | Draft |
-| MAINT-006 | Nx generator for CLI commands | Low | Draft |
-| MAINT-007 | Nx generator for gate checks | Low | Draft |
-| MAINT-008 | Spinner/progress patterns — consolidate ora usage | Low | Draft |
+| MAINT-002 | Error formatting consistency across CLI commands | Medium | ✅ Complete — CRB-019 migration (commit 5a3882b2) |
+| MAINT-003 | Workspace root resolution — consolidate into one utility | Low | ✅ Complete — already consolidated |
+| MAINT-004 | Git operation wrappers — consolidate execFile/spawn calls | Medium | Deferred — 100+ call sites across 19 files |
+| MAINT-005 | JSON output formatting — standardise `--json` envelope | Low | ✅ Complete — PR #517 |
+| MAINT-006 | Nx generator for CLI commands | Low | ✅ Complete — PR #516 |
+| MAINT-007 | Nx generator for gate checks | Low | ✅ Complete — PR #516 |
+| MAINT-008 | Spinner/progress patterns — consolidate ora usage | Low | ✅ Complete — PR #517 |
 
-### STACK — Edda Stack Integration (16/19 complete)
+### STACK — Edda Stack Integration (19/19 complete)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
-| STACK-006 | Observation-to-Proposal type mapping | Medium | Draft |
-| STACK-017 | Path drift cleanup in APS plan files | High | In Progress |
-| STACK-018 | Retroactive evidence capture for STACK-001–016 | High | Draft |
-| STACK-019 | Missing deliverable audit | Medium | Draft |
+| STACK-006 | Observation-to-Proposal type mapping | Medium | ✅ Complete — PR #515 |
+| STACK-017 | Path drift cleanup in APS plan files | High | ✅ Complete — PR #515 |
+| STACK-018 | Retroactive evidence capture for STACK-001–016 | High | ✅ Complete — PR #518 |
+| STACK-019 | Missing deliverable audit | Medium | ✅ Complete — PR #518 |
 
 ### F-series — Interim Review Findings (untracked)
 
 From `plans/reviews/interim-finds-2026-03-04.md`. These are confirmed findings
 not yet tracked as APS work items.
 
-| ID | Summary | Priority |
-|----|---------|----------|
-| F-001 | Release smoke check uses Unix `ls` — breaks on Windows | P1 |
-| F-002 | Workflow monitor marks wrong run as exact match | P1 |
-| F-003 | Template rendering builds regex from unescaped variable names | P2 |
+| ID | Summary | Priority | Status |
+|----|---------|----------|--------|
+| F-001 | Release smoke check uses Unix `ls` — breaks on Windows | P1 | Deferred |
+| F-002 | Workflow monitor marks wrong run as exact match | P1 | Deferred |
+| F-003 | Template rendering builds regex from unescaped variable names | P2 | ✅ Complete — PR #513 |
 
 ### ISS — Standalone Issues
 
 From `plans/issues.md`. Only active (non-resolved) items.
 
-| ID | Summary | Severity |
-|----|---------|----------|
-| ISS-004 | Pulumi Preview CI check failing on main (pre-existing) | Medium |
-| ISS-006 | `preserve-caught-error` warnings across CLI/core/runtime (9 total) | Low |
-| ISS-007 | `preserve-caught-error` warnings across CLI (4 remaining) | Low |
+| ID | Summary | Severity | Status |
+|----|---------|----------|--------|
+| ISS-004 | Pulumi Preview CI check failing on main (pre-existing) | Medium | Deferred |
+| ISS-006 | `preserve-caught-error` warnings across CLI/core/runtime (9 total) | Low | ✅ Complete — PR #513 |
+| ISS-007 | `preserve-caught-error` warnings across CLI (4 remaining) | Low | ✅ Complete — subsumed by ISS-006 fix (PR #513) |
 
 ### Summary
 
-| Category | Count |
-|----------|-------|
-| Code review (CRB) | 6 |
-| Maintenance (MAINT) | 7 |
-| Stack reconciliation (STACK) | 4 |
-| Interim findings (F-series) | 3 |
-| Issues (ISS) | 3 |
-| **Total** | **23** |
+| Category | Total | Done | Remaining |
+|----------|-------|------|-----------|
+| Code review (CRB) | 6 | 1 | 5 |
+| Maintenance (MAINT) | 8 | 7 | 1 (deferred) |
+| Stack reconciliation (STACK) | 4 | 4 | 0 |
+| Interim findings (F-series) | 3 | 1 | 2 (deferred) |
+| Issues (ISS) | 3 | 2 | 1 (deferred) |
+| **Total** | **24** | **15** | **9** |
 
-**Critical path for beta:** F-001, F-002 (release flow), STACK-017 (plan
-accuracy), CRB-025 (documentation drift).
+**Completed this sweep (PRs #513–#518):**
+- Security & correctness: F-003, ISS-006/007, APS execSync, CLI flag removal
+- Structural: CRB-022 (policy.ts decomposition)
+- Stack reconciliation: STACK-006, STACK-017, STACK-018, STACK-019
+- Maintenance: MAINT-002, MAINT-003, MAINT-005, MAINT-006, MAINT-007, MAINT-008
+- Nx generators: CLI command generator, gate check generator
+
+**Deferred (too large or out of scope):**
+- MAINT-004 (100+ git call sites), F-001/F-002 (release flow), ISS-004 (infra)
+
+**Critical path for beta:** F-001, F-002 (release flow), CRB-025 (documentation
+drift).
 
 ---
 
