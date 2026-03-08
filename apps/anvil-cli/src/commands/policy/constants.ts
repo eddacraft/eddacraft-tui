@@ -7,9 +7,10 @@ export const DEFAULT_POLICY_DIR = '.anvil/policies';
 export function getExamplePoliciesPath(): string {
   const currentDir = dirname(fileURLToPath(import.meta.url));
   const possiblePaths = [
-    join(currentDir, '../../../../core/src/gate/__fixtures__/policies'),
-    join(currentDir, '../../../core/src/gate/__fixtures__/policies'),
-    join(currentDir, '../../../../../core/src/gate/__fixtures__/policies'),
+    // From bundled dist/index.js: up 3 levels to repo root
+    join(currentDir, '../../../packages/anvil/runtime/src/gate/__fixtures__/policies'),
+    // From source: up 5 levels to repo root
+    join(currentDir, '../../../../../packages/anvil/runtime/src/gate/__fixtures__/policies'),
   ];
 
   for (const path of possiblePaths) {

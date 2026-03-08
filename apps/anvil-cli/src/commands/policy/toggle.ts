@@ -43,7 +43,7 @@ export function createPolicyEnableCommand(): Command {
   return new Command('enable')
     .description('Re-enable a disabled policy')
     .argument('<name>')
-    .option('-e, --enforcement <level>', 'Enforcement level (block, warn, info)', 'block')
+    .option('-e, --enforcement <level>', 'Enforcement level (block, warn, info, off)', 'block')
     .action(async (name: string, options: { enforcement: string }) => {
       try {
         const workspaceRoot = getWorkspaceRoot();

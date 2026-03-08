@@ -62,8 +62,6 @@ interface WatchOptions {
   source?: boolean;
   plans?: boolean;
   all?: boolean;
-  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
-  tui?: boolean;
   // Multi-agent coordination options
   multiAgent?: boolean;
   agentId?: string;
@@ -115,7 +113,6 @@ export function createWatchCommand(): Command {
     .option('--no-git-filter', 'Disable git filtering (watch all file changes)')
     .option('-p, --profile <profile>', 'Gate profile to use (dev, ci, production)')
     .option('-v, --verbose', 'Verbose output')
-    .option('--no-tui', 'Force plain text mode')
     .option('--multi-agent', 'Enable multi-agent coordination (default: true)')
     .option('--no-multi-agent', 'Disable multi-agent coordination')
     .option('--agent-id <id>', 'Custom agent identifier')
