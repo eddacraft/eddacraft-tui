@@ -10,7 +10,6 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { GateConfigManager } from '@eddacraft/anvil-runtime';
 import {
   StackConfigSchema,
@@ -19,8 +18,9 @@ import {
   type StackConfig,
 } from './config.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { blank, data, info, print, success, warning } from '../../utils/output.js';
+import { blank, json, info, print, success, warning } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 /**
  * Status command options
@@ -218,23 +218,17 @@ export function createStatusSubcommand(): Command {
         try {
           const workspaceRoot = getWorkspaceRoot();
           const result = getStackStatus(workspaceRoot);
-          data(JSON.stringify(result, null, 2));
+          json(result);
         } catch (err) {
           if (err instanceof CliError || err instanceof CliExit) throw err;
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
           throw new CliError(err instanceof Error ? err.message : 'Unknown error');
         }
       } else {
         // Human-readable mode
-        const spinner = ora('Loading stack status...').start();
+        const spinner = createSpinner('Loading stack status...');
 
         try {
           const workspaceRoot = getWorkspaceRoot();

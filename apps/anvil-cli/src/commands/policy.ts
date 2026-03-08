@@ -7,7 +7,6 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { createDebugger, validatePathWithinRoot } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../utils/cli-error.js';
 import {
@@ -21,8 +20,9 @@ import {
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getWorkspaceRoot } from '../utils/file-io.js';
-import { success, error, info, warning, print, blank, data, debug } from '../utils/output.js';
+import { success, error, info, warning, print, blank, json, debug } from '../utils/output.js';
 import { coerceNonNegativeInt } from '../utils/option-coerce.js';
+import { createSpinner } from '../utils/spinner.js';
 import {
   PolicyLoader,
   OPAExecutor,
@@ -399,7 +399,7 @@ export function createPolicyCommand(): Command {
         }
 
         if (options.json) {
-          data(JSON.stringify(displayPolicies, null, 2));
+          json(displayPolicies);
           return;
         }
 
@@ -829,7 +829,7 @@ export function createPolicyCommand(): Command {
         }
 
         const configMgr = new PolicyConfigManager(workspaceRoot);
-        const spinner = ora(`Scaffolding org policies for ${options.org}...`).start();
+        const spinner = createSpinner(`Scaffolding org policies for ${options.org}...`);
 
         // Create org directory structure
         mkdirSync(join(outDir, '.anvil', 'policies'), { recursive: true });
@@ -909,7 +909,7 @@ export function createPolicyCommand(): Command {
     .command('validate <file>')
     .description('Validate Rego syntax for a policy file')
     .action(async (file: string) => {
-      const spinner = ora('Validating policy syntax...').start();
+      const spinner = createSpinner('Validating policy syntax...');
 
       try {
         const { resolve } = await import('node:path');
@@ -952,7 +952,7 @@ export function createPolicyCommand(): Command {
     .option('-d, --dir <directory>', 'Policy directory', DEFAULT_POLICY_DIR)
     .option('-v, --verbose', 'Show detailed test output')
     .action(async (policy: string | undefined, options: { dir: string; verbose?: boolean }) => {
-      const spinner = ora('Running policy tests...').start();
+      const spinner = createSpinner('Running policy tests...');
 
       try {
         const workspaceRoot = getWorkspaceRoot();
@@ -1061,7 +1061,7 @@ export function createPolicyCommand(): Command {
           }
         }
 
-        const spinner = ora('Creating policy directory...').start();
+        const spinner = createSpinner('Creating policy directory...');
 
         // Create directory
         if (!existsSync(policyDir)) {
@@ -1392,7 +1392,7 @@ function createBundleAddCommand(): Command {
           sync?: boolean;
         }
       ) => {
-        const spinner = ora('Adding bundle configuration...').start();
+        const spinner = createSpinner('Adding bundle configuration...');
 
         try {
           const workspaceRoot = getWorkspaceRoot();
@@ -1473,7 +1473,7 @@ function createBundleAddCommand(): Command {
 
           // Optionally sync immediately
           if (options.sync !== false) {
-            const syncSpinner = ora('Downloading bundle...').start();
+            const syncSpinner = createSpinner('Downloading bundle...');
 
             try {
               const bundleManagerConfig = toBundleConfig(bundleConfig, config.policy?.verification);
@@ -1547,7 +1547,7 @@ function createBundleRemoveCommand(): Command {
     .argument('<name>', 'Name of the bundle to remove')
     .option('--keep-cache', 'Keep cached bundle files')
     .action(async (name: string, options: { keepCache?: boolean }) => {
-      const spinner = ora(`Removing bundle '${name}'...`).start();
+      const spinner = createSpinner(`Removing bundle '${name}'...`);
 
       try {
         const workspaceRoot = getWorkspaceRoot();
@@ -1600,7 +1600,7 @@ function createBundleSyncCommand(): Command {
     .option('-f, --force', 'Force re-download even if cached')
     .option('-n, --name <name>', 'Sync only a specific bundle')
     .action(async (options: { force?: boolean; name?: string }) => {
-      const spinner = ora('Syncing policy bundles...').start();
+      const spinner = createSpinner('Syncing policy bundles...');
 
       try {
         const workspaceRoot = getWorkspaceRoot();

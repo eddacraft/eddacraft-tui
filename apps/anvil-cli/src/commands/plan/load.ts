@@ -5,7 +5,6 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { resolve } from 'node:path';
 import {
   loadPlan,
@@ -18,6 +17,7 @@ import {
 } from '@eddacraft/anvil-aps';
 import { blank, data, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 export interface LoadOptions {
   scope?: string[];
@@ -233,7 +233,7 @@ export function createLoadSubcommand(): Command {
         }
       } else {
         // Human-readable mode
-        const spinner = ora(`Loading ${path}...`).start();
+        const spinner = createSpinner(`Loading ${path}...`);
 
         try {
           const plan = await loadPlan(filePath);

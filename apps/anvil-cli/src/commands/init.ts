@@ -1,10 +1,10 @@
 import { Command } from 'commander';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
-import ora from 'ora';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { CliError } from '../utils/cli-error.js';
+import { createSpinner } from '../utils/spinner.js';
 import { EnvironmentDetector } from '../services/environment-detector.js';
 import {
   TemplateGenerator,
@@ -100,7 +100,7 @@ export function createInitCommand(): Command {
           blank();
 
           // Analyse project architecture
-          const archSpinner = ora('Analysing project structure...').start();
+          const archSpinner = createSpinner('Analysing project structure...');
           let archSummary: ArchitectureSummary | null = null;
           let shouldCreateBaseline = false;
 
@@ -234,7 +234,7 @@ export function createInitCommand(): Command {
           }
 
           // Generate configuration and files
-          const spinner = ora('Setting up Anvil...').start();
+          const spinner = createSpinner('Setting up Anvil...');
 
           try {
             const generator = new TemplateGenerator(initOptions);
@@ -291,9 +291,9 @@ export function createInitCommand(): Command {
             let dashboardShown = false;
             if (options.analysis !== false) {
               blank();
-              const analysisSpinner = ora(
+              const analysisSpinner = createSpinner(
                 options.quick ? 'Analysing project...' : 'Scanning repository...'
-              ).start();
+              );
 
               try {
                 const analysisResults = await runIntelligentAnalysis(projectRoot, anvilrcPath, {

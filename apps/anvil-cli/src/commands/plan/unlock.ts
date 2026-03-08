@@ -5,11 +5,11 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, type UnlockResult } from '@eddacraft/anvil-aps';
-import { data, print } from '../../utils/output.js';
+import { data, json, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 export interface UnlockOptions {
   plan?: string;
@@ -48,22 +48,16 @@ export function createUnlockSubcommand(): Command {
           throw new CliError('Unlock failed');
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          data(
-            JSON.stringify(
-              {
-                success: false,
-                taskId,
-                error: error instanceof Error ? error.message : String(error),
-              },
-              null,
-              2
-            )
-          );
+          json({
+            success: false,
+            taskId,
+            error: error instanceof Error ? error.message : String(error),
+          });
           throw new CliError(error instanceof Error ? error.message : 'Unlock failed');
         }
       } else {
         // Human-readable mode
-        const spinner = ora(`Unlocking task ${taskId}...`).start();
+        const spinner = createSpinner(`Unlocking task ${taskId}...`);
 
         try {
           const locker = new TaskLocker({

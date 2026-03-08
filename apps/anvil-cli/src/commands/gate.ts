@@ -29,7 +29,7 @@ import {
   blank,
 } from '../utils/output.js';
 import { coerceNonNegativeInt } from '../utils/option-coerce.js';
-import ora from 'ora';
+import { createSpinner } from '../utils/spinner.js';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
 import {
   emitSessionStart,
@@ -185,7 +185,7 @@ export function createGateCommand(): Command {
         const configManager = new GateConfigManager(workspaceRoot);
         const gateRunner = new GateRunner();
 
-        const spinner = ora().start();
+        const spinner = createSpinner('');
         let plan;
         let sourceFormat;
         let planPath: string | undefined;

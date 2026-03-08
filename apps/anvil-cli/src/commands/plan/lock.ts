@@ -5,11 +5,11 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { resolve } from 'node:path';
 import { TaskLocker, type LockResult } from '@eddacraft/anvil-aps';
-import { data, print } from '../../utils/output.js';
+import { data, json, print } from '../../utils/output.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 export interface LockOptions {
   plan?: string;
@@ -53,22 +53,16 @@ export function createLockSubcommand(): Command {
           throw new CliError('Lock failed');
         } catch (error) {
           if (error instanceof CliError || error instanceof CliExit) throw error;
-          data(
-            JSON.stringify(
-              {
-                success: false,
-                taskId,
-                error: error instanceof Error ? error.message : String(error),
-              },
-              null,
-              2
-            )
-          );
+          json({
+            success: false,
+            taskId,
+            error: error instanceof Error ? error.message : String(error),
+          });
           throw new CliError(error instanceof Error ? error.message : 'Lock failed');
         }
       } else {
         // Human-readable mode
-        const spinner = ora(`Locking task ${taskId}...`).start();
+        const spinner = createSpinner(`Locking task ${taskId}...`);
 
         try {
           const locker = new TaskLocker({

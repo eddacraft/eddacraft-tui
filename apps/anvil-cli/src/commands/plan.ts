@@ -12,9 +12,8 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { CliError } from '../utils/cli-error.js';
-import { debug } from '../utils/output.js';
+import { debug, json, print } from '../utils/output.js';
 import {
   APSPlan,
   generatePlanId,
@@ -26,7 +25,7 @@ import {
 import { savePlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { data, print } from '../utils/output.js';
+import { createSpinner } from '../utils/spinner.js';
 import {
   createValidateSubcommand,
   createLoadSubcommand,
@@ -64,7 +63,7 @@ function createCreateSubcommand(): Command {
     .action(
       async (intent: string, options: { format: string; output?: string; json?: boolean }) => {
         log(`plan create: intent length=${intent.length} format=${options.format}`);
-        const spinner = ora('Creating plan...').start();
+        const spinner = createSpinner('Creating plan...');
 
         try {
           // Validate intent length
@@ -112,7 +111,7 @@ function createCreateSubcommand(): Command {
 
           if (options.json) {
             spinner.stop();
-            data(JSON.stringify(completePlan, null, 2));
+            json(completePlan);
             return;
           }
 
