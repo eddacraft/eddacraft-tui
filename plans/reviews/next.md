@@ -10,7 +10,7 @@ for beta quality, (2) feature work across all modules.
 Everything that fixes existing code — bug fixes, code review items, security
 hardening, test gaps, maintenance, and documentation drift.
 
-### CRB — Code Review Backlog (24/29 complete)
+### CRB — Code Review Backlog (24/29 complete globally; 6 tracked here)
 
 | ID | Summary | Priority | Status |
 |----|---------|----------|--------|
@@ -55,7 +55,8 @@ not yet tracked as APS work items.
 
 ### ISS — Standalone Issues
 
-From `plans/issues.md`. Only active (non-resolved) items.
+From `plans/issues.md`. Includes active, deferred, and recently completed items
+for sweep tracking.
 
 | ID | Summary | Severity | Status |
 |----|---------|----------|--------|
@@ -132,7 +133,7 @@ Already mostly complete. Remaining feature work:
 | Ember | EMBER | Complete | 0 |
 | Edda | EDDA | Complete | 0 |
 | Edda-Ember Review | EERB | Complete | 0 |
-| Stack Integration | STACK | In Progress | 1 feature (STACK-006) + 3 reconciliation |
+| Stack Integration | STACK | Complete | 0 (all 19 tasks done — PRs #515, #518) |
 
 ### Future — Rust (post-1.0.0)
 
@@ -161,7 +162,7 @@ Already mostly complete. Remaining feature work:
 | 0.1.x (current) | 2 | ~10 |
 | 0.2.0 (dashboard) | 5 | 39 |
 | 0.3.0 (policy governance) | 8 | ~79 |
-| 0.4.0 (memory system) | 4 | ~4 remaining |
+| 0.4.0 (memory system) | 4 | 0 remaining |
 | Future — Rust | 4 | ~48 |
 | Future — Other | 6 | ~54+ |
 | **Total** | **29** | **~234** |

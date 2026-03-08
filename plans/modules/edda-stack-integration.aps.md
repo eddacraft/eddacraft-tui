@@ -518,7 +518,7 @@ interface EddaMemory {
 - **Status:** Complete
 - **Audit Result:** 44 non-test, non-index source files audited. 42 tracked by
   STACK, EMBER, EDDA, or EERB plan tasks. 2 untracked files identified (see
-  Notes below).
+  "STACK-019 Audit: Untracked Source Files" below).
 
 ## Decisions
 
