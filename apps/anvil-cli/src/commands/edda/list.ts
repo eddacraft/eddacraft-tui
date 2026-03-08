@@ -2,7 +2,6 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import {
   MemoryStore,
   MemoryStatusSchema,
@@ -10,10 +9,11 @@ import {
   type MemoryStatus,
   type MemoryType,
 } from '@eddacraft/anvil-edda-stack';
+import { createSpinner } from '../../utils/spinner.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { coercePositiveInt } from '../../utils/option-coerce.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 import { colourConfidence, colourStatus } from './utils.js';
 
 interface EddaListOptions {
@@ -42,25 +42,19 @@ export function createEddaListCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: message,
-                storage_found: false,
-                storage_path: storagePath,
-                total: 0,
-                limit: options.limit,
-                has_more: false,
-                filters: {
-                  status: parsedStatus,
-                  type: parsedTypes.length > 0 ? parsedTypes : null,
-                },
-                memories: [],
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: message,
+            storage_found: false,
+            storage_path: storagePath,
+            total: 0,
+            limit: options.limit,
+            has_more: false,
+            filters: {
+              status: parsedStatus,
+              type: parsedTypes.length > 0 ? parsedTypes : null,
+            },
+            memories: [],
+          });
         } else {
           print(chalk.yellow(message));
         }
@@ -85,40 +79,28 @@ export function createEddaListCommand(): Command {
             sort_order: 'desc',
           });
 
-          data(
-            JSON.stringify(
-              {
-                storage_found: true,
-                storage_path: storagePath,
-                total: result.total,
-                limit: result.limit,
-                has_more: result.has_more,
-                filters: {
-                  status: parsedStatus,
-                  type: parsedTypes.length > 0 ? parsedTypes : null,
-                },
-                memories: result.memories,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            storage_found: true,
+            storage_path: storagePath,
+            total: result.total,
+            limit: result.limit,
+            has_more: result.has_more,
+            filters: {
+              status: parsedStatus,
+              type: parsedTypes.length > 0 ? parsedTypes : null,
+            },
+            memories: result.memories,
+          });
           return;
         } catch (err) {
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
           throw new CliError(err instanceof Error ? err.message : 'Unknown error');
         }
       }
 
-      const spinner = ora('Loading Edda memories...').start();
+      const spinner = createSpinner('Loading Edda memories...');
 
       try {
         const result = await store.queryMemories({

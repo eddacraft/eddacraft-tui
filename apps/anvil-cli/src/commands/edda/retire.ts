@@ -2,12 +2,12 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { EvolutionService, MemoryStore, createMemoryId } from '@eddacraft/anvil-edda-stack';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 import { colourStatus } from './utils.js';
+import { createSpinner } from '../../utils/spinner.js';
 
 interface EddaRetireOptions {
   reason: string;
@@ -30,7 +30,7 @@ export function createEddaRetireCommand(): Command {
       if (actor.length === 0) {
         const message = '--by must not be empty';
         if (options.json) {
-          data(JSON.stringify({ error: message }, null, 2));
+          json({ error: message });
         } else {
           print(chalk.red(message));
         }
@@ -39,7 +39,7 @@ export function createEddaRetireCommand(): Command {
       if (actor.length > 100) {
         const message = '--by must be 100 characters or fewer';
         if (options.json) {
-          data(JSON.stringify({ error: message }, null, 2));
+          json({ error: message });
         } else {
           print(chalk.red(message));
         }
@@ -51,16 +51,10 @@ export function createEddaRetireCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: message,
-                storage_found: false,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: message,
+            storage_found: false,
+          });
         } else {
           print(chalk.yellow(message));
         }
@@ -73,7 +67,7 @@ export function createEddaRetireCommand(): Command {
         format: 'yaml',
       });
       const evolutionService = new EvolutionService({ store });
-      const spinner = options.json ? null : ora('Retiring Edda memory...').start();
+      const spinner = options.json ? null : createSpinner('Retiring Edda memory...');
 
       try {
         const retiredMemory = await evolutionService.retireMemory(createMemoryId(id), {
@@ -85,7 +79,7 @@ export function createEddaRetireCommand(): Command {
           const message = `Memory not found: ${id}`;
           spinner?.fail(chalk.red(message));
           if (options.json) {
-            data(JSON.stringify({ error: message }, null, 2));
+            json({ error: message });
           } else {
             print(chalk.red(message));
           }
@@ -93,7 +87,7 @@ export function createEddaRetireCommand(): Command {
         }
 
         if (options.json) {
-          data(JSON.stringify(retiredMemory, null, 2));
+          json(retiredMemory);
           return;
         }
 
@@ -107,15 +101,9 @@ export function createEddaRetireCommand(): Command {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to retire memory'));
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
         } else {
           print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }

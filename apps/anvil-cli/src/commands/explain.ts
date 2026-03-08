@@ -12,7 +12,7 @@ import {
 } from '@eddacraft/anvil-core';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { loadRecentWarnings } from '../services/recent-warnings-store.js';
-import { print, blank, data } from '../utils/output.js';
+import { print, blank, json } from '../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -95,14 +95,14 @@ function indentContent(content: string, indent: string): string {
 }
 
 function formatExplanationJson(explanation: WarningExplanation): void {
-  data(JSON.stringify(explanation, null, 2));
+  json(explanation);
 }
 
-function listExplainableRules(json: boolean): void {
+function listExplainableRules(jsonOutput: boolean): void {
   const rules = getExplainableRules();
 
-  if (json) {
-    data(JSON.stringify({ rules }, null, 2));
+  if (jsonOutput) {
+    json({ rules });
     return;
   }
 
@@ -129,12 +129,12 @@ function listExplainableRules(json: boolean): void {
   print(chalk.gray('       anvil explain AP-003-src/file.ts:42'));
 }
 
-async function listRecentWarnings(json: boolean): Promise<void> {
+async function listRecentWarnings(jsonOutput: boolean): Promise<void> {
   const workspaceRoot = getWorkspaceRoot();
   const warnings = await loadRecentWarnings(workspaceRoot);
 
-  if (json) {
-    data(JSON.stringify({ warnings }, null, 2));
+  if (jsonOutput) {
+    json({ warnings });
     return;
   }
 

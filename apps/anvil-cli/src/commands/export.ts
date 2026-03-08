@@ -4,7 +4,6 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { createDebugger } from '@eddacraft/anvil-core';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, extname, basename, join } from 'node:path';
@@ -23,6 +22,7 @@ import {
 import type { ExportOptions } from '../types/command-options.js';
 import { error as printError, print } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
+import { createSpinner } from '../utils/spinner.js';
 
 export function createExportCommand(): Command {
   return new Command('export')
@@ -63,7 +63,7 @@ export function createExportCommand(): Command {
           throw new CliError('Source file path is required for plan conversion');
         }
 
-        const spinner = ora('Loading source file...').start();
+        const spinner = createSpinner('Loading source file...');
 
         try {
           // Validate source file exists
@@ -220,7 +220,7 @@ async function exportConstraints(
   outputPath?: string,
   compact = false
 ): Promise<void> {
-  const spinner = ora('Collecting constraints...').start();
+  const spinner = createSpinner('Collecting constraints...');
 
   try {
     const workspaceRoot = getWorkspaceRoot();

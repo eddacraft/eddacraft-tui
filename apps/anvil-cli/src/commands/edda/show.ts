@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import { MemoryStore, createMemoryId } from '@eddacraft/anvil-edda-stack';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 import { colourConfidence, colourStatus } from './utils.js';
 
 interface EddaShowOptions {
@@ -26,16 +26,10 @@ export function createEddaShowCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: message,
-                storage_found: false,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: message,
+            storage_found: false,
+          });
         } else {
           print(chalk.yellow(message));
         }
@@ -54,7 +48,7 @@ export function createEddaShowCommand(): Command {
         if (!memory) {
           const message = `Memory not found: ${id}`;
           if (options.json) {
-            data(JSON.stringify({ error: message }, null, 2));
+            json({ error: message });
           } else {
             print(chalk.red(message));
           }
@@ -62,7 +56,7 @@ export function createEddaShowCommand(): Command {
         }
 
         if (options.json) {
-          data(JSON.stringify(memory, null, 2));
+          json(memory);
           return;
         }
 
@@ -117,15 +111,9 @@ export function createEddaShowCommand(): Command {
         if (err instanceof CliError || err instanceof CliExit) throw err;
 
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
         } else {
           print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }

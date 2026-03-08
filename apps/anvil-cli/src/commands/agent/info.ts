@@ -14,7 +14,7 @@ import {
 } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 
 interface InfoOptions {
   json?: boolean;
@@ -82,7 +82,7 @@ export function createAgentInfoCommand(): Command {
         };
 
         if (options.json) {
-          data(JSON.stringify(info, null, 2));
+          json(info);
           return;
         }
 

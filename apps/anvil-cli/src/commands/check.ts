@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import { glob } from 'glob';
 import { createDebugger } from '@eddacraft/anvil-core';
 import {
@@ -9,6 +8,7 @@ import {
   getChangedFiles,
   type AnalyzeResult,
 } from '@eddacraft/anvil-runtime';
+import { createSpinner } from '../utils/spinner.js';
 import type { Warning } from '@eddacraft/anvil-core/antipattern';
 import {
   DEFAULT_ANALYSABLE_EXTENSIONS,
@@ -20,7 +20,7 @@ import {
 import { CliError, CliExit } from '../utils/cli-error.js';
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { saveRecentWarnings } from '../services/recent-warnings-store.js';
-import { success, error, info, print, blank, data } from '../utils/output.js';
+import { success, error, info, print, blank, json } from '../utils/output.js';
 import { initKindling, type KindlingContext } from '../services/kindling-bootstrap.js';
 import {
   emitSessionStart,
@@ -256,7 +256,7 @@ function formatResultsJSON(files: string[], result: AnalyzeResult): void {
     summary: result.warnings.summary,
   };
 
-  data(JSON.stringify(output, null, 2));
+  json(output);
 }
 
 function formatResultsHuman(
@@ -348,7 +348,7 @@ export function createCheckCommand(): Command {
       log(
         `check command entered: files=${files.length} all=${options.all} changed=${options.changed} staged=${options.staged}`
       );
-      const spinner = options.json ? null : ora('Analysing files...').start();
+      const spinner = options.json ? null : createSpinner('Analysing files...');
       const startTime = Date.now();
       let kindling: KindlingContext | null = null;
       let sessionId: string | undefined;
@@ -405,23 +405,17 @@ export function createCheckCommand(): Command {
           if (allFiles.length === 0) {
             spinner?.stop();
             if (options.json) {
-              data(
-                JSON.stringify(
-                  {
-                    version: '1.0.0',
-                    timestamp: new Date().toISOString(),
-                    files: [],
-                    hasBlockingWarnings: false,
-                    executionTimeMs: 0,
-                    checksRun: [],
-                    warnings: [],
-                    summary: { total: 0, errors: 0, warnings: 0, info: 0, suppressed: 0 },
-                    message: 'No source files found',
-                  },
-                  null,
-                  2
-                )
-              );
+              json({
+                version: '1.0.0',
+                timestamp: new Date().toISOString(),
+                files: [],
+                hasBlockingWarnings: false,
+                executionTimeMs: 0,
+                checksRun: [],
+                warnings: [],
+                summary: { total: 0, errors: 0, warnings: 0, info: 0, suppressed: 0 },
+                message: 'No source files found',
+              });
             } else {
               info('No source files found');
             }
@@ -444,23 +438,17 @@ export function createCheckCommand(): Command {
           if (changedFiles.length === 0) {
             spinner?.stop();
             if (options.json) {
-              data(
-                JSON.stringify(
-                  {
-                    version: '1.0.0',
-                    timestamp: new Date().toISOString(),
-                    files: [],
-                    hasBlockingWarnings: false,
-                    executionTimeMs: 0,
-                    checksRun: [],
-                    warnings: [],
-                    summary: { total: 0, errors: 0, warnings: 0, info: 0, suppressed: 0 },
-                    message: 'No changed files to analyse',
-                  },
-                  null,
-                  2
-                )
-              );
+              json({
+                version: '1.0.0',
+                timestamp: new Date().toISOString(),
+                files: [],
+                hasBlockingWarnings: false,
+                executionTimeMs: 0,
+                checksRun: [],
+                warnings: [],
+                summary: { total: 0, errors: 0, warnings: 0, info: 0, suppressed: 0 },
+                message: 'No changed files to analyse',
+              });
             } else {
               info('No changed files to analyse');
             }

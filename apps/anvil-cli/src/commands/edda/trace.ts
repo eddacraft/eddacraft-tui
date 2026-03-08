@@ -2,16 +2,16 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora from 'ora';
 import {
   EvolutionService,
   MemoryStore,
   ProvenanceService,
   createMemoryId,
 } from '@eddacraft/anvil-edda-stack';
+import { createSpinner } from '../../utils/spinner.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 import { colourStatus } from './utils.js';
 
 interface EddaTraceOptions {
@@ -32,18 +32,12 @@ export function createEddaTraceCommand(): Command {
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: message,
-                storage_found: false,
-                evolution_chain: [],
-                provenance: null,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: message,
+            storage_found: false,
+            evolution_chain: [],
+            provenance: null,
+          });
         } else {
           print(chalk.yellow(message));
         }
@@ -58,23 +52,17 @@ export function createEddaTraceCommand(): Command {
       const evolutionService = new EvolutionService({ store });
       const provenanceService = new ProvenanceService({ store });
       const memoryId = createMemoryId(id);
-      const spinner = options.json ? null : ora('Resolving evolution and provenance...').start();
+      const spinner = options.json ? null : createSpinner('Resolving evolution and provenance...');
 
       try {
         const evolutionChain = await evolutionService.getEvolutionChain(memoryId);
         const provenance = await provenanceService.getMemoryProvenance(memoryId);
 
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                evolution_chain: evolutionChain,
-                provenance,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            evolution_chain: evolutionChain,
+            provenance,
+          });
           return;
         }
 
@@ -131,15 +119,9 @@ export function createEddaTraceCommand(): Command {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to trace memory provenance'));
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                error: err instanceof Error ? err.message : 'Unknown error',
-              },
-              null,
-              2
-            )
-          );
+          json({
+            error: err instanceof Error ? err.message : 'Unknown error',
+          });
         } else {
           print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
         }

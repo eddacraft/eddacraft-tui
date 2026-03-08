@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import ora, { type Ora } from 'ora';
+import type { Ora } from 'ora';
 import { glob } from 'glob';
 import { createDebugger } from '@eddacraft/anvil-core';
 import {
@@ -16,7 +16,8 @@ import {
 import { getWorkspaceRoot } from '../utils/file-io.js';
 import { CliError, CliExit } from '../utils/cli-error.js';
 import { coercePositiveInt } from '../utils/option-coerce.js';
-import { error, info, print, blank, data } from '../utils/output.js';
+import { data, error, info, print, blank, json } from '../utils/output.js';
+import { createSpinner } from '../utils/spinner.js';
 
 const log = createDebugger('cli');
 
@@ -77,7 +78,7 @@ function formatMetadata(meta: SnapshotMetadata): string {
 
 async function handleSnapshot(options: SnapshotOptions): Promise<void> {
   log(`drift snapshot: name=${options.name ?? '(auto)'}`);
-  const spinner = options.json ? null : ora('Capturing snapshot...').start();
+  const spinner = options.json ? null : createSpinner('Capturing snapshot...');
 
   try {
     const workspaceRoot = getWorkspaceRoot();
@@ -96,7 +97,7 @@ async function handleSnapshot(options: SnapshotOptions): Promise<void> {
     if (spinner) spinner.succeed(`Snapshot saved: ${filePath}`);
 
     if (options.json) {
-      data(JSON.stringify(snapshot, null, 2));
+      json(snapshot);
     } else {
       blank();
       print(chalk.bold('Metrics:'));
@@ -124,7 +125,7 @@ async function handleCompare(
   options: CompareOptions
 ): Promise<void> {
   log(`drift compare: ${snapshot1} vs ${snapshot2}`);
-  const spinner = options.json ? null : ora('Loading snapshots...').start();
+  const spinner = options.json ? null : createSpinner('Loading snapshots...');
 
   try {
     const workspaceRoot = getWorkspaceRoot();
@@ -148,28 +149,22 @@ async function handleCompare(
     if (spinner) spinner.succeed('Comparison complete');
 
     if (options.json) {
-      data(
-        JSON.stringify(
-          {
-            before: { name: before.name, created_at: before.created_at },
-            after: { name: after.name, created_at: after.created_at },
-            duration_days: comparison.duration_days,
-            metrics: comparison.metrics,
-            net_change: comparison.net_change,
-            overall_trend: comparison.overall_trend,
-            violations: {
-              added: comparison.violations.added.length,
-              removed: comparison.violations.removed.length,
-            },
-            antipatterns: {
-              added: comparison.antipatterns.added.length,
-              removed: comparison.antipatterns.removed.length,
-            },
-          },
-          null,
-          2
-        )
-      );
+      json({
+        before: { name: before.name, created_at: before.created_at },
+        after: { name: after.name, created_at: after.created_at },
+        duration_days: comparison.duration_days,
+        metrics: comparison.metrics,
+        net_change: comparison.net_change,
+        overall_trend: comparison.overall_trend,
+        violations: {
+          added: comparison.violations.added.length,
+          removed: comparison.violations.removed.length,
+        },
+        antipatterns: {
+          added: comparison.antipatterns.added.length,
+          removed: comparison.antipatterns.removed.length,
+        },
+      });
     } else {
       blank();
       const report = generateReport(comparison, { includeDetails: true });
@@ -185,7 +180,7 @@ async function handleCompare(
 
 async function handleReport(options: ReportOptions): Promise<void> {
   log(`drift report: since=${options.since ?? '(latest)'}`);
-  const spinner = options.json ? null : ora('Generating report...').start();
+  const spinner = options.json ? null : createSpinner('Generating report...');
 
   try {
     const workspaceRoot = getWorkspaceRoot();
@@ -249,7 +244,7 @@ async function handleReport(options: ReportOptions): Promise<void> {
 
 async function handleList(options: ListOptions): Promise<void> {
   log(`drift list: limit=${options.limit ?? '(all)'}`);
-  const spinner = options.json ? null : ora('Loading snapshots...').start();
+  const spinner = options.json ? null : createSpinner('Loading snapshots...');
 
   try {
     const workspaceRoot = getWorkspaceRoot();
@@ -269,7 +264,7 @@ async function handleList(options: ListOptions): Promise<void> {
     }
 
     if (options.json) {
-      data(JSON.stringify(snapshots, null, 2));
+      json(snapshots);
     } else {
       blank();
       print(chalk.bold('NAME'.padEnd(20) + ' DATE        METRICS'));

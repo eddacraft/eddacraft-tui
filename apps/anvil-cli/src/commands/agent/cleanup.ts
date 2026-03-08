@@ -14,7 +14,7 @@ import {
 } from '@eddacraft/anvil-runtime';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
-import { blank, data, print } from '../../utils/output.js';
+import { blank, json, print } from '../../utils/output.js';
 
 const log = createDebugger('cli');
 
@@ -75,17 +75,11 @@ export function createAgentCleanupCommand(): Command {
           results.staleAgents.length + results.expiredLocks + results.timedOutQueueEntries;
 
         if (options.json) {
-          data(
-            JSON.stringify(
-              {
-                dryRun: options.dryRun ?? false,
-                ...results,
-                total: totalCleaned,
-              },
-              null,
-              2
-            )
-          );
+          json({
+            dryRun: options.dryRun ?? false,
+            ...results,
+            total: totalCleaned,
+          });
           return;
         }
 
