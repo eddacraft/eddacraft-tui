@@ -11,7 +11,7 @@
 import { promises as fs } from 'node:fs';
 import { dirname, join, isAbsolute, resolve } from 'node:path';
 import { randomBytes, createHash } from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { z } from 'zod';
 import { TaskStatusSchema, type Task, type TaskStatus } from '../types/index.js';
 import { loadPlan, type LoadedPlan } from '../loader/index.js';
@@ -466,7 +466,7 @@ export function getCurrentUser(): string {
  */
 export function getGitCommit(projectRoot: string): string | undefined {
   try {
-    return execSync('git rev-parse HEAD', {
+    return execFileSync('git', ['rev-parse', 'HEAD'], {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -482,7 +482,7 @@ export function getGitCommit(projectRoot: string): string | undefined {
  */
 export function getGitBranch(projectRoot: string): string | undefined {
   try {
-    return execSync('git rev-parse --abbrev-ref HEAD', {
+    return execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], {
       cwd: projectRoot,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
