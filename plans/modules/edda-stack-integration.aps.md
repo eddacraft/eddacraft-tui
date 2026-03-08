@@ -161,8 +161,8 @@ packages/edda-stack/
 
 ```
 packages/edda-stack/
-├── ember/contracts/     # Ember-specific schemas
-├── edda/contracts/      # Edda-specific schemas
+├── src/ember/           # Ember-specific schemas
+├── src/edda/            # Edda-specific schemas
 └── integration/
     └── mappers/         # Explicit conversion
 ```
@@ -240,7 +240,7 @@ interface EddaMemory {
 - **Non-scope:** Storage-specific ID generation
 - **Files:**
   - `packages/edda-stack/src/contracts/identifiers.ts`
-  - `packages/edda-stack/src/contracts/identifiers.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="identifiers"`
 - **Confidence:** high
@@ -254,7 +254,7 @@ interface EddaMemory {
 - **Non-scope:** Timezone handling beyond ISO8601
 - **Files:**
   - `packages/edda-stack/src/contracts/temporal.ts`
-  - `packages/edda-stack/src/contracts/temporal.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="temporal"`
 - **Confidence:** high
@@ -268,7 +268,7 @@ interface EddaMemory {
 - **Non-scope:** Confidence computation logic
 - **Files:**
   - `packages/edda-stack/src/contracts/confidence.ts`
-  - `packages/edda-stack/src/contracts/confidence.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="confidence"`
 - **Confidence:** high
@@ -312,7 +312,7 @@ interface EddaMemory {
 - **Non-scope:** Aggregation logic
 - **Files:**
   - `packages/edda-stack/src/contracts/observation-mappings.ts`
-  - `packages/edda-stack/src/contracts/observation-mappings.test.ts`
+  - `packages/edda-stack/src/contracts/type-mappings.test.ts`
 - **Dependencies:** KINDLING-001, EMBER-001
 - **Validation:** `nx test edda-stack --testNamePattern="observation-mappings"`
 - **Confidence:** medium
@@ -403,11 +403,11 @@ interface EddaMemory {
 
 - **Intent:** Define stack-wide configuration with layer dependencies
 - **Expected Outcome:** Zod schema for stack config, validation of dependencies
-- **Scope:** `packages/edda-stack/src/`, `core/src/gate/gate-config.ts`
+- **Scope:** `packages/edda-stack/src/`, `packages/anvil/runtime/src/gate/gate-config.ts`
 - **Non-scope:** TUI config editor
 - **Files:**
   - `packages/edda-stack/src/config.ts`
-  - `core/src/gate/gate-config.ts` (extend schema)
+  - `packages/anvil/runtime/src/gate/gate-config.ts` (extend schema)
 - **Dependencies:** KINDLING-002, EMBER-003, EDDA-005
 - **Validation:** `nx test edda-stack --testNamePattern="stack.*config"`
 - **Confidence:** high
@@ -487,7 +487,7 @@ interface EddaMemory {
 - **Dependencies:** —
 - **Validation:** All file paths in plan tasks resolve to real files
 - **Confidence:** high
-- **Status:** In Progress
+- **Status:** Complete
 
 #### STACK-018: Retroactive evidence capture
 
@@ -496,7 +496,7 @@ interface EddaMemory {
 - **Scope:** `plans/execution/`
 - **Non-scope:** New implementation work
 - **Files:**
-  - `plans/execution/STACK-001.steps.md` through `STACK-016.steps.md`
+  - `plans/execution/`
 - **Dependencies:** STACK-017
 - **Validation:** Each steps file references passing test or artefact
 - **Confidence:** high

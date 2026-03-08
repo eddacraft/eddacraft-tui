@@ -187,7 +187,7 @@ low-volume, medium-trust proposals for potential memorisation.
 - **Non-scope:** Storage implementation, evaluation logic
 - **Files:**
   - `packages/edda-stack/src/contracts/ember-proposal.ts`
-  - `packages/edda-stack/src/contracts/ember-proposal.test.ts`
+  - `packages/edda-stack/src/contracts/contracts.test.ts`
 - **Dependencies:** —
 - **Validation:** `nx test edda-stack --testNamePattern="ember-proposal"`
 - **Confidence:** high
@@ -211,11 +211,11 @@ low-volume, medium-trust proposals for potential memorisation.
 
 - **Intent:** Define configuration schema with sensible defaults
 - **Expected Outcome:** Zod schema for ember config, integrated with .anvilrc
-- **Scope:** `packages/edda-stack/src/ember/`, `core/src/gate/gate-config.ts`
+- **Scope:** `packages/edda-stack/src/ember/`, `packages/anvil/runtime/src/gate/gate-config.ts`
 - **Non-scope:** TUI config editor
 - **Files:**
   - `packages/edda-stack/src/ember/config.ts`
-  - `core/src/gate/gate-config.ts` (extend schema)
+  - `packages/anvil/runtime/src/gate/gate-config.ts` (extend schema)
 - **Dependencies:** EMBER-001
 - **Validation:** `nx test edda-stack --testNamePattern="ember.*config"`
 - **Confidence:** high
@@ -338,8 +338,8 @@ low-volume, medium-trust proposals for potential memorisation.
 - **Scope:** `apps/anvil-cli/src/commands/`
 - **Non-scope:** TUI visualisation, promotion workflow
 - **Files:**
-  - `apps/anvil-cli/src/commands/ember.ts`
-  - `apps/anvil-cli/src/commands/ember.test.ts`
+  - `apps/anvil-cli/src/commands/ember/index.ts`
+  - `apps/anvil-cli/src/commands/ember/ember.test.ts`
 - **Dependencies:** EMBER-009
 - **Validation:** `anvil ember list && anvil ember show <id>`
 - **Confidence:** high
@@ -383,7 +383,7 @@ low-volume, medium-trust proposals for potential memorisation.
 - **Files:**
   - `docs/guides/ember-candidates.md`
   - `packages/edda-stack/src/ember/README.md`
-  - `packages/edda-stack/src/ember/examples/`
+  - `packages/edda-stack/src/ember/`
 - **Dependencies:** EMBER-011, EMBER-012
 - **Validation:** Manual review of documentation completeness
 - **Confidence:** high
