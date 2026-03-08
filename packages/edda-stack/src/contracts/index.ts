@@ -296,6 +296,14 @@ export {
   expandProvenanceSummary,
 } from './type-mappings.js';
 
+export {
+  // Constants
+  OBSERVATION_KIND_TO_PROPOSAL_TYPE_MAPPING,
+  // Utilities
+  mapObservationKindToProposalType,
+  mapObservationKindsToProposalType,
+} from './observation-mappings.js';
+
 // =============================================================================
 // Events (STACK-008)
 // =============================================================================

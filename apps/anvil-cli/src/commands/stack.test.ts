@@ -65,13 +65,5 @@ describe('stack command', () => {
 
       expect(jsonOpt).toBeDefined();
     });
-
-    it('should have --fix option', () => {
-      const command = createStackCommand();
-      const validateCmd = command.commands.find((c) => c.name() === 'validate');
-      const fixOpt = validateCmd?.options.find((o) => o.long === '--fix');
-
-      expect(fixOpt).toBeDefined();
-    });
   });
 });

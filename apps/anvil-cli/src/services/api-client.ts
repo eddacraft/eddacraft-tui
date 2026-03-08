@@ -91,7 +91,8 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
       log(`apiRequest: TIMEOUT ${options.operationName}`);
       throw new Error(
-        `Request timed out for ${options.operationName}. Check your internet connection and try again.`
+        `Request timed out for ${options.operationName}. Check your internet connection and try again.`,
+        { cause: err }
       );
     }
     if (!(err instanceof TypeError)) throw err;
@@ -103,7 +104,8 @@ export async function apiRequest<T>(options: ApiRequestOptions): Promise<T> {
     }
     log(`apiRequest: NETWORK ERROR ${options.operationName}${cause}`);
     throw new Error(
-      `Could not connect to ${getApiUrl()}${cause}. Check your internet connection and try again.`
+      `Could not connect to ${getApiUrl()}${cause}. Check your internet connection and try again.`,
+      { cause: err }
     );
   }
 

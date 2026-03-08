@@ -34,7 +34,8 @@ export async function loadPlan(path: string): Promise<APSPlan> {
     return validationResult.data as APSPlan;
   } catch (error) {
     throw new Error(
-      `Failed to load plan: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to load plan: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
     );
   }
 }

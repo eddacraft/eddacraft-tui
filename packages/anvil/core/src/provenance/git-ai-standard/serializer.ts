@@ -93,7 +93,9 @@ export function parseAuthorshipLog(content: string): AuthorshipLog {
   try {
     metadata = JSON.parse(metadataJson);
   } catch (e) {
-    throw new Error(`Invalid authorship log: malformed JSON in metadata section - ${e}`);
+    throw new Error(`Invalid authorship log: malformed JSON in metadata section - ${e}`, {
+      cause: e,
+    });
   }
 
   // Validate with Zod schema

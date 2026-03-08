@@ -31,7 +31,6 @@ import {
   emitGateEvaluated,
   emitError as emitKindlingError,
 } from '@eddacraft/anvil-kindling-integration';
-import { isTUIAvailable } from '../tui/utils/tty-detection.js';
 
 const log = createDebugger('cli');
 
@@ -63,8 +62,6 @@ interface WatchOptions {
   source?: boolean;
   plans?: boolean;
   all?: boolean;
-  // Commander.js --no-tui sets options.tui = false (not options.noTui = true)
-  tui?: boolean;
   // Multi-agent coordination options
   multiAgent?: boolean;
   agentId?: string;
@@ -116,8 +113,6 @@ export function createWatchCommand(): Command {
     .option('--no-git-filter', 'Disable git filtering (watch all file changes)')
     .option('-p, --profile <profile>', 'Gate profile to use (dev, ci, production)')
     .option('-v, --verbose', 'Verbose output')
-    .option('--tui', 'Force TUI dashboard mode')
-    .option('--no-tui', 'Force plain text mode')
     .option('--multi-agent', 'Enable multi-agent coordination (default: true)')
     .option('--no-multi-agent', 'Disable multi-agent coordination')
     .option('--agent-id <id>', 'Custom agent identifier')
@@ -238,16 +233,6 @@ export function createWatchCommand(): Command {
         // If a specific file is provided, watch only that file
         if (file) {
           watchConfig.patterns = [file];
-        }
-
-        const useTUI = isTUIAvailable({ tui: options.tui });
-        if (useTUI && options.tui) {
-          print(
-            chalk.yellow(
-              '⚠  --tui flag: Watch dashboard TUI not yet integrated. Using standard output.'
-            )
-          );
-          print(chalk.gray('   Dashboard components available at cli/src/tui/commands/watch/'));
         }
 
         // Create output handler

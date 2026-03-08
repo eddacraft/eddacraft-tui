@@ -319,7 +319,9 @@ export class DependencyCheck extends BaseCheck {
           } catch (parseError) {
             const detail = parseError instanceof Error ? parseError.message : String(parseError);
             log(`failed to parse ${packageManager} audit output: ${detail}`);
-            throw new Error(`Failed to parse ${packageManager} audit output: ${detail}`);
+            throw new Error(`Failed to parse ${packageManager} audit output: ${detail}`, {
+              cause: parseError,
+            });
           }
         }
       }
