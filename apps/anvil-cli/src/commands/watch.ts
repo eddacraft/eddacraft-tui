@@ -213,7 +213,7 @@ export function createWatchCommand(): Command {
         // Build effective config
         const debounceMs = options.debounce
           ? coerceNonNegativeInt(options.debounce, '--debounce')
-          : savedConfig?.debounceMs ?? defaultConfig.debounceMs;
+          : (savedConfig?.debounceMs ?? defaultConfig.debounceMs);
 
         const watchConfig = {
           enabled: true,
