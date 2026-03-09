@@ -1,43 +1,36 @@
 # Development Guides
 
-**Last Updated:** 2026-03-02
-
-## Overview
-
 How-to guides for developers working on Anvil.
 
 ## Available Guides
 
 ### Adapter Development
 
-- [Adapter Guide](adapters/README.md) - Building format adapters
-- [Adapter Workflow](adapters/workflow-guide.md) - Development workflow
-
-### Git Workflows
-
-- [Git Worktree Workflow](git-worktree-workflow.md) - Managing multiple branches
+- [Adapter Guide](adapters/README.md) — Building format adapters
+- [Adapter Workflow](adapters/workflow-guide.md) — Development workflow
 
 ### Edda Stack
 
-- [Stack Migration Guide](stack-migration.md) - Coordinating schema changes
-  across layers
+- [Edda Memory](edda-memory.md) — Edda memory system usage
+- [Ember Candidates](ember-candidates.md) — Ember candidate evaluation
+- [Stack Migration](stack-migration.md) — Coordinating schema changes across
+  layers
 
 ### Command Safety
 
-- [Command Safety](command-safety.md) - Command safety validation
-- [Command Safety Configuration](command-safety-configuration.md) - Configuring
+- [Command Safety](command-safety.md) — Command safety validation
+- [Command Safety Configuration](command-safety-configuration.md) — Configuring
   command safety rules
 
 ### Architecture
 
-- [Custom Architecture Policies](custom-architecture-policies.md) - Writing
+- [Custom Architecture Policies](custom-architecture-policies.md) — Writing
   custom OPA policies
 
-### Runbooks
+### CLI
 
-- [Runbooks Index](runbooks/README.md) - Operational playbooks
-- [Waitlist Email Operations](waitlist-email-operations.md) - Admin resend +
-  delivery debugging
+- [CLI Output Streams](cli-output-streams.md) — CLI output and stream handling
+- [Release Runbook](release-runbook.md) — Release process and checklist
 
 ## Quick Links
 
@@ -46,7 +39,6 @@ How-to guides for developers working on Anvil.
 1. Start with [Project README](../../README.md)
 2. Review [Architecture](../ARCHITECTURE.md)
 3. Read [Testing Guide](../TESTING.md)
-4. Read [Adapter Guide](adapters/README.md)
 
 ### For Building Adapters
 
@@ -54,13 +46,7 @@ How-to guides for developers working on Anvil.
 2. [Adapter Workflow Guide](adapters/workflow-guide.md)
 3. [Adapters Package README](../../packages/adapters/README.md)
 
-### For CLI Development
+## See Also
 
-1. [CLI README](../../apps/anvil-cli/README.md)
-2. [Monorepo Structure](../MONOREPO_STRUCTURE.md)
-
-## Navigation
-
+- [Runbooks](../runbooks/) — Operational playbooks
 - [Back to Documentation](../README.md)
-- [Architecture](../ARCHITECTURE.md)
-- [Testing](../TESTING.md)

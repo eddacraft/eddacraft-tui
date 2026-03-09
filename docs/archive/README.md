@@ -1,42 +1,39 @@
 # Documentation Archive
 
-This directory contains historical documents preserved for reference.
-
-**These documents are read-only** - do not update archived content.
+Historical documents preserved for reference. **Do not update these.**
 
 ## Contents
 
+### edda-pre-implementation/
+
+EDDA architecture docs written before implementation. Superseded by the actual
+code in `packages/edda-stack/`. Includes the system architecture (2300+ lines),
+component dependency analysis, storage comparison, and planning index.
+
 ### Historical Planning (`planning/`)
 
-Past planning documents moved here during docs cleanup (2026-01-18):
-
-- V1 feature alignment docs
-- Monorepo planning docs
-- LSP/TUI implementation plans
-- Roadmaps and TODOs
+Past planning documents from the 2026-01-18 docs cleanup: V1 feature alignment,
+monorepo planning, LSP/TUI implementation plans, roadmaps.
 
 ### Historical Status (`status/`)
 
 Past status reports and milestone summaries.
 
-### Superseded Documents
+### Individual Files
 
-- Implementation plans that have been completed or abandoned
-- Old integration plans
-- Feature architecture docs for completed features
-
-## Why Archive?
-
-Documents are archived when:
-
-1. Superseded by newer documentation
-2. Related work is complete
-3. Information is outdated but historically valuable
+| File                                   | Why archived                                   |
+| -------------------------------------- | ---------------------------------------------- |
+| `rust-kernel-post-h1.md`               | Post-H1 future reference, not in current scope |
+| `kindling-integration-analysis.md`     | Decision made, integration exists              |
+| `diagram-rendering-for-ratatui.md`     | Research for future TUI work                   |
+| `node-to-deno-migration-assessment.md` | Assessment complete, no action taken           |
+| `claude-guide-legacy.md`               | Superseded by root `CLAUDE.md`                 |
+| `git-worktree-workflow.md`             | Generic git education, not Anvil-specific      |
+| `bmad-adapter-spec.md`                 | BMAD adapter complete, spec lives in code      |
+| `test-quality-patterns-proposal.md`    | Proposed antipatterns, not yet implemented     |
 
 ## Current Documentation
 
-For current documentation:
-
 - **Planning** → `plans/` (root directory)
 - **Engineering docs** → `docs/` (parent directory)
-- **Public docs** → `apps/docs-site/docs/`
+- **Public docs** → `docs/public/`
