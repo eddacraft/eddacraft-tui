@@ -28,6 +28,8 @@ export class GitOperationError extends Error {
   readonly command: string;
   readonly args: readonly string[];
   readonly exitCode: number | null;
+  /** String error code from spawn failures (e.g. `'ENOENT'`, `'EPERM'`). */
+  readonly spawnCode: string | undefined;
   readonly stderr: string;
 
   constructor(
@@ -35,13 +37,15 @@ export class GitOperationError extends Error {
     args: readonly string[],
     exitCode: number | null,
     stderr: string,
-    cause?: unknown
+    cause?: unknown,
+    spawnCode?: string
   ) {
     super(`git ${command} failed (exit ${exitCode ?? '?'}): ${stderr.slice(0, 500)}`, { cause });
     this.name = 'GitOperationError';
     this.command = command;
     this.args = args;
     this.exitCode = exitCode;
+    this.spawnCode = spawnCode;
     this.stderr = stderr;
   }
 }
@@ -69,16 +73,13 @@ export async function gitExec(
 
     return { stdout: stdout.trimEnd(), stderr: stderr.trim() };
   } catch (error: unknown) {
-    const exitCode =
-      error !== null && typeof error === 'object' && 'code' in error
-        ? (error as { code: number | null }).code
-        : null;
-    const stderr =
-      error !== null && typeof error === 'object' && 'stderr' in error
-        ? String((error as { stderr: unknown }).stderr).trim()
-        : '';
+    const obj = error !== null && typeof error === 'object' ? error : {};
+    const rawCode = 'code' in obj ? (obj as { code: unknown }).code : null;
+    const exitCode = typeof rawCode === 'number' ? rawCode : null;
+    const spawnCode = typeof rawCode === 'string' ? rawCode : undefined;
+    const stderr = 'stderr' in obj ? String((obj as { stderr: unknown }).stderr).trim() : '';
 
-    throw new GitOperationError(args[0] ?? 'git', args, exitCode, stderr, error);
+    throw new GitOperationError(args[0] ?? 'git', args, exitCode, stderr, error, spawnCode);
   }
 }
 
@@ -129,8 +130,19 @@ export async function gitRemoteUrl(cwd: string, remote = 'origin'): Promise<stri
   try {
     const { stdout } = await gitExec(['remote', 'get-url', remote], { cwd });
     return stdout || undefined;
-  } catch {
-    return undefined;
+  } catch (error: unknown) {
+    if (error instanceof GitOperationError) {
+      const stderr = typeof error.stderr === 'string' ? error.stderr : '';
+      if (
+        error.exitCode === 2 ||
+        stderr.includes('No such remote') ||
+        stderr.includes('No remote configured')
+      ) {
+        return undefined;
+      }
+    }
+
+    throw error;
   }
 }
 

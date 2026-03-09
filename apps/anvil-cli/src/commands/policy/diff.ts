@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { gitExecSync } from '@eddacraft/anvil-core';
 import { CliError, CliExit } from '../../utils/cli-error.js';
 import { getWorkspaceRoot } from '../../utils/file-io.js';
 import { error, info, print, blank, debug } from '../../utils/output.js';
@@ -13,8 +14,6 @@ export function createPolicyDiffCommand(): Command {
     .action(async (options: { dir: string }) => {
       try {
         const workspaceRoot = getWorkspaceRoot();
-        const { execFileSync } = await import('node:child_process');
-
         const policyDir = options.dir;
         const configPath = join('.anvil', 'config.yml');
 
@@ -43,45 +42,28 @@ export function createPolicyDiffCommand(): Command {
         };
 
         try {
-          const configDiff = execFileSync(
-            'git',
-            ['diff', '--name-status', 'HEAD', '--', configPath],
-            {
-              cwd: workspaceRoot,
-              encoding: 'utf-8',
-              timeout: 30_000,
-            }
-          ).trim();
+          const configDiff = gitExecSync(['diff', '--name-status', 'HEAD', '--', configPath], {
+            cwd: workspaceRoot,
+          });
           printDiffSection('Config changes', configDiff);
         } catch {
           debug('policy: git diff for config.yml failed');
         }
 
         try {
-          const policyDiff = execFileSync(
-            'git',
-            ['diff', '--name-status', 'HEAD', '--', policyDir],
-            {
-              cwd: workspaceRoot,
-              encoding: 'utf-8',
-              timeout: 30_000,
-            }
-          ).trim();
+          const policyDiff = gitExecSync(['diff', '--name-status', 'HEAD', '--', policyDir], {
+            cwd: workspaceRoot,
+          });
           printDiffSection('Policy file changes', policyDiff);
         } catch {
           debug('policy: git diff for policy directory failed');
         }
 
         try {
-          const untracked = execFileSync(
-            'git',
+          const untracked = gitExecSync(
             ['ls-files', '--others', '--exclude-standard', '--', policyDir],
-            {
-              cwd: workspaceRoot,
-              encoding: 'utf-8',
-              timeout: 30_000,
-            }
-          ).trim();
+            { cwd: workspaceRoot }
+          );
           if (untracked) {
             hasChanges = true;
             print(chalk.bold('  Untracked policy files:'));

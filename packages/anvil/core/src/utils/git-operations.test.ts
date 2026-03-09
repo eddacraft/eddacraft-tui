@@ -177,4 +177,64 @@ describe('GitOperationError', () => {
     expect(err.message.length).toBeLessThan(600);
     expect(err.stderr).toBe(longStderr);
   });
+
+  it('stores string spawn codes separately from numeric exitCode', async () => {
+    const { GitOperationError } = await import('./git-operations.js');
+    const err = new GitOperationError('push', ['push'], null, '', undefined, 'ENOENT');
+    expect(err.exitCode).toBeNull();
+    expect(err.spawnCode).toBe('ENOENT');
+  });
+});
+
+describe('gitExec error handling', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sets spawnCode for string error.code (e.g. ENOENT)', async () => {
+    const error = Object.assign(new Error('spawn git ENOENT'), {
+      code: 'ENOENT',
+      stderr: '',
+    });
+    mockExecFileAsync.mockRejectedValue(error);
+
+    const { gitExec, GitOperationError } = await import('./git-operations.js');
+    try {
+      await gitExec(['status']);
+    } catch (err) {
+      expect(err).toBeInstanceOf(GitOperationError);
+      const gitErr = err as InstanceType<typeof GitOperationError>;
+      expect(gitErr.exitCode).toBeNull();
+      expect(gitErr.spawnCode).toBe('ENOENT');
+    }
+  });
+});
+
+describe('gitRemoteUrl', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns undefined for "No such remote" errors', async () => {
+    const error = Object.assign(new Error('git failed'), {
+      code: 2,
+      stderr: "fatal: No such remote 'upstream'",
+    });
+    mockExecFileAsync.mockRejectedValue(error);
+
+    const { gitRemoteUrl } = await import('./git-operations.js');
+    const result = await gitRemoteUrl('/repo', 'upstream');
+    expect(result).toBeUndefined();
+  });
+
+  it('propagates non-remote errors', async () => {
+    const error = Object.assign(new Error('spawn git ENOENT'), {
+      code: 'ENOENT',
+      stderr: '',
+    });
+    mockExecFileAsync.mockRejectedValue(error);
+
+    const { gitRemoteUrl, GitOperationError } = await import('./git-operations.js');
+    await expect(gitRemoteUrl('/repo')).rejects.toThrow(GitOperationError);
+  });
 });
