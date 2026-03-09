@@ -136,8 +136,10 @@ release must deliver both the core value AND a friction-free first experience.
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
+| GitHub Projects Trial      | 2-week APS↔GH Projects dual-primary trial               | Ready       | 0/8      |
 
 **Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+**Design doc (GH Projects Trial):** [docs/plans/2026-03-09-aps-vs-gh-projects-trial-decision-space.md](../docs/plans/2026-03-09-aps-vs-gh-projects-trial-decision-space.md)
 
 ### 0.2.0 — Web Dashboard
 
