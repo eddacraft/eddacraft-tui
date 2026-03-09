@@ -108,7 +108,7 @@ export function createWatchCommand(): Command {
     .option('--all', 'Watch both planning documents and source files')
     .option('--patterns <patterns>', 'Glob patterns to watch (comma-separated)')
     .option('--exclude <patterns>', 'Patterns to exclude (comma-separated)')
-    .option('--debounce <ms>', 'Debounce interval in milliseconds (default: 300)')
+    .option('--debounce <ms>', 'Debounce interval in milliseconds (defaults to config, 300ms if unset)')
     .option('--include-untracked', 'Include untracked git files in watch')
     .option('--no-git-filter', 'Disable git filtering (watch all file changes)')
     .option('-p, --profile <profile>', 'Gate profile to use (dev, ci, production)')
