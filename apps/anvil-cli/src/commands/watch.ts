@@ -11,6 +11,7 @@ import {
   GateConfigManager,
   createWatchOrchestrator,
   getDefaultWatchConfig,
+  WatchConfigSchema,
   DEFAULT_WATCH_PATTERNS,
   DEFAULT_EXCLUDE_PATTERNS,
   type WatchConfig,
@@ -110,7 +111,7 @@ export function createWatchCommand(): Command {
     .option('--exclude <patterns>', 'Patterns to exclude (comma-separated)')
     .option(
       '--debounce <ms>',
-      'Debounce interval in milliseconds (defaults to config, 300ms if unset)'
+      `Debounce interval in milliseconds (defaults to config, ${getDefaultWatchConfig().debounceMs}ms if unset)`
     )
     .option('--include-untracked', 'Include untracked git files in watch')
     .option('--no-git-filter', 'Disable git filtering (watch all file changes)')
@@ -213,16 +214,17 @@ export function createWatchCommand(): Command {
           }
         }
 
-        // Build effective config — validate against same 50-5000ms range as WatchConfigSchema
+        // Build effective config — reuse WatchConfigSchema for debounce validation
         let debounceMs: number;
         if (options.debounce) {
           const parsed = coerceNonNegativeInt(options.debounce, '--debounce');
-          if (parsed < 50 || parsed > 5000) {
-            throw new CliError(
-              `Invalid --debounce value: ${parsed}. Expected a value between 50 and 5000 milliseconds.`
+          const result = WatchConfigSchema.shape.debounceMs.safeParse(parsed);
+          if (!result.success) {
+            throw new Error(
+              `Invalid --debounce value: ${parsed}. ${result.error.issues[0].message}.`
             );
           }
-          debounceMs = parsed;
+          debounceMs = result.data;
         } else {
           debounceMs = savedConfig?.debounceMs ?? defaultConfig.debounceMs;
         }
