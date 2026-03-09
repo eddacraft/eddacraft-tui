@@ -8,8 +8,7 @@ assignees: ''
 
 ## APS Context
 
-APS Module: <!-- e.g. CRB -->
-APS Task: <!-- e.g. CRB-023 (or TBD) -->
+APS Module: <!-- e.g. CRB --> APS Task: <!-- e.g. CRB-023 (or TBD) -->
 
 ## Description
 

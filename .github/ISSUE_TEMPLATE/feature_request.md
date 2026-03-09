@@ -8,8 +8,7 @@ assignees: ''
 
 ## APS Context
 
-APS Module: <!-- e.g. DASH -->
-APS Task: <!-- e.g. DASH-001 (or TBD) -->
+APS Module: <!-- e.g. DASH --> APS Task: <!-- e.g. DASH-001 (or TBD) -->
 
 ## Summary
 
