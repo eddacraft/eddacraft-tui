@@ -53,12 +53,12 @@ describe('watch command', () => {
     expect(excludeOpt).toBeDefined();
   });
 
-  it('should have --debounce option with default value', () => {
+  it('should have --debounce option without Commander default (falls back to config)', () => {
     const command = createWatchCommand();
     const debounceOpt = command.options.find((o) => o.long === '--debounce');
 
     expect(debounceOpt).toBeDefined();
-    expect(debounceOpt?.defaultValue).toBe('300');
+    expect(debounceOpt?.defaultValue).toBeUndefined();
   });
 
   it('should have --include-untracked option for git files', () => {
