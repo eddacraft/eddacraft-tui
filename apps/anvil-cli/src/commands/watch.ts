@@ -211,10 +211,7 @@ export function createWatchCommand(): Command {
         }
 
         // Build effective config
-        const debounceMs =
-          !options.debounce
-            ? savedConfig?.debounceMs ?? defaultConfig.debounceMs
-            : coerceNonNegativeInt(options.debounce, '--debounce');
+        const debounceMs = coerceNonNegativeInt(options.debounce, '--debounce');
 
         const watchConfig = {
           enabled: true,
@@ -474,7 +471,7 @@ export function createWatchCommand(): Command {
         output.showWatching();
 
         // Keep process alive
-        await new Promise<void>((resolve) => {
+        await new Promise<void>((_resolve) => {
           // Intentionally never call resolve - keeps process running until Ctrl+C
         });
       } catch (err) {
