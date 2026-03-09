@@ -827,5 +827,5 @@ Priority based on impact (lines saved), risk (low = safe), and dependencies.
 ---
 
 *Review complete. 27 patterns catalogued, 8 accepted for implementation, 15
-rejected with documented reasoning, 4 partially accepted (covered by other
+rejected with documented reasoning, 2 partially accepted (covered by other
 accepted items).*
