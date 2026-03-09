@@ -213,10 +213,19 @@ export function createWatchCommand(): Command {
           }
         }
 
-        // Build effective config
-        const debounceMs = options.debounce
-          ? coerceNonNegativeInt(options.debounce, '--debounce')
-          : (savedConfig?.debounceMs ?? defaultConfig.debounceMs);
+        // Build effective config — validate against same 50-5000ms range as WatchConfigSchema
+        let debounceMs: number;
+        if (options.debounce) {
+          const parsed = coerceNonNegativeInt(options.debounce, '--debounce');
+          if (parsed < 50 || parsed > 5000) {
+            throw new CliError(
+              `Invalid --debounce value: ${parsed}. Expected a value between 50 and 5000 milliseconds.`,
+            );
+          }
+          debounceMs = parsed;
+        } else {
+          debounceMs = savedConfig?.debounceMs ?? defaultConfig.debounceMs;
+        }
 
         const watchConfig = {
           enabled: true,
@@ -475,10 +484,8 @@ export function createWatchCommand(): Command {
         await orchestrator.start();
         output.showWatching();
 
-        // Keep process alive
-        await new Promise<void>(() => {
-          // Intentionally never call resolve - keeps process running until Ctrl+C
-        });
+        // Keep process alive — intentionally never resolves until Ctrl+C
+        await new Promise<void>(() => {});
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         // Record error and session end in Kindling
