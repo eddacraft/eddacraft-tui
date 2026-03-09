@@ -116,9 +116,7 @@ describe('validate command', () => {
     });
 
     it('includes helpful message in the error', async () => {
-      await expect(runValidate([''])).rejects.toThrow(
-        'Plan argument is required'
-      );
+      await expect(runValidate([''])).rejects.toThrow('Plan argument is required');
     });
   });
 });
