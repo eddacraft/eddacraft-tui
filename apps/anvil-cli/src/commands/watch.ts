@@ -108,7 +108,7 @@ export function createWatchCommand(): Command {
     .option('--all', 'Watch both planning documents and source files')
     .option('--patterns <patterns>', 'Glob patterns to watch (comma-separated)')
     .option('--exclude <patterns>', 'Patterns to exclude (comma-separated)')
-    .option('--debounce <ms>', 'Debounce interval in milliseconds', '300')
+    .option('--debounce <ms>', 'Debounce interval in milliseconds (default: 300)')
     .option('--include-untracked', 'Include untracked git files in watch')
     .option('--no-git-filter', 'Disable git filtering (watch all file changes)')
     .option('-p, --profile <profile>', 'Gate profile to use (dev, ci, production)')
@@ -211,7 +211,9 @@ export function createWatchCommand(): Command {
         }
 
         // Build effective config
-        const debounceMs = coerceNonNegativeInt(options.debounce, '--debounce');
+        const debounceMs = options.debounce
+          ? coerceNonNegativeInt(options.debounce, '--debounce')
+          : savedConfig?.debounceMs ?? defaultConfig.debounceMs;
 
         const watchConfig = {
           enabled: true,
@@ -471,7 +473,7 @@ export function createWatchCommand(): Command {
         output.showWatching();
 
         // Keep process alive
-        await new Promise<void>((_resolve) => {
+        await new Promise<void>(() => {
           // Intentionally never call resolve - keeps process running until Ctrl+C
         });
       } catch (err) {
