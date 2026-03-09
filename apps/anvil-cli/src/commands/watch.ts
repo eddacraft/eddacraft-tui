@@ -113,7 +113,7 @@ export function createWatchCommand(): Command {
     .option('--no-git-filter', 'Disable git filtering (watch all file changes)')
     .option('-p, --profile <profile>', 'Gate profile to use (dev, ci, production)')
     .option('-v, --verbose', 'Verbose output')
-    .option('--multi-agent', 'Enable multi-agent coordination (default: true)')
+    .option('--multi-agent', 'Enable multi-agent coordination')
     .option('--no-multi-agent', 'Disable multi-agent coordination')
     .option('--agent-id <id>', 'Custom agent identifier')
     .option('--no-exclusive', 'Allow multiple watch instances (disable exclusive lock)')
@@ -211,15 +211,17 @@ export function createWatchCommand(): Command {
         }
 
         // Build effective config
+        const debounceMs =
+          !options.debounce
+            ? savedConfig?.debounceMs ?? defaultConfig.debounceMs
+            : coerceNonNegativeInt(options.debounce, '--debounce');
+
         const watchConfig = {
           enabled: true,
           patterns,
           exclude: excludePatterns,
           action,
-          debounceMs: (() => {
-            if (!options.debounce) return savedConfig?.debounceMs ?? defaultConfig.debounceMs;
-            return coerceNonNegativeInt(options.debounce, '--debounce');
-          })(),
+          debounceMs,
           git: {
             unstagedOnly: options.gitFilter !== false,
             includeUntracked:
@@ -472,8 +474,8 @@ export function createWatchCommand(): Command {
         output.showWatching();
 
         // Keep process alive
-        await new Promise(() => {
-          // Never resolves - keeps process running until Ctrl+C
+        await new Promise<void>((resolve) => {
+          // Intentionally never call resolve - keeps process running until Ctrl+C
         });
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
