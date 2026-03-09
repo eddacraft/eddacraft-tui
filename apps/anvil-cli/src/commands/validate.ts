@@ -15,6 +15,10 @@ import { createSpinner } from '../utils/spinner.js';
 
 const log = createDebugger('cli');
 
+function shouldValidateHash(options: ValidateOptions, sourceFormat: unknown): boolean {
+  return Boolean(options.validateHash) && !sourceFormat;
+}
+
 export function createValidateCommand(): Command {
   return new Command('validate')
     .description('Validate an Anvil plan (supports APS and external formats like SpecKit)')
@@ -24,6 +28,11 @@ export function createValidateCommand(): Command {
     .option('--native', 'Skip format detection and treat as native APS')
     .option('--validate-hash', 'Validate hash integrity', true)
     .action(async (planPathOrId: string, options: ValidateOptions) => {
+      if (typeof planPathOrId !== 'string' || planPathOrId.trim().length === 0) {
+        const message = 'Plan argument is required. Please provide a plan file path or plan ID.';
+        print(chalk.red('Error:'), message);
+        throw new CliError(message);
+      }
       log(
         `validate command entered: plan=${planPathOrId} native=${options.native} validateHash=${options.validateHash}`
       );
@@ -108,7 +117,7 @@ export function createValidateCommand(): Command {
         // Verify hash integrity if requested
         // Note: Only validate hash for native APS plans. External formats (SpecKit, BMAD)
         // generate hashes during parsing, so hash validation doesn't apply.
-        if (options.validateHash && !sourceFormat) {
+        if (shouldValidateHash(options, sourceFormat)) {
           spinner.text = 'Verifying plan hash...';
           // Exclude hash field before verification to avoid circular dependency
           const { hash, ...planWithoutHash } = plan;
