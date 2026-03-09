@@ -247,7 +247,6 @@ describe('anvil_check tool', () => {
       expect(w0.category).toBe('architecture');
       expect(w0.title).toBe('Circular dependency detected');
       expect(w0.message).toContain('Module A');
-      expect(w0.explanation).toBe('Circular dependencies cause tight coupling.');
       expect(w0.suggestion).toContain('Extract shared code');
       expect(w0.location).toEqual({ file: 'src/a.ts', line: 10, column: 5 });
 
@@ -259,6 +258,7 @@ describe('anvil_check tool', () => {
 
       // Verify fields NOT included in the mapped output
       expect(w0).not.toHaveProperty('confidence');
+      expect(w0).not.toHaveProperty('explanation');
     });
   });
 

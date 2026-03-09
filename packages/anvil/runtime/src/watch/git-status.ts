@@ -143,7 +143,7 @@ export class GitStatusChecker {
         cwd: this.workspaceRoot,
       });
 
-      return this.parseStatusLine(stdout, relativePath);
+      return this.parseStatusLine(stdout.trim(), relativePath);
     } catch (error) {
       debug('Git status command failed, treating file as untracked', error);
       return {

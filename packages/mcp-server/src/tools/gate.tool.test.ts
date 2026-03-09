@@ -27,7 +27,6 @@ vi.mock('@eddacraft/anvil-runtime', () => {
       loadConfig = mockLoadConfig;
       loadConfigWithDetails = mockLoadConfig;
     },
-    createEmptyPlan: vi.fn(() => ({})),
   };
 });
 

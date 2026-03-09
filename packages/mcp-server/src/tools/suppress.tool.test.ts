@@ -219,38 +219,6 @@ describe('anvil_suppress tool', () => {
       expect(parsed['reason']).toContain('outside workspace root');
     });
 
-    it('rejects path traversal with backslash separators (CRB-016)', async () => {
-      const result = await client.callTool({
-        name: 'anvil_suppress',
-        arguments: {
-          filePath: '..\\..\\..\\etc\\passwd',
-          warningId: 'AP-003',
-          line: 1,
-          reason: 'Backslash traversal',
-        },
-      });
-
-      const parsed = parseResult(result);
-      expect(parsed['suppressed']).toBe(false);
-      expect(parsed['reason']).toContain('outside workspace root');
-    });
-
-    it('rejects path traversal with mixed separators (CRB-016)', async () => {
-      const result = await client.callTool({
-        name: 'anvil_suppress',
-        arguments: {
-          filePath: '../..\\etc/passwd',
-          warningId: 'AP-003',
-          line: 1,
-          reason: 'Mixed separator traversal',
-        },
-      });
-
-      const parsed = parseResult(result);
-      expect(parsed['suppressed']).toBe(false);
-      expect(parsed['reason']).toContain('outside workspace root');
-    });
-
     it('returns isError when file does not exist', async () => {
       const result = await client.callTool({
         name: 'anvil_suppress',

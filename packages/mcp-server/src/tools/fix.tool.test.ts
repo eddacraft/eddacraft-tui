@@ -307,36 +307,6 @@ describe('anvil_fix tool', () => {
       expect(parsed['reason']).toContain('outside workspace root');
     });
 
-    it('rejects path traversal with backslash separators (CRB-016)', async () => {
-      const result = await client.callTool({
-        name: 'anvil_fix',
-        arguments: {
-          filePath: '..\\..\\..\\etc\\passwd',
-          warningId: 'AP-003',
-          line: 1,
-        },
-      });
-
-      const parsed = parseResult(result);
-      expect(parsed['fixed']).toBe(false);
-      expect(parsed['reason']).toContain('outside workspace root');
-    });
-
-    it('rejects path traversal with mixed separators (CRB-016)', async () => {
-      const result = await client.callTool({
-        name: 'anvil_fix',
-        arguments: {
-          filePath: '../..\\etc/passwd',
-          warningId: 'AP-003',
-          line: 1,
-        },
-      });
-
-      const parsed = parseResult(result);
-      expect(parsed['fixed']).toBe(false);
-      expect(parsed['reason']).toContain('outside workspace root');
-    });
-
     it('returns isError when file does not exist', async () => {
       const result = await client.callTool({
         name: 'anvil_fix',

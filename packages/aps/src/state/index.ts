@@ -10,7 +10,7 @@
 
 import { promises as fs } from 'node:fs';
 import { dirname, join, isAbsolute, resolve } from 'node:path';
-import { randomBytes, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { z } from 'zod';
 import { TaskStatusSchema, type Task, type TaskStatus } from '../types/index.js';
@@ -257,21 +257,11 @@ export async function writeStateFile(projectRoot: string, state: StateFile): Pro
   const statePath = getStateFilePath(projectRoot);
   const stateDir = dirname(statePath);
 
-  let tmpPath: string | undefined;
   try {
     await fs.mkdir(stateDir, { recursive: true });
     const content = JSON.stringify(state, null, 2);
-    // Atomic write: write to temp file, then rename
-    tmpPath = `${statePath}.${randomBytes(6).toString('hex')}.tmp`;
-    await fs.writeFile(tmpPath, content, 'utf-8');
-    await fs.rename(tmpPath, statePath);
-    tmpPath = undefined;
+    await fs.writeFile(statePath, content, 'utf-8');
   } catch (error) {
-    if (tmpPath) {
-      await fs.unlink(tmpPath).catch(() => {
-        // Best-effort cleanup of orphaned temp files
-      });
-    }
     throw new StateError(
       `Failed to write state file: ${error instanceof Error ? error.message : String(error)}`,
       statePath
@@ -782,11 +772,11 @@ export class TaskLocker {
         };
       }
 
-      // Delete execution plan file
+      // Delete execution plan file and release lock
       await deleteExecutionPlan(this.projectRoot, taskId);
+      await releaseLockFile(this.projectRoot, taskId);
 
-      // Write state transition before releasing lock file to prevent a race
-      // where another process acquires the lock between release and state write
+      // Update state to cancelled
       const taskState: TaskState = {
         status: 'cancelled',
         cancelled_at: new Date().toISOString(),
@@ -794,13 +784,6 @@ export class TaskLocker {
       };
 
       await updateTaskState(this.projectRoot, taskId, taskState);
-      try {
-        await releaseLockFile(this.projectRoot, taskId);
-      } catch (releaseError) {
-        // Revert state to locked so the task is not wedged
-        await updateTaskState(this.projectRoot, taskId, currentState).catch(() => {});
-        throw releaseError;
-      }
 
       return {
         success: true,
@@ -840,8 +823,10 @@ export class TaskLocker {
         };
       }
 
-      // Write state transition before releasing lock file to prevent a race
-      // where another process acquires the lock between release and state write
+      // Release the lock file (keep execution plan for audit)
+      await releaseLockFile(this.projectRoot, taskId);
+
+      // Update state to completed
       const taskState: TaskState = {
         ...currentState,
         status: 'completed',
@@ -849,14 +834,6 @@ export class TaskLocker {
       };
 
       await updateTaskState(this.projectRoot, taskId, taskState);
-      try {
-        // Release the lock file (keep execution plan for audit)
-        await releaseLockFile(this.projectRoot, taskId);
-      } catch (releaseError) {
-        // Revert state to locked so the task is not wedged
-        await updateTaskState(this.projectRoot, taskId, currentState).catch(() => {});
-        throw releaseError;
-      }
 
       return {
         success: true,
