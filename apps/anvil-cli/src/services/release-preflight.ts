@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import ora from 'ora';
 import chalk from 'chalk';
@@ -67,9 +67,10 @@ async function runSmokeCheck(workspaceRoot: string): Promise<PreflightCheckResul
       join(workspaceRoot, 'apps/anvil-cli')
     );
 
-    // Find the tarball
-    const { stdout } = await runCommand('ls', [tmpDir], workspaceRoot);
-    const tarball = stdout.trim().split('\n')[0];
+    // Find the tarball deterministically
+    const files = readdirSync(tmpDir);
+    const tarballs = files.filter((file) => file.endsWith('.tgz')).sort();
+    const tarball = tarballs[0];
     if (!tarball) throw new Error('No tarball produced by pnpm pack');
 
     // Run anvil --help from the tarball
