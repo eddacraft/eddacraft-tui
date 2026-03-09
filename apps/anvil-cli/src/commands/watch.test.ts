@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createWatchCommand } from './watch.js';
+import { WatchConfigSchema, getDefaultWatchConfig } from '@eddacraft/anvil-runtime';
 
 describe('watch command', () => {
   afterEach(() => {
@@ -89,6 +90,43 @@ describe('watch command', () => {
 
     expect(verboseOpt).toBeDefined();
     expect(verboseOpt?.short).toBe('-v');
+  });
+});
+
+describe('watch --debounce validation', () => {
+  const debounceSchema = WatchConfigSchema.shape.debounceMs;
+
+  it('should reject values below the schema minimum', () => {
+    const result = debounceSchema.safeParse(10);
+    expect(result.success).toBe(false);
+  });
+
+  it('should reject values above the schema maximum', () => {
+    const result = debounceSchema.safeParse(6000);
+    expect(result.success).toBe(false);
+  });
+
+  it('should accept the lower boundary (50)', () => {
+    const result = debounceSchema.safeParse(50);
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept the upper boundary (5000)', () => {
+    const result = debounceSchema.safeParse(5000);
+    expect(result.success).toBe(true);
+  });
+
+  it('should accept a value within range', () => {
+    const result = debounceSchema.safeParse(300);
+    expect(result.success).toBe(true);
+  });
+
+  it('should derive help text default from runtime config', () => {
+    const command = createWatchCommand();
+    const debounceOpt = command.options.find((o) => o.long === '--debounce');
+    const runtimeDefault = getDefaultWatchConfig().debounceMs;
+
+    expect(debounceOpt?.description).toContain(`${runtimeDefault}ms`);
   });
 });
 
