@@ -54,7 +54,7 @@
     "@typescript-eslint/eslint-plugin": "^8.56.1",
     "@typescript-eslint/parser": "^8.56.1",
     "@vitest/coverage-v8": "^4.0.18",
-    "eslint": "^10.0.2",
+    "eslint": "^10.0.3",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-anvil": "workspace:*",
     "eslint-plugin-prettier": "^5.5.5",
@@ -75,7 +75,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@github/copilot": "^0.0.423",
+    "@github/copilot": "^1.0.2",
     "@nx/eslint": "^22.5.4",
     "@nx/vite": "^22.5.4",
     "markdownlint-cli": "^0.48.0"
