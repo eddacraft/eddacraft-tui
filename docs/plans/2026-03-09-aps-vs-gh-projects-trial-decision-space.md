@@ -8,107 +8,95 @@ Status: Proposed (trial)
 
 We currently split planning/execution context across two systems:
 
-- **APS** (`plans/*.aps.md`) as the internal source of structured work items, dependencies, and module-level sequencing.
-- **GitHub Projects/Issues/PRs** as the external delivery and collaboration surface.
+- **APS** (`plans/*.aps.md`) for deep planning (decomposition, dependencies, sequencing, architecture context).
+- **GitHub Projects/Issues/PRs** for team-visible execution flow and delivery telemetry.
 
-This trial defines a practical operating model to reduce duplication while preserving APS planning quality.
+The goal is not to pick one and abandon the other. The goal is to define clean ownership boundaries so both stay useful without drift chaos.
 
 ## Decision space
 
 ### Option A — APS-primary, GitHub mirrors delivery
 
-APS is the source of truth for planning state. GitHub tracks externally visible execution.
+APS is canonical. GH mirrors selected execution state.
 
-**How it works**
-- Work decomposition, status semantics, and dependencies live in APS.
-- GitHub Issues/PRs are created for execution units that need async collaboration/review.
-- Every GH Issue/PR references APS IDs (module + task).
+### Option B — GitHub-primary, APS reduced to strategy docs
 
-**Pros**
-- Keeps rich architecture-aware planning where it already exists.
-- Preserves APS dependency graph and module context.
-- Minimizes disruption to current workflow.
+GitHub becomes canonical. APS is mostly long-form context.
 
-**Cons**
-- Requires discipline to keep APS↔GH links updated.
-- Some duplicate status updates remain.
+### Option C — Dual-primary with domain boundaries (**recommended trial**)
 
-### Option B — GitHub Projects-primary, APS reduced to architecture docs
+Both are primary, but for different domains:
 
-GitHub Projects becomes operational source of truth; APS becomes strategy/background only.
+- **APS primary for planning semantics** (task model, readiness, dependency intent, acceptance criteria).
+- **GitHub primary for execution telemetry** (who is doing what now, PR/review state, queueing in projects).
 
-**Pros**
-- Single execution board visible to all collaborators.
-- Lower coordination overhead for non-APS users.
-
-**Cons**
-- Loses APS-native dependency and module rigor.
-- Requires migration and re-training.
-- Higher risk of planning quality regression.
-
-### Option C — Dual-write parity (strict sync)
-
-APS and GitHub Projects both fully maintained as peers.
-
-**Pros**
-- Maximum visibility in both systems.
-
-**Cons**
-- High overhead, high drift risk.
-- More process than value for current team size.
+This is not strict dual-write parity. It is bounded dual-primary with explicit ownership.
 
 ## Recommendation (trial)
 
-Adopt **Option A (APS-primary)** for a 2-week trial.
+Adopt **Option C (dual-primary with domain boundaries)** for a 2-week trial.
 
 Rationale:
-- Lowest risk path.
-- Aligns with existing repo planning structure.
-- Gives immediate GH visibility without sacrificing APS quality.
+- Keeps APS planning depth.
+- Gives GH Projects true day-to-day operational visibility.
+- Avoids pretending one tool is good at everything.
 
 ## Trial policy (2 weeks)
 
 ### Scope
-- Apply to one focused stream: **APS vs GH tracking trial** across selected Ready items.
-- Keep scope small: 5–10 tasks max during trial window.
+- Apply to one focused stream: **APS vs GH tracking trial**.
+- Keep scope to 5–10 tasks.
 
-### Canonical state rules
-- **Planning truth:** APS task status (`Draft/Ready/In Progress/Done/...`).
-- **Execution truth:** GH Issue/PR activity and review state.
-- If conflict occurs, reconcile by updating APS first, then GH.
+### Canonical ownership rules
 
-### Required linking contract
+#### APS is canonical for
+- Task definition and decomposition
+- Dependency declarations
+- Readiness semantics (`Draft/Ready/Blocked/Done` intent)
+- Acceptance criteria
 
-Every execution artifact must include APS references:
+#### GitHub is canonical for
+- Active execution lane (`In Progress`, `In Review`, `Done` in Projects)
+- Branch/PR linkage
+- Review and merge lifecycle
+- Assignment/throughput visibility
 
-- **Issue title/body** includes `APS: <MODULE>-<TASK>`.
+### Conflict-resolution rules
+1. If **task intent/scope** is wrong → fix APS first.
+2. If **execution state** is wrong → fix GH first.
+3. If both drift, reconcile APS + GH in same working session before new work starts.
+
+## Required linking contract
+
+Every execution artifact must carry APS linkage:
+
+- **Issue body** includes:
+  - `APS Module:`
+  - `APS Task:`
 - **PR body** includes:
   - `APS Module:`
   - `APS Task(s):`
+  - `GH Project Status:`
   - `Acceptance criteria checked:`
-- **Commit message footer** includes `Refs: <MODULE>-<TASK>` where practical.
+- **Commits** should include footer `Refs: <MODULE>-<TASK>` when practical.
 
-### Status mapping (APS ↔ GH)
+## Status mapping (APS ↔ GH)
 
-- `APS Ready` → GH Issue in `Backlog/Ready`
-- `APS In Progress` → GH Issue in `In Progress` (+ active branch)
-- `APS Blocked` → GH Issue labeled `blocked`
-- `APS Done` → GH Issue closed (or in `Done`) and PR merged
+- `APS Draft` → GH Issue not created or in `Backlog`
+- `APS Ready` → GH Issue in `Ready`
+- `APS In Progress` → GH Issue in `In Progress` with active branch/PR link
+- `APS Blocked` → GH Issue labeled `blocked` and in `Blocked`
+- `APS Done` → GH Issue `Done` and PR merged
 
-### Branch/PR naming convention
+## Branch/PR naming
 
 - Branch: `chore/<module-task>-<slug>`
-- PR title prefix: `[<MODULE>-<TASK>] <summary>`
+- PR title: `[<MODULE>-<TASK>] <summary>`
 
-Example:
-- Branch: `chore/crb-031-aps-gh-trial-mapping`
-- PR: `[CRB-031] Define APS↔GH project tracking policy`
+## GitHub Projects tracking model
 
-## Tracking model in GitHub Projects
-
-Use a lightweight project field set:
-
-- **Status** (Backlog, Ready, In Progress, In Review, Blocked, Done)
+Use fields:
+- **Status**: Backlog, Ready, In Progress, In Review, Blocked, Done
 - **APS Module** (text/select)
 - **APS Task** (text)
 - **Priority** (High/Med/Low)
@@ -116,44 +104,43 @@ Use a lightweight project field set:
 - **Target Milestone** (optional)
 
 ### Minimal automation
-
-- PR opened → move linked Issue to `In Review`
-- PR merged → close linked Issue and move to `Done`
-- `blocked` label added → move Issue to `Blocked`
+- PR opened → linked Issue `In Review`
+- PR merged → linked Issue `Done`
+- `blocked` label added → move Issue `Blocked`
 
 ## Operating cadence
 
 ### Daily (execution)
-- Work from APS `Ready` items.
+- Pull work from APS `Ready`.
 - Ensure GH Issue exists before coding starts.
-- Keep PR body APS references current.
+- Keep Project card + PR APS fields updated.
 
 ### Twice-weekly (reconciliation)
 - 15-min APS↔GH drift check:
-  - any APS `In Progress` without GH Issue?
-  - any GH `In Progress` without APS `In Progress`?
-  - any merged PR without APS status update?
+  - APS `In Progress` with no GH `In Progress`?
+  - GH `In Progress` with no APS `In Progress`?
+  - merged PRs missing APS status updates?
 
 ### End-of-trial review (week 2)
 Evaluate:
 - Lead time (issue open → merge)
 - Drift incidents (APS/GH mismatch count)
-- Admin overhead (subjective: low/med/high)
-- Team clarity (did project board improve visibility?)
+- Admin overhead (low/med/high)
+- Visibility quality in Projects
 
-## Success criteria for adopting permanently
+## Success criteria
 
-- ≤10% APS↔GH drift during trial.
-- No increase in median PR cycle time.
-- Team reports improved visibility in GH Projects.
+- ≤10% APS↔GH drift during trial
+- no regression in median PR cycle time
+- team reports better visibility in GH Projects without APS quality drop
 
-If unmet, revisit Option B for broader GH-primary shift.
+If unmet, either tighten contracts/automation or re-evaluate Option A/B.
 
 ## Immediate implementation checklist
 
 - [ ] Create GH Project fields for APS Module / APS Task
-- [ ] Add PR template section for APS references
-- [ ] Add issue template field for APS Task ID
+- [x] Add PR template fields for APS + GH execution context
+- [x] Add issue template fields for APS Module / APS Task
 - [ ] Start trial with 5–10 scoped tasks
 - [ ] Schedule twice-weekly reconciliation checkpoints
-- [ ] Run end-of-trial retrospective and decide keep/change
+- [ ] Run end-of-trial retrospective

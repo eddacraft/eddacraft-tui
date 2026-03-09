@@ -4,6 +4,15 @@
 
 -
 
+## APS + GH execution context
+
+APS Module: <!-- e.g. FORGE, CRB, DASH -->
+APS Task(s): <!-- e.g. FORGE-003, CRB-012 -->
+GH Project Status: <!-- Backlog | Ready | In Progress | In Review | Blocked | Done -->
+Acceptance criteria checked:
+- [ ] Criteria met
+- [ ] Follow-up required
+
 ## Test plan
 
 <!-- How was this tested? Check all that apply -->
@@ -12,9 +21,3 @@
 - [ ] Manual testing
 - [ ] CI passes (lint, typecheck, test)
 - [ ] N/A (docs/config only)
-
-## APS context
-
-<!-- If this PR relates to an APS module, link it. Delete if not applicable -->
-
-Module: <!-- e.g. FORGE, CRB, DASH --> Tasks: <!-- e.g. FORGE-003, CRB-012 -->
