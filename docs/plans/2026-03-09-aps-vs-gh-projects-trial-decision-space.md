@@ -1,6 +1,8 @@
 # APS vs GitHub Projects — Trial Decision Space
 
-Date: 2026-03-09 Owner: Josh / Anvil Status: Proposed (trial)
+Date: 2026-03-09  
+Owner: Josh / Anvil  
+Status: Proposed (trial)
 
 ## Why this decision now
 
@@ -31,7 +33,7 @@ Both are primary, but for different domains:
 - **APS primary for planning semantics** (task model, readiness, dependency
   intent, acceptance criteria).
 - **GitHub primary for execution telemetry** (who is doing what now, PR/review
-  state, queueing in projects).
+  state, queuing in projects).
 
 This is not strict dual-write parity. It is bounded dual-primary with explicit
 ownership.
@@ -59,8 +61,9 @@ Rationale:
 
 - Task definition and decomposition
 - Dependency declarations
-- Readiness semantics (canonical APS states: `Proposed/Draft`, `Ready`,
-  `In Progress`, `Blocked`, `Done/Complete`)
+- Readiness semantics (canonical APS states: `Proposed`, `Ready`, `In Progress`,
+  `Blocked`, `Done`; legacy aliases for backward compatibility: `Draft` →
+  `Proposed`, `Complete` → `Done`)
 - Acceptance criteria
 
 #### GitHub is canonical for
@@ -93,11 +96,11 @@ Every execution artifact must carry APS linkage:
 
 ## Status mapping (APS ↔ GH)
 
-- `APS Proposed/Draft` → GH Issue not created or in `Backlog`
+- `APS Proposed` (legacy `Draft`) → GH Issue not created or in `Backlog`
 - `APS Ready` → GH Issue in `Ready`
 - `APS In Progress` → GH Issue in `In Progress` with active branch/PR link
 - `APS Blocked` → GH Issue labelled `blocked` and in `Blocked`
-- `APS Done/Complete` → GH Issue `Done` and PR merged
+- `APS Done` (legacy `Complete`) → GH Issue `Done` and PR merged
 
 ## Branch/PR naming
 

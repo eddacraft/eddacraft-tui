@@ -9,9 +9,9 @@
 APS Module: <!-- e.g. FORGE, CRB, DASH --> APS Task(s):
 
 <!-- e.g. FORGE-003, CRB-012 --> GH Project Status:
-<!-- Backlog | Ready | In Progress | In Review | Blocked | Done --> Acceptance
+<!-- Backlog | Ready | In Progress | In Review | Blocked | Done -->
 
-criteria checked:
+Acceptance criteria checked:
 
 - [ ] Criteria met
 - [ ] Follow-up required
