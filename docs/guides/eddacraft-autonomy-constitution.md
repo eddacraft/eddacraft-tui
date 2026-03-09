@@ -101,7 +101,7 @@ Required before “done”:
 
 Rule: **evidence before assertion**.
 
-## 6) APS ↔ GH orchestration contract
+## 6) APS ↔ GitHub (GH) orchestration contract
 
 ### APS is canonical for
 
