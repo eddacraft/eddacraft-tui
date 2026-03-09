@@ -16,7 +16,8 @@ import { createSpinner } from '../utils/spinner.js';
 const log = createDebugger('cli');
 
 function shouldValidateHash(options: ValidateOptions, sourceFormat: unknown): boolean {
-  return Boolean(options.validateHash) && !sourceFormat;
+  const validateHash = options.validateHash ?? true;
+  return validateHash && !sourceFormat;
 }
 
 export function createValidateCommand(): Command {
@@ -27,7 +28,7 @@ export function createValidateCommand(): Command {
     .option('--format <format>', 'Explicitly specify input format (bypasses auto-detection)')
     .option('--native', 'Skip format detection and treat as native APS')
     .option('--validate-hash', 'Validate hash integrity', true)
-    .action(async (planPathOrId: string, options: ValidateOptions) => {
+    .action(async (planPathOrId: string | undefined, options: ValidateOptions) => {
       if (typeof planPathOrId !== 'string' || planPathOrId.trim().length === 0) {
         const message = 'Plan argument is required. Please provide a plan file path or plan ID.';
         print(chalk.red('Error:'), message);

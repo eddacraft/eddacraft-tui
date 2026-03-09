@@ -1,4 +1,6 @@
+import { Command } from 'commander';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { CliError } from '../utils/cli-error.js';
 
 const verifyHashMock = vi.fn();
 const loadPlanMock = vi.fn();
@@ -94,5 +96,29 @@ describe('validate command', () => {
     expect(loadPlanMock).toHaveBeenCalledWith('/tmp/workspace/plan.json');
     expect(verifyHashMock).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Plan Details:'));
+  });
+
+  describe('planPathOrId guard', () => {
+    async function runValidate(args: string[]): Promise<void> {
+      const { createValidateCommand } = await import('./validate.js');
+      const program = new Command();
+      program.exitOverride();
+      program.addCommand(createValidateCommand());
+      await program.parseAsync(['node', 'test', 'validate', ...args]);
+    }
+
+    it('throws CliError when planPathOrId is an empty string', async () => {
+      await expect(runValidate([''])).rejects.toThrow(CliError);
+    });
+
+    it('throws CliError when planPathOrId is blank whitespace', async () => {
+      await expect(runValidate(['   '])).rejects.toThrow(CliError);
+    });
+
+    it('includes helpful message in the error', async () => {
+      await expect(runValidate([''])).rejects.toThrow(
+        'Plan argument is required'
+      );
+    });
   });
 });
