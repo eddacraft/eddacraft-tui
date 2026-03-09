@@ -219,7 +219,7 @@ export function createWatchCommand(): Command {
           const parsed = coerceNonNegativeInt(options.debounce, '--debounce');
           if (parsed < 50 || parsed > 5000) {
             throw new CliError(
-              `Invalid --debounce value: ${parsed}. Expected a value between 50 and 5000 milliseconds.`,
+              `Invalid --debounce value: ${parsed}. Expected a value between 50 and 5000 milliseconds.`
             );
           }
           debounceMs = parsed;
