@@ -58,4 +58,11 @@ describe('export command', () => {
     expect(compactOpt).toBeDefined();
     expect(compactOpt?.defaultValue).toBe(false);
   });
+
+  it('should list yaml in --to help text', () => {
+    const command = createExportCommand();
+    const toOpt = command.options.find((o) => o.long === '--to');
+
+    expect(toOpt?.description).toContain('yaml');
+  });
 });

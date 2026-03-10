@@ -28,7 +28,7 @@ export function createExportCommand(): Command {
   return new Command('export')
     .description('Export/convert plans between formats or export constraints')
     .argument('[source]', 'Source file path (optional for constraint export)')
-    .option('--to <format>', 'Target format for plan conversion (aps, json, speckit)')
+    .option('--to <format>', 'Target format for plan conversion (aps, json, yaml, speckit)')
     .option(
       '--format <format>',
       'Output format for constraint export (llms.txt, mcp-resource, prompt-fragment)'

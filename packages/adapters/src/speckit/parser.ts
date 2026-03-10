@@ -39,19 +39,31 @@ function safePath(raw: string | undefined): string | undefined {
  * Avoids regex backtracking on adversarial input.
  */
 function extractCodeBlock(text: string): string | undefined {
-  const openIdx = text.indexOf('```');
-  if (openIdx === -1) return undefined;
+  // Find a fenced code block that starts at the beginning of a line
+  // (or at position 0) to avoid matching inline backtick sequences
+  let searchFrom = 0;
+  while (searchFrom < text.length) {
+    const openIdx = text.indexOf('```', searchFrom);
+    if (openIdx === -1) return undefined;
 
-  // Skip past the opening fence line (``` + optional language tag)
-  const lineEnd = text.indexOf('\n', openIdx);
-  if (lineEnd === -1) return undefined;
+    // Ensure the fence is at line start (position 0 or preceded by newline)
+    if (openIdx > 0 && text[openIdx - 1] !== '\n') {
+      searchFrom = openIdx + 3;
+      continue;
+    }
 
-  const bodyStart = lineEnd + 1;
-  const closeIdx = text.indexOf('```', bodyStart);
-  if (closeIdx === -1) return undefined;
+    // Skip past the opening fence line (``` + optional language tag)
+    const lineEnd = text.indexOf('\n', openIdx);
+    if (lineEnd === -1) return undefined;
 
-  const block = text.slice(bodyStart, closeIdx).trim();
-  return block || undefined;
+    const bodyStart = lineEnd + 1;
+    const closeIdx = text.indexOf('```', bodyStart);
+    if (closeIdx === -1) return undefined;
+
+    const block = text.slice(bodyStart, closeIdx).trim();
+    return block || undefined;
+  }
+  return undefined;
 }
 
 export class SpecKitParser {
