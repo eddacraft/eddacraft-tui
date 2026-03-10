@@ -105,7 +105,7 @@ adjust. Open for additional tasks as outstanding work is collated.
   High/Medium/Low), Risk (single select: Low/Medium/High), Target Milestone
   (text, optional)
 - **Files:** — (GitHub UI / `gh` CLI, no code files)
-- **Dependencies:** —
+- **Dependencies:** none
 - **Notes:** Requires PR #525 merged before starting.
 - **Validation:** `gh project list` shows the project; `gh project field-list`
   shows all required fields
@@ -136,17 +136,7 @@ adjust. Open for additional tasks as outstanding work is collated.
 
 - **Intent:** Create GitHub issues for all currently in-progress APS tasks and
   unlinked open PRs, add them to the project board with correct field values
-- **Expected Outcome:** GH issues created and linked for:
-  - MAINT-005 (JSON output formatting, PR #517)
-  - MAINT-006 (Nx generator for CLI commands, PR #516)
-  - MAINT-007 (Nx generator for gate checks, PR #516)
-  - MAINT-008 (Spinner/progress patterns, PR #517)
-  - STACK-018 (Retroactive evidence capture, PR #518)
-  - STACK-019 (Missing deliverable audit, PR #518)
-  - Open PR #523 (fix: guard against undefined planPathOrId)
-  - Open PR #524 (fix: remove redundant option annotation)
-  Each issue body includes `APS Module:` and `APS Task:` fields. Each issue
-  added to project board with correct Status, APS Module, APS Task, and Priority.
+- **Expected Outcome:** GH issues created and linked for MAINT-005 (JSON output formatting, PR #517), MAINT-006 (Nx generator for CLI commands, PR #516), MAINT-007 (Nx generator for gate checks, PR #516), MAINT-008 (Spinner/progress patterns, PR #517), STACK-018 (Retroactive evidence capture, PR #518), STACK-019 (Missing deliverable audit, PR #518), open PR #523 (fix: guard against undefined planPathOrId), and open PR #524 (fix: remove redundant option annotation). Each issue body includes `APS Module:` and `APS Task:` fields. Each issue added to project board with correct Status, APS Module, APS Task, and Priority.
 - **Files:** — (`gh issue create` + `gh project item-add`, no code files)
 - **Dependencies:** GHP-001
 - **Validation:** `gh issue list --state open` shows all backfilled issues;
