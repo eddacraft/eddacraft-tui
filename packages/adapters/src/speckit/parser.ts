@@ -46,10 +46,17 @@ function extractCodeBlock(text: string): string | undefined {
     const openIdx = text.indexOf('```', searchFrom);
     if (openIdx === -1) return undefined;
 
-    // Ensure the fence is at line start (position 0 or preceded by newline)
-    if (openIdx > 0 && text[openIdx - 1] !== '\n') {
-      searchFrom = openIdx + 3;
-      continue;
+    // Ensure the fence is at line start: either position 0, or everything
+    // between the preceding newline and the fence is only whitespace.
+    // This allows indented fences (e.g. inside list items) while rejecting
+    // inline backtick mentions in prose.
+    if (openIdx > 0) {
+      const nlPos = text.lastIndexOf('\n', openIdx - 1);
+      const preceding = text.slice(nlPos + 1, openIdx);
+      if (preceding.length > 0 && !/^\s+$/.test(preceding)) {
+        searchFrom = openIdx + 3;
+        continue;
+      }
     }
 
     // Skip past the opening fence line (``` + optional language tag)

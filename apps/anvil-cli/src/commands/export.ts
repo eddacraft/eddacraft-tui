@@ -329,7 +329,7 @@ function normalizeConstraintFormat(format: string): string {
 /**
  * Normalize target format string
  */
-function normalizeTargetFormat(format: string): string {
+export function normalizeTargetFormat(format: string): string {
   const normalized = format.toLowerCase().trim();
 
   const formatMap: Record<string, string> = {

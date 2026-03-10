@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createExportCommand } from './export.js';
+import { createExportCommand, normalizeTargetFormat } from './export.js';
 
 describe('export command', () => {
   beforeEach(() => {
@@ -64,5 +64,39 @@ describe('export command', () => {
     const toOpt = command.options.find((o) => o.long === '--to');
 
     expect(toOpt?.description).toContain('yaml');
+  });
+});
+
+describe('normalizeTargetFormat', () => {
+  it('should normalise "yaml" to "yaml"', () => {
+    expect(normalizeTargetFormat('yaml')).toBe('yaml');
+  });
+
+  it('should normalise "yml" to "yaml"', () => {
+    expect(normalizeTargetFormat('yml')).toBe('yaml');
+  });
+
+  it('should normalise "YML" to "yaml" (case-insensitive)', () => {
+    expect(normalizeTargetFormat('YML')).toBe('yaml');
+  });
+
+  it('should normalise "aps" to "aps"', () => {
+    expect(normalizeTargetFormat('aps')).toBe('aps');
+  });
+
+  it('should normalise "json" to "json"', () => {
+    expect(normalizeTargetFormat('json')).toBe('json');
+  });
+
+  it('should normalise "speckit" to "speckit"', () => {
+    expect(normalizeTargetFormat('speckit')).toBe('speckit');
+  });
+
+  it('should normalise "spec.md" to "speckit"', () => {
+    expect(normalizeTargetFormat('spec.md')).toBe('speckit');
+  });
+
+  it('should pass through unknown formats unchanged', () => {
+    expect(normalizeTargetFormat('csv')).toBe('csv');
   });
 });
