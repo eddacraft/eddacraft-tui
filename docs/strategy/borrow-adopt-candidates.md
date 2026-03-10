@@ -132,9 +132,10 @@ Entry format:
       - **architecture notes / anti-frankenstein guardrails:**
         - Create one canonical `FindingTypeRegistry` package used by
           CLI/MCP/dashboard
-        - Ban ad-hoc detector enums outside registry (lint rule + contract tests)
-        - Keep OPA policy IDs and detector IDs separate; bridge them via explicit
-          mapping table
+        - Ban ad-hoc detector enums outside registry (lint rule + contract
+          tests)
+        - Keep OPA policy IDs and detector IDs separate; bridge them via
+          explicit mapping table
 
 - **source repo + link:** `peteromallet/desloppify` —
   https://github.com/peteromallet/desloppify
