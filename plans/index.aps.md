@@ -428,6 +428,7 @@ Task-level detail for all completed work is archived in
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 8/8 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
+| [gh-projects-trial](./modules/gh-projects-trial.aps.md) | GHP | Ready | 0/8 | — |
 
 ### Planned — 0.2.0 (Web Dashboard)
 

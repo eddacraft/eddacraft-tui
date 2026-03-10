@@ -83,11 +83,12 @@ Change status to **Ready** when:
 
 ## Waves
 
-**Wave 1** — Trial infrastructure (2-week trial scope). Must complete before
-Wave 2.
+**Wave 1** — Trial infrastructure and decision (2-week trial scope). Includes
+GHP-001 through GHP-008 — the decision gate (GHP-008) is the final Wave 1 task.
+Must complete before Wave 2.
 
-**Wave 2** — Operational rollout. Begins only if trial succeeds at GHP-008
-decision gate. Open for additional tasks as outstanding work is collated.
+**Wave 2** — Operational rollout. Begins only after GHP-008 decides to adopt or
+adjust. Open for additional tasks as outstanding work is collated.
 
 ## Tasks
 
@@ -176,7 +177,7 @@ decision gate. Open for additional tasks as outstanding work is collated.
   open → merge), (2) drift incidents (APS/GH mismatch count, target ≤10%),
   (3) admin overhead (low/medium/high), (4) visibility quality in Projects.
   Written to `docs/plans/` or `plans/reviews/`.
-- **Files:** `docs/plans/2026-03-XX-gh-projects-trial-retro.md`
+- **Files:** `docs/plans/gh-projects-trial-retro.md`
 - **Dependencies:** GHP-004, 2 weeks elapsed since GHP-001
 - **Validation:** Document exists with quantitative data for all 4 metrics
 - **Confidence:** high

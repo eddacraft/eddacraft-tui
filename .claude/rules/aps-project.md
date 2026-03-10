@@ -33,7 +33,6 @@
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
-- GHP: gh-projects-trial (0/8) — Ready
 
 ## Conventions
 
