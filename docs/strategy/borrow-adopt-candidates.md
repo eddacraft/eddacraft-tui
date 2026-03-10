@@ -115,27 +115,26 @@ Entry format:
     - Define one canonical failure schema so import-contract failures render
       through existing diagnostics
     - Avoid tool-sprawl by wrapping via `ArchitectureContractPort` in runtime
-
-- **source repo + link:** `peteromallet/desloppify` —
-  https://github.com/peteromallet/desloppify
-  - **what to borrow/adopt:** Detector registry metadata model
-    (tier/severity/action-type/judgment-needed) as a single source of truth
-  - **adopt type:** borrow-pattern
-  - **integration effort:** M
-  - **expected impact:** High
-  - **status:** candidate
-  - **aps link (optional):** OPAG, EVAL, IORISK, ATC, PATT
-  - **overlap with existing Anvil services:**
-    - Overlaps with warning categories and policy-linked remediation in
-      OPAG/EVAL
-    - Can unify divergent detector metadata currently spread across
-      modules/checks
-  - **architecture notes / anti-frankenstein guardrails:**
-    - Create one canonical `FindingTypeRegistry` package used by
-      CLI/MCP/dashboard
-    - Ban ad-hoc detector enums outside registry (lint rule + contract tests)
-    - Keep OPA policy IDs and detector IDs separate; bridge them via explicit
-      mapping table
+  - **additional patterns to borrow/adopt:**
+    - **detector registry metadata model:**
+      - **what to borrow/adopt:** Detector registry metadata model
+        (tier/severity/action-type/judgment-needed) as a single source of truth
+      - **adopt type:** borrow-pattern
+      - **integration effort:** M
+      - **expected impact:** High
+      - **status:** candidate
+      - **aps link (optional):** OPAG, EVAL, IORISK, ATC, PATT
+      - **overlap with existing Anvil services:**
+        - Overlaps with warning categories and policy-linked remediation in
+          OPAG/EVAL
+        - Can unify divergent detector metadata currently spread across
+          modules/checks
+      - **architecture notes / anti-frankenstein guardrails:**
+        - Create one canonical `FindingTypeRegistry` package used by
+          CLI/MCP/dashboard
+        - Ban ad-hoc detector enums outside registry (lint rule + contract tests)
+        - Keep OPA policy IDs and detector IDs separate; bridge them via explicit
+          mapping table
 
 - **source repo + link:** `peteromallet/desloppify` —
   https://github.com/peteromallet/desloppify
