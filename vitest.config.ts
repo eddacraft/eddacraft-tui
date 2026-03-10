@@ -37,10 +37,6 @@ export default defineConfig({
       // E2E tests run in dedicated CI jobs, not the unit test step
       '**/*.e2e.test.*',
       '**/*.e2e.spec.*',
-      // MCP tool tests with broken mocks (missing createEmptyPlan export,
-      // stale workspace-validation expectations). Tracked as CRB-016.
-      'packages/mcp-server/src/tools/check.tool.test.ts',
-      'packages/mcp-server/src/tools/gate.tool.test.ts',
     ],
   },
   resolve: {
