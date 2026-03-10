@@ -151,8 +151,8 @@ Evaluate:
 
 ## Success criteria
 
-- ≤10% APS↔GH drift during trial
-- no regression in median PR cycle time
+- <=10% APS↔GH drift during trial
+- No regression >10% in median PR cycle time
 - team reports better visibility in GH Projects without APS quality drop
 
 If unmet, either tighten contracts/automation or re-evaluate Option A/B.

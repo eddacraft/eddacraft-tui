@@ -35,6 +35,16 @@ import {
 
 const log = createDebugger('cli');
 
+type WatchAction = 'validate' | 'gate' | 'check';
+
+function getActionOption(action: unknown): WatchAction | undefined {
+  if (typeof action !== 'string') return undefined;
+  if (action === 'validate' || action === 'gate' || action === 'check') {
+    return action;
+  }
+  return undefined;
+}
+
 const SOURCE_WATCH_PATTERNS = ['src/**/*.ts', 'src/**/*.tsx', 'lib/**/*.ts', '**/*.ts', '**/*.tsx'];
 const SOURCE_EXCLUDE_PATTERNS = [
   'node_modules/**',
@@ -75,7 +85,7 @@ interface WatchOptions {
 async function promptWatchMode(): Promise<WatchMode> {
   const { mode } = await inquirer.prompt<{ mode: WatchMode }>([
     {
-      type: 'select',
+      type: 'list',
       name: 'mode',
       message: 'What would you like to watch?',
       choices: [
@@ -180,25 +190,26 @@ export function createWatchCommand(): Command {
         // Determine patterns based on mode
         let patterns: string[];
         let excludePatterns: string[];
-        let action: 'validate' | 'gate' | 'check';
+        let action: WatchAction;
+        const actionFromOptions = getActionOption(options.action);
 
         if (options.patterns) {
           patterns = options.patterns.split(',').map((p) => p.trim());
           excludePatterns = options.exclude
             ? options.exclude.split(',').map((p) => p.trim())
             : DEFAULT_EXCLUDE_PATTERNS;
-          action = (options.action as 'validate' | 'gate' | 'check') ?? 'validate';
+          action = actionFromOptions ?? 'validate';
         } else {
           switch (watchMode) {
             case 'source':
               patterns = SOURCE_WATCH_PATTERNS;
               excludePatterns = SOURCE_EXCLUDE_PATTERNS;
-              action = options.action ? (options.action as 'validate' | 'gate' | 'check') : 'check';
+              action = actionFromOptions ?? 'check';
               break;
             case 'all':
               patterns = [...DEFAULT_WATCH_PATTERNS, ...SOURCE_WATCH_PATTERNS];
               excludePatterns = SOURCE_EXCLUDE_PATTERNS; // Use stricter excludes
-              action = options.action ? (options.action as 'validate' | 'gate' | 'check') : 'check';
+              action = actionFromOptions ?? 'check';
               break;
             case 'plans':
             default:
@@ -207,9 +218,7 @@ export function createWatchCommand(): Command {
                 ? options.exclude.split(',').map((p) => p.trim())
                 : (savedConfig?.exclude ?? DEFAULT_EXCLUDE_PATTERNS);
               action =
-                (options.action as 'validate' | 'gate' | 'check') ??
-                savedConfig?.action ??
-                'validate';
+                actionFromOptions ?? (savedConfig?.action as WatchAction | undefined) ?? 'validate';
               break;
           }
         }
@@ -262,15 +271,16 @@ export function createWatchCommand(): Command {
         });
 
         // Create orchestrator with multi-agent support
+        const multiAgentEnabled = options.multiAgent !== false;
         const orchestrator = createWatchOrchestrator({
           workspaceRoot,
           config: watchConfig,
           onEvent: (event: WatchStatusEvent) => output.handleEvent(event),
           verbose: options.verbose,
           multiAgent: {
-            enabled: options.multiAgent !== false,
+            enabled: multiAgentEnabled,
             exclusiveWatch: options.exclusive !== false,
-            coordinatedActions: options.multiAgent !== false,
+            coordinatedActions: multiAgentEnabled,
             agentId: options.agentId,
             waitForLock: true,
           },
@@ -486,7 +496,9 @@ export function createWatchCommand(): Command {
         await orchestrator.start();
         output.showWatching();
 
-        // Keep process alive — intentionally never resolves until Ctrl+C
+        // Keep process alive with an indefinitely pending promise.
+        // This promise intentionally never resolves or rejects; shutdown()
+        // is invoked only via SIGINT/SIGTERM signal handlers above.
         await new Promise<void>(() => {});
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;

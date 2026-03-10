@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'happy-dom',
+    environment: 'node',
     passWithNoTests: true,
     coverage: {
       provider: 'v8',
@@ -22,24 +22,15 @@ export default defineConfig({
       ],
     },
     include: [
-      // New monorepo structure
-      'packages/anvil/*/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      // New monorepo structure: include tests from all packages by default
+      'packages/**/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'apps/anvil-cli/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'apps/anvil-api/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/adapters/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/vscode-extension/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/aps/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/edda-stack/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/kindling-integration/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      // MCP server tests — selectively include passing suites.
-      // Tool tests (check, gate, query-boundary, status, server) are excluded:
-      // pre-existing failures from mock paths that need updating for workspace validation.
+      // MCP server tests — include core tool, transport, prompt, and utility suites.
       'packages/mcp-server/src/utils/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/mcp-server/src/tools/suppress.tool.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/mcp-server/src/tools/fix.tool.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
+      'packages/mcp-server/src/tools/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/mcp-server/src/transports/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
       'packages/mcp-server/src/prompts/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
-      'packages/platform/*/src/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}',
     ],
     exclude: [
       '**/node_modules/**',
@@ -71,7 +62,7 @@ export default defineConfig({
         './packages/kindling-integration/src'
       ),
       '@eddacraft/anvil-platform-config': resolve(__dirname, './packages/platform/config/src'),
-      vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
+      '@mock/vscode': resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },
   },
 });

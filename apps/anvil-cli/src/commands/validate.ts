@@ -13,9 +13,17 @@ import { CliError } from '../utils/cli-error.js';
 import { print } from '../utils/output.js';
 import { createSpinner } from '../utils/spinner.js';
 
+type ValidationIssue = {
+  path?: string;
+  message: string;
+};
+
 const log = createDebugger('cli');
 
-function shouldValidateHash(options: ValidateOptions, sourceFormat: unknown): boolean {
+function shouldValidateHash(
+  options: ValidateOptions,
+  sourceFormat: { format: string; confidence: number; adapter: string } | undefined
+): boolean {
   const validateHash = options.validateHash ?? true;
   return validateHash && !sourceFormat;
 }
@@ -90,13 +98,13 @@ export function createValidateCommand(): Command {
 
           if (options.verbose && validationResult.issues) {
             // Show detailed errors
-            validationResult.issues.forEach((issue: { path?: string; message: string }) => {
+            validationResult.issues.forEach((issue: ValidationIssue) => {
               print(chalk.yellow(`  - ${issue.path || 'root'}:`), issue.message);
             });
           } else if (validationResult.issues) {
             // Show error summary
             print(chalk.red(`  Found ${validationResult.issues.length} validation error(s)`));
-            validationResult.issues.slice(0, 3).forEach((issue: { message: string }) => {
+            validationResult.issues.slice(0, 3).forEach((issue: ValidationIssue) => {
               print(chalk.yellow(`  - ${issue.message}`));
             });
             if (validationResult.issues.length > 3) {
@@ -148,7 +156,11 @@ export function createValidateCommand(): Command {
 
         print(chalk.gray('  ID:           '), chalk.cyan(plan.id));
         print(chalk.gray('  Schema:       '), chalk.cyan(plan.schema_version));
-        print(chalk.gray('  Hash:         '), chalk.cyan(plan.hash.substring(0, 16) + '...'));
+        const hashDisplay =
+          typeof plan.hash === 'string'
+            ? `${plan.hash.substring(0, Math.min(16, plan.hash.length))}...`
+            : '<missing>';
+        print(chalk.gray('  Hash:         '), chalk.cyan(hashDisplay));
         print(chalk.gray('  Intent:       '), chalk.white(plan.intent));
         print(chalk.gray('  Changes:      '), chalk.cyan(plan.proposed_changes.length.toString()));
         print(chalk.gray('  Evidence:     '), chalk.cyan((plan.evidence?.length ?? 0).toString()));
@@ -158,11 +170,14 @@ export function createValidateCommand(): Command {
           print(chalk.gray('  Created At:   '), chalk.cyan(plan.provenance.timestamp));
         }
 
-        if (options.verbose && plan.validations) {
-          print('\n' + chalk.bold('Required Checks:'));
-          plan.validations.required_checks.forEach((check: string) => {
-            print(chalk.gray('  - '), chalk.cyan(check));
-          });
+        if (options.verbose) {
+          const requiredChecks = plan.validations?.required_checks ?? [];
+          if (requiredChecks.length > 0) {
+            print('\n' + chalk.bold('Required Checks:'));
+            requiredChecks.forEach((check: string) => {
+              print(chalk.gray('  - '), chalk.cyan(check));
+            });
+          }
         }
 
         log(`validate result: PASSED plan=${plan.id}`);
