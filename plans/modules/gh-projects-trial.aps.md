@@ -105,7 +105,6 @@ adjust. Open for additional tasks as outstanding work is collated.
   High/Medium/Low), Risk (single select: Low/Medium/High), Target Milestone
   (text, optional)
 - **Files:** — (GitHub UI / `gh` CLI, no code files)
-- **Dependencies:** none
 - **Notes:** Requires PR #525 merged before starting.
 - **Validation:** `gh project list` shows the project; `gh project field-list`
   shows all required fields
@@ -226,7 +225,7 @@ adjust. Open for additional tasks as outstanding work is collated.
   contracts/automation, or revert to single-primary), (3) next actions if
   adopting (e.g. expand to all modules, add automation).
 - **Files:** `plans/decisions/013-gh-projects-trial-outcome.md`
-- **Dependencies:** GHP-005
+- **Dependencies:** GHP-005, GHP-006, GHP-007
 - **Validation:** Decision record exists; next actions are clear
 - **Confidence:** high
 - **Priority:** Medium
