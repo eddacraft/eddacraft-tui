@@ -62,7 +62,7 @@ export default defineConfig({
         './packages/kindling-integration/src'
       ),
       '@eddacraft/anvil-platform-config': resolve(__dirname, './packages/platform/config/src'),
-      '@mock/vscode': resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
+      vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },
   },
 });
