@@ -61,7 +61,7 @@ decision gate.
   as collated
 - **Resolution:** Option (c) — Incremental. Backfill current in-progress items
   immediately (MAINT-005–008, STACK-018–019, open PRs). Additional items added
-  as Josh finishes collating remaining work.
+  as @aneki finishes collating remaining work.
 - **Status:** Resolved
 
 ## Risks
@@ -83,11 +83,14 @@ Change status to **Ready** when:
 
 ## Waves
 
-**Wave 1** — Trial infrastructure and decision (2-week trial scope). Includes
-GHP-001 through GHP-008 — the decision gate (GHP-008) is the final Wave 1 task.
-Must complete before Wave 2.
+**Wave 1** — Trial infrastructure (GHP-001 through GHP-004). Sets up the board,
+automation, initial backfill, and first reconciliation checkpoint.
 
-**Wave 2** — Operational rollout. Begins only after GHP-008 decides to adopt or
+**Wave 2** — Evaluation and decision (GHP-005 through GHP-008). Retrospective,
+additional backfill, reconciliation runbook, and the decision gate. GHP-005–007
+feed into GHP-008; the decision gate is the final task in Wave 2.
+
+**Wave 3** — Operational rollout. Begins only after GHP-008 decides to adopt or
 adjust. Open for additional tasks as outstanding work is collated.
 
 ## Tasks
@@ -192,7 +195,7 @@ adjust. Open for additional tasks as outstanding work is collated.
 
 - **Intent:** As remaining outstanding work is collated, create GH issues and
   add them to the project board
-- **Expected Outcome:** All outstanding work items identified by Josh have
+- **Expected Outcome:** All outstanding work items identified by @aneki have
   corresponding GH issues with APS linkage and correct project board fields.
   This task is intentionally open-ended — scope expands as items are collated.
 - **Files:** — (`gh issue create` + `gh project item-add`, no code files)
@@ -229,7 +232,7 @@ adjust. Open for additional tasks as outstanding work is collated.
   (pass/fail against success criteria), (2) decision (adopt as-is, adjust
   contracts/automation, or revert to single-primary), (3) next actions if
   adopting (e.g. expand to all modules, add automation).
-- **Files:** `plans/decisions/NNN-gh-projects-trial-outcome.md`
+- **Files:** `plans/decisions/013-gh-projects-trial-outcome.md`
 - **Dependencies:** GHP-005
 - **Validation:** Decision record exists; next actions are clear
 - **Confidence:** high
