@@ -105,7 +105,8 @@ adjust. Open for additional tasks as outstanding work is collated.
   High/Medium/Low), Risk (single select: Low/Medium/High), Target Milestone
   (text, optional)
 - **Files:** — (GitHub UI / `gh` CLI, no code files)
-- **Dependencies:** PR #525 merged
+- **Dependencies:** —
+- **Notes:** Requires PR #525 merged before starting.
 - **Validation:** `gh project list` shows the project; `gh project field-list`
   shows all required fields
 - **Confidence:** high
@@ -199,7 +200,8 @@ adjust. Open for additional tasks as outstanding work is collated.
   corresponding GH issues with APS linkage and correct project board fields.
   This task is intentionally open-ended — scope expands as items are collated.
 - **Files:** — (`gh issue create` + `gh project item-add`, no code files)
-- **Dependencies:** GHP-001, items collated by owner
+- **Dependencies:** GHP-001
+- **Notes:** Scope expands as items are collated by owner.
 - **Validation:** Every collated work item has a linked GH issue on the board
 - **Confidence:** high
 - **Priority:** Medium
@@ -216,7 +218,8 @@ adjust. Open for additional tasks as outstanding work is collated.
   APS status updates), how to fix each type of drift, and estimated time (target
   15 min).
 - **Files:** `docs/guides/aps-gh-reconciliation.md`
-- **Dependencies:** GHP-004 (informed by first checkpoint experience)
+- **Dependencies:** GHP-004
+- **Notes:** Informed by first checkpoint experience from GHP-004.
 - **Validation:** Runbook is followable end-to-end in ≤15 minutes
 - **Confidence:** high
 - **Priority:** Low
