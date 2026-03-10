@@ -337,11 +337,9 @@ function normalizeTargetFormat(format: string): string {
     json: 'json',
     speckit: 'speckit',
     'spec.md': 'speckit',
+    yaml: 'yaml',
+    yml: 'yaml',
   };
-
-  if (normalized === 'yaml' || normalized === 'yml') {
-    throw new Error('YAML export is not yet supported. Use --to json instead.');
-  }
 
   return formatMap[normalized] || normalized;
 }

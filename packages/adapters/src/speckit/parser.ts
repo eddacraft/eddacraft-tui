@@ -34,6 +34,26 @@ function safePath(raw: string | undefined): string | undefined {
   }
 }
 
+/**
+ * Extract the content of the first fenced code block using indexOf.
+ * Avoids regex backtracking on adversarial input.
+ */
+function extractCodeBlock(text: string): string | undefined {
+  const openIdx = text.indexOf('```');
+  if (openIdx === -1) return undefined;
+
+  // Skip past the opening fence line (``` + optional language tag)
+  const lineEnd = text.indexOf('\n', openIdx);
+  if (lineEnd === -1) return undefined;
+
+  const bodyStart = lineEnd + 1;
+  const closeIdx = text.indexOf('```', bodyStart);
+  if (closeIdx === -1) return undefined;
+
+  const block = text.slice(bodyStart, closeIdx).trim();
+  return block || undefined;
+}
+
 export class SpecKitParser {
   private static readonly SPEC_SECTIONS = {
     intent: ['intent', 'purpose', 'objective'],
@@ -297,8 +317,7 @@ export class SpecKitParser {
     }
     const path = safePath(pathMatch?.[1]);
 
-    const codeBlockMatch = section.content.match(/```[\w]*\n((?:(?!```)[^])*?)```/);
-    const content = codeBlockMatch ? codeBlockMatch[1].trim() : undefined;
+    const content = extractCodeBlock(section.content);
 
     return {
       type,
