@@ -179,8 +179,8 @@ adjust. Open for additional tasks as outstanding work is collated.
   space document
 - **Expected Outcome:** A retrospective document covering: (1) lead time (issue
   open → merge), (2) drift incidents (APS/GH mismatch count, target ≤10%),
-  (3) admin overhead (low/medium/high), (4) visibility quality in Projects.
-  Written to `docs/plans/` or `plans/reviews/`.
+  (3) admin overhead (low/medium/high), (4) visibility quality in Projects,
+  written to `docs/plans/gh-projects-trial-retro.md`.
 - **Files:** `docs/plans/gh-projects-trial-retro.md`
 - **Dependencies:** GHP-001, GHP-004
 - **Notes:** Time-gate — should not begin until at least 2 weeks have elapsed
