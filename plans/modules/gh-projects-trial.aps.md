@@ -178,7 +178,9 @@ adjust. Open for additional tasks as outstanding work is collated.
   (3) admin overhead (low/medium/high), (4) visibility quality in Projects.
   Written to `docs/plans/` or `plans/reviews/`.
 - **Files:** `docs/plans/gh-projects-trial-retro.md`
-- **Dependencies:** GHP-004, 2 weeks elapsed since GHP-001
+- **Dependencies:** GHP-001, GHP-004
+- **Notes:** Time-gate — should not begin until at least 2 weeks have elapsed
+  since GHP-001 completion, to allow sufficient data collection.
 - **Validation:** Document exists with quantitative data for all 4 metrics
 - **Confidence:** high
 - **Priority:** Medium
