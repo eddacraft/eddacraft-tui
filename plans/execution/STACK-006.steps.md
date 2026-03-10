@@ -7,4 +7,11 @@
 3. [x] Observation hook tested via `packages/edda-stack/src/ember/observation-hook.test.ts` (6 tests pass)
 4. [x] Validation: `pnpm nx test @eddacraft/anvil-edda-stack` passes (470 tests)
 
-> **Note:** `observation-mappings.ts` + `observation-mappings.test.ts` (25 tests) created in PR #515 (`feat/edda-stack-reconciliation`), pending merge to main.
+5. [x] `packages/edda-stack/src/contracts/observation-mappings.ts` — implementation merged to main
+6. [x] `packages/edda-stack/src/contracts/observation-mappings.test.ts` — 25 tests pass
+
+## Status
+
+**Complete** — `observation-mappings.ts` and `observation-mappings.test.ts`
+merged via PR #515. All 25 tests pass. Implementation covers Kindling
+observation to Ember proposal conversion rules.

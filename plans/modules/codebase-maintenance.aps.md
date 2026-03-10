@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 4/8 |
+| MAINT | @team | In Progress | 6/8 |
 
 ## Purpose
 
@@ -149,10 +149,11 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `apps/anvil-cli/src/commands/*.ts`, `apps/anvil-cli/src/utils/`
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** In Progress
-- **Notes:** Shared `json()` helper added to `output.ts` (PR #517, open).
-  Migration of existing `data(JSON.stringify(...))` call sites is incomplete —
-  ~21 files in `apps/anvil-cli/src/commands/` still use the old pattern.
+- **Status:** Complete
+- **Completed:** 2026-03-10
+- **Notes:** Shared `json()` helper added to `output.ts` (PR #517, merged).
+  All CLI command files migrated to use `json()` helper for JSON output.
+  Zero `data(JSON.stringify(...))` call sites remain in commands/.
 
 ---
 
@@ -202,7 +203,8 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `apps/anvil-cli/src/commands/*.ts`, `apps/anvil-cli/src/utils/spinner.ts`
 - **Confidence:** medium
 - **Priority:** Low
-- **Status:** In Progress
-- **Notes:** Shared spinner utility planned in PR #517 (open, not yet merged).
-  ~27 command files still import and call `ora()` directly; no
-  `createSpinner()` usages exist in `apps/anvil-cli/src/commands/` yet.
+- **Status:** Complete
+- **Completed:** 2026-03-10
+- **Notes:** Shared spinner utility added via PR #517 (merged). All CLI
+  command files migrated to use `createSpinner()` from `utils/spinner.ts`.
+  No direct `ora()` imports remain in command files.

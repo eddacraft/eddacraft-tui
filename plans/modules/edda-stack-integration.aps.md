@@ -315,7 +315,12 @@ interface EddaMemory {
 - **Dependencies:** KINDLING-001, EMBER-001
 - **Validation:** `nx test edda-stack --testNamePattern="observation-mappings"`
 - **Confidence:** medium
-- **Status:** Draft
+- **Status:** Complete
+- **Completed:** 2026-03-10
+- **Notes:** Implementation in `observation-mappings.ts` with 25 co-located
+  tests in `observation-mappings.test.ts`. Covers Kindling observation to
+  Ember proposal conversion rules including type mapping, confidence
+  propagation, and source reference linking.
 
 ### Phase C: Ports & Interfaces
 

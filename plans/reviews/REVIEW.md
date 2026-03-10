@@ -23,10 +23,10 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 | anvil/runtime    | 0     | ~~6~~  | 7      | 6      | HIGH fixed       |
 | anvil/policy     | 0     | ~~2~~  | 8      | 5      | HIGH fixed       |
 | adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed, H3 mostly fixed |
-| aps              | 0     | 1 (1✓) | 7      | 4      | 1 HIGH fixed     |
+| aps              | 0     | ~~2~~  | 5 (2✓) | 4      | HIGH fixed, M1-2 fixed |
 | vscode-extension | 0     | ~~3~~  | 4      | 3      | HIGH fixed       |
 | platform/storage | 0     | ~~1~~  | 0      | 0      | HIGH fixed       |
-| **anvil-cli**    | **0** | ~~3~~  | ~~4~~  | **5**  | **HIGH/MED fixed** |
+| **anvil-cli**    | **0** | ~~3~~  | ~~4~~  | 2 (3✓) | **HIGH/MED/L1-2-5 fixed** |
 | website          | 0     | 0      | 1      | 1      | Open             |
 | contracts        | 0     | 0      | 2      | 0      | Open             |
 | eslint-plugin    | 0     | 0      | 0      | 0      | Clean            |
@@ -182,7 +182,7 @@ lazy `[\s\S]*?` in code-block regex at ~line 300. Tracked as SECB-008.
 **Fixed:** `resolvePath()` rejects absolute paths and validates resolved paths
 stay within `baseDir`. Tracked as APS-PKG-001 in cli-hardening.aps.md.
 
-### H2. Information disclosure via validator file probing
+### ~~H2. Information disclosure via validator file probing~~ ✅
 
 **File:** `src/validator/index.ts:420-421`
 
@@ -190,11 +190,21 @@ Validator uses `accessSync()` to check linked files. Malicious index files can
 probe whether files like `/etc/passwd` or `~/.ssh/id_rsa` exist. Tracked as
 SECB-004.
 
-### M1-M7
+**Resolved** — verified in codebase. Path containment check added to validator
+file probing.
 
-Hash computed but never verified, missing input size limits, unbounded recursive
-directory scanning, task ID validation too permissive, path normalisation gaps,
-missing task existence check, field parsing too permissive.
+### ~~M1. Hash computed but never verified~~ ✅
+
+**Resolved** — verified in codebase. Hash verification now enforced.
+
+### ~~M2. Missing input size limits~~ ✅
+
+**Resolved** — verified in codebase. Input size limits added.
+
+### M3-M7
+
+Unbounded recursive directory scanning, task ID validation too permissive, path
+normalisation gaps, missing task existence check, field parsing too permissive.
 
 ---
 
@@ -269,19 +279,25 @@ workspace root.
 **Fixed:** Email format validation added to both `invite` and `revoke`
 subcommands.
 
-### L1. `plan create` hardcoded provenance
+### ~~L1. `plan create` hardcoded provenance~~ ✅
 
 **File:** `src/commands/plan.ts`
 
 Provenance written with `branch: 'main'` and `commit: ''` (TODOs). Undermines
 provenance integrity for beta users.
 
-### L2. Unimplemented flags still in help
+**Resolved** — verified in codebase. Provenance now uses actual git branch and
+commit values.
+
+### ~~L2. Unimplemented flags still in help~~ ✅
 
 **Files:** `src/commands/stack/validate.ts`, `src/commands/watch.ts`
 
 `stack validate --fix` and `watch --tui` are declared but only warn and proceed.
 Misleading UX — should implement or remove from help.
+
+**Resolved** — verified in codebase. Unimplemented flags removed from help
+output.
 
 ### L3. `export --to yaml` blocked but function exists
 
@@ -297,12 +313,15 @@ and looks unfinished.
 `execSync` used for `git rev-parse`, `git init`. Not currently user-influenced,
 but `execFileSync` would remove shell exposure and align with codebase patterns.
 
-### L5. Inconsistent output handling
+### ~~L5. Inconsistent output handling~~ ✅
 
 **Files:** `src/commands/whoami.ts`, `src/commands/plan.ts`, others
 
 Commands write directly to `console.log`/`console.error` instead of
 `utils/output.ts`, conflicting with the CLI's own anti-pattern rules.
+
+**Resolved** — verified in codebase. All command files migrated to shared
+output module (PR #517).
 
 ### Missing Test Coverage
 

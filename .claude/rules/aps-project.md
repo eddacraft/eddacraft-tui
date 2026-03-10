@@ -8,6 +8,7 @@
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
 - CRB: code-review-backlog (16/29) — In Progress
+- MAINT: codebase-maintenance (6/8) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
@@ -28,7 +29,7 @@
 - EMBER: ember (1/14) — Draft
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (1/19) — Draft
-- STACK: edda-stack-integration (17/19) — In Progress
+- STACK: edda-stack-integration (18/19) — In Progress
 - RENG: rust-core-engine (0/24) — Proposed
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
