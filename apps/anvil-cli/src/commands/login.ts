@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import inquirer from 'inquirer';
 import { verifyToken } from '../services/auth-client.js';
 import { saveAuth, loadAuth } from '../services/auth-store.js';
+import { saveLicence } from '../services/licence-store.js';
 import { success, error, info } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
 
@@ -68,8 +69,15 @@ export function createLoginCommand(): Command {
           verifiedAt: new Date().toISOString(),
         });
 
+        if (result.license) {
+          saveLicence(result.license);
+        }
+
         success(`Authenticated as ${chalk.bold(result.user.email)}`);
         info(`Scopes: ${result.scopes.join(', ')}`);
+        if (result.license) {
+          info('Licence saved locally for offline verification');
+        }
         info(`Expires: ${new Date(result.expiresAt).toLocaleString()}`);
       } catch (err) {
         if (err instanceof CliError) throw err;
