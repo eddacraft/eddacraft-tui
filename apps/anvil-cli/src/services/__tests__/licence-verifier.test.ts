@@ -1,6 +1,18 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { generateKeyPair, exportPKCS8, exportSPKI, SignJWT, importPKCS8 } from 'jose';
-import { verifyLicence, setPublicKeys } from '../licence-verifier.js';
+import { verifyLicence, setPublicKeys, type LicenceResult } from '../licence-verifier.js';
+
+function assertValid(
+  result: LicenceResult
+): asserts result is Extract<LicenceResult, { valid: true }> {
+  if (!result.valid) throw new Error(`Expected valid licence, got: ${result.reason}`);
+}
+
+function assertInvalid(
+  result: LicenceResult
+): asserts result is Extract<LicenceResult, { valid: false }> {
+  if (result.valid) throw new Error('Expected invalid licence, got valid');
+}
 
 let testPrivateKeyPem: string;
 let testPublicKeyPem: string;
@@ -39,9 +51,9 @@ describe('verifyLicence', () => {
     });
 
     const result = await verifyLicence(jwt);
-    expect(result.valid).toBe(true);
-    expect(result.claims?.email).toBe('test@example.com');
-    expect(result.claims?.tier).toBe('pro');
+    assertValid(result);
+    expect(result.claims.email).toBe('test@example.com');
+    expect(result.claims.tier).toBe('pro');
     expect(result.needsRefresh).toBe(false);
   });
 
@@ -53,7 +65,7 @@ describe('verifyLicence', () => {
     });
 
     const result = await verifyLicence(jwt);
-    expect(result.valid).toBe(true);
+    assertValid(result);
     expect(result.needsRefresh).toBe(true);
   });
 
@@ -64,7 +76,7 @@ describe('verifyLicence', () => {
     );
 
     const result = await verifyLicence(jwt);
-    expect(result.valid).toBe(false);
+    assertInvalid(result);
     expect(result.reason).toBe('expired');
   });
 
@@ -73,7 +85,7 @@ describe('verifyLicence', () => {
     const tampered = jwt.slice(0, -5) + 'XXXXX';
 
     const result = await verifyLicence(tampered);
-    expect(result.valid).toBe(false);
+    assertInvalid(result);
     expect(result.reason).toBe('invalid_signature');
   });
 
@@ -84,7 +96,7 @@ describe('verifyLicence', () => {
     );
 
     const result = await verifyLicence(jwt);
-    expect(result.valid).toBe(false);
+    assertInvalid(result);
     expect(result.reason).toBe('unknown_key');
   });
 
