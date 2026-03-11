@@ -163,12 +163,19 @@ fn benchmark_graph(label: &str, node_count: usize, edge_count: usize) {
     println!();
 }
 
+#[cfg(target_os = "linux")]
 fn get_rss_bytes() -> Option<usize> {
     let statm = std::fs::read_to_string("/proc/self/statm").ok()?;
     let pages = statm.split_whitespace().nth(1)?.parse::<usize>().ok()?;
     Some(pages * page_size())
 }
 
+#[cfg(target_os = "linux")]
 fn page_size() -> usize {
     rustix::param::page_size()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn get_rss_bytes() -> Option<usize> {
+    None
 }

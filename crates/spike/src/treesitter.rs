@@ -74,7 +74,7 @@ fn benchmark_parse(parser: &mut tree_sitter::Parser, label: &str, source: &str) 
 
     durations.sort();
     let median = durations[iterations / 2];
-    let p99 = durations[(iterations as f64 * 0.99) as usize];
+    let p99 = durations[((iterations as f64 * 0.99) as usize).min(durations.len() - 1)];
     let mean: std::time::Duration =
         durations.iter().sum::<std::time::Duration>() / iterations as u32;
 
@@ -138,7 +138,7 @@ fn benchmark_symbol_extraction(parser: &mut tree_sitter::Parser, language: &tree
 
     durations.sort();
     let median = durations[iterations / 2];
-    let p99 = durations[(iterations as f64 * 0.99) as usize];
+    let p99 = durations[((iterations as f64 * 0.99) as usize).min(durations.len() - 1)];
 
     println!("  Query extraction ({symbol_count} symbols): median={median:.1?}, p99={p99:.1?}");
 }
