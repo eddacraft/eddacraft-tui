@@ -1,4 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
+import { generateKeyPair, exportPKCS8 } from 'jose';
 import { Hono } from 'hono';
 import { auth } from '../routes/auth.js';
 
@@ -22,6 +23,19 @@ vi.mock('../lib/token.js', async (importOriginal) => {
 });
 
 import { findTokenByHash } from '../db/queries.js';
+
+let originalSigningKey: string | undefined;
+
+beforeAll(async () => {
+  originalSigningKey = process.env['LICENSE_SIGNING_KEY'];
+  const { privateKey } = await generateKeyPair('ES256', { extractable: true });
+  process.env['LICENSE_SIGNING_KEY'] = await exportPKCS8(privateKey);
+});
+
+afterAll(() => {
+  if (originalSigningKey === undefined) delete process.env['LICENSE_SIGNING_KEY'];
+  else process.env['LICENSE_SIGNING_KEY'] = originalSigningKey;
+});
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -131,16 +145,82 @@ describe('POST /auth/verify', () => {
     const res = await post('/auth/verify', { token });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toEqual({
-      valid: true,
-      user: { email: 'test@example.com' },
-      scopes: ['beta'],
-      expiresAt,
-    });
+    expect(body).toEqual(
+      expect.objectContaining({
+        valid: true,
+        user: { email: 'test@example.com' },
+        scopes: ['beta'],
+        expiresAt,
+      })
+    );
   });
 
   it('returns 400 for missing token field', async () => {
     const res = await post('/auth/verify', {});
     expect(res.status).toBe(400);
+  });
+
+  it('returns a licence JWT on successful verification', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      revoked_at: null,
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'active',
+    });
+    const res = await app.request('/auth/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'anvil_beta_' + 'a'.repeat(43) }),
+    });
+    const json = await res.json();
+    expect(json.valid).toBe(true);
+    expect(json.license).toBeDefined();
+    expect(typeof json.license).toBe('string');
+    expect(json.license.split('.').length).toBe(3);
+  });
+});
+
+describe('POST /auth/license/refresh', () => {
+  const mockedFind = vi.mocked(findTokenByHash);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns a fresh licence JWT for a valid token', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      revoked_at: null,
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'active',
+    });
+    const res = await app.request('/auth/license/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'anvil_beta_' + 'a'.repeat(43) }),
+    });
+    const json = await res.json();
+    expect(json.license).toBeDefined();
+    expect(typeof json.license).toBe('string');
+  });
+
+  it('returns valid:false for invalid token format', async () => {
+    const res = await app.request('/auth/license/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'bad_token' }),
+    });
+    const json = await res.json();
+    expect(json.valid).toBe(false);
   });
 });

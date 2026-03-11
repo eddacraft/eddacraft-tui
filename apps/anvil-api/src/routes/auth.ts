@@ -5,6 +5,7 @@ import { getClient } from '../db/client.js';
 import { findTokenByHash } from '../db/queries.js';
 import { hashToken, isValidTokenFormat } from '../lib/token.js';
 import { createDebugger } from '../lib/debug.js';
+import { signLicence } from '../lib/licence.js';
 
 const debug = createDebugger('api');
 
@@ -56,12 +57,56 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   }
 
   debug('token verified successfully');
+  const licence = await signLicence({
+    sub: record.user_id,
+    email: record.email,
+    identity: { provider: 'github', id: null },
+    org: null,
+    tier: 'pro',
+    scopes: record.scopes,
+    seats: 1,
+  });
+
   return c.json({
     valid: true,
     user: { email: record.email },
     scopes: record.scopes,
     expiresAt: record.expires_at,
+    license: licence,
   });
+});
+
+auth.post('/license/refresh', zValidator('json', verifySchema), async (c) => {
+  debug('POST /auth/license/refresh');
+  const { token } = c.req.valid('json');
+
+  if (!isValidTokenFormat(token)) {
+    return c.json({ valid: false });
+  }
+
+  const sql = getClient();
+  const hash = hashToken(token);
+  const record = await findTokenByHash(sql, hash);
+
+  if (!record || record.revoked_at || record.user_status !== 'active') {
+    return c.json({ valid: false, reason: record?.revoked_at ? 'revoked' : 'invalid' });
+  }
+
+  if (new Date(record.expires_at).getTime() < Date.now()) {
+    return c.json({ valid: false, reason: 'expired' });
+  }
+
+  const licence = await signLicence({
+    sub: record.user_id,
+    email: record.email,
+    identity: { provider: 'github', id: null },
+    org: null,
+    tier: 'pro',
+    scopes: record.scopes,
+    seats: 1,
+  });
+
+  return c.json({ license: licence });
 });
 
 export { auth };
