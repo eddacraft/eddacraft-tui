@@ -24,16 +24,7 @@ export function createEddaShowCommand(): Command {
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
 
       if (!existsSync(storagePath)) {
-        const message = `No Edda storage found at ${storagePath}`;
-        if (options.json) {
-          json({
-            error: message,
-            storage_found: false,
-          });
-        } else {
-          print(chalk.yellow(message));
-        }
-        throw new CliError(message);
+        throw new CliError(`No Edda storage found at ${storagePath}`);
       }
 
       const store = new MemoryStore({
@@ -46,13 +37,7 @@ export function createEddaShowCommand(): Command {
         const memory = await store.getMemory(createMemoryId(id));
 
         if (!memory) {
-          const message = `Memory not found: ${id}`;
-          if (options.json) {
-            json({ error: message });
-          } else {
-            print(chalk.red(message));
-          }
-          throw new CliError(message, 1);
+          throw new CliError(`Memory not found: ${id}`, 1);
         }
 
         if (options.json) {
@@ -109,14 +94,6 @@ export function createEddaShowCommand(): Command {
         blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-
-        if (options.json) {
-          json({
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        } else {
-          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
-        }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });

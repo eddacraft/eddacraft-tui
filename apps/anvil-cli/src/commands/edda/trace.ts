@@ -30,18 +30,7 @@ export function createEddaTraceCommand(): Command {
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
 
       if (!existsSync(storagePath)) {
-        const message = `No Edda storage found at ${storagePath}`;
-        if (options.json) {
-          json({
-            error: message,
-            storage_found: false,
-            evolution_chain: [],
-            provenance: null,
-          });
-        } else {
-          print(chalk.yellow(message));
-        }
-        throw new CliError(message);
+        throw new CliError(`No Edda storage found at ${storagePath}`);
       }
 
       const store = new MemoryStore({
@@ -118,13 +107,6 @@ export function createEddaTraceCommand(): Command {
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to trace memory provenance'));
-        if (options.json) {
-          json({
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        } else {
-          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
-        }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });

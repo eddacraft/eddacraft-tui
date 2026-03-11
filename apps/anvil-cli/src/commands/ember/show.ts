@@ -25,17 +25,7 @@ export function createEmberShowCommand(): Command {
       const proposalId = createProposalId(id);
 
       if (!existsSync(dbPath)) {
-        const message = `No Ember database found at ${dbPath}`;
-        if (options.json) {
-          json({
-            error: message,
-            database_found: false,
-          });
-          throw new CliError(message);
-        } else {
-          print(chalk.yellow(message));
-          throw new CliError(message);
-        }
+        throw new CliError(`No Ember database found at ${dbPath}`);
       }
 
       let store: ProposalStore | null = null;
@@ -44,13 +34,7 @@ export function createEmberShowCommand(): Command {
         const proposal = await store.getProposal(proposalId);
 
         if (!proposal) {
-          const message = `Proposal not found: ${id}`;
-          if (options.json) {
-            json({ error: message });
-          } else {
-            print(chalk.red(message));
-          }
-          throw new CliError(message, 1);
+          throw new CliError(`Proposal not found: ${id}`, 1);
         }
 
         if (options.json) {
@@ -110,13 +94,6 @@ export function createEmberShowCommand(): Command {
         blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-        if (options.json) {
-          json({
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        } else {
-          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
-        }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         store?.close();

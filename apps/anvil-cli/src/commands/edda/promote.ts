@@ -54,37 +54,16 @@ export function createEddaPromoteCommand(): Command {
       const workspaceRoot = getWorkspaceRoot();
       const actor = options.by.trim();
       if (actor.length === 0) {
-        const message = '--by must not be empty';
-        if (options.json) {
-          json({ error: message });
-        } else {
-          print(chalk.red(message));
-        }
-        throw new CliError(message);
+        throw new CliError('--by must not be empty');
       }
       if (actor.length > 100) {
-        const message = '--by must be 100 characters or fewer';
-        if (options.json) {
-          json({ error: message });
-        } else {
-          print(chalk.red(message));
-        }
-        throw new CliError(message);
+        throw new CliError('--by must be 100 characters or fewer');
       }
 
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
 
       if (!existsSync(storagePath)) {
-        const message = `No Edda storage found at ${storagePath}`;
-        if (options.json) {
-          json({
-            error: message,
-            storage_found: false,
-          });
-        } else {
-          print(chalk.yellow(message));
-        }
-        throw new CliError(message);
+        throw new CliError(`No Edda storage found at ${storagePath}`);
       }
 
       const parsedConfidence = parseConfidence(options.confidence);
@@ -136,13 +115,6 @@ export function createEddaPromoteCommand(): Command {
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
         spinner?.fail(chalk.red('Failed to promote memory'));
-        if (options.json) {
-          json({
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        } else {
-          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
-        }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       }
     });

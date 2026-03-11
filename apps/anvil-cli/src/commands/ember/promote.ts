@@ -27,17 +27,7 @@ export function createEmberPromoteCommand(): Command {
       const dbPath = join(workspaceRoot, '.anvil', 'ember.db');
 
       if (!existsSync(dbPath)) {
-        const message = `No Ember database found at ${dbPath}`;
-        if (options.json) {
-          json({
-            error: message,
-            database_found: false,
-          });
-          throw new CliError(message);
-        } else {
-          print(chalk.yellow(message));
-          throw new CliError(message);
-        }
+        throw new CliError(`No Ember database found at ${dbPath}`);
       }
 
       const proposalId = createProposalId(id);
@@ -48,23 +38,13 @@ export function createEmberPromoteCommand(): Command {
         const existing = await store.getProposal(proposalId);
 
         if (!existing) {
-          const message = `Proposal not found: ${id}`;
-          if (options.json) {
-            json({ error: message });
-          } else {
-            print(chalk.red(message));
-          }
-          throw new CliError(message);
+          throw new CliError(`Proposal not found: ${id}`);
         }
 
         if (existing.status !== 'active') {
-          const message = `Proposal ${id} is not active (current status: ${existing.status})`;
-          if (options.json) {
-            json({ error: message });
-          } else {
-            print(chalk.red(message));
-          }
-          throw new CliError(message);
+          throw new CliError(
+            `Proposal ${id} is not active (current status: ${existing.status})`
+          );
         }
 
         const proposal = await store.resolveProposal(proposalId, {
@@ -74,13 +54,7 @@ export function createEmberPromoteCommand(): Command {
         });
 
         if (!proposal) {
-          const message = `Failed to promote proposal: ${id}`;
-          if (options.json) {
-            json({ error: message });
-          } else {
-            print(chalk.red(message));
-          }
-          throw new CliError(message);
+          throw new CliError(`Failed to promote proposal: ${id}`);
         }
 
         if (options.json) {
@@ -98,13 +72,6 @@ export function createEmberPromoteCommand(): Command {
         blank();
       } catch (err) {
         if (err instanceof CliError || err instanceof CliExit) throw err;
-        if (options.json) {
-          json({
-            error: err instanceof Error ? err.message : 'Unknown error',
-          });
-        } else {
-          print(chalk.red(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`));
-        }
         throw new CliError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         store?.close();
