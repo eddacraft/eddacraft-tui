@@ -718,6 +718,12 @@ async function validateOrphanModules(
 
     async function scanDir(dir: string, depth = 0): Promise<string[]> {
       if (depth >= MAX_SCAN_DEPTH) {
+        issues.push({
+          severity: 'warning',
+          rule: 'orphan-scan-depth',
+          message: `Orphan module scan: depth limit (${MAX_SCAN_DEPTH}) reached at ${dir}, subtree skipped`,
+          path: dir,
+        });
         return [];
       }
       const files: string[] = [];
