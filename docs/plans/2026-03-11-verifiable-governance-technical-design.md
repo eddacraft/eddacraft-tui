@@ -1,17 +1,25 @@
 # Verifiable Governance Attestation — Technical Design
 
+**Date:** 2026-03-11\
+**Status:** Draft\
+**Owner:** aneki
+
 ## Overview
 
-Every time Anvil enforces governance (a gate run), it produces a cryptographically signed attestation proving what policy ran, against what inputs, with what result. Attestations are aggregated per-PR for leadership visibility and exportable for audit.
+Every time Anvil enforces governance (a gate run), it produces an attestation
+proving what policy ran, against what inputs, with what result. When a signing
+key is configured, attestations are cryptographically signed; otherwise they are
+produced unsigned (useful for development, insufficient for audit). Attestations
+are aggregated per-PR for leadership visibility and exportable for audit.
 
 ## Design Decisions
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Primary audience | Engineering leadership / CTOs | Buyer persona; compliance is the upsell |
-| Unit of governance | Per-gate-run (building block), per-PR (default view) | Maps to existing Anvil concepts; clean aggregation |
-| Trust model | Customer-controlled keys (Phase 1) → Transparency log (Phase 2) → Co-attestation (Phase 3) | "Don't trust us, trust your own keys" — strongest developer-first positioning |
-| Attestation payload | Replayable by default, full trace opt-in | Replayability is the differentiator; trace is valuable but potentially sensitive |
+| Decision            | Choice                                                                                     | Rationale                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| Primary audience    | Engineering leadership / CTOs                                                              | Buyer persona; compliance is the upsell                                          |
+| Unit of governance  | Per-gate-run (building block), per-PR (default view)                                       | Maps to existing Anvil concepts; clean aggregation                               |
+| Trust model         | Customer-controlled keys (Phase 1) → Transparency log (Phase 2) → Co-attestation (Phase 3) | "Don't trust us, trust your own keys" — strongest developer-first positioning    |
+| Attestation payload | Replayable by default, full trace opt-in                                                   | Replayability is the differentiator; trace is valuable but potentially sensitive |
 
 ## Architecture
 
@@ -61,58 +69,59 @@ Every time Anvil enforces governance (a gate run), it produces a cryptographical
     "repo": "org/repo",
     "commit": "abc123",
     "pr": 42,
-    "files": ["src/foo.ts:sha256:...", "src/bar.ts:sha256:..."]
+    "files": ["src/foo.ts:sha256:...", "src/bar.ts:sha256:..."],
   },
 
   // What policy ran
   "policy": {
-    "version": "sha256:...",        // hash of full policy definition
-    "definition": "...",             // embedded or URI to policy snapshot
-    "profile": "production"
+    "version": "sha256:...", // hash of full policy definition
+    "definition": "...", // embedded or URI to policy snapshot
+    "profile": "production",
   },
 
   // What happened
   "results": {
-    "outcome": "pass",               // pass | fail | warn
+    "outcome": "pass", // pass | fail | warn
     "gates": [
       {
         "name": "architecture",
         "outcome": "pass",
-        "deterministic": true,        // can this be replayed?
+        "deterministic": true, // can this be replayed?
         "rules_evaluated": 12,
-        "rules_passed": 12
+        "rules_passed": 12,
       },
       {
         "name": "security-scan",
         "outcome": "pass",
         "deterministic": true,
         "rules_evaluated": 8,
-        "rules_passed": 8
-      }
+        "rules_passed": 8,
+      },
     ],
     // opt-in: full decision trace
-    "trace": null  // or detailed rule-by-rule log when verbosity=full
+    "trace": null, // or detailed rule-by-rule log when verbosity=full
   },
 
   // Replay support
   "replay": {
     "supported": true,
-    "input_manifest": "sha256:...",  // hash of all inputs needed to replay
-    "anvil_version": "<current-version>"
+    "input_manifest": "sha256:...", // hash of all inputs needed to replay
+    "anvil_version": "<current-version>",
   },
 
-  // Trust
+  // Trust — omitted when no signing key is configured
   "signature": {
     "algorithm": "ECDSA-P256-SHA256",
-    "key_id": "arn:aws:kms:...",     // customer's key
-    "value": "base64:..."
-  }
+    "key_id": "arn:aws:kms:...", // customer's key
+    "value": "base64:...",
+  },
 }
 ```
 
 ## PR-Level Aggregate
 
-After all gates pass in CI, Anvil produces a PR attestation referencing individual gate proofs:
+After all gates pass in CI, Anvil produces a PR attestation referencing
+individual gate proofs:
 
 ```jsonc
 {
@@ -124,22 +133,25 @@ After all gates pass in CI, Anvil produces a PR attestation referencing individu
   "merge_timestamp": "...",
   "signature": {
     "algorithm": "ECDSA-P256-SHA256",
-    "key_id": "arn:aws:kms:...",     // customer's key
-    "value": "base64:..."
-  }
+    "key_id": "arn:aws:kms:...", // customer's key
+    "value": "base64:...",
+  },
 }
 ```
 
-This is the CTO dashboard view: a single verified ✅ per PR, drillable into individual gate proofs.
+This is the CTO dashboard view: a single verified ✅ per PR, drillable into
+individual gate proofs.
 
 ## Signing Infrastructure
 
 ### Phase 1 — Customer-Controlled Keys
 
-- Provider interface supporting AWS KMS, GCP Cloud KMS, Azure Key Vault, and local PKCS#11
+- Provider interface supporting AWS KMS, GCP Cloud KMS, Azure Key Vault, and
+  local PKCS#11
 - Customer configures key reference in `.anvilrc` or env var
 - Anvil never sees the private key — sends a hash to be signed
-- If no key configured, attestations are still produced unsigned — useful for dev, useless for audit
+- If no key configured, attestations are still produced unsigned — useful for
+  dev, useless for audit
 
 ### Phase 2 — Transparency Log (Future)
 
@@ -151,7 +163,8 @@ This is the CTO dashboard view: a single verified ✅ per PR, drillable into ind
 ### Phase 3 — Co-Attestation (Future)
 
 - Independent verifier re-evaluates deterministic gates
-- Dual-signed attestations for high-stakes environments (healthcare, finance, government)
+- Dual-signed attestations for high-stakes environments (healthcare, finance,
+  government)
 
 ## Verification CLI
 
@@ -172,24 +185,33 @@ anvil evidence export --from 2026-01-01 --to 2026-03-31 --format json
 
 ## Intentional Scope Cuts
 
-- **No TEE/hardware dependency** — trust comes from customer keys + replayability, not hardware enclaves
-- **No real-time interception** — attests gate runs, not individual LLM calls mid-session
-- **No agent session governance** — future feature when Anvil's AI tool integration (Horizon 5) lands
-- **Non-deterministic gates** (LLM-based) get attested but not replayed — proves they ran, not that they'd produce the same answer twice
+- **No TEE/hardware dependency** — trust comes from customer keys +
+  replayability, not hardware enclaves
+- **No real-time interception** — attests gate runs, not individual LLM calls
+  mid-session
+- **No agent session governance** — future feature when Anvil's AI tool
+  integration (Horizon 5) lands
+- **Non-deterministic gates** (LLM-based) get attested but not replayed — proves
+  they ran, not that they'd produce the same answer twice
 
 ## Prior Art & Inspiration
 
-| Concept | Domain | What we borrow |
-|---|---|---|
-| Certificate Transparency | TLS/PKI | Append-only tamper-evident logs |
-| SLSA Provenance | Software supply chain | Signed build attestations |
-| Sigstore / cosign | Container images | Keyless signing with transparency log |
-| Proof-of-Guardrail (Sahara AI) | AI agents | Concept of verifiable guardrail execution (we skip the TEE dependency) |
-| in-toto | Software supply chain | Layout + link metadata for each pipeline step |
+| Concept                        | Domain                | What we borrow                                                         |
+| ------------------------------ | --------------------- | ---------------------------------------------------------------------- |
+| Certificate Transparency       | TLS/PKI               | Append-only tamper-evident logs                                        |
+| SLSA Provenance                | Software supply chain | Signed build attestations                                              |
+| Sigstore / cosign              | Container images      | Keyless signing with transparency log                                  |
+| Proof-of-Guardrail (Sahara AI) | AI agents             | Concept of verifiable guardrail execution (we skip the TEE dependency) |
+| in-toto                        | Software supply chain | Layout + link metadata for each pipeline step                          |
 
 ## Open Questions
 
-1. Should attestations be stored in-repo (`.anvil/proofs/`) or in an external store? In-repo is simpler and git-native; external scales better.
-2. How to handle policy version transitions mid-PR? If policy changes between gate runs on the same PR, the aggregate needs to reflect which version applied when.
-3. What's the right default for trace verbosity? Too little = useless for debugging. Too much = information leakage risk.
-4. Pricing model: is verifiable governance a premium tier feature, or core to all plans?
+1. Should attestations be stored in-repo (`.anvil/proofs/`) or in an external
+   store? In-repo is simpler and git-native; external scales better.
+2. How to handle policy version transitions mid-PR? If policy changes between
+   gate runs on the same PR, the aggregate needs to reflect which version
+   applied when.
+3. What's the right default for trace verbosity? Too little = useless for
+   debugging. Too much = information leakage risk.
+4. Pricing model: is verifiable governance a premium tier feature, or core to
+   all plans?
