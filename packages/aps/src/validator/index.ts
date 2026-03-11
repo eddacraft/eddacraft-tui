@@ -714,7 +714,12 @@ async function validateOrphanModules(
     const { readdir, stat } = await import('node:fs/promises');
     const { join } = await import('node:path');
 
-    async function scanDir(dir: string): Promise<string[]> {
+    const MAX_SCAN_DEPTH = 10;
+
+    async function scanDir(dir: string, depth = 0): Promise<string[]> {
+      if (depth >= MAX_SCAN_DEPTH) {
+        return [];
+      }
       const files: string[] = [];
       try {
         const entries = await readdir(dir);
@@ -722,7 +727,7 @@ async function validateOrphanModules(
           const fullPath = join(dir, entry);
           const stats = await stat(fullPath);
           if (stats.isDirectory()) {
-            files.push(...(await scanDir(fullPath)));
+            files.push(...(await scanDir(fullPath, depth + 1)));
           } else if (entry.endsWith('.aps.md') && fullPath !== indexPath) {
             files.push(fullPath);
           }
