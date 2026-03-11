@@ -98,7 +98,7 @@ Every time Anvil enforces governance (a gate run), it produces a cryptographical
   "replay": {
     "supported": true,
     "input_manifest": "sha256:...",  // hash of all inputs needed to replay
-    "anvil_version": "0.9.0"
+    "anvil_version": "<current-version>"
   },
 
   // Trust
