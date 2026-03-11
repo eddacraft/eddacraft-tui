@@ -83,7 +83,14 @@ export class TemplateGenerator {
   public updateGitignore(): void {
     const gitignorePath = join(this.options.projectRoot, '.gitignore');
 
-    const patterns = ['', '# Anvil', '.anvil/cache/', '.anvil/evidence/', '.anvil/*.log'];
+    const patterns = [
+      '',
+      '# Anvil',
+      '.anvil/cache/',
+      '.anvil/evidence/',
+      '.anvil/*.log',
+      '.anvil/license',
+    ];
 
     if (existsSync(gitignorePath)) {
       const content = readFileSync(gitignorePath, 'utf-8');

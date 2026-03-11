@@ -6,6 +6,7 @@ const VerifyResponseSchema = z.object({
   user: z.object({ email: z.string() }).optional(),
   scopes: z.array(z.string()).optional(),
   expiresAt: z.string().optional(),
+  license: z.string().optional(),
 });
 
 export type VerifyResponse = z.infer<typeof VerifyResponseSchema>;
