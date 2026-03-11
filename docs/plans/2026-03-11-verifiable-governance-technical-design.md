@@ -166,15 +166,17 @@ replay schema captures an `external_sources` array in the manifest:
 ]
 ```
 
-A gate is only considered `"deterministic": true` when its external sources
-include an immutable content reference (`content_digest`). Timestamp and version
-alone are insufficient since upstream sources can change or reissue the same
-version identifier. When a content digest is present, replay consumers can fetch
-the snapshot artifact and verify its integrity before re-evaluation.
+A gate is only considered `"deterministic": true` when **every** entry in its
+`external_sources` array includes an immutable content reference
+(`content_digest`). Timestamp and version alone are insufficient since upstream
+sources can change or reissue the same version identifier. If even one source
+lacks a digest, the gate MUST be tagged as non-deterministic. When all digests
+are present, replay consumers can fetch each snapshot artifact and verify its
+integrity before re-evaluation.
 
-When no immutable reference is available, the gate MUST be tagged as
-`"deterministic": false` in its attestation, signalling to replay consumers that
-results may legitimately differ over time. This prevents false-negative
+When any external source lacks an immutable reference, the gate MUST be tagged
+as `"deterministic": false` in its attestation, signalling to replay consumers
+that results may legitimately differ over time. This prevents false-negative
 integrity violations during audit replay.
 
 ## PR-Level Aggregate
