@@ -106,17 +106,27 @@ are aggregated per-PR for leadership visibility and exportable for audit.
   "replay": {
     "supported": true,
     "input_manifest": "sha256:...", // hash of all inputs needed to replay
+    "manifest_uri": ".anvil/evidence/attestations/manifests/<id>.json", // retrievable manifest
     "anvil_version": "<current-version>",
   },
 
-  // Trust — null when no signing key is configured
-  "signature": null | {
+  // Trust — null when no signing key is configured, object when signed.
+  // Unsigned: "signature": null
+  // Signed:
+  "signature": {
     "algorithm": "ECDSA-P256-SHA256",
     "key_id": "arn:aws:kms:...", // customer's key
-    "value": "base64:...",       // base64-encoded raw signature bytes
+    "value": "base64:...", // base64-encoded raw signature bytes
   },
 }
 ```
+
+**Replay manifests**: The `replay.input_manifest` hash is accompanied by a
+`manifest_uri` pointing to a stored manifest file containing the full set of
+retrievable inputs (policy snapshot, file content hashes with git blob refs,
+config/env values). This ensures verifiers can reconstruct the exact inputs
+needed to replay a gate run, even after local state has diverged. The manifest
+is stored alongside attestations and is itself integrity-checked via its hash.
 
 ## PR-Level Aggregate
 
@@ -130,19 +140,22 @@ by the merge hook so the pre-merge proof is never mutated after signing.
 {
   "type": "pr-attestation",
   "pr": 42,
+  "head_commit": "abc123def456...", // exact commit SHA that was validated
   "gate_proofs": ["sha256:gate1...", "sha256:gate2..."],
   "all_passed": true,
-  "signature": null | { "..." },
+  "signature": null, // or { "algorithm": "...", "key_id": "...", "value": "..." }
 }
 
 // Post-merge — produced by merge hook
 {
   "type": "pr-merge-attestation",
   "pr": 42,
+  "head_commit": "abc123def456...", // must match pre-merge head_commit
+  "merge_commit": "789abc...", // the actual merge commit SHA
   "pre_merge_proof": "sha256:...", // references the pre-merge attestation
   "merged_by": "josh",
   "merge_timestamp": "...",
-  "signature": null | { "..." },
+  "signature": null, // or { "algorithm": "...", "key_id": "...", "value": "..." }
 }
 ```
 
