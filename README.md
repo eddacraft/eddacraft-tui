@@ -45,15 +45,15 @@ and tooling.
 
 ### Packages — Ecosystem
 
-| Directory                       | Package                                 | Description                               |
-| ------------------------------- | --------------------------------------- | ----------------------------------------- |
-| `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)         |
-| `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                       |
-| `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement |
-| `packages/vscode-extension`     | `anvil-vscode`                          | VS Code integration                       |
-| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts     |
+| Directory                       | Package                                 | Description                                       |
+| ------------------------------- | --------------------------------------- | ------------------------------------------------- |
+| `packages/adapters`             | `@eddacraft/anvil-adapters`             | Format converters (SpecKit, BMAD)                 |
+| `packages/aps`                  | `@eddacraft/anvil-aps`                  | APS document parser                               |
+| `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement         |
+| `packages/vscode-extension`     | `anvil-vscode`                          | VS Code integration                               |
+| `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
 | `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
-| `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts         |
+| `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
 
 ### Packages — Tooling
 
@@ -64,12 +64,12 @@ and tooling.
 
 ### Crates (Rust)
 
-| Directory                 | Description                                            |
-| ------------------------- | ------------------------------------------------------ |
-| `crates/spike`            | Validation spikes for tree-sitter, notify-rs, petgraph |
-| `crates/anvil-checks`     | Gate checks ported to Rust (secret scan, anti-pattern) |
+| Directory                   | Description                                             |
+| --------------------------- | ------------------------------------------------------- |
+| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph  |
+| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)  |
 | `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust) |
-| `crates/eddacraft-tui`    | Shared Ratatui component library                       |
+| `crates/eddacraft-tui`      | Shared Ratatui component library                        |
 
 ### Tools
 
@@ -81,11 +81,11 @@ and tooling.
 
 ### Plans
 
-| Directory           | Description                     |
-| ------------------- | ------------------------------- |
-| `plans/modules`     | APS module specs and work items |
-| `plans/decisions`   | Architecture decision records   |
-| `plans/execution`   | Step-level execution evidence   |
+| Directory         | Description                     |
+| ----------------- | ------------------------------- |
+| `plans/modules`   | APS module specs and work items |
+| `plans/decisions` | Architecture decision records   |
+| `plans/execution` | Step-level execution evidence   |
 
 ## Getting Started
 

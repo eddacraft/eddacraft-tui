@@ -21,12 +21,12 @@ inconsistent hashing, race conditions), and **5 low-severity items**.
 
 ### Severity Counts
 
-| Severity | Count          |
-| -------- | -------------- |
-| CRITICAL | 0              |
-| HIGH     | ~~2~~ (fixed)  |
+| Severity | Count                        |
+| -------- | ---------------------------- |
+| CRITICAL | 0                            |
+| HIGH     | ~~2~~ (fixed)                |
 | MEDIUM   | ~~6~~ (fixed), 1 in progress |
-| LOW      | ~~5~~ (fixed)  |
+| LOW      | ~~5~~ (fixed)                |
 
 ---
 
@@ -230,16 +230,16 @@ patterns (tokens, passwords, API keys) from debug output.
 
 ## Recommendations Priority
 
-| Priority | Action                                                               | Status         |
-| -------- | -------------------------------------------------------------------- | -------------- |
-| P0       | Migrate all `exec` calls to `execFile` with array arguments (H1, H2) | ✅ Fixed       |
-| P1       | Add path sanitisation to `ProvenanceStore.get()` and `clear()` (M1)  | ✅ Fixed       |
-| P1       | Fix `ProvenanceStore.clear()` to actually delete files (M3)          | ✅ Fixed       |
-| P1       | Add file locking or atomic writes to stores (M7)                     | In progress    |
-| P2       | Increase `generatePlanId()` entropy to 64+ bits (M5)                 | ✅ Fixed       |
-| P2       | Add depth limit to `entry-detector.ts` recursive traversal (M6)      | ✅ Fixed       |
-| P2       | Fix `canonicalizeJSON` undefined handling (M2)                       | ✅ Fixed       |
-| P2       | Update package header to reflect actual I/O usage (M4)               | ✅ Fixed       |
-| P3       | Add debug logging for silently skipped files (L1)                    | ✅ Fixed       |
-| P3       | Batch `getAuthorshipStats` commit processing (L4)                    | ✅ Fixed       |
-| P3       | Add input validation to `expandLineRanges` (L3)                      | ✅ Fixed       |
+| Priority | Action                                                               | Status      |
+| -------- | -------------------------------------------------------------------- | ----------- |
+| P0       | Migrate all `exec` calls to `execFile` with array arguments (H1, H2) | ✅ Fixed    |
+| P1       | Add path sanitisation to `ProvenanceStore.get()` and `clear()` (M1)  | ✅ Fixed    |
+| P1       | Fix `ProvenanceStore.clear()` to actually delete files (M3)          | ✅ Fixed    |
+| P1       | Add file locking or atomic writes to stores (M7)                     | In progress |
+| P2       | Increase `generatePlanId()` entropy to 64+ bits (M5)                 | ✅ Fixed    |
+| P2       | Add depth limit to `entry-detector.ts` recursive traversal (M6)      | ✅ Fixed    |
+| P2       | Fix `canonicalizeJSON` undefined handling (M2)                       | ✅ Fixed    |
+| P2       | Update package header to reflect actual I/O usage (M4)               | ✅ Fixed    |
+| P3       | Add debug logging for silently skipped files (L1)                    | ✅ Fixed    |
+| P3       | Batch `getAuthorshipStats` commit processing (L4)                    | ✅ Fixed    |
+| P3       | Add input validation to `expandLineRanges` (L3)                      | ✅ Fixed    |
