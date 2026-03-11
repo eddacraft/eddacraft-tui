@@ -10,16 +10,20 @@ export const DEFAULT_PRUNE_DAYS = 90;
 
 export interface DecayServiceConfig {
   checkIntervalMs?: number;
+  /** Age threshold for pruning resolved proposals; defaults to DEFAULT_PRUNE_DAYS */
+  pruneDays?: number;
 }
 
 export class DecayService {
   readonly checkIntervalMs: number;
+  private readonly pruneDays: number;
 
   constructor(
     private readonly store: IEmberPort,
     config: DecayServiceConfig = {}
   ) {
     this.checkIntervalMs = config.checkIntervalMs ?? DEFAULT_CHECK_INTERVAL_MS;
+    this.pruneDays = config.pruneDays ?? DEFAULT_PRUNE_DAYS;
   }
 
   async processExpired(): Promise<number> {
@@ -44,7 +48,7 @@ export class DecayService {
 
   async run(): Promise<{ expired: number; pruned: number }> {
     const expired = await this.processExpired();
-    const pruned = await this.pruneOld(DEFAULT_PRUNE_DAYS);
+    const pruned = await this.pruneOld(this.pruneDays);
     return { expired, pruned };
   }
 
