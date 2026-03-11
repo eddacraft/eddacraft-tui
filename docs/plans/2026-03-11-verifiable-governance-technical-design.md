@@ -42,7 +42,7 @@ Every time Anvil enforces governance (a gate run), it produces a cryptographical
 │  └────────────────────────────────────────┘ │
 ├─────────────────────────────────────────────┤
 │  Attestation Store                          │
-│  - Per-gate attestations (.anvil/proofs/)   │
+│  - Per-gate attestations (.anvil/evidence/attestations/) │
 │  - PR-level aggregate proof                 │
 │  - Export formats: JSON, SARIF, PDF summary │
 └─────────────────────────────────────────────┘
