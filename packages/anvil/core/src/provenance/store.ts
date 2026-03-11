@@ -1,4 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+  renameSync,
+  unlinkSync,
+} from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { ProvenanceRecordSchema, ProvenanceIndexSchema } from './types.js';
@@ -96,8 +103,17 @@ history/
     this.ensureDirectories();
     index.last_updated = new Date().toISOString();
     const tmpIndex = `${this.indexPath}.${randomBytes(6).toString('hex')}.tmp`;
-    writeFileSync(tmpIndex, JSON.stringify(index, null, 2));
-    renameSync(tmpIndex, this.indexPath);
+    try {
+      writeFileSync(tmpIndex, JSON.stringify(index, null, 2));
+      renameSync(tmpIndex, this.indexPath);
+    } catch (err) {
+      try {
+        unlinkSync(tmpIndex);
+      } catch {
+        /* tmp already gone */
+      }
+      throw err;
+    }
   }
 
   /**
@@ -110,8 +126,17 @@ history/
     const safeId = sanitizeIdentifier(record.id);
     const recordPath = join(this.historyDir, `${safeId}.json`);
     const tmpRecord = `${recordPath}.${randomBytes(6).toString('hex')}.tmp`;
-    writeFileSync(tmpRecord, JSON.stringify(record, null, 2));
-    renameSync(tmpRecord, recordPath);
+    try {
+      writeFileSync(tmpRecord, JSON.stringify(record, null, 2));
+      renameSync(tmpRecord, recordPath);
+    } catch (err) {
+      try {
+        unlinkSync(tmpRecord);
+      } catch {
+        /* tmp already gone */
+      }
+      throw err;
+    }
 
     // Update the index
     const index = this.loadIndex();

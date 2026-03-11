@@ -76,8 +76,17 @@ export class SuppressionStore {
     const dir = path.dirname(this.filePath);
     await fs.mkdir(dir, { recursive: true });
     const tmpPath = `${this.filePath}.${randomBytes(6).toString('hex')}.tmp`;
-    await fs.writeFile(tmpPath, JSON.stringify(this.data, null, 2), 'utf-8');
-    await fs.rename(tmpPath, this.filePath);
+    try {
+      await fs.writeFile(tmpPath, JSON.stringify(this.data, null, 2), 'utf-8');
+      await fs.rename(tmpPath, this.filePath);
+    } catch (err) {
+      try {
+        await fs.unlink(tmpPath);
+      } catch {
+        /* tmp already gone */
+      }
+      throw err;
+    }
   }
 
   add(record: SuppressionRecord): void {
