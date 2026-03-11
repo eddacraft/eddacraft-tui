@@ -109,38 +109,45 @@ are aggregated per-PR for leadership visibility and exportable for audit.
     "anvil_version": "<current-version>",
   },
 
-  // Trust — omitted when no signing key is configured
-  "signature": {
+  // Trust — null when no signing key is configured
+  "signature": null | {
     "algorithm": "ECDSA-P256-SHA256",
     "key_id": "arn:aws:kms:...", // customer's key
-    "value": "base64:...",
+    "value": "base64:...",       // base64-encoded raw signature bytes
   },
 }
 ```
 
 ## PR-Level Aggregate
 
-After all gates pass in CI, Anvil produces a PR attestation referencing
-individual gate proofs:
+After all gates pass in CI, Anvil produces a **pre-merge** PR attestation
+referencing individual gate proofs. Merge metadata (`merged_by`,
+`merge_timestamp`) is recorded in a separate **post-merge** attestation produced
+by the merge hook so the pre-merge proof is never mutated after signing.
 
 ```jsonc
+// Pre-merge — produced when all gates pass
 {
   "type": "pr-attestation",
   "pr": 42,
   "gate_proofs": ["sha256:gate1...", "sha256:gate2..."],
   "all_passed": true,
+  "signature": null | { "..." },
+}
+
+// Post-merge — produced by merge hook
+{
+  "type": "pr-merge-attestation",
+  "pr": 42,
+  "pre_merge_proof": "sha256:...", // references the pre-merge attestation
   "merged_by": "josh",
   "merge_timestamp": "...",
-  "signature": {
-    "algorithm": "ECDSA-P256-SHA256",
-    "key_id": "arn:aws:kms:...", // customer's key
-    "value": "base64:...",
-  },
+  "signature": null | { "..." },
 }
 ```
 
-This is the CTO dashboard view: a single verified ✅ per PR, drillable into
-individual gate proofs.
+This is the CTO dashboard view: a single verified pair per PR (governance
+proof + merge record), drillable into individual gate proofs.
 
 ## Signing Infrastructure
 
@@ -149,15 +156,28 @@ individual gate proofs.
 - Provider interface supporting AWS KMS, GCP Cloud KMS, Azure Key Vault, and
   local PKCS#11
 - Customer configures key reference in `.anvilrc` or env var
-- Anvil never sees the private key — sends a hash to be signed
-- If no key configured, attestations are still produced unsigned — useful for
-  dev, useless for audit
+- Anvil never sees the private key — signing process:
+  1. Remove the `signature` field from the attestation envelope
+  2. Canonicalise the remaining JSON using
+     [RFC 8785 JCS](https://www.rfc-editor.org/rfc/rfc8785)
+  3. Compute SHA-256 over the canonical UTF-8 bytes
+  4. Send only this hash to the configured key provider for signing (e.g.
+     ECDSA-P256-SHA256)
+  5. Store the raw signature as `signature.value` (base64-encoded);
+     `signature.algorithm` and `signature.key_id` reflect the key actually used
+  - Third-party verifiers repeat steps 1–3 and verify against the advertised
+    public key
+- If no key configured, `signature` is `null` — attestations are still produced
+  (useful for development, insufficient for audit)
 
 ### Phase 2 — Transparency Log (Future)
 
-- Optional append-only log (self-hosted or Anvil-hosted)
-- Merkle tree structure — each attestation includes hash of previous
-- Tamper detection: gaps or mutations in the chain are provable
+- Optional append-only transparency log (self-hosted or Anvil-hosted)
+- Merkle tree structure — each attestation is a leaf; the log maintains a
+  rolling Merkle root and can produce compact inclusion/consistency proofs (cf.
+  Certificate Transparency RFC 6962)
+- Tamper detection: missing or mutated entries are provable via consistency
+  proofs without downloading the full log
 - Export for external auditors
 
 ### Phase 3 — Co-Attestation (Future)
@@ -170,14 +190,14 @@ individual gate proofs.
 
 ```bash
 # Verify a single gate attestation
-anvil evidence verify proof .anvil/proofs/gate-abc123.json
+anvil evidence verify proof .anvil/evidence/attestations/gate-abc123.json
 
 # Verify all attestations for a PR
 anvil evidence verify pr 42
 
 # Replay: re-run the same policy against the same inputs,
 # confirm the result matches the attestation
-anvil evidence replay .anvil/proofs/gate-abc123.json
+anvil evidence replay .anvil/evidence/attestations/gate-abc123.json
 
 # Audit export: bundle all proofs for a time range
 anvil evidence export --from 2026-01-01 --to 2026-03-31 --format json
@@ -206,8 +226,8 @@ anvil evidence export --from 2026-01-01 --to 2026-03-31 --format json
 
 ## Open Questions
 
-1. Should attestations be stored in-repo (`.anvil/proofs/`) or in an external
-   store? In-repo is simpler and git-native; external scales better.
+1. Should attestations be stored in-repo (`.anvil/evidence/attestations/`) or in
+   an external store? In-repo is simpler and git-native; external scales better.
 2. How to handle policy version transitions mid-PR? If policy changes between
    gate runs on the same PR, the aggregate needs to reflect which version
    applied when.
