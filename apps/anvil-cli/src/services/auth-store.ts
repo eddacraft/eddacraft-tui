@@ -22,7 +22,7 @@ export function setAuthDir(dir: string | null): void {
   _authDirOverride = dir;
 }
 
-function getAuthDir(): string {
+export function getAuthDir(): string {
   return _authDirOverride ?? join(homedir(), '.anvil');
 }
 
