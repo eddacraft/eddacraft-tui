@@ -153,17 +153,17 @@ This is the CTO dashboard view: a single verified ✅ per PR, drillable into ind
 
 ```bash
 # Verify a single gate attestation
-anvil verify proof .anvil/proofs/gate-abc123.json
+anvil evidence verify proof .anvil/proofs/gate-abc123.json
 
 # Verify all attestations for a PR
-anvil verify pr 42
+anvil evidence verify pr 42
 
 # Replay: re-run the same policy against the same inputs,
 # confirm the result matches the attestation
-anvil verify replay .anvil/proofs/gate-abc123.json
+anvil evidence replay .anvil/proofs/gate-abc123.json
 
 # Audit export: bundle all proofs for a time range
-anvil audit export --from 2026-01-01 --to 2026-03-31 --format json
+anvil evidence export --from 2026-01-01 --to 2026-03-31 --format json
 ```
 
 ## Intentional Scope Cuts
