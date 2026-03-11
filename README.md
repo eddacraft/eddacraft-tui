@@ -22,8 +22,7 @@ and tooling.
 | `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js + Ink TUI) | npm (`publish.yml`) |
 | `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site            | Vercel              |
 | `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)              | Vercel              |
-| `apps/anvil-api` | —                          | API service                              | —                   |
-| `apps/anvil-ui`  | —                          | Web UI                                   | —                   |
+| `apps/anvil-api` | —                          | API service                              | Vercel              |
 | `apps/e2e`       | —                          | End-to-end test suites (Playwright)      | —                   |
 
 ### Packages — Anvil Core
@@ -53,7 +52,7 @@ and tooling.
 | `packages/eslint-plugin-anvil`  | `eslint-plugin-anvil`                   | ESLint rules for test quality enforcement |
 | `packages/vscode-extension`     | `anvil-vscode`                          | VS Code integration                       |
 | `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts     |
-| `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Kindling · Ember · Edda memory stack      |
+| `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
 | `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts         |
 
 ### Packages — Tooling
@@ -63,6 +62,15 @@ and tooling.
 | `packages/tooling/tsconfig`      | Shared TypeScript configurations |
 | `packages/tooling/eslint-config` | Shared ESLint configurations     |
 
+### Crates (Rust)
+
+| Directory                 | Description                                            |
+| ------------------------- | ------------------------------------------------------ |
+| `crates/spike`            | Validation spikes for tree-sitter, notify-rs, petgraph |
+| `crates/anvil-checks`     | Gate checks ported to Rust (secret scan, anti-pattern) |
+| `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust) |
+| `crates/eddacraft-tui`    | Shared Ratatui component library                       |
+
 ### Tools
 
 | Directory          | Description               |
@@ -70,6 +78,14 @@ and tooling.
 | `tools/scripts`    | Build and utility scripts |
 | `tools/generators` | NX code generators        |
 | `tools/codemods`   | Codemod transformations   |
+
+### Plans
+
+| Directory           | Description                     |
+| ------------------- | ------------------------------- |
+| `plans/modules`     | APS module specs and work items |
+| `plans/decisions`   | Architecture decision records   |
+| `plans/execution`   | Step-level execution evidence   |
 
 ## Getting Started
 
@@ -111,8 +127,8 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> Last measured: 2026-02-26 · commit `8663d83` · 176 unit/integration test files
-> (184 total incl. E2E) · 4,182 tests passing
+> Last measured: 2026-02-26 · commit `8663d83` — percentages below may be stale;
+> run `pnpm nx run-many -t test --coverage` for current numbers.
 
 Coverage reflects unit and integration tests only (v8 provider). E2E tests (CLI
 E2E, TUI E2E) run separately and do not contribute to line coverage.
@@ -125,30 +141,26 @@ E2E, TUI E2E) run separately and do not contribute to line coverage.
 | `@eddacraft/anvil-adapters`             |     83.4% |     70.9% |                             12 | Unit                   |
 | `@eddacraft/anvil-edda-stack`           |     42.8% |     25.8% |                              5 | Unit                   |
 | `@eddacraft/anvil-kindling-integration` |     43.8% |     23.4% |                              1 | Unit                   |
-| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |                          4[^1] | Unit                   |
+| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |                             12 | Unit                   |
 | `anvil-vscode`                          |     62.5% |     43.9% |                              7 | Unit                   |
-| `eslint-plugin-anvil`                   |    --[^2] |    --[^2] |                              3 | Unit                   |
+| `eslint-plugin-anvil`                   |    --[^1] |    --[^1] |                              3 | Unit                   |
 | `contracts`                             |      100% |      100% |                              1 | Unit                   |
-| `ports`                                 |   N/A[^3] |   N/A[^3] |                              0 | --                     |
+| `ports`                                 |   N/A[^2] |   N/A[^2] |                              0 | --                     |
 | `core`                                  |     83.4% |     73.3% |                             35 | Unit                   |
 | `runtime`                               |     60.3% |     53.0% |               24 unit, 2 integ | Unit, Integration      |
 | `policy`                                |     76.4% |     67.2% |                              5 | Unit                   |
 | `platform-config`                       |      100% |      100% |                              2 | Unit                   |
 | `platform-storage`                      |     90.5% |     79.2% |                              1 | Unit                   |
-| `platform-crypto`                       |    0%[^4] |    0%[^4] |                              0 | --                     |
+| `platform-crypto`                       |    0%[^3] |    0%[^3] |                              0 | --                     |
 | **Monorepo total**                      | **64.0%** | **53.8%** |                        **176** |                        |
 
 [^1]:
-    `mcp-server` runs 4 of 12 test files — remaining tool tests have
-    pre-existing failures from mock paths that need updating.
-
-[^2]:
     `eslint-plugin` tests run via NX project-level config, not the root vitest
     config.
 
-[^3]: `ports` contains pure interface definitions — no executable code to cover.
+[^2]: `ports` contains pure interface definitions — no executable code to cover.
 
-[^4]: `platform-crypto` has no tests yet.
+[^3]: `platform-crypto` has no tests yet.
 
 ### Test type breakdown
 
@@ -168,7 +180,7 @@ pnpm nx test <project-name> --coverage
 # Full monorepo (via Nx — runs all project-level vitest configs)
 pnpm nx run-many -t test --coverage
 
-# Root vitest config only (excludes eslint-plugin-anvil — see ^2)
+# Root vitest config only (excludes eslint-plugin-anvil — see ^1)
 pnpm vitest run --coverage
 ```
 
@@ -182,8 +194,7 @@ JSON summary), which is the path used by the built-in coverage gate check.
 | `anvil-cli` | npm      | Git tag (`v*`) via `publish.yml` GitHub Action        |
 | `docs-site` | Vercel   | Push to `main` (automatic via Vercel Git integration) |
 | `website`   | Vercel   | Push to `main` (automatic via Vercel Git integration) |
-| `anvil-api` | —        | Not yet deployed                                      |
-| `anvil-ui`  | —        | Not yet deployed                                      |
+| `anvil-api` | Vercel   | Push to `main` (automatic via Vercel Git integration) |
 
 ## CI/CD
 
@@ -196,10 +207,16 @@ The repository has several GitHub Actions workflows:
   (`v*`) by default (beta tags are forced CLI-only). Workspace package
   publishing is manual/explicit only. Validates tag/package version alignment,
   runs the full test suite, and creates a GitHub release.
+- **security.yml** — SAST (Semgrep), dependency audit, secret scan, and licence
+  compliance on every PR.
 - **claude.yml** — Claude Code integration for AI-assisted issue triage and PR
   review.
-- **claude-code-review.yml** — Automated code review on pull requests via Claude
-  Code.
+- **claude-address-pr-reviews.yml** — Automated addressing of PR review comments
+  via Claude Code.
+- **temper.yml** — Auto-addresses CI review comments post-push (up to 2 cycles).
+- **labeler.yml** — Automatic PR labelling based on changed paths.
+- **infra.yml** — Infrastructure provisioning and validation.
+- **import-state.yml** — Terraform state import utility.
 
 A reusable **Anvil Check** GitHub Action is also provided at
 `.github/actions/anvil-check/` for running Anvil analysis in your own workflows.

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { randomBytes } from 'node:crypto';
 import { SuppressionRecordSchema } from '../antipattern/types.js';
 import type { ParsedSuppression } from './parser.js';
 import { createDebugger } from '../utils/debug.js';
@@ -74,7 +75,9 @@ export class SuppressionStore {
 
     const dir = path.dirname(this.filePath);
     await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(this.filePath, JSON.stringify(this.data, null, 2), 'utf-8');
+    const tmpPath = `${this.filePath}.${randomBytes(6).toString('hex')}.tmp`;
+    await fs.writeFile(tmpPath, JSON.stringify(this.data, null, 2), 'utf-8');
+    await fs.rename(tmpPath, this.filePath);
   }
 
   add(record: SuppressionRecord): void {

@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { join } from 'node:path';
 import { ProvenanceRecordSchema, ProvenanceIndexSchema } from './types.js';
 import type { ProvenanceRecord, ProvenanceIndex } from './types.js';
@@ -94,7 +95,9 @@ history/
   private saveIndex(index: ProvenanceIndex): void {
     this.ensureDirectories();
     index.last_updated = new Date().toISOString();
-    writeFileSync(this.indexPath, JSON.stringify(index, null, 2));
+    const tmpIndex = `${this.indexPath}.${randomBytes(6).toString('hex')}.tmp`;
+    writeFileSync(tmpIndex, JSON.stringify(index, null, 2));
+    renameSync(tmpIndex, this.indexPath);
   }
 
   /**
@@ -106,7 +109,9 @@ history/
     // Save the full record
     const safeId = sanitizeIdentifier(record.id);
     const recordPath = join(this.historyDir, `${safeId}.json`);
-    writeFileSync(recordPath, JSON.stringify(record, null, 2));
+    const tmpRecord = `${recordPath}.${randomBytes(6).toString('hex')}.tmp`;
+    writeFileSync(tmpRecord, JSON.stringify(record, null, 2));
+    renameSync(tmpRecord, recordPath);
 
     // Update the index
     const index = this.loadIndex();
