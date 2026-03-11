@@ -166,15 +166,18 @@ replay schema captures an `external_sources` array in the manifest:
 ]
 ```
 
-A gate is only considered `"deterministic": true` when it declares a non-empty
-`external_sources` array and **every** entry includes an immutable content
-reference (`content_digest`). Gates that consume external data but declare an
-empty `external_sources` array MUST be tagged as non-deterministic — an empty
-array does not satisfy the requirement. Timestamp and version alone are
-insufficient since upstream sources can change or reissue the same version
-identifier. If even one source lacks a digest, the gate MUST be tagged as
-non-deterministic. When all digests are present, replay consumers can fetch each
-snapshot artifact and verify its integrity before re-evaluation.
+Gates that operate on purely local inputs (source files, config, policy
+snapshots) are deterministic by default and do not need an `external_sources`
+array. For gates that consume external mutable data, the determinism rule
+applies: a gate is only considered `"deterministic": true` when **every** entry
+in its `external_sources` array includes an immutable content reference
+(`content_digest`). Gates that consume external data but declare an empty
+`external_sources` array MUST be tagged as non-deterministic — an empty array
+does not satisfy the requirement. Timestamp and version alone are insufficient
+since upstream sources can change or reissue the same version identifier. If
+even one source lacks a digest, the gate MUST be tagged as non-deterministic.
+When all digests are present, replay consumers can fetch each snapshot artifact
+and verify its integrity before re-evaluation.
 
 When any external source lacks an immutable reference, the gate MUST be tagged
 as `"deterministic": false` in its attestation, signalling to replay consumers
