@@ -2,8 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../contracts/identifiers.js';
 import type { CreateProposalInput, ProposalType } from '../contracts/ember-proposal.js';
-import { DecayService } from './decay-service.js';
+import { DecayService, DEFAULT_PRUNE_DAYS } from './decay-service.js';
 import { ProposalStore } from './proposal-store.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const BASE_TIME = new Date('2026-01-01T00:00:00.000Z');
 
 function createInput(type: ProposalType = 'pattern', ttlDays = 30): CreateProposalInput {
   return {
@@ -84,12 +87,30 @@ describe('DecayService', () => {
       resolution_reason: 'stale',
     });
 
-    vi.setSystemTime(new Date('2026-04-15T00:00:00.000Z'));
+    vi.setSystemTime(new Date(BASE_TIME.getTime() + (DEFAULT_PRUNE_DAYS + 1) * DAY_MS));
     const result = await decayService.run();
 
     expect(result.expired).toBe(1);
     expect(result.pruned).toBe(1);
     expect(await store.countProposals('expired')).toBe(1);
+  });
+
+  it('run honours custom pruneDays config', async () => {
+    const customDecay = new DecayService(store, { pruneDays: 10 });
+
+    const resolved = await store.createProposal(createInput('lesson', 30));
+    await store.resolveProposal(resolved.id, {
+      status: 'dismissed',
+      resolved_by: 'agent/reviewer',
+      resolution_reason: 'stale',
+    });
+
+    // At 11 days: custom pruneDays=10 should prune, but default (90) would not
+    vi.setSystemTime(new Date(BASE_TIME.getTime() + 11 * DAY_MS));
+    const result = await customDecay.run();
+
+    expect(result.pruned).toBe(1);
+    expect(await store.getProposal(resolved.id)).toBeNull();
   });
 
   it('getDecayStats returns current active, expiring soon, and expired counts', async () => {
