@@ -42,9 +42,7 @@ export function createEmberPromoteCommand(): Command {
         }
 
         if (existing.status !== 'active') {
-          throw new CliError(
-            `Proposal ${id} is not active (current status: ${existing.status})`
-          );
+          throw new CliError(`Proposal ${id} is not active (current status: ${existing.status})`);
         }
 
         const proposal = await store.resolveProposal(proposalId, {

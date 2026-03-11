@@ -84,11 +84,10 @@ async function main(): Promise<void> {
     if (AUTH_EXEMPT_COMMANDS.has(commandName)) return;
     if (isAuthenticated()) return;
 
-    console.error(
-      '\x1b[31m✗\x1b[0m Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
+    throw new CliError(
+      'Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
         '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).'
     );
-    throw new CliError('Authentication required');
   });
 
   // Auth commands
@@ -133,6 +132,7 @@ main().catch((error: unknown) => {
     process.exit(0);
   }
   if (error instanceof CliError) {
+    console.error(`\x1b[31m✗\x1b[0m ${error.message}`);
     process.exit(error.exitCode);
   }
   console.error('Unexpected error:', error instanceof Error ? error.message : String(error));
