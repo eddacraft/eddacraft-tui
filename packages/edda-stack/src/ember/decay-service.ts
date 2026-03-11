@@ -6,7 +6,7 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_CHECK_INTERVAL_MS = 60 * 60 * 1000;
 /** Default age threshold (in days) for pruning resolved proposals */
-export const DEFAULT_PRUNE_DAYS = 30;
+export const DEFAULT_PRUNE_DAYS = 90;
 
 export interface DecayServiceConfig {
   checkIntervalMs?: number;

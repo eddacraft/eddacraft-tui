@@ -84,7 +84,7 @@ describe('DecayService', () => {
       resolution_reason: 'stale',
     });
 
-    vi.setSystemTime(new Date('2026-02-15T00:00:00.000Z'));
+    vi.setSystemTime(new Date('2026-04-15T00:00:00.000Z'));
     const result = await decayService.run();
 
     expect(result.expired).toBe(1);
