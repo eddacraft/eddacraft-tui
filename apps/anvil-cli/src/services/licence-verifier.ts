@@ -1,5 +1,6 @@
 import { jwtVerify, importSPKI, decodeProtectedHeader, errors, type JWTPayload } from 'jose';
 import { debug } from '../utils/output.js';
+import { LICENCE_PUBLIC_KEYS } from './licence-keys.js';
 
 export interface LicenceClaims {
   sub: string;
@@ -69,4 +70,9 @@ export async function verifyLicence(jwt: string): Promise<LicenceResult> {
     debug(`verifyLicence: verification failed: ${err}`);
     return { valid: false, reason: 'invalid_signature' };
   }
+}
+
+// Load baked-in keys on import (tests can override via setPublicKeys)
+if (Object.keys(publicKeysPem).length === 0 && Object.keys(LICENCE_PUBLIC_KEYS).length > 0) {
+  setPublicKeys(LICENCE_PUBLIC_KEYS);
 }
