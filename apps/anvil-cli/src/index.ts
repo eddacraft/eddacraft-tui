@@ -29,10 +29,12 @@ import { createLoginCommand } from './commands/login.js';
 import { createLogoutCommand } from './commands/logout.js';
 import { createWhoamiCommand } from './commands/whoami.js';
 import { isFirstRun } from './services/first-run-detector.js';
-import { isAuthenticated } from './services/auth-store.js';
+import { isAuthenticated, loadAuth } from './services/auth-store.js';
+import { loadLicence } from './services/licence-store.js';
+import { verifyLicence } from './services/licence-verifier.js';
+import { scheduleRefresh } from './services/licence-refresh.js';
 import { showWelcome, createStartCommand } from './commands/welcome.js';
 import { CliError, CliExit } from './utils/cli-error.js';
-import { json, print } from './utils/output.js';
 import { loadAnvilEnv } from './utils/env.js';
 
 loadAnvilEnv();
@@ -73,9 +75,8 @@ async function main(): Promise<void> {
     .description('Anvil - Deterministic development automation platform')
     .version(CLI_VERSION);
 
-  // Auth gate: check authentication before every command (except exempt ones)
-  program.hook('preAction', (_thisCommand, actionCommand) => {
-    // Walk up the command chain to find the top-level command name
+  // Auth gate: check licence before every command (except exempt ones)
+  program.hook('preAction', async (_thisCommand, actionCommand) => {
     let cmd: Command = actionCommand;
     while (cmd.parent && cmd.parent.parent) {
       cmd = cmd.parent;
@@ -83,18 +84,35 @@ async function main(): Promise<void> {
     const commandName = cmd.name();
 
     if (AUTH_EXEMPT_COMMANDS.has(commandName)) return;
-    if (isAuthenticated()) return;
 
-    const message =
-      'Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
-      '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).';
-
-    if (actionCommand.opts().json) {
-      json({ error: 'Authentication required' });
-    } else {
-      print(`\x1b[31m✗\x1b[0m ${message}`);
+    const jwt = loadLicence();
+    if (!jwt) {
+      // Backwards compat: auth.json exists but no licence
+      const message = isAuthenticated()
+        ? 'Your session needs to be refreshed. Run anvil login to continue.'
+        : 'Authentication required. Run anvil login to authenticate.\n   New here? Try anvil tutorial first (no login required).';
+      throw new CliError(message);
     }
-    throw new CliError('Authentication required', 1, { reported: true });
+
+    const result = await verifyLicence(jwt);
+
+    if (!result.valid) {
+      const message =
+        result.reason === 'expired'
+          ? 'Your licence needs to be renewed. Run anvil login to continue.'
+          : 'Your licence could not be verified. Run anvil login or contact support@eddacraft.ai if this is unexpected.';
+      throw new CliError(message);
+    }
+
+    // Background refresh if needed (non-blocking)
+    if (result.needsRefresh) {
+      const auth = loadAuth();
+      if (auth) {
+        scheduleRefresh(auth.token).catch(() => {
+          // Swallow — refresh is best-effort
+        });
+      }
+    }
   });
 
   // Auth commands
