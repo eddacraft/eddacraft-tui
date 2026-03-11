@@ -122,7 +122,11 @@ After all gates pass in CI, Anvil produces a PR attestation referencing individu
   "all_passed": true,
   "merged_by": "josh",
   "merge_timestamp": "...",
-  "signature": { "..." }
+  "signature": {
+    "algorithm": "ECDSA-P256-SHA256",
+    "key_id": "arn:aws:kms:...",     // customer's key
+    "value": "base64:..."
+  }
 }
 ```
 
