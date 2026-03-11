@@ -33,7 +33,7 @@ export function createEmberPromoteCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       const proposalId = createProposalId(id);
@@ -50,7 +50,7 @@ export function createEmberPromoteCommand(): Command {
           } else {
             print(chalk.red(message));
           }
-          throw new CliError(message);
+          throw new CliError(message, 1, { reported: true });
         }
 
         if (existing.status !== 'active') {
@@ -60,7 +60,7 @@ export function createEmberPromoteCommand(): Command {
           } else {
             print(chalk.red(message));
           }
-          throw new CliError(message);
+          throw new CliError(message, 1, { reported: true });
         }
 
         const proposal = await store.resolveProposal(proposalId, {
@@ -76,7 +76,7 @@ export function createEmberPromoteCommand(): Command {
           } else {
             print(chalk.red(message));
           }
-          throw new CliError(message);
+          throw new CliError(message, 1, { reported: true });
         }
 
         if (options.json) {

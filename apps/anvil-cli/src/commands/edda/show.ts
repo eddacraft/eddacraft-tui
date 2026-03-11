@@ -30,7 +30,7 @@ export function createEddaShowCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       const store = new MemoryStore({
@@ -49,7 +49,7 @@ export function createEddaShowCommand(): Command {
           } else {
             print(chalk.red(message));
           }
-          throw new CliError(message, 1);
+          throw new CliError(message, 1, { reported: true });
         }
 
         if (options.json) {

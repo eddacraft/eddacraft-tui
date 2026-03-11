@@ -32,6 +32,7 @@ import { isFirstRun } from './services/first-run-detector.js';
 import { isAuthenticated } from './services/auth-store.js';
 import { showWelcome, createStartCommand } from './commands/welcome.js';
 import { CliError, CliExit } from './utils/cli-error.js';
+import { json, print } from './utils/output.js';
 import { loadAnvilEnv } from './utils/env.js';
 
 loadAnvilEnv();
@@ -84,11 +85,16 @@ async function main(): Promise<void> {
     if (AUTH_EXEMPT_COMMANDS.has(commandName)) return;
     if (isAuthenticated()) return;
 
-    console.error(
-      '\x1b[31m✗\x1b[0m Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
-        '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).'
-    );
-    throw new CliError('Authentication required');
+    const message =
+      'Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
+      '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).';
+
+    if (actionCommand.opts().json) {
+      json({ error: 'Authentication required' });
+    } else {
+      print(`\x1b[31m✗\x1b[0m ${message}`);
+    }
+    throw new CliError('Authentication required', 1, { reported: true });
   });
 
   // Auth commands
@@ -133,6 +139,9 @@ main().catch((error: unknown) => {
     process.exit(0);
   }
   if (error instanceof CliError) {
+    if (!error.reported) {
+      console.error(`\x1b[31m✗\x1b[0m ${error.message}`);
+    }
     process.exit(error.exitCode);
   }
   console.error('Unexpected error:', error instanceof Error ? error.message : String(error));

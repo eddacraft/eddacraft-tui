@@ -10,12 +10,17 @@
  * calls process.exit() once, at the boundary.
  */
 export class CliError extends Error {
+  /** When true, the command already printed user-facing output before throwing. */
+  public readonly reported: boolean;
+
   constructor(
     message: string,
-    public readonly exitCode: number = 1
+    public readonly exitCode: number = 1,
+    options?: { reported?: boolean }
   ) {
     super(message);
     this.name = 'CliError';
+    this.reported = options?.reported ?? false;
   }
 }
 

@@ -34,7 +34,7 @@ export function createEddaRetireCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
       if (actor.length > 100) {
         const message = '--by must be 100 characters or fewer';
@@ -43,7 +43,7 @@ export function createEddaRetireCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
@@ -55,7 +55,7 @@ export function createEddaRetireCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       const store = new MemoryStore({
@@ -79,7 +79,7 @@ export function createEddaRetireCommand(): Command {
           } else {
             spinner?.fail(chalk.red(message));
           }
-          throw new CliError(message);
+          throw new CliError(message, 1, { reported: true });
         }
 
         if (options.json) {

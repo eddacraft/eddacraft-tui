@@ -31,7 +31,7 @@ export function createEmberShowCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       let store: ProposalStore | null = null;
@@ -46,7 +46,7 @@ export function createEmberShowCommand(): Command {
           } else {
             print(chalk.red(message));
           }
-          throw new CliError(message, 1);
+          throw new CliError(message, 1, { reported: true });
         }
 
         if (options.json) {

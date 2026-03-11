@@ -60,7 +60,7 @@ export function createEddaPromoteCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
       if (actor.length > 100) {
         const message = '--by must be 100 characters or fewer';
@@ -69,7 +69,7 @@ export function createEddaPromoteCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
@@ -81,7 +81,7 @@ export function createEddaPromoteCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       const parsedConfidence = parseConfidence(options.confidence);

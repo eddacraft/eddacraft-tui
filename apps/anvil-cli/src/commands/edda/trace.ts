@@ -36,7 +36,7 @@ export function createEddaTraceCommand(): Command {
         } else {
           print(chalk.red(message));
         }
-        throw new CliError(message);
+        throw new CliError(message, 1, { reported: true });
       }
 
       const store = new MemoryStore({
