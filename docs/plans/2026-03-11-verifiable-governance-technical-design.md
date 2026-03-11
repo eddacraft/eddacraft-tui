@@ -132,10 +132,22 @@ is stored alongside attestations and is itself integrity-checked via its hash.
 raw secret values (API tokens, cloud keys, database credentials). Before
 persisting, the manifest builder scrubs environment variables and config entries
 against a deny-list of known secret patterns (e.g. `*_SECRET`, `*_TOKEN`,
-`*_KEY`, `*_PASSWORD`). Redacted values are replaced with their SHA-256 hash
-prefixed by `redacted:sha256:...`, preserving integrity verification without
-exposing credentials. Projects may additionally configure an explicit allow-list
-of non-sensitive keys via `anvil.config.replay.allowedEnvKeys`.
+`*_KEY`, `*_PASSWORD`) and any additional secret-detection heuristics. Redacted
+values are replaced with an HMAC-SHA-256 computed using a project-scoped
+redaction key managed by Anvil, formatted as `redacted:hmac-sha256:<digest>`.
+This produces a stable, opaque identifier that does not permit offline guessing
+of the original value (unlike plain SHA-256, which is vulnerable to dictionary
+attacks on low-entropy secrets). Verifiers who do not possess the redaction key
+treat these markers as non-reversible correlation tokens; the control plane can
+independently recompute and verify them when needed.
+
+Projects may additionally configure an explicit allow-list of non-sensitive keys
+via `anvil.config.replay.allowedEnvKeys`. The deny-list (and secret detection)
+ALWAYS takes precedence: if a key appears in the allow-list yet matches a secret
+pattern or is otherwise classified as sensitive, its value MUST still be
+redacted and MUST NOT be persisted in cleartext. Implementations SHOULD surface
+such conflicts as warnings so that misconfigured allow-lists cannot silently
+weaken manifest security.
 
 **External dependency snapshots**: Gates that depend on mutable external data
 sources (e.g. advisory databases used by `dependency.check`, registry metadata)
@@ -148,12 +160,19 @@ replay schema captures an `external_sources` array in the manifest:
     "type": "advisory-db",
     "source": "npm-audit",
     "snapshot_timestamp": "2026-03-11T14:30:00Z",
-    "version": "2026.03.11"  // when available
+    "version": "2026.03.11",           // when available
+    "content_digest": "sha256:abc123"  // hash of downloaded snapshot data
   }
 ]
 ```
 
-When no snapshot metadata is available, the gate is tagged as
+A gate is only considered `"deterministic": true` when its external sources
+include an immutable content reference (`content_digest`). Timestamp and version
+alone are insufficient since upstream sources can change or reissue the same
+version identifier. When a content digest is present, replay consumers can fetch
+the snapshot artifact and verify its integrity before re-evaluation.
+
+When no immutable reference is available, the gate MUST be tagged as
 `"deterministic": false` in its attestation, signalling to replay consumers that
 results may legitimately differ over time. This prevents false-negative
 integrity violations during audit replay.
