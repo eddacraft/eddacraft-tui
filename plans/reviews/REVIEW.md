@@ -20,15 +20,15 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 | Package          | CRIT  | HIGH   | MED    | LOW    | Status           |
 | ---------------- | ----- | ------ | ------ | ------ | ---------------- |
 | mcp-server       | ~~3~~ | ~~3~~  | 3      | 3      | CRIT/HIGH fixed, P1-2 fixed |
-| anvil/runtime    | 0     | ~~6~~  | 7      | 6      | HIGH fixed       |
-| anvil/policy     | 0     | ~~2~~  | 8      | 5      | HIGH fixed       |
-| adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed, H3 mostly fixed |
+| anvil/runtime    | 0     | ~~6~~ (H6✓) | 7 | 6     | HIGH fixed (incl H6) |
+| anvil/policy     | 0     | ~~2~~  | ~~8~~  | 5      | HIGH/MED fixed   |
+| adapters         | 0     | 1 (2✓) | 4      | 3      | 2 HIGH fixed, H3 accepted risk |
 | aps              | 0     | ~~2~~  | 5 (2✓) | 4      | HIGH fixed, M1-2 fixed |
 | vscode-extension | 0     | ~~3~~  | 4      | 3      | HIGH fixed       |
 | platform/storage | 0     | ~~1~~  | 0      | 0      | HIGH fixed       |
-| **anvil-cli**    | **0** | ~~3~~  | ~~4~~  | 2 (3✓) | **HIGH/MED/L1-2-5 fixed** |
-| website          | 0     | 0      | 1      | 1      | Open             |
-| contracts        | 0     | 0      | 2      | 0      | Open             |
+| **anvil-cli**    | **0** | ~~3~~  | ~~4~~  | ~~4~~ (L3-4✓) | **HIGH/MED/LOW fixed** |
+| website          | 0     | 0      | ~~1~~  | 1      | M1 fixed         |
+| contracts        | 0     | 0      | 1 (M1 accepted) ~~1~~ | 0 | M2 fixed, M1 accepted risk |
 | eslint-plugin    | 0     | 0      | 0      | 0      | Clean            |
 | anvil/ports      | 0     | 0      | 0      | 0      | Clean            |
 
@@ -103,13 +103,12 @@ args). Several lower-severity quality and UX issues remain across the CLI.
 
 **Fixed:** Env var names restricted to explicit allowlist.
 
-### H6. Command parser regex-based detection is incomplete
+### ~~H6. Command parser regex-based detection is incomplete~~ ✅
 
 **File:** `src/gate/parsers/command-parser.ts:160-176`
 
-Simple regex patterns for detecting subprocess calls miss obfuscation,
-multi-line constructs, and variable interpolation. Gives false sense of
-security. Tracked as SECB-005.
+**Fixed (2026-03-11):** Comprehensive regex patterns added covering obfuscation,
+multi-line constructs, and variable interpolation. Tracked as SECB-005.
 
 ---
 
@@ -133,10 +132,13 @@ SECB-001 verification, 2026-03-01.)
 
 **Fixed:** Tar entry paths validated during extraction.
 
-### M1-M8
+### ~~M1-M8~~ ✅
 
 URL validation, credential handling, silent failures, policy path validation,
 test file paths, credential leakage, version verification, error suppression.
+
+**Fixed (2026-03-11):** All medium-severity items verified as present/addressed
+in the codebase.
 
 ---
 
@@ -160,7 +162,7 @@ Recursive markdown parsing has no depth limit.
 and generic (SECB-002, now complete). `MAX_FILE_SIZE_BYTES` (2MB) added to
 `file-discovery.ts`.
 
-### H3. Regex DoS vulnerabilities (mostly fixed)
+### H3. Regex DoS vulnerabilities — accepted risk
 
 **File:** `bmad/utils.ts:241`, `speckit/parser.ts:100, 279`
 
@@ -170,6 +172,9 @@ backtracking.
 **Note:** BMAD utils now uses bounded quantifiers `{1,200}` on all broad
 patterns (fixed). SpecKit has 2MB input cap limiting blast radius; one residual
 lazy `[\s\S]*?` in code-block regex at ~line 300. Tracked as SECB-008.
+
+**Accepted risk (2026-03-11):** 2MB input cap on all adapter parsers mitigates
+the blast radius. Residual regex is low-risk given the size constraint.
 
 ---
 
@@ -299,19 +304,18 @@ Misleading UX — should implement or remove from help.
 **Resolved** — verified in codebase. Unimplemented flags removed from help
 output.
 
-### L3. `export --to yaml` blocked but function exists
+### ~~L3. `export --to yaml` blocked but function exists~~ ✅
 
 **File:** `src/commands/export.ts`
 
-`formatAsYaml` exists but `--to yaml` is explicitly blocked. Confusing for users
-and looks unfinished.
+**Fixed (2026-03-11):** YAML export works — no longer blocked.
 
-### L4. `execSync` with string commands in doctor checks
+### ~~L4. `execSync` with string commands in doctor checks~~ ✅
 
 **File:** `src/tui/commands/doctor/checks/SystemCheck.ts`
 
-`execSync` used for `git rev-parse`, `git init`. Not currently user-influenced,
-but `execFileSync` would remove shell exposure and align with codebase patterns.
+**Fixed (2026-03-11):** Now uses safe `gitExecSync` wrapper with array
+arguments, matching codebase patterns.
 
 ### ~~L5. Inconsistent output handling~~ ✅
 
@@ -349,28 +353,33 @@ tests).
 
 ## Website (apps/website)
 
-### M1. Weak email regex in waitlist endpoint
+### ~~M1. Weak email regex in waitlist endpoint~~ ✅
 
 **File:** `app/api/waitlist/route.ts:33`
 
-Regex `/^[^\s@]+@[^\s@]+\.[^\s@]+$/` allows invalid emails like `a@b.c`.
-Tracked as SECB-006.
+**Fixed (2026-03-11):** Now uses RFC 5321 compliant email validation.
 
 ---
 
 ## Contracts (packages/anvil/contracts)
 
-### M1. Loose `z.unknown()` in metadata schemas
+### M1. Loose `z.unknown()` in metadata schemas — accepted risk
 
 **File:** `src/schemas/aps.schema.ts:32, 57, 67, 153`
 
 `z.record(z.string(), z.unknown())` disables type checking for metadata fields.
 Tracked as SECB-007.
 
-### M2. Potential prototype pollution via untrusted metadata keys
+**Accepted risk (2026-03-11):** `safeRecord` helper with key validation applied.
+Keys are validated against an allowlist pattern; values remain `z.unknown()` by
+design for extensibility.
+
+### ~~M2. Potential prototype pollution via untrusted metadata keys~~ ✅
 
 Same file. Keys like `__proto__` or `constructor` accepted in metadata records.
-`.strict()` added at root level (partial mitigation). Tracked as SECB-007.
+
+**Fixed (2026-03-11):** `safeRecord` helper rejects `FORBIDDEN_KEYS`
+(`__proto__`, `constructor`, `prototype`) in metadata record keys.
 
 ---
 
