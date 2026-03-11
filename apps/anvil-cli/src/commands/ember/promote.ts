@@ -27,7 +27,13 @@ export function createEmberPromoteCommand(): Command {
       const dbPath = join(workspaceRoot, '.anvil', 'ember.db');
 
       if (!existsSync(dbPath)) {
-        throw new CliError(`No Ember database found at ${dbPath}`);
+        const message = `No Ember database found at ${dbPath}`;
+        if (options.json) {
+          json({ error: message, database_found: false });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
 
       const proposalId = createProposalId(id);
@@ -38,11 +44,23 @@ export function createEmberPromoteCommand(): Command {
         const existing = await store.getProposal(proposalId);
 
         if (!existing) {
-          throw new CliError(`Proposal not found: ${id}`);
+          const message = `Proposal not found: ${id}`;
+          if (options.json) {
+            json({ error: message });
+          } else {
+            print(chalk.red(message));
+          }
+          throw new CliError(message);
         }
 
         if (existing.status !== 'active') {
-          throw new CliError(`Proposal ${id} is not active (current status: ${existing.status})`);
+          const message = `Proposal ${id} is not active (current status: ${existing.status})`;
+          if (options.json) {
+            json({ error: message });
+          } else {
+            print(chalk.red(message));
+          }
+          throw new CliError(message);
         }
 
         const proposal = await store.resolveProposal(proposalId, {
@@ -52,7 +70,13 @@ export function createEmberPromoteCommand(): Command {
         });
 
         if (!proposal) {
-          throw new CliError(`Failed to promote proposal: ${id}`);
+          const message = `Failed to promote proposal: ${id}`;
+          if (options.json) {
+            json({ error: message });
+          } else {
+            print(chalk.red(message));
+          }
+          throw new CliError(message);
         }
 
         if (options.json) {

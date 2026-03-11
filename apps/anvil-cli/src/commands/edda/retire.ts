@@ -28,16 +28,34 @@ export function createEddaRetireCommand(): Command {
       const workspaceRoot = getWorkspaceRoot();
       const actor = options.by.trim();
       if (actor.length === 0) {
-        throw new CliError('--by must not be empty');
+        const message = '--by must not be empty';
+        if (options.json) {
+          json({ error: message });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
       if (actor.length > 100) {
-        throw new CliError('--by must be 100 characters or fewer');
+        const message = '--by must be 100 characters or fewer';
+        if (options.json) {
+          json({ error: message });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
 
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
 
       if (!existsSync(storagePath)) {
-        throw new CliError(`No Edda storage found at ${storagePath}`);
+        const message = `No Edda storage found at ${storagePath}`;
+        if (options.json) {
+          json({ error: message, storage_found: false });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
 
       const store = new MemoryStore({
@@ -55,8 +73,13 @@ export function createEddaRetireCommand(): Command {
         });
 
         if (!retiredMemory) {
-          spinner?.fail(chalk.red(`Memory not found: ${id}`));
-          throw new CliError(`Memory not found: ${id}`);
+          const message = `Memory not found: ${id}`;
+          if (options.json) {
+            json({ error: message });
+          } else {
+            spinner?.fail(chalk.red(message));
+          }
+          throw new CliError(message);
         }
 
         if (options.json) {

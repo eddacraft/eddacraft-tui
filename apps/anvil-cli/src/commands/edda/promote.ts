@@ -54,16 +54,34 @@ export function createEddaPromoteCommand(): Command {
       const workspaceRoot = getWorkspaceRoot();
       const actor = options.by.trim();
       if (actor.length === 0) {
-        throw new CliError('--by must not be empty');
+        const message = '--by must not be empty';
+        if (options.json) {
+          json({ error: message });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
       if (actor.length > 100) {
-        throw new CliError('--by must be 100 characters or fewer');
+        const message = '--by must be 100 characters or fewer';
+        if (options.json) {
+          json({ error: message });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
 
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
 
       if (!existsSync(storagePath)) {
-        throw new CliError(`No Edda storage found at ${storagePath}`);
+        const message = `No Edda storage found at ${storagePath}`;
+        if (options.json) {
+          json({ error: message, storage_found: false });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
 
       const parsedConfidence = parseConfidence(options.confidence);

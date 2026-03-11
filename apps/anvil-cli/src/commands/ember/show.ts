@@ -25,7 +25,13 @@ export function createEmberShowCommand(): Command {
       const proposalId = createProposalId(id);
 
       if (!existsSync(dbPath)) {
-        throw new CliError(`No Ember database found at ${dbPath}`);
+        const message = `No Ember database found at ${dbPath}`;
+        if (options.json) {
+          json({ error: message, database_found: false });
+        } else {
+          print(chalk.red(message));
+        }
+        throw new CliError(message);
       }
 
       let store: ProposalStore | null = null;
@@ -34,7 +40,13 @@ export function createEmberShowCommand(): Command {
         const proposal = await store.getProposal(proposalId);
 
         if (!proposal) {
-          throw new CliError(`Proposal not found: ${id}`, 1);
+          const message = `Proposal not found: ${id}`;
+          if (options.json) {
+            json({ error: message });
+          } else {
+            print(chalk.red(message));
+          }
+          throw new CliError(message, 1);
         }
 
         if (options.json) {
