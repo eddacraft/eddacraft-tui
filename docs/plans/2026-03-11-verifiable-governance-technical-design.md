@@ -128,6 +128,36 @@ config/env values). This ensures verifiers can reconstruct the exact inputs
 needed to replay a gate run, even after local state has diverged. The manifest
 is stored alongside attestations and is itself integrity-checked via its hash.
 
+**Manifest security — config/env redaction**: Replay manifests MUST NOT store
+raw secret values (API tokens, cloud keys, database credentials). Before
+persisting, the manifest builder scrubs environment variables and config entries
+against a deny-list of known secret patterns (e.g. `*_SECRET`, `*_TOKEN`,
+`*_KEY`, `*_PASSWORD`). Redacted values are replaced with their SHA-256 hash
+prefixed by `redacted:sha256:...`, preserving integrity verification without
+exposing credentials. Projects may additionally configure an explicit allow-list
+of non-sensitive keys via `anvil.config.replay.allowedEnvKeys`.
+
+**External dependency snapshots**: Gates that depend on mutable external data
+sources (e.g. advisory databases used by `dependency.check`, registry metadata)
+are inherently non-deterministic across time. To support meaningful replay, the
+replay schema captures an `external_sources` array in the manifest:
+
+```jsonc
+"external_sources": [
+  {
+    "type": "advisory-db",
+    "source": "npm-audit",
+    "snapshot_timestamp": "2026-03-11T14:30:00Z",
+    "version": "2026.03.11"  // when available
+  }
+]
+```
+
+When no snapshot metadata is available, the gate is tagged as
+`"deterministic": false` in its attestation, signalling to replay consumers that
+results may legitimately differ over time. This prevents false-negative
+integrity violations during audit replay.
+
 ## PR-Level Aggregate
 
 After all gates pass in CI, Anvil produces a **pre-merge** PR attestation
