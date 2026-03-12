@@ -7,8 +7,9 @@
 # Output:
 #   Prints PEM-encoded private and public keys to stdout.
 #   Copy them into your environment variables:
-#     LICENSE_SIGNING_KEY — private key (API only, never commit)
-#     LICENSE_PUBLIC_KEY  — public key (API + baked into CLI)
+#     LICENSE_SIGNING_KEY    — private key (API only, never commit)
+#     LICENSE_PUBLIC_KEY     — public key (CLI verification + API env var)
+#     LICENSE_PUBLIC_KEY_KID — key ID matching the API's signing kid
 
 set -euo pipefail
 
@@ -23,8 +24,13 @@ echo "=== LICENSE_SIGNING_KEY (private — API env var only) ==="
 echo ""
 cat "$TMPDIR/private.pem"
 echo ""
-echo "=== LICENSE_PUBLIC_KEY (public — baked into CLI + API env var) ==="
+echo "=== LICENSE_PUBLIC_KEY (public — CLI verification + API env var) ==="
 echo ""
 cat "$TMPDIR/public.pem"
+echo ""
+echo "=== LICENSE_PUBLIC_KEY_KID ==="
+echo ""
+echo "Set this to the key ID used in the API's JWT header (e.g. '2026-03')."
+echo "The CLI loader reads LICENSE_PUBLIC_KEY_KID + LICENSE_PUBLIC_KEY at runtime."
 echo ""
 echo "Copy these into your environment. NEVER commit the private key."

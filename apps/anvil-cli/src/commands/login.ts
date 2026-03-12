@@ -61,6 +61,15 @@ export function createLoginCommand(): Command {
           throw new CliError('Invalid or expired token');
         }
 
+        if (!result.license) {
+          error(
+            'Login succeeded but no licence was issued. ' +
+              'This may indicate a version mismatch between the CLI and API. ' +
+              'Please update the CLI or contact support@eddacraft.ai.'
+          );
+          throw new CliError('No licence issued');
+        }
+
         saveAuth({
           token,
           user: result.user,
@@ -69,15 +78,11 @@ export function createLoginCommand(): Command {
           verifiedAt: new Date().toISOString(),
         });
 
-        if (result.license) {
-          saveLicence(result.license);
-        }
+        saveLicence(result.license);
 
         success(`Authenticated as ${chalk.bold(result.user.email)}`);
         info(`Scopes: ${result.scopes.join(', ')}`);
-        if (result.license) {
-          info('Licence saved locally for offline verification');
-        }
+        info('Licence saved locally for offline verification');
         info(`Expires: ${new Date(result.expiresAt).toLocaleString()}`);
       } catch (err) {
         if (err instanceof CliError) throw err;

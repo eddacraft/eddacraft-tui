@@ -24,7 +24,7 @@ export function createWhoamiCommand(): Command {
     print(`  Verified: ${new Date(auth.verifiedAt).toLocaleString()}`);
 
     // Licence info
-    const jwt = loadLicence();
+    const jwt = loadLicence(process.cwd());
     if (jwt) {
       const result = await verifyLicence(jwt);
       if (result.valid) {
@@ -42,7 +42,7 @@ export function createWhoamiCommand(): Command {
           `  Next check: ${rcDate.toLocaleDateString()}${daysUntilCheck > 0 ? ` (in ${daysUntilCheck} days)` : chalk.yellow(' (pending)')}`
         );
 
-        const licPath = resolveLicencePath();
+        const licPath = resolveLicencePath(process.cwd());
         if (licPath) print(`  Licence:    ${chalk.dim(licPath)}`);
       } else {
         blank();

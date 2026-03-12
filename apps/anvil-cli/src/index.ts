@@ -35,6 +35,7 @@ import { verifyLicence } from './services/licence-verifier.js';
 import { scheduleRefresh } from './services/licence-refresh.js';
 import { showWelcome, createStartCommand } from './commands/welcome.js';
 import { CliError, CliExit } from './utils/cli-error.js';
+import { json } from './utils/output.js';
 import { loadAnvilEnv } from './utils/env.js';
 
 loadAnvilEnv();
@@ -85,13 +86,16 @@ async function main(): Promise<void> {
 
     if (AUTH_EXEMPT_COMMANDS.has(commandName)) return;
 
-    const jwt = loadLicence();
+    const isJson = actionCommand.opts().json;
+
+    const jwt = loadLicence(process.cwd());
     if (!jwt) {
       // Backwards compat: auth.json exists but no licence
       const message = isAuthenticated()
         ? 'Your session needs to be refreshed. Run anvil login to continue.'
         : 'Authentication required. Run anvil login to authenticate.\n   New here? Try anvil tutorial first (no login required).';
-      throw new CliError(message);
+      if (isJson) json({ error: message });
+      throw new CliError(message, 1, { reported: isJson });
     }
 
     const result = await verifyLicence(jwt);
@@ -101,7 +105,8 @@ async function main(): Promise<void> {
         result.reason === 'expired'
           ? 'Your licence needs to be renewed. Run anvil login to continue.'
           : 'Your licence could not be verified. Run anvil login or contact support@eddacraft.ai if this is unexpected.';
-      throw new CliError(message);
+      if (isJson) json({ error: message, reason: result.reason });
+      throw new CliError(message, 1, { reported: isJson });
     }
 
     // Background refresh if needed (non-blocking)

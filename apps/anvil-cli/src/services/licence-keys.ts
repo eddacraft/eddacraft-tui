@@ -1,15 +1,14 @@
 /**
  * Public keys for licence JWT verification, keyed by kid.
  *
- * These are baked into the CLI at build time. Only the public key is included —
- * it can verify signatures but not create them.
+ * Only the public key is included — it can verify signatures but not create them.
  *
- * The primary key is loaded from environment variables:
- * - LICENCE_PUBLIC_KEY_KID: the key ID (kid) used by the API when signing
- * - LICENCE_PUBLIC_KEY: the PEM-encoded public key corresponding to that kid
+ * Keys are loaded lazily from environment variables (after loadAnvilEnv() runs):
+ * - LICENSE_PUBLIC_KEY_KID / LICENCE_PUBLIC_KEY_KID: the key ID (kid)
+ * - LICENSE_PUBLIC_KEY / LICENCE_PUBLIC_KEY: the PEM-encoded public key
  *
- * Build/deploy pipelines should set these so that LICENCE_PUBLIC_KEYS is
- * populated with at least one real key in production.
+ * Both US and UK spellings are accepted; US spelling takes precedence to
+ * match the API's LICENSE_SIGNING_KEY convention.
  *
  * To rotate keys:
  * 1. Generate a new keypair: bash scripts/generate-licence-keypair.sh
@@ -18,8 +17,8 @@
  * 4. Update the API to sign with the new private key
  * 5. After all old licences expire (90 days), stop providing the old key
  */
-const licencePublicKeyKid = process.env['LICENCE_PUBLIC_KEY_KID'];
-const licencePublicKey = process.env['LICENCE_PUBLIC_KEY'];
-
-export const LICENCE_PUBLIC_KEYS: Record<string, string> =
-  licencePublicKeyKid && licencePublicKey ? { [licencePublicKeyKid]: licencePublicKey } : {};
+export function getLicencePublicKeys(): Record<string, string> {
+  const kid = process.env['LICENSE_PUBLIC_KEY_KID'] ?? process.env['LICENCE_PUBLIC_KEY_KID'];
+  const key = process.env['LICENSE_PUBLIC_KEY'] ?? process.env['LICENCE_PUBLIC_KEY'];
+  return kid && key ? { [kid]: key } : {};
+}
