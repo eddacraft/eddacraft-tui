@@ -85,6 +85,7 @@ jobs:
           if [ "$CYCLE_COUNT" -ge "$MAX_CYCLES" ]; then
             echo "cap_reached=true" >> "$GITHUB_OUTPUT"
             COMMENT_BODY="## Temper: Cycle Cap Reached
+
 Temper has already completed **${MAX_CYCLES}** cycles on this PR.
 No further automatic changes will be made.
 
