@@ -502,6 +502,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     steps:
+      - uses: actions/checkout@v4
       - name: Pulumi Up
         uses: pulumi/actions@v5
         with:
