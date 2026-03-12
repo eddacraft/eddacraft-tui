@@ -188,7 +188,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20.x, 22.x]
+        node-version: [20.x]
 
     steps:
       - name: Checkout repository
@@ -235,39 +235,10 @@ jobs:
           name: coverage-report-${{ matrix.node-version }}
           path: coverage/
 
-  # ── Job 3b: Cross-platform smoke (only when source/deps change) ──
-  test-cross-platform:
-    name: Unit Tests (Node 20.x, ${{ matrix.os }})
-    runs-on: ${{ matrix.runner }}
-    needs: detect-changes
-    if: needs.detect-changes.outputs.source-changed == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            runner: macos-latest
-          - os: windows-latest
-            runner: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-
-      - name: Setup Node.js 20.x
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.x
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run unit tests
-        run: pnpm run test -- --run
+  # NOTE: Cross-platform (macOS/Windows) and Node 22+ tests moved to
+  # nightly workflow (ci-nightly.yml) to save CI minutes.
+  # macOS = 10x multiplier, Windows = 2x — running on every push was
+  # consuming ~40k included minutes/month.
 
   # ── Job 4: Build (matrix: Node 20 + 22, uses Azure remote cache) ──
   build:
@@ -277,7 +248,7 @@ jobs:
     if: needs.detect-changes.outputs.code-changed == 'true'
     strategy:
       matrix:
-        node-version: [20.x, 22.x]
+        node-version: [20.x]
 
     steps:
       - name: Checkout repository
