@@ -118,7 +118,7 @@ official Pulumi ESC documentation:
     https://www.pulumi.com/docs/esc/integrations/dynamic-login-credentials/azure-login/
   - GCP:
     https://www.pulumi.com/docs/esc/integrations/dynamic-login-credentials/gcp-login/
-  - Short-term credential (OIDC) providers:
+  - Short-term credential providers (OIDC):
     https://www.pulumi.com/docs/esc/integrations/dynamic-login-credentials/
   - Dynamic secret providers:
     https://www.pulumi.com/docs/esc/integrations/dynamic-secrets/

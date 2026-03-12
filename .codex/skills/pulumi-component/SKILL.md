@@ -921,9 +921,9 @@ jobs:
         with:
           organization: ${{ env.PULUMI_ORG }}
           requested-token-type: urn:pulumi:token-type:access_token:organization
-      - run:
-          pulumi package publish https://github.com/${{ github.repository }}
-          --publisher ${{ env.PULUMI_ORG }}
+      - run: |
+          pulumi package publish https://github.com/${{ github.repository }} \
+            --publisher ${{ env.PULUMI_ORG }}
 ```
 
 **Prerequisites**: Configure GitHub OIDC integration with Pulumi Cloud before
