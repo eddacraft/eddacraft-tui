@@ -246,7 +246,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: detect-changes
     if: |
-      needs.detect-changes.outputs.source-changed == 'true' &&
       github.event_name == 'pull_request' &&
       github.base_ref == 'main'
     strategy:
