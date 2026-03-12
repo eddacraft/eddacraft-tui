@@ -328,9 +328,9 @@ they need:
 
 ```typescript
 interface SecureBucketArgs {
-  enableVersioning?: pulumi.Input<boolean>; // Defaults to true
-  enableEncryption?: pulumi.Input<boolean>; // Defaults to true
-  blockPublicAccess?: pulumi.Input<boolean>; // Defaults to true
+  enableVersioning?: boolean; // Defaults to true
+  enableEncryption?: boolean; // Defaults to true
+  blockPublicAccess?: boolean; // Defaults to true
 }
 
 class SecureBucket extends pulumi.ComponentResource {
@@ -442,9 +442,9 @@ specific requirements.
 
 ```typescript
 interface SecureBucketArgs {
-  enableVersioning?: pulumi.Input<boolean>;
-  enableEncryption?: pulumi.Input<boolean>;
-  blockPublicAccess?: pulumi.Input<boolean>;
+  enableVersioning?: boolean;
+  enableEncryption?: boolean;
+  blockPublicAccess?: boolean;
   tags?: pulumi.Input<Record<string, pulumi.Input<string>>>;
 }
 
@@ -523,8 +523,10 @@ Use optional args to gate creation of sub-resources:
 interface WebServiceArgs {
   image: pulumi.Input<string>;
   port: pulumi.Input<number>;
-  enableMonitoring?: pulumi.Input<boolean>;
-  alarmEmail?: pulumi.Input<string>;
+  // Control-flow args use plain types — Input<boolean> is always truthy as an
+  // object, so branching on it would create resources unconditionally.
+  enableMonitoring?: boolean;
+  alarmEmail?: string;
 }
 
 class WebService extends pulumi.ComponentResource {

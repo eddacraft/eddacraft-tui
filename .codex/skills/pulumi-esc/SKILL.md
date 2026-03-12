@@ -126,8 +126,8 @@ official Pulumi ESC documentation:
 - **CLI reference** -> https://www.pulumi.com/docs/esc/cli/commands/
   - Prefer using the `pulumi env` subcommands over `esc` CLI.
 
-Use the WebFetch tool with specific prompts to extract relevant information
-from these docs.
+Use the WebFetch tool with specific prompts to extract relevant information from
+these docs.
 
 ### For Complex Tasks
 
@@ -137,12 +137,12 @@ When helping users:
    stack config, or debugging?
 2. **Check existing setup**: Use `pulumi env` commands to list environments or
    read definitions
-3. **Fetch relevant documentation**: Use WebFetch to get specific examples
-   or syntax from the official docs
+3. **Fetch relevant documentation**: Use WebFetch to get specific examples or
+   syntax from the official docs
 4. **Provide step-by-step guidance**: Walk through the process with specific
    commands
-5. **Validate**: Help them test with `pulumi env get` or `pulumi preview`.
-   Only use `pulumi env open` when the full resolved values are needed, but use
+5. **Validate**: Help them test with `pulumi env get` or `pulumi preview`. Only
+   use `pulumi env open` when the full resolved values are needed, but use
    cautiously as it reveals secrets.
 
 ### Example: Helping with AWS OIDC Setup
