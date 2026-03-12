@@ -5,7 +5,7 @@ name: Temper - Auto-Address PR Reviews
 # Manual mode: workflow_dispatch with PR number (works on any PR)
 #
 # DISABLED: Temporarily disabled — Claude OAuth token is tied to a suspended
-# account (mbrighthand). Re-enable once credentials are rotated.
+# former account. Re-enable once credentials are rotated.
 
 on:
   # pull_request_review:
@@ -32,10 +32,10 @@ jobs:
       id-token: write
       actions: read
 
-    # Auto mode: only run if forge:tempered label present AND temper enabled
-    # Manual mode: always run (workflow_dispatch bypasses this check)
+    # Both auto and manual modes require vars.CLAUDE_TEMPER_ENABLED == 'true'
+    # Auto mode: also requires forge:tempered label on the PR
     if: >-
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && vars.CLAUDE_TEMPER_ENABLED == 'true') ||
       (
         github.event_name == 'pull_request_review' &&
         (github.event.review.state == 'changes_requested' || github.event.review.state == 'commented') &&
