@@ -308,7 +308,7 @@ Functions cannot be serialised across language boundaries.
 
 ```typescript
 interface MyArgs {
-  nameTransform: (name: string) => string; // Cannot serialize
+  nameTransform: (name: string) => string; // Cannot serialise
 }
 ```
 

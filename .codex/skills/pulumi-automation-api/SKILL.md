@@ -67,7 +67,7 @@ Pulumi:
 
 - Web portals for environment provisioning
 - Slack bots that create/destroy resources
-- Custom CLIs tailored to your organization
+- Custom CLIs tailored to your organisation
 
 **Embedded infrastructure:**
 
@@ -274,7 +274,7 @@ await Promise.all(
 
 ### Separate Configuration from Code
 
-Externalize configuration into files or environment variables:
+Externalise configuration into files or environment variables:
 
 ```typescript
 import * as fs from 'fs';
@@ -327,7 +327,7 @@ await stack.up({
 
 - **pulumi-best-practices**: Code-level patterns for Pulumi programs
 - **pulumi-component**: Authoring reusable ComponentResource classes
-- **pulumi-esc**: Centralized secrets and configuration management
+- **pulumi-esc**: Centralised secrets and configuration management
 
 ## References
 

@@ -191,7 +191,7 @@ const site = new StaticSite('marketing', {
 
 **Component best practices**:
 
-- Use a consistent type URN pattern: `organization:module:ComponentName`
+- Use a consistent type URN pattern: `organisation:module:ComponentName`
 - Call `registerOutputs()` at the end of the constructor
 - Expose outputs as class properties for consumers
 - Accept `ComponentResourceOptions` to allow callers to set providers, aliases,
@@ -217,7 +217,7 @@ what makes the component actually group its children.
 - ComponentResource classes that don't pass `{ parent: this }` to child
   resources
 - Resources inside a component appearing at root level in the console
-- Unexpected behavior when adding aliases to components
+- Unexpected behaviour when adding aliases to components
 
 **Wrong**:
 
@@ -318,7 +318,7 @@ const connectionString = pulumi.interpolate`postgres://user:${dbPassword}@host/d
 const computed = pulumi.secret(someValue);
 ```
 
-**Use Pulumi ESC for centralized secrets**:
+**Use Pulumi ESC for centralised secrets**:
 
 ```yaml
 # Pulumi.yaml
@@ -328,7 +328,7 @@ environment:
 
 ```bash
 # ESC manages secrets centrally across stacks
-esc env set production-secrets db.password --secret "hunter2"
+pulumi env set production-secrets db.password --secret "hunter2"
 ```
 
 **What qualifies as a secret**:
@@ -554,5 +554,5 @@ When reviewing Pulumi code, verify:
   Use skill `pulumi-component`.
 - **pulumi-automation-api**: Programmatic orchestration of multiple stacks. Use
   skill `pulumi-automation-api`.
-- **pulumi-esc**: Centralized secrets and configuration management. Use skill
+- **pulumi-esc**: Centralised secrets and configuration management. Use skill
   `pulumi-esc`.
