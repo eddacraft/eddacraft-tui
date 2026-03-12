@@ -629,7 +629,43 @@ class Platform extends pulumi.ComponentResource {
       { parent: this }
     );
 
-    this.kubeconfig = cluster.kubeconfig;
+    // Construct kubeconfig from actual EKS cluster outputs
+    this.kubeconfig = pulumi
+      .all([cluster.endpoint, cluster.certificateAuthority, cluster.name])
+      .apply(([endpoint, ca, clusterName]) =>
+        JSON.stringify({
+          apiVersion: 'v1',
+          kind: 'Config',
+          clusters: [
+            {
+              cluster: {
+                server: endpoint,
+                'certificate-authority-data': ca.data,
+              },
+              name: clusterName,
+            },
+          ],
+          contexts: [
+            {
+              context: { cluster: clusterName, user: clusterName },
+              name: clusterName,
+            },
+          ],
+          'current-context': clusterName,
+          users: [
+            {
+              name: clusterName,
+              user: {
+                exec: {
+                  apiVersion: 'client.authentication.k8s.io/v1beta1',
+                  command: 'aws',
+                  args: ['eks', 'get-token', '--cluster-name', clusterName],
+                },
+              },
+            },
+          ],
+        })
+      );
     this.registerOutputs({ kubeconfig: this.kubeconfig });
   }
 }
