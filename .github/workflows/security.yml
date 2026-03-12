@@ -4,11 +4,11 @@ on:
   push:
     branches:
       - main
-      - develop
+      - dev
   pull_request:
     branches:
       - main
-      - develop
+      - dev
   schedule:
     # OSSF Scorecard: weekly on Monday at 06:00 UTC
     - cron: '0 6 * * 1'
