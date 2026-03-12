@@ -160,7 +160,7 @@ const distribution = new aws.cloudfront.Distribution('app-cdn', {
 ```typescript
 interface StaticSiteArgs {
   domain: string;
-  content: pulumi.asset.AssetArchive;
+  content: pulumi.asset.Archive;
 }
 
 class StaticSite extends pulumi.ComponentResource {
