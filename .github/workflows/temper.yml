@@ -3,11 +3,13 @@ name: Temper - Auto-Address PR Reviews
 # Max 2 cycles, then defers remaining findings to issues.
 # Auto mode: Fires on pull_request_review when forge:tempered label is present
 # Manual mode: workflow_dispatch with PR number (works on any PR)
+#
+# DISABLED: Temporarily disabled — Claude OAuth token is tied to a suspended
+# account (mbrighthand). Re-enable once credentials are rotated.
 
 on:
-  pull_request_review:
-    types: [submitted]
-
+  # pull_request_review:
+  #   types: [submitted]
   workflow_dispatch:
     inputs:
       pr_number:
@@ -82,18 +84,16 @@ jobs:
         run: |
           if [ "$CYCLE_COUNT" -ge "$MAX_CYCLES" ]; then
             echo "cap_reached=true" >> "$GITHUB_OUTPUT"
-            gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body "$(cat << EOF
-## Temper: Cycle Cap Reached
+            COMMENT_BODY="## Temper: Cycle Cap Reached
 
-Temper has already completed **${MAX_CYCLES}** cycles on this PR.
-No further automatic changes will be made.
+          Temper has already completed **${MAX_CYCLES}** cycles on this PR.
+          No further automatic changes will be made.
 
-**Remaining unresolved comments** should be addressed manually or deferred to issues.
+          **Remaining unresolved comments** should be addressed manually or deferred to issues.
 
-To run Temper again, increase \`CLAUDE_TEMPER_MAX_CYCLES\` in repo variables
-or address comments manually.
-EOF
-)"
+          To run Temper again, increase \`CLAUDE_TEMPER_MAX_CYCLES\` in repo variables
+          or address comments manually."
+            gh pr comment "$PR_NUMBER" --repo "$REPOSITORY" --body "$COMMENT_BODY"
           else
             echo "cap_reached=false" >> "$GITHUB_OUTPUT"
             CURRENT_CYCLE=$((CYCLE_COUNT + 1))

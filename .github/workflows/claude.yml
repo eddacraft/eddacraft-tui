@@ -1,14 +1,17 @@
 name: Claude Code
+# DISABLED: Temporarily disabled — Claude OAuth token is tied to a suspended
+# account (mbrighthand). Re-enable once credentials are rotated.
 
 on:
-  issue_comment:
-    types: [created]
-  pull_request_review_comment:
-    types: [created]
-  issues:
-    types: [opened, assigned]
-  pull_request_review:
-    types: [submitted]
+  # issue_comment:
+  #   types: [created]
+  # pull_request_review_comment:
+  #   types: [created]
+  # issues:
+  #   types: [opened, assigned]
+  # pull_request_review:
+  #   types: [submitted]
+  workflow_dispatch: {}
 
 jobs:
   claude:
