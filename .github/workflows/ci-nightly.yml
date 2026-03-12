@@ -1,6 +1,6 @@
 name: CI Nightly
 
-# Nightly matrix: cross-platform + multi-version Node tests
+# Nightly matrix: cross-platform + multi-version Node tests.
 # These were moved out of the main CI to save included minutes.
 # macOS runners cost 10x, Windows 2x — running on every push was
 # burning ~40k included minutes/month.
@@ -10,6 +10,10 @@ on:
     # Every night at 02:00 UTC (10:00 AM Perth)
     - cron: '0 2 * * *'
   workflow_dispatch: {}
+
+concurrency:
+  group: ci-nightly-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   actions: read

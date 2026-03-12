@@ -240,7 +240,7 @@ jobs:
   # macOS = 10x multiplier, Windows = 2x — running on every push was
   # consuming ~40k included minutes/month.
 
-  # ── Job 4: Build (matrix: Node 20 + 22, uses Azure remote cache) ──
+  # ── Job 4: Build (matrix: Node 20, uses Azure remote cache) ──
   build:
     name: Build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
