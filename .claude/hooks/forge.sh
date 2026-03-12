@@ -146,11 +146,15 @@ jq -n \
 #   3. Apply fixes and re-stage
 #   4. File deferred findings
 #   5. Then re-attempt the commit
-cat << BLOCK_EOF
-{
-  "decision": "block",
-  "reason": "Forge pre-commit review activated.\n\nReview the staged diff with the forge-reviewer agent before committing.\n\n**Instructions:**\n1. Spawn a forge-reviewer subagent (Task tool, subagent_type: forge-reviewer) with this context:\n   - Signal file: ${SIGNAL_FILE}\n   - Diff file: ${DIFF_FILE}\n   - Forge hash: ${FORGE_HASH}\n2. The forge-reviewer will produce structured findings.\n3. For each finding, decide: fix (edit + re-stage), dismiss (with reasoning), or defer (file as issue).\n4. Critical and major findings MUST be fixed — they are not dismissable.\n5. If CLAUDE_FORGE_AUTO_DEFER_NITS is true, nit findings are auto-deferred.\n6. After all findings are resolved, update the signal file status and re-run the commit.\n7. Append outcomes to the forge report at: ${FORGE_LOG}\n\nMax ${MAX_ROUNDS} negotiation rounds. After round ${MAX_ROUNDS}, all remaining findings are deferred."
-}
-BLOCK_EOF
+jq -n \
+  --arg signalFile "$SIGNAL_FILE" \
+  --arg diffFile "$DIFF_FILE" \
+  --arg forgeHash "$FORGE_HASH" \
+  --arg maxRounds "$MAX_ROUNDS" \
+  --arg forgeLog "$FORGE_LOG" \
+  '{
+    decision: "block",
+    reason: ("Forge pre-commit review activated.\n\nReview the staged diff with the forge-reviewer agent before committing.\n\n**Instructions:**\n1. Spawn a forge-reviewer subagent (Task tool, subagent_type: forge-reviewer) with this context:\n   - Signal file: " + $signalFile + "\n   - Diff file: " + $diffFile + "\n   - Forge hash: " + $forgeHash + "\n2. The forge-reviewer will produce structured findings.\n3. For each finding, decide: fix (edit + re-stage), dismiss (with reasoning), or defer (file as issue).\n4. Critical and major findings MUST be fixed — they are not dismissable.\n5. If CLAUDE_FORGE_AUTO_DEFER_NITS is true, nit findings are auto-deferred.\n6. After all findings are resolved, update the signal file status and re-run the commit.\n7. Append outcomes to the forge report at: " + $forgeLog + "\n\nMax " + $maxRounds + " negotiation rounds. After round " + $maxRounds + ", all remaining findings are deferred.")
+  }'
 
 exit 0

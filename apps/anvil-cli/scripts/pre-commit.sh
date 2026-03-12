@@ -23,7 +23,7 @@ if [ -n "$PLAN_FILES" ]; then
   type log_info >/dev/null 2>&1 && log_info "validating planning documents"
   FAILED=0
 
-  for file in $PLAN_FILES; do
+  echo "$PLAN_FILES" | while IFS= read -r file; do
     type log_trace >/dev/null 2>&1 && log_trace "validating: $file"
     if anvil validate "$file" --quiet 2>/dev/null; then
       echo "  [OK] $file"
