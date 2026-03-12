@@ -1,15 +1,15 @@
 # Product Licensing Implementation Plan
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development
-> (if subagents available) or superpowers:executing-plans to implement this plan.
-> Steps use checkbox (`- [ ]`) syntax for tracking.
+> (if subagents available) or superpowers:executing-plans to implement this
+> plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add offline-capable product licensing to Anvil — API issues signed JWT
 licence blobs during login, CLI validates them locally.
 
-**Architecture:** Two-file model — `auth.json` holds the raw token for API calls,
-`~/.anvil/license` holds a signed JWT for offline entitlement. The API signs
-with ES256 (private key), the CLI verifies with a baked-in public key. A
+**Architecture:** Two-file model — `auth.json` holds the raw token for API
+calls, `~/.anvil/license` holds a signed JWT for offline entitlement. The API
+signs with ES256 (private key), the CLI verifies with a baked-in public key. A
 background refresh fires after a configurable `rcAfter` window.
 
 **Tech Stack:** `jose` (JWT signing/verification, ESM native, zero deps), Zod
@@ -23,31 +23,31 @@ background refresh fires after a configurable `rcAfter` window.
 
 ### New Files
 
-| File | Responsibility |
-|------|---------------|
-| `apps/anvil-api/src/lib/licence.ts` | JWT signing — builds claims, signs with ES256 private key |
-| `apps/anvil-api/src/lib/__tests__/licence.test.ts` | Tests for licence signing |
-| `apps/anvil-cli/src/services/licence-store.ts` | Licence file CRUD — read, write, delete, resolve path |
-| `apps/anvil-cli/src/services/licence-verifier.ts` | JWT verification — signature check, expiry, rcAfter |
-| `apps/anvil-cli/src/services/licence-refresh.ts` | Background refresh — non-blocking API call, deduplication |
-| `apps/anvil-cli/src/services/__tests__/licence-store.test.ts` | Tests for licence store |
-| `apps/anvil-cli/src/services/__tests__/licence-verifier.test.ts` | Tests for licence verification |
-| `apps/anvil-cli/src/services/__tests__/licence-refresh.test.ts` | Tests for background refresh |
-| `scripts/generate-licence-keypair.sh` | One-time keypair generation script |
+| File                                                             | Responsibility                                            |
+| ---------------------------------------------------------------- | --------------------------------------------------------- |
+| `apps/anvil-api/src/lib/licence.ts`                              | JWT signing — builds claims, signs with ES256 private key |
+| `apps/anvil-api/src/lib/__tests__/licence.test.ts`               | Tests for licence signing                                 |
+| `apps/anvil-cli/src/services/licence-store.ts`                   | Licence file CRUD — read, write, delete, resolve path     |
+| `apps/anvil-cli/src/services/licence-verifier.ts`                | JWT verification — signature check, expiry, rcAfter       |
+| `apps/anvil-cli/src/services/licence-refresh.ts`                 | Background refresh — non-blocking API call, deduplication |
+| `apps/anvil-cli/src/services/__tests__/licence-store.test.ts`    | Tests for licence store                                   |
+| `apps/anvil-cli/src/services/__tests__/licence-verifier.test.ts` | Tests for licence verification                            |
+| `apps/anvil-cli/src/services/__tests__/licence-refresh.test.ts`  | Tests for background refresh                              |
+| `scripts/generate-licence-keypair.sh`                            | One-time keypair generation script                        |
 
 ### Modified Files
 
-| File | Change |
-|------|--------|
-| `apps/anvil-api/src/routes/auth.ts` | Extend `/verify` to return licence blob; add `/license/refresh` |
-| `apps/anvil-api/src/__tests__/auth.test.ts` | Update verify tests, add refresh tests |
-| `apps/anvil-cli/src/services/auth-client.ts` | Add `license: z.string()` to VerifyResponseSchema; add `refreshLicence()` |
-| `apps/anvil-cli/src/services/auth-store.ts` | Export `getAuthDir()` for licence-store reuse |
-| `apps/anvil-cli/src/commands/login.ts` | Save licence file after verify |
-| `apps/anvil-cli/src/commands/logout.ts` | Delete licence file alongside auth |
-| `apps/anvil-cli/src/commands/whoami.ts` | Show licence info (tier, org, expiry, next check) |
-| `apps/anvil-cli/src/index.ts:76-92` | Replace `isAuthenticated()` with licence verification |
-| `apps/anvil-cli/src/services/template-generator.ts:86` | Add `.anvil/license` to gitignore patterns |
+| File                                                   | Change                                                                    |
+| ------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `apps/anvil-api/src/routes/auth.ts`                    | Extend `/verify` to return licence blob; add `/license/refresh`           |
+| `apps/anvil-api/src/__tests__/auth.test.ts`            | Update verify tests, add refresh tests                                    |
+| `apps/anvil-cli/src/services/auth-client.ts`           | Add `license: z.string()` to VerifyResponseSchema; add `refreshLicence()` |
+| `apps/anvil-cli/src/services/auth-store.ts`            | Export `getAuthDir()` for licence-store reuse                             |
+| `apps/anvil-cli/src/commands/login.ts`                 | Save licence file after verify                                            |
+| `apps/anvil-cli/src/commands/logout.ts`                | Delete licence file alongside auth                                        |
+| `apps/anvil-cli/src/commands/whoami.ts`                | Show licence info (tier, org, expiry, next check)                         |
+| `apps/anvil-cli/src/index.ts:76-92`                    | Replace `isAuthenticated()` with licence verification                     |
+| `apps/anvil-cli/src/services/template-generator.ts:86` | Add `.anvil/license` to gitignore patterns                                |
 
 ---
 
@@ -56,6 +56,7 @@ background refresh fires after a configurable `rcAfter` window.
 ### Task 1: Install `jose` in anvil-api
 
 **Files:**
+
 - Modify: `apps/anvil-api/package.json`
 
 - [ ] **Step 1: Install jose**
@@ -84,6 +85,7 @@ git commit -m "chore(api): add jose for JWT licence signing"
 ### Task 2: Generate ES256 keypair + helper script
 
 **Files:**
+
 - Create: `scripts/generate-licence-keypair.sh`
 
 - [ ] **Step 1: Create the keypair generation script**
@@ -141,6 +143,7 @@ git commit -m "chore: add licence keypair generation script"
 ### Task 3: API licence signing module — tests first
 
 **Files:**
+
 - Create: `apps/anvil-api/src/lib/__tests__/licence.test.ts`
 - Create: `apps/anvil-api/src/lib/licence.ts`
 
@@ -174,7 +177,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (originalSigningKey === undefined) delete process.env['LICENSE_SIGNING_KEY'];
+  if (originalSigningKey === undefined)
+    delete process.env['LICENSE_SIGNING_KEY'];
   else process.env['LICENSE_SIGNING_KEY'] = originalSigningKey;
   if (originalPublicKey === undefined) delete process.env['LICENSE_PUBLIC_KEY'];
   else process.env['LICENSE_PUBLIC_KEY'] = originalPublicKey;
@@ -254,7 +258,9 @@ describe('signLicence', () => {
     const saved = process.env['LICENSE_SIGNING_KEY'];
     delete process.env['LICENSE_SIGNING_KEY'];
     try {
-      await expect(signLicence(makeClaims())).rejects.toThrow('LICENSE_SIGNING_KEY');
+      await expect(signLicence(makeClaims())).rejects.toThrow(
+        'LICENSE_SIGNING_KEY'
+      );
     } finally {
       process.env['LICENSE_SIGNING_KEY'] = saved;
     }
@@ -344,13 +350,14 @@ git commit -m "feat(api): add licence JWT signing module"
 ### Task 4: Extend /auth/verify to return licence blob
 
 **Files:**
+
 - Modify: `apps/anvil-api/src/routes/auth.ts:58-64`
 - Modify: `apps/anvil-api/src/__tests__/auth.test.ts`
 
 - [ ] **Step 1: Write the failing test**
 
-Add to the existing `apps/anvil-api/src/__tests__/auth.test.ts` — a new test
-in the existing `describe('POST /auth/verify')` block:
+Add to the existing `apps/anvil-api/src/__tests__/auth.test.ts` — a new test in
+the existing `describe('POST /auth/verify')` block:
 
 ```typescript
 it('returns a licence JWT on successful verification', async () => {
@@ -386,24 +393,24 @@ success response:
 import { signLicence } from '../lib/licence.js';
 
 // Replace the success response block (lines 58-64):
-  debug('token verified successfully');
-  const licence = await signLicence({
-    sub: record.user_id,
-    email: record.email,
-    identity: { provider: 'github', id: null },
-    org: null,
-    tier: 'pro',
-    scopes: record.scopes,
-    seats: 1,
-  });
+debug('token verified successfully');
+const licence = await signLicence({
+  sub: record.user_id,
+  email: record.email,
+  identity: { provider: 'github', id: null },
+  org: null,
+  tier: 'pro',
+  scopes: record.scopes,
+  seats: 1,
+});
 
-  return c.json({
-    valid: true,
-    user: { email: record.email },
-    scopes: record.scopes,
-    expiresAt: record.expires_at,
-    license: licence,
-  });
+return c.json({
+  valid: true,
+  user: { email: record.email },
+  scopes: record.scopes,
+  expiresAt: record.expires_at,
+  license: licence,
+});
 ```
 
 - [ ] **Step 4: Update auth.test.ts setup for licence signing**
@@ -423,7 +430,8 @@ beforeAll(async () => {
 });
 
 afterAll(() => {
-  if (originalSigningKey === undefined) delete process.env['LICENSE_SIGNING_KEY'];
+  if (originalSigningKey === undefined)
+    delete process.env['LICENSE_SIGNING_KEY'];
   else process.env['LICENSE_SIGNING_KEY'] = originalSigningKey;
 });
 ```
@@ -433,12 +441,14 @@ change its `toEqual` assertion to `expect.objectContaining` since the response
 now includes a `license` field:
 
 ```typescript
-expect(body).toEqual(expect.objectContaining({
-  valid: true,
-  user: { email: 'test@example.com' },
-  scopes: ['beta'],
-  expiresAt,
-}));
+expect(body).toEqual(
+  expect.objectContaining({
+    valid: true,
+    user: { email: 'test@example.com' },
+    scopes: ['beta'],
+    expiresAt,
+  })
+);
 ```
 
 - [ ] **Step 5: Run tests to verify they pass**
@@ -461,6 +471,7 @@ git commit -m "feat(api): include licence JWT in verify response"
 ### Task 5: Add /auth/license/refresh endpoint
 
 **Files:**
+
 - Modify: `apps/anvil-api/src/routes/auth.ts`
 - Modify: `apps/anvil-api/src/__tests__/auth.test.ts`
 
@@ -537,7 +548,10 @@ auth.post('/license/refresh', zValidator('json', verifySchema), async (c) => {
   const record = await findTokenByHash(sql, hash);
 
   if (!record || record.revoked_at || record.user_status !== 'active') {
-    return c.json({ valid: false, reason: record?.revoked_at ? 'revoked' : 'invalid' });
+    return c.json({
+      valid: false,
+      reason: record?.revoked_at ? 'revoked' : 'invalid',
+    });
   }
 
   if (new Date(record.expires_at).getTime() < Date.now()) {
@@ -580,6 +594,7 @@ git commit -m "feat(api): add licence refresh endpoint"
 ### Task 6: Install `jose` in anvil-cli
 
 **Files:**
+
 - Modify: `apps/anvil-cli/package.json`
 
 - [ ] **Step 1: Install jose**
@@ -600,6 +615,7 @@ git commit -m "chore(cli): add jose for JWT licence verification"
 ### Task 7: Export getAuthDir from auth-store
 
 **Files:**
+
 - Modify: `apps/anvil-cli/src/services/auth-store.ts:25-27`
 
 - [ ] **Step 1: Export the function**
@@ -636,6 +652,7 @@ git commit -m "refactor(cli): export getAuthDir for licence store reuse"
 ### Task 8: Licence store — tests first
 
 **Files:**
+
 - Create: `apps/anvil-cli/src/services/__tests__/licence-store.test.ts`
 - Create: `apps/anvil-cli/src/services/licence-store.ts`
 
@@ -645,7 +662,14 @@ Create `apps/anvil-cli/src/services/__tests__/licence-store.test.ts`:
 
 ```typescript
 import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, writeFileSync, existsSync, readFileSync, rmSync, statSync } from 'node:fs';
+import {
+  mkdtempSync,
+  writeFileSync,
+  existsSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setAuthDir } from '../auth-store.js';
@@ -685,11 +709,14 @@ describe('licence-store', () => {
       expect(content).toBe('eyJhbGciOiJFUzI1NiJ9.test.sig');
     });
 
-    it.skipIf(process.platform === 'win32')('sets restrictive permissions (0o600)', () => {
-      saveLicence('test-jwt');
-      const stats = statSync(join(tempDir, 'license'));
-      expect(stats.mode & 0o777).toBe(0o600);
-    });
+    it.skipIf(process.platform === 'win32')(
+      'sets restrictive permissions (0o600)',
+      () => {
+        saveLicence('test-jwt');
+        const stats = statSync(join(tempDir, 'license'));
+        expect(stats.mode & 0o777).toBe(0o600);
+      }
+    );
   });
 
   describe('loadLicence', () => {
@@ -862,6 +889,7 @@ git commit -m "feat(cli): add licence file store with resolution order"
 ### Task 9: Licence verifier — tests first
 
 **Files:**
+
 - Create: `apps/anvil-cli/src/services/__tests__/licence-verifier.test.ts`
 - Create: `apps/anvil-cli/src/services/licence-verifier.ts`
 
@@ -871,15 +899,25 @@ Create `apps/anvil-cli/src/services/__tests__/licence-verifier.test.ts`:
 
 ```typescript
 import { describe, it, expect, beforeAll } from 'vitest';
-import { generateKeyPair, exportPKCS8, exportSPKI, SignJWT, importPKCS8 } from 'jose';
-import { verifyLicence, setPublicKeys, type LicenceResult } from '../licence-verifier.js';
+import {
+  generateKeyPair,
+  exportPKCS8,
+  exportSPKI,
+  SignJWT,
+  importPKCS8,
+} from 'jose';
+import {
+  verifyLicence,
+  setPublicKeys,
+  type LicenceResult,
+} from '../licence-verifier.js';
 
 let testPrivateKeyPem: string;
 let testPublicKeyPem: string;
 
 async function signTestJwt(
   claims: Record<string, unknown>,
-  options: { kid?: string; exp?: number } = {},
+  options: { kid?: string; exp?: number } = {}
 ): Promise<string> {
   const privateKey = await importPKCS8(testPrivateKeyPem, 'ES256');
   const now = Math.floor(Date.now() / 1000);
@@ -932,7 +970,7 @@ describe('verifyLicence', () => {
   it('returns invalid for an expired JWT', async () => {
     const jwt = await signTestJwt(
       { email: 'test@example.com', tier: 'pro', rcAfter: 0 },
-      { exp: Math.floor(Date.now() / 1000) - 100 },
+      { exp: Math.floor(Date.now() / 1000) - 100 }
     );
 
     const result = await verifyLicence(jwt);
@@ -941,7 +979,11 @@ describe('verifyLicence', () => {
   });
 
   it('returns invalid for a tampered JWT', async () => {
-    const jwt = await signTestJwt({ email: 'test@example.com', tier: 'pro', rcAfter: 0 });
+    const jwt = await signTestJwt({
+      email: 'test@example.com',
+      tier: 'pro',
+      rcAfter: 0,
+    });
     const tampered = jwt.slice(0, -5) + 'XXXXX';
 
     const result = await verifyLicence(tampered);
@@ -952,7 +994,7 @@ describe('verifyLicence', () => {
   it('returns invalid for a JWT signed with an unknown kid', async () => {
     const jwt = await signTestJwt(
       { email: 'test@example.com', tier: 'pro', rcAfter: 0 },
-      { kid: 'unknown-key' },
+      { kid: 'unknown-key' }
     );
 
     const result = await verifyLicence(jwt);
@@ -980,7 +1022,13 @@ Expected: FAIL — `licence-verifier.js` does not exist.
 Create `apps/anvil-cli/src/services/licence-verifier.ts`:
 
 ```typescript
-import { jwtVerify, importSPKI, decodeProtectedHeader, errors, type JWTPayload } from 'jose';
+import {
+  jwtVerify,
+  importSPKI,
+  decodeProtectedHeader,
+  errors,
+  type JWTPayload,
+} from 'jose';
 import { debug } from '../utils/output.js';
 
 export interface LicenceClaims {
@@ -1051,7 +1099,9 @@ export async function verifyLicence(jwt: string): Promise<LicenceResult> {
           | undefined,
         org: ((payload as Record<string, unknown>).org as string) ?? null,
         tier: (payload as Record<string, unknown>).tier as string,
-        scopes: (payload as Record<string, unknown>).scopes as string[] | undefined,
+        scopes: (payload as Record<string, unknown>).scopes as
+          | string[]
+          | undefined,
         seats: (payload as Record<string, unknown>).seats as number | undefined,
         rcAfter,
         exp: payload.exp ?? 0,
@@ -1090,6 +1140,7 @@ git commit -m "feat(cli): add offline licence JWT verification"
 ### Task 10: Background refresh + deduplication — tests first
 
 **Files:**
+
 - Create: `apps/anvil-cli/src/services/__tests__/licence-refresh.test.ts`
 - Create: `apps/anvil-cli/src/services/licence-refresh.ts`
 
@@ -1098,8 +1149,23 @@ git commit -m "feat(cli): add offline licence JWT verification"
 Create `apps/anvil-cli/src/services/__tests__/licence-refresh.test.ts`:
 
 ```typescript
-import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+  beforeAll,
+  afterAll,
+} from 'vitest';
+import {
+  mkdtempSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setAuthDir } from '../auth-store.js';
@@ -1260,7 +1326,11 @@ function saveRefreshAttempt(): void {
   writeFileSync(getRefreshStatePath(), String(Date.now()));
 }
 
-export type RefreshResult = 'refreshed' | 'revoked' | 'skipped_cooldown' | 'error';
+export type RefreshResult =
+  | 'refreshed'
+  | 'revoked'
+  | 'skipped_cooldown'
+  | 'error';
 
 type FetchFn = typeof globalThis.fetch;
 
@@ -1273,7 +1343,7 @@ type FetchFn = typeof globalThis.fetch;
  */
 export async function scheduleRefresh(
   token: string,
-  fetchFn: FetchFn = globalThis.fetch,
+  fetchFn: FetchFn = globalThis.fetch
 ): Promise<RefreshResult> {
   // Deduplication: skip if refreshed recently
   const lastAttempt = getLastRefreshAttempt();
@@ -1293,7 +1363,10 @@ export async function scheduleRefresh(
       signal: AbortSignal.timeout(10_000),
     });
 
-    const data = (await response.json()) as { license?: string; valid?: boolean };
+    const data = (await response.json()) as {
+      license?: string;
+      valid?: boolean;
+    };
 
     if (data.license) {
       saveLicence(data.license);
@@ -1338,6 +1411,7 @@ git commit -m "feat(cli): add background licence refresh with deduplication"
 ### Task 11: Update auth-client to capture licence from verify response
 
 **Files:**
+
 - Modify: `apps/anvil-cli/src/services/auth-client.ts`
 
 - [ ] **Step 1: Update the VerifyResponseSchema**
@@ -1380,6 +1454,7 @@ git commit -m "feat(cli): add licence field to verify response schema"
 ### Task 12: Update login command to save licence
 
 **Files:**
+
 - Modify: `apps/anvil-cli/src/commands/login.ts`
 
 - [ ] **Step 1: Update login.ts**
@@ -1388,6 +1463,7 @@ Add the import and update the success handler. In
 `apps/anvil-cli/src/commands/login.ts`:
 
 Add import at top:
+
 ```typescript
 import { saveLicence } from '../services/licence-store.js';
 ```
@@ -1395,20 +1471,20 @@ import { saveLicence } from '../services/licence-store.js';
 After the `saveAuth(...)` call (around line 68), add:
 
 ```typescript
-        if (result.license) {
-          saveLicence(result.license);
-        }
+if (result.license) {
+  saveLicence(result.license);
+}
 ```
 
 Update the success message (replace lines 71-73):
 
 ```typescript
-        success(`Authenticated as ${chalk.bold(result.user.email)}`);
-        info(`Scopes: ${result.scopes.join(', ')}`);
-        if (result.license) {
-          info('Licence saved locally for offline verification');
-        }
-        info(`Expires: ${new Date(result.expiresAt).toLocaleString()}`);
+success(`Authenticated as ${chalk.bold(result.user.email)}`);
+info(`Scopes: ${result.scopes.join(', ')}`);
+if (result.license) {
+  info('Licence saved locally for offline verification');
+}
+info(`Expires: ${new Date(result.expiresAt).toLocaleString()}`);
 ```
 
 - [ ] **Step 2: Verify the CLI still works**
@@ -1431,6 +1507,7 @@ git commit -m "feat(cli): save licence blob on login"
 ### Task 13: Update logout to clear licence
 
 **Files:**
+
 - Modify: `apps/anvil-cli/src/commands/logout.ts`
 
 - [ ] **Step 1: Update logout.ts**
@@ -1482,6 +1559,7 @@ git commit -m "feat(cli): clear licence file on logout"
 ### Task 14: Update whoami to show licence info
 
 **Files:**
+
 - Modify: `apps/anvil-cli/src/commands/whoami.ts`
 
 - [ ] **Step 1: Update whoami.ts**
@@ -1500,52 +1578,61 @@ import { CliError } from '../utils/cli-error.js';
 export function createWhoamiCommand(): Command {
   const command = new Command('whoami');
 
-  command.description('Display current authentication and licence info').action(async () => {
-    const auth = loadAuth();
+  command
+    .description('Display current authentication and licence info')
+    .action(async () => {
+      const auth = loadAuth();
 
-    if (!auth) {
-      error('Not authenticated. Run `anvil login` to authenticate.');
-      throw new CliError('Not authenticated');
-    }
+      if (!auth) {
+        error('Not authenticated. Run `anvil login` to authenticate.');
+        throw new CliError('Not authenticated');
+      }
 
-    print(chalk.bold('\nSession Info\n'));
-    print(`  Email:    ${chalk.cyan(auth.user.email)}`);
-    print(`  Scopes:   ${auth.scopes.join(', ')}`);
-    print(`  Expires:  ${new Date(auth.expiresAt).toLocaleString()}`);
-    print(`  Verified: ${new Date(auth.verifiedAt).toLocaleString()}`);
+      print(chalk.bold('\nSession Info\n'));
+      print(`  Email:    ${chalk.cyan(auth.user.email)}`);
+      print(`  Scopes:   ${auth.scopes.join(', ')}`);
+      print(`  Expires:  ${new Date(auth.expiresAt).toLocaleString()}`);
+      print(`  Verified: ${new Date(auth.verifiedAt).toLocaleString()}`);
 
-    // Licence info
-    const jwt = loadLicence();
-    if (jwt) {
-      const result = await verifyLicence(jwt);
-      if (result.valid) {
-        blank();
-        print(chalk.bold('Licence\n'));
-        print(`  Tier:       ${chalk.cyan(result.claims.tier)}`);
-        print(`  Org:        ${result.claims.org ?? chalk.dim('none')}`);
-        if (result.claims.identity?.id) {
-          print(`  Identity:   ${result.claims.identity.provider}:${result.claims.identity.id}`);
+      // Licence info
+      const jwt = loadLicence();
+      if (jwt) {
+        const result = await verifyLicence(jwt);
+        if (result.valid) {
+          blank();
+          print(chalk.bold('Licence\n'));
+          print(`  Tier:       ${chalk.cyan(result.claims.tier)}`);
+          print(`  Org:        ${result.claims.org ?? chalk.dim('none')}`);
+          if (result.claims.identity?.id) {
+            print(
+              `  Identity:   ${result.claims.identity.provider}:${result.claims.identity.id}`
+            );
+          }
+          print(
+            `  Expires:    ${new Date(result.claims.exp * 1000).toLocaleString()}`
+          );
+          const rcDate = new Date(result.claims.rcAfter * 1000);
+          const daysUntilCheck = Math.max(
+            0,
+            Math.ceil((rcDate.getTime() - Date.now()) / 86400000)
+          );
+          print(
+            `  Next check: ${rcDate.toLocaleDateString()}${daysUntilCheck > 0 ? ` (in ${daysUntilCheck} days)` : chalk.yellow(' (pending)')}`
+          );
+
+          const licPath = resolveLicencePath();
+          if (licPath) print(`  Licence:    ${chalk.dim(licPath)}`);
+        } else {
+          blank();
+          print(chalk.yellow(`  Licence: invalid (${result.reason})`));
         }
-        print(`  Expires:    ${new Date(result.claims.exp * 1000).toLocaleString()}`);
-        const rcDate = new Date(result.claims.rcAfter * 1000);
-        const daysUntilCheck = Math.max(0, Math.ceil((rcDate.getTime() - Date.now()) / 86400000));
-        print(
-          `  Next check: ${rcDate.toLocaleDateString()}${daysUntilCheck > 0 ? ` (in ${daysUntilCheck} days)` : chalk.yellow(' (pending)')}`
-        );
-
-        const licPath = resolveLicencePath();
-        if (licPath) print(`  Licence:    ${chalk.dim(licPath)}`);
       } else {
         blank();
-        print(chalk.yellow(`  Licence: invalid (${result.reason})`));
+        print(chalk.dim('  No licence file found'));
       }
-    } else {
-      blank();
-      print(chalk.dim('  No licence file found'));
-    }
 
-    blank();
-  });
+      blank();
+    });
 
   return command;
 }
@@ -1571,12 +1658,13 @@ git commit -m "feat(cli): show licence details in whoami"
 ### Task 15: Update pre-action hook to use licence verification
 
 **Files:**
+
 - Modify: `apps/anvil-cli/src/index.ts:75-92`
 
 - [ ] **Step 1: Update the pre-action hook**
 
-In `apps/anvil-cli/src/index.ts`, replace the existing pre-action hook
-(lines 75-92). Add new imports at top:
+In `apps/anvil-cli/src/index.ts`, replace the existing pre-action hook (lines
+75-92). Add new imports at top:
 
 ```typescript
 import { loadLicence } from './services/licence-store.js';
@@ -1585,57 +1673,57 @@ import { scheduleRefresh } from './services/licence-refresh.js';
 import { loadAuth } from './services/auth-store.js';
 ```
 
-Note: `isAuthenticated` is already imported from `auth-store.js` — keep it as
-a fallback. Replace the preAction hook body:
+Note: `isAuthenticated` is already imported from `auth-store.js` — keep it as a
+fallback. Replace the preAction hook body:
 
 ```typescript
-  // Auth gate: check licence before every command (except exempt ones)
-  program.hook('preAction', async (_thisCommand, actionCommand) => {
-    let cmd: Command = actionCommand;
-    while (cmd.parent && cmd.parent.parent) {
-      cmd = cmd.parent;
+// Auth gate: check licence before every command (except exempt ones)
+program.hook('preAction', async (_thisCommand, actionCommand) => {
+  let cmd: Command = actionCommand;
+  while (cmd.parent && cmd.parent.parent) {
+    cmd = cmd.parent;
+  }
+  const commandName = cmd.name();
+
+  if (AUTH_EXEMPT_COMMANDS.has(commandName)) return;
+
+  const jwt = loadLicence();
+  if (!jwt) {
+    // Backwards compat: auth.json exists but no licence
+    if (isAuthenticated()) {
+      console.error(
+        '\x1b[33m!\x1b[0m Your session needs to be refreshed. Run \x1b[1manvil login\x1b[0m to continue.'
+      );
+    } else {
+      console.error(
+        '\x1b[31m✗\x1b[0m Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
+          '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).'
+      );
     }
-    const commandName = cmd.name();
+    throw new CliError('Authentication required');
+  }
 
-    if (AUTH_EXEMPT_COMMANDS.has(commandName)) return;
+  const result = await verifyLicence(jwt);
 
-    const jwt = loadLicence();
-    if (!jwt) {
-      // Backwards compat: auth.json exists but no licence
-      if (isAuthenticated()) {
-        console.error(
-          '\x1b[33m!\x1b[0m Your session needs to be refreshed. Run \x1b[1manvil login\x1b[0m to continue.'
-        );
-      } else {
-        console.error(
-          '\x1b[31m✗\x1b[0m Authentication required. Run \x1b[1manvil login\x1b[0m to authenticate.\n' +
-            '   New here? Try \x1b[1manvil tutorial\x1b[0m first (no login required).'
-        );
-      }
-      throw new CliError('Authentication required');
+  if (!result.valid) {
+    const msg =
+      result.reason === 'expired'
+        ? 'Your licence needs to be renewed. Run \x1b[1manvil login\x1b[0m to continue.'
+        : 'Your licence could not be verified. Run \x1b[1manvil login\x1b[0m or contact support@eddacraft.ai if this is unexpected.';
+    console.error(`\x1b[31m✗\x1b[0m ${msg}`);
+    throw new CliError('Licence verification failed');
+  }
+
+  // Background refresh if needed (non-blocking)
+  if (result.needsRefresh) {
+    const auth = loadAuth();
+    if (auth) {
+      scheduleRefresh(auth.token).catch(() => {
+        // Swallow — refresh is best-effort
+      });
     }
-
-    const result = await verifyLicence(jwt);
-
-    if (!result.valid) {
-      const msg =
-        result.reason === 'expired'
-          ? 'Your licence needs to be renewed. Run \x1b[1manvil login\x1b[0m to continue.'
-          : 'Your licence could not be verified. Run \x1b[1manvil login\x1b[0m or contact support@eddacraft.ai if this is unexpected.';
-      console.error(`\x1b[31m✗\x1b[0m ${msg}`);
-      throw new CliError('Licence verification failed');
-    }
-
-    // Background refresh if needed (non-blocking)
-    if (result.needsRefresh) {
-      const auth = loadAuth();
-      if (auth) {
-        scheduleRefresh(auth.token).catch(() => {
-          // Swallow — refresh is best-effort
-        });
-      }
-    }
-  });
+  }
+});
 ```
 
 - [ ] **Step 2: Remove unused isAuthenticated import if no longer needed**
@@ -1665,6 +1753,7 @@ git commit -m "feat(cli): replace auth check with licence verification in pre-ac
 ### Task 16: Add .anvil/license to gitignore template
 
 **Files:**
+
 - Modify: `apps/anvil-cli/src/services/template-generator.ts:86`
 
 - [ ] **Step 1: Update the patterns array**
@@ -1673,13 +1762,26 @@ In `apps/anvil-cli/src/services/template-generator.ts`, find the
 `updateGitignore()` method (line 83). Change the patterns array from:
 
 ```typescript
-    const patterns = ['', '# Anvil', '.anvil/cache/', '.anvil/evidence/', '.anvil/*.log'];
+const patterns = [
+  '',
+  '# Anvil',
+  '.anvil/cache/',
+  '.anvil/evidence/',
+  '.anvil/*.log',
+];
 ```
 
 to:
 
 ```typescript
-    const patterns = ['', '# Anvil', '.anvil/cache/', '.anvil/evidence/', '.anvil/*.log', '.anvil/license'];
+const patterns = [
+  '',
+  '# Anvil',
+  '.anvil/cache/',
+  '.anvil/evidence/',
+  '.anvil/*.log',
+  '.anvil/license',
+];
 ```
 
 - [ ] **Step 2: Commit**
@@ -1694,6 +1796,7 @@ git commit -m "chore(cli): add .anvil/license to gitignore template"
 ### Task 17: Bake the public key into the CLI
 
 **Files:**
+
 - Create: `apps/anvil-cli/src/services/licence-keys.ts`
 
 - [ ] **Step 1: Create the public key module**
@@ -1737,13 +1840,16 @@ And at the bottom of the file, add an initialisation call:
 
 ```typescript
 // Load baked-in keys on import (tests can override via setPublicKeys)
-if (Object.keys(publicKeysPem).length === 0 && Object.keys(LICENCE_PUBLIC_KEYS).length > 0) {
+if (
+  Object.keys(publicKeysPem).length === 0 &&
+  Object.keys(LICENCE_PUBLIC_KEYS).length > 0
+) {
   setPublicKeys(LICENCE_PUBLIC_KEYS);
 }
 ```
 
-- [ ] **Step 3: Verify tests still pass** (tests call `setPublicKeys` before
-the import-time init matters)
+- [ ] **Step 3: Verify tests still pass** (tests call `setPublicKeys` before the
+      import-time init matters)
 
 ```bash
 cd apps/anvil-cli && pnpm vitest run src/services/__tests__/licence-verifier.test.ts
@@ -1796,23 +1902,23 @@ git commit -m "chore(cli): add production licence public key"
 
 ## Summary
 
-| Task | What | Files |
-|------|------|-------|
-| 1 | Install jose (API) | `apps/anvil-api/package.json` |
-| 2 | Keypair generation script | `scripts/generate-licence-keypair.sh` |
-| 3 | API licence signing module | `apps/anvil-api/src/lib/licence.ts` + tests |
-| 4 | Extend /auth/verify | `apps/anvil-api/src/routes/auth.ts` + tests |
-| 5 | Add /auth/license/refresh | `apps/anvil-api/src/routes/auth.ts` + tests |
-| 6 | Install jose (CLI) | `apps/anvil-cli/package.json` |
-| 7 | Export getAuthDir | `apps/anvil-cli/src/services/auth-store.ts` |
-| 8 | Licence store | `apps/anvil-cli/src/services/licence-store.ts` + tests |
-| 9 | Licence verifier | `apps/anvil-cli/src/services/licence-verifier.ts` + tests |
-| 10 | Background refresh | `apps/anvil-cli/src/services/licence-refresh.ts` + tests |
-| 11 | Update auth-client schema | `apps/anvil-cli/src/services/auth-client.ts` |
-| 12 | Update login | `apps/anvil-cli/src/commands/login.ts` |
-| 13 | Update logout | `apps/anvil-cli/src/commands/logout.ts` |
-| 14 | Update whoami | `apps/anvil-cli/src/commands/whoami.ts` |
-| 15 | Update pre-action hook | `apps/anvil-cli/src/index.ts` |
-| 16 | Gitignore template | `apps/anvil-cli/src/services/template-generator.ts` |
-| 17 | Public key module | `apps/anvil-cli/src/services/licence-keys.ts` |
-| 18 | Wire real keypair | Manual — env vars + public key |
+| Task | What                       | Files                                                     |
+| ---- | -------------------------- | --------------------------------------------------------- |
+| 1    | Install jose (API)         | `apps/anvil-api/package.json`                             |
+| 2    | Keypair generation script  | `scripts/generate-licence-keypair.sh`                     |
+| 3    | API licence signing module | `apps/anvil-api/src/lib/licence.ts` + tests               |
+| 4    | Extend /auth/verify        | `apps/anvil-api/src/routes/auth.ts` + tests               |
+| 5    | Add /auth/license/refresh  | `apps/anvil-api/src/routes/auth.ts` + tests               |
+| 6    | Install jose (CLI)         | `apps/anvil-cli/package.json`                             |
+| 7    | Export getAuthDir          | `apps/anvil-cli/src/services/auth-store.ts`               |
+| 8    | Licence store              | `apps/anvil-cli/src/services/licence-store.ts` + tests    |
+| 9    | Licence verifier           | `apps/anvil-cli/src/services/licence-verifier.ts` + tests |
+| 10   | Background refresh         | `apps/anvil-cli/src/services/licence-refresh.ts` + tests  |
+| 11   | Update auth-client schema  | `apps/anvil-cli/src/services/auth-client.ts`              |
+| 12   | Update login               | `apps/anvil-cli/src/commands/login.ts`                    |
+| 13   | Update logout              | `apps/anvil-cli/src/commands/logout.ts`                   |
+| 14   | Update whoami              | `apps/anvil-cli/src/commands/whoami.ts`                   |
+| 15   | Update pre-action hook     | `apps/anvil-cli/src/index.ts`                             |
+| 16   | Gitignore template         | `apps/anvil-cli/src/services/template-generator.ts`       |
+| 17   | Public key module          | `apps/anvil-cli/src/services/licence-keys.ts`             |
+| 18   | Wire real keypair          | Manual — env vars + public key                            |

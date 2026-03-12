@@ -32,10 +32,10 @@ per run. A background refresh mechanism handles revocation and renewal.
 The raw beta token and the licence blob serve different purposes and are stored
 separately:
 
-| File | Purpose | Used by |
-|------|---------|---------|
-| `~/.anvil/auth.json` | Raw token for authenticated API calls | API client |
-| `~/.anvil/license` | Signed licence blob for offline entitlement | CLI startup |
+| File                 | Purpose                                     | Used by     |
+| -------------------- | ------------------------------------------- | ----------- |
+| `~/.anvil/auth.json` | Raw token for authenticated API calls       | API client  |
+| `~/.anvil/license`   | Signed licence blob for offline entitlement | CLI startup |
 
 This separation means:
 
@@ -48,6 +48,7 @@ This separation means:
 A JWT signed with ES256 (ECDSA P-256).
 
 **Header:**
+
 ```json
 {
   "alg": "ES256",
@@ -56,6 +57,7 @@ A JWT signed with ES256 (ECDSA P-256).
 ```
 
 **Claims:**
+
 ```json
 {
   "sub": "user_abc123",
@@ -71,34 +73,35 @@ A JWT signed with ES256 (ECDSA P-256).
 }
 ```
 
-| Claim | Type | Purpose |
-|-------|------|---------|
-| `sub` | string | Internal user ID from DB |
-| `email` | string | User email |
-| `identity` | object | Social identity anchor — `{provider, id}` |
-| `org` | string \| null | Organisation slug (null until org model exists) |
-| `tier` | string | `free` / `pro` / `team` / `enterprise` (hardcoded to `"pro"` initially) |
-| `scopes` | string[] | Feature scopes (currently `["beta"]`) |
-| `seats` | number | Seat count (future use, default `1`) |
-| `iat` | number | Issued at (Unix timestamp) |
-| `exp` | number | Expires at — 90-day TTL |
-| `rcAfter` | number | Revocation check after — 7-day window from issuance |
+| Claim      | Type           | Purpose                                                                 |
+| ---------- | -------------- | ----------------------------------------------------------------------- |
+| `sub`      | string         | Internal user ID from DB                                                |
+| `email`    | string         | User email                                                              |
+| `identity` | object         | Social identity anchor — `{provider, id}`                               |
+| `org`      | string \| null | Organisation slug (null until org model exists)                         |
+| `tier`     | string         | `free` / `pro` / `team` / `enterprise` (hardcoded to `"pro"` initially) |
+| `scopes`   | string[]       | Feature scopes (currently `["beta"]`)                                   |
+| `seats`    | number         | Seat count (future use, default `1`)                                    |
+| `iat`      | number         | Issued at (Unix timestamp)                                              |
+| `exp`      | number         | Expires at — 90-day TTL                                                 |
+| `rcAfter`  | number         | Revocation check after — 7-day window from issuance                     |
 
 **Signing:**
 
 - API holds an ES256 private key (`LICENSE_SIGNING_KEY` env var, PEM format)
 - CLI binary contains the matching public key
 - `kid` header identifies the key version for rotation
-- Key rotation: embed both current and previous public keys in the CLI, keyed
-  by `kid`. API signs with the current key. Old licences still verify against
-  the previous key until they naturally expire. **Deployment dependency:** a new
-  CLI build embedding the next public key must be shipped before the API starts
+- Key rotation: embed both current and previous public keys in the CLI, keyed by
+  `kid`. API signs with the current key. Old licences still verify against the
+  previous key until they naturally expire. **Deployment dependency:** a new CLI
+  build embedding the next public key must be shipped before the API starts
   signing with the next private key. Rotation is manual and on-demand — not
   calendar-based despite the `kid` format.
 
 ### File Layout
 
 **User-level (default):**
+
 ```
 ~/.anvil/
   auth.json      # existing — raw token for API calls
@@ -106,12 +109,14 @@ A JWT signed with ES256 (ECDSA P-256).
 ```
 
 **Project-level override:**
+
 ```
 <project>/.anvil/
   license        # optional — overrides user-level for this project
 ```
 
 **Resolution order:**
+
 1. `ANVIL_LICENSE` env var (for CI / containers)
 2. `.anvil/license` in project root
 3. `~/.anvil/license` in home dir
@@ -259,6 +264,7 @@ The existing verify endpoint gains licence issuance. No new endpoint needed for
 login.
 
 **Response (updated):**
+
 ```json
 {
   "valid": true,
@@ -270,6 +276,7 @@ login.
 ```
 
 Internally after existing validation:
+
 1. Look up user, org, tier, scopes from DB
 2. Build JWT claims
 3. Sign with ES256 private key
@@ -280,23 +287,26 @@ Internally after existing validation:
 Called by the CLI background refresh.
 
 **Request:**
+
 ```json
 { "token": "anvil_beta_..." }
 ```
 
 **Response (success):**
+
 ```json
 { "license": "eyJhbGciOiJFUzI1NiIs..." }
 ```
 
 **Response (revoked/expired):**
+
 ```json
 { "valid": false, "reason": "revoked" }
 ```
 
 Same logic as the verify licence flow — revalidates the token, issues a fresh
-blob with updated `exp` and `rcAfter`. Returns `valid: false` if the token has been
-revoked or the user suspended.
+blob with updated `exp` and `rcAfter`. Returns `valid: false` if the token has
+been revoked or the user suspended.
 
 **Security:** The refresh endpoint must apply the same `isValidTokenFormat`
 guard and `hashToken` before any DB lookup — matching the existing pattern in
@@ -304,19 +314,20 @@ guard and `hashToken` before any DB lookup — matching the existing pattern in
 
 ### New Environment Variables
 
-| Variable | Location | Purpose |
-|----------|----------|---------|
-| `LICENSE_SIGNING_KEY` | API | ES256 private key (PEM) |
-| `LICENSE_PUBLIC_KEY` | API | ES256 public key (PEM) — also baked into CLI |
+| Variable              | Location | Purpose                                      |
+| --------------------- | -------- | -------------------------------------------- |
+| `LICENSE_SIGNING_KEY` | API      | ES256 private key (PEM)                      |
+| `LICENSE_PUBLIC_KEY`  | API      | ES256 public key (PEM) — also baked into CLI |
 
 ### Database Changes
 
 **Phase 1 (this implementation):** None. The `org`, `tier`, `identity`, and
 `seats` claims are hardcoded stubs: `org: null`, `tier: "pro"`,
-`identity: { provider: "github", id: null }`, `seats: 1`. The API derives
-`sub` and `email` from the existing `beta_users` table.
+`identity: { provider: "github", id: null }`, `seats: 1`. The API derives `sub`
+and `email` from the existing `beta_users` table.
 
 **Phase 2 (deferred):** Add columns to `beta_users`:
+
 - `github_id text` — social identity anchor
 - `org_id uuid references organisations(id)` — organisation membership
 - `tier text default 'free'` — subscription tier
@@ -344,8 +355,8 @@ plan will be written when the org/team model is designed.
   full release cycle to rotate. Old licences verify against the previous key
   until they expire naturally.
 - **Tampering:** Any modification to the licence blob invalidates the ES256
-  signature. A user cannot change their tier, extend their expiry, or alter
-  any claim.
+  signature. A user cannot change their tier, extend their expiry, or alter any
+  claim.
 
 ---
 
@@ -358,7 +369,8 @@ plan will be written when the org/team model is designed.
 - Unit: refresh deduplication (60s cooldown)
 - Unit: logout deletes both auth.json and licence file
 - Integration: full login flow — token exchange returns licence blob
-- Integration: licence refresh endpoint (must use `isValidTokenFormat` + `hashToken`)
+- Integration: licence refresh endpoint (must use `isValidTokenFormat` +
+  `hashToken`)
 - Integration: backwards compatibility — auth.json without licence file
 - Manual: dogfood on 4 physical machines + virtual environments
 
@@ -375,8 +387,8 @@ filesystem.
 These are documented for context but are explicitly out of scope:
 
 - **OAuth / device code flow:** Replace manual token entry with
-  `anvil auth login` → browser/device code → GitHub OAuth → licence blob.
-  Same licence format, different issuance path.
+  `anvil auth login` → browser/device code → GitHub OAuth → licence blob. Same
+  licence format, different issuance path.
 - **Feature gating:** Read `tier` and `scopes` from licence claims, check
   against feature flag configuration before running gated commands.
 - **Seat management:** Use `seats` claim + server-side tracking to enforce
