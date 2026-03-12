@@ -11,7 +11,7 @@ on:
   #   types: [opened, assigned]
   # pull_request_review:
   #   types: [submitted]
-  # workflow_dispatch: {}  # disabled — job if: skips manual dispatch
+  workflow_dispatch: {}  # kept valid — job-level if: guard prevents execution
 
 jobs:
   claude:
