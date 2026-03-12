@@ -86,10 +86,10 @@ jobs:
             echo "cap_reached=true" >> "$GITHUB_OUTPUT"
             COMMENT_BODY="## Temper: Cycle Cap Reached
 
-Temper has already completed **${MAX_CYCLES}** cycles on this PR.
-No further automatic changes will be made.
+          Temper has already completed **${MAX_CYCLES}** cycles on this PR.
+          No further automatic changes will be made.
 
-**Remaining unresolved comments** should be addressed manually or deferred to issues.
+          **Remaining unresolved comments** should be addressed manually or deferred to issues.
 
 To run Temper again, increase \`CLAUDE_TEMPER_MAX_CYCLES\` in repo variables
 or address comments manually."
