@@ -57,15 +57,18 @@ auth.post('/verify', zValidator('json', verifySchema), async (c) => {
   }
 
   debug('token verified successfully');
-  const licence = await signLicence({
-    sub: record.user_id,
-    email: record.email,
-    identity: { provider: 'github', id: null },
-    org: null,
-    tier: 'pro',
-    scopes: record.scopes,
-    seats: 1,
-  });
+  const licence = await signLicence(
+    {
+      sub: record.user_id,
+      email: record.email,
+      identity: { provider: 'github', id: null },
+      org: null,
+      tier: 'pro',
+      scopes: record.scopes,
+      seats: 1,
+    },
+    record.expires_at
+  );
 
   return c.json({
     valid: true,
@@ -96,15 +99,18 @@ auth.post('/license/refresh', zValidator('json', verifySchema), async (c) => {
     return c.json({ valid: false, reason: 'expired' });
   }
 
-  const licence = await signLicence({
-    sub: record.user_id,
-    email: record.email,
-    identity: { provider: 'github', id: null },
-    org: null,
-    tier: 'pro',
-    scopes: record.scopes,
-    seats: 1,
-  });
+  const licence = await signLicence(
+    {
+      sub: record.user_id,
+      email: record.email,
+      identity: { provider: 'github', id: null },
+      org: null,
+      tier: 'pro',
+      scopes: record.scopes,
+      seats: 1,
+    },
+    record.expires_at
+  );
 
   return c.json({ license: licence });
 });

@@ -14,7 +14,10 @@ export interface LicenceClaims {
   seats: number;
 }
 
-export async function signLicence(claims: LicenceClaims): Promise<string> {
+export async function signLicence(
+  claims: LicenceClaims,
+  tokenExpiresAt?: string | Date
+): Promise<string> {
   const pem = process.env['LICENSE_SIGNING_KEY'];
   if (!pem) {
     throw new Error('LICENSE_SIGNING_KEY environment variable is required');
@@ -22,6 +25,9 @@ export async function signLicence(claims: LicenceClaims): Promise<string> {
 
   const privateKey = await importPKCS8(pem, 'ES256');
   const now = Math.floor(Date.now() / 1000);
+  const maxExp = now + LICENCE_TTL_DAYS * 86400;
+  const tokenExp = tokenExpiresAt ? Math.floor(new Date(tokenExpiresAt).getTime() / 1000) : maxExp;
+  const exp = Math.min(tokenExp, maxExp);
 
   return new SignJWT({
     email: claims.email,
@@ -35,6 +41,6 @@ export async function signLicence(claims: LicenceClaims): Promise<string> {
     .setProtectedHeader({ alg: 'ES256', kid: KEY_ID })
     .setSubject(claims.sub)
     .setIssuedAt(now)
-    .setExpirationTime(now + LICENCE_TTL_DAYS * 86400)
+    .setExpirationTime(exp)
     .sign(privateKey);
 }

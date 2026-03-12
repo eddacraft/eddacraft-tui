@@ -15,7 +15,8 @@ set -euo pipefail
 TMPDIR=$(mktemp -d)
 trap 'rm -rf "$TMPDIR"' EXIT
 
-openssl ecparam -genkey -name prime256v1 -noout -out "$TMPDIR/private.pem" 2>/dev/null
+openssl ecparam -genkey -name prime256v1 -noout 2>/dev/null \
+  | openssl pkcs8 -topk8 -nocrypt -out "$TMPDIR/private.pem" 2>/dev/null
 openssl ec -in "$TMPDIR/private.pem" -pubout -out "$TMPDIR/public.pem" 2>/dev/null
 
 echo "=== LICENSE_SIGNING_KEY (private — API env var only) ==="

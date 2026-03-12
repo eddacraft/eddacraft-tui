@@ -215,12 +215,74 @@ describe('POST /auth/license/refresh', () => {
   });
 
   it('returns valid:false for invalid token format', async () => {
-    const res = await app.request('/auth/license/refresh', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: 'bad_token' }),
-    });
+    const res = await post('/auth/license/refresh', { token: 'bad_token' });
     const json = await res.json();
     expect(json.valid).toBe(false);
+  });
+
+  it('returns valid:false with reason for missing token', async () => {
+    mockedFind.mockResolvedValue(null);
+    const token = 'anvil_beta_' + 'A'.repeat(43);
+    const res = await post('/auth/license/refresh', { token });
+    const json = await res.json();
+    expect(json.valid).toBe(false);
+    expect(json.reason).toBe('invalid');
+  });
+
+  it('returns valid:false with reason:revoked for revoked token', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      revoked_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'active',
+    });
+    const token = 'anvil_beta_' + 'A'.repeat(43);
+    const res = await post('/auth/license/refresh', { token });
+    const json = await res.json();
+    expect(json.valid).toBe(false);
+    expect(json.reason).toBe('revoked');
+  });
+
+  it('returns valid:false with reason:invalid for suspended user', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() + 86400000).toISOString(),
+      revoked_at: null,
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'suspended',
+    });
+    const token = 'anvil_beta_' + 'A'.repeat(43);
+    const res = await post('/auth/license/refresh', { token });
+    const json = await res.json();
+    expect(json.valid).toBe(false);
+    expect(json.reason).toBe('invalid');
+  });
+
+  it('returns valid:false with reason:expired for expired token', async () => {
+    mockedFind.mockResolvedValue({
+      id: '1',
+      user_id: '2',
+      token_hash: 'hash',
+      scopes: ['beta'],
+      expires_at: new Date(Date.now() - 86400000).toISOString(),
+      revoked_at: null,
+      created_at: new Date().toISOString(),
+      email: 'test@example.com',
+      user_status: 'active',
+    });
+    const token = 'anvil_beta_' + 'A'.repeat(43);
+    const res = await post('/auth/license/refresh', { token });
+    const json = await res.json();
+    expect(json.valid).toBe(false);
+    expect(json.reason).toBe('expired');
   });
 });

@@ -10,8 +10,12 @@ function getUserLicencePath(): string {
 }
 
 export function resolveLicencePath(projectRoot?: string): string | null {
-  const envPath = process.env['ANVIL_LICENSE'];
-  if (envPath && existsSync(envPath)) return envPath;
+  const envValue = process.env['ANVIL_LICENSE'];
+  if (envValue) {
+    if (existsSync(envValue)) return envValue;
+    // Raw JWT string — handled by loadLicence() directly
+    return null;
+  }
 
   if (projectRoot) {
     const projectPath = join(projectRoot, '.anvil', LICENCE_FILENAME);
@@ -25,6 +29,12 @@ export function resolveLicencePath(projectRoot?: string): string | null {
 }
 
 export function loadLicence(projectRoot?: string): string | null {
+  // Support raw JWT string via env var (e.g. piped or CI)
+  const envValue = process.env['ANVIL_LICENSE'];
+  if (envValue && !existsSync(envValue)) {
+    return envValue.trim();
+  }
+
   const path = resolveLicencePath(projectRoot);
   if (!path) return null;
 
