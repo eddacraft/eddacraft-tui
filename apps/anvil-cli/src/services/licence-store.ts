@@ -5,6 +5,10 @@ import { debug } from '../utils/output.js';
 
 const LICENCE_FILENAME = 'license';
 
+function looksLikeJwt(value: string): boolean {
+  return value.startsWith('eyJ') && value.includes('.');
+}
+
 function getUserLicencePath(): string {
   return join(getAuthDir(), LICENCE_FILENAME);
 }
@@ -14,7 +18,8 @@ export function resolveLicencePath(projectRoot?: string): string | null {
   if (envValue) {
     if (existsSync(envValue)) return envValue;
     // Raw JWT string — handled by loadLicence() directly
-    return null;
+    if (looksLikeJwt(envValue)) return null;
+    // Non-existent path — fall through to other locations
   }
 
   if (projectRoot) {
@@ -31,7 +36,7 @@ export function resolveLicencePath(projectRoot?: string): string | null {
 export function loadLicence(projectRoot?: string): string | null {
   // Support raw JWT string via env var (e.g. piped or CI)
   const envValue = process.env['ANVIL_LICENSE'];
-  if (envValue && !existsSync(envValue)) {
+  if (envValue && looksLikeJwt(envValue)) {
     return envValue.trim();
   }
 
