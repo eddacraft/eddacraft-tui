@@ -161,10 +161,10 @@ crates/
 │           ├── drift.rs            Drift tutorial (5 steps)
 │           └── ci.rs               CI tutorial (6 steps)
 │
-├── eddacraft-kindling/             [DRAFT] RENG-018
+├── eddacraft-kindling/             [DRAFT] (no current RENG ID — future work)
 │   └── src/query.rs                Kindling query integration
 │
-└── bench/                          [DRAFT] RENG-008
+└── bench/                          [DRAFT] RENG-005 (benchmarking)
     └── Cross-crate performance benchmarks
 ```
 
@@ -266,22 +266,22 @@ crates/
 
 #### Phase 3 — Policy Engine + Events [DRAFT]
 
-| ID       | Description                                                 | Dependencies |
-| -------- | ----------------------------------------------------------- | ------------ |
-| KERN-030 | Architecture config loader (.anvil/architecture.yaml)       | —            |
-| KERN-031 | Invariant evaluation framework (GraphDelta → Violations)    | KERN-023     |
-| KERN-032 | H1 invariants (cross-layer, new dep, public API, privilege) | KERN-031     |
-| KERN-033 | Event emission (Progress, Snapshot, Violation, Error)       | KERN-031     |
+| ID       | Description                                                 | Dependencies                 |
+| -------- | ----------------------------------------------------------- | ---------------------------- |
+| KERN-030 | Architecture config loader (.anvil/architecture.yaml)       | KERN-020                     |
+| KERN-031 | Invariant evaluation framework (GraphDelta → Violations)    | KERN-023                     |
+| KERN-032 | H1 invariants (cross-layer, new dep, public API, privilege) | KERN-031, KERN-030, KERN-022 |
+| KERN-033 | Event emission (Progress, Snapshot, Violation, Error)       | KERN-031                     |
 
 #### Phase 4 — Integration & Validation [DRAFT]
 
-| ID       | Description                                      | Dependencies       |
-| -------- | ------------------------------------------------ | ------------------ |
-| KERN-040 | Embedded mode (library API for one-shot checks)  | KERN-033           |
-| KERN-041 | Foreground watch mode (long-lived event stream)  | KERN-033, KERN-010 |
-| KERN-042 | Dual-run harness (compare with legacy TS engine) | KERN-040           |
-| KERN-043 | Performance benchmarks against spec targets      | KERN-040           |
-| KERN-044 | Cross-compilation for Linux, macOS, Windows      | KERN-040           |
+| ID       | Description                                      | Dependencies                 |
+| -------- | ------------------------------------------------ | ---------------------------- |
+| KERN-040 | Embedded mode (library API for one-shot checks)  | KERN-033                     |
+| KERN-041 | Foreground watch mode (long-lived event stream)  | KERN-010, KERN-023, KERN-033 |
+| KERN-042 | Dual-run harness (compare with legacy TS engine) | KERN-040                     |
+| KERN-043 | Performance benchmarks against spec targets      | KERN-041                     |
+| KERN-044 | Cross-compilation for Linux, macOS, Windows      | KERN-040                     |
 
 #### Phase 5 — Daemon Mode [DEFERRED]
 
@@ -289,7 +289,7 @@ crates/
 | -------- | ---------------------------------------- | ------------ |
 | KERN-050 | Unix socket transport (JSON-RPC 2.0)     | KERN-041     |
 | KERN-051 | Session management + client multiplexing | KERN-050     |
-| KERN-052 | Graceful shutdown + state persistence    | KERN-050     |
+| KERN-052 | Graceful shutdown + state persistence    | KERN-051     |
 
 ---
 
@@ -556,8 +556,9 @@ KERN Phase 1 (Watcher + Parser)
 
 These can proceed independently of the kernel critical path:
 
-- **PORT-010..044** — Ink-to-Ratatui surface ports (depend only on RATS-001,
-  which is done)
+- **PORT-010..044** — Ink-to-Ratatui surface ports (external dependency is
+  RATS-001, which is done; internally PORT-010..030 depend on PORT-001/002, and
+  PORT-041..044 depend on PORT-040)
 - **RSTLAN** — Rust language support (depends on KERN Phase 1 parser, but the
   grammar/adapter work can start in parallel)
 - **RATS-004** — APS onboarding wizard (depends only on RATS-001)
