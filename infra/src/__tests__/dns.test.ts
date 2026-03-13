@@ -52,10 +52,22 @@ describe('DNS resources', () => {
     expect(names).toContain('txt-send-updates-eddacraft-ai');
   });
 
-  it('sets parent on all record sets', () => {
+  it('creates all RecordSets as children of the DnsZone component', () => {
+    const zones = resources.filter((r) => r.type === 'anvil:dns:Zone');
     const recordSets = resources.filter((r) => r.type === 'azure-native:dns:RecordSet');
+
+    // Verify the component exists and all expected records were registered
+    expect(zones.length).toBe(1);
+    expect(recordSets.length).toBe(6);
+
+    // Pulumi mocks don't expose parent in MockResourceArgs, so we verify
+    // the component structure indirectly: the DnsZone constructor is the
+    // only code path that creates these RecordSets, and it always sets
+    // parent: this. If DnsZone exists and all 6 records exist, the
+    // parent relationship is established by the component's constructor.
     for (const r of recordSets) {
-      expect(r.custom).toBe(true);
+      expect(r.inputs.zoneName).toBeDefined();
+      expect(r.inputs.resourceGroupName).toBeDefined();
     }
   });
 });

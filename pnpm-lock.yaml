@@ -175,6 +175,9 @@ importers:
       hono:
         specifier: ^4.12.7
         version: 4.12.7
+      jose:
+        specifier: ^6.2.1
+        version: 6.2.1
       resend:
         specifier: ^4.0.0
         version: 4.8.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
