@@ -14,13 +14,13 @@ const _inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: 'Anvil — AI Governance for Developers',
+  title: 'Anvil — Guardrails that ship with your code',
   description:
     'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
   generator: 'eddacraft',
   metadataBase: new URL('https://anvil.eddacraft.ai'),
   openGraph: {
-    title: 'Anvil — AI Governance for Developers',
+    title: 'Anvil — Guardrails that ship with your code',
     description:
       'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
     siteName: 'Anvil by EddaCraft',
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Anvil — AI Governance for Developers',
+    title: 'Anvil — Guardrails that ship with your code',
     description:
       'Force probabilistic tools to respect deterministic rules. Anvil enforces policy at generation time — not at review.',
     creator: '@eddacraft',
