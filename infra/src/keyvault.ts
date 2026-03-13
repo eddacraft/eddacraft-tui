@@ -37,6 +37,12 @@ export function getSecret(secretName: string): pulumi.Output<string> {
             'statusCode' in e &&
             (e as { statusCode: number }).statusCode === 404
           ) {
+            if (pulumi.runtime.isDryRun()) {
+              pulumi.log.warn(
+                `Secret '${secretName}' not found in Key Vault '${vaultName}' — using placeholder for preview`
+              );
+              return `<preview:${secretName}>`;
+            }
             throw new Error(`Secret '${secretName}' was not found in Key Vault '${vaultName}'.`);
           }
           throw e;

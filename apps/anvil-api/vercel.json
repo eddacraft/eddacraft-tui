@@ -1,3 +1,4 @@
 {
-  "buildCommand": "cd ../.. && pnpm --filter @eddacraft/transactional build && cd apps/anvil-api && tsc"
+  "buildCommand": "cd ../.. && pnpm --filter @eddacraft/transactional build && cd apps/anvil-api && tsc",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }]
 }
