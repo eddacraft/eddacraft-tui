@@ -7,8 +7,8 @@
 ## Active Modules
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
-- CRB: code-review-backlog (16/29) — In Progress
-- MAINT: codebase-maintenance (6/8) — In Progress
+- CRB: code-review-backlog (29/29) — Complete
+- MAINT: codebase-maintenance (8/8) — Complete
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
@@ -26,11 +26,15 @@
 - POLVAL: policy-pack-validation (0/5) — Draft
 - ARCHCFG: architecture-config-validation (0/5) — Draft
 - AIGUARD: ai-guardrail-profile (0/4) — Draft
-- EMBER: ember (1/14) — Draft
+- EMBER: ember (14/14) — Complete
 - EERB: edda-ember-review (16/16) — Complete
-- EDDA: edda (1/19) — Draft
+- EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (0/24) — Proposed
+- RENG: rust-core-engine (3/6) — In Progress
+  <!-- ADR-011: scope reduced from 24 to 6; RENG-001–003 done in external workspace -->
+- KERN: rust-kernel (4/25) — In Progress
+- RATS: ratatui-tui (1/7) — In Progress
+- PORT: ink-to-ratatui-port (0/15) — Proposed
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
@@ -151,13 +155,15 @@ apps/website/hooks/use-filter-params.ts: DASH-008
 apps/website/hooks/use-role.ts: DASHOPS-007
 apps/website/contexts/role-context.tsx: DASHOPS-007
 apps/website/data/dashboard-templates/: DASHAI-004
-cli/src/commands/policy.ts: OPAE-011
-cli/src/commands/policy-debug.ts: OPAE-013
-cli/src/tui/impact-report.tsx: OPAE-019
-cli/src/tui/leaderboard.tsx: OPAE-033
-cli/src/tui/metrics-dashboard.tsx: OPAE-032
-cli/src/tui/policy-creator.tsx: OPAE-023
-cli/src/tui/policy-debugger.tsx: OPAE-014
+# REVIEW(ADR-011): cli/src/ paths are pre-monorepo. CLI commands → apps/anvil-cli/src/.
+# TUI paths below target Ink (.tsx); ADR-011 adopts Ratatui — reassess target surface.
+cli/src/commands/policy.ts: OPAE-011          # → apps/anvil-cli/src/commands/policy.ts
+cli/src/commands/policy-debug.ts: OPAE-013    # → apps/anvil-cli/src/commands/policy-debug.ts
+cli/src/tui/impact-report.tsx: OPAE-019       # → Ratatui surface (RATS)
+cli/src/tui/leaderboard.tsx: OPAE-033         # → Ratatui surface (RATS)
+cli/src/tui/metrics-dashboard.tsx: OPAE-032   # → Ratatui surface (RATS)
+cli/src/tui/policy-creator.tsx: OPAE-023      # → Ratatui surface (RATS)
+cli/src/tui/policy-debugger.tsx: OPAE-014     # → Ratatui surface (RATS)
 core/src/architecture/config-diagnostics.ts: ARCHCFG-002
 core/src/architecture/config-diagnostics.test.ts: ARCHCFG-002
 core/src/architecture/config-validator.ts: ARCHCFG-001
@@ -201,23 +207,28 @@ core/src/gate/__fixtures__/library/scope/: OPAE-009
 core/src/gate/__fixtures__/library/security/: OPAE-007
 core/src/diagnostics/diagnostic-schema.ts: AIGUARD-002
 core/src/diagnostics/diagnostic-schema.test.ts: AIGUARD-002
-crates/anvil-engine/src/antipattern/: RENG-012
-crates/anvil-engine/src/architecture/: RENG-011
-crates/anvil-engine/src/lint/: RENG-023
-crates/anvil-engine/src/parse/: RENG-010
-crates/anvil-engine/src/secret/: RENG-006
-crates/anvil-gate/: RENG-016
-crates/anvil-napi/: RENG-007, RENG-013, RENG-019
-crates/anvil-tui/src/dashboard/: RENG-021
-crates/anvil-tui/src/wizard/: RENG-022
-crates/anvil-watcher/: RENG-014, RENG-024
-crates/anvil-watcher/src/cache.rs: RENG-017
-crates/anvil-watcher/src/git.rs: RENG-015
-crates/bench/: RENG-008
-crates/eddacraft-kindling/: RENG-018
-crates/eddacraft-kindling/src/query.rs: RENG-019
-crates/eddacraft-tui/: RENG-020
-crates/spike/: RENG-001, RENG-002, RENG-003, RENG-004, RENG-005
+# REVIEW(ADR-011): crates/ entries below reference an older 24-item RENG scope.
+# RENG is now 6 items (RENG-001–006). IDs RENG-007+ are from a prior plan
+# iteration and should be reconciled with KERN/RATS/PORT modules.
+# crates/ paths don't exist in this monorepo — work done in external workspace.
+# TUI crates (anvil-tui, eddacraft-tui) → now covered by RATS module.
+crates/anvil-engine/src/antipattern/: RENG-012   # old scope — reconcile with KERN
+crates/anvil-engine/src/architecture/: RENG-011  # old scope — reconcile with KERN
+crates/anvil-engine/src/lint/: RENG-023          # old scope — reconcile with KERN
+crates/anvil-engine/src/parse/: RENG-010         # old scope — reconcile with KERN
+crates/anvil-engine/src/secret/: RENG-006        # old scope — now RENG-001
+crates/anvil-gate/: RENG-016                     # old scope — reconcile with KERN
+crates/anvil-napi/: RENG-007, RENG-013, RENG-019 # old scope — N-API dropped per ADR-011
+crates/anvil-tui/src/dashboard/: RENG-021        # old scope — now RATS-002
+crates/anvil-tui/src/wizard/: RENG-022           # old scope — now RATS-004
+crates/anvil-watcher/: RENG-014, RENG-024        # old scope — now KERN Phase 1
+crates/anvil-watcher/src/cache.rs: RENG-017      # old scope — now KERN Phase 1
+crates/anvil-watcher/src/git.rs: RENG-015        # old scope — now KERN Phase 1
+crates/bench/: RENG-008                          # old scope — now RENG-005
+crates/eddacraft-kindling/: RENG-018             # old scope — reconcile with KERN
+crates/eddacraft-kindling/src/query.rs: RENG-019 # old scope — reconcile with KERN
+crates/eddacraft-tui/: RENG-020                  # old scope — now RATS-001 (done)
+crates/spike/: RENG-001, RENG-002, RENG-003, RENG-004, RENG-005  # done in external workspace
 docs/architecture/edda-stack.md: STACK-015
 docs/guides/ai-guardrail-profile.md: AIGUARD-004
 docs/guides/architecture-config-validation.md: ARCHCFG-005

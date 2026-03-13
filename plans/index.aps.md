@@ -136,10 +136,8 @@ release must deliver both the core value AND a friction-free first experience.
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
-| GitHub Projects Trial      | 2-week APS↔GH Projects dual-primary trial               | Ready       | 0/8      |
 
 **Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
-**Design doc (GH Projects Trial):** [docs/plans/2026-03-09-aps-vs-gh-projects-trial-decision-space.md](../docs/plans/2026-03-09-aps-vs-gh-projects-trial-decision-space.md)
 
 ### 0.2.0 — Web Dashboard
 
@@ -203,16 +201,23 @@ modules.
 **Spec:** [Rust Kernel Specification](../docs/architecture/rust-kernel-spec.md)
 **Evolution:** [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 
-### Future — Rust Engine Ports (RENG, Proposed)
+### Future — Rust Engine Ports (RENG, In Progress)
+
+<!-- REVIEW(ADR-011): RENG-001–003 and RENG-005 completed in external Rust
+     workspace. File map in CLAUDE.md references crates/ paths that don't exist
+     in this monorepo yet — paths will materialise when kernel is vendored in.
+     Old RENG file map entries (RENG-007 through RENG-024) reference crate
+     structures from an earlier plan iteration and should be reconciled with
+     the current 6-item RENG scope. -->
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
-| RENG-001 | Port secret scan to Rust (regex + entropy)               | Proposed |
-| RENG-002 | Port anti-pattern detection (uses kernel ASTs)           | Proposed |
-| RENG-003 | Port command safety check                                | Proposed |
-| RENG-004 | Validate architecture check parity with kernel invariants | Proposed |
-| RENG-005 | Benchmark all ported checks vs JS                        | Proposed |
-| RENG-006 | Feature flag + dual-run for ported checks                | Proposed |
+| RENG-001 | Port secret scan to Rust (regex + entropy)               | Done     |
+| RENG-002 | Port anti-pattern detection (uses kernel ASTs)           | Done     |
+| RENG-003 | Port command safety check                                | Done     |
+| RENG-004 | Validate architecture check parity with kernel invariants | Draft   |
+| RENG-005 | Benchmark all ported checks vs JS                        | Done     |
+| RENG-006 | Feature flag + dual-run for ported checks                | Draft   |
 
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
@@ -445,6 +450,10 @@ waves; 39 tasks total.
 
 ### Planned — 0.3.0 (Organisational Policy Governance)
 
+<!-- REVIEW(ADR-011): OPAE TUI items (014, 019, 023, 032, 033) target
+     cli/src/tui/ (Ink). Reassess against Ratatui direction. CLI items
+     (005, 011, 013, 015, 016) reference pre-monorepo cli/src/ paths. -->
+
 | Module | Scope | Status | Dependencies |
 | ------ | ----- | ------ | ------------ |
 | [opa-enhancements](./modules/opa-enhancements.aps.md) | OPAE | Draft | opa-architecture-integration, architecture-safety, tui |
@@ -480,7 +489,7 @@ waves; 39 tasks total.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 4/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Proposed | 0/6 | KERN Phase 1, KERN Phase 2 |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 3/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Proposed | 1/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
@@ -489,7 +498,7 @@ waves; 39 tasks total.
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | — | — |
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | — | save-time-trust |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Draft | — | save-time-trust, ide-integration |
-| ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI |
+| ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI, then ADR-011: Ratatui replaces Ink |
 
 ### Task Status — 0.1.0 (Core Engine)
 
@@ -651,17 +660,23 @@ waves; 39 tasks total.
 
 #### TUI Operational (CLI)
 
-| Task    | Module | Description                       | Status  | Priority |
-| ------- | ------ | --------------------------------- | ------- | -------- |
-| TUI-006 | tui    | Static template library           | Deferred | medium   |
-| TUI-007 | tui    | Interactive tutorial              | Deferred | low      |
-| TUI-009 | tui    | `anvil watch` real-time dashboard | Complete | medium   |
-| TUI-010 | tui    | `anvil gate` interactive explorer | Deferred | medium   |
-| TUI-011 | tui    | Parallel progress visualisation   | Deferred | low      |
-| TUI-012 | tui    | Log panel with filtering          | Deferred | low      |
-| TUI-013 | tui    | `<MermaidDiagram />` component + `layersToMermaid()` helper ([brainstorm](./brainstorms/mermaid-tui-diagrams.md)) | Complete | high |
-| TUI-014 | tui    | Replace existing ASCII diagrams with mermaid rendering | Complete | high |
-| TUI-015 | tui    | `anvil architecture visualise` command (ascii/svg/mermaid formats) | Complete | high |
+<!-- REVIEW(ADR-011): All deferred Ink TUI items below should be reassessed.
+     ADR-011 adopts Ratatui as the TUI surface. These items were deferred when
+     Ink was the target; they should either be absorbed into PORT/RATS modules
+     or cancelled. TUI-009 (watch dashboard) is complete in Ink but has a
+     Ratatui counterpart planned as RATS-002/PORT-030. -->
+
+| Task    | Module | Description                       | Status  | Priority | Review |
+| ------- | ------ | --------------------------------- | ------- | -------- | ------ |
+| TUI-006 | tui    | Static template library           | Deferred | medium   | Reassess: absorb into PORT or cancel |
+| TUI-007 | tui    | Interactive tutorial              | Deferred | low      | Reassess: absorb into PORT-040–044 or cancel |
+| TUI-009 | tui    | `anvil watch` real-time dashboard | Complete | medium   | Ratatui counterpart: RATS-002, PORT-030 |
+| TUI-010 | tui    | `anvil gate` interactive explorer | Deferred | medium   | Reassess: absorb into RATS-003/PORT-023 or cancel |
+| TUI-011 | tui    | Parallel progress visualisation   | Deferred | low      | Reassess: absorb into RATS or cancel |
+| TUI-012 | tui    | Log panel with filtering          | Deferred | low      | Reassess: absorb into RATS or cancel |
+| TUI-013 | tui    | `<MermaidDiagram />` component + `layersToMermaid()` helper ([brainstorm](./brainstorms/mermaid-tui-diagrams.md)) | Complete | high | — |
+| TUI-014 | tui    | Replace existing ASCII diagrams with mermaid rendering | Complete | high | — |
+| TUI-015 | tui    | `anvil architecture visualise` command (ascii/svg/mermaid formats) | Complete | high | — |
 
 ### Task Status — 0.2.0 (Web Dashboard)
 
@@ -942,44 +957,67 @@ remaining major and minor improvements.
 
 #### OPA Enhancements
 
-| Task     | Module | Description                             | Status | Priority |
-| -------- | ------ | --------------------------------------- | ------ | -------- |
-| OPAE-001 | opae   | Enhanced architecture YAML schema       | Draft  | high     |
-| OPAE-002 | opae   | Module boundary definitions             | Draft  | high     |
-| OPAE-003 | opae   | File-level import rules                 | Draft  | high     |
-| OPAE-004 | opae   | Package import restrictions             | Draft  | high     |
-| OPAE-005 | opae   | Interactive architecture wizard         | Draft  | medium   |
-| OPAE-006 | opae   | Policy library infrastructure           | Draft  | high     |
-| OPAE-007 | opae   | Security policy pack (8 policies)       | Draft  | high     |
-| OPAE-008 | opae   | Quality policy pack (6 policies)        | Draft  | high     |
-| OPAE-009 | opae   | Scope policy pack (4 policies)          | Draft  | high     |
-| OPAE-010 | opae   | Compliance policy pack (5 policies)     | Draft  | medium   |
-| OPAE-011 | opae   | Policy browse command                   | Draft  | high     |
-| OPAE-012 | opae   | Enhanced violation messages             | Draft  | high     |
-| OPAE-013 | opae   | Policy debugger foundation              | Draft  | medium   |
-| OPAE-014 | opae   | Interactive debugger TUI                | Draft  | medium   |
-| OPAE-015 | opae   | Policy watch mode                       | Draft  | medium   |
-| OPAE-016 | opae   | Architecture watch mode                 | Draft  | medium   |
-| OPAE-017 | opae   | Watch mode performance optimisation     | Draft  | medium   |
-| OPAE-018 | opae   | Historical PR analysis                  | Draft  | medium   |
-| OPAE-019 | opae   | Impact visualisation                    | Draft  | medium   |
-| OPAE-020 | opae   | Impact simulation                       | Draft  | medium   |
-| OPAE-021 | opae   | Policy description parser (NLP)         | Draft  | low      |
-| OPAE-022 | opae   | YAML generation from NLP                | Draft  | low      |
-| OPAE-023 | opae   | Policy creation wizard                  | Draft  | low      |
-| OPAE-024 | opae   | Exception request system                | Draft  | high     |
-| OPAE-025 | opae   | Exception approval workflow             | Draft  | high     |
-| OPAE-026 | opae   | Audit trail                             | Draft  | high     |
-| OPAE-027 | opae   | Exception CLI commands                  | Draft  | high     |
-| OPAE-028 | opae   | GitHub PR comments                      | Draft  | high     |
-| OPAE-029 | opae   | GitLab MR comments                      | Draft  | high     |
-| OPAE-030 | opae   | Inline annotations                      | Draft  | medium   |
-| OPAE-031 | opae   | Compliance metrics collection           | Draft  | high     |
-| OPAE-032 | opae   | Metrics dashboard TUI                   | Draft  | medium   |
-| OPAE-033 | opae   | Team leaderboards                       | Draft  | medium   |
-| OPAE-034 | opae   | Organisation policy bundles             | Draft  | high     |
-| OPAE-035 | opae   | Bundle versioning                       | Draft  | high     |
-| OPAE-036 | opae   | Bundle inheritance                      | Draft  | medium   |
+<!-- REVIEW(ADR-011): Multiple items need reassessment for the Rust CLI/TUI direction.
+
+     TUI items targeting cli/src/tui/ (Ink) — should target Ratatui instead:
+       OPAE-005  Interactive architecture wizard → absorb into RATS-004 or PORT-020
+       OPAE-014  Interactive debugger TUI → new RATS item or Ratatui surface
+       OPAE-019  Impact visualisation → Ratatui surface (cli/src/tui/impact-report.tsx)
+       OPAE-023  Policy creation wizard → Ratatui surface (cli/src/tui/policy-creator.tsx)
+       OPAE-032  Metrics dashboard TUI → Ratatui surface (cli/src/tui/metrics-dashboard.tsx)
+       OPAE-033  Team leaderboards → Ratatui surface (cli/src/tui/leaderboard.tsx)
+
+     Watch mode items — kernel handles watch, TUI handled by RATS/KERN:
+       OPAE-015  Policy watch mode → may be subsumed by KERN watch + RATS-002
+       OPAE-016  Architecture watch mode → may be subsumed by KERN watch + RATS-002
+       OPAE-017  Watch mode performance → subsumed by KERN (14x speedup)
+
+     CLI command items using pre-monorepo cli/src/ paths — update to apps/anvil-cli/:
+       OPAE-011  Policy browse command (cli/src/commands/policy.ts)
+       OPAE-013  Policy debugger foundation (cli/src/commands/policy-debug.ts)
+       OPAE-027  Exception CLI commands (apps/anvil-cli/ — already correct)
+
+     Debugger TUI (OPAE-014) also maps to cli/src/tui/policy-debugger.tsx.
+-->
+
+| Task     | Module | Description                             | Status | Priority | Review |
+| -------- | ------ | --------------------------------------- | ------ | -------- | ------ |
+| OPAE-001 | opae   | Enhanced architecture YAML schema       | Draft  | high     | — |
+| OPAE-002 | opae   | Module boundary definitions             | Draft  | high     | — |
+| OPAE-003 | opae   | File-level import rules                 | Draft  | high     | — |
+| OPAE-004 | opae   | Package import restrictions             | Draft  | high     | — |
+| OPAE-005 | opae   | Interactive architecture wizard         | Draft  | medium   | ADR-011: TUI → absorb into RATS-004/PORT-020 |
+| OPAE-006 | opae   | Policy library infrastructure           | Draft  | high     | — |
+| OPAE-007 | opae   | Security policy pack (8 policies)       | Draft  | high     | — |
+| OPAE-008 | opae   | Quality policy pack (6 policies)        | Draft  | high     | — |
+| OPAE-009 | opae   | Scope policy pack (4 policies)          | Draft  | high     | — |
+| OPAE-010 | opae   | Compliance policy pack (5 policies)     | Draft  | medium   | — |
+| OPAE-011 | opae   | Policy browse command                   | Draft  | high     | ADR-011: path cli/src/ → apps/anvil-cli/ |
+| OPAE-012 | opae   | Enhanced violation messages             | Draft  | high     | — |
+| OPAE-013 | opae   | Policy debugger foundation              | Draft  | medium   | ADR-011: path cli/src/ → apps/anvil-cli/ |
+| OPAE-014 | opae   | Interactive debugger TUI                | Draft  | medium   | ADR-011: Ink → Ratatui surface |
+| OPAE-015 | opae   | Policy watch mode                       | Draft  | medium   | ADR-011: subsumed by KERN watch + RATS-002 |
+| OPAE-016 | opae   | Architecture watch mode                 | Draft  | medium   | ADR-011: subsumed by KERN watch + RATS-002 |
+| OPAE-017 | opae   | Watch mode performance optimisation     | Draft  | medium   | ADR-011: subsumed by KERN (14x speedup) |
+| OPAE-018 | opae   | Historical PR analysis                  | Draft  | medium   | — |
+| OPAE-019 | opae   | Impact visualisation                    | Draft  | medium   | ADR-011: Ink → Ratatui surface |
+| OPAE-020 | opae   | Impact simulation                       | Draft  | medium   | — |
+| OPAE-021 | opae   | Policy description parser (NLP)         | Draft  | low      | — |
+| OPAE-022 | opae   | YAML generation from NLP                | Draft  | low      | — |
+| OPAE-023 | opae   | Policy creation wizard                  | Draft  | low      | ADR-011: Ink → Ratatui surface |
+| OPAE-024 | opae   | Exception request system                | Draft  | high     | — |
+| OPAE-025 | opae   | Exception approval workflow             | Draft  | high     | — |
+| OPAE-026 | opae   | Audit trail                             | Draft  | high     | — |
+| OPAE-027 | opae   | Exception CLI commands                  | Draft  | high     | — |
+| OPAE-028 | opae   | GitHub PR comments                      | Draft  | high     | — |
+| OPAE-029 | opae   | GitLab MR comments                      | Draft  | high     | — |
+| OPAE-030 | opae   | Inline annotations                      | Draft  | medium   | — |
+| OPAE-031 | opae   | Compliance metrics collection           | Draft  | high     | — |
+| OPAE-032 | opae   | Metrics dashboard TUI                   | Draft  | medium   | ADR-011: Ink → Ratatui surface |
+| OPAE-033 | opae   | Team leaderboards                       | Draft  | medium   | ADR-011: Ink → Ratatui surface |
+| OPAE-034 | opae   | Organisation policy bundles             | Draft  | high     | — |
+| OPAE-035 | opae   | Bundle versioning                       | Draft  | high     | — |
+| OPAE-036 | opae   | Bundle inheritance                      | Draft  | medium   | — |
 
 #### OPA Agent Orchestration
 
