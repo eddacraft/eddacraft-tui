@@ -1,8 +1,7 @@
 # Anvil — Full Architecture (Current vs Proposed End State)
 
-> **Date:** 2026-03-13
-> **Status:** Reference — synthesised from APS modules, architecture specs, and
-> vision documents
+> **Date:** 2026-03-13 **Status:** Reference — synthesised from APS modules,
+> architecture specs, and vision documents
 >
 > Legend: **[CURRENT]** = shipped today, **[PROPOSED]** = planned but not yet
 > built, **[PARTIAL]** = foundation exists but incomplete
@@ -78,7 +77,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │              ENGINE EVENT PROTOCOL [PROPOSED]                │
 │                                                             │
-│  EngineEvent { seq, timestamp, engine, payload }             │
+│  EngineEvent { event_type, seq, timestamp, engine, payload }  │
 │  Transport: JSON-RPC 2.0 / NDJSON / Unix domain socket      │
 │  Events: Progress | Snapshot | Violation | Error             │
 └──────────┬──────────────────────────────────┬───────────────┘
@@ -106,66 +105,70 @@
 
 ### Applications
 
-| Package | Purpose | Status |
-|---------|---------|--------|
-| `apps/anvil-cli` | CLI + Ink TUI (30+ commands) | **[CURRENT]** |
-| `apps/website` | Next.js dashboard + marketing | **[CURRENT]** |
-| `apps/anvil-api` | API server | **[CURRENT]** |
-| `apps/docs-site` | Documentation site | **[CURRENT]** |
-| `apps/e2e` | End-to-end test suite | **[CURRENT]** |
+| Package          | Purpose                       | Status        |
+| ---------------- | ----------------------------- | ------------- |
+| `apps/anvil-cli` | CLI + Ink TUI (30+ commands)  | **[CURRENT]** |
+| `apps/website`   | Next.js dashboard + marketing | **[CURRENT]** |
+| `apps/anvil-api` | API server                    | **[CURRENT]** |
+| `apps/docs-site` | Documentation site            | **[CURRENT]** |
+| `apps/e2e`       | End-to-end test suite         | **[CURRENT]** |
 
 ### Core Libraries
 
-| Package | Purpose | Status |
-|---------|---------|--------|
-| `packages/anvil/core` | Core domain: config, architecture, antipattern, drift, provenance, suppression, warnings, crypto, validation | **[CURRENT]** |
-| `packages/anvil/runtime` | Execution engine: gate runner, checks, watch orchestrator, cache, concurrency, storage, export | **[CURRENT]** |
-| `packages/anvil/contracts` | Shared TypeScript contracts/interfaces | **[CURRENT]** |
-| `packages/anvil/ports` | Port interfaces (hexagonal architecture) | **[CURRENT]** |
-| `packages/anvil/policy` | Policy evaluation abstractions | **[CURRENT]** |
+| Package                    | Purpose                                                                                                      | Status        |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------- |
+| `packages/anvil/core`      | Core domain: config, architecture, antipattern, drift, provenance, suppression, warnings, crypto, validation | **[CURRENT]** |
+| `packages/anvil/runtime`   | Execution engine: gate runner, checks, watch orchestrator, cache, concurrency, storage, export               | **[CURRENT]** |
+| `packages/anvil/contracts` | Shared TypeScript contracts/interfaces                                                                       | **[CURRENT]** |
+| `packages/anvil/ports`     | Port interfaces (hexagonal architecture)                                                                     | **[CURRENT]** |
+| `packages/anvil/policy`    | Policy evaluation abstractions                                                                               | **[CURRENT]** |
 
 ### Edda Stack (Observation → Memory Pipeline)
 
-| Package | Purpose | Status |
-|---------|---------|--------|
-| `packages/edda-stack` | Three-layer memory: Kindling → Ember → Edda | **[CURRENT]** |
-| `packages/kindling-integration` | Kindling observation capture integration | **[CURRENT]** |
+| Package                         | Purpose                                     | Status        |
+| ------------------------------- | ------------------------------------------- | ------------- |
+| `packages/edda-stack`           | Three-layer memory: Kindling → Ember → Edda | **[CURRENT]** |
+| `packages/kindling-integration` | Kindling observation capture integration    | **[CURRENT]** |
 
 ### Platform
 
-| Package | Purpose | Status |
-|---------|---------|--------|
-| `packages/platform/config` | Config file loading and resolution | **[CURRENT]** |
-| `packages/platform/storage` | File-system storage abstraction | **[CURRENT]** |
-| `packages/platform/crypto` | Cryptographic utilities | **[CURRENT]** |
+| Package                     | Purpose                            | Status        |
+| --------------------------- | ---------------------------------- | ------------- |
+| `packages/platform/config`  | Config file loading and resolution | **[CURRENT]** |
+| `packages/platform/storage` | File-system storage abstraction    | **[CURRENT]** |
+| `packages/platform/crypto`  | Cryptographic utilities            | **[CURRENT]** |
 
 ### Tooling & Integration
 
-| Package | Purpose | Status |
-|---------|---------|--------|
-| `packages/aps` | APS (Anvil Plan Spec) loader and state machine | **[CURRENT]** |
-| `packages/mcp-server` | Model Context Protocol server for AI agents | **[CURRENT]** |
-| `packages/eslint-plugin-anvil` | ESLint plugin with Anvil-specific rules | **[CURRENT]** |
-| `packages/vscode-extension` | VS Code extension for Anvil | **[CURRENT]** |
-| `packages/adapters` | External tool adapters | **[CURRENT]** |
-| `packages/tooling/eslint-config` | Shared ESLint config | **[CURRENT]** |
-| `packages/tooling/tsconfig` | Shared TypeScript config | **[CURRENT]** |
+| Package                          | Purpose                                        | Status        |
+| -------------------------------- | ---------------------------------------------- | ------------- |
+| `packages/aps`                   | APS (Anvil Plan Spec) loader and state machine | **[CURRENT]** |
+| `packages/mcp-server`            | Model Context Protocol server for AI agents    | **[CURRENT]** |
+| `packages/eslint-plugin-anvil`   | ESLint plugin with Anvil-specific rules        | **[CURRENT]** |
+| `packages/vscode-extension`      | VS Code extension for Anvil                    | **[CURRENT]** |
+| `packages/adapters`              | External tool adapters                         | **[CURRENT]** |
+| `packages/tooling/eslint-config` | Shared ESLint config                           | **[CURRENT]** |
+| `packages/tooling/tsconfig`      | Shared TypeScript config                       | **[CURRENT]** |
 
 ### Rust Crates
 
-| Crate | Purpose | Status |
-|-------|---------|--------|
-| `crates/spike` | Phase 0 validation spikes (tree-sitter, notify, petgraph) | **[CURRENT]** |
-| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts | **[CURRENT]** |
-| `crates/eddacraft-tui` | Shared Ratatui component library | **[CURRENT]** |
-| `crates/anvil-checks` | Ported checks: secret, antipattern, command safety | **[CURRENT]** |
-| `crates/anvil-kernel` | Core kernel: watcher, parser, graph, policy engine | **[PROPOSED]** |
-| `crates/anvil-tui` | Anvil-specific TUI surfaces | **[PROPOSED]** |
-| `crates/anvil-gate` | Gate evaluation / policy execution | **[PROPOSED]** |
-| `crates/anvil-watcher` | File system watching + cache + git | **[PROPOSED]** |
-| `crates/anvil-engine` | Parse, architecture, antipattern, lint, secret | **[PROPOSED]** |
-| `crates/eddacraft-kindling` | Kindling Rust integration | **[PROPOSED]** |
-| `crates/bench` | Cross-crate performance benchmarks | **[PROPOSED]** |
+| Crate                       | Purpose                                                   | Status         |
+| --------------------------- | --------------------------------------------------------- | -------------- |
+| `crates/spike`              | Phase 0 validation spikes (tree-sitter, notify, petgraph) | **[CURRENT]**  |
+| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts                   | **[CURRENT]**  |
+| `crates/eddacraft-tui`      | Shared Ratatui component library                          | **[CURRENT]**  |
+| `crates/anvil-checks`       | Ported checks: secret, antipattern, command safety        | **[CURRENT]**  |
+| `crates/anvil-kernel`       | Core kernel: watcher, parser, graph, policy engine        | **[PROPOSED]** |
+| `crates/anvil-tui`          | Anvil-specific TUI surfaces                               | **[PROPOSED]** |
+| `crates/anvil-napi`         | N-API bridge for Node.js CLI integration                  | **[PROPOSED]** |
+| `crates/eddacraft-kindling` | Kindling Rust integration                                 | **[PROPOSED]** |
+| `crates/bench`              | Cross-crate performance benchmarks                        | **[PROPOSED]** |
+
+> **Note:** Watcher, gate, and engine responsibilities are consolidated into
+> `anvil-kernel` as internal modules — see `rust-architecture-endstate.md` for
+> the detailed crate map. Earlier planning documents referenced separate
+> `anvil-gate`, `anvil-watcher`, and `anvil-engine` crates; those have been
+> folded into the kernel to reduce cross-crate complexity.
 
 ---
 
@@ -176,16 +179,16 @@ checks against repository state and produces pass/fail/warn results.
 
 ### Current Gate Checks (TypeScript)
 
-| Check | What It Does | External Deps | Rust Port |
-|-------|-------------|---------------|-----------|
-| `SecretCheck` | Entropy + pattern-based secret detection | None | **Done** (RENG-001) |
-| `AntipatternCheck` | Detects code anti-patterns (13 patterns) | None | **Done** (RENG-002) |
-| `CommandSafetyCheck` | Validates shell commands (36 rules) | None | **Done** (RENG-003) |
-| `ArchitectureCheck` | Layer violations via dependency analysis | dependency-cruiser | **[PROPOSED]** (RENG-004) |
-| `DependencyCheck` | New/changed dependency detection | dependency-cruiser | **[PROPOSED]** |
-| `PolicyCheck` | OPA Rego policy evaluation | OPA binary | **[PROPOSED]** |
-| `ESLintCheck` | ESLint rule violations | ESLint | Stays TS |
-| `CoverageCheck` | Test coverage thresholds | Jest/Vitest | Stays TS |
+| Check                | What It Does                             | External Deps      | Rust Port                 |
+| -------------------- | ---------------------------------------- | ------------------ | ------------------------- |
+| `SecretCheck`        | Entropy + pattern-based secret detection | None               | **Done** (RENG-001)       |
+| `AntipatternCheck`   | Detects code anti-patterns (13 patterns) | None               | **Done** (RENG-002)       |
+| `CommandSafetyCheck` | Validates shell commands (36 rules)      | None               | **Done** (RENG-003)       |
+| `ArchitectureCheck`  | Layer violations via dependency analysis | dependency-cruiser | **[PROPOSED]** (RENG-004) |
+| `DependencyCheck`    | New/changed dependency detection         | dependency-cruiser | **[PROPOSED]**            |
+| `PolicyCheck`        | OPA Rego policy evaluation               | OPA binary         | **[PROPOSED]**            |
+| `ESLintCheck`        | ESLint rule violations                   | ESLint             | Stays TS                  |
+| `CoverageCheck`      | Test coverage thresholds                 | Jest/Vitest        | Stays TS                  |
 
 ### Gate Pipeline Flow
 
@@ -343,17 +346,17 @@ QuickWinsPanel, ResultsDashboard, MermaidDiagram, ErrorBoundary
 
 **Command Surfaces:**
 
-| Surface | Components | Complexity |
-|---------|-----------|------------|
-| Welcome | `Welcome.tsx` | Simple |
-| Doctor | `Diagnostics.tsx` | Simple |
-| Status | `StatusDashboard.tsx` + 3 panels | Medium |
-| Init | `InitWizard.tsx` + 5 step components | Medium |
-| Audit | `AuditResults.tsx` | Medium |
-| New | `TemplateBrowser.tsx` | Medium |
-| Gate | `GateExplorer.tsx` + 3 panels | Complex |
-| Watch | `WatchDashboard.tsx` + 4 panels | Complex |
-| Tutorial | `Tutorial.tsx` + Picker + 4 paths (23 steps) | Complex |
+| Surface  | Components                                   | Complexity |
+| -------- | -------------------------------------------- | ---------- |
+| Welcome  | `Welcome.tsx`                                | Simple     |
+| Doctor   | `Diagnostics.tsx`                            | Simple     |
+| Status   | `StatusDashboard.tsx` + 3 panels             | Medium     |
+| Init     | `InitWizard.tsx` + 5 step components         | Medium     |
+| Audit    | `AuditResults.tsx`                           | Medium     |
+| New      | `TemplateBrowser.tsx`                        | Medium     |
+| Gate     | `GateExplorer.tsx` + 3 panels                | Complex    |
+| Watch    | `WatchDashboard.tsx` + 4 panels              | Complex    |
+| Tutorial | `Tutorial.tsx` + Picker + 4 paths (23 steps) | Complex    |
 
 ### Proposed Ratatui TUI (Rust) [PROPOSED]
 
@@ -381,18 +384,18 @@ Phase 4 (Removal):       Ratatui only       │  Node.js dependency removed
 
 **Status: [CURRENT]** — 30+ commands in `apps/anvil-cli/src/commands/`
 
-| Domain | Commands |
-|--------|----------|
-| **Core** | `check`, `gate`, `gate-config`, `watch`, `status`, `init`, `doctor`, `welcome` |
-| **Architecture** | `architecture`, `drift`, `validate` |
-| **Policy** | `policy` (bundle, diff, doc, explain, init, list, scaffold, toggle, validate, why) |
-| **Memory** | `edda` (list, show, promote, retire, trace), `ember` (list, show, promote), `stack` (config, status, validate) |
-| **Planning** | `plan` (load, lock, status, unlock, validate) |
-| **Agent** | `agent` (cleanup, info, list, status) |
-| **Export** | `export`, `audit`, `explain`, `authorship` |
-| **Setup** | `hooks`, `new`, `tutorial`, `beta`, `release` |
-| **Auth** | `login`, `logout`, `whoami` |
-| **Integration** | `mcp-config` |
+| Domain           | Commands                                                                                                       |
+| ---------------- | -------------------------------------------------------------------------------------------------------------- |
+| **Core**         | `check`, `gate`, `gate-config`, `watch`, `status`, `init`, `doctor`, `welcome`                                 |
+| **Architecture** | `architecture`, `drift`, `validate`                                                                            |
+| **Policy**       | `policy` (bundle, diff, doc, explain, init, list, scaffold, toggle, validate, why)                             |
+| **Memory**       | `edda` (list, show, promote, retire, trace), `ember` (list, show, promote), `stack` (config, status, validate) |
+| **Planning**     | `plan` (load, lock, status, unlock, validate)                                                                  |
+| **Agent**        | `agent` (cleanup, info, list, status)                                                                          |
+| **Export**       | `export`, `audit`, `explain`, `authorship`                                                                     |
+| **Setup**        | `hooks`, `new`, `tutorial`, `beta`, `release`                                                                  |
+| **Auth**         | `login`, `logout`, `whoami`                                                                                    |
+| **Integration**  | `mcp-config`                                                                                                   |
 
 ---
 
@@ -400,15 +403,15 @@ Phase 4 (Removal):       Ratatui only       │  Node.js dependency removed
 
 **Status: [PROPOSED]** — route structure defined, not yet implemented
 
-| Module | Routes | APS |
-|--------|--------|-----|
-| Shell | Layout, sidebar, top bar | DASH-001..002 |
-| Components | Metric cards, tables, badges, charts | DASH-003..004 |
-| API Layer | `/api/anvil/*` routes (status, gates, warnings, drift, config, provenance) | DASH-005..006 |
-| Core Views | Overview, gates, gate detail, warnings, breakdown, patterns | DASHCORE |
-| Architecture | Violations, graph, drift, drift detail, compare, suppressions | DASHARCH |
-| Operations | Audit log, user activity, AI tool usage, plans, config, diagnostics | DASHOPS |
-| AI Builder | JSON-render engine, component catalogue, templates, saved dashboards | DASHAI |
+| Module       | Routes                                                                     | APS           |
+| ------------ | -------------------------------------------------------------------------- | ------------- |
+| Shell        | Layout, sidebar, top bar                                                   | DASH-001..002 |
+| Components   | Metric cards, tables, badges, charts                                       | DASH-003..004 |
+| API Layer    | `/api/anvil/*` routes (status, gates, warnings, drift, config, provenance) | DASH-005..006 |
+| Core Views   | Overview, gates, gate detail, warnings, breakdown, patterns                | DASHCORE      |
+| Architecture | Violations, graph, drift, drift detail, compare, suppressions              | DASHARCH      |
+| Operations   | Audit log, user activity, AI tool usage, plans, config, diagnostics        | DASHOPS       |
+| AI Builder   | JSON-render engine, component catalogue, templates, saved dashboards       | DASHAI        |
 
 ---
 
@@ -416,39 +419,39 @@ Phase 4 (Removal):       Ratatui only       │  Node.js dependency removed
 
 ### Current External Dependencies
 
-| Tool | Used By | Purpose | End State |
-|------|---------|---------|-----------|
-| **dependency-cruiser** | ArchitectureCheck, DependencyCheck | Import graph analysis | **Replaced** by Rust kernel semantic graph |
-| **OPA** | PolicyCheck | Rego policy evaluation | **Replaced** by Rust policy engine |
-| **ESLint** | ESLintCheck | Lint rule evaluation | **Stays** (complementary) |
-| **Jest/Vitest** | CoverageCheck | Test coverage | **Stays** (complementary) |
-| **Git** | Watch, Drift, Provenance | VCS operations | **Stays** |
-| **chokidar** | FileWatcher | FS notifications | **Replaced** by notify-rs |
-| **tree-sitter** | (not yet) | Parsing | **[PROPOSED]** in Rust kernel |
+| Tool                   | Used By                            | Purpose                | End State                                  |
+| ---------------------- | ---------------------------------- | ---------------------- | ------------------------------------------ |
+| **dependency-cruiser** | ArchitectureCheck, DependencyCheck | Import graph analysis  | **Replaced** by Rust kernel semantic graph |
+| **OPA**                | PolicyCheck                        | Rego policy evaluation | **Replaced** by Rust policy engine         |
+| **ESLint**             | ESLintCheck                        | Lint rule evaluation   | **Stays** (complementary)                  |
+| **Jest/Vitest**        | CoverageCheck                      | Test coverage          | **Stays** (complementary)                  |
+| **Git**                | Watch, Drift, Provenance           | VCS operations         | **Stays**                                  |
+| **chokidar**           | FileWatcher                        | FS notifications       | **Replaced** by notify-rs                  |
+| **tree-sitter**        | (not yet)                          | Parsing                | **[PROPOSED]** in Rust kernel              |
 
 ### AI/Agent Integration Points
 
-| Integration | Purpose | Status |
-|-------------|---------|--------|
-| MCP Server | Expose Anvil to AI agents (fix, suppress, query) | **[CURRENT]** |
-| VS Code Extension | IDE integration | **[CURRENT]** |
-| Kindling Integration | Capture AI tool observations | **[CURRENT]** |
-| Claude Code Hooks | Pre/post tool-use hooks for Claude Code | **[CURRENT]** |
-| Forge Pipeline | Pre-commit cross-model review | **[CURRENT]** |
-| Temper Pipeline | Post-push CI auto-healing | **[CURRENT]** |
+| Integration          | Purpose                                          | Status        |
+| -------------------- | ------------------------------------------------ | ------------- |
+| MCP Server           | Expose Anvil to AI agents (fix, suppress, query) | **[CURRENT]** |
+| VS Code Extension    | IDE integration                                  | **[CURRENT]** |
+| Kindling Integration | Capture AI tool observations                     | **[CURRENT]** |
+| Claude Code Hooks    | Pre/post tool-use hooks for Claude Code          | **[CURRENT]** |
+| Forge Pipeline       | Pre-commit cross-model review                    | **[CURRENT]** |
+| Temper Pipeline      | Post-push CI auto-healing                        | **[CURRENT]** |
 
 ---
 
 ## 10. Execution Modes (End State)
 
-| Mode | Engine | Surface | Use Case |
-|------|--------|---------|----------|
-| One-shot check | Rust (embedded) | CLI output | `anvil check` in CI/terminal |
-| Interactive gate | Rust (embedded) | Ratatui TUI | `anvil gate` interactive explorer |
-| Watch mode | Rust (foreground) | Ratatui TUI | `anvil watch` live dashboard |
-| Daemon mode | Rust (background) | Any client | VS Code, MCP, dashboard consume events |
-| Legacy mode | TypeScript | Ink TUI | `--engine legacy` fallback |
-| Dual-run mode | Both | CLI diff | `--engine dual` parity validation |
+| Mode             | Engine            | Surface     | Use Case                               |
+| ---------------- | ----------------- | ----------- | -------------------------------------- |
+| One-shot check   | Rust (embedded)   | CLI output  | `anvil check` in CI/terminal           |
+| Interactive gate | Rust (embedded)   | Ratatui TUI | `anvil gate` interactive explorer      |
+| Watch mode       | Rust (foreground) | Ratatui TUI | `anvil watch` live dashboard           |
+| Daemon mode      | Rust (background) | Any client  | VS Code, MCP, dashboard consume events |
+| Legacy mode      | TypeScript        | Ink TUI     | `--engine legacy` fallback             |
+| Dual-run mode    | Both              | CLI diff    | `--engine dual` parity validation      |
 
 ---
 
