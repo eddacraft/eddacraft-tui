@@ -22,7 +22,8 @@ interface WaitlistSubmitResult {
 
 async function submitToWaitlist(email: string): Promise<WaitlistSubmitResult> {
   try {
-    const response = await fetch('/api/waitlist', {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.eddacraft.ai';
+    const response = await fetch(`${apiBase}/api/v1/waitlist`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),

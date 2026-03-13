@@ -17,6 +17,8 @@ packages:
   - packages/platform/*
   # Shared packages
   - packages/shared/*
+  # Transactional email templates
+  - packages/transactional
   # Tooling packages
   - packages/tooling/*
   # Tools

@@ -19,6 +19,22 @@ export const website = new VercelApp('website', {
   },
 });
 
+// IAC-005: Anvil API (Hono)
+export const api = new VercelApp('anvil-api', {
+  name: 'anvil-api',
+  framework: 'other',
+  rootDirectory: 'apps/anvil-api',
+  gitRepo,
+  domains: ['api.eddacraft.ai'],
+  envVars: {
+    DATABASE_URL: websiteDatabaseUrl,
+    RESEND_API_KEY: resendApiKey,
+    ANVIL_ADMIN_KEY: getSecret('anvil-admin-key'),
+    WAITLIST_RESEND_ADMIN_TOKEN: getSecret('waitlist-resend-admin-token'),
+    ANVIL_CORS_ORIGINS: 'https://eddacraft.ai',
+  },
+});
+
 // IAC-004: Docs Site (Docusaurus)
 export const docsSite = new VercelApp('docs-site', {
   name: 'docs-site',
