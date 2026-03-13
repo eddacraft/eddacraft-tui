@@ -6,6 +6,8 @@ vi.mock('../../src/keyvault.js', () => ({
     const secrets: Record<string, string> = {
       'website-database-url': 'mock-database-url',
       'resend-api-key': 'mock-resend-key',
+      'anvil-admin-key': 'mock-admin-key',
+      'waitlist-resend-admin-token': 'mock-waitlist-token',
     };
     const value = secrets[name];
     if (value === undefined) {
@@ -44,18 +46,19 @@ describe('Vercel resources', () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
   });
 
-  it('creates Vercel Project resources for website and docs-site', () => {
+  it('creates Vercel Project resources for all apps', () => {
     const projects = resources.filter((r) => r.type === 'vercel:index/project:Project');
 
-    expect(projects.length).toBe(2);
+    expect(projects.length).toBe(3);
     expect(projects.map((p) => p.name)).toContain('website');
     expect(projects.map((p) => p.name)).toContain('docs-site');
+    expect(projects.map((p) => p.name)).toContain('anvil-api');
   });
 
   it('creates ProjectDomain resources for each app', () => {
     const domains = resources.filter((r) => r.type === 'vercel:index/projectDomain:ProjectDomain');
 
-    expect(domains.length).toBe(2);
+    expect(domains.length).toBe(3);
   });
 
   it('creates environment variables for website when secrets are configured', () => {
