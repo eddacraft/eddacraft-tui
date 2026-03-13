@@ -19,7 +19,8 @@ const allowedOrigins = process.env.ANVIL_CORS_ORIGINS
 function matchOrigin(origin: string): string | undefined {
   for (const pattern of allowedOrigins) {
     if (pattern.includes('*')) {
-      const regex = new RegExp('^' + pattern.replace(/\./g, '\\.').replace('*', '[^.]+') + '$');
+      const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('^' + escaped.replace(/\\\*/g, '[^.]+') + '$');
       if (regex.test(origin)) return origin;
     } else if (pattern === origin) {
       return origin;
