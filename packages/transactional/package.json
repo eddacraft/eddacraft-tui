@@ -1,0 +1,36 @@
+{
+  "name": "@eddacraft/transactional",
+  "version": "0.1.0",
+  "description": "Shared transactional email templates for EddaCraft",
+  "type": "module",
+  "main": "./dist/emails/index.js",
+  "types": "./dist/emails/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/emails/index.d.ts",
+      "import": "./dist/emails/index.js"
+    },
+    "./emails": {
+      "types": "./dist/emails/index.d.ts",
+      "import": "./dist/emails/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "emails"
+  ],
+  "scripts": {
+    "dev": "react-email dev --dir emails",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@react-email/components": "^1.0.7",
+    "react": "^19.2.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "react-email": "^5.2.9",
+    "typescript": "~5.9.3"
+  },
+  "license": "PROPRIETARY"
+}

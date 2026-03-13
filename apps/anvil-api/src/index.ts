@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { auth } from './routes/auth.js';
 import { admin } from './routes/admin.js';
+import { waitlist } from './routes/waitlist.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import { getClient } from './db/client.js';
 
@@ -39,5 +40,6 @@ app.get('/health', async (c) => {
 
 app.route('/auth', auth);
 app.route('/admin', admin);
+app.route('/waitlist', waitlist);
 
 export default app;
