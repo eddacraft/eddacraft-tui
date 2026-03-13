@@ -91,7 +91,7 @@ done
 
 # Check extra watched paths (e.g. docs/public for docs-site)
 for extra in "${EXTRA_PATHS[@]}"; do
-  if echo "$CHANGED_FILES" | grep -q "^${extra}/"; then
+  if echo "$CHANGED_FILES" | grep -qF "${extra}/"; then
     echo ">> Changes detected in extra watched path $extra — building"
     type log_info >/dev/null 2>&1 && log_info "extra path '${extra}' changed, triggering build"
     type log_exit >/dev/null 2>&1 && log_exit 1
