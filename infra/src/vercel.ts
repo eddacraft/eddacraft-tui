@@ -22,7 +22,7 @@ export const website = new VercelApp('website', {
 // IAC-005: Anvil API (Hono)
 export const api = new VercelApp('anvil-api', {
   name: 'anvil-api',
-  framework: 'other',
+  framework: 'hono',
   rootDirectory: 'apps/anvil-api',
   gitRepo,
   domains: ['api.eddacraft.ai'],
