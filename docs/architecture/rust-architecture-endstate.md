@@ -1,8 +1,7 @@
 # Anvil Rust Architecture — End State Specification
 
-> **Date:** 2026-03-13
-> **Status:** Reference — synthesised from KERN, RENG, RATS, PORT, RSTLAN
-> modules and architecture specifications
+> **Date:** 2026-03-13 **Status:** Reference — synthesised from KERN, RENG,
+> RATS, PORT, RSTLAN modules and architecture specifications
 >
 > Legend: **[DONE]** = shipped, **[DRAFT]** = planned, **[DEFERRED]** = post-H1
 
@@ -10,29 +9,33 @@
 
 ## 1. Executive Summary
 
-Anvil's Rust layer replaces the TypeScript engine with a persistent, incremental,
-deterministic semantic runtime. The migration delivers 10-40x performance
-improvements on individual checks and a 14x reduction in watch-cycle latency
-(2.9s → 200ms).
+Anvil's Rust layer replaces the TypeScript engine with a persistent,
+incremental, deterministic semantic runtime. The migration delivers 10-40x
+performance improvements on individual checks and a 14x reduction in watch-cycle
+latency (2.9s → 200ms).
 
 The Rust stack is organised into five APS modules totalling ~58 work items:
 
-| Module | Name | Items | Status | Purpose |
-|--------|------|-------|--------|---------|
-| **KERN** | Rust Kernel | 25 | Phase 0 Done | Watcher, parser, semantic graph, policy engine |
-| **RENG** | Engine Ports | 6 | 4 Done | Port existing TS checks to Rust |
-| **RATS** | Ratatui TUI | 7 | 1 Done | New TUI surfaces consuming kernel events |
-| **PORT** | Ink-to-Ratatui Port | 15 | 2 Done | 1:1 port of existing Ink surfaces |
-| **RSTLAN** | Rust Language Support | ~5 | Placeholder | Extend analysis to Rust codebases |
+| Module     | Name                  | Items | Status       | Purpose                                        |
+| ---------- | --------------------- | ----- | ------------ | ---------------------------------------------- |
+| **KERN**   | Rust Kernel           | 25    | Phase 0 Done | Watcher, parser, semantic graph, policy engine |
+| **RENG**   | Engine Ports          | 6     | 4 Done       | Port existing TS checks to Rust                |
+| **RATS**   | Ratatui TUI           | 7     | 1 Done       | New TUI surfaces consuming kernel events       |
+| **PORT**   | Ink-to-Ratatui Port   | 15    | 2 Done       | 1:1 port of existing Ink surfaces              |
+| **RSTLAN** | Rust Language Support | ~5    | Placeholder  | Extend analysis to Rust codebases              |
 
 ---
 
 ## 2. Crate Layout
 
-### Workspace Configuration
+### Workspace Configuration (End-State Target)
+
+> **Note:** The current workspace uses an explicit `members` list and additional
+> clippy lint settings (e.g. `pedantic` at `warn`). The snippet below shows the
+> target configuration once all crates are migrated to the `crates/` directory.
 
 ```toml
-# Cargo.toml (workspace root)
+# Cargo.toml (workspace root) — TARGET
 [workspace]
 resolver = "2"
 members = ["crates/*"]
@@ -45,6 +48,7 @@ unsafe_code = "forbid"
 
 [workspace.lints.clippy]
 all = "deny"
+pedantic = { level = "warn", priority = -1 }
 ```
 
 ### Crate Map
@@ -234,58 +238,58 @@ crates/
 
 #### Phase 0 — Spike [DONE]
 
-| ID | Description | Validated Target |
-|----|-------------|-----------------|
-| KERN-001 | tree-sitter parse speed | <1ms per file |
-| KERN-002 | notify-rs detection latency | <20ms p99 |
-| KERN-003 | petgraph memory budget | <500MB for 2000 nodes |
-| KERN-004 | Cargo workspace configuration | Edition 2024, lints |
-| KERN-005 | Rust CI pipeline | Draft (pending monorepo CI) |
+| ID       | Description                   | Validated Target            |
+| -------- | ----------------------------- | --------------------------- |
+| KERN-001 | tree-sitter parse speed       | <1ms per file               |
+| KERN-002 | notify-rs detection latency   | <20ms p99                   |
+| KERN-003 | petgraph memory budget        | <500MB for 2000 nodes       |
+| KERN-004 | Cargo workspace configuration | Edition 2024, lints         |
+| KERN-005 | Rust CI pipeline              | Draft (pending monorepo CI) |
 
 #### Phase 1 — Watcher + Parser [DRAFT]
 
-| ID | Description | Dependencies |
-|----|-------------|-------------|
-| KERN-010 | notify-rs watcher with debounce/backpressure | — |
-| KERN-011 | tree-sitter incremental parsing with AST cache | — |
-| KERN-012 | Symbol extraction (fn, class, module, export) | KERN-011 |
-| KERN-013 | Ignore patterns + git-aware filtering | KERN-010 |
+| ID       | Description                                    | Dependencies |
+| -------- | ---------------------------------------------- | ------------ |
+| KERN-010 | notify-rs watcher with debounce/backpressure   | —            |
+| KERN-011 | tree-sitter incremental parsing with AST cache | —            |
+| KERN-012 | Symbol extraction (fn, class, module, export)  | KERN-011     |
+| KERN-013 | Ignore patterns + git-aware filtering          | KERN-010     |
 
 #### Phase 2 — Semantic Graph [DRAFT]
 
-| ID | Description | Dependencies |
-|----|-------------|-------------|
-| KERN-020 | Symbol graph (petgraph, SymbolNode + SymbolEdge) | KERN-012 |
-| KERN-021 | Dependency graph derived from import edges | KERN-020 |
-| KERN-022 | Trust metadata on nodes (TrustLevel enum) | KERN-020 |
+| ID       | Description                                          | Dependencies       |
+| -------- | ---------------------------------------------------- | ------------------ |
+| KERN-020 | Symbol graph (petgraph, SymbolNode + SymbolEdge)     | KERN-012           |
+| KERN-021 | Dependency graph derived from import edges           | KERN-020           |
+| KERN-022 | Trust metadata on nodes (TrustLevel enum)            | KERN-020           |
 | KERN-023 | Incremental graph update (reparse → update subgraph) | KERN-020, KERN-011 |
 
 #### Phase 3 — Policy Engine + Events [DRAFT]
 
-| ID | Description | Dependencies |
-|----|-------------|-------------|
-| KERN-030 | Architecture config loader (.anvil/architecture.yaml) | — |
-| KERN-031 | Invariant evaluation framework (GraphDelta → Violations) | KERN-023 |
-| KERN-032 | H1 invariants (cross-layer, new dep, public API, privilege) | KERN-031 |
-| KERN-033 | Event emission (Progress, Snapshot, Violation, Error) | KERN-031 |
+| ID       | Description                                                 | Dependencies |
+| -------- | ----------------------------------------------------------- | ------------ |
+| KERN-030 | Architecture config loader (.anvil/architecture.yaml)       | —            |
+| KERN-031 | Invariant evaluation framework (GraphDelta → Violations)    | KERN-023     |
+| KERN-032 | H1 invariants (cross-layer, new dep, public API, privilege) | KERN-031     |
+| KERN-033 | Event emission (Progress, Snapshot, Violation, Error)       | KERN-031     |
 
 #### Phase 4 — Integration & Validation [DRAFT]
 
-| ID | Description | Dependencies |
-|----|-------------|-------------|
-| KERN-040 | Embedded mode (library API for one-shot checks) | KERN-033 |
-| KERN-041 | Foreground watch mode (long-lived event stream) | KERN-033, KERN-010 |
-| KERN-042 | Dual-run harness (compare with legacy TS engine) | KERN-040 |
-| KERN-043 | Performance benchmarks against spec targets | KERN-040 |
-| KERN-044 | Cross-compilation for Linux, macOS, Windows | KERN-040 |
+| ID       | Description                                      | Dependencies       |
+| -------- | ------------------------------------------------ | ------------------ |
+| KERN-040 | Embedded mode (library API for one-shot checks)  | KERN-033           |
+| KERN-041 | Foreground watch mode (long-lived event stream)  | KERN-033, KERN-010 |
+| KERN-042 | Dual-run harness (compare with legacy TS engine) | KERN-040           |
+| KERN-043 | Performance benchmarks against spec targets      | KERN-040           |
+| KERN-044 | Cross-compilation for Linux, macOS, Windows      | KERN-040           |
 
 #### Phase 5 — Daemon Mode [DEFERRED]
 
-| ID | Description | Dependencies |
-|----|-------------|-------------|
-| KERN-050 | Unix socket transport (JSON-RPC 2.0) | KERN-041 |
-| KERN-051 | Session management + client multiplexing | KERN-050 |
-| KERN-052 | Graceful shutdown + state persistence | KERN-050 |
+| ID       | Description                              | Dependencies |
+| -------- | ---------------------------------------- | ------------ |
+| KERN-050 | Unix socket transport (JSON-RPC 2.0)     | KERN-041     |
+| KERN-051 | Session management + client multiplexing | KERN-050     |
+| KERN-052 | Graceful shutdown + state persistence    | KERN-050     |
 
 ---
 
@@ -329,18 +333,18 @@ struct SnapshotPayload {
 }
 
 // Violation — emitted when a policy invariant is violated
+// Matches crates/anvil-kernel-types/src/events.rs EventPayload::Violation
 struct ViolationPayload {
     policy_id: String,        // e.g. "cross-layer-boundary"
-    severity: Severity,       // critical | major | minor | info
     file: String,
-    symbol: Option<String>,
-    reasoning: String,        // human-readable explanation
-    suggested_remediation: Option<String>,
+    symbol: String,           // symbol where violation occurred
+    message: String,          // human-readable explanation
 }
 
 // Error — emitted on recoverable/non-recoverable errors
+// Matches crates/anvil-kernel-types/src/events.rs ErrorPayload
 struct ErrorPayload {
-    code: ErrorCode,          // parse_error | config_error | internal
+    code: ErrorCode,          // ParseError | ConfigError | Internal
     file: Option<String>,
     message: String,
     recoverable: bool,
@@ -349,11 +353,11 @@ struct ErrorPayload {
 
 ### Transport
 
-| Mode | Transport | Framing |
-|------|-----------|---------|
-| Embedded | Tokio mpsc channel | Direct Rust types |
-| Watch (foreground) | stdout | NDJSON (one JSON object per line) |
-| Daemon | Unix domain socket | JSON-RPC 2.0 + NDJSON |
+| Mode               | Transport          | Framing                           |
+| ------------------ | ------------------ | --------------------------------- |
+| Embedded           | Tokio mpsc channel | Direct Rust types                 |
+| Watch (foreground) | stdout             | NDJSON (one JSON object per line) |
+| Daemon             | Unix domain socket | JSON-RPC 2.0 + NDJSON             |
 
 ---
 
@@ -364,19 +368,19 @@ semantic graph. They operate on file content directly.
 
 ### Completed Ports
 
-| ID | Check | TS Latency | Rust Latency | Speedup | Patterns |
-|----|-------|-----------|-------------|---------|----------|
-| RENG-001 | Secret scan | 200-800ms | 5-20ms | **40x** | Entropy + regex patterns |
-| RENG-002 | Anti-pattern | 500-2000ms | 20-100ms | **25x** | 13 patterns (AP-001..013) |
-| RENG-003 | Command safety | 100-500ms | 5-20ms | **25x** | 36 rules (17 git + 19 fs) |
-| RENG-005 | Benchmarks | — | — | — | Criterion harness |
+| ID       | Check          | TS Latency | Rust Latency | Speedup | Patterns                  |
+| -------- | -------------- | ---------- | ------------ | ------- | ------------------------- |
+| RENG-001 | Secret scan    | 200-800ms  | 5-20ms       | **40x** | Entropy + regex patterns  |
+| RENG-002 | Anti-pattern   | 500-2000ms | 20-100ms     | **25x** | 13 patterns (AP-001..013) |
+| RENG-003 | Command safety | 100-500ms  | 5-20ms       | **25x** | 36 rules (17 git + 19 fs) |
+| RENG-005 | Benchmarks     | —          | —            | —       | Criterion harness         |
 
 ### Remaining Items
 
-| ID | Description | Dependencies | Status |
-|----|-------------|-------------|--------|
-| RENG-004 | Validate architecture check parity with kernel invariants | KERN-032 | **[DRAFT]** |
-| RENG-006 | Feature flag + dual-run for ported checks | RENG-005, KERN-042 | **[DRAFT]** |
+| ID       | Description                                               | Dependencies       | Status      |
+| -------- | --------------------------------------------------------- | ------------------ | ----------- |
+| RENG-004 | Validate architecture check parity with kernel invariants | KERN-032           | **[DRAFT]** |
+| RENG-006 | Feature flag + dual-run for ported checks                 | RENG-005, KERN-042 | **[DRAFT]** |
 
 ---
 
@@ -428,35 +432,35 @@ semantic graph. They operate on file content directly.
 
 ### RATS Work Items
 
-| ID | Description | Dependencies | Status |
-|----|-------------|-------------|--------|
-| RATS-001 | eddacraft-tui shared crate | — | **[DONE]** |
-| RATS-002 | Watch dashboard (live gate results) | RATS-001, PORT-030, KERN-033 | **[DRAFT]** |
-| RATS-003 | Gate result viewer (interactive) | RATS-001, PORT-023, KERN-040 | **[DRAFT]** |
-| RATS-004 | APS onboarding wizard | RATS-001 | **[DRAFT]** |
-| RATS-005 | Ink-to-Ratatui migration path | RATS-002, PORT-023, PORT-030 | **[DRAFT]** |
-| RATS-006 | Terminal platform compatibility | RATS-001, RATS-002 | **[DRAFT]** |
-| RATS-007 | `anvil watch` TUI integration entry point | RATS-002, KERN-041 | **[DRAFT]** |
+| ID       | Description                               | Dependencies                 | Status      |
+| -------- | ----------------------------------------- | ---------------------------- | ----------- |
+| RATS-001 | eddacraft-tui shared crate                | —                            | **[DONE]**  |
+| RATS-002 | Watch dashboard (live gate results)       | RATS-001, PORT-030, KERN-033 | **[DRAFT]** |
+| RATS-003 | Gate result viewer (interactive)          | RATS-001, PORT-023, KERN-040 | **[DRAFT]** |
+| RATS-004 | APS onboarding wizard                     | RATS-001                     | **[DRAFT]** |
+| RATS-005 | Ink-to-Ratatui migration path             | RATS-002, PORT-023, PORT-030 | **[DRAFT]** |
+| RATS-006 | Terminal platform compatibility           | RATS-001, RATS-002           | **[DRAFT]** |
+| RATS-007 | `anvil watch` TUI integration entry point | RATS-002, KERN-041           | **[DRAFT]** |
 
 ### PORT Work Items
 
-| ID | Description | Ink Source | Status |
-|----|-------------|-----------|--------|
-| PORT-001 | Shared layout + display components | Header, Container, Divider, etc. | **[DONE]** |
-| PORT-002 | Composite display components | LogPanel, ParallelProgress, etc. | **[DONE]** |
-| PORT-010 | Welcome surface | `Welcome.tsx` | **[DRAFT]** |
-| PORT-011 | Doctor surface | `Diagnostics.tsx` | **[DRAFT]** |
-| PORT-012 | Status dashboard | `StatusDashboard.tsx` + 3 panels | **[DRAFT]** |
-| PORT-020 | Init wizard | `InitWizard.tsx` + 5 steps | **[DRAFT]** |
-| PORT-021 | Audit results | `AuditResults.tsx` | **[DRAFT]** |
-| PORT-022 | Template browser | `TemplateBrowser.tsx` | **[DRAFT]** |
-| PORT-023 | Gate explorer | `GateExplorer.tsx` + 3 panels | **[DRAFT]** |
-| PORT-030 | Watch dashboard | `WatchDashboard.tsx` + 4 panels | **[DRAFT]** |
-| PORT-040 | Tutorial orchestrator + picker | `Tutorial.tsx` + `TutorialPicker.tsx` | **[DRAFT]** |
-| PORT-041 | Policy tutorial path | 6 step components | **[DRAFT]** |
-| PORT-042 | Architecture tutorial path | 6 step components | **[DRAFT]** |
-| PORT-043 | Drift tutorial path | 5 step components | **[DRAFT]** |
-| PORT-044 | CI tutorial path | 6 step components | **[DRAFT]** |
+| ID       | Description                        | Ink Source                            | Status      |
+| -------- | ---------------------------------- | ------------------------------------- | ----------- |
+| PORT-001 | Shared layout + display components | Header, Container, Divider, etc.      | **[DONE]**  |
+| PORT-002 | Composite display components       | LogPanel, ParallelProgress, etc.      | **[DONE]**  |
+| PORT-010 | Welcome surface                    | `Welcome.tsx`                         | **[DRAFT]** |
+| PORT-011 | Doctor surface                     | `Diagnostics.tsx`                     | **[DRAFT]** |
+| PORT-012 | Status dashboard                   | `StatusDashboard.tsx` + 3 panels      | **[DRAFT]** |
+| PORT-020 | Init wizard                        | `InitWizard.tsx` + 5 steps            | **[DRAFT]** |
+| PORT-021 | Audit results                      | `AuditResults.tsx`                    | **[DRAFT]** |
+| PORT-022 | Template browser                   | `TemplateBrowser.tsx`                 | **[DRAFT]** |
+| PORT-023 | Gate explorer                      | `GateExplorer.tsx` + 3 panels         | **[DRAFT]** |
+| PORT-030 | Watch dashboard                    | `WatchDashboard.tsx` + 4 panels       | **[DRAFT]** |
+| PORT-040 | Tutorial orchestrator + picker     | `Tutorial.tsx` + `TutorialPicker.tsx` | **[DRAFT]** |
+| PORT-041 | Policy tutorial path               | 6 step components                     | **[DRAFT]** |
+| PORT-042 | Architecture tutorial path         | 6 step components                     | **[DRAFT]** |
+| PORT-043 | Drift tutorial path                | 5 step components                     | **[DRAFT]** |
+| PORT-044 | CI tutorial path                   | 6 step components                     | **[DRAFT]** |
 
 ---
 
@@ -466,23 +470,23 @@ semantic graph. They operate on file content directly.
 
 ### Scope
 
-| Capability | Description |
-|-----------|-------------|
-| File detection | `.rs` files in `src/`, `crates/`, `tests/` |
-| Import extraction | `use`, `mod`, `pub use`, `extern crate` |
-| Module boundary | `mod.rs` / directory modules, `pub` visibility |
-| Anti-patterns | 6 Rust-specific patterns (see below) |
+| Capability        | Description                                    |
+| ----------------- | ---------------------------------------------- |
+| File detection    | `.rs` files in `src/`, `crates/`, `tests/`     |
+| Import extraction | `use`, `mod`, `pub use`, `extern crate`        |
+| Module boundary   | `mod.rs` / directory modules, `pub` visibility |
+| Anti-patterns     | 6 Rust-specific patterns (see below)           |
 
 ### Planned Anti-Patterns
 
-| Pattern | What It Detects |
-|---------|----------------|
-| `unsafe` blocks | Direct unsafe code usage |
-| `#[allow(...)]` | Suppressed compiler warnings |
-| `unwrap()`/`expect()` | Panic-prone error handling |
-| `todo!()`/`unimplemented!()` | Incomplete implementations |
-| `as` casts | Potentially lossy type casts |
-| `#[cfg(test)]` misuse | Test code leaking into production |
+| Pattern                      | What It Detects                   |
+| ---------------------------- | --------------------------------- |
+| `unsafe` blocks              | Direct unsafe code usage          |
+| `#[allow(...)]`              | Suppressed compiler warnings      |
+| `unwrap()`/`expect()`        | Panic-prone error handling        |
+| `todo!()`/`unimplemented!()` | Incomplete implementations        |
+| `as` casts                   | Potentially lossy type casts      |
+| `#[cfg(test)]` misuse        | Test code leaking into production |
 
 ### Out of Scope (H1)
 
@@ -562,38 +566,38 @@ These can proceed independently of the kernel critical path:
 
 ## 9. Performance Targets
 
-| Metric | Current (TS) | Target (Rust) | Improvement |
-|--------|-------------|--------------|-------------|
-| Watch cycle | 2.9s | 200ms | **14x** |
-| Secret scan | 200-800ms | 5-20ms | **40x** |
-| Anti-pattern scan | 500-2000ms | 20-100ms | **25x** |
-| Command safety | 100-500ms | 5-20ms | **25x** |
-| Cold graph build (100k LOC) | N/A | <3s | New capability |
-| Incremental update (1 file) | N/A | <100ms | New capability |
-| File detection latency (p99) | N/A | <20ms | New capability |
-| tree-sitter parse (1 file) | N/A | <1ms | New capability |
-| Event emission overhead | N/A | <10ms | New capability |
-| Memory footprint (100k LOC) | N/A | <500MB | New capability |
+| Metric                       | Current (TS) | Target (Rust) | Improvement    |
+| ---------------------------- | ------------ | ------------- | -------------- |
+| Watch cycle                  | 2.9s         | 200ms         | **14x**        |
+| Secret scan                  | 200-800ms    | 5-20ms        | **40x**        |
+| Anti-pattern scan            | 500-2000ms   | 20-100ms      | **25x**        |
+| Command safety               | 100-500ms    | 5-20ms        | **25x**        |
+| Cold graph build (100k LOC)  | N/A          | <3s           | New capability |
+| Incremental update (1 file)  | N/A          | <100ms        | New capability |
+| File detection latency (p99) | N/A          | <20ms         | New capability |
+| tree-sitter parse (1 file)   | N/A          | <1ms          | New capability |
+| Event emission overhead      | N/A          | <10ms         | New capability |
+| Memory footprint (100k LOC)  | N/A          | <500MB        | New capability |
 
 ---
 
 ## 10. Key Dependencies (Cargo)
 
-| Category | Crate | Version | Used By |
-|----------|-------|---------|---------|
-| Parsing | `tree-sitter` | 0.26 | anvil-kernel |
-| Parsing | `tree-sitter-typescript` | 0.23 | anvil-kernel |
-| Parsing | `tree-sitter-javascript` | 0.25 | anvil-kernel |
-| File watching | `notify` | 8 | anvil-kernel |
-| Graph | `petgraph` | 0.8 | anvil-kernel |
-| Serialisation | `serde` | 1 | all crates |
-| Serialisation | `serde_json` | 1 | all crates |
-| TUI | `ratatui` | 0.30 | eddacraft-tui, anvil-tui |
-| TUI | `crossterm` | 0.29 | eddacraft-tui, anvil-tui |
-| Async | `tokio` | 1 (full) | anvil-kernel |
-| Testing | `insta` | 1 (yaml) | all crates |
-| Benchmarks | `criterion` | 0.5 | anvil-checks, bench |
-| Regex | `regex` | latest | anvil-checks |
+| Category      | Crate                    | Version  | Used By                  |
+| ------------- | ------------------------ | -------- | ------------------------ |
+| Parsing       | `tree-sitter`            | 0.26     | anvil-kernel             |
+| Parsing       | `tree-sitter-typescript` | 0.23     | anvil-kernel             |
+| Parsing       | `tree-sitter-javascript` | 0.25     | anvil-kernel             |
+| File watching | `notify`                 | 8        | anvil-kernel             |
+| Graph         | `petgraph`               | 0.8      | anvil-kernel             |
+| Serialisation | `serde`                  | 1        | all crates               |
+| Serialisation | `serde_json`             | 1        | all crates               |
+| TUI           | `ratatui`                | 0.30     | eddacraft-tui, anvil-tui |
+| TUI           | `crossterm`              | 0.29     | eddacraft-tui, anvil-tui |
+| Async         | `tokio`                  | 1 (full) | anvil-kernel             |
+| Testing       | `insta`                  | 1 (yaml) | all crates               |
+| Benchmarks    | `criterion`              | 0.5      | anvil-checks, bench      |
+| Regex         | `regex`                  | 1        | anvil-checks             |
 
 ---
 
