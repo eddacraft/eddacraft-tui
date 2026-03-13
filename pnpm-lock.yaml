@@ -163,6 +163,9 @@ importers:
 
   apps/anvil-api:
     dependencies:
+      '@eddacraft/transactional':
+        specifier: workspace:*
+        version: link:../../packages/transactional
       '@hono/zod-validator':
         specifier: ^0.7.0
         version: 0.7.6(hono@4.12.7)(zod@4.3.6)
@@ -175,6 +178,9 @@ importers:
       jose:
         specifier: ^6.2.1
         version: 6.2.1
+      resend:
+        specifier: ^6.9.3
+        version: 6.9.3(@react-email/render@2.0.4(react-dom@19.2.4(react@19.2.4))(react@19.2.4))
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -729,6 +735,25 @@ importers:
         version: 8.57.0(eslint@10.0.3(jiti@2.6.1))(typescript@5.9.3)
 
   packages/tooling/tsconfig: {}
+
+  packages/transactional:
+    dependencies:
+      '@react-email/components':
+        specifier: ^1.0.7
+        version: 1.0.8(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      react:
+        specifier: ^19.2.4
+        version: 19.2.4
+    devDependencies:
+      '@types/react':
+        specifier: ^19
+        version: 19.2.14
+      react-email:
+        specifier: ^5.2.9
+        version: 5.2.9
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
 
   packages/vscode-extension:
     dependencies:
@@ -16588,13 +16613,13 @@ snapshots:
   '@types/react-router-config@5.0.11':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.13
+      '@types/react': 19.2.14
       '@types/react-router': 5.1.20
 
   '@types/react-router-dom@5.3.3':
     dependencies:
       '@types/history': 4.7.11
-      '@types/react': 19.2.13
+      '@types/react': 19.2.14
       '@types/react-router': 5.1.20
 
   '@types/react-router@5.1.20':

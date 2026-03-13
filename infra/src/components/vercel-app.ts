@@ -11,20 +11,24 @@ export interface VercelAppArgs {
   buildCommand?: string;
   installCommand?: string;
   ignoreCommand?: string;
+  extraWatchPaths?: string[];
 }
 
 export class VercelApp extends pulumi.ComponentResource {
-  public readonly project: vercel.Project;
-  public readonly domains: vercel.ProjectDomain[];
+  public readonly projectId: pulumi.Output<string>;
+  public readonly domainNames: string[];
 
   constructor(name: string, args: VercelAppArgs, opts?: pulumi.ComponentResourceOptions) {
     super('anvil:vercel:App', name, {}, opts);
 
     // Default ignore command: skip build when only unrelated files changed
     // cd to repo root first — Vercel may run this from the rootDirectory
-    const defaultIgnoreCommand = `cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}`;
+    const extraArgs = args.extraWatchPaths?.length
+      ? ' ' + args.extraWatchPaths.map((p) => `'${p}'`).join(' ')
+      : '';
+    const defaultIgnoreCommand = `cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}${extraArgs}`;
 
-    this.project = new vercel.Project(
+    const project = new vercel.Project(
       name,
       {
         name: args.name,
@@ -41,12 +45,12 @@ export class VercelApp extends pulumi.ComponentResource {
       { parent: this }
     );
 
-    this.domains = args.domains.map(
+    args.domains.forEach(
       (domain) =>
         new vercel.ProjectDomain(
           `${name}-${domain.replace(/\./g, '-')}`,
           {
-            projectId: this.project.id,
+            projectId: project.id,
             domain,
           },
           { parent: this }
@@ -58,7 +62,7 @@ export class VercelApp extends pulumi.ComponentResource {
         new vercel.ProjectEnvironmentVariable(
           `${name}-${key.toLowerCase().replace(/_/g, '-')}`,
           {
-            projectId: this.project.id,
+            projectId: project.id,
             key,
             value,
             targets: ['production', 'preview'],
@@ -69,8 +73,12 @@ export class VercelApp extends pulumi.ComponentResource {
       }
     }
 
+    this.projectId = project.id;
+    this.domainNames = args.domains;
+
     this.registerOutputs({
-      projectId: this.project.id,
+      projectId: this.projectId,
+      domainNames: this.domainNames,
     });
   }
 }

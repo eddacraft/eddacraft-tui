@@ -1,4 +1,3 @@
 {
-  "buildCommand": "npx tsc",
-  "ignoreCommand": "git diff HEAD^ HEAD --quiet -- ."
+  "buildCommand": "cd ../.. && pnpm --filter @eddacraft/transactional build && cd apps/anvil-api && tsc"
 }

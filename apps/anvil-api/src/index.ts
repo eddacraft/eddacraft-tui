@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { auth } from './routes/auth.js';
 import { admin } from './routes/admin.js';
+import { waitlist } from './routes/waitlist.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import { getClient } from './db/client.js';
 
@@ -15,12 +16,25 @@ const allowedOrigins = process.env.ANVIL_CORS_ORIGINS
   ? process.env.ANVIL_CORS_ORIGINS.split(',').map((o) => o.trim())
   : [];
 
+function matchOrigin(origin: string): string | undefined {
+  for (const pattern of allowedOrigins) {
+    if (pattern.includes('*')) {
+      const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp('^' + escaped.replace(/\\\*/g, '[^.]+') + '$');
+      if (regex.test(origin)) return origin;
+    } else if (pattern === origin) {
+      return origin;
+    }
+  }
+  return undefined;
+}
+
 app.use(
   '*',
   cors({
-    origin: allowedOrigins.length > 0 ? allowedOrigins : [],
+    origin: (origin) => matchOrigin(origin) ?? '',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Waitlist-Admin-Token'],
     maxAge: 86400,
   })
 );
@@ -39,5 +53,6 @@ app.get('/health', async (c) => {
 
 app.route('/auth', auth);
 app.route('/admin', admin);
+app.route('/waitlist', waitlist);
 
 export default app;

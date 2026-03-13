@@ -13,7 +13,7 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "pnpm --filter @eddacraft/transactional build && tsc",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "dev": "npx wrangler dev src/index.ts"
@@ -25,10 +25,12 @@
   },
   "author": "EddaCraft",
   "dependencies": {
+    "@eddacraft/transactional": "workspace:*",
     "@hono/zod-validator": "^0.7.0",
     "@neondatabase/serverless": "^1.0.0",
     "hono": "^4.12.7",
     "jose": "^6.2.1",
+    "resend": "^6.9.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {

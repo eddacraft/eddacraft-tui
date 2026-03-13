@@ -7,7 +7,7 @@
 #
 # Usage (set as ignoreCommand in Vercel project config):
 #   bash tools/scripts/vercel-ignore-build.sh apps/website
-#   bash tools/scripts/vercel-ignore-build.sh apps/docs-site
+#   bash tools/scripts/vercel-ignore-build.sh apps/docs-site docs/public
 #   bash tools/scripts/vercel-ignore-build.sh apps/anvil-api
 #
 # Vercel ignoreCommand semantics:
@@ -26,7 +26,9 @@ fi
 
 type log_enter >/dev/null 2>&1 && log_enter "$@"
 
-PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh <project-dir>}"
+PROJECT_DIR="${1:?Usage: vercel-ignore-build.sh <project-dir> [extra-path ...]}"
+shift
+EXTRA_PATHS=("$@")
 
 # Shared paths that should trigger a rebuild for any project
 SHARED_PATHS="pnpm-lock.yaml package.json"
@@ -69,10 +71,10 @@ if [ -z "$CHANGED_FILES" ]; then
 fi
 
 # Check if any changed file is in the project directory
-if echo "$CHANGED_FILES" | grep -q "^${PROJECT_DIR}/"; then
+if echo "$CHANGED_FILES" | grep -qF "${PROJECT_DIR}/"; then
   echo ">> Changes detected in $PROJECT_DIR — building"
   type log_info >/dev/null 2>&1 && log_info "changes in project dir, triggering build"
-  type log_trace >/dev/null 2>&1 && log_trace "matching files: $(echo "$CHANGED_FILES" | grep "^${PROJECT_DIR}/" | head -5)"
+  type log_trace >/dev/null 2>&1 && log_trace "matching files: $(echo "$CHANGED_FILES" | grep -F "${PROJECT_DIR}/" | head -5)"
   type log_exit >/dev/null 2>&1 && log_exit 1
   exit 1
 fi
@@ -82,6 +84,16 @@ for path in $SHARED_PATHS; do
   if echo "$CHANGED_FILES" | grep -q "^${path}$"; then
     echo ">> Shared config changed ($path) — building"
     type log_info >/dev/null 2>&1 && log_info "shared config '${path}' changed, triggering build"
+    type log_exit >/dev/null 2>&1 && log_exit 1
+    exit 1
+  fi
+done
+
+# Check extra watched paths (e.g. docs/public for docs-site)
+for extra in "${EXTRA_PATHS[@]}"; do
+  if echo "$CHANGED_FILES" | grep -qF "${extra}/"; then
+    echo ">> Changes detected in extra watched path $extra — building"
+    type log_info >/dev/null 2>&1 && log_info "extra path '${extra}' changed, triggering build"
     type log_exit >/dev/null 2>&1 && log_exit 1
     exit 1
   fi
