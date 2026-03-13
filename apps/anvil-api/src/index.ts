@@ -34,7 +34,7 @@ app.use(
   cors({
     origin: (origin) => matchOrigin(origin) ?? '',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Waitlist-Admin-Token'],
     maxAge: 86400,
   })
 );
