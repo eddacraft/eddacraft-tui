@@ -11,6 +11,7 @@ export interface VercelAppArgs {
   buildCommand?: string;
   installCommand?: string;
   ignoreCommand?: string;
+  extraWatchPaths?: string[];
 }
 
 export class VercelApp extends pulumi.ComponentResource {
@@ -22,7 +23,8 @@ export class VercelApp extends pulumi.ComponentResource {
 
     // Default ignore command: skip build when only unrelated files changed
     // cd to repo root first — Vercel may run this from the rootDirectory
-    const defaultIgnoreCommand = `cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}`;
+    const extraArgs = args.extraWatchPaths?.length ? ` ${args.extraWatchPaths.join(' ')}` : '';
+    const defaultIgnoreCommand = `cd $(git rev-parse --show-toplevel) && bash tools/scripts/vercel-ignore-build.sh ${args.rootDirectory}${extraArgs}`;
 
     const project = new vercel.Project(
       name,

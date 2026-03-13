@@ -42,4 +42,5 @@ export const docsSite = new VercelApp('docs-site', {
   rootDirectory: 'apps/docs-site',
   gitRepo,
   domains: ['docs.eddacraft.ai'],
+  extraWatchPaths: ['docs/public'],
 });
