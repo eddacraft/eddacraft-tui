@@ -30,8 +30,8 @@
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (3/6) — In Progress
-  <!-- ADR-011: scope reduced from 24 to 6; RENG-001–003 done in external workspace -->
+- RENG: rust-core-engine (4/6) — In Progress
+  <!-- ADR-011: scope reduced from 24 to 6; RENG-001–003, 005 done in external workspace -->
 - KERN: rust-kernel (4/25) — In Progress
 - RATS: ratatui-tui (1/7) — In Progress
 - PORT: ink-to-ratatui-port (0/15) — Proposed

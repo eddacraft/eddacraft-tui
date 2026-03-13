@@ -433,7 +433,6 @@ Task-level detail for all completed work is archived in
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 8/8 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
-| [gh-projects-trial](./modules/gh-projects-trial.aps.md) | GHP | Ready | 0/8 | — |
 
 ### Planned — 0.2.0 (Web Dashboard)
 
@@ -489,8 +488,8 @@ waves; 39 tasks total.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 4/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 3/6 | KERN Phase 1, KERN Phase 2 |
-| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Proposed | 1/7 | KERN Phase 3 |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | In Progress | 1/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
