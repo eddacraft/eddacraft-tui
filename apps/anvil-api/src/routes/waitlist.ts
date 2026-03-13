@@ -124,8 +124,7 @@ waitlist.post('/resend', async (c) => {
   }
 
   const trimmedEmail = email.trim().toLowerCase();
-  const simpleEmailRegex = /^[^\s@]+@[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?\.[a-zA-Z]{2,}$/;
-  if (!simpleEmailRegex.test(trimmedEmail)) {
+  if (trimmedEmail.length > 254 || !EMAIL_REGEX.test(trimmedEmail)) {
     return c.json({ error: 'Invalid email format' }, 400);
   }
 

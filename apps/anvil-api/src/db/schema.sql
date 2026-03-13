@@ -36,7 +36,17 @@ CREATE TABLE audit_log (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Waitlist table
+CREATE TABLE waitlist (
+  id         serial PRIMARY KEY,
+  email      citext UNIQUE NOT NULL,
+  source     text NOT NULL DEFAULT 'website',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 -- Indexes
+CREATE INDEX idx_waitlist_email ON waitlist(email);
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
 CREATE INDEX idx_audit_log_action ON audit_log(action);
@@ -53,5 +63,10 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER beta_users_updated_at
   BEFORE UPDATE ON beta_users
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER waitlist_updated_at
+  BEFORE UPDATE ON waitlist
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
