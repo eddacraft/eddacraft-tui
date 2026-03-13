@@ -472,7 +472,7 @@ waves; 39 tasks total.
 | [kindling-integration](./archive/modules/kindling-integration.aps.md) | KINDLING | Complete | 19/19 | save-time-trust, drift-reporting |
 | [ember](./modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
 | [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | In Progress | 18/19 | kindling-integration, ember, edda |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
 | [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
 
 ### Future (Post-1.0.0)

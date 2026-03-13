@@ -29,7 +29,7 @@
 - EMBER: ember (1/14) — Draft
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (1/19) — Draft
-- STACK: edda-stack-integration (18/19) — In Progress
+- STACK: edda-stack-integration (19/19) — Complete
 - RENG: rust-core-engine (0/24) — Proposed
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft

@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status      |
 | ----- | ----- | -------- | ----------- |
-| STACK | —     | medium   | In Progress |
+| STACK | —     | medium   | Complete |
 
 ## Purpose
 
