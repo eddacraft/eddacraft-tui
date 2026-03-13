@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { timingSafeEqual } from 'node:crypto';
 import { getClient } from '../db/client.js';
 import { sendWaitlistConfirmation } from '../lib/email.js';
 
@@ -95,7 +96,14 @@ waitlist.post('/resend', async (c) => {
   const bearer = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : null;
   const direct = c.req.header('x-waitlist-admin-token')?.trim();
 
-  if (bearer !== expectedToken && direct !== expectedToken) {
+  const token = bearer ?? direct;
+  if (!token) {
+    return c.json({ error: 'Unauthorized' }, 401);
+  }
+
+  const a = Buffer.from(expectedToken, 'utf-8');
+  const b = Buffer.from(token, 'utf-8');
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 

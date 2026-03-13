@@ -16,10 +16,22 @@ const allowedOrigins = process.env.ANVIL_CORS_ORIGINS
   ? process.env.ANVIL_CORS_ORIGINS.split(',').map((o) => o.trim())
   : [];
 
+function matchOrigin(origin: string): string | undefined {
+  for (const pattern of allowedOrigins) {
+    if (pattern.includes('*')) {
+      const regex = new RegExp('^' + pattern.replace(/\./g, '\\.').replace('*', '[^.]+') + '$');
+      if (regex.test(origin)) return origin;
+    } else if (pattern === origin) {
+      return origin;
+    }
+  }
+  return undefined;
+}
+
 app.use(
   '*',
   cors({
-    origin: allowedOrigins.length > 0 ? allowedOrigins : [],
+    origin: (origin) => matchOrigin(origin) ?? '',
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     maxAge: 86400,
