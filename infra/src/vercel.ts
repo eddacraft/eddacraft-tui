@@ -26,12 +26,13 @@ export const api = new VercelApp('anvil-api', {
   rootDirectory: 'apps/anvil-api',
   gitRepo,
   domains: ['api.eddacraft.ai'],
+  extraWatchPaths: ['packages/transactional'],
   envVars: {
     DATABASE_URL: websiteDatabaseUrl,
     RESEND_API_KEY: resendApiKey,
-    ANVIL_ADMIN_KEY: getSecret('anvil-admin-key'),
+    ADMIN_KEY: getSecret('anvil-admin-key'),
     WAITLIST_RESEND_ADMIN_TOKEN: getSecret('waitlist-resend-admin-token'),
-    ANVIL_CORS_ORIGINS: 'https://eddacraft.ai',
+    ANVIL_CORS_ORIGINS: 'https://eddacraft.ai,https://*.vercel.app,http://localhost:3000',
   },
 });
 
