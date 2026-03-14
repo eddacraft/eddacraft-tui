@@ -20,16 +20,16 @@ Validate critical Anvil user flows immediately after deployment.
 ### 1) Basic health
 
 ```bash
-curl -sS https://<api-host>/health
-curl -I https://<site-host>/
+curl -sS https://api.eddacraft.ai/api/v1/health
+curl -I https://eddacraft.ai/
 ```
 
-Expected: API healthy; website returns 200.
+Expected: API returns `{ "status": "ok" }`; website returns 200.
 
 ### 2) Waitlist submission flow
 
 ```bash
-curl -sS https://<site-host>/api/waitlist \
+curl -sS https://api.eddacraft.ai/api/v1/waitlist \
   -X POST \
   -H "Content-Type: application/json" \
   -d '{"email":"smoke-test@example.com"}'
@@ -40,7 +40,7 @@ Expected: `success: true` with delivery fields (`emailSent`, `emailStatus`).
 ### 3) Optional admin resend flow
 
 ```bash
-curl -sS https://<site-host>/api/waitlist/resend \
+curl -sS https://api.eddacraft.ai/api/v1/waitlist/resend \
   -X POST \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $WAITLIST_RESEND_ADMIN_TOKEN" \
@@ -49,7 +49,18 @@ curl -sS https://<site-host>/api/waitlist/resend \
 
 Expected: `success: true`, `emailSent: true`.
 
-### 4) Verify no immediate error spikes
+### 4) Auth verify (requires a valid beta token)
+
+```bash
+curl -sS https://api.eddacraft.ai/api/v1/auth/verify \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"token":"anvil_beta_<test-token>"}'
+```
+
+Expected: `valid: true` with `user`, `scopes`, `expiresAt`, `license` fields.
+
+### 5) Verify no immediate error spikes
 
 - Check API logs for 5xx bursts
 - Check Neon for error/latency spikes
@@ -59,6 +70,7 @@ Expected: `success: true`, `emailSent: true`.
 
 - Health checks pass
 - Waitlist API returns success and meaningful email status fields
+- Auth verify returns a valid licence JWT (if test token available)
 - No immediate post-deploy error spike
 
 ## Failure modes + recovery
@@ -71,6 +83,9 @@ Expected: `success: true`, `emailSent: true`.
 
 3. **Admin resend unauthorized**
    - Recovery: verify `WAITLIST_RESEND_ADMIN_TOKEN` in runtime env.
+
+4. **Auth verify returns 500**
+   - Recovery: check `LICENSE_SIGNING_KEY` is set in API env vars.
 
 ## Rollback / safety notes
 
