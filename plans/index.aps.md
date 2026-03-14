@@ -497,6 +497,7 @@ waves; 39 tasks total.
 | [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | — | — |
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | — | save-time-trust |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Draft | — | save-time-trust, ide-integration |
+| [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Draft | 0/7 | edda-stack-integration, opa-agent-orchestration, Kindling (external) |
 | ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI, then ADR-011: Ratatui replaces Ink |
 
 ### Task Status — 0.1.0 (Core Engine)
