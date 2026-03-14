@@ -33,6 +33,7 @@
 - RENG: rust-core-engine (4/6) — In Progress
   <!-- ADR-011: scope reduced from 24 to 6; RENG-001–003, 005 done in external workspace -->
 - KERN: rust-kernel (4/25) — In Progress
+- BAUTH: beta-auth-streamline (0/20) — Ready
 - RATS: ratatui-tui (1/7) — In Progress
 - PORT: ink-to-ratatui-port (0/15) — Proposed
 - OPENSPEC: open-spec-adapter — Draft
@@ -229,6 +230,24 @@ crates/eddacraft-kindling/: RENG-018             # old scope — reconcile with 
 crates/eddacraft-kindling/src/query.rs: RENG-019 # old scope — reconcile with KERN
 crates/eddacraft-tui/: RENG-020                  # old scope — now RATS-001 (done)
 crates/spike/: RENG-001, RENG-002, RENG-003, RENG-004, RENG-005  # done in external workspace
+apps/anvil-api/src/routes/auth-device.ts: BAUTH-006, BAUTH-007, BAUTH-008
+apps/anvil-api/src/routes/auth-otp.ts: BAUTH-009, BAUTH-010
+apps/anvil-api/src/routes/auth-session.ts: BAUTH-011
+apps/anvil-api/src/routes/admin.ts: BAUTH-012, BAUTH-013
+apps/anvil-api/src/routes/waitlist.ts: BAUTH-013
+apps/anvil-api/src/routes/cron.ts: BAUTH-020
+apps/anvil-api/src/db/schema.sql: BAUTH-001
+apps/anvil-api/src/db/queries.ts: BAUTH-002
+apps/anvil-api/src/lib/licence.ts: BAUTH-003
+apps/anvil-api/src/lib/audience.ts: BAUTH-013
+apps/anvil-api/src/index.ts: BAUTH-018
+apps/anvil-cli/src/commands/auth-login.ts: BAUTH-014
+apps/anvil-cli/src/commands/admin-approve.ts: BAUTH-016
+apps/anvil-cli/src/lib/auth.ts: BAUTH-015
+apps/website/app/auth/activate/page.tsx: BAUTH-017
+packages/transactional/emails/beta-invite.tsx: BAUTH-004
+packages/transactional/emails/otp-code.tsx: BAUTH-005
+docs/architecture/auth-as-built.md: BAUTH-019
 docs/architecture/edda-stack.md: STACK-015
 docs/guides/ai-guardrail-profile.md: AIGUARD-004
 docs/guides/architecture-config-validation.md: ARCHCFG-005
