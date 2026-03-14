@@ -3,10 +3,10 @@ import { getSecret } from './keyvault.js';
 
 const gitRepo = 'EddaCraft/anvil-001';
 
-const websiteDatabaseUrl = getSecret('website-database-url');
+const databaseUrl = getSecret('website-database-url');
 const resendApiKey = getSecret('resend-api-key');
 
-// IAC-003: Website (Next.js)
+// IAC-003: Website (Next.js) — static frontend, no server-side email/DB
 export const website = new VercelApp('website', {
   name: 'website',
   framework: 'nextjs',
@@ -14,8 +14,7 @@ export const website = new VercelApp('website', {
   gitRepo,
   domains: ['eddacraft.ai'],
   envVars: {
-    DATABASE_URL: websiteDatabaseUrl,
-    RESEND_API_KEY: resendApiKey,
+    NEXT_PUBLIC_API_URL: 'https://api.eddacraft.ai',
   },
 });
 
@@ -28,7 +27,7 @@ export const api = new VercelApp('anvil-api', {
   domains: ['api.eddacraft.ai'],
   extraWatchPaths: ['packages/transactional'],
   envVars: {
-    DATABASE_URL: websiteDatabaseUrl,
+    DATABASE_URL: databaseUrl,
     RESEND_API_KEY: resendApiKey,
     ADMIN_KEY: getSecret('anvil-admin-key'),
     WAITLIST_RESEND_ADMIN_TOKEN: getSecret('waitlist-resend-admin-token'),

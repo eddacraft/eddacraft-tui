@@ -1,35 +1,43 @@
 # Waitlist Email Operations (Admin)
 
-This guide covers how to preview, test, and resend website waitlist confirmation
-emails.
+This guide covers how to preview, test, and resend waitlist confirmation emails
+via the Anvil API (`api.eddacraft.ai`).
 
 ## What changed
 
-Website waitlist API now returns delivery state so failures are visible:
+Waitlist signup and email delivery are consolidated in the Anvil API (Hono). The
+website frontend submits directly to `https://api.eddacraft.ai/api/v1/waitlist`.
+Website-side API routes have been removed.
+
+Response fields:
 
 - `emailSent` (`true`/`false`)
-- `emailStatus` (`sent`, `skipped_existing`, `resend_not_configured`,
-  `provider_error`, etc.)
+- `emailStatus` (`sent`, `skipped`, `resend_not_configured`, `provider_error`,
+  etc.)
 - `isNewSignup` (`true` when first seen in DB)
 
-A new admin endpoint is available to force re-send confirmations:
+Admin resend endpoint:
 
-- `POST /api/waitlist/resend`
+- `POST /api/v1/waitlist/resend`
 
 ## Required environment variables
 
-Set these in the website runtime environment:
+Set these on the **Anvil API** deployment (not the website):
 
 - `DATABASE_URL`
 - `RESEND_API_KEY`
 - `WAITLIST_RESEND_ADMIN_TOKEN` (required for admin resend endpoint)
+- `ANVIL_CORS_ORIGINS` (must include `https://eddacraft.ai`)
+
+The website only needs `NEXT_PUBLIC_API_URL` (defaults to
+`https://api.eddacraft.ai`).
 
 ## Preview email template locally
 
-From `apps/website`:
+From `packages/transactional`:
 
 ```bash
-pnpm exec react-email dev
+pnpm exec react-email dev --dir emails
 ```
 
 Open the local preview URL and select the waitlist confirmation template.
@@ -37,7 +45,7 @@ Open the local preview URL and select the waitlist confirmation template.
 ## Test normal waitlist flow
 
 ```bash
-curl -X POST https://<your-site>/api/waitlist \
+curl -X POST https://api.eddacraft.ai/api/v1/waitlist \
   -H "Content-Type: application/json" \
   -d '{"email":"you@example.com"}'
 ```
@@ -52,7 +60,7 @@ Use one of these auth headers:
 - `x-waitlist-admin-token: <WAITLIST_RESEND_ADMIN_TOKEN>`
 
 ```bash
-curl -X POST https://<your-site>/api/waitlist/resend \
+curl -X POST https://api.eddacraft.ai/api/v1/waitlist/resend \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $WAITLIST_RESEND_ADMIN_TOKEN" \
   -d '{"email":"you@example.com"}'
@@ -81,17 +89,17 @@ curl -X POST https://<your-site>/api/waitlist/resend \
 }
 ```
 
-## Common failure causes after Resend migration
+## Common failure causes
 
 1. Sending domain not verified in Resend (`updates.eddacraft.ai`)
-2. `RESEND_API_KEY` missing or incorrect in deployed environment
+2. `RESEND_API_KEY` missing or incorrect in API deployment
 3. Resend account restrictions/sandbox recipient limits
 4. DNS SPF/DKIM not fully propagated
+5. `ANVIL_CORS_ORIGINS` not including the website origin (CORS rejection)
 
 ## Ops notes
 
-- Standard `/api/waitlist` signup sends confirmation only for new signups.
-- Existing signups are still accepted but always report
-  `emailStatus: skipped_existing` (no new email).
-- Use the authenticated `/api/waitlist/resend` endpoint for explicit re-sends
+- Standard `/api/v1/waitlist` signup sends confirmation only for new signups.
+- Existing signups are still accepted but email is skipped (no duplicate sends).
+- Use the authenticated `/api/v1/waitlist/resend` endpoint for explicit re-sends
   during support/testing.
