@@ -43,9 +43,12 @@
     "@eslint/js": "^10.0.1",
     "@eslint/json": "^1.1.0",
     "@eslint/markdown": "^7.5.1",
+    "@github/copilot": "^1.0.2",
     "@nx/azure-cache": "^5.0.1",
+    "@nx/eslint": "^22.5.4",
     "@nx/eslint-plugin": "22.5.4",
     "@nx/js": "22.5.4",
+    "@nx/vite": "^22.5.4",
     "@playwright/test": "^1.58.2",
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.18",
@@ -64,6 +67,7 @@
     "husky": "^9.1.7",
     "jsonc-eslint-parser": "^3.1.0",
     "lint-staged": "^16.3.2",
+    "markdownlint-cli": "^0.48.0",
     "nx": "22.5.4",
     "prettier": "^3.8.1",
     "prettier-eslint": "^16.4.2",
@@ -72,13 +76,8 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.0",
     "vite": "^7.3.1",
-    "vitest": "^4.0.18",
-    "@github/copilot": "^1.0.2",
-    "@nx/eslint": "^22.5.4",
-    "@nx/vite": "^22.5.4",
-    "markdownlint-cli": "^0.48.0"
+    "vitest": "^4.0.18"
   },
-  "dependencies": {},
   "overrides": {
     "glob": "^13.0.0",
     "braces": "3.0.3",
@@ -149,7 +148,7 @@
       "unrs-resolver"
     ]
   },
-  "packageManager": "pnpm@10.30.3+sha512.c961d1e0a2d8e354ecaa5166b822516668b7f44cb5bd95122d590dd81922f606f5473b6d23ec4a5be05e7fcd18e8488d47d978bbe981872f1145d06e9a740017",
+  "packageManager": "pnpm@10.32.1",
   "nx": {
     "includedScripts": []
   }
