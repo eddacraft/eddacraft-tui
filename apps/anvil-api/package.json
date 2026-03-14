@@ -13,8 +13,8 @@
     "node": ">=20.0.0"
   },
   "scripts": {
-    "build": "pnpm --filter @eddacraft/transactional build && tsc",
-    "typecheck": "pnpm --filter @eddacraft/transactional build && tsc --noEmit",
+    "build": "tsc --build",
+    "typecheck": "tsc --build --noEmit",
     "test": "vitest",
     "dev": "npx wrangler dev src/index.ts"
   },
