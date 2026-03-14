@@ -7,8 +7,11 @@
 
 import esbuild from 'esbuild';
 import { readFileSync } from 'node:fs';
+import { rmSync } from 'node:fs';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
+
+rmSync('dist', { recursive: true, force: true });
 
 await esbuild.build({
   entryPoints: ['src/index.ts'],

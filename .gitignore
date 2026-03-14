@@ -89,6 +89,9 @@ infra/import.json
 # Morgan local agent helper logs
 /plans/agent-runs/
 
+# npm pack artefacts
+*.tgz
+
 # Rust / Cargo
 target/
 **/*.rs.bk
