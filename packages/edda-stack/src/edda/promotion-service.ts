@@ -59,7 +59,6 @@ export class PromotionService {
     // the proposal ID as a deterministic observation/session ID. This avoids
     // generating random UUIDs that corrupt the provenance chain — the IDs
     // are traceable back to the promotion request rather than being noise.
-    const offlineId = input.proposal_id.replace(/^prop_ember_/, '');
     const resolvedProposal = proposal ?? {
       id: input.proposal_id,
       type: 'pattern',

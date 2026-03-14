@@ -87,6 +87,8 @@ export type { AnalyserOptions as AnalyzerOptions } from './analyzer.js';
 export { ArchitectureAnalyser as ArchitectureAnalyzer } from './analyzer.js';
 /** @deprecated Use {@link createArchitectureAnalyser} instead */
 export { createArchitectureAnalyser as createArchitectureAnalyzer } from './analyzer.js';
+/** @deprecated Use {@link analyseArchitecture} instead */
+export { analyseArchitecture as analyzeArchitecture } from './analyzer.js';
 
 // HTML/CSS edge detection
 export { extractHtmlEdges, extractCssEdges } from './edge-detector-web.js';
