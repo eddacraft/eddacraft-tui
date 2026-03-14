@@ -247,7 +247,9 @@ apps/anvil-cli/src/lib/auth.ts: BAUTH-015
 apps/website/app/auth/activate/page.tsx: BAUTH-017
 packages/transactional/emails/beta-invite.tsx: BAUTH-004
 packages/transactional/emails/otp-code.tsx: BAUTH-005
+apps/anvil-api/README.md: BAUTH-019
 docs/architecture/auth-as-built.md: BAUTH-019
+infra/src/vercel.ts: BAUTH-019
 docs/architecture/edda-stack.md: STACK-015
 docs/guides/ai-guardrail-profile.md: AIGUARD-004
 docs/guides/architecture-config-validation.md: ARCHCFG-005

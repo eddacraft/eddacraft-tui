@@ -125,7 +125,8 @@ CLI                           API                          Browser
  │  (CLI displays code + URL)  │                    User opens URL,
  │                             │                    enters ANVIL-7F3A
  │                             │◀── POST /auth/device/confirm
- │                             │    { userCode }            │
+ │                             │    { userCode, email }     │
+ │                             ├─ Verify email matches      │
  │                             ├─ Mark confirmed            │
  │                             │                            │
  │─ POST /auth/device/poll ──▶│                            │
@@ -145,6 +146,12 @@ CLI                           API                          Browser
 
 ### Security
 
+- **Email binding on confirm:** The `/device/confirm` endpoint requires both
+  `userCode` AND `email`. The API verifies the email matches the one used in
+  `/device/start`. This prevents an attacker who calls `/device/start` with a
+  victim's email from confirming the code themselves — they would need to know
+  which email is bound to the code. The confirmation page prompts for both
+  fields. Magic links in invite emails pre-fill both via query params.
 - Device codes expire after 15 minutes (CLI-initiated) or 48 hours
   (invite-email-originated)
 - Codes are single-use — consumed on confirmation
@@ -154,7 +161,8 @@ CLI                           API                          Browser
 - 5-second polling interval enforced server-side (429 if faster). Note: like all
   rate limiting in the current stack, this is best-effort on serverless
   (per-instance, resets on cold start — see as-built gap G-04)
-- Rate limit on `/device/start` to prevent abuse
+- Rate limit on `/device/start` and `/device/confirm` to prevent abuse
+- Max 3 confirm attempts per device code — burned after that
 
 ### Magic Link Variant
 

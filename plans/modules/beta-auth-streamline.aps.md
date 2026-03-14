@@ -212,14 +212,16 @@ sessions and rotating refresh tokens.
 
 #### BAUTH-007: Device code confirm endpoint
 
-- **Intent:** Browser submits user_code to confirm activation
-- **Expected Outcome:** `POST /auth/device/confirm` marks code as confirmed
+- **Intent:** Browser submits user_code + email to confirm activation
+- **Expected Outcome:** `POST /auth/device/confirm` verifies email matches the
+  code's originating email, then marks as confirmed. Max 3 attempts per code.
 - **Scope:** `apps/anvil-api/src/routes/`
 - **Non-scope:** JWT issuance (happens on poll)
 - **Files:**
   - `apps/anvil-api/src/routes/auth-device.ts` (extend)
 - **Dependencies:** BAUTH-006
-- **Validation:** Confirm flips `confirmed_at`; expired/invalid codes rejected
+- **Validation:** Confirm requires matching email; mismatched email rejected;
+  expired/invalid codes rejected; 3 attempt limit enforced
 - **Confidence:** high
 - **Status:** Pending
 
@@ -286,7 +288,7 @@ sessions and rotating refresh tokens.
 - **Files:**
   - `apps/anvil-api/src/routes/admin.ts` (extend)
 - **Dependencies:** BAUTH-004, BAUTH-006
-- **Validation:** Waitlist user promoted; token generated; invite email sent; audience moved
+- **Validation:** Waitlist user promoted; token generated; invite email sent
 - **Confidence:** high
 - **Status:** Pending
 
@@ -477,6 +479,7 @@ apps/anvil-cli/src/lib/auth.ts: BAUTH-015
 apps/website/app/auth/activate/page.tsx: BAUTH-017
 packages/transactional/emails/beta-invite.tsx: BAUTH-004
 packages/transactional/emails/otp-code.tsx: BAUTH-005
+apps/anvil-api/README.md: BAUTH-019
 docs/architecture/auth-as-built.md: BAUTH-019
 infra/src/vercel.ts: BAUTH-019
 ```
