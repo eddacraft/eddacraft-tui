@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "pnpm --filter @eddacraft/transactional build && tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "pnpm --filter @eddacraft/transactional build && tsc --noEmit",
     "test": "vitest",
     "dev": "npx wrangler dev src/index.ts"
   },
