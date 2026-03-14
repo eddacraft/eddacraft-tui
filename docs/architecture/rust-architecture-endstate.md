@@ -16,13 +16,13 @@ latency (2.9s → 200ms).
 
 The Rust stack is organised into five APS modules totalling ~58 work items:
 
-| Module     | Name                  | Items | Status       | Purpose                                        |
-| ---------- | --------------------- | ----- | ------------ | ---------------------------------------------- |
-| **KERN**   | Rust Kernel           | 25    | Phase 0 Done | Watcher, parser, semantic graph, policy engine |
-| **RENG**   | Engine Ports          | 6     | 4 Done       | Port existing TS checks to Rust                |
-| **RATS**   | Ratatui TUI           | 7     | 1 Done       | New TUI surfaces consuming kernel events       |
-| **PORT**   | Ink-to-Ratatui Port   | 15    | 2 Done       | 1:1 port of existing Ink surfaces              |
-| **RSTLAN** | Rust Language Support | ~5    | Placeholder  | Extend analysis to Rust codebases              |
+| Module     | Name                  | Items | Status    | Purpose                                        |
+| ---------- | --------------------- | ----- | --------- | ---------------------------------------------- |
+| **KERN**   | Rust Kernel           | 25    | 5/25 Done | Watcher, parser, semantic graph, policy engine |
+| **RENG**   | Engine Ports          | 6     | 4/6 Done  | Port existing TS checks to Rust                |
+| **RATS**   | Ratatui TUI           | 7     | 1/7 Done  | New TUI surfaces consuming kernel events       |
+| **PORT**   | Ink-to-Ratatui Port   | 15    | 2/15 Done | 1:1 port of existing Ink surfaces              |
+| **RSTLAN** | Rust Language Support | ~5    | 0/5 Draft | Extend analysis to Rust codebases              |
 
 ---
 
@@ -161,10 +161,10 @@ crates/
 │           ├── drift.rs            Drift tutorial (5 steps)
 │           └── ci.rs               CI tutorial (6 steps)
 │
-├── eddacraft-kindling/             [DRAFT] RENG-018
+├── eddacraft-kindling/             [DRAFT] (no current RENG ID — future work)
 │   └── src/query.rs                Kindling query integration
 │
-└── bench/                          [DRAFT] RENG-008
+└── bench/                          [DRAFT] RENG-005 (benchmarking)
     └── Cross-crate performance benchmarks
 ```
 
@@ -180,7 +180,7 @@ crates/
  └────────┬─────────┘
           │  inotify / FSEvents / ReadDirectoryChanges
           ▼
- ┌──────────────────┐     Ignore patterns (.gitignore, .anvilignore)
+ ┌──────────────────┐     Ignore patterns (.gitignore)
  │     Watcher      │     Git-aware filtering (optional)
  │   (notify-rs)    │     Recursive directory watching
  └────────┬─────────┘
@@ -227,10 +227,10 @@ crates/
           │
           │  EngineEvent stream
           ▼
- ┌──────────────────┐     JSON-RPC 2.0 envelope
- │  Event Emission  │     NDJSON framing for streams
- │                  │     Unix domain socket (daemon mode)
- │  Engine Protocol │     Tokio channels (embedded mode)
+ ┌──────────────────┐     NDJSON to stdout (foreground watch)
+ │  Event Emission  │     JSON-RPC 2.0 over Unix socket (daemon)
+ │                  │     Tokio mpsc channels (embedded mode)
+ │  Engine Protocol │     See §4 Transport Modes table
  └──────────────────┘
 ```
 
@@ -266,22 +266,22 @@ crates/
 
 #### Phase 3 — Policy Engine + Events [DRAFT]
 
-| ID       | Description                                                 | Dependencies |
-| -------- | ----------------------------------------------------------- | ------------ |
-| KERN-030 | Architecture config loader (.anvil/architecture.yaml)       | —            |
-| KERN-031 | Invariant evaluation framework (GraphDelta → Violations)    | KERN-023     |
-| KERN-032 | H1 invariants (cross-layer, new dep, public API, privilege) | KERN-031     |
-| KERN-033 | Event emission (Progress, Snapshot, Violation, Error)       | KERN-031     |
+| ID       | Description                                                 | Dependencies                 |
+| -------- | ----------------------------------------------------------- | ---------------------------- |
+| KERN-030 | Architecture config loader (.anvil/architecture.yaml)       | KERN-020                     |
+| KERN-031 | Invariant evaluation framework (GraphDelta → Violations)    | KERN-023                     |
+| KERN-032 | H1 invariants (cross-layer, new dep, public API, privilege) | KERN-031, KERN-030, KERN-022 |
+| KERN-033 | Event emission (Progress, Snapshot, Violation, Error)       | KERN-031                     |
 
 #### Phase 4 — Integration & Validation [DRAFT]
 
-| ID       | Description                                      | Dependencies       |
-| -------- | ------------------------------------------------ | ------------------ |
-| KERN-040 | Embedded mode (library API for one-shot checks)  | KERN-033           |
-| KERN-041 | Foreground watch mode (long-lived event stream)  | KERN-033, KERN-010 |
-| KERN-042 | Dual-run harness (compare with legacy TS engine) | KERN-040           |
-| KERN-043 | Performance benchmarks against spec targets      | KERN-040           |
-| KERN-044 | Cross-compilation for Linux, macOS, Windows      | KERN-040           |
+| ID       | Description                                      | Dependencies                 |
+| -------- | ------------------------------------------------ | ---------------------------- |
+| KERN-040 | Embedded mode (library API for one-shot checks)  | KERN-033                     |
+| KERN-041 | Foreground watch mode (long-lived event stream)  | KERN-010, KERN-023, KERN-033 |
+| KERN-042 | Dual-run harness (compare with legacy TS engine) | KERN-040                     |
+| KERN-043 | Performance benchmarks against spec targets      | KERN-041                     |
+| KERN-044 | Cross-compilation for Linux, macOS, Windows      | KERN-040                     |
 
 #### Phase 5 — Daemon Mode [DEFERRED]
 
@@ -289,7 +289,7 @@ crates/
 | -------- | ---------------------------------------- | ------------ |
 | KERN-050 | Unix socket transport (JSON-RPC 2.0)     | KERN-041     |
 | KERN-051 | Session management + client multiplexing | KERN-050     |
-| KERN-052 | Graceful shutdown + state persistence    | KERN-050     |
+| KERN-052 | Graceful shutdown + state persistence    | KERN-051     |
 
 ---
 
@@ -317,19 +317,19 @@ enum EngineId { Rust, Legacy }
 
 ```rust
 // Progress — emitted during parsing/evaluation phases
+// Matches crates/anvil-kernel-types/src/events.rs EventPayload::Progress
 struct ProgressPayload {
-    stage: String,            // "parsing", "graph_update", "policy_eval"
-    message: String,
-    percent: Option<f32>,     // 0.0..1.0
-    detail: Option<String>,
+    phase: String,            // "parsing", "graph_update", "policy_eval"
+    current: u64,
+    total: u64,
 }
 
 // Snapshot — emitted after graph recomputation completes
+// Matches crates/anvil-kernel-types/src/events.rs EventPayload::Snapshot
 struct SnapshotPayload {
-    graph_hash: String,
-    files_indexed: u32,
-    symbols_indexed: u32,
-    duration_ms: u64,
+    node_count: u64,
+    edge_count: u64,
+    files_watched: u64,
 }
 
 // Violation — emitted when a policy invariant is violated
@@ -353,11 +353,12 @@ struct ErrorPayload {
 
 ### Transport
 
-| Mode               | Transport          | Framing                           |
-| ------------------ | ------------------ | --------------------------------- |
-| Embedded           | Tokio mpsc channel | Direct Rust types                 |
-| Watch (foreground) | stdout             | NDJSON (one JSON object per line) |
-| Daemon             | Unix domain socket | JSON-RPC 2.0 + NDJSON             |
+| Mode                | Transport          | Framing                           |
+| ------------------- | ------------------ | --------------------------------- |
+| Embedded            | Tokio mpsc channel | Direct Rust types                 |
+| Watch (foreground)  | stdout             | NDJSON (one JSON object per line) |
+| Daemon (Unix/macOS) | Unix domain socket | JSON-RPC 2.0 + NDJSON             |
+| Daemon (Windows)    | Named pipe         | JSON-RPC 2.0 + NDJSON             |
 
 ---
 
@@ -556,8 +557,9 @@ KERN Phase 1 (Watcher + Parser)
 
 These can proceed independently of the kernel critical path:
 
-- **PORT-010..044** — Ink-to-Ratatui surface ports (depend only on RATS-001,
-  which is done)
+- **PORT-010..044** — Ink-to-Ratatui surface ports (external dependency is
+  RATS-001, which is done; internally PORT-010..030 depend on PORT-001/002, and
+  PORT-041..044 depend on PORT-040)
 - **RSTLAN** — Rust language support (depends on KERN Phase 1 parser, but the
   grammar/adapter work can start in parallel)
 - **RATS-004** — APS onboarding wizard (depends only on RATS-001)
