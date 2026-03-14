@@ -1,3 +1,3 @@
 {
-  "buildCommand": "npx tsc --build"
+  "buildCommand": "cd ../.. && pnpm --filter @eddacraft/transactional build && cd apps/anvil-api && tsc"
 }
