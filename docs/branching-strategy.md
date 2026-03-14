@@ -29,7 +29,7 @@ fix/abc     ──PR──► dev ──PR──► main (release)
 - Unit Tests (Linux, Node 20)
 - Build (Linux, Node 20)
 - E2E Tests (if changed)
-- Security scans
+- Security scans (only when code changes are detected)
 
 ### PRs to `main` (release gate)
 
