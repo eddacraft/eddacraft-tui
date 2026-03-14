@@ -25,6 +25,7 @@ REST API for Anvil beta access management. Hono on Vercel with Neon Postgres.
 | `ADMIN_KEY`                   | Yes      | Bearer token for admin endpoints        |
 | `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | Token for waitlist resend endpoint      |
 | `ANVIL_CORS_ORIGINS`          | Yes      | Comma-separated allowed origins         |
+| `LICENSE_SIGNING_KEY`         | Yes      | ES256 private key (PKCS#8 PEM) for JWTs |
 | `TOKEN_PEPPER`                | No       | Extra secret mixed into token hashing   |
 
 ## Development
