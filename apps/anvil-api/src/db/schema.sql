@@ -46,7 +46,6 @@ CREATE TABLE waitlist (
 );
 
 -- Indexes
-CREATE INDEX idx_waitlist_email ON waitlist(email);
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
 CREATE INDEX idx_audit_log_action ON audit_log(action);

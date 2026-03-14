@@ -71,10 +71,11 @@ if [ -z "$CHANGED_FILES" ]; then
 fi
 
 # Check if any changed file is in the project directory
-if echo "$CHANGED_FILES" | grep -qF "${PROJECT_DIR}/"; then
+# Use awk for anchored literal prefix match (grep -F can't anchor to start-of-line)
+if echo "$CHANGED_FILES" | awk -v prefix="${PROJECT_DIR}/" 'index($0, prefix) == 1 { found=1; exit } END { exit !found }'; then
   echo ">> Changes detected in $PROJECT_DIR — building"
   type log_info >/dev/null 2>&1 && log_info "changes in project dir, triggering build"
-  type log_trace >/dev/null 2>&1 && log_trace "matching files: $(echo "$CHANGED_FILES" | grep -F "${PROJECT_DIR}/" | head -5)"
+  type log_trace >/dev/null 2>&1 && log_trace "matching files: $(echo "$CHANGED_FILES" | awk -v prefix="${PROJECT_DIR}/" 'index($0, prefix) == 1' | head -5)"
   type log_exit >/dev/null 2>&1 && log_exit 1
   exit 1
 fi

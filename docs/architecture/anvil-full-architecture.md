@@ -69,7 +69,7 @@
 │  ┌──────────────┐  ┌──────────┐  ┌───────────┐  ┌───────┐  │
 │  │  Rust CLI +  │  │ Website  │  │ MCP Server│  │VS Code│  │
 │  │ Ratatui TUI  │  │ (Next.js)│  │   (TS)    │  │  Ext  │  │
-│  │  [PROPOSED]  │  │[CURRENT] │  │ [CURRENT] │  │[CURRENT] │  │
+│  │  [PROPOSED]  │  │[CURRENT] │  │ [CURRENT] │  │[CURR] │  │
 │  └──────┬───────┘  └────┬─────┘  └─────┬─────┘  └───┬───┘  │
 └─────────┼───────────────┼──────────────┼────────────┼───────┘
           │               │              │            │
@@ -78,7 +78,7 @@
 │              ENGINE EVENT PROTOCOL [PROPOSED]                │
 │                                                             │
 │  EngineEvent { event_type, seq, timestamp, engine, payload }  │
-│  Transport: NDJSON (foreground) / JSON-RPC 2.0 over Unix socket (daemon)      │
+│  Transport: JSON-RPC 2.0 / NDJSON / Unix domain socket      │
 │  Events: Progress | Snapshot | Violation | Error             │
 └──────────┬──────────────────────────────────┬───────────────┘
            │                                  │
@@ -105,13 +105,13 @@
 
 ### Applications
 
-| Package          | Purpose                                                   | Status        |
-| ---------------- | --------------------------------------------------------- | ------------- |
-| `apps/anvil-cli` | CLI + Ink TUI (30+ commands)                              | **[CURRENT]** |
-| `apps/website`   | Next.js marketing site (dashboard is [PROPOSED] — see §8) | **[CURRENT]** |
-| `apps/anvil-api` | API server                                                | **[CURRENT]** |
-| `apps/docs-site` | Documentation site                                        | **[CURRENT]** |
-| `apps/e2e`       | End-to-end test suite                                     | **[CURRENT]** |
+| Package          | Purpose                       | Status        |
+| ---------------- | ----------------------------- | ------------- |
+| `apps/anvil-cli` | CLI + Ink TUI (30+ commands)  | **[CURRENT]** |
+| `apps/website`   | Next.js dashboard + marketing | **[CURRENT]** |
+| `apps/anvil-api` | API server                    | **[CURRENT]** |
+| `apps/docs-site` | Documentation site            | **[CURRENT]** |
+| `apps/e2e`       | End-to-end test suite         | **[CURRENT]** |
 
 ### Core Libraries
 
@@ -179,16 +179,16 @@ checks against repository state and produces pass/fail/warn results.
 
 ### Current Gate Checks (TypeScript)
 
-| Check                | What It Does                                | External Deps      | Rust Port                 |
-| -------------------- | ------------------------------------------- | ------------------ | ------------------------- |
-| `SecretCheck`        | Entropy + pattern-based secret detection    | None               | **Done** (RENG-001)       |
-| `AntipatternCheck`   | Detects code anti-patterns (13 patterns)    | None               | **Done** (RENG-002)       |
-| `CommandSafetyCheck` | Validates shell commands (36 rules)         | None               | **Done** (RENG-003)       |
-| `ArchitectureCheck`  | Layer violations via dependency analysis    | dependency-cruiser | **[PROPOSED]** (RENG-004) |
-| `DependencyCheck`    | Vulnerability audit via npm/yarn/pnpm audit | npm/yarn/pnpm      | Stays TS                  |
-| `PolicyCheck`        | OPA Rego policy evaluation                  | OPA binary         | **[PROPOSED]**            |
-| `ESLintCheck`        | ESLint rule violations                      | ESLint             | Stays TS                  |
-| `CoverageCheck`      | Test coverage thresholds                    | Jest/Vitest        | Stays TS                  |
+| Check                | What It Does                             | External Deps      | Rust Port                 |
+| -------------------- | ---------------------------------------- | ------------------ | ------------------------- |
+| `SecretCheck`        | Entropy + pattern-based secret detection | None               | **Done** (RENG-001)       |
+| `AntipatternCheck`   | Detects code anti-patterns (13 patterns) | None               | **Done** (RENG-002)       |
+| `CommandSafetyCheck` | Validates shell commands (36 rules)      | None               | **Done** (RENG-003)       |
+| `ArchitectureCheck`  | Layer violations via dependency analysis | dependency-cruiser | **[PROPOSED]** (RENG-004) |
+| `DependencyCheck`    | New/changed dependency detection         | dependency-cruiser | **[PROPOSED]**            |
+| `PolicyCheck`        | OPA Rego policy evaluation               | OPA binary         | **[PROPOSED]**            |
+| `ESLintCheck`        | ESLint rule violations                   | ESLint             | Stays TS                  |
+| `CoverageCheck`      | Test coverage thresholds                 | Jest/Vitest        | Stays TS                  |
 
 ### Gate Pipeline Flow
 
