@@ -65,4 +65,4 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: rustfmt
-      - uses: actions-rust-lang/rustfmt@v2
+      - uses: actions-rust-lang/rustfmt@v1
