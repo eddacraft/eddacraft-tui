@@ -77,8 +77,8 @@ The gateway described here is a new component that uses the PocketFlow primitive
 PocketFlow gateway does NOT:
 
 - Infer intent (Ember's job)
-- Rank or prioritize information (Ember's job)
-- Summarize content (Ember's job)
+- Rank or prioritise information (Ember's job)
+- Summarise content (Ember's job)
 - Detect patterns (Ember's job)
 - Store durable memory (Edda's job)
 - Curate knowledge (Edda's job)

@@ -216,13 +216,13 @@ class ReduceNode extends Node<MapReduceStore> {
 
 **Use cases**:
 
-- Summarizing large documents
+- Summarising large documents
 - Processing many files in parallel
 - Aggregating results from multiple sources
 
 ### 5. Multi-Agent Pattern
 
-Coordinating multiple specialized agents:
+Coordinating multiple specialised agents:
 
 ```typescript
 // Coordinator decides which agent to use
@@ -249,7 +249,7 @@ coordinator.on('reviewer', reviewerAgent);
 **Use cases**:
 
 - Complex coding tasks (one agent writes, another reviews)
-- Research teams (one searches, another synthesizes)
+- Research teams (one searches, another synthesises)
 - Game playing (multiple players with different strategies)
 
 ### 6. Structured Output Pattern
