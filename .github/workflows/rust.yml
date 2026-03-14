@@ -17,6 +17,9 @@ on:
       - 'rust-toolchain.toml'
       - '.github/workflows/rust.yml'
 
+permissions:
+  contents: read
+
 concurrency:
   group: rust-${{ github.ref }}
   cancel-in-progress: true
@@ -52,7 +55,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           components: clippy
-      - run: cargo clippy --workspace --all-targets
+      - run: cargo clippy --workspace --all-targets -- -D warnings
 
   format:
     name: Format
