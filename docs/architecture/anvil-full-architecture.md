@@ -69,7 +69,7 @@
 │  ┌──────────────┐  ┌──────────┐  ┌───────────┐  ┌───────┐  │
 │  │  Rust CLI +  │  │ Website  │  │ MCP Server│  │VS Code│  │
 │  │ Ratatui TUI  │  │ (Next.js)│  │   (TS)    │  │  Ext  │  │
-│  │  [PROPOSED]  │  │[CURRENT] │  │ [CURRENT] │  │[CURR] │  │
+│  │  [PROPOSED]  │  │[CURRENT] │  │ [CURRENT] │  │[CURRENT] │  │
 │  └──────┬───────┘  └────┬─────┘  └─────┬─────┘  └───┬───┘  │
 └─────────┼───────────────┼──────────────┼────────────┼───────┘
           │               │              │            │
@@ -78,7 +78,7 @@
 │              ENGINE EVENT PROTOCOL [PROPOSED]                │
 │                                                             │
 │  EngineEvent { event_type, seq, timestamp, engine, payload }  │
-│  Transport: JSON-RPC 2.0 / NDJSON / Unix domain socket      │
+│  Transport: NDJSON (foreground) / JSON-RPC 2.0 over Unix socket (daemon)      │
 │  Events: Progress | Snapshot | Violation | Error             │
 └──────────┬──────────────────────────────────┬───────────────┘
            │                                  │

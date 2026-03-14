@@ -16,13 +16,13 @@ latency (2.9s → 200ms).
 
 The Rust stack is organised into five APS modules totalling ~58 work items:
 
-| Module     | Name                  | Items | Status       | Purpose                                        |
-| ---------- | --------------------- | ----- | ------------ | ---------------------------------------------- |
-| **KERN**   | Rust Kernel           | 25    | Phase 0 Done | Watcher, parser, semantic graph, policy engine |
-| **RENG**   | Engine Ports          | 6     | 4 Done       | Port existing TS checks to Rust                |
-| **RATS**   | Ratatui TUI           | 7     | 1 Done       | New TUI surfaces consuming kernel events       |
-| **PORT**   | Ink-to-Ratatui Port   | 15    | 2 Done       | 1:1 port of existing Ink surfaces              |
-| **RSTLAN** | Rust Language Support | ~5    | Placeholder  | Extend analysis to Rust codebases              |
+| Module     | Name                  | Items | Status    | Purpose                                        |
+| ---------- | --------------------- | ----- | --------- | ---------------------------------------------- |
+| **KERN**   | Rust Kernel           | 25    | 5/25 Done | Watcher, parser, semantic graph, policy engine |
+| **RENG**   | Engine Ports          | 6     | 4/6 Done  | Port existing TS checks to Rust                |
+| **RATS**   | Ratatui TUI           | 7     | 1/7 Done  | New TUI surfaces consuming kernel events       |
+| **PORT**   | Ink-to-Ratatui Port   | 15    | 2/15 Done | 1:1 port of existing Ink surfaces              |
+| **RSTLAN** | Rust Language Support | ~5    | 0/5 Draft | Extend analysis to Rust codebases              |
 
 ---
 
@@ -180,7 +180,7 @@ crates/
  └────────┬─────────┘
           │  inotify / FSEvents / ReadDirectoryChanges
           ▼
- ┌──────────────────┐     Ignore patterns (.gitignore, .anvilignore)
+ ┌──────────────────┐     Ignore patterns (.gitignore)
  │     Watcher      │     Git-aware filtering (optional)
  │   (notify-rs)    │     Recursive directory watching
  └────────┬─────────┘
@@ -227,10 +227,10 @@ crates/
           │
           │  EngineEvent stream
           ▼
- ┌──────────────────┐     JSON-RPC 2.0 envelope
- │  Event Emission  │     NDJSON framing for streams
- │                  │     Unix domain socket (daemon mode)
- │  Engine Protocol │     Tokio channels (embedded mode)
+ ┌──────────────────┐     NDJSON to stdout (foreground watch)
+ │  Event Emission  │     JSON-RPC 2.0 over Unix socket (daemon)
+ │                  │     Tokio mpsc channels (embedded mode)
+ │  Engine Protocol │     See §4 Transport Modes table
  └──────────────────┘
 ```
 
@@ -317,19 +317,19 @@ enum EngineId { Rust, Legacy }
 
 ```rust
 // Progress — emitted during parsing/evaluation phases
+// Matches crates/anvil-kernel-types/src/events.rs EventPayload::Progress
 struct ProgressPayload {
-    stage: String,            // "parsing", "graph_update", "policy_eval"
-    message: String,
-    percent: Option<f32>,     // 0.0..1.0
-    detail: Option<String>,
+    phase: String,            // "parsing", "graph_update", "policy_eval"
+    current: u64,
+    total: u64,
 }
 
 // Snapshot — emitted after graph recomputation completes
+// Matches crates/anvil-kernel-types/src/events.rs EventPayload::Snapshot
 struct SnapshotPayload {
-    graph_hash: String,
-    files_indexed: u32,
-    symbols_indexed: u32,
-    duration_ms: u64,
+    node_count: u64,
+    edge_count: u64,
+    files_watched: u64,
 }
 
 // Violation — emitted when a policy invariant is violated
@@ -353,11 +353,12 @@ struct ErrorPayload {
 
 ### Transport
 
-| Mode               | Transport          | Framing                           |
-| ------------------ | ------------------ | --------------------------------- |
-| Embedded           | Tokio mpsc channel | Direct Rust types                 |
-| Watch (foreground) | stdout             | NDJSON (one JSON object per line) |
-| Daemon             | Unix domain socket | JSON-RPC 2.0 + NDJSON             |
+| Mode                | Transport          | Framing                           |
+| ------------------- | ------------------ | --------------------------------- |
+| Embedded            | Tokio mpsc channel | Direct Rust types                 |
+| Watch (foreground)  | stdout             | NDJSON (one JSON object per line) |
+| Daemon (Unix/macOS) | Unix domain socket | JSON-RPC 2.0 + NDJSON             |
+| Daemon (Windows)    | Named pipe         | JSON-RPC 2.0 + NDJSON             |
 
 ---
 
