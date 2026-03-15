@@ -7,16 +7,16 @@ const debug = createDebugger('api');
 const cron = new Hono();
 
 /**
- * POST /cron/cleanup
+ * GET /cron/cleanup
  *
  * Purge expired device codes and OTP codes.
- * Intended to be called by Vercel Cron (or manually).
+ * Intended to be called by Vercel Cron (sends GET with Authorization header).
  * Protected by CRON_SECRET for Vercel Cron compatibility.
  *
  * Vercel Cron config (vercel.json):
  *   { "path": "/api/v1/cron/cleanup", "schedule": "0 * * * *" }
  */
-cron.post('/cleanup', async (c) => {
+cron.get('/cleanup', async (c) => {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return c.json({ error: 'CRON_SECRET not configured' }, 503);
@@ -27,7 +27,7 @@ cron.post('/cleanup', async (c) => {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 
-  debug('POST /cron/cleanup');
+  debug('GET /cron/cleanup');
   const sql = getClient();
 
   const deviceResult = await sql`
