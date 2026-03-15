@@ -3,11 +3,11 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { auth } from './routes/auth.js';
 import { authDevice } from './routes/auth-device.js';
-import { admin } from './routes/admin.js';
-import { waitlist } from './routes/waitlist.js';
-import { authDevice } from './routes/auth-device.js';
 import { authOtp } from './routes/auth-otp.js';
 import { authSession } from './routes/auth-session.js';
+import { admin } from './routes/admin.js';
+import { waitlist } from './routes/waitlist.js';
+import { cron } from './routes/cron.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import { getClient } from './db/client.js';
 
@@ -63,10 +63,10 @@ app.get('/health', async (c) => {
 
 app.route('/auth', auth);
 app.route('/auth/device', authDevice);
-app.route('/admin', admin);
-app.route('/waitlist', waitlist);
-app.route('/auth/device', authDevice);
 app.route('/auth/otp', authOtp);
 app.route('/auth/session', authSession);
+app.route('/admin', admin);
+app.route('/waitlist', waitlist);
+app.route('/cron', cron);
 
 export default app;
