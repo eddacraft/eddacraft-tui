@@ -43,9 +43,7 @@ export function createAdminCommand(): Command {
       }
 
       try {
-        const params = email
-          ? { email }
-          : { batch: coercePositiveInt(options.batch!, '--batch') };
+        const params = email ? { email } : { batch: coercePositiveInt(options.batch!, '--batch') };
 
         const result = await adminApprove(params);
 

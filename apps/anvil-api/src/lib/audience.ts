@@ -17,7 +17,10 @@ export async function addToWaitlistAudience(email: string): Promise<void> {
   try {
     await resend.contacts.create({ email, audienceId });
   } catch (error) {
-    console.error('Failed to add to waitlist audience:', error instanceof Error ? error.message : error);
+    console.error(
+      'Failed to add to waitlist audience:',
+      error instanceof Error ? error.message : error
+    );
   }
 }
 
@@ -31,12 +34,15 @@ export async function moveToApprovedAudience(email: string): Promise<void> {
   if (waitlistId) {
     try {
       const contacts = await resend.contacts.list({ audienceId: waitlistId });
-      const contact = contacts.data?.data?.find((c: any) => c.email === email);
+      const contact = contacts.data?.data?.find((c: { email: string }) => c.email === email);
       if (contact) {
         await resend.contacts.remove({ id: contact.id, audienceId: waitlistId });
       }
     } catch (error) {
-      console.error('Failed to remove from waitlist audience:', error instanceof Error ? error.message : error);
+      console.error(
+        'Failed to remove from waitlist audience:',
+        error instanceof Error ? error.message : error
+      );
     }
   }
 
@@ -45,7 +51,10 @@ export async function moveToApprovedAudience(email: string): Promise<void> {
     try {
       await resend.contacts.create({ email, audienceId: betaId });
     } catch (error) {
-      console.error('Failed to add to beta audience:', error instanceof Error ? error.message : error);
+      console.error(
+        'Failed to add to beta audience:',
+        error instanceof Error ? error.message : error
+      );
     }
   }
 }
@@ -57,11 +66,14 @@ export async function removeFromBetaAudience(email: string): Promise<void> {
 
   try {
     const contacts = await resend.contacts.list({ audienceId: betaId });
-    const contact = contacts.data?.data?.find((c: any) => c.email === email);
+    const contact = contacts.data?.data?.find((c: { email: string }) => c.email === email);
     if (contact) {
       await resend.contacts.remove({ id: contact.id, audienceId: betaId });
     }
   } catch (error) {
-    console.error('Failed to remove from beta audience:', error instanceof Error ? error.message : error);
+    console.error(
+      'Failed to remove from beta audience:',
+      error instanceof Error ? error.message : error
+    );
   }
 }

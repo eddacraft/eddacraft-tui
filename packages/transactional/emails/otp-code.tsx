@@ -42,9 +42,7 @@ export function OtpCode({
           <Section style={content}>
             <Text style={codeDisplay}>{code}</Text>
             <Text style={muted}>This code expires in 10 minutes.</Text>
-            <Text style={muted}>
-              If you didn&apos;t request this, you can safely ignore it.
-            </Text>
+            <Text style={muted}>If you didn&apos;t request this, you can safely ignore it.</Text>
           </Section>
 
           <Hr style={divider} />

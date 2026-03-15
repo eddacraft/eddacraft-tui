@@ -291,10 +291,7 @@ export async function insertOtpCode(
   return OtpCodeSchema.parse(r[0]);
 }
 
-export async function findActiveOtpCodes(
-  sql: NeonClient,
-  userId: string
-): Promise<OtpCode[]> {
+export async function findActiveOtpCodes(sql: NeonClient, userId: string): Promise<OtpCode[]> {
   const r = rows(
     await sql`
     SELECT * FROM otp_codes
@@ -388,10 +385,7 @@ export async function consumeRefreshToken(sql: NeonClient, id: string): Promise<
   return r.length > 0;
 }
 
-export async function revokeRefreshTokenFamily(
-  sql: NeonClient,
-  familyId: string
-): Promise<number> {
+export async function revokeRefreshTokenFamily(sql: NeonClient, familyId: string): Promise<number> {
   const r = rows(
     await sql`
     UPDATE refresh_tokens SET revoked_at = now()
