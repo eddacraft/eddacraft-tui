@@ -14,6 +14,8 @@ function rows(result: unknown): Record<string, unknown>[] {
 
 const debug = createDebugger('auth-device');
 
+const REFRESH_TOKEN_EXPIRY_DAYS = 90;
+
 function generateUserCode(): string {
   return 'ANVIL-' + randomBytes(2).toString('hex').toUpperCase();
 }
@@ -68,8 +70,7 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
     debug('anti-enumeration response for unknown/inactive email');
   }
 
-  const verificationUrl =
-    process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
+  const verificationUrl = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
 
   return c.json({
     userCode,
@@ -130,6 +131,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   const { pollToken } = c.req.valid('json');
   const sql = getClient();
 
+  // Non-destructive read to check pending/expired status
   const r = rows(
     await sql`
     SELECT * FROM device_codes
@@ -156,13 +158,26 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
     return c.json({ status: 'pending' });
   }
 
-  // Confirmed — issue licence and refresh token
-  debug('device code confirmed, issuing licence');
-  const userId = String(deviceCode['user_id']);
-
-  const userRows = rows(
-    await sql`SELECT * FROM beta_users WHERE id = ${userId} LIMIT 1`
+  // Confirmed — atomically consume the device code so concurrent polls
+  // cannot both mint sessions (DELETE ... RETURNING ensures single-use)
+  const consumed = rows(
+    await sql`
+    DELETE FROM device_codes
+    WHERE poll_token = ${pollToken}
+      AND confirmed_at IS NOT NULL
+    RETURNING user_id
+  `
   );
+
+  if (!consumed[0]) {
+    debug('device code already consumed by concurrent request');
+    return c.json({ status: 'expired' });
+  }
+
+  debug('device code confirmed, issuing licence');
+  const userId = String(consumed[0]['user_id']);
+
+  const userRows = rows(await sql`SELECT * FROM beta_users WHERE id = ${userId} LIMIT 1`);
   const user = userRows[0];
 
   if (!user) {
@@ -184,14 +199,12 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   const rawRefreshToken = randomBytes(32).toString('hex');
   const refreshHash = hashToken(rawRefreshToken);
   const familyId = randomUUID();
-  const refreshExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+  const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
 
   await sql`
     INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
     VALUES (${userId}, ${refreshHash}, ${familyId}, ${refreshExpiresAt.toISOString()})
   `;
-
-  await sql`DELETE FROM device_codes WHERE poll_token = ${pollToken}`;
 
   const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   debug('device code consumed, licence issued');

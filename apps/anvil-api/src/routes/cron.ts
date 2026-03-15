@@ -18,11 +18,13 @@ const cron = new Hono();
  */
 cron.post('/cleanup', async (c) => {
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const authHeader = c.req.header('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
-      return c.json({ error: 'Unauthorized' }, 401);
-    }
+  if (!cronSecret) {
+    return c.json({ error: 'CRON_SECRET not configured' }, 503);
+  }
+
+  const authHeader = c.req.header('authorization');
+  if (authHeader !== `Bearer ${cronSecret}`) {
+    return c.json({ error: 'Unauthorized' }, 401);
   }
 
   debug('POST /cron/cleanup');

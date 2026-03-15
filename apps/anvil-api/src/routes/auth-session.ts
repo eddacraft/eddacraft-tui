@@ -15,7 +15,7 @@ import { createDebugger } from '../lib/debug.js';
 
 const debug = createDebugger('auth-session');
 
-const REFRESH_TOKEN_EXPIRY_DAYS = 30;
+const REFRESH_TOKEN_EXPIRY_DAYS = 90;
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(1).max(200),
