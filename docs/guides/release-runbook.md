@@ -100,10 +100,12 @@ vX.Y.Z-beta      # e.g. v0.1.2-beta
 vX.Y.Z-beta.N    # e.g. v0.1.2-beta.0
 ```
 
-After tagging, merge the version bump back to `dev`:
+After tagging, merge the version bump back to `dev` via PR:
 
 ```bash
-git switch dev && git merge main && git push origin dev
+gh pr create --base dev --head main \
+  --title "chore: merge release vX.Y.Z back to dev" \
+  --body "Sync version bump and changelog from release vX.Y.Z"
 ```
 
 ---
