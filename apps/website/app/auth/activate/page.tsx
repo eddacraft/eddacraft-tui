@@ -1,12 +1,20 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { Suspense, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
 export default function ActivatePage() {
+  return (
+    <Suspense>
+      <ActivateForm />
+    </Suspense>
+  );
+}
+
+function ActivateForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState(searchParams.get('code') ?? '');
@@ -61,12 +69,8 @@ export default function ActivatePage() {
 
         {status === 'success' ? (
           <div className="space-y-4">
-            <p className="text-sm text-edda">
-              Device confirmed — return to your terminal.
-            </p>
-            <p className="text-xs text-text-muted">
-              You can close this window.
-            </p>
+            <p className="text-sm text-edda">Device confirmed — return to your terminal.</p>
+            <p className="text-xs text-text-muted">You can close this window.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -107,11 +111,7 @@ export default function ActivatePage() {
             </div>
 
             {/* Error */}
-            {status === 'error' && (
-              <p className="text-xs text-anvil">
-                {errorMessage}
-              </p>
-            )}
+            {status === 'error' && <p className="text-xs text-anvil">{errorMessage}</p>}
 
             {/* Submit */}
             <button
