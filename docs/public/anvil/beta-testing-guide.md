@@ -205,7 +205,7 @@ Please report issues on GitHub:
 
 - **TypeScript and JavaScript projects only** — support for other languages is
   planned but not yet available.
-- **Requires Node.js 20+** — earlier versions are not supported.
+- **Requires Node.js >= 20.19.0** — earlier versions are not supported.
 - **False positives on unconventional structures** — some anti-pattern detectors
   may flag valid code in projects with non-standard layouts.
 - **Memory system is new** — pattern detection accuracy improves over time as
