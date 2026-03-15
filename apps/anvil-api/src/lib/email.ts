@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { WaitlistConfirmation } from '@eddacraft/transactional';
+import { OtpCode, WaitlistConfirmation } from '@eddacraft/transactional';
 
 let client: Resend | null = null;
 
@@ -68,6 +68,39 @@ To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}`,
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Unexpected waitlist email delivery error:', message);
+    return { sent: false, code: 'unexpected_error', message };
+  }
+}
+
+export async function sendOtpCode(email: string, code: string): Promise<EmailDeliveryResult> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn('RESEND_API_KEY not configured — skipping OTP email');
+    return { sent: false, code: 'resend_not_configured', message: 'Resend is not configured' };
+  }
+
+  const unsubscribeMailto = 'mailto:anvil@updates.eddacraft.ai';
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      replyTo: REPLY_TO,
+      to: email,
+      subject: 'Your Anvil verification code',
+      react: OtpCode({ code, unsubscribeMailto }),
+      text: `Your Anvil verification code is: ${code}\n\nThis code expires in 10 minutes.\nIf you didn't request this, you can safely ignore it.\n\n—\nanvil :: eddacraft.ai`,
+      tags: [{ name: 'category', value: 'otp-code' }],
+    });
+
+    if (error) {
+      console.error('Failed to send OTP email:', error.message);
+      return { sent: false, code: 'provider_error', message: error.message };
+    }
+
+    return { sent: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Unexpected OTP email delivery error:', message);
     return { sent: false, code: 'unexpected_error', message };
   }
 }
