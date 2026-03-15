@@ -180,17 +180,17 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 
 ## Environment Variables
 
-| Variable                      | Required | Used by                                 | Description                      |
-| ----------------------------- | -------- | --------------------------------------- | -------------------------------- |
-| `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string  |
-| `ADMIN_KEY`                   | Yes      | Admin middleware                        | Bearer token for admin endpoints |
-| `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)   |
-| `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key             |
-| `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint  |
-| `ANVIL_CORS_ORIGINS`          | Yes      | CORS middleware                         | Comma-separated allowed origins  |
-| `TOKEN_PEPPER`                | No       | Token hashing                           | Extra secret mixed into SHA-256  |
-| `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist  |
-| `RESEND_BETA_AUDIENCE_ID`    | No       | Audience management                     | Resend audience ID for beta users |
+| Variable                      | Required | Used by                                 | Description                                                      |
+| ----------------------------- | -------- | --------------------------------------- | ---------------------------------------------------------------- |
+| `DATABASE_URL`                | Yes      | All routes                              | Neon Postgres connection string                                  |
+| `ADMIN_KEY`                   | Yes      | Admin middleware                        | Bearer token for admin endpoints                                 |
+| `LICENSE_SIGNING_KEY`         | Yes      | `/auth/verify`, `/auth/license/refresh` | ES256 private key (PKCS#8 PEM)                                   |
+| `RESEND_API_KEY`              | Yes      | Waitlist routes                         | Resend email API key                                             |
+| `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint                                  |
+| `ANVIL_CORS_ORIGINS`          | Yes      | CORS middleware                         | Comma-separated allowed origins                                  |
+| `TOKEN_PEPPER`                | No       | Token hashing                           | Extra secret mixed into SHA-256                                  |
+| `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist                                  |
+| `RESEND_BETA_AUDIENCE_ID`     | No       | Audience management                     | Resend audience ID for beta users                                |
 | `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
 
 ## Cross-Cutting Concerns
@@ -334,24 +334,24 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 
 ## Source Files
 
-| File                                          | Role                           |
-| --------------------------------------------- | ------------------------------ |
-| `apps/anvil-api/src/index.ts`                 | App entry, routing, middleware |
-| `apps/anvil-api/src/routes/auth.ts`           | Verify + refresh endpoints     |
-| `apps/anvil-api/src/routes/auth-device.ts`    | Device code flow endpoints     |
-| `apps/anvil-api/src/routes/auth-otp.ts`       | Email OTP flow endpoints       |
-| `apps/anvil-api/src/routes/auth-session.ts`   | Session refresh endpoint       |
+| File                                          | Role                            |
+| --------------------------------------------- | ------------------------------- |
+| `apps/anvil-api/src/index.ts`                 | App entry, routing, middleware  |
+| `apps/anvil-api/src/routes/auth.ts`           | Verify + refresh endpoints      |
+| `apps/anvil-api/src/routes/auth-device.ts`    | Device code flow endpoints      |
+| `apps/anvil-api/src/routes/auth-otp.ts`       | Email OTP flow endpoints        |
+| `apps/anvil-api/src/routes/auth-session.ts`   | Session refresh endpoint        |
 | `apps/anvil-api/src/routes/admin.ts`          | Invite, revoke, lookup, approve |
-| `apps/anvil-api/src/routes/waitlist.ts`       | Waitlist signup + resend       |
-| `apps/anvil-api/src/routes/cron.ts`           | Scheduled cleanup tasks        |
-| `apps/anvil-api/src/middleware/admin-auth.ts` | Admin bearer auth              |
-| `apps/anvil-api/src/middleware/rate-limit.ts` | In-memory rate limiter         |
-| `apps/anvil-api/src/lib/token.ts`             | Token generation + hashing     |
-| `apps/anvil-api/src/lib/licence.ts`           | JWT signing                    |
-| `apps/anvil-api/src/lib/email.ts`             | Resend email sender            |
-| `apps/anvil-api/src/lib/audience.ts`          | Resend audience management     |
-| `apps/anvil-api/src/lib/audit.ts`             | Audit log helper               |
-| `apps/anvil-api/src/db/client.ts`             | Neon client singleton          |
-| `apps/anvil-api/src/db/queries.ts`            | All SQL queries + Zod schemas  |
-| `apps/anvil-api/src/db/schema.sql`            | DDL for all tables             |
-| `infra/src/vercel.ts`                         | Deployment config + env vars   |
+| `apps/anvil-api/src/routes/waitlist.ts`       | Waitlist signup + resend        |
+| `apps/anvil-api/src/routes/cron.ts`           | Scheduled cleanup tasks         |
+| `apps/anvil-api/src/middleware/admin-auth.ts` | Admin bearer auth               |
+| `apps/anvil-api/src/middleware/rate-limit.ts` | In-memory rate limiter          |
+| `apps/anvil-api/src/lib/token.ts`             | Token generation + hashing      |
+| `apps/anvil-api/src/lib/licence.ts`           | JWT signing                     |
+| `apps/anvil-api/src/lib/email.ts`             | Resend email sender             |
+| `apps/anvil-api/src/lib/audience.ts`          | Resend audience management      |
+| `apps/anvil-api/src/lib/audit.ts`             | Audit log helper                |
+| `apps/anvil-api/src/db/client.ts`             | Neon client singleton           |
+| `apps/anvil-api/src/db/queries.ts`            | All SQL queries + Zod schemas   |
+| `apps/anvil-api/src/db/schema.sql`            | DDL for all tables              |
+| `infra/src/vercel.ts`                         | Deployment config + env vars    |
