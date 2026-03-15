@@ -8,7 +8,8 @@
 set -e
 
 PACKAGE="@eddacraft/anvil-cli@latest"
-MIN_NODE=20
+MIN_NODE_MAJOR=20
+MIN_NODE_MINOR=19
 
 # --- Helpers ----------------------------------------------------------------
 
@@ -45,14 +46,16 @@ detect_os() {
 
 check_node() {
   if ! command -v node >/dev/null 2>&1; then
-    fail "Node.js is not installed. Install Node >= ${MIN_NODE} from https://nodejs.org"
+    fail "Node.js is not installed. Install Node >= ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}.0 from https://nodejs.org"
   fi
 
   node_version="$(node -v | sed 's/^v//')"
   node_major="$(printf '%s' "$node_version" | cut -d. -f1)"
+  node_minor="$(printf '%s' "$node_version" | cut -d. -f2)"
 
-  if [ "$node_major" -lt "$MIN_NODE" ] 2>/dev/null; then
-    fail "Node.js ${node_version} found, but >= ${MIN_NODE} is required. Update at https://nodejs.org"
+  if [ "$node_major" -lt "$MIN_NODE_MAJOR" ] 2>/dev/null || \
+     { [ "$node_major" -eq "$MIN_NODE_MAJOR" ] && [ "$node_minor" -lt "$MIN_NODE_MINOR" ]; } 2>/dev/null; then
+    fail "Node.js ${node_version} found, but >= ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}.0 is required. Update at https://nodejs.org"
   fi
 
   ok "Node.js ${node_version}"
