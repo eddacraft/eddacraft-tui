@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 6/8 |
+| MAINT | @team | In Progress | 6/10 |
 
 ## Purpose
 
@@ -208,3 +208,50 @@ When working on any task across the codebase, note repeated patterns:
 - **Notes:** Shared spinner utility added via PR #517 (merged). All CLI
   command files migrated to use `createSpinner()` from `utils/spinner.ts`.
   No direct `ora()` imports remain in command files.
+
+
+---
+
+### MAINT-009: Edda list filters parity with release claims
+
+- **Intent:** Align `anvil edda list` filtering capabilities and help text with
+  release-note claims (type, confidence, age), or update release/docs to match
+  implemented behaviour
+- **Expected Outcome:** One of:
+  1) CLI adds explicit `--confidence` and age-style filtering flags with tests,
+  2) release/docs are corrected to currently supported filters (`--type`,
+     `--status`, `--limit`)
+- **Validation:**
+  - `anvil edda list --help` shows accurate supported filters
+  - release notes/docs match command behaviour exactly
+  - tests cover filter parsing and query behavior
+- **Files:**
+  - `apps/anvil-cli/src/commands/edda/list.ts`
+  - `apps/anvil-cli/src/commands/__tests__/` (new/updated tests)
+  - `apps/anvil-cli/README*` and release docs as needed
+- **Confidence:** high
+- **Priority:** Medium
+- **Status:** Ready
+- **Origin:** v0.2.1-beta release validation (2026-03-15)
+
+---
+
+### MAINT-010: Authenticated release smoke harness for Edda/Ember/Stack
+
+- **Intent:** Add a repeatable authenticated smoke test path for release
+  validation so command availability and runtime behavior can be verified in one
+  pass before publish
+- **Expected Outcome:** A documented smoke harness/checklist that validates:
+  `edda list/show/promote/retire/trace`, `ember list/show/promote`,
+  `stack status/validate`, and tutorial baseline in an authenticated session
+- **Validation:**
+  - `docs/testing/releases/` contains executable checklist
+  - CI-safe or manual script exists for authenticated local validation
+  - release checklist references this harness
+- **Files:**
+  - `docs/testing/releases/` (new)
+  - release checklist docs under `docs/` and/or `.github/` as appropriate
+- **Confidence:** medium
+- **Priority:** Medium
+- **Status:** Ready
+- **Origin:** v0.2.1-beta release validation (2026-03-15)
