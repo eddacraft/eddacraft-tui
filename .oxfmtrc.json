@@ -1,0 +1,35 @@
+{
+  "singleQuote": true,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "semi": true,
+  "bracketSpacing": true,
+  "arrowParens": "always",
+  "endOfLine": "lf",
+  "proseWrap": "always",
+  "sortPackageJson": false,
+  "overrides": [
+    {
+      "files": ["*.md"],
+      "options": {
+        "proseWrap": "always",
+        "printWidth": 80
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "/dist",
+    "**/coverage",
+    "/.nx/cache",
+    "/.nx/workspace-data",
+    "/plans",
+    "pnpm-lock.yaml",
+    "**/next-env.d.ts",
+    "/apps/docs-site/build/",
+    "/apps/docs-site/.docusaurus/",
+    ".github/workflows/temper.yml",
+    ".github/workflows/claude-code-review.yml",
+    ".semgrep/"
+  ]
+}
