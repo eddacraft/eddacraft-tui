@@ -17,13 +17,15 @@ const MAX_ATTEMPTS = 3;
 const REFRESH_TTL_DAYS = 90;
 
 function generateOtpCode(): string {
-  const num = parseInt(randomBytes(4).toString('hex'), 16) % 900000 + 100000;
+  const num = (parseInt(randomBytes(4).toString('hex'), 16) % 900000) + 100000;
   return num.toString();
 }
 
 function hashOtp(code: string): string {
   const pepper = process.env['TOKEN_PEPPER'] ?? '';
-  return createHash('sha256').update(pepper + code).digest('hex');
+  return createHash('sha256')
+    .update(pepper + code)
+    .digest('hex');
 }
 
 const requestSchema = z.object({
