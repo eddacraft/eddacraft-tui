@@ -96,6 +96,46 @@ describe('signLicence', () => {
     expect(header.alg).toBe('ES256');
   });
 
+  it('uses custom ttlDays when provided', async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const jwt = await signLicence(makeClaims(), undefined, 7);
+    const after = Math.floor(Date.now() / 1000);
+
+    const pubKey = await importSPKI(testPublicKeyPem, 'ES256');
+    const { payload } = await jwtVerify(jwt, pubKey);
+
+    const sevenDays = 7 * 24 * 60 * 60;
+    expect(payload.exp).toBeGreaterThanOrEqual(before + sevenDays);
+    expect(payload.exp).toBeLessThanOrEqual(after + sevenDays);
+  });
+
+  it('defaults to 90-day TTL when ttlDays not provided', async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const jwt = await signLicence(makeClaims());
+    const after = Math.floor(Date.now() / 1000);
+
+    const pubKey = await importSPKI(testPublicKeyPem, 'ES256');
+    const { payload } = await jwtVerify(jwt, pubKey);
+
+    const ninetyDays = 90 * 24 * 60 * 60;
+    expect(payload.exp).toBeGreaterThanOrEqual(before + ninetyDays);
+    expect(payload.exp).toBeLessThanOrEqual(after + ninetyDays);
+  });
+
+  it('ttlDays caps tokenExpiresAt', async () => {
+    const before = Math.floor(Date.now() / 1000);
+    const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const jwt = await signLicence(makeClaims(), farFuture, 7);
+    const after = Math.floor(Date.now() / 1000);
+
+    const pubKey = await importSPKI(testPublicKeyPem, 'ES256');
+    const { payload } = await jwtVerify(jwt, pubKey);
+
+    const sevenDays = 7 * 24 * 60 * 60;
+    expect(payload.exp).toBeGreaterThanOrEqual(before + sevenDays);
+    expect(payload.exp).toBeLessThanOrEqual(after + sevenDays);
+  });
+
   it('throws if LICENSE_SIGNING_KEY is not set', async () => {
     const saved = process.env['LICENSE_SIGNING_KEY'];
     delete process.env['LICENSE_SIGNING_KEY'];
