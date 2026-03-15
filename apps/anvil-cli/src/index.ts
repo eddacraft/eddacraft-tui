@@ -26,6 +26,7 @@ import { createStatusCommand } from './commands/status.js';
 import { createTutorialCommand } from './commands/tutorial.js';
 import { createMcpConfigCommand } from './commands/mcp-config.js';
 import { createReleaseCommand } from './commands/release.js';
+import { createAuthLoginCommand } from './commands/auth-login.js';
 import { createLoginCommand } from './commands/login.js';
 import { createLogoutCommand } from './commands/logout.js';
 import { createWhoamiCommand } from './commands/whoami.js';
@@ -46,6 +47,7 @@ const CLI_VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '
 
 // Commands that don't require authentication
 const AUTH_EXEMPT_COMMANDS = new Set([
+  'auth:login',
   'login',
   'logout',
   'whoami',
@@ -123,6 +125,7 @@ async function main(): Promise<void> {
   });
 
   // Auth commands
+  program.addCommand(createAuthLoginCommand());
   program.addCommand(createLoginCommand());
   program.addCommand(createLogoutCommand());
   program.addCommand(createWhoamiCommand());
