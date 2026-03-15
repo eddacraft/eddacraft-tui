@@ -6,20 +6,20 @@
 
 ## Overview
 
-The auth system manages beta access to Anvil. An admin invites users by email,
-generating a one-time token. The CLI verifies that token against the API and
-receives a signed JWT licence in return.
+The auth system manages beta access to Anvil. It supports three authentication
+flows: the original admin-invite token flow, a device code flow for CLI login,
+and an email OTP flow. All new flows issue JWT + refresh token pairs.
 
 ```text
 ┌─────────┐         ┌────────────┐         ┌──────────┐
 │  Admin   │─invite─▶│  Anvil API │◀─verify─│ Anvil CLI│
 │ (curl)   │◀─token──│  (Hono)    │─licence─▶│          │
 └─────────┘         └─────┬──────┘         └──────────┘
-                          │
-                     ┌────▼────┐
-                     │  Neon   │
-                     │ Postgres│
-                     └─────────┘
+                          │                      │
+                     ┌────▼────┐          ┌──────▼──────┐
+                     │  Neon   │          │   Browser   │
+                     │ Postgres│          │  (activate) │
+                     └─────────┘          └─────────────┘
 ```
 
 ## Token Lifecycle
@@ -91,6 +91,49 @@ Authorization: Bearer <ADMIN_KEY>
 Returns user record + all tokens (id, scopes, expires_at, revoked_at,
 created_at). Token hashes are not returned.
 
+## Authentication Flows (BAUTH)
+
+### Device Code Flow
+
+1. CLI calls `POST /auth/device/start` — receives a `device_code`, `user_code`,
+   and `verification_uri`
+2. User opens `verification_uri` in a browser and enters the `user_code` to
+   confirm
+3. CLI polls `POST /auth/device/poll` with the `device_code` until the user
+   confirms or the code expires
+4. On confirmation, the poll response returns a JWT + refresh token pair
+
+### Email OTP Flow
+
+1. CLI calls `POST /auth/otp/request` with the user's email
+2. API sends a one-time code via Resend
+3. User enters the code in the CLI
+4. CLI calls `POST /auth/otp/verify` with email + code — receives a JWT +
+   refresh token pair
+
+### Admin Approval Flow
+
+1. Admin CLI calls `POST /admin/approve` with the waitlisted user's email
+2. API activates the user and sends a beta invite email containing a device code
+3. User follows the link to confirm and receives access
+
+### JWT Session Refresh
+
+`POST /auth/session/refresh` accepts a refresh token and returns a fresh JWT +
+refresh token pair. Refresh tokens use family-based rotation — reuse of a
+consumed token revokes the entire family to detect theft.
+
+## Backward Compatibility
+
+The original token-based flows remain unchanged:
+
+- `POST /auth/verify` — validates `anvil_beta_*` tokens as before
+- `POST /auth/license/refresh` — refreshes licence via beta token as before
+
+New flows issue JWT + refresh token pairs with 7-day access tokens and 90-day
+refresh tokens. Old `anvil_beta_*` tokens continue to work alongside the new
+flows.
+
 ## JWT Licence
 
 Signed with ES256 (ECDSA P-256) using `LICENSE_SIGNING_KEY` (PKCS#8 PEM).
@@ -121,10 +164,13 @@ offline window short while avoiding verify calls on every invocation.
 ## Database Schema
 
 ```sql
-beta_users    (id uuid PK, email citext UNIQUE, name, status, notes, created_at, updated_at)
-access_tokens (id uuid PK, user_id FK, token_hash UNIQUE, scopes text[], expires_at, revoked_at, created_at)
-audit_log     (id uuid PK, action, actor, metadata jsonb, created_at)
-waitlist      (id serial PK, email citext UNIQUE, source, created_at, updated_at)
+beta_users      (id uuid PK, email citext UNIQUE, name, status, notes, created_at, updated_at)
+access_tokens   (id uuid PK, user_id FK, token_hash UNIQUE, scopes text[], expires_at, revoked_at, created_at)
+audit_log       (id uuid PK, action, actor, metadata jsonb, created_at)
+waitlist        (id serial PK, email citext UNIQUE, source, created_at, updated_at)
+device_codes    (id uuid PK, device_code, user_code, user_id FK, status, expires_at, created_at)
+otp_codes       (id uuid PK, email citext, code, attempts, expires_at, created_at)
+refresh_tokens  (id uuid PK, user_id FK, token_hash UNIQUE, family_id uuid, consumed_at, revoked_at, expires_at, created_at)
 ```
 
 Extensions: `citext`, `pgcrypto`.
@@ -143,6 +189,9 @@ Indexes on: `access_tokens(user_id)`, `access_tokens(token_hash)`,
 | `WAITLIST_RESEND_ADMIN_TOKEN` | Yes      | `/waitlist/resend`                      | Token for admin resend endpoint  |
 | `ANVIL_CORS_ORIGINS`          | Yes      | CORS middleware                         | Comma-separated allowed origins  |
 | `TOKEN_PEPPER`                | No       | Token hashing                           | Extra secret mixed into SHA-256  |
+| `RESEND_WAITLIST_AUDIENCE_ID` | No       | Audience management                     | Resend audience ID for waitlist  |
+| `RESEND_BETA_AUDIENCE_ID`    | No       | Audience management                     | Resend audience ID for beta users |
+| `ACTIVATE_URL`                | No       | Device code flow                        | Confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
 
 ## Cross-Cutting Concerns
 
@@ -289,13 +338,18 @@ Track verification count and distinct IPs per token. Alert on anomalies.
 | --------------------------------------------- | ------------------------------ |
 | `apps/anvil-api/src/index.ts`                 | App entry, routing, middleware |
 | `apps/anvil-api/src/routes/auth.ts`           | Verify + refresh endpoints     |
-| `apps/anvil-api/src/routes/admin.ts`          | Invite, revoke, lookup         |
+| `apps/anvil-api/src/routes/auth-device.ts`    | Device code flow endpoints     |
+| `apps/anvil-api/src/routes/auth-otp.ts`       | Email OTP flow endpoints       |
+| `apps/anvil-api/src/routes/auth-session.ts`   | Session refresh endpoint       |
+| `apps/anvil-api/src/routes/admin.ts`          | Invite, revoke, lookup, approve |
 | `apps/anvil-api/src/routes/waitlist.ts`       | Waitlist signup + resend       |
+| `apps/anvil-api/src/routes/cron.ts`           | Scheduled cleanup tasks        |
 | `apps/anvil-api/src/middleware/admin-auth.ts` | Admin bearer auth              |
 | `apps/anvil-api/src/middleware/rate-limit.ts` | In-memory rate limiter         |
 | `apps/anvil-api/src/lib/token.ts`             | Token generation + hashing     |
 | `apps/anvil-api/src/lib/licence.ts`           | JWT signing                    |
 | `apps/anvil-api/src/lib/email.ts`             | Resend email sender            |
+| `apps/anvil-api/src/lib/audience.ts`          | Resend audience management     |
 | `apps/anvil-api/src/lib/audit.ts`             | Audit log helper               |
 | `apps/anvil-api/src/db/client.ts`             | Neon client singleton          |
 | `apps/anvil-api/src/db/queries.ts`            | All SQL queries + Zod schemas  |
