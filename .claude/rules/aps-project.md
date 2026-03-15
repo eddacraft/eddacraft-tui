@@ -33,7 +33,7 @@
 - RENG: rust-core-engine (4/6) — In Progress
   <!-- ADR-011: scope reduced from 24 to 6; RENG-001–003, 005 done in external workspace -->
 - KERN: rust-kernel (4/25) — In Progress
-- BAUTH: beta-auth-streamline (0/20) — Ready
+- BAUTH: beta-auth-streamline (20/20) — Complete
 - RATS: ratatui-tui (1/7) — In Progress
 - PORT: ink-to-ratatui-port (0/15) — Proposed
 - OPENSPEC: open-spec-adapter — Draft
