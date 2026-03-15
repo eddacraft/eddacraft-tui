@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { getClient } from '../db/client.js';
 import { findUserByEmail } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
+import { signLicence, type LicenceClaims } from '../lib/licence.js';
+import { hashToken } from '../lib/token.js';
 
 function rows(result: unknown): Record<string, unknown>[] {
   return result as Record<string, unknown>[];
@@ -22,6 +24,15 @@ function generatePollToken(): string {
 
 const startSchema = z.object({
   email: z.string().email().max(254),
+});
+
+const confirmSchema = z.object({
+  userCode: z.string().min(1).max(20),
+  email: z.string().email().max(254),
+});
+
+const pollSchema = z.object({
+  pollToken: z.string().min(1).max(200),
 });
 
 const authDevice = new Hono();
@@ -69,11 +80,6 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
   });
 });
 
-const confirmSchema = z.object({
-  userCode: z.string().min(1).max(20),
-  email: z.string().email().max(254),
-});
-
 /**
  * POST /device/confirm
  *
@@ -107,6 +113,95 @@ authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
   await sql`UPDATE device_codes SET confirmed_at = now() WHERE id = ${result[0].id}`;
 
   return c.json({ confirmed: true });
+});
+
+/**
+ * POST /device/poll
+ *
+ * Polls for the status of a device code flow. The CLI calls this repeatedly
+ * until the user confirms the code on the web or the code expires.
+ *
+ * Rate limiting: relies on the global rate limiter. Per-token slow_down
+ * enforcement is not implemented in this beta — the 5-second interval is
+ * advisory (communicated via the `interval` field in /start response).
+ */
+authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
+  debug('POST /auth/device/poll');
+  const { pollToken } = c.req.valid('json');
+  const sql = getClient();
+
+  const r = rows(
+    await sql`
+    SELECT * FROM device_codes
+    WHERE poll_token = ${pollToken}
+    LIMIT 1
+  `
+  );
+
+  const deviceCode = r[0];
+
+  if (!deviceCode) {
+    debug('device code not found (treating as expired)');
+    return c.json({ status: 'expired' });
+  }
+
+  const expiresAt = new Date(deviceCode['expires_at'] as string);
+  if (expiresAt.getTime() < Date.now()) {
+    debug('device code expired');
+    return c.json({ status: 'expired' });
+  }
+
+  if (!deviceCode['confirmed_at']) {
+    debug('device code pending');
+    return c.json({ status: 'pending' });
+  }
+
+  // Confirmed — issue licence and refresh token
+  debug('device code confirmed, issuing licence');
+  const userId = String(deviceCode['user_id']);
+
+  const userRows = rows(
+    await sql`SELECT * FROM beta_users WHERE id = ${userId} LIMIT 1`
+  );
+  const user = userRows[0];
+
+  if (!user) {
+    debug('user not found for confirmed device code');
+    return c.json({ status: 'expired' });
+  }
+
+  const claims: LicenceClaims = {
+    sub: String(user['id']),
+    email: String(user['email']),
+    identity: { provider: 'email', id: null },
+    org: null,
+    tier: 'pro',
+    scopes: ['beta'],
+    seats: 1,
+  };
+  const license = await signLicence(claims, undefined, 7);
+
+  const rawRefreshToken = randomBytes(32).toString('hex');
+  const refreshHash = hashToken(rawRefreshToken);
+  const familyId = randomUUID();
+  const refreshExpiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000);
+
+  await sql`
+    INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
+    VALUES (${userId}, ${refreshHash}, ${familyId}, ${refreshExpiresAt.toISOString()})
+  `;
+
+  await sql`DELETE FROM device_codes WHERE poll_token = ${pollToken}`;
+
+  const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  debug('device code consumed, licence issued');
+
+  return c.json({
+    status: 'confirmed',
+    license,
+    refreshToken: rawRefreshToken,
+    expiresAt: jwtExpiresAt.toISOString(),
+  });
 });
 
 export { authDevice };

@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { auth } from './routes/auth.js';
+import { authDevice } from './routes/auth-device.js';
 import { admin } from './routes/admin.js';
 import { waitlist } from './routes/waitlist.js';
 import { authDevice } from './routes/auth-device.js';
@@ -61,6 +62,7 @@ app.get('/health', async (c) => {
 });
 
 app.route('/auth', auth);
+app.route('/auth/device', authDevice);
 app.route('/admin', admin);
 app.route('/waitlist', waitlist);
 app.route('/auth/device', authDevice);
