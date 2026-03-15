@@ -104,13 +104,14 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
   };
 
   const license = await signLicence(claims, undefined, 7);
+  const jwtExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
   debug('session refreshed', { userId: user.id, familyId: record.family_id });
 
   return c.json({
     license,
     refreshToken: rawToken,
-    expiresAt: expiresAt.toISOString(),
+    expiresAt: jwtExpiresAt.toISOString(),
   });
 });
 

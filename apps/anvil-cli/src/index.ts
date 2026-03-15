@@ -47,7 +47,7 @@ const CLI_VERSION = typeof __CLI_VERSION__ !== 'undefined' ? __CLI_VERSION__ : '
 
 // Commands that don't require authentication
 const AUTH_EXEMPT_COMMANDS = new Set([
-  'auth:login',
+  'auth',
   'login',
   'logout',
   'whoami',

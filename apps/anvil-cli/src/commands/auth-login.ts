@@ -4,8 +4,8 @@
  * Interactive CLI authentication via device code flow or email OTP.
  *
  * Usage:
- *   anvil auth:login          Device code flow (default)
- *   anvil auth:login --otp    Email OTP flow
+ *   anvil auth login          Device code flow (default)
+ *   anvil auth login --otp    Email OTP flow
  */
 
 import { Command } from 'commander';
@@ -241,9 +241,10 @@ async function otpFlow(apiUrl: string): Promise<void> {
 }
 
 export function createAuthLoginCommand(): Command {
-  const command = new Command('auth:login');
+  const auth = new Command('auth').description('Authentication commands');
 
-  command
+  auth
+    .command('login')
     .description('Authenticate with Anvil via device code or email OTP')
     .option('--otp', 'Use email OTP instead of device code')
     .option('--api-url <url>', 'API base URL')
@@ -263,5 +264,5 @@ export function createAuthLoginCommand(): Command {
       }
     });
 
-  return command;
+  return auth;
 }
