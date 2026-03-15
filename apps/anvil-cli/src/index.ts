@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { createAgentCommand } from './commands/agent/index.js';
 import { createArchitectureCommand } from './commands/architecture.js';
 import { createAuthorshipCommand } from './commands/authorship.js';
+import { createAdminCommand } from './commands/admin-approve.js';
 import { createBetaCommand } from './commands/beta.js';
 import { createCheckCommand } from './commands/check.js';
 import { createDoctorCommand } from './commands/doctor.js';
@@ -48,6 +49,7 @@ const AUTH_EXEMPT_COMMANDS = new Set([
   'login',
   'logout',
   'whoami',
+  'admin',
   'beta',
   'start',
   'help',
@@ -124,6 +126,7 @@ async function main(): Promise<void> {
   program.addCommand(createLoginCommand());
   program.addCommand(createLogoutCommand());
   program.addCommand(createWhoamiCommand());
+  program.addCommand(createAdminCommand());
   program.addCommand(createBetaCommand());
 
   // Feature commands
