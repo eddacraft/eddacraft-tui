@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GitStatusChecker, getChangedFiles } from './git-status.js';
 
 const { mockGitExec } = vi.hoisted(() => ({
@@ -17,6 +17,10 @@ function gitResult(stdout: string, stderr = ''): { stdout: string; stderr: strin
 describe('GitStatusChecker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('getFileStatus', () => {
@@ -40,9 +44,7 @@ describe('GitStatusChecker', () => {
     });
 
     it('uses the destination path for renamed quoted files', async () => {
-      mockGitExec.mockResolvedValueOnce(
-        gitResult('R  "old -> name.ts" -> "new -> name.ts"\n')
-      );
+      mockGitExec.mockResolvedValueOnce(gitResult('R  "old -> name.ts" -> "new -> name.ts"\n'));
 
       const checker = new GitStatusChecker('/repo');
       const status = await checker.getFileStatus('/repo/new -> name.ts');
@@ -75,6 +77,10 @@ describe('GitStatusChecker', () => {
 describe('getChangedFiles', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('uses renamed destination paths and applies extension filters', async () => {
