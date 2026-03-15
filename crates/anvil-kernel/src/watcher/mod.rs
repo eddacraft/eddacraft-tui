@@ -1,5 +1,6 @@
 pub mod debounce;
 pub mod events;
+pub mod filter;
 
 use std::path::PathBuf;
 use std::sync::mpsc;
