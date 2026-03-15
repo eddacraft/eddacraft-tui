@@ -14,7 +14,7 @@ work without disclosing exploit mechanics.
 
 ## [Unreleased]
 
-## [0.2.0] — Edda Stack
+## [0.2.1-beta] — Edda Stack
 
 Product changelog: Edda canonical memories, Ember candidate proposals, Stack
 health monitoring.
@@ -283,8 +283,9 @@ Initial pre-release.
 - API response validation strengthened
 - Subprocess execution hardened across the codebase
 
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
-[0.2.0]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.2.1-beta...HEAD
+[0.2.1-beta]:
+  https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.1-beta
 [0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1

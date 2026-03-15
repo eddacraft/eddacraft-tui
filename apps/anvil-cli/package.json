@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-cli",
-  "version": "0.2.0-beta",
+  "version": "0.2.1-beta",
   "description": "CLI for Anvil - deterministic development automation platform",
   "type": "module",
   "bin": {
