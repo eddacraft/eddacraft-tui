@@ -6,6 +6,10 @@ import { getClient } from '../db/client.js';
 import { findUserByEmail } from '../db/queries.js';
 import { createDebugger } from '../lib/debug.js';
 
+function rows(result: unknown): Record<string, unknown>[] {
+  return result as Record<string, unknown>[];
+}
+
 const debug = createDebugger('auth-device');
 
 function generateUserCode(): string {
@@ -63,6 +67,46 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
     expiresIn: 900,
     interval: 5,
   });
+});
+
+const confirmSchema = z.object({
+  userCode: z.string().min(1).max(20),
+  email: z.string().email().max(254),
+});
+
+/**
+ * POST /device/confirm
+ *
+ * Confirms a device code from the browser activation page.
+ * Anti-enumeration: returns identical error for all failure modes.
+ */
+authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
+  const { userCode, email } = c.req.valid('json');
+  debug('POST /device/confirm');
+
+  const normalisedCode = userCode.toUpperCase().trim();
+  const normalisedEmail = email.toLowerCase().trim();
+  const sql = getClient();
+
+  const result = rows(
+    await sql`
+    SELECT dc.id, dc.confirmed_at, bu.email AS user_email
+    FROM device_codes dc
+    JOIN beta_users bu ON bu.id = dc.user_id
+    WHERE dc.user_code = ${normalisedCode}
+      AND dc.expires_at > now()
+      AND dc.confirmed_at IS NULL
+    LIMIT 1
+  `
+  );
+
+  if (!result[0] || result[0].user_email !== normalisedEmail) {
+    return c.json({ error: 'Invalid or expired code' }, 400);
+  }
+
+  await sql`UPDATE device_codes SET confirmed_at = now() WHERE id = ${result[0].id}`;
+
+  return c.json({ confirmed: true });
 });
 
 export { authDevice };
