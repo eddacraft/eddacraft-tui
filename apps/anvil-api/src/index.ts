@@ -4,6 +4,9 @@ import { logger } from 'hono/logger';
 import { auth } from './routes/auth.js';
 import { admin } from './routes/admin.js';
 import { waitlist } from './routes/waitlist.js';
+import { authDevice } from './routes/auth-device.js';
+import { authOtp } from './routes/auth-otp.js';
+import { authSession } from './routes/auth-session.js';
 import { rateLimiter } from './middleware/rate-limit.js';
 import { getClient } from './db/client.js';
 
@@ -60,5 +63,8 @@ app.get('/health', async (c) => {
 app.route('/auth', auth);
 app.route('/admin', admin);
 app.route('/waitlist', waitlist);
+app.route('/auth/device', authDevice);
+app.route('/auth/otp', authOtp);
+app.route('/auth/session', authSession);
 
 export default app;
