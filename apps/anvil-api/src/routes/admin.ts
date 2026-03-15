@@ -8,6 +8,7 @@ import { findUserWithTokens } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
+import { removeFromBetaAudience } from '../lib/audience.js';
 
 const debug = createDebugger('api');
 
@@ -128,6 +129,7 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
           RETURNING *`,
     ]);
     const revokedRows = (txResult as unknown[][])[0] ?? [];
+    removeFromBetaAudience(normalizedEmail);
     return c.json({ revoked: revokedRows.length });
   }
 
