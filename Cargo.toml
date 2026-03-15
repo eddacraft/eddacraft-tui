@@ -5,6 +5,7 @@ members = [
     "crates/anvil-kernel-types",
     "crates/anvil-kernel",
     "crates/eddacraft-tui",
+    "crates/anvil-tui",
     "crates/anvil-checks",
 ]
 
