@@ -2,7 +2,7 @@ name: Rust
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, 'rust-*']
     paths:
       - 'crates/**'
       - 'Cargo.toml'
