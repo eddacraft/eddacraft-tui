@@ -75,8 +75,14 @@ authSession.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     return c.json({ error: 'User account is not active' }, 401);
   }
 
-  // Consume the old refresh token
-  await consumeRefreshToken(sql, record.id);
+  // Atomically consume the old refresh token (WHERE consumed_at IS NULL
+  // prevents two concurrent requests from both succeeding)
+  const consumed = await consumeRefreshToken(sql, record.id);
+  if (!consumed) {
+    debug('concurrent refresh detected — revoking family', { familyId: record.family_id });
+    await revokeRefreshTokenFamily(sql, record.family_id);
+    return c.json({ error: 'Token reuse detected' }, 401);
+  }
 
   // Generate new refresh token in the same family
   const rawToken = randomBytes(32).toString('hex');

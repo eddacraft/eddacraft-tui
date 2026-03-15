@@ -8,7 +8,7 @@ import { findUserWithTokens } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
 import { sendBetaInvite } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
-import { removeFromBetaAudience } from '../lib/audience.js';
+import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
 
 const debug = createDebugger('api');
 
@@ -209,6 +209,11 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
           VALUES (${'user.approved'}, ${actor}, ${JSON.stringify({ email: normalizedEmail })})
           RETURNING *`,
     ]);
+
+    // Move from waitlist to beta audience (best-effort)
+    moveToApprovedAudience(normalizedEmail).catch((err) => {
+      console.error('Failed to move audience (non-fatal):', err);
+    });
 
     // Best-effort email — don't fail the approval if email fails
     const activateUrl = `${ACTIVATE_BASE}?code=${userCode}`;

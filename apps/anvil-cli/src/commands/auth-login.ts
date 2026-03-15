@@ -16,6 +16,8 @@ import * as os from 'node:os';
 import chalk from 'chalk';
 import { success, error, info, print } from '../utils/output.js';
 import { CliError } from '../utils/cli-error.js';
+import { saveAuth } from '../services/auth-store.js';
+import { saveLicence } from '../services/licence-store.js';
 
 interface AuthLoginOptions {
   otp?: boolean;
@@ -25,7 +27,7 @@ interface AuthLoginOptions {
 interface DeviceStartResponse {
   pollToken: string;
   userCode: string;
-  activationUrl: string;
+  verificationUrl: string;
   expiresIn: number;
 }
 
@@ -34,7 +36,6 @@ interface DevicePollResponse {
   license?: string;
   refreshToken?: string;
   expiresAt?: string;
-  email?: string;
 }
 
 interface OtpRequestResponse {
@@ -45,7 +46,6 @@ interface OtpVerifyResponse {
   license: string;
   refreshToken: string;
   expiresAt: string;
-  email: string;
 }
 
 interface StoredCredentials {
@@ -68,8 +68,17 @@ function saveCredentials(data: StoredCredentials): void {
   const credPath = getCredentialsPath();
   fs.mkdirSync(path.dirname(credPath), { recursive: true });
   fs.writeFileSync(credPath, JSON.stringify(data, null, 2), { mode: 0o600 });
-  // Explicitly set permissions (in case writeFile mode is ignored on some OS)
   fs.chmodSync(credPath, 0o600);
+
+  // Write to existing auth stores so protected commands work
+  saveLicence(data.license);
+  saveAuth({
+    token: data.license,
+    user: { email: data.email },
+    scopes: ['beta'],
+    expiresAt: data.expiresAt,
+    verifiedAt: new Date().toISOString(),
+  });
 }
 
 function prompt(question: string): Promise<string> {
@@ -124,15 +133,11 @@ async function deviceCodeFlow(apiUrl: string): Promise<void> {
 
   info('Starting device code flow...');
 
-  const startResult = await apiPost<DeviceStartResponse>(
-    apiUrl,
-    '/auth/device/start',
-    { email }
-  );
+  const startResult = await apiPost<DeviceStartResponse>(apiUrl, '/auth/device/start', { email });
 
   print('');
   print(`To authenticate, open this URL:`);
-  print(`  ${chalk.bold.cyan(startResult.activationUrl)}`);
+  print(`  ${chalk.bold.cyan(startResult.verificationUrl)}`);
   print('');
   print(`And enter code: ${chalk.bold.yellow(startResult.userCode)}`);
   print('');
@@ -144,14 +149,12 @@ async function deviceCodeFlow(apiUrl: string): Promise<void> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await sleep(pollIntervalMs);
 
-    const pollResult = await apiPost<DevicePollResponse>(
-      apiUrl,
-      '/auth/device/poll',
-      { pollToken: startResult.pollToken }
-    );
+    const pollResult = await apiPost<DevicePollResponse>(apiUrl, '/auth/device/poll', {
+      pollToken: startResult.pollToken,
+    });
 
     if (pollResult.status === 'confirmed') {
-      if (!pollResult.license || !pollResult.refreshToken || !pollResult.expiresAt || !pollResult.email) {
+      if (!pollResult.license || !pollResult.refreshToken || !pollResult.expiresAt) {
         error('Authentication succeeded but the server response was incomplete.');
         throw new CliError('Incomplete auth response');
       }
@@ -160,11 +163,11 @@ async function deviceCodeFlow(apiUrl: string): Promise<void> {
         license: pollResult.license,
         refreshToken: pollResult.refreshToken,
         expiresAt: pollResult.expiresAt,
-        email: pollResult.email,
+        email,
       });
 
       print('');
-      success(`Authenticated as ${chalk.bold(pollResult.email)}`);
+      success(`Authenticated as ${chalk.bold(email)}`);
       info(`Credentials saved to ${getCredentialsPath()}`);
       return;
     }
@@ -210,21 +213,17 @@ async function otpFlow(apiUrl: string): Promise<void> {
     }
 
     try {
-      const result = await apiPost<OtpVerifyResponse>(
-        apiUrl,
-        '/auth/otp/verify',
-        { email, code }
-      );
+      const result = await apiPost<OtpVerifyResponse>(apiUrl, '/auth/otp/verify', { email, code });
 
       saveCredentials({
         license: result.license,
         refreshToken: result.refreshToken,
         expiresAt: result.expiresAt,
-        email: result.email,
+        email,
       });
 
       print('');
-      success(`Authenticated as ${chalk.bold(result.email)}`);
+      success(`Authenticated as ${chalk.bold(email)}`);
       info(`Credentials saved to ${getCredentialsPath()}`);
       return;
     } catch (err) {
