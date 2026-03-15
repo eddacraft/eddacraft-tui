@@ -170,7 +170,8 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     const normalizedEmail = email.toLowerCase().trim();
 
     // Verify waitlisted
-    const [waitlistEntry] = await sql`SELECT id FROM waitlist WHERE email = ${normalizedEmail}`;
+    const waitlistRows = await sql`SELECT id FROM waitlist WHERE email = ${normalizedEmail}`;
+    const waitlistEntry = (waitlistRows as Record<string, unknown>[])[0];
     if (!waitlistEntry) {
       throw new Error(`not_found:${normalizedEmail}`);
     }
@@ -237,13 +238,13 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
   }
 
   // Batch mode: oldest N unapproved waitlist entries
-  const unapproved = await sql`
+  const unapproved = (await sql`
     SELECT w.email FROM waitlist w
     LEFT JOIN beta_users bu ON bu.email = w.email
     WHERE bu.id IS NULL
     ORDER BY w.created_at ASC
     LIMIT ${body.batch}
-  `;
+  `) as { email: string }[];
 
   const approved: { email: string; expiresAt: string }[] = [];
   for (const row of unapproved) {
