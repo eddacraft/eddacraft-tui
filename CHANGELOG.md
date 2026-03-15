@@ -8,7 +8,7 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
-## [0.2.0] — Edda Stack
+## [0.2.0-beta] — Edda Stack
 
 Anvil gains a memory system. Edda Stack introduces three layers — observation,
 interpretation, and canonical memory — that let the platform learn from your
@@ -158,8 +158,8 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...HEAD
-[0.2.0]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0
+[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.2.0-beta...HEAD
+[0.2.0-beta]: https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.0-beta
 [0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
 [0.1.2-beta]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.2-beta
 [0.1.1]: https://github.com/EddaCraft/anvil-001/releases/tag/v0.1.1
