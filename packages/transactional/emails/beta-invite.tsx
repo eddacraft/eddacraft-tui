@@ -46,7 +46,8 @@ export function BetaInvite({
           <Section style={content}>
             <Text style={okBadge}>[ OK ] Beta access approved</Text>
             <Text style={bodyText}>
-              You&apos;ve been approved for the Anvil beta.
+              Your email <strong style={emailHighlight}>{email}</strong> has been approved for the
+              Anvil beta.
             </Text>
 
             <Text style={sectionLabel}>Activate in your browser:</Text>
@@ -140,6 +141,10 @@ const bodyText: React.CSSProperties = {
   margin: '0 0 24px',
   fontSize: '14px',
   color: '#d4d4d4',
+};
+
+const emailHighlight: React.CSSProperties = {
+  color: '#f5f5f5',
 };
 
 const sectionLabel: React.CSSProperties = {
