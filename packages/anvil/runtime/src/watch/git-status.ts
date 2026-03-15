@@ -143,7 +143,8 @@ export class GitStatusChecker {
         cwd: this.workspaceRoot,
       });
 
-      return this.parseStatusLine(stdout.trim(), relativePath);
+      // Preserve the leading status-space used by porcelain output (e.g. ` M`).
+      return this.parseStatusLine(stdout.trimEnd(), relativePath);
     } catch (error) {
       debug('Git status command failed, treating file as untracked', error);
       return {

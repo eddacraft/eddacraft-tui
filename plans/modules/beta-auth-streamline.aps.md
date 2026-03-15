@@ -5,7 +5,7 @@
 
 | Scope | Owner | Priority | Status      |
 | ----- | ----- | -------- | ----------- |
-| BAUTH | —     | high     | Ready       |
+| BAUTH | —     | high     | Complete    |
 
 ## Purpose
 
@@ -136,7 +136,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** —
 - **Validation:** Tables created in Neon without errors
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-002: Query functions for new tables
 
@@ -149,7 +149,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-001
 - **Validation:** `pnpm -F @eddacraft/anvil-api typecheck`
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-003: Parameterise signLicence TTL
 
@@ -163,7 +163,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** —
 - **Validation:** `pnpm -F @eddacraft/anvil-api test -- --testNamePattern="licence"`
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 ### Phase B: Email Templates
 
@@ -179,7 +179,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** —
 - **Validation:** `pnpm -F @eddacraft/transactional build` + visual preview via react-email dev
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-005: OTP code email template
 
@@ -193,7 +193,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** —
 - **Validation:** `pnpm -F @eddacraft/transactional build` + visual preview via react-email dev
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 ### Phase C: API Endpoints — Auth Flows
 
@@ -208,7 +208,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-001, BAUTH-002
 - **Validation:** `curl POST` returns user_code + poll_token; anti-enumeration verified
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-007: Device code confirm endpoint
 
@@ -223,7 +223,7 @@ sessions and rotating refresh tokens.
 - **Validation:** Confirm requires matching email; mismatched email rejected;
   expired/invalid codes rejected; 3 attempt limit enforced
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-008: Device code poll endpoint
 
@@ -236,7 +236,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-007, BAUTH-003
 - **Validation:** Poll returns `pending` before confirm, JWT pair after; 5s rate enforced
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-009: OTP request endpoint
 
@@ -249,7 +249,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-001, BAUTH-002, BAUTH-005
 - **Validation:** OTP email received; max 3 active codes per user enforced
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-010: OTP verify endpoint
 
@@ -262,7 +262,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-009, BAUTH-003
 - **Validation:** Valid code → JWT pair; 3 attempt limit; expired code rejected
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-011: Session refresh endpoint
 
@@ -275,7 +275,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-001, BAUTH-002, BAUTH-003
 - **Validation:** Rotation works; consumed token reuse revokes family; expired rejected
 - **Confidence:** medium
-- **Status:** Pending
+- **Status:** Complete
 
 ### Phase D: Admin Approval
 
@@ -290,7 +290,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-004, BAUTH-006
 - **Validation:** Waitlist user promoted; token generated; invite email sent
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-013: Resend audience management
 
@@ -305,7 +305,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-012
 - **Validation:** Contacts appear in correct Resend audiences; failures logged, not blocking
 - **Confidence:** medium
-- **Status:** Pending
+- **Status:** Complete
 
 ### Phase E: CLI Commands
 
@@ -320,7 +320,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-008, BAUTH-010
 - **Validation:** Device code flow works end-to-end; OTP flow works end-to-end
 - **Confidence:** medium
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-015: CLI auto-refresh
 
@@ -333,7 +333,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-011, BAUTH-014
 - **Validation:** Expired JWT triggers background refresh; revoked token prompts re-login
 - **Confidence:** medium
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-016: `anvil admin approve` command
 
@@ -346,7 +346,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-012
 - **Validation:** `anvil admin approve test@example.com` succeeds; batch mode processes N
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 ### Phase F: Website & Integration
 
@@ -361,7 +361,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-007
 - **Validation:** Enter code → confirmed; pre-filled via `?code=` query param works
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-018: Route wiring and Hono registration
 
@@ -374,7 +374,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-006, BAUTH-009, BAUTH-011, BAUTH-012
 - **Validation:** `pnpm -F @eddacraft/anvil-api build` passes; health check still works
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 ### Phase G: Documentation & Cleanup
 
@@ -391,7 +391,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-013, BAUTH-018
 - **Validation:** All env vars documented; README endpoint table complete
 - **Confidence:** high
-- **Status:** Pending
+- **Status:** Complete
 
 #### BAUTH-020: Expired code cleanup job
 
@@ -404,7 +404,7 @@ sessions and rotating refresh tokens.
 - **Dependencies:** BAUTH-001
 - **Validation:** Expired codes purged; active codes unaffected
 - **Confidence:** medium
-- **Status:** Pending
+- **Status:** Complete
 
 ## Decisions
 

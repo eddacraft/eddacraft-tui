@@ -9,9 +9,34 @@ sidebar_position: 2
 
 Guides for upgrading between Anvil versions.
 
-## Current Version: 0.1.2-beta
+## Current Version: 0.2.1-beta
 
-This is the first public beta. There are no breaking migrations yet.
+## Upgrading to 0.2.1-beta
+
+Drop-in upgrade from any previous version. No configuration changes required.
+
+```bash
+npm i -g @eddacraft/anvil-cli@0.2.1-beta
+```
+
+Existing authentication tokens and `.anvilrc` settings continue to work
+unchanged.
+
+### What's New
+
+- **Project memory** — Anvil now tracks patterns and decisions in your codebase.
+  New commands: `anvil edda`, `anvil ember`, `anvil stack`.
+- **Security hardening** — input validation and subprocess execution
+  improvements across the platform.
+- **Dependency patches** — minimatch, axios, svgo, tar, and others.
+
+No breaking changes. The new memory features are opt-in and do not affect
+existing scanning behaviour.
+
+## Upgrading to 0.1.2-beta
+
+This was the first public beta. No breaking migrations from alpha beyond the
+configuration key change below.
 
 ### Note for Early Alpha Testers
 
@@ -39,7 +64,7 @@ manually in `.anvilrc`.
 
 ## Future Versions
 
-Upgrade guides will be added here as new versions ship.
+Upgrade guides are added here as new versions ship.
 
 ## Getting Help
 

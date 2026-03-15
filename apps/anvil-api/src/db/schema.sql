@@ -45,11 +45,55 @@ CREATE TABLE waitlist (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- Device code flow state (BAUTH-001)
+CREATE TABLE device_codes (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES beta_users(id) ON DELETE CASCADE,
+  user_code     text UNIQUE NOT NULL,
+  poll_token    text UNIQUE NOT NULL,
+  confirmed_at  timestamptz,
+  expires_at    timestamptz NOT NULL,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- Email OTP state (BAUTH-001)
+CREATE TABLE otp_codes (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES beta_users(id) ON DELETE CASCADE,
+  code_hash     text NOT NULL,
+  attempts      int NOT NULL DEFAULT 0,
+  expires_at    timestamptz NOT NULL,
+  consumed_at   timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- Refresh token chain with family-based theft detection (BAUTH-001)
+CREATE TABLE refresh_tokens (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES beta_users(id) ON DELETE CASCADE,
+  token_hash    text UNIQUE NOT NULL,
+  family_id     uuid NOT NULL,
+  expires_at    timestamptz NOT NULL,
+  revoked_at    timestamptz,
+  consumed_at   timestamptz,
+  created_at    timestamptz NOT NULL DEFAULT now()
+);
+
 -- Indexes
 CREATE INDEX idx_access_tokens_user_id ON access_tokens(user_id);
 CREATE INDEX idx_access_tokens_token_hash ON access_tokens(token_hash);
 CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_created_at ON audit_log(created_at);
+CREATE INDEX idx_device_codes_user_code ON device_codes(user_code);
+CREATE INDEX idx_device_codes_poll_token ON device_codes(poll_token);
+CREATE INDEX idx_device_codes_user_id ON device_codes(user_id);
+CREATE INDEX idx_device_codes_expires_at ON device_codes(expires_at);
+CREATE INDEX idx_otp_codes_user_id ON otp_codes(user_id);
+CREATE INDEX idx_otp_codes_expires_at ON otp_codes(expires_at);
+CREATE INDEX idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
+CREATE INDEX idx_refresh_tokens_family_id ON refresh_tokens(family_id);
+CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens(user_id);
+CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 
 -- Auto-update updated_at trigger
 CREATE OR REPLACE FUNCTION update_updated_at()

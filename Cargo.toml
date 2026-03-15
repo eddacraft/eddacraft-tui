@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/spike",
-    "crates/anvil-kernel-types",
-    "crates/eddacraft-tui",
-    "crates/anvil-checks",
+  "crates/spike",
+  "crates/anvil-kernel-types",
+  "crates/eddacraft-tui",
+  "crates/anvil-checks",
 ]
 
 [workspace.package]
