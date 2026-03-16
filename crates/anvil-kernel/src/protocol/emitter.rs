@@ -83,11 +83,43 @@ impl EventEmitter {
 }
 
 fn now_iso8601() -> String {
+    const SECS_PER_DAY: u64 = 86_400;
+    const DAYS_PER_400Y: u64 = 146_097;
+    const DAYS_PER_100Y: u64 = 36_524;
+    const DAYS_PER_4Y: u64 = 1_461;
+    const DAYS_PER_YEAR: u64 = 365;
+
     let dur = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default();
     let secs = dur.as_secs();
-    format!("{secs}")
+
+    let time_of_day = secs % SECS_PER_DAY;
+    let hour = time_of_day / 3600;
+    let minute = (time_of_day % 3600) / 60;
+    let second = time_of_day % 60;
+
+    // Days since 1970-01-01, shifted to civil calendar epoch (0000-03-01)
+    let mut days = secs / SECS_PER_DAY;
+    days += 719_468;
+
+    let era = days / DAYS_PER_400Y;
+    let day_of_era = days % DAYS_PER_400Y;
+    let year_of_era = (day_of_era - day_of_era / (DAYS_PER_4Y - 1)
+        + day_of_era / DAYS_PER_100Y
+        - day_of_era / (DAYS_PER_400Y - 1))
+        / DAYS_PER_YEAR;
+    let mut year = year_of_era + era * 400;
+    let day_of_year =
+        day_of_era - (DAYS_PER_YEAR * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let mp = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * mp + 2) / 5 + 1;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    if month <= 2 {
+        year += 1;
+    }
+
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
 }
 
 #[cfg(test)]
@@ -228,6 +260,28 @@ mod tests {
             }
             _ => panic!("expected Error payload"),
         }
+    }
+
+    #[test]
+    fn timestamp_is_iso8601_format() {
+        let (emitter, rx) = make_emitter();
+        emitter.progress("test", 0, 1);
+        let event = rx.recv().unwrap();
+
+        let ts = &event.timestamp;
+        assert!(
+            ts.len() == 20,
+            "timestamp should be 20 chars (YYYY-MM-DDTHH:MM:SSZ), got {ts}"
+        );
+        assert!(ts.ends_with('Z'), "timestamp should end with Z: {ts}");
+        assert_eq!(&ts[4..5], "-", "expected dash at position 4: {ts}");
+        assert_eq!(&ts[7..8], "-", "expected dash at position 7: {ts}");
+        assert_eq!(&ts[10..11], "T", "expected T at position 10: {ts}");
+        assert_eq!(&ts[13..14], ":", "expected colon at position 13: {ts}");
+        assert_eq!(&ts[16..17], ":", "expected colon at position 16: {ts}");
+
+        let year: u32 = ts[0..4].parse().expect("year should be numeric");
+        assert!(year >= 2020, "year should be >= 2020, got {year}");
     }
 
     #[test]
