@@ -148,15 +148,35 @@ fn resolve_import(
     specifier: &str,
     from_file: &str,
     known_files: &[String],
-    graph: &SymbolGraph,
+    graph: &mut SymbolGraph,
 ) -> Option<u64> {
-    // Non-relative imports: match file field directly (external modules)
+    // Non-relative imports: find or create an external module node.
+    // External packages (axios, node:fs, etc.) won't have pre-existing
+    // graph nodes, so we create one on demand to enable edge tracking.
     if !specifier.starts_with('.') {
-        return graph
+        if let Some(existing) = graph.inner().node_weights().find(|s| s.file == specifier) {
+            return Some(existing.id);
+        }
+        // Create a synthetic external node
+        let ext_id = graph
             .inner()
             .node_weights()
-            .find(|s| s.file == specifier)
-            .map(|s| s.id);
+            .map(|s| s.id)
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let ext_node = SymbolNode {
+            id: ext_id,
+            kind: SymbolKind::Module,
+            name: specifier.to_string(),
+            visibility: Visibility::Public,
+            file: specifier.to_string(),
+            trust_level: TrustLevel::External,
+        };
+        if graph.add_symbol(ext_node).is_ok() {
+            return Some(ext_id);
+        }
+        return None;
     }
 
     // Relative imports: resolve against the importing file's directory

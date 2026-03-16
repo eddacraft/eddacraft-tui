@@ -39,14 +39,17 @@ impl ArchitectureConfig {
 }
 
 /// Simple glob-like matching: trailing `*` acts as a prefix match,
-/// otherwise exact match.
+/// otherwise exact match. Normalises path separators to `/` for
+/// cross-platform compatibility.
 fn matches_pattern(pattern: &str, path: &str) -> bool {
-    if let Some(prefix) = pattern.strip_suffix('*') {
-        path.starts_with(prefix)
-    } else if pattern.ends_with('/') {
-        path.starts_with(pattern)
+    let norm_path = path.replace('\\', "/");
+    let norm_pattern = pattern.replace('\\', "/");
+    if let Some(prefix) = norm_pattern.strip_suffix('*') {
+        norm_path.starts_with(prefix)
+    } else if norm_pattern.ends_with('/') {
+        norm_path.starts_with(&norm_pattern)
     } else {
-        path == pattern
+        norm_path == norm_pattern
     }
 }
 
@@ -130,6 +133,13 @@ layers:
         assert!(matches_pattern("src/domain/*", "src/domain/user.ts"));
         assert!(matches_pattern("src/domain/*", "src/domain/nested/deep.ts"));
         assert!(!matches_pattern("src/domain/*", "src/infra/db.ts"));
+    }
+
+    #[test]
+    fn matches_pattern_windows_separators() {
+        assert!(matches_pattern("src/domain/*", "src\\domain\\user.ts"));
+        assert!(matches_pattern("src/domain/", "src\\domain\\user.ts"));
+        assert!(!matches_pattern("src/domain/*", "src\\infra\\db.ts"));
     }
 
     #[test]

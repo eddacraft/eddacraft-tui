@@ -142,7 +142,7 @@ fn extract_export(
         if let Some(child) = node.named_child(i) {
             if child.kind() == "export_clause" {
                 handled_clause = true;
-                extract_export_clause(child, source, symbols);
+                extract_export_clause(child, source, file, symbols, next_id);
             }
         }
     }
@@ -173,7 +173,9 @@ fn extract_export(
 fn extract_export_clause(
     clause: tree_sitter::Node,
     source: &[u8],
-    symbols: &mut [SymbolNode],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
 ) {
     for j in 0..u32::try_from(clause.named_child_count()).unwrap_or(0) {
         if let Some(spec) = clause.named_child(j) {
@@ -189,6 +191,20 @@ fn extract_export_clause(
             };
             if let Some(sym) = symbols.iter_mut().find(|s| s.name == local_name) {
                 sym.visibility = Visibility::Public;
+            } else {
+                // No local symbol found — create a public export node so the
+                // public API surface is correctly tracked. This handles cases
+                // like `export { foo }` where foo is declared after the export,
+                // or re-exports from other modules.
+                symbols.push(SymbolNode {
+                    id: *next_id,
+                    kind: SymbolKind::Export,
+                    name: local_name,
+                    visibility: Visibility::Public,
+                    file: file.to_string(),
+                    trust_level: TrustLevel::default(),
+                });
+                *next_id += 1;
             }
         }
     }
@@ -466,8 +482,16 @@ export { foo as bar };
         let foo = symbols.symbols.iter().find(|s| s.name == "foo").unwrap();
         let bar = symbols.symbols.iter().find(|s| s.name == "bar").unwrap();
 
-        assert_eq!(foo.visibility, Visibility::Public, "foo should be Public (it is the exported symbol)");
-        assert_eq!(bar.visibility, Visibility::Internal, "bar should stay Internal (it is not exported)");
+        assert_eq!(
+            foo.visibility,
+            Visibility::Public,
+            "foo should be Public (it is the exported symbol)"
+        );
+        assert_eq!(
+            bar.visibility,
+            Visibility::Internal,
+            "bar should stay Internal (it is not exported)"
+        );
     }
 
     #[test]
@@ -486,7 +510,15 @@ module.exports.foo = foo;
         let foo = symbols.symbols.iter().find(|s| s.name == "foo").unwrap();
         let bar = symbols.symbols.iter().find(|s| s.name == "bar").unwrap();
 
-        assert_eq!(foo.visibility, Visibility::Public, "foo should be Public (it is the exported property)");
-        assert_eq!(bar.visibility, Visibility::Internal, "bar should stay Internal");
+        assert_eq!(
+            foo.visibility,
+            Visibility::Public,
+            "foo should be Public (it is the exported property)"
+        );
+        assert_eq!(
+            bar.visibility,
+            Visibility::Internal,
+            "bar should stay Internal"
+        );
     }
 }
