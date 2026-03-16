@@ -139,7 +139,7 @@ fn public_api_expansion_detected() {
     assert_eq!(api_expansion[0].severity, Severity::Low);
 }
 
-/// Fixture: new symbol with privileged access (fs, child_process).
+/// Fixture: new symbol with privileged access (fs, `child_process`).
 #[test]
 fn privilege_expansion_detected() {
     let config = layered_config();
