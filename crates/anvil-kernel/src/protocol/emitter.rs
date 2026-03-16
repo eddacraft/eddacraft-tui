@@ -130,9 +130,9 @@ mod tests {
 
     #[test]
     fn snapshot_event_includes_graph_stats() {
-        let (emitter, rx) = make_emitter();
-
         use anvil_kernel_types::{SymbolKind, SymbolNode, TrustLevel, Visibility};
+
+        let (emitter, rx) = make_emitter();
         let mut graph = SymbolGraph::new();
         graph
             .add_symbol(SymbolNode {
@@ -175,9 +175,9 @@ mod tests {
 
     #[test]
     fn violation_event_maps_policy_violation_fields() {
-        let (emitter, rx) = make_emitter();
-
         use crate::policy::engine::Severity;
+
+        let (emitter, rx) = make_emitter();
         let v = Violation {
             policy_id: "cross-layer".to_string(),
             file: "src/a.ts".to_string(),

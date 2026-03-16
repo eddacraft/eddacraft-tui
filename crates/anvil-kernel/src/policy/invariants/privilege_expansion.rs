@@ -5,12 +5,12 @@ use crate::graph::incremental::GraphDelta;
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::engine::{Invariant, Severity, Violation};
 
-/// Detects when a GraphDelta adds a symbol with TrustLevel::Privileged
-/// (imports node:fs, child_process, etc.). New privileged access warrants review.
+/// Detects when a `GraphDelta` adds a symbol with `TrustLevel::Privileged`
+/// (imports `node:fs`, `child_process`, etc.). New privileged access warrants review.
 pub struct PrivilegeExpansion;
 
 impl Invariant for PrivilegeExpansion {
-    fn id(&self) -> &str {
+    fn id(&self) -> &'static str {
         "privilege-expansion"
     }
 
@@ -23,9 +23,8 @@ impl Invariant for PrivilegeExpansion {
         let mut violations = Vec::new();
 
         for &sym_id in &delta.added_symbols {
-            let sym = match graph.get_symbol(sym_id) {
-                Some(s) => s,
-                None => continue,
+            let Some(sym) = graph.get_symbol(sym_id) else {
+                continue;
             };
             if sym.trust_level == TrustLevel::Privileged {
                 violations.push(Violation {

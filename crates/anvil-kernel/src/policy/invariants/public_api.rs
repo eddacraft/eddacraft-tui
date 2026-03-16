@@ -5,12 +5,12 @@ use crate::graph::incremental::GraphDelta;
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::engine::{Invariant, Severity, Violation};
 
-/// Detects when a GraphDelta adds a new Public symbol. New exports expand
+/// Detects when a `GraphDelta` adds a new Public symbol. New exports expand
 /// the API surface and warrant review.
 pub struct PublicApiExpansion;
 
 impl Invariant for PublicApiExpansion {
-    fn id(&self) -> &str {
+    fn id(&self) -> &'static str {
         "public-api-expansion"
     }
 
@@ -23,9 +23,8 @@ impl Invariant for PublicApiExpansion {
         let mut violations = Vec::new();
 
         for &sym_id in &delta.added_symbols {
-            let sym = match graph.get_symbol(sym_id) {
-                Some(s) => s,
-                None => continue,
+            let Some(sym) = graph.get_symbol(sym_id) else {
+                continue;
             };
             if sym.visibility == Visibility::Public {
                 violations.push(Violation {

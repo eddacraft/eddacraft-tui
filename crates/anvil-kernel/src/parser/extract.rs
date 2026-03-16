@@ -55,181 +55,13 @@ fn extract_from_node(
     next_id: &mut u64,
 ) {
     match node.kind() {
-        "function_declaration" => {
-            if let Some(name_node) = node.child_by_field_name("name") {
-                let name = node_text(name_node, source);
-                symbols.push(SymbolNode {
-                    id: *next_id,
-                    kind: SymbolKind::Function,
-                    name,
-                    visibility: Visibility::Internal,
-                    file: file.to_string(),
-                    trust_level: TrustLevel::default(),
-                });
-                *next_id += 1;
-            }
-        }
-        "class_declaration" => {
-            if let Some(name_node) = node.child_by_field_name("name") {
-                let name = node_text(name_node, source);
-                symbols.push(SymbolNode {
-                    id: *next_id,
-                    kind: SymbolKind::Class,
-                    name,
-                    visibility: Visibility::Internal,
-                    file: file.to_string(),
-                    trust_level: TrustLevel::default(),
-                });
-                *next_id += 1;
-            }
-        }
-        "export_statement" => {
-            if let Some(decl) = node.child_by_field_name("declaration") {
-                let before = symbols.len();
-                extract_from_node(decl, source, file, symbols, imports, next_id);
-                // Mark ALL symbols added by this export as public
-                for sym in &mut symbols[before..] {
-                    sym.visibility = Visibility::Public;
-                }
-            } else {
-                // Handle named export clauses: `export { foo, bar }`
-                let mut handled_clause = false;
-                for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
-                    if let Some(child) = node.named_child(i) {
-                        if child.kind() == "export_clause" {
-                            handled_clause = true;
-                            for j in 0..u32::try_from(child.named_child_count()).unwrap_or(0) {
-                                if let Some(spec) = child.named_child(j) {
-                                    if spec.kind() == "export_specifier" {
-                                        let name = if let Some(alias) =
-                                            spec.child_by_field_name("alias")
-                                        {
-                                            node_text(alias, source)
-                                        } else if let Some(name_node) =
-                                            spec.child_by_field_name("name")
-                                        {
-                                            node_text(name_node, source)
-                                        } else {
-                                            continue;
-                                        };
-                                        // Mark existing symbol as Public if found
-                                        if let Some(sym) =
-                                            symbols.iter_mut().find(|s| s.name == name)
-                                        {
-                                            sym.visibility = Visibility::Public;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                // Re-export from another module: `export { x } from './mod'`
-                if let Some(source_node) = node.child_by_field_name("source") {
-                    let raw = node_text(source_node, source);
-                    let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
-                    imports.push(ImportEdge {
-                        from_file: file.to_string(),
-                        to_source: module_path.to_string(),
-                    });
-                }
-                if !handled_clause {
-                    symbols.push(SymbolNode {
-                        id: *next_id,
-                        kind: SymbolKind::Export,
-                        name: String::from("*"),
-                        visibility: Visibility::Public,
-                        file: file.to_string(),
-                        trust_level: TrustLevel::default(),
-                    });
-                    *next_id += 1;
-                }
-            }
-        }
-        "import_statement" => {
-            if let Some(source_node) = node.child_by_field_name("source") {
-                let raw = node_text(source_node, source);
-                let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
-                imports.push(ImportEdge {
-                    from_file: file.to_string(),
-                    to_source: module_path.to_string(),
-                });
-            }
-        }
-        "call_expression" => {
-            // Capture CommonJS require() calls as imports
-            if let Some(func) = node.child_by_field_name("function") {
-                if node_text(func, source) == "require" {
-                    if let Some(args) = node.child_by_field_name("arguments") {
-                        if let Some(arg) = args.named_child(0) {
-                            let raw = node_text(arg, source);
-                            let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
-                            if !module_path.is_empty() {
-                                imports.push(ImportEdge {
-                                    from_file: file.to_string(),
-                                    to_source: module_path.to_string(),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        "assignment_expression" => {
-            // Capture CommonJS module.exports / exports.foo as Public symbols
-            if let Some(left) = node.child_by_field_name("left") {
-                let left_text = node_text(left, source);
-                if left_text.starts_with("module.exports") || left_text.starts_with("exports.") {
-                    // Extract the assigned name if it's `exports.foo = ...`
-                    if left_text.starts_with("exports.") {
-                        if let Some(name) = left_text.strip_prefix("exports.") {
-                            if let Some(sym) = symbols.iter_mut().find(|s| s.name == name) {
-                                sym.visibility = Visibility::Public;
-                            } else {
-                                symbols.push(SymbolNode {
-                                    id: *next_id,
-                                    kind: SymbolKind::Export,
-                                    name: name.to_string(),
-                                    visibility: Visibility::Public,
-                                    file: file.to_string(),
-                                    trust_level: TrustLevel::default(),
-                                });
-                                *next_id += 1;
-                            }
-                        }
-                    } else {
-                        // module.exports = ... — mark all preceding symbols as Public
-                        for sym in symbols.iter_mut().filter(|s| s.file == file) {
-                            sym.visibility = Visibility::Public;
-                        }
-                    }
-                }
-            }
-        }
-        "lexical_declaration" => {
-            for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
-                if let Some(child) = node.named_child(i) {
-                    if child.kind() == "variable_declarator" {
-                        if let Some(name_node) = child.child_by_field_name("name") {
-                            if let Some(value) = child.child_by_field_name("value") {
-                                if value.kind() == "arrow_function" {
-                                    let name = node_text(name_node, source);
-                                    symbols.push(SymbolNode {
-                                        id: *next_id,
-                                        kind: SymbolKind::Function,
-                                        name,
-                                        visibility: Visibility::Internal,
-                                        file: file.to_string(),
-                                        trust_level: TrustLevel::default(),
-                                    });
-                                    *next_id += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        "function_declaration" => extract_function(node, source, file, symbols, next_id),
+        "class_declaration" => extract_class(node, source, file, symbols, next_id),
+        "export_statement" => extract_export(node, source, file, symbols, imports, next_id),
+        "import_statement" => extract_import(node, source, file, imports),
+        "call_expression" => extract_require(node, source, file, imports),
+        "assignment_expression" => extract_cjs_export(node, source, file, symbols, next_id),
+        "lexical_declaration" => extract_lexical(node, source, file, symbols, next_id),
         _ => {}
     }
 
@@ -241,6 +73,240 @@ fn extract_from_node(
         for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
             if let Some(child) = node.named_child(i) {
                 extract_from_node(child, source, file, symbols, imports, next_id);
+            }
+        }
+    }
+}
+
+fn extract_function(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
+) {
+    if let Some(name_node) = node.child_by_field_name("name") {
+        let name = node_text(name_node, source);
+        symbols.push(SymbolNode {
+            id: *next_id,
+            kind: SymbolKind::Function,
+            name,
+            visibility: Visibility::Internal,
+            file: file.to_string(),
+            trust_level: TrustLevel::default(),
+        });
+        *next_id += 1;
+    }
+}
+
+fn extract_class(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
+) {
+    if let Some(name_node) = node.child_by_field_name("name") {
+        let name = node_text(name_node, source);
+        symbols.push(SymbolNode {
+            id: *next_id,
+            kind: SymbolKind::Class,
+            name,
+            visibility: Visibility::Internal,
+            file: file.to_string(),
+            trust_level: TrustLevel::default(),
+        });
+        *next_id += 1;
+    }
+}
+
+fn extract_export(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    imports: &mut Vec<ImportEdge>,
+    next_id: &mut u64,
+) {
+    if let Some(decl) = node.child_by_field_name("declaration") {
+        let before = symbols.len();
+        extract_from_node(decl, source, file, symbols, imports, next_id);
+        for sym in &mut symbols[before..] {
+            sym.visibility = Visibility::Public;
+        }
+        return;
+    }
+
+    let mut handled_clause = false;
+    for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
+        if let Some(child) = node.named_child(i) {
+            if child.kind() == "export_clause" {
+                handled_clause = true;
+                extract_export_clause(child, source, symbols);
+            }
+        }
+    }
+
+    // Re-export from another module: `export { x } from './mod'`
+    if let Some(source_node) = node.child_by_field_name("source") {
+        let raw = node_text(source_node, source);
+        let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
+        imports.push(ImportEdge {
+            from_file: file.to_string(),
+            to_source: module_path.to_string(),
+        });
+    }
+
+    if !handled_clause {
+        symbols.push(SymbolNode {
+            id: *next_id,
+            kind: SymbolKind::Export,
+            name: String::from("*"),
+            visibility: Visibility::Public,
+            file: file.to_string(),
+            trust_level: TrustLevel::default(),
+        });
+        *next_id += 1;
+    }
+}
+
+fn extract_export_clause(
+    clause: tree_sitter::Node,
+    source: &[u8],
+    symbols: &mut [SymbolNode],
+) {
+    for j in 0..u32::try_from(clause.named_child_count()).unwrap_or(0) {
+        if let Some(spec) = clause.named_child(j) {
+            if spec.kind() != "export_specifier" {
+                continue;
+            }
+            // Use the local name (not the alias) when looking up existing symbols.
+            // `export { foo as bar }` should mark the symbol named `foo` as Public.
+            let local_name = if let Some(name_node) = spec.child_by_field_name("name") {
+                node_text(name_node, source)
+            } else {
+                continue;
+            };
+            if let Some(sym) = symbols.iter_mut().find(|s| s.name == local_name) {
+                sym.visibility = Visibility::Public;
+            }
+        }
+    }
+}
+
+fn extract_import(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    imports: &mut Vec<ImportEdge>,
+) {
+    if let Some(source_node) = node.child_by_field_name("source") {
+        let raw = node_text(source_node, source);
+        let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
+        imports.push(ImportEdge {
+            from_file: file.to_string(),
+            to_source: module_path.to_string(),
+        });
+    }
+}
+
+fn extract_require(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    imports: &mut Vec<ImportEdge>,
+) {
+    if let Some(func) = node.child_by_field_name("function") {
+        if node_text(func, source) == "require" {
+            if let Some(args) = node.child_by_field_name("arguments") {
+                if let Some(arg) = args.named_child(0) {
+                    let raw = node_text(arg, source);
+                    let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
+                    if !module_path.is_empty() {
+                        imports.push(ImportEdge {
+                            from_file: file.to_string(),
+                            to_source: module_path.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn extract_cjs_export(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
+) {
+    let Some(left) = node.child_by_field_name("left") else {
+        return;
+    };
+    let left_text = node_text(left, source);
+
+    if let Some(prop) = left_text.strip_prefix("module.exports.") {
+        // `module.exports.foo = ...` — mark only the specific property as Public
+        mark_or_add_public_symbol(prop, file, symbols, next_id);
+    } else if left_text == "module.exports" {
+        // `module.exports = ...` — mark all preceding symbols in this file as Public
+        for sym in symbols.iter_mut().filter(|s| s.file == file) {
+            sym.visibility = Visibility::Public;
+        }
+    } else if let Some(prop) = left_text.strip_prefix("exports.") {
+        // `exports.foo = ...` — mark only the specific property as Public
+        mark_or_add_public_symbol(prop, file, symbols, next_id);
+    }
+}
+
+fn mark_or_add_public_symbol(
+    name: &str,
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
+) {
+    if let Some(sym) = symbols.iter_mut().find(|s| s.name == name) {
+        sym.visibility = Visibility::Public;
+    } else {
+        symbols.push(SymbolNode {
+            id: *next_id,
+            kind: SymbolKind::Export,
+            name: name.to_string(),
+            visibility: Visibility::Public,
+            file: file.to_string(),
+            trust_level: TrustLevel::default(),
+        });
+        *next_id += 1;
+    }
+}
+
+fn extract_lexical(
+    node: tree_sitter::Node,
+    source: &[u8],
+    file: &str,
+    symbols: &mut Vec<SymbolNode>,
+    next_id: &mut u64,
+) {
+    for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
+        if let Some(child) = node.named_child(i) {
+            if child.kind() == "variable_declarator" {
+                if let Some(name_node) = child.child_by_field_name("name") {
+                    if let Some(value) = child.child_by_field_name("value") {
+                        if value.kind() == "arrow_function" {
+                            let name = node_text(name_node, source);
+                            symbols.push(SymbolNode {
+                                id: *next_id,
+                                kind: SymbolKind::Function,
+                                name,
+                                visibility: Visibility::Internal,
+                                file: file.to_string(),
+                                trust_level: TrustLevel::default(),
+                            });
+                            *next_id += 1;
+                        }
+                    }
+                }
             }
         }
     }
@@ -382,5 +448,45 @@ class C {}
 
         // Starting from offset
         assert!(ids.iter().all(|&id| id >= 100));
+    }
+
+    #[test]
+    fn export_alias_uses_local_name() {
+        // `export { foo as bar }` should mark the symbol named `foo` as Public,
+        // not look for a symbol named `bar`.
+        let source = b"
+function foo() {}
+function bar() {}
+export { foo as bar };
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+        let foo = symbols.symbols.iter().find(|s| s.name == "foo").unwrap();
+        let bar = symbols.symbols.iter().find(|s| s.name == "bar").unwrap();
+
+        assert_eq!(foo.visibility, Visibility::Public, "foo should be Public (it is the exported symbol)");
+        assert_eq!(bar.visibility, Visibility::Internal, "bar should stay Internal (it is not exported)");
+    }
+
+    #[test]
+    fn module_exports_property_marks_only_that_symbol() {
+        // `module.exports.foo = ...` should only mark `foo` as Public,
+        // not all symbols in the file.
+        let source = b"
+function foo() {}
+function bar() {}
+module.exports.foo = foo;
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+        let foo = symbols.symbols.iter().find(|s| s.name == "foo").unwrap();
+        let bar = symbols.symbols.iter().find(|s| s.name == "bar").unwrap();
+
+        assert_eq!(foo.visibility, Visibility::Public, "foo should be Public (it is the exported property)");
+        assert_eq!(bar.visibility, Visibility::Internal, "bar should stay Internal");
     }
 }

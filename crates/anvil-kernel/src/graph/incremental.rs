@@ -47,10 +47,35 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         }
     }
 
+    // Build edges from imports so downstream invariants (e.g. new-dependency)
+    // can inspect added_edges in the delta.
+    let mut added_edges = Vec::new();
+    for import in new_symbols.imports {
+        // Find a symbol in the source file to use as the edge origin
+        let from_id = added_ids.first().copied();
+        // Find the target symbol by matching the import source against file names
+        let to_id = graph
+            .inner()
+            .node_weights()
+            .find(|s| s.file == import.to_source)
+            .map(|s| s.id);
+
+        if let (Some(from), Some(to)) = (from_id, to_id) {
+            let edge = anvil_kernel_types::SymbolEdge {
+                from,
+                to,
+                edge_type: EdgeType::Imports,
+            };
+            if graph.add_edge(edge).is_ok() {
+                added_edges.push((from, to, EdgeType::Imports));
+            }
+        }
+    }
+
     GraphDelta {
         added_symbols: added_ids,
         removed_symbols: removed_ids,
-        added_edges: Vec::new(),
+        added_edges,
         removed_edges: Vec::new(),
         errors,
         file,
@@ -166,6 +191,47 @@ mod tests {
         assert_eq!(g.node_count(), 2);
         assert!(g.get_symbol(10).is_some());
         assert!(g.get_symbol(2).is_some());
+    }
+
+    #[test]
+    fn update_populates_added_edges_from_imports() {
+        use crate::parser::extract::ImportEdge;
+
+        let mut g = SymbolGraph::new();
+        // Pre-add the target symbol so the edge can resolve
+        g.add_symbol(SymbolNode {
+            id: 50,
+            kind: SymbolKind::Function,
+            name: "axios".to_string(),
+            visibility: Visibility::Internal,
+            file: "axios".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .unwrap();
+
+        let syms = FileSymbols {
+            file: "src/api.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 1,
+                kind: SymbolKind::Function,
+                name: "handler".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/api.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![ImportEdge {
+                from_file: "src/api.ts".to_string(),
+                to_source: "axios".to_string(),
+            }],
+        };
+
+        let delta = update_file(&mut g, syms);
+
+        assert_eq!(delta.added_edges.len(), 1);
+        assert_eq!(delta.added_edges[0].0, 1);
+        assert_eq!(delta.added_edges[0].1, 50);
+        assert_eq!(delta.added_edges[0].2, EdgeType::Imports);
+        assert_eq!(g.edge_count(), 1);
     }
 
     #[test]

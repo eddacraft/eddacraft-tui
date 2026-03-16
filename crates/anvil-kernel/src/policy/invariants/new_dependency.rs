@@ -3,7 +3,7 @@ use crate::graph::incremental::GraphDelta;
 use crate::policy::config::ArchitectureConfig;
 use crate::policy::engine::{Invariant, Severity, Violation};
 
-/// Detects when a GraphDelta adds a symbol in a file that imports an external
+/// Detects when a `GraphDelta` adds a symbol in a file that imports an external
 /// module not previously seen. Flags new external dependencies for review.
 pub struct NewDependencyIntroduction;
 
@@ -14,7 +14,7 @@ impl NewDependencyIntroduction {
 }
 
 impl Invariant for NewDependencyIntroduction {
-    fn id(&self) -> &str {
+    fn id(&self) -> &'static str {
         "new-dependency-introduction"
     }
 
@@ -31,17 +31,15 @@ impl Invariant for NewDependencyIntroduction {
         }
 
         // Check added edges for new external imports
-        for &(from_id, _to_id, ref edge_type) in &delta.added_edges {
+        for &(from_id, to_id, ref edge_type) in &delta.added_edges {
             if *edge_type != anvil_kernel_types::EdgeType::Imports {
                 continue;
             }
-            let from_sym = match graph.get_symbol(from_id) {
-                Some(s) => s,
-                None => continue,
+            let Some(from_sym) = graph.get_symbol(from_id) else {
+                continue;
             };
-            let target_sym = match graph.get_symbol(_to_id) {
-                Some(s) => s,
-                None => continue,
+            let Some(target_sym) = graph.get_symbol(to_id) else {
+                continue;
             };
             if Self::is_external_import(&target_sym.file) {
                 violations.push(Violation {

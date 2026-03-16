@@ -10,7 +10,7 @@ use crate::policy::engine::{Invariant, Severity, Violation};
 pub struct CrossLayerViolation;
 
 impl Invariant for CrossLayerViolation {
-    fn id(&self) -> &str {
+    fn id(&self) -> &'static str {
         "cross-layer-violation"
     }
 
@@ -33,9 +33,8 @@ impl Invariant for CrossLayerViolation {
                 if edge.edge_type != EdgeType::Imports {
                     continue;
                 }
-                let target = match graph.get_symbol(edge.to) {
-                    Some(s) => s,
-                    None => continue,
+                let Some(target) = graph.get_symbol(edge.to) else {
+                    continue;
                 };
                 let to_layer = match config.layer_for_file(&target.file) {
                     Some(l) => &l.name,

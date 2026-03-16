@@ -28,7 +28,7 @@ struct ViolationFingerprint {
 }
 
 pub trait Invariant: Send {
-    fn id(&self) -> &str;
+    fn id(&self) -> &'static str;
     fn evaluate(
         &self,
         delta: &GraphDelta,
@@ -95,12 +95,12 @@ mod tests {
     use super::*;
 
     struct AlwaysViolates {
-        id: String,
+        id: &'static str,
     }
 
     impl Invariant for AlwaysViolates {
-        fn id(&self) -> &str {
-            &self.id
+        fn id(&self) -> &'static str {
+            self.id
         }
 
         fn evaluate(
@@ -113,7 +113,7 @@ mod tests {
                 return Vec::new();
             }
             vec![Violation {
-                policy_id: self.id.clone(),
+                policy_id: self.id.to_string(),
                 file: delta.file.clone(),
                 symbol: "test_sym".to_string(),
                 message: "test violation".to_string(),
@@ -125,7 +125,7 @@ mod tests {
     struct NeverViolates;
 
     impl Invariant for NeverViolates {
-        fn id(&self) -> &str {
+        fn id(&self) -> &'static str {
             "never"
         }
 
@@ -155,7 +155,7 @@ mod tests {
     fn register_and_evaluate() {
         let mut engine = PolicyEngine::new();
         engine.register(Box::new(AlwaysViolates {
-            id: "test".to_string(),
+            id: "test",
         }));
 
         let graph = SymbolGraph::new();
@@ -170,7 +170,7 @@ mod tests {
     fn deduplication_by_fingerprint() {
         let mut engine = PolicyEngine::new();
         engine.register(Box::new(AlwaysViolates {
-            id: "test".to_string(),
+            id: "test",
         }));
 
         let graph = SymbolGraph::new();
@@ -188,10 +188,10 @@ mod tests {
     fn multiple_invariants_run_in_sequence() {
         let mut engine = PolicyEngine::new();
         engine.register(Box::new(AlwaysViolates {
-            id: "inv-a".to_string(),
+            id: "inv-a",
         }));
         engine.register(Box::new(AlwaysViolates {
-            id: "inv-b".to_string(),
+            id: "inv-b",
         }));
 
         let graph = SymbolGraph::new();
@@ -207,7 +207,7 @@ mod tests {
     fn empty_delta_produces_no_violations() {
         let mut engine = PolicyEngine::new();
         engine.register(Box::new(AlwaysViolates {
-            id: "test".to_string(),
+            id: "test",
         }));
 
         let graph = SymbolGraph::new();
