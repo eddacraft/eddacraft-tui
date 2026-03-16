@@ -173,10 +173,14 @@ fn watch_loop(
             match change.kind {
                 ChangeKind::Removed => {
                     let delta = crate::graph::remove_file(&mut state.graph, &rel_str);
-                    if !delta.is_empty() {
+                    if !delta.removed_symbols.is_empty() {
+                        // Only decrement file_count if we actually removed tracked symbols
+                        state.file_count = state.file_count.saturating_sub(1);
+                        // Remove stale imports for the deleted file
+                        state.all_imports.retain(|i| i.from_file != rel_str);
+                        annotate_trust(&mut state.graph, &state.all_imports);
                         emitter.snapshot(&state.graph, state.file_count);
                     }
-                    state.file_count = state.file_count.saturating_sub(1);
                 }
                 ChangeKind::Created | ChangeKind::Modified => {
                     let content = match std::fs::read(&change.path) {
@@ -211,6 +215,8 @@ fn watch_loop(
                     let new_imports = file_symbols.imports.clone();
                     let delta = update_file(&mut state.graph, file_symbols);
 
+                    // Replace imports for this file (remove old, add new)
+                    state.all_imports.retain(|i| i.from_file != rel_str);
                     state.all_imports.extend(new_imports);
                     annotate_trust(&mut state.graph, &state.all_imports);
 
