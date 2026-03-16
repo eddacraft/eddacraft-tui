@@ -85,10 +85,11 @@ fn extract_from_node(
         }
         "export_statement" => {
             if let Some(decl) = node.child_by_field_name("declaration") {
+                let before = symbols.len();
                 extract_from_node(decl, source, file, symbols, imports, next_id);
-                // Mark the last added symbol as public
-                if let Some(last) = symbols.last_mut() {
-                    last.visibility = Visibility::Public;
+                // Mark ALL symbols added by this export as public
+                for sym in &mut symbols[before..] {
+                    sym.visibility = Visibility::Public;
                 }
             } else {
                 symbols.push(SymbolNode {
@@ -245,6 +246,26 @@ import * as fs from 'node:fs';
 
         assert!(import_sources.contains(&"./module"));
         assert!(import_sources.contains(&"node:fs"));
+    }
+
+    #[test]
+    fn export_does_not_flip_unrelated_symbol() {
+        // Regression: an export with no declaration (e.g. `export {}`)
+        // should not flip a prior symbol to Public.
+        let source = b"
+function internal() {}
+export {};
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+        let internal = symbols
+            .symbols
+            .iter()
+            .find(|s| s.name == "internal")
+            .unwrap();
+        assert_eq!(internal.visibility, Visibility::Internal);
     }
 
     #[test]

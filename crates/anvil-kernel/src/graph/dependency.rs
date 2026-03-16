@@ -44,12 +44,21 @@ impl DependencyGraph {
             .unwrap_or_default()
     }
 
-    /// Remove all edges originating from `file`.
+    /// Remove all edges originating from AND pointing to `file`.
     pub fn remove_file(&mut self, file: &str) {
+        // Remove outgoing edges (file → deps)
         if let Some(deps) = self.edges.remove(file) {
             for dep in deps {
                 if let Some(rev) = self.reverse.get_mut(&dep) {
                     rev.remove(file);
+                }
+            }
+        }
+        // Remove incoming edges (importers → file)
+        if let Some(importers) = self.reverse.remove(file) {
+            for importer in importers {
+                if let Some(fwd) = self.edges.get_mut(&importer) {
+                    fwd.remove(file);
                 }
             }
         }
@@ -164,6 +173,21 @@ mod tests {
         g.remove_file("a.ts");
         assert!(g.dependencies_of("a.ts").is_empty());
         assert!(g.dependents_of("b.ts").is_empty());
+    }
+
+    #[test]
+    fn remove_target_clears_incoming_edges() {
+        let mut g = DependencyGraph::new();
+        g.add_dependency("a.ts".to_string(), "shared.ts".to_string());
+        g.add_dependency("b.ts".to_string(), "shared.ts".to_string());
+
+        // Remove the target file
+        g.remove_file("shared.ts");
+
+        // No dangling references
+        assert!(g.dependents_of("shared.ts").is_empty());
+        assert!(g.dependencies_of("a.ts").is_empty());
+        assert!(g.dependencies_of("b.ts").is_empty());
     }
 
     #[test]

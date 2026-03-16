@@ -10,6 +10,7 @@ use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
 use self::debounce::Debouncer;
 use self::events::{ChangeBatch, ChangeKind, FileChange};
+use self::filter::FileFilter;
 
 /// Configuration for the file watcher.
 #[derive(Debug, Clone)]
@@ -22,6 +23,8 @@ pub struct WatcherConfig {
     pub max_pending: usize,
     /// Tick interval for checking debounce expiry.
     pub tick_interval: Duration,
+    /// File filter for ignore patterns. If None, uses default patterns.
+    pub filter: Option<FileFilter>,
 }
 
 impl Default for WatcherConfig {
@@ -31,6 +34,7 @@ impl Default for WatcherConfig {
             debounce_window: Duration::from_millis(50),
             max_pending: 500,
             tick_interval: Duration::from_millis(20),
+            filter: None,
         }
     }
 }
@@ -64,6 +68,7 @@ pub fn start_watcher(
     let debounce_window = config.debounce_window;
     let max_pending = config.max_pending;
     let tick_interval = config.tick_interval;
+    let filter = config.filter.clone().unwrap_or_default();
 
     std::thread::spawn(move || {
         let mut debouncer = Debouncer::new(debounce_window, max_pending);
@@ -72,12 +77,17 @@ pub fn start_watcher(
             match raw_rx.recv_timeout(tick_interval) {
                 Ok(Ok(event)) => {
                     for path in event.paths {
+                        // Skip files that don't pass the filter
+                        // (Removed files always pass — we need to track deletions)
                         let kind = match event.kind {
                             EventKind::Create(_) => ChangeKind::Created,
                             EventKind::Modify(_) => ChangeKind::Modified,
                             EventKind::Remove(_) => ChangeKind::Removed,
                             _ => continue,
                         };
+                        if kind != ChangeKind::Removed && !filter.should_process(&path) {
+                            continue;
+                        }
                         if let Some(batch) = debouncer.record(FileChange { path, kind }) {
                             if batch_tx.send(batch).is_err() {
                                 return;

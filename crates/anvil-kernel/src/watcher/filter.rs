@@ -1,6 +1,7 @@
 use std::path::Path;
 
 /// Determines whether a file path should be processed or ignored.
+#[derive(Debug, Clone)]
 pub struct FileFilter {
     ignore_patterns: Vec<String>,
 }
