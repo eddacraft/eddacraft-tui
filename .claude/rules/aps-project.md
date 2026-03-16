@@ -39,6 +39,7 @@
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
+- AGOV: agent-governance-patterns (0/7) — Draft
 
 ## Conventions
 
@@ -361,4 +362,28 @@ packages/platform/config/src/loader.test.ts: CRB-017
 packages/platform/README.md: CRB-012
 plans/reviews/cli-beta-review.md: CRB-028
 vitest.config.ts: CRB-006, CRB-013
+# AGOV: Agent Governance Patterns
+packages/edda-stack/src/ember/trust-score.ts: AGOV-001
+packages/edda-stack/src/ember/trust-score.test.ts: AGOV-001
+packages/anvil/runtime/src/gate/trust-context.ts: AGOV-001
+core/src/gate/__fixtures__/library/compliance/hipaa/: AGOV-002
+core/src/gate/__fixtures__/library/compliance/pci-dss/: AGOV-002
+core/src/gate/__fixtures__/library/compliance/gdpr/: AGOV-002
+core/src/gate/__fixtures__/library/compliance/soc2/: AGOV-002
+apps/anvil-cli/src/commands/policy.ts: AGOV-002
+packages/anvil/runtime/src/gate/checks/destructive-pattern.check.ts: AGOV-003
+packages/anvil/runtime/src/gate/checks/destructive-pattern.check.test.ts: AGOV-003
+core/src/gate/__fixtures__/library/security/destructive-patterns.json: AGOV-003
+packages/anvil/runtime/src/gate/checks/change-volume.check.ts: AGOV-004
+packages/anvil/runtime/src/gate/checks/change-volume.check.test.ts: AGOV-004
+packages/anvil/runtime/src/gate/checks/metadata-secret.check.ts: AGOV-005
+packages/anvil/runtime/src/gate/checks/metadata-secret.check.test.ts: AGOV-005
+packages/edda-stack/src/edda/hash-chain.ts: AGOV-006
+packages/edda-stack/src/edda/hash-chain.test.ts: AGOV-006
+apps/anvil-cli/src/commands/audit.ts: AGOV-006
+packages/anvil/runtime/src/gate/checks/capability-declaration.check.ts: AGOV-007
+packages/anvil/runtime/src/gate/checks/capability-declaration.check.test.ts: AGOV-007
+packages/anvil/core/src/config/capability-manifest.ts: AGOV-007
+packages/anvil/core/src/config/capability-manifest.test.ts: AGOV-007
+apps/anvil-cli/src/commands/capability.ts: AGOV-007
 ```
