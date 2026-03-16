@@ -266,9 +266,46 @@ fn extract_cjs_export(
         // `module.exports.foo = ...` — mark only the specific property as Public
         mark_or_add_public_symbol(prop, file, symbols, next_id);
     } else if left_text == "module.exports" {
-        // `module.exports = ...` — mark all preceding symbols in this file as Public
-        for sym in symbols.iter_mut().filter(|s| s.file == file) {
-            sym.visibility = Visibility::Public;
+        // `module.exports = { foo, bar }` — only mark referenced symbols as Public.
+        // If the RHS is not an object literal or is too complex, fall back to
+        // marking all symbols as Public (conservative).
+        let rhs = node.child_by_field_name("right");
+        let rhs_kind = rhs.map(|n| n.kind());
+        if rhs_kind == Some("object") {
+            let rhs_node = rhs.unwrap();
+            let mut property_names = Vec::new();
+            for i in 0..u32::try_from(rhs_node.named_child_count()).unwrap_or(0) {
+                if let Some(child) = rhs_node.named_child(i) {
+                    match child.kind() {
+                        "shorthand_property_identifier" => {
+                            property_names.push(node_text(child, source));
+                        }
+                        "pair" => {
+                            if let Some(value_node) = child.child_by_field_name("value") {
+                                property_names.push(node_text(value_node, source));
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            for name in &property_names {
+                mark_or_add_public_symbol(name, file, symbols, next_id);
+            }
+        } else {
+            // RHS is a single identifier or complex expression — mark only that
+            // identifier, or fall back to all symbols if unresolvable.
+            if let Some(rhs_node) = rhs {
+                if rhs_node.kind() == "identifier" {
+                    let name = node_text(rhs_node, source);
+                    mark_or_add_public_symbol(&name, file, symbols, next_id);
+                } else {
+                    // Complex RHS (call expression, ternary, etc.) — conservative fallback
+                    for sym in symbols.iter_mut().filter(|s| s.file == file) {
+                        sym.visibility = Visibility::Public;
+                    }
+                }
+            }
         }
     } else if let Some(prop) = left_text.strip_prefix("exports.") {
         // `exports.foo = ...` — mark only the specific property as Public
@@ -514,6 +551,58 @@ module.exports.foo = foo;
             foo.visibility,
             Visibility::Public,
             "foo should be Public (it is the exported property)"
+        );
+        assert_eq!(
+            bar.visibility,
+            Visibility::Internal,
+            "bar should stay Internal"
+        );
+    }
+
+    #[test]
+    fn module_exports_object_marks_only_referenced_symbols() {
+        let source = b"
+function foo() {}
+function bar() {}
+module.exports = { foo };
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.js"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.js"), 0);
+        let foo = symbols.symbols.iter().find(|s| s.name == "foo").unwrap();
+        let bar = symbols.symbols.iter().find(|s| s.name == "bar").unwrap();
+
+        assert_eq!(
+            foo.visibility,
+            Visibility::Public,
+            "foo should be Public (it is in the module.exports object)"
+        );
+        assert_eq!(
+            bar.visibility,
+            Visibility::Internal,
+            "bar should stay Internal (it is not in the module.exports object)"
+        );
+    }
+
+    #[test]
+    fn module_exports_single_identifier_marks_only_that_symbol() {
+        let source = b"
+function foo() {}
+function bar() {}
+module.exports = foo;
+";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.js"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.js"), 0);
+        let foo = symbols.symbols.iter().find(|s| s.name == "foo").unwrap();
+        let bar = symbols.symbols.iter().find(|s| s.name == "bar").unwrap();
+
+        assert_eq!(
+            foo.visibility,
+            Visibility::Public,
+            "foo should be Public (it is the module.exports value)"
         );
         assert_eq!(
             bar.visibility,
