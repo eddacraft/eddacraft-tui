@@ -154,9 +154,7 @@ mod tests {
     #[test]
     fn register_and_evaluate() {
         let mut engine = PolicyEngine::new();
-        engine.register(Box::new(AlwaysViolates {
-            id: "test",
-        }));
+        engine.register(Box::new(AlwaysViolates { id: "test" }));
 
         let graph = SymbolGraph::new();
         let violations = engine.evaluate(&non_empty_delta(), &graph, &test_config());
@@ -169,9 +167,7 @@ mod tests {
     #[test]
     fn deduplication_by_fingerprint() {
         let mut engine = PolicyEngine::new();
-        engine.register(Box::new(AlwaysViolates {
-            id: "test",
-        }));
+        engine.register(Box::new(AlwaysViolates { id: "test" }));
 
         let graph = SymbolGraph::new();
         let config = test_config();
@@ -187,12 +183,8 @@ mod tests {
     #[test]
     fn multiple_invariants_run_in_sequence() {
         let mut engine = PolicyEngine::new();
-        engine.register(Box::new(AlwaysViolates {
-            id: "inv-a",
-        }));
-        engine.register(Box::new(AlwaysViolates {
-            id: "inv-b",
-        }));
+        engine.register(Box::new(AlwaysViolates { id: "inv-a" }));
+        engine.register(Box::new(AlwaysViolates { id: "inv-b" }));
 
         let graph = SymbolGraph::new();
         let violations = engine.evaluate(&non_empty_delta(), &graph, &test_config());
@@ -206,9 +198,7 @@ mod tests {
     #[test]
     fn empty_delta_produces_no_violations() {
         let mut engine = PolicyEngine::new();
-        engine.register(Box::new(AlwaysViolates {
-            id: "test",
-        }));
+        engine.register(Box::new(AlwaysViolates { id: "test" }));
 
         let graph = SymbolGraph::new();
         let violations = engine.evaluate(&GraphDelta::default(), &graph, &test_config());

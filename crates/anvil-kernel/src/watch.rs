@@ -120,9 +120,15 @@ impl WatchState {
         };
 
         let file_symbols = extract_symbols(&parse_result.tree, &content, rel_path, self.next_id);
-        self.next_id += file_symbols.symbols.len() as u64;
         self.all_imports.extend(file_symbols.imports.clone());
         update_file(&mut self.graph, file_symbols);
+        self.next_id = self
+            .graph
+            .inner()
+            .node_weights()
+            .map(|s| s.id)
+            .max()
+            .map_or(0, |m| m + 1);
         true
     }
 }
@@ -211,9 +217,15 @@ fn watch_loop(
 
                     let file_symbols =
                         extract_symbols(&parse_result.tree, &content, rel_path, state.next_id);
-                    state.next_id += file_symbols.symbols.len() as u64;
                     let new_imports = file_symbols.imports.clone();
                     let delta = update_file(&mut state.graph, file_symbols);
+                    state.next_id = state
+                        .graph
+                        .inner()
+                        .node_weights()
+                        .map(|s| s.id)
+                        .max()
+                        .map_or(0, |m| m + 1);
 
                     // Replace imports for this file (remove old, add new)
                     state.all_imports.retain(|i| i.from_file != rel_str);
@@ -255,7 +267,9 @@ pub fn run_watch(
     };
 
     let filter = config.watcher.filter.clone().unwrap_or_default();
-    let (watcher, batch_rx) = start_watcher(&config.watcher)?;
+    let mut watcher_config = config.watcher.clone();
+    watcher_config.root.clone_from(&config.root);
+    let (watcher, batch_rx) = start_watcher(&watcher_config)?;
 
     let stop = Arc::new(AtomicBool::new(false));
     let stop_clone = Arc::clone(&stop);

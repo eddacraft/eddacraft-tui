@@ -1,4 +1,4 @@
-/// Terminal detection and minimum size validation.
+//! Terminal detection and minimum size validation.
 
 const MIN_COLS: u16 = 80;
 const MIN_ROWS: u16 = 24;

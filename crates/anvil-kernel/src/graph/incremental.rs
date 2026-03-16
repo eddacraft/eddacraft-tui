@@ -39,7 +39,11 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
 
     // Collect existing import targets BEFORE removing the file, so the
     // new-dep invariant can distinguish genuinely new imports from re-added ones.
-    let old_ids = graph.symbols_in_file(&file).iter().map(|s| s.id).collect::<Vec<_>>();
+    let old_ids = graph
+        .symbols_in_file(&file)
+        .iter()
+        .map(|s| s.id)
+        .collect::<Vec<_>>();
     let previously_imported: HashSet<String> = old_ids
         .iter()
         .flat_map(|&id| graph.outgoing_edges(id))
@@ -478,7 +482,10 @@ mod tests {
             }],
         };
         let delta1 = update_file(&mut g, syms);
-        assert!(delta1.previously_imported.is_empty(), "first add has no prior imports");
+        assert!(
+            delta1.previously_imported.is_empty(),
+            "first add has no prior imports"
+        );
 
         // Re-parse: same file still imports axios
         let syms2 = FileSymbols {

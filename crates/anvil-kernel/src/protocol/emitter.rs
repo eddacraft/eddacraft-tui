@@ -105,8 +105,7 @@ fn now_iso8601() -> String {
 
     let era = days / DAYS_PER_400Y;
     let day_of_era = days % DAYS_PER_400Y;
-    let year_of_era = (day_of_era - day_of_era / (DAYS_PER_4Y - 1)
-        + day_of_era / DAYS_PER_100Y
+    let year_of_era = (day_of_era - day_of_era / (DAYS_PER_4Y - 1) + day_of_era / DAYS_PER_100Y
         - day_of_era / (DAYS_PER_400Y - 1))
         / DAYS_PER_YEAR;
     let mut year = year_of_era + era * 400;

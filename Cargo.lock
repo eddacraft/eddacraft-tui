@@ -45,6 +45,7 @@ name = "anvil-kernel"
 version = "0.1.0"
 dependencies = [
  "anvil-kernel-types",
+ "criterion",
  "insta",
  "notify",
  "petgraph",
@@ -57,6 +58,7 @@ dependencies = [
  "tree-sitter",
  "tree-sitter-javascript",
  "tree-sitter-typescript",
+ "walkdir",
 ]
 
 [[package]]
@@ -88,6 +90,7 @@ dependencies = [
  "eddacraft-tui",
  "insta",
  "ratatui",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

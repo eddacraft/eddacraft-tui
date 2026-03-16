@@ -13,24 +13,38 @@ pub fn events_to_gate_result(
     let mut violation_files: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for event in events {
-        if let EventPayload::Violation {
-            policy_id,
-            file,
-            symbol: _,
-            message,
-        } = &event.payload
-        {
-            violation_files.insert(file.clone());
-            checks.push(GateCheck {
-                id: policy_id.clone(),
-                name: policy_id.clone(),
-                status: GateCheckStatus::Failed,
-                score: 0.0,
-                message: message.clone(),
-                details: None,
-                file: Some(file.clone()),
-                line: None,
-            });
+        match &event.payload {
+            EventPayload::Violation {
+                policy_id,
+                file,
+                symbol: _,
+                message,
+            } => {
+                violation_files.insert(file.clone());
+                checks.push(GateCheck {
+                    id: policy_id.clone(),
+                    name: policy_id.clone(),
+                    status: GateCheckStatus::Failed,
+                    score: 0.0,
+                    message: message.clone(),
+                    details: None,
+                    file: Some(file.clone()),
+                    line: None,
+                });
+            }
+            EventPayload::Error(err) => {
+                checks.push(GateCheck {
+                    id: format!("error:{:?}", err.code),
+                    name: format!("Error ({:?})", err.code),
+                    status: GateCheckStatus::Failed,
+                    score: 0.0,
+                    message: err.message.clone(),
+                    details: None,
+                    file: err.file.clone(),
+                    line: None,
+                });
+            }
+            _ => {}
         }
     }
 
@@ -140,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn non_violation_events_are_skipped() {
+    fn error_events_treated_as_failures() {
         let events = vec![
             progress_event(),
             error_event(),
@@ -149,8 +163,11 @@ mod tests {
 
         let result = events_to_gate_result(&events, 200, "2026-03-16T10:00:00Z");
 
-        assert_eq!(result.checks.len(), 1);
-        assert_eq!(result.checks[0].id, "public-api-expansion");
+        assert_eq!(result.checks.len(), 2);
+        assert!(!result.overall_passed);
+        assert_eq!(result.checks[0].id, "error:ParseError");
+        assert_eq!(result.checks[0].file.as_deref(), Some("bad.ts"));
+        assert_eq!(result.checks[1].id, "public-api-expansion");
     }
 
     #[test]

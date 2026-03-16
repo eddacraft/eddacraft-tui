@@ -7,9 +7,21 @@ use crate::policy::engine::{Invariant, Severity, Violation};
 /// module not previously seen. Flags new external dependencies for review.
 pub struct NewDependencyIntroduction;
 
+/// Known source file extensions that indicate a resolved internal path.
+const RESOLVED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
+
 impl NewDependencyIntroduction {
     fn is_external_import(source: &str) -> bool {
-        !source.starts_with('.') && !source.starts_with('/')
+        if source.starts_with('.') || source.starts_with('/') {
+            return false;
+        }
+        // After import resolution, in-repo imports are stored as concrete file
+        // paths like `src/utils.ts`. A path containing a separator or ending
+        // with a known extension is a resolved internal path, not an npm package.
+        if source.contains('/') && RESOLVED_EXTENSIONS.iter().any(|ext| source.ends_with(ext)) {
+            return false;
+        }
+        true
     }
 }
 
@@ -133,5 +145,69 @@ mod tests {
         let violations = inv.evaluate(&delta, &graph, &empty_config());
 
         assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn does_not_fire_on_resolved_internal_path() {
+        let mut graph = SymbolGraph::new();
+        graph
+            .add_symbol(make_sym(1, "handler", "src/api.ts"))
+            .unwrap();
+        graph
+            .add_symbol(make_sym(2, "helper", "src/utils.ts"))
+            .unwrap();
+
+        let delta = GraphDelta {
+            added_symbols: vec![1],
+            added_edges: vec![(1, 2, EdgeType::Imports)],
+            file: "src/api.ts".to_string(),
+            ..Default::default()
+        };
+
+        let inv = NewDependencyIntroduction;
+        let violations = inv.evaluate(&delta, &graph, &empty_config());
+
+        assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn fires_on_scoped_external_package() {
+        let mut graph = SymbolGraph::new();
+        graph
+            .add_symbol(make_sym(1, "handler", "src/api.ts"))
+            .unwrap();
+        graph.add_symbol(make_sym(2, "zod", "@scope/pkg")).unwrap();
+
+        let delta = GraphDelta {
+            added_symbols: vec![1],
+            added_edges: vec![(1, 2, EdgeType::Imports)],
+            file: "src/api.ts".to_string(),
+            ..Default::default()
+        };
+
+        let inv = NewDependencyIntroduction;
+        let violations = inv.evaluate(&delta, &graph, &empty_config());
+
+        assert_eq!(violations.len(), 1);
+    }
+
+    #[test]
+    fn classifies_external_imports_correctly() {
+        // Bare specifiers are external
+        assert!(NewDependencyIntroduction::is_external_import("react"));
+        assert!(NewDependencyIntroduction::is_external_import("@scope/pkg"));
+        // Resolved file paths are internal
+        assert!(!NewDependencyIntroduction::is_external_import(
+            "src/utils.ts"
+        ));
+        assert!(!NewDependencyIntroduction::is_external_import(
+            "lib/helpers.tsx"
+        ));
+        assert!(!NewDependencyIntroduction::is_external_import(
+            "src/index.mjs"
+        ));
+        // Relative and absolute paths are internal
+        assert!(!NewDependencyIntroduction::is_external_import("./utils"));
+        assert!(!NewDependencyIntroduction::is_external_import("/abs/path"));
     }
 }

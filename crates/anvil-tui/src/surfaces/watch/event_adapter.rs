@@ -43,14 +43,13 @@ impl WatchEventAdapter {
                 self.handle_violation(file, message, &event.timestamp, data);
             }
             EventPayload::Error(err) => {
-                self.handle_error(&err.message, &event.timestamp, data);
+                Self::handle_error(&err.message, &event.timestamp, data);
             }
         }
     }
 
     fn handle_progress(&mut self, phase: &str, current: u64, total: u64, data: &mut WatchData) {
         if current == 0 {
-            // New run starting — reset counters
             self.violation_count = 0;
             self.check_count = 0;
         }
@@ -58,8 +57,10 @@ impl WatchEventAdapter {
         data.status = WatchStatus::Running;
 
         if current >= total && total > 0 {
-            // Run complete — finalise
-            self.check_count = total as usize;
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                self.check_count = total as usize;
+            }
             let passed = self.violation_count == 0;
             data.status = if passed {
                 WatchStatus::Passing
@@ -74,18 +75,38 @@ impl WatchEventAdapter {
                     passed,
                     checks_run: self.check_count,
                     checks_passed,
-                    duration_ms: 0, // not available from progress events
+                    duration_ms: 0,
                     timestamp: format!("{phase} complete"),
                 },
             );
 
             data.stats.total_runs += 1;
-            self.update_pass_rate(data);
+            Self::update_pass_rate(data);
         }
     }
 
     fn handle_snapshot(&self, files_watched: u64, data: &mut WatchData) {
-        data.stats.files_watched = files_watched as usize;
+        #[allow(clippy::cast_possible_truncation)]
+        {
+            data.stats.files_watched = files_watched as usize;
+        }
+
+        if self.violation_count == 0 {
+            data.stats.total_runs += 1;
+            data.status = WatchStatus::Passing;
+
+            data.history.insert(
+                0,
+                RunHistory {
+                    passed: true,
+                    checks_run: self.check_count,
+                    checks_passed: self.check_count,
+                    duration_ms: 0,
+                    timestamp: "snapshot complete".to_string(),
+                },
+            );
+            Self::update_pass_rate(data);
+        }
     }
 
     fn handle_violation(
@@ -105,7 +126,7 @@ impl WatchEventAdapter {
         });
     }
 
-    fn handle_error(&self, message: &str, timestamp: &str, data: &mut WatchData) {
+    fn handle_error(message: &str, timestamp: &str, data: &mut WatchData) {
         data.status = WatchStatus::Failing;
         data.queue.push(QueuedChange {
             file: "(error)".to_string(),
@@ -115,7 +136,7 @@ impl WatchEventAdapter {
     }
 
     #[allow(clippy::cast_precision_loss)]
-    fn update_pass_rate(&self, data: &mut WatchData) {
+    fn update_pass_rate(data: &mut WatchData) {
         if data.stats.total_runs == 0 {
             data.stats.pass_rate = 0.0;
         } else {
@@ -242,6 +263,35 @@ mod tests {
         adapter.handle_event(&snapshot_event(42), &mut data);
 
         assert_eq!(data.stats.files_watched, 42);
+    }
+
+    #[test]
+    fn snapshot_without_violations_updates_run_state() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        adapter.handle_event(&snapshot_event(10), &mut data);
+
+        assert_eq!(data.status, WatchStatus::Passing);
+        assert_eq!(data.stats.total_runs, 1);
+        assert_eq!(data.history.len(), 1);
+        assert!(data.history[0].passed);
+    }
+
+    #[test]
+    fn snapshot_after_violation_does_not_mark_passing() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        adapter.handle_event(
+            &violation_event("src/bad.ts", "cross-layer import"),
+            &mut data,
+        );
+        adapter.handle_event(&snapshot_event(10), &mut data);
+
+        assert_eq!(data.status, WatchStatus::Failing);
+        assert_eq!(data.stats.total_runs, 0);
+        assert!(data.history.is_empty());
     }
 
     #[test]

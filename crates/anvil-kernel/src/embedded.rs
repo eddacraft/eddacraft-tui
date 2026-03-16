@@ -132,37 +132,14 @@ pub fn run_embedded(config: &EmbeddedConfig) -> Result<EmbeddedResult, EmbeddedE
     engine.register(Box::new(PublicApiExpansion));
     engine.register(Box::new(PrivilegeExpansion));
 
-    // Evaluate each file's delta against the policy engine.
-    // We re-process to get deltas per file for the invariant API.
-    let mut all_violations = Vec::new();
-    for file_path in &files {
-        let rel_path = file_path
-            .strip_prefix(&config.root)
-            .unwrap_or(file_path.as_path());
-        let rel_str = rel_path.to_string_lossy().to_string();
-
-        let symbols_in_file: Vec<u64> = graph
-            .symbols_in_file(&rel_str)
-            .iter()
-            .map(|s| s.id)
-            .collect();
-
-        if symbols_in_file.is_empty() {
-            continue;
-        }
-
-        let delta = crate::graph::GraphDelta {
-            added_symbols: symbols_in_file,
-            file: rel_str,
-            ..Default::default()
-        };
-
-        let violations = engine.evaluate(&delta, &graph, &arch_config);
-        for v in &violations {
-            emitter.violation(v);
-        }
-        all_violations.extend(violations);
-    }
+    let all_violations = evaluate_files(
+        &files,
+        &config.root,
+        &graph,
+        &mut engine,
+        &arch_config,
+        &emitter,
+    );
 
     let stats = graph.stats();
     let duration = start.elapsed();
@@ -177,6 +154,51 @@ pub fn run_embedded(config: &EmbeddedConfig) -> Result<EmbeddedResult, EmbeddedE
         events,
         duration,
     })
+}
+
+fn evaluate_files(
+    files: &[PathBuf],
+    root: &Path,
+    graph: &SymbolGraph,
+    engine: &mut PolicyEngine,
+    arch_config: &ArchitectureConfig,
+    emitter: &EventEmitter,
+) -> Vec<Violation> {
+    let mut all_violations = Vec::new();
+    for file_path in files {
+        let rel_path = file_path.strip_prefix(root).unwrap_or(file_path.as_path());
+        let rel_str = rel_path.to_string_lossy().to_string();
+
+        let symbols_in_file: Vec<u64> = graph
+            .symbols_in_file(&rel_str)
+            .iter()
+            .map(|s| s.id)
+            .collect();
+
+        if symbols_in_file.is_empty() {
+            continue;
+        }
+
+        let file_edges: Vec<(u64, u64, anvil_kernel_types::EdgeType)> = symbols_in_file
+            .iter()
+            .flat_map(|&sid| graph.outgoing_edges(sid))
+            .map(|e| (e.from, e.to, e.edge_type))
+            .collect();
+
+        let delta = crate::graph::GraphDelta {
+            added_symbols: symbols_in_file,
+            added_edges: file_edges,
+            file: rel_str,
+            ..Default::default()
+        };
+
+        let violations = engine.evaluate(&delta, graph, arch_config);
+        for v in &violations {
+            emitter.violation(v);
+        }
+        all_violations.extend(violations);
+    }
+    all_violations
 }
 
 fn collect_files(root: &Path, filter: &FileFilter) -> Result<Vec<PathBuf>, EmbeddedError> {
