@@ -2,8 +2,9 @@
 ///
 /// Default is `Ink` until Ratatui feature parity is validated.
 /// Users opt in with `--tui=ratatui`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TuiBackend {
+    #[default]
     Ink,
     Ratatui,
 }
@@ -18,12 +19,6 @@ impl TuiBackend {
                 "unknown TUI backend '{s}' — expected ink or ratatui"
             )),
         }
-    }
-}
-
-impl Default for TuiBackend {
-    fn default() -> Self {
-        Self::Ink
     }
 }
 

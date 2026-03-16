@@ -88,10 +88,10 @@ pub fn start_watcher(
                         if kind != ChangeKind::Removed && !filter.should_process(&path) {
                             continue;
                         }
-                        if let Some(batch) = debouncer.record(FileChange { path, kind }) {
-                            if batch_tx.send(batch).is_err() {
-                                return;
-                            }
+                        if let Some(batch) = debouncer.record(FileChange { path, kind })
+                            && batch_tx.send(batch).is_err()
+                        {
+                            return;
                         }
                     }
                 }
@@ -102,10 +102,10 @@ pub fn start_watcher(
                 Err(mpsc::RecvTimeoutError::Disconnected) => return,
             }
 
-            if let Some(batch) = debouncer.tick() {
-                if batch_tx.send(batch).is_err() {
-                    return;
-                }
+            if let Some(batch) = debouncer.tick()
+                && batch_tx.send(batch).is_err()
+            {
+                return;
             }
         }
     });

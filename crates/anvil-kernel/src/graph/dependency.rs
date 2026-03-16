@@ -88,10 +88,10 @@ impl DependencyGraph {
         let mut path = Vec::new();
 
         for file in self.edges.keys() {
-            if !visited.contains(file.as_str()) {
-                if let Some(cycle) = self.dfs_cycle(file, &mut visited, &mut stack, &mut path) {
-                    return Some(cycle);
-                }
+            if !visited.contains(file.as_str())
+                && let Some(cycle) = self.dfs_cycle(file, &mut visited, &mut stack, &mut path)
+            {
+                return Some(cycle);
             }
         }
         None

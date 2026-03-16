@@ -3,8 +3,9 @@
 /// - `Rust` — uses the Rust kernel (fully functional).
 /// - `Legacy` — delegates to the JS engine (stub, not yet implemented).
 /// - `Dual` — runs both engines and diffs results (stub, not yet implemented).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum EngineMode {
+    #[default]
     Rust,
     Legacy,
     Dual,
@@ -24,12 +25,6 @@ impl EngineMode {
     /// Returns whether this mode is currently functional.
     pub fn is_implemented(self) -> bool {
         matches!(self, Self::Rust)
-    }
-}
-
-impl Default for EngineMode {
-    fn default() -> Self {
-        Self::Rust
     }
 }
 

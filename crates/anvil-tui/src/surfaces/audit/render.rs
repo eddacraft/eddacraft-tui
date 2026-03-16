@@ -160,19 +160,20 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
         .collect();
 
     // Show expanded details if applicable
-    if state.expanded && focused {
-        if let Some(issue) = state.data.issues.get(state.selected_item) {
-            lines.push(Line::default());
-            lines.push(Line::from(vec![
-                Span::styled("    Category: ", Style::default().fg(theme.muted())),
-                Span::styled(&issue.category, Style::default().fg(theme.fg())),
-            ]));
-            if issue.fixable {
-                lines.push(Line::from(Span::styled(
-                    "    Auto-fixable: press 'f' to fix",
-                    Style::default().fg(theme.accent()),
-                )));
-            }
+    if state.expanded
+        && focused
+        && let Some(issue) = state.data.issues.get(state.selected_item)
+    {
+        lines.push(Line::default());
+        lines.push(Line::from(vec![
+            Span::styled("    Category: ", Style::default().fg(theme.muted())),
+            Span::styled(&issue.category, Style::default().fg(theme.fg())),
+        ]));
+        if issue.fixable {
+            lines.push(Line::from(Span::styled(
+                "    Auto-fixable: press 'f' to fix",
+                Style::default().fg(theme.accent()),
+            )));
         }
     }
 

@@ -139,11 +139,11 @@ fn extract_export(
 
     let mut handled_clause = false;
     for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
-        if let Some(child) = node.named_child(i) {
-            if child.kind() == "export_clause" {
-                handled_clause = true;
-                extract_export_clause(child, source, file, symbols, next_id);
-            }
+        if let Some(child) = node.named_child(i)
+            && child.kind() == "export_clause"
+        {
+            handled_clause = true;
+            extract_export_clause(child, source, file, symbols, next_id);
         }
     }
 
@@ -232,20 +232,18 @@ fn extract_require(
     file: &str,
     imports: &mut Vec<ImportEdge>,
 ) {
-    if let Some(func) = node.child_by_field_name("function") {
-        if node_text(func, source) == "require" {
-            if let Some(args) = node.child_by_field_name("arguments") {
-                if let Some(arg) = args.named_child(0) {
-                    let raw = node_text(arg, source);
-                    let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
-                    if !module_path.is_empty() {
-                        imports.push(ImportEdge {
-                            from_file: file.to_string(),
-                            to_source: module_path.to_string(),
-                        });
-                    }
-                }
-            }
+    if let Some(func) = node.child_by_field_name("function")
+        && node_text(func, source) == "require"
+        && let Some(args) = node.child_by_field_name("arguments")
+        && let Some(arg) = args.named_child(0)
+    {
+        let raw = node_text(arg, source);
+        let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
+        if !module_path.is_empty() {
+            imports.push(ImportEdge {
+                from_file: file.to_string(),
+                to_source: module_path.to_string(),
+            });
         }
     }
 }
@@ -343,25 +341,22 @@ fn extract_lexical(
     next_id: &mut u64,
 ) {
     for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
-        if let Some(child) = node.named_child(i) {
-            if child.kind() == "variable_declarator" {
-                if let Some(name_node) = child.child_by_field_name("name") {
-                    if let Some(value) = child.child_by_field_name("value") {
-                        if value.kind() == "arrow_function" {
-                            let name = node_text(name_node, source);
-                            symbols.push(SymbolNode {
-                                id: *next_id,
-                                kind: SymbolKind::Function,
-                                name,
-                                visibility: Visibility::Internal,
-                                file: file.to_string(),
-                                trust_level: TrustLevel::default(),
-                            });
-                            *next_id += 1;
-                        }
-                    }
-                }
-            }
+        if let Some(child) = node.named_child(i)
+            && child.kind() == "variable_declarator"
+            && let Some(name_node) = child.child_by_field_name("name")
+            && let Some(value) = child.child_by_field_name("value")
+            && value.kind() == "arrow_function"
+        {
+            let name = node_text(name_node, source);
+            symbols.push(SymbolNode {
+                id: *next_id,
+                kind: SymbolKind::Function,
+                name,
+                visibility: Visibility::Internal,
+                file: file.to_string(),
+                trust_level: TrustLevel::default(),
+            });
+            *next_id += 1;
         }
     }
 }

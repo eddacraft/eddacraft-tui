@@ -92,29 +92,29 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
     frame.render_widget(Paragraph::new(Text::from(items)), list_area);
 
     // Detail panel (when expanded)
-    if state.expanded {
-        if let Some(check) = state.checks.get(state.selected) {
-            let detail_block = Block::default()
-                .borders(Borders::ALL)
-                .border_style(Style::default().fg(theme.accent()))
-                .title(format!(" {} ", check.name));
+    if state.expanded
+        && let Some(check) = state.checks.get(state.selected)
+    {
+        let detail_block = Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(theme.accent()))
+            .title(format!(" {} ", check.name));
 
-            let detail_area = detail_block.inner(chunks[2]);
-            frame.render_widget(detail_block, chunks[2]);
+        let detail_area = detail_block.inner(chunks[2]);
+        frame.render_widget(detail_block, chunks[2]);
 
-            let detail_text = check.details.as_deref().unwrap_or("No additional details");
-            let mut lines = vec![Line::from(Span::styled(
-                detail_text,
-                Style::default().fg(theme.fg()),
-            ))];
-            if check.auto_fixable {
-                lines.push(Line::from(Span::styled(
-                    "Auto-fixable",
-                    Style::default().fg(theme.accent()),
-                )));
-            }
-            frame.render_widget(Paragraph::new(Text::from(lines)), detail_area);
+        let detail_text = check.details.as_deref().unwrap_or("No additional details");
+        let mut lines = vec![Line::from(Span::styled(
+            detail_text,
+            Style::default().fg(theme.fg()),
+        ))];
+        if check.auto_fixable {
+            lines.push(Line::from(Span::styled(
+                "Auto-fixable",
+                Style::default().fg(theme.accent()),
+            )));
         }
+        frame.render_widget(Paragraph::new(Text::from(lines)), detail_area);
     }
 
     // Help text
