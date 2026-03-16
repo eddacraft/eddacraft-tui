@@ -113,10 +113,18 @@ pub fn run_embedded(config: &EmbeddedConfig) -> Result<EmbeddedResult, EmbeddedE
         };
 
         let file_symbols = extract_symbols(&parse_result.tree, &content, rel_path, next_id);
-        next_id += file_symbols.symbols.len() as u64;
         all_imports.extend(file_symbols.imports.clone());
 
         update_file(&mut graph, file_symbols);
+
+        // Recompute next_id from the graph to account for synthetic nodes
+        // created by update_file (external imports, side-effect modules)
+        next_id = graph
+            .inner()
+            .node_weights()
+            .map(|s| s.id)
+            .max()
+            .map_or(0, |m| m + 1);
     }
 
     // 3. Annotate trust levels

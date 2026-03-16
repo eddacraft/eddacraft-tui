@@ -140,10 +140,30 @@ fn initial_scan(
     emitter: &EventEmitter,
     stop: &AtomicBool,
 ) {
-    for entry in WalkDir::new(root).into_iter().filter_map(Result::ok) {
+    for result in WalkDir::new(root) {
         if stop.load(Ordering::Relaxed) {
             return;
         }
+        let entry = match result {
+            Ok(e) => e,
+            Err(e) => {
+                let path_str = e
+                    .path()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                emitter.error(
+                    ErrorCode::Internal,
+                    if path_str.is_empty() {
+                        None
+                    } else {
+                        Some(&path_str)
+                    },
+                    &format!("walk error: {e}"),
+                    true,
+                );
+                continue;
+            }
+        };
         if !entry.file_type().is_file() || !filter.should_process(entry.path()) {
             continue;
         }
