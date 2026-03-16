@@ -37,6 +37,16 @@ impl GraphDelta {
 pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDelta {
     let file = new_symbols.file.clone();
 
+    // Collect existing import targets BEFORE removing the file, so the
+    // new-dep invariant can distinguish genuinely new imports from re-added ones.
+    let old_ids = graph.symbols_in_file(&file).iter().map(|s| s.id).collect::<Vec<_>>();
+    let previously_imported: HashSet<String> = old_ids
+        .iter()
+        .flat_map(|&id| graph.outgoing_edges(id))
+        .filter(|e| e.edge_type == EdgeType::Imports)
+        .filter_map(|e| graph.get_symbol(e.to).map(|s| s.file.clone()))
+        .collect();
+
     let removed_ids = graph.remove_file(&file);
 
     let mut added_ids = Vec::new();
@@ -51,21 +61,6 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
             }
         }
     }
-
-    // Capture prior imports for this file so the new-dep invariant can
-    // distinguish genuinely new imports from re-added ones.
-    let previously_imported: HashSet<String> = removed_ids
-        .iter()
-        .flat_map(|_| {
-            // We already removed the edges, so reconstruct from the old symbols'
-            // outgoing edges that were captured before removal. Since we don't
-            // have that history, we fall back to checking what the graph currently
-            // knows — which means we check the broader graph for any existing
-            // import targets. This is imperfect but avoids false positives for
-            // imports that are already in the graph from other files.
-            Vec::new()
-        })
-        .collect();
 
     // Collect all known file paths in the graph for import resolution.
     let known_files: Vec<String> = graph
@@ -446,6 +441,53 @@ mod tests {
             "synthetic node should be added"
         );
         assert_eq!(delta.added_edges.len(), 1, "import edge should be created");
+    }
+
+    #[test]
+    fn previously_imported_populated_for_existing_imports() {
+        let mut g = SymbolGraph::new();
+
+        // Initial parse: src/api.ts imports axios
+        let syms = FileSymbols {
+            file: "src/api.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 1,
+                kind: SymbolKind::Function,
+                name: "handler".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/api.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![ImportEdge {
+                from_file: "src/api.ts".to_string(),
+                to_source: "axios".to_string(),
+            }],
+        };
+        let delta1 = update_file(&mut g, syms);
+        assert!(delta1.previously_imported.is_empty(), "first add has no prior imports");
+
+        // Re-parse: same file still imports axios
+        let syms2 = FileSymbols {
+            file: "src/api.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 10,
+                kind: SymbolKind::Function,
+                name: "handler".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/api.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![ImportEdge {
+                from_file: "src/api.ts".to_string(),
+                to_source: "axios".to_string(),
+            }],
+        };
+        let delta2 = update_file(&mut g, syms2);
+
+        assert!(
+            delta2.previously_imported.contains("axios"),
+            "re-added import should appear in previously_imported"
+        );
     }
 
     #[test]
