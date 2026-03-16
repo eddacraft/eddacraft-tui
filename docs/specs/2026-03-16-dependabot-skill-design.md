@@ -120,20 +120,27 @@ Work through approved groups in priority order (critical/high first).
 
 For each group:
 
-1. Create a branch from the default branch (detected in Phase 1)
-2. Attempt the fix
-3. Build and run tests on affected packages
-4. If it fails, iterate using the fix strategy escalation ladder
-5. If resolved, open a draft PR targeting the default branch
-6. If escalated, document what was tried and why it failed
-7. **Clean up on failure** — if the group is abandoned, delete the branch if
+1. Check for an existing `dependabot/fix/*` branch or draft PR covering this
+   group (discovered in Phase 1). If one exists and the alert is still open,
+   reuse the branch rather than creating a new one. If the existing PR already
+   contains a viable fix attempt, skip execution for this group and note it in
+   the sweep report
+2. Create a branch from the default branch (detected in Phase 1), or reuse the
+   existing branch from step 1
+3. Attempt the fix
+4. Validate the fix: build, test, lint, format check, and typecheck on affected
+   packages. All CI gates must pass for the fix to be considered successful
+5. If it fails, iterate using the fix strategy escalation ladder
+6. If resolved, open a draft PR targeting the default branch
+7. If escalated, document what was tried and why it failed
+8. **Clean up on failure** — if the group is abandoned, delete the branch if
    nothing was committed; leave it if partial commits exist (for reference)
-8. **Continue regardless** — a failed group does not block subsequent groups
+9. **Continue regardless** — a failed group does not block subsequent groups
 
 The sweep report distinguishes three states: **fixed** (PR opened),
 **escalated** (attempted and abandoned), **skipped** (excluded by user).
 
-**Fix strategy escalation ladder (up to 3-4 attempts per group):**
+**Fix strategy escalation ladder (up to 5 attempts per group):**
 
 1. **Direct bump** — Update version constraint, install, build, test
 2. **Lock file override** — Use pnpm overrides (or npm/yarn equivalent) to force
@@ -201,7 +208,9 @@ workflow files using the same vulnerable action become one group.
 **Branch naming:**
 
 Every alert belongs to exactly one group (even if that group has one alert).
-Every group gets exactly one branch and one draft PR.
+Every group that completes a fix attempt gets exactly one branch and one draft
+PR. Groups that were escalated or skipped do not get branches or PRs — they
+appear only in the sweep report.
 
 - `dependabot/fix/<package-name>` for single-alert groups
 - `dependabot/fix/<root-dep>-group` for multi-alert groups
@@ -267,7 +276,7 @@ Every group gets exactly one branch and one draft PR.
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`
-- Test: `pnpm vitest run` (direct vitest, not via Nx)
+- Test: `pnpm nx run-many -t test` (via Nx test targets, not raw vitest)
 - Overrides: root `package.json` under `pnpm.overrides`
 - Two ecosystems: npm + github-actions (actions alerts update workflow YAML
   version pins)
