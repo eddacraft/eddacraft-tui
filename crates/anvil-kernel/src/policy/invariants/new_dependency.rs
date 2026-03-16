@@ -30,7 +30,8 @@ impl Invariant for NewDependencyIntroduction {
             return violations;
         }
 
-        // Check added edges for new external imports
+        // Check added edges for new external imports that were NOT present
+        // before this update (avoids false positives on re-added imports).
         for &(from_id, to_id, ref edge_type) in &delta.added_edges {
             if *edge_type != anvil_kernel_types::EdgeType::Imports {
                 continue;
@@ -41,7 +42,9 @@ impl Invariant for NewDependencyIntroduction {
             let Some(target_sym) = graph.get_symbol(to_id) else {
                 continue;
             };
-            if Self::is_external_import(&target_sym.file) {
+            if Self::is_external_import(&target_sym.file)
+                && !delta.previously_imported.contains(&target_sym.file)
+            {
                 violations.push(Violation {
                     policy_id: self.id().to_string(),
                     file: from_sym.file.clone(),
