@@ -1,3 +1,4 @@
+pub mod event_adapter;
 pub mod render;
 
 use eddacraft_tui::keyboard::Action;
