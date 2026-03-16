@@ -209,9 +209,23 @@ fn watch_loop(
                     }
                 }
                 ChangeKind::Created | ChangeKind::Modified => {
+                    // For modify events that may be renames on some backends,
+                    // remove stale symbols for the old path if the file no
+                    // longer exists at the reported path (read will fail and
+                    // we fall through to continue after cleanup).
                     let content = match std::fs::read(&change.path) {
                         Ok(c) => c,
                         Err(e) => {
+                            // File unreadable — if we had symbols for this
+                            // path, clean them up (rename-style modify where
+                            // the old path is gone).
+                            let removed = crate::graph::remove_file(&mut state.graph, &rel_str);
+                            if !removed.removed_symbols.is_empty() {
+                                state.file_count = state.file_count.saturating_sub(1);
+                                state.all_imports.retain(|i| i.from_file != rel_str);
+                                annotate_trust(&mut state.graph, &state.all_imports);
+                                emitter.snapshot(&state.graph, state.file_count);
+                            }
                             emitter.error(
                                 ErrorCode::ParseError,
                                 Some(&rel_str),
@@ -238,6 +252,11 @@ fn watch_loop(
                     let file_symbols =
                         extract_symbols(&parse_result.tree, &content, rel_path, state.next_id);
                     let new_imports = file_symbols.imports.clone();
+                    let was_tracked = state
+                        .graph
+                        .inner()
+                        .node_weights()
+                        .any(|s| s.file == rel_str);
                     let delta = update_file(&mut state.graph, file_symbols);
                     state.next_id = state
                         .graph
@@ -252,15 +271,17 @@ fn watch_loop(
                     state.all_imports.extend(new_imports);
                     annotate_trust(&mut state.graph, &state.all_imports);
 
+                    // Clear policy dedupe state so reintroduced violations
+                    // are detected in each watch cycle.
+                    state.engine.clear_seen();
                     let violations = state.engine.evaluate(&delta, &state.graph, arch_config);
                     for v in &violations {
                         emitter.violation(v);
                     }
 
-                    // Increment file_count for any newly tracked file — whether
-                    // Created or Modified that parsed successfully for the first
-                    // time (delta.removed_symbols empty means no prior tracking)
-                    if delta.removed_symbols.is_empty() {
+                    // Only increment file_count for genuinely new files that
+                    // produced tracked symbols.
+                    if !was_tracked && !delta.added_symbols.is_empty() {
                         state.file_count += 1;
                     }
                     emitter.snapshot(&state.graph, state.file_count);

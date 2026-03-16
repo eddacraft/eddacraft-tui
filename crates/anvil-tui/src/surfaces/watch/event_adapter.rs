@@ -4,8 +4,10 @@ use super::{QueuedChange, RunHistory, WatchData, WatchStatus};
 
 /// Converts `EngineEvent` stream into `WatchData` updates for the watch
 /// dashboard. Bridges kernel events to TUI state.
+#[allow(clippy::struct_field_names)]
 pub struct WatchEventAdapter {
     violation_count: usize,
+    error_count: usize,
     check_count: usize,
 }
 
@@ -13,6 +15,7 @@ impl WatchEventAdapter {
     pub fn new() -> Self {
         Self {
             violation_count: 0,
+            error_count: 0,
             check_count: 0,
         }
     }
@@ -43,7 +46,7 @@ impl WatchEventAdapter {
                 self.handle_violation(file, message, &event.timestamp, data);
             }
             EventPayload::Error(err) => {
-                Self::handle_error(&err.message, &event.timestamp, data);
+                self.handle_error(&err.message, &event.timestamp, data);
             }
         }
     }
@@ -51,6 +54,7 @@ impl WatchEventAdapter {
     fn handle_progress(&mut self, phase: &str, current: u64, total: u64, data: &mut WatchData) {
         if current == 0 {
             self.violation_count = 0;
+            self.error_count = 0;
             self.check_count = 0;
         }
 
@@ -61,7 +65,7 @@ impl WatchEventAdapter {
             {
                 self.check_count = total as usize;
             }
-            let passed = self.violation_count == 0;
+            let passed = self.violation_count == 0 && self.error_count == 0;
             data.status = if passed {
                 WatchStatus::Passing
             } else {
@@ -92,8 +96,8 @@ impl WatchEventAdapter {
         }
 
         // Each snapshot represents a completed watch cycle.
-        // Record the result and reset violation state for the next cycle.
-        let passed = self.violation_count == 0;
+        // Record the result and reset violation/error state for the next cycle.
+        let passed = self.violation_count == 0 && self.error_count == 0;
         let checks_passed = self.check_count.saturating_sub(self.violation_count);
 
         data.stats.total_runs += 1;
@@ -117,6 +121,7 @@ impl WatchEventAdapter {
 
         // Reset for next watch cycle
         self.violation_count = 0;
+        self.error_count = 0;
         self.check_count = 0;
     }
 
@@ -137,7 +142,8 @@ impl WatchEventAdapter {
         });
     }
 
-    fn handle_error(message: &str, timestamp: &str, data: &mut WatchData) {
+    fn handle_error(&mut self, message: &str, timestamp: &str, data: &mut WatchData) {
+        self.error_count += 1;
         data.status = WatchStatus::Failing;
         data.queue.push(QueuedChange {
             file: "(error)".to_string(),
@@ -350,6 +356,35 @@ mod tests {
         assert_eq!(data.status, WatchStatus::Failing);
         assert_eq!(data.queue.len(), 1);
         assert_eq!(data.queue[0].file, "(error)");
+    }
+
+    #[test]
+    fn snapshot_after_error_records_failing_run() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        adapter.handle_event(&error_event("parse failed"), &mut data);
+        adapter.handle_event(&snapshot_event(10), &mut data);
+
+        assert_eq!(data.status, WatchStatus::Failing);
+        assert_eq!(data.stats.total_runs, 1);
+        assert!(!data.history[0].passed);
+    }
+
+    #[test]
+    fn error_state_resets_after_snapshot() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        // First cycle: error then snapshot
+        adapter.handle_event(&error_event("parse failed"), &mut data);
+        adapter.handle_event(&snapshot_event(10), &mut data);
+        assert_eq!(data.status, WatchStatus::Failing);
+
+        // Second cycle: clean snapshot — should transition to Passing
+        adapter.handle_event(&snapshot_event(10), &mut data);
+        assert_eq!(data.status, WatchStatus::Passing);
+        assert_eq!(data.stats.total_runs, 2);
     }
 
     #[test]
