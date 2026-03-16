@@ -281,8 +281,9 @@ fn extract_cjs_export(
                             property_names.push(node_text(child, source));
                         }
                         "pair" => {
-                            if let Some(value_node) = child.child_by_field_name("value") {
-                                property_names.push(node_text(value_node, source));
+                            // Use the property key (exported name), not the value
+                            if let Some(key_node) = child.child_by_field_name("key") {
+                                property_names.push(node_text(key_node, source));
                             }
                         }
                         _ => {}

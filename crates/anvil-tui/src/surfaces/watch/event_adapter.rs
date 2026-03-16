@@ -85,28 +85,39 @@ impl WatchEventAdapter {
         }
     }
 
-    fn handle_snapshot(&self, files_watched: u64, data: &mut WatchData) {
+    fn handle_snapshot(&mut self, files_watched: u64, data: &mut WatchData) {
         #[allow(clippy::cast_possible_truncation)]
         {
             data.stats.files_watched = files_watched as usize;
         }
 
-        if self.violation_count == 0 {
-            data.stats.total_runs += 1;
-            data.status = WatchStatus::Passing;
+        // Each snapshot represents a completed watch cycle.
+        // Record the result and reset violation state for the next cycle.
+        let passed = self.violation_count == 0;
+        let checks_passed = self.check_count.saturating_sub(self.violation_count);
 
-            data.history.insert(
-                0,
-                RunHistory {
-                    passed: true,
-                    checks_run: self.check_count,
-                    checks_passed: self.check_count,
-                    duration_ms: 0,
-                    timestamp: "snapshot complete".to_string(),
-                },
-            );
-            Self::update_pass_rate(data);
-        }
+        data.stats.total_runs += 1;
+        data.status = if passed {
+            WatchStatus::Passing
+        } else {
+            WatchStatus::Failing
+        };
+
+        data.history.insert(
+            0,
+            RunHistory {
+                passed,
+                checks_run: self.check_count,
+                checks_passed,
+                duration_ms: 0,
+                timestamp: "snapshot complete".to_string(),
+            },
+        );
+        Self::update_pass_rate(data);
+
+        // Reset for next watch cycle
+        self.violation_count = 0;
+        self.check_count = 0;
     }
 
     fn handle_violation(
@@ -279,7 +290,7 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_after_violation_does_not_mark_passing() {
+    fn snapshot_after_violation_records_failing_run() {
         let mut adapter = WatchEventAdapter::new();
         let mut data = empty_data();
 
@@ -290,8 +301,28 @@ mod tests {
         adapter.handle_event(&snapshot_event(10), &mut data);
 
         assert_eq!(data.status, WatchStatus::Failing);
-        assert_eq!(data.stats.total_runs, 0);
-        assert!(data.history.is_empty());
+        assert_eq!(data.stats.total_runs, 1);
+        assert_eq!(data.history.len(), 1);
+        assert!(!data.history[0].passed);
+    }
+
+    #[test]
+    fn violation_state_resets_after_snapshot() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        // First cycle: violation then snapshot
+        adapter.handle_event(
+            &violation_event("src/bad.ts", "cross-layer import"),
+            &mut data,
+        );
+        adapter.handle_event(&snapshot_event(10), &mut data);
+        assert_eq!(data.status, WatchStatus::Failing);
+
+        // Second cycle: clean snapshot — should transition to Passing
+        adapter.handle_event(&snapshot_event(10), &mut data);
+        assert_eq!(data.status, WatchStatus::Passing);
+        assert_eq!(data.stats.total_runs, 2);
     }
 
     #[test]
