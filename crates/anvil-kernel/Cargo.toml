@@ -20,8 +20,13 @@ thiserror = { workspace = true }
 walkdir = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 insta = { workspace = true }
 tempfile = "3"
+
+[[bench]]
+name = "kernel"
+harness = false
 
 [lints]
 workspace = true
