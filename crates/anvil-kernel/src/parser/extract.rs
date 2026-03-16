@@ -92,15 +92,58 @@ fn extract_from_node(
                     sym.visibility = Visibility::Public;
                 }
             } else {
-                symbols.push(SymbolNode {
-                    id: *next_id,
-                    kind: SymbolKind::Export,
-                    name: String::from("*"),
-                    visibility: Visibility::Public,
-                    file: file.to_string(),
-                    trust_level: TrustLevel::default(),
-                });
-                *next_id += 1;
+                // Handle named export clauses: `export { foo, bar }`
+                let mut handled_clause = false;
+                for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
+                    if let Some(child) = node.named_child(i) {
+                        if child.kind() == "export_clause" {
+                            handled_clause = true;
+                            for j in 0..u32::try_from(child.named_child_count()).unwrap_or(0) {
+                                if let Some(spec) = child.named_child(j) {
+                                    if spec.kind() == "export_specifier" {
+                                        let name = if let Some(alias) =
+                                            spec.child_by_field_name("alias")
+                                        {
+                                            node_text(alias, source)
+                                        } else if let Some(name_node) =
+                                            spec.child_by_field_name("name")
+                                        {
+                                            node_text(name_node, source)
+                                        } else {
+                                            continue;
+                                        };
+                                        // Mark existing symbol as Public if found
+                                        if let Some(sym) =
+                                            symbols.iter_mut().find(|s| s.name == name)
+                                        {
+                                            sym.visibility = Visibility::Public;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Re-export from another module: `export { x } from './mod'`
+                if let Some(source_node) = node.child_by_field_name("source") {
+                    let raw = node_text(source_node, source);
+                    let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
+                    imports.push(ImportEdge {
+                        from_file: file.to_string(),
+                        to_source: module_path.to_string(),
+                    });
+                }
+                if !handled_clause {
+                    symbols.push(SymbolNode {
+                        id: *next_id,
+                        kind: SymbolKind::Export,
+                        name: String::from("*"),
+                        visibility: Visibility::Public,
+                        file: file.to_string(),
+                        trust_level: TrustLevel::default(),
+                    });
+                    *next_id += 1;
+                }
             }
         }
         "import_statement" => {
@@ -111,6 +154,56 @@ fn extract_from_node(
                     from_file: file.to_string(),
                     to_source: module_path.to_string(),
                 });
+            }
+        }
+        "call_expression" => {
+            // Capture CommonJS require() calls as imports
+            if let Some(func) = node.child_by_field_name("function") {
+                if node_text(func, source) == "require" {
+                    if let Some(args) = node.child_by_field_name("arguments") {
+                        if let Some(arg) = args.named_child(0) {
+                            let raw = node_text(arg, source);
+                            let module_path = raw.trim_matches(|c| c == '\'' || c == '"');
+                            if !module_path.is_empty() {
+                                imports.push(ImportEdge {
+                                    from_file: file.to_string(),
+                                    to_source: module_path.to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        "assignment_expression" => {
+            // Capture CommonJS module.exports / exports.foo as Public symbols
+            if let Some(left) = node.child_by_field_name("left") {
+                let left_text = node_text(left, source);
+                if left_text.starts_with("module.exports") || left_text.starts_with("exports.") {
+                    // Extract the assigned name if it's `exports.foo = ...`
+                    if left_text.starts_with("exports.") {
+                        if let Some(name) = left_text.strip_prefix("exports.") {
+                            if let Some(sym) = symbols.iter_mut().find(|s| s.name == name) {
+                                sym.visibility = Visibility::Public;
+                            } else {
+                                symbols.push(SymbolNode {
+                                    id: *next_id,
+                                    kind: SymbolKind::Export,
+                                    name: name.to_string(),
+                                    visibility: Visibility::Public,
+                                    file: file.to_string(),
+                                    trust_level: TrustLevel::default(),
+                                });
+                                *next_id += 1;
+                            }
+                        }
+                    } else {
+                        // module.exports = ... — mark all preceding symbols as Public
+                        for sym in symbols.iter_mut().filter(|s| s.file == file) {
+                            sym.visibility = Visibility::Public;
+                        }
+                    }
+                }
             }
         }
         "lexical_declaration" => {
@@ -143,7 +236,7 @@ fn extract_from_node(
     // Recurse into children (except for nodes we've already handled)
     if !matches!(
         node.kind(),
-        "function_declaration" | "class_declaration" | "lexical_declaration"
+        "function_declaration" | "class_declaration" | "lexical_declaration" | "export_statement"
     ) {
         for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
             if let Some(child) = node.named_child(i) {
