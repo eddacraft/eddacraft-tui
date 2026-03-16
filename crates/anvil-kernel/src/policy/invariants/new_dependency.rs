@@ -1,3 +1,5 @@
+use anvil_kernel_types::TrustLevel;
+
 use crate::graph::SymbolGraph;
 use crate::graph::incremental::GraphDelta;
 use crate::policy::config::ArchitectureConfig;
@@ -6,24 +8,6 @@ use crate::policy::engine::{Invariant, Severity, Violation};
 /// Detects when a `GraphDelta` adds a symbol in a file that imports an external
 /// module not previously seen. Flags new external dependencies for review.
 pub struct NewDependencyIntroduction;
-
-/// Known source file extensions that indicate a resolved internal path.
-const RESOLVED_EXTENSIONS: &[&str] = &[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"];
-
-impl NewDependencyIntroduction {
-    fn is_external_import(source: &str) -> bool {
-        if source.starts_with('.') || source.starts_with('/') {
-            return false;
-        }
-        // After import resolution, in-repo imports are stored as concrete file
-        // paths like `src/utils.ts`. A path containing a separator or ending
-        // with a known extension is a resolved internal path, not an npm package.
-        if source.contains('/') && RESOLVED_EXTENSIONS.iter().any(|ext| source.ends_with(ext)) {
-            return false;
-        }
-        true
-    }
-}
 
 impl Invariant for NewDependencyIntroduction {
     fn id(&self) -> &'static str {
@@ -54,7 +38,10 @@ impl Invariant for NewDependencyIntroduction {
             let Some(target_sym) = graph.get_symbol(to_id) else {
                 continue;
             };
-            if Self::is_external_import(&target_sym.file)
+            // Use trust level to identify external targets — synthetic external
+            // nodes created by resolve_import have TrustLevel::External.
+            // This correctly handles npm subpath imports like lodash/fp.js.
+            if target_sym.trust_level == TrustLevel::External
                 && !delta.previously_imported.contains(&target_sym.file)
             {
                 violations.push(Violation {
@@ -87,6 +74,17 @@ mod tests {
         }
     }
 
+    fn make_external_sym(id: u64, name: &str, file: &str) -> SymbolNode {
+        SymbolNode {
+            id,
+            kind: SymbolKind::Module,
+            name: name.to_string(),
+            visibility: Visibility::Public,
+            file: file.to_string(),
+            trust_level: TrustLevel::External,
+        }
+    }
+
     fn empty_config() -> ArchitectureConfig {
         ArchitectureConfig { layers: Vec::new() }
     }
@@ -97,7 +95,9 @@ mod tests {
         graph
             .add_symbol(make_sym(1, "handler", "src/api.ts"))
             .unwrap();
-        graph.add_symbol(make_sym(2, "axios", "axios")).unwrap();
+        graph
+            .add_symbol(make_external_sym(2, "axios", "axios"))
+            .unwrap();
 
         let delta = GraphDelta {
             added_symbols: vec![1],
@@ -176,7 +176,9 @@ mod tests {
         graph
             .add_symbol(make_sym(1, "handler", "src/api.ts"))
             .unwrap();
-        graph.add_symbol(make_sym(2, "zod", "@scope/pkg")).unwrap();
+        graph
+            .add_symbol(make_external_sym(2, "zod", "@scope/pkg"))
+            .unwrap();
 
         let delta = GraphDelta {
             added_symbols: vec![1],
@@ -192,22 +194,26 @@ mod tests {
     }
 
     #[test]
-    fn classifies_external_imports_correctly() {
-        // Bare specifiers are external
-        assert!(NewDependencyIntroduction::is_external_import("react"));
-        assert!(NewDependencyIntroduction::is_external_import("@scope/pkg"));
-        // Resolved file paths are internal
-        assert!(!NewDependencyIntroduction::is_external_import(
-            "src/utils.ts"
-        ));
-        assert!(!NewDependencyIntroduction::is_external_import(
-            "lib/helpers.tsx"
-        ));
-        assert!(!NewDependencyIntroduction::is_external_import(
-            "src/index.mjs"
-        ));
-        // Relative and absolute paths are internal
-        assert!(!NewDependencyIntroduction::is_external_import("./utils"));
-        assert!(!NewDependencyIntroduction::is_external_import("/abs/path"));
+    fn fires_on_npm_subpath_with_extension() {
+        // lodash/fp.js is a valid npm subpath import — should be flagged
+        let mut graph = SymbolGraph::new();
+        graph
+            .add_symbol(make_sym(1, "handler", "src/api.ts"))
+            .unwrap();
+        graph
+            .add_symbol(make_external_sym(2, "lodash", "lodash/fp.js"))
+            .unwrap();
+
+        let delta = GraphDelta {
+            added_symbols: vec![1],
+            added_edges: vec![(1, 2, EdgeType::Imports)],
+            file: "src/api.ts".to_string(),
+            ..Default::default()
+        };
+
+        let inv = NewDependencyIntroduction;
+        let violations = inv.evaluate(&delta, &graph, &empty_config());
+
+        assert_eq!(violations.len(), 1);
     }
 }

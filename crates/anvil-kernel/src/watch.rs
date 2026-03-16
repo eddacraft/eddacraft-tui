@@ -257,9 +257,10 @@ fn watch_loop(
                         emitter.violation(v);
                     }
 
-                    // Only increment file_count for genuinely new files
-                    // (not re-created files that were already tracked)
-                    if change.kind == ChangeKind::Created && delta.removed_symbols.is_empty() {
+                    // Increment file_count for any newly tracked file — whether
+                    // Created or Modified that parsed successfully for the first
+                    // time (delta.removed_symbols empty means no prior tracking)
+                    if delta.removed_symbols.is_empty() {
                         state.file_count += 1;
                     }
                     emitter.snapshot(&state.graph, state.file_count);
