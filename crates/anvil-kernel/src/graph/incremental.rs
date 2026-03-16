@@ -10,6 +10,7 @@ pub struct GraphDelta {
     pub removed_symbols: Vec<u64>,
     pub added_edges: Vec<(u64, u64, EdgeType)>,
     pub removed_edges: Vec<(u64, u64, EdgeType)>,
+    pub errors: Vec<String>,
     pub file: String,
 }
 
@@ -19,6 +20,7 @@ impl GraphDelta {
             && self.removed_symbols.is_empty()
             && self.added_edges.is_empty()
             && self.removed_edges.is_empty()
+            && self.errors.is_empty()
     }
 }
 
@@ -33,10 +35,15 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
     let removed_ids = graph.remove_file(&file);
 
     let mut added_ids = Vec::new();
+    let mut errors = Vec::new();
     for symbol in new_symbols.symbols {
         let id = symbol.id;
-        if graph.add_symbol(symbol).is_ok() {
-            added_ids.push(id);
+        match graph.add_symbol(symbol) {
+            Ok(_) => added_ids.push(id),
+            Err(e) => {
+                eprintln!("graph: failed to insert symbol {id}: {e}");
+                errors.push(format!("symbol {id}: {e}"));
+            }
         }
     }
 
@@ -45,6 +52,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         removed_symbols: removed_ids,
         added_edges: Vec::new(),
         removed_edges: Vec::new(),
+        errors,
         file,
     }
 }
