@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::Path;
 
 use anvil_kernel_types::{EdgeType, SymbolKind, SymbolNode, TrustLevel, Visibility};
@@ -63,11 +63,13 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
     }
 
     // Collect all known file paths in the graph for import resolution.
+    // Use BTreeSet for deterministic ordering so ambiguous matches are resolved
+    // consistently regardless of HashMap iteration order.
     let known_files: Vec<String> = graph
         .inner()
         .node_weights()
         .map(|s| s.file.clone())
-        .collect::<HashSet<_>>()
+        .collect::<BTreeSet<_>>()
         .into_iter()
         .collect();
 
@@ -204,11 +206,23 @@ fn resolve_import(
 
     for candidate in &candidates {
         // Normalise path separators for comparison
-        let normalised = candidate.replace("\\", "/");
-        if let Some(file_path) = known_files.iter().find(|f| {
-            let f_norm = f.replace("\\", "/");
-            f_norm == normalised || f_norm.ends_with(&normalised)
-        }) {
+        let normalised = candidate.replace('\\', "/");
+
+        // Collect all matching files, preferring exact matches then shortest path
+        // (most specific) to avoid nondeterministic resolution when multiple
+        // files share a suffix (e.g. src/utils.ts vs packages/app/src/utils.ts).
+        let mut matches: Vec<&String> = known_files
+            .iter()
+            .filter(|f| {
+                let f_norm = f.replace('\\', "/");
+                f_norm == normalised || f_norm.ends_with(&format!("/{normalised}"))
+            })
+            .collect();
+
+        if !matches.is_empty() {
+            // Prefer exact match, then shortest path (most specific)
+            matches.sort_by_key(|f| f.len());
+            let file_path = matches[0];
             return graph
                 .inner()
                 .node_weights()
@@ -487,6 +501,55 @@ mod tests {
         assert!(
             delta2.previously_imported.contains("axios"),
             "re-added import should appear in previously_imported"
+        );
+    }
+
+    #[test]
+    fn ambiguous_relative_import_resolves_to_shortest_path() {
+        let mut g = SymbolGraph::new();
+
+        // Two files that both end with "src/utils.ts"
+        g.add_symbol(SymbolNode {
+            id: 50,
+            kind: SymbolKind::Function,
+            name: "short_helper".to_string(),
+            visibility: Visibility::Internal,
+            file: "src/utils.ts".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .unwrap();
+        g.add_symbol(SymbolNode {
+            id: 51,
+            kind: SymbolKind::Function,
+            name: "long_helper".to_string(),
+            visibility: Visibility::Internal,
+            file: "packages/app/src/utils.ts".to_string(),
+            trust_level: TrustLevel::Unknown,
+        })
+        .unwrap();
+
+        let syms = FileSymbols {
+            file: "src/main.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 1,
+                kind: SymbolKind::Function,
+                name: "app".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/main.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![ImportEdge {
+                from_file: "src/main.ts".to_string(),
+                to_source: "./utils".to_string(),
+            }],
+        };
+
+        let delta = update_file(&mut g, syms);
+
+        assert_eq!(delta.added_edges.len(), 1, "should resolve the import");
+        assert_eq!(
+            delta.added_edges[0].1, 50,
+            "should resolve to shortest path (src/utils.ts, id=50)"
         );
     }
 
