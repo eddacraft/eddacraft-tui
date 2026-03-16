@@ -109,7 +109,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
             ))];
             if check.auto_fixable {
                 lines.push(Line::from(Span::styled(
-                    "Auto-fixable: press 'f' to fix",
+                    "Auto-fixable",
                     Style::default().fg(theme.accent()),
                 )));
             }

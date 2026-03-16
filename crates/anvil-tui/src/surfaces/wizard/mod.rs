@@ -76,6 +76,7 @@ pub struct WizardState {
     pub templates: Vec<Template>,
     pub template_selected: usize,
     pub config: WizardConfig,
+    pub config_selected: usize,
     pub text_input: TextInputState,
     pub should_quit: bool,
     pub confirmed: bool,
@@ -88,6 +89,7 @@ impl WizardState {
             templates,
             template_selected: 0,
             config: WizardConfig::default(),
+            config_selected: 0,
             text_input: TextInputState::default(),
             should_quit: false,
             confirmed: false,
@@ -128,6 +130,13 @@ impl WizardState {
 
     fn handle_name_key(&mut self, action: Action) {
         match action {
+            Action::Character(c) => self.text_input.insert(c),
+            Action::Backspace => self.text_input.backspace(),
+            Action::Delete => self.text_input.delete(),
+            Action::Left => self.text_input.move_left(),
+            Action::Right => self.text_input.move_right(),
+            Action::Home => self.text_input.home(),
+            Action::End => self.text_input.end(),
             Action::Select => {
                 self.config.project_name = self.text_input.value.clone();
                 if !self.config.project_name.is_empty() {
@@ -144,7 +153,28 @@ impl WizardState {
 
     fn handle_configure_key(&mut self, action: Action) {
         match action {
-            Action::Select => {
+            Action::Up => {
+                if self.config_selected > 0 {
+                    self.config_selected -= 1;
+                }
+            }
+            Action::Down => {
+                if self.config_selected < 1 {
+                    self.config_selected += 1;
+                }
+            }
+            Action::Toggle | Action::Select => {
+                match self.config_selected {
+                    0 => self.config.enable_watch = !self.config.enable_watch,
+                    1 => self.config.enable_hooks = !self.config.enable_hooks,
+                    _ => {}
+                }
+                // If Select on last option, also advance
+                if action == Action::Select && self.config_selected == 1 {
+                    self.step = WizardStep::Summary;
+                }
+            }
+            Action::Right => {
                 self.step = WizardStep::Summary;
             }
             Action::Back => {
@@ -229,6 +259,70 @@ mod tests {
         assert_eq!(WizardStep::ProjectName.next(), Some(WizardStep::Configure));
         assert_eq!(WizardStep::Configure.next(), Some(WizardStep::Summary));
         assert_eq!(WizardStep::Summary.next(), None);
+    }
+
+    #[test]
+    fn name_step_handles_text_input() {
+        let mut state = WizardState::new(sample_templates());
+        state.handle_key(Action::Select); // advance to ProjectName
+        assert_eq!(state.step, WizardStep::ProjectName);
+
+        state.handle_key(Action::Character('m'));
+        state.handle_key(Action::Character('y'));
+        state.handle_key(Action::Character('-'));
+        state.handle_key(Action::Character('p'));
+        assert_eq!(state.text_input.value, "my-p");
+
+        state.handle_key(Action::Backspace);
+        assert_eq!(state.text_input.value, "my-");
+    }
+
+    #[test]
+    fn name_step_requires_non_empty() {
+        let mut state = WizardState::new(sample_templates());
+        state.step = WizardStep::ProjectName;
+
+        // Enter with empty name should NOT advance
+        state.handle_key(Action::Select);
+        assert_eq!(state.step, WizardStep::ProjectName);
+
+        // Type something then enter
+        state.handle_key(Action::Character('a'));
+        state.handle_key(Action::Select);
+        assert_eq!(state.step, WizardStep::Configure);
+        assert_eq!(state.config.project_name, "a");
+    }
+
+    #[test]
+    fn configure_step_toggles_options() {
+        let mut state = WizardState::new(sample_templates());
+        state.step = WizardStep::Configure;
+
+        assert!(!state.config.enable_watch);
+        assert!(!state.config.enable_hooks);
+
+        // Toggle watch mode (selected by default at index 0)
+        state.handle_key(Action::Toggle);
+        assert!(state.config.enable_watch);
+
+        // Navigate to hooks and toggle
+        state.handle_key(Action::Down);
+        assert_eq!(state.config_selected, 1);
+        state.handle_key(Action::Toggle);
+        assert!(state.config.enable_hooks);
+
+        // Toggle watch off again
+        state.handle_key(Action::Up);
+        state.handle_key(Action::Toggle);
+        assert!(!state.config.enable_watch);
+    }
+
+    #[test]
+    fn configure_step_advances_with_right() {
+        let mut state = WizardState::new(sample_templates());
+        state.step = WizardStep::Configure;
+        state.handle_key(Action::Right);
+        assert_eq!(state.step, WizardStep::Summary);
     }
 
     #[test]

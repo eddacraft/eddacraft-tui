@@ -30,7 +30,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WizardState, theme: &EddaCr
     let help_text = match state.step {
         WizardStep::TemplateSelect => "j/k navigate  enter select  q quit",
         WizardStep::ProjectName => "type name  enter confirm  esc back  q quit",
-        WizardStep::Configure => "enter next  esc back  q quit",
+        WizardStep::Configure => "j/k navigate  space toggle  l next  esc back  q quit",
         WizardStep::Summary => "enter confirm  esc back  q quit",
     };
     let help = Paragraph::new(Line::from(Span::styled(
@@ -144,33 +144,38 @@ fn render_configure_step(
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let watch_icon = if state.config.enable_watch { "*" } else { "o" };
-    let hooks_icon = if state.config.enable_hooks { "*" } else { "o" };
+    let options: &[(bool, &str)] = &[
+        (state.config.enable_watch, "Enable watch mode"),
+        (state.config.enable_hooks, "Install git hooks"),
+    ];
 
-    let content = Paragraph::new(Text::from(vec![
-        Line::from(vec![
-            Span::styled(
-                format!("{watch_icon} "),
-                Style::default().fg(if state.config.enable_watch {
-                    theme.success()
-                } else {
-                    theme.muted()
-                }),
-            ),
-            Span::styled("Enable watch mode", Style::default().fg(theme.fg())),
-        ]),
-        Line::from(vec![
-            Span::styled(
-                format!("{hooks_icon} "),
-                Style::default().fg(if state.config.enable_hooks {
-                    theme.success()
-                } else {
-                    theme.muted()
-                }),
-            ),
-            Span::styled("Install git hooks", Style::default().fg(theme.fg())),
-        ]),
-    ]));
+    let lines: Vec<Line> = options
+        .iter()
+        .enumerate()
+        .map(|(i, (enabled, label))| {
+            let selected = i == state.config_selected;
+            let indicator = if selected { ">> " } else { "   " };
+            let icon = if *enabled { "[x]" } else { "[ ]" };
+            let icon_colour = if *enabled {
+                theme.success()
+            } else {
+                theme.muted()
+            };
+            let label_style = if selected {
+                Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.fg())
+            };
+
+            Line::from(vec![
+                Span::styled(indicator, label_style),
+                Span::styled(format!("{icon} "), Style::default().fg(icon_colour)),
+                Span::styled(*label, label_style),
+            ])
+        })
+        .collect();
+
+    let content = Paragraph::new(Text::from(lines));
     frame.render_widget(content, inner);
 }
 
