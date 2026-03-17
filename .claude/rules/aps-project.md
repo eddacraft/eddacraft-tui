@@ -40,6 +40,7 @@
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
 - AGOV: agent-governance-patterns (0/7) — Draft
+- BENCH: kernel-benchmarking (0/16) — Ready
 
 ## Conventions
 
@@ -408,4 +409,17 @@ packages/anvil/runtime/src/gate/checks/capability-declaration.check.test.ts: AGO
 packages/anvil/core/src/config/capability-manifest.ts: AGOV-007
 packages/anvil/core/src/config/capability-manifest.test.ts: AGOV-007
 apps/anvil-cli/src/commands/capability.ts: AGOV-007
+# BENCH: Kernel Benchmarking
+crates/anvil-kernel/benches/kernel.rs: BENCH-001, BENCH-002, BENCH-003, BENCH-004, BENCH-005
+crates/anvil-bench/src/fixture.rs: BENCH-010
+crates/anvil-bench/src/measure.rs: BENCH-011
+crates/anvil-bench/src/report.rs: BENCH-012
+crates/anvil-bench/src/scenarios/watcher_saturation.rs: BENCH-013
+crates/anvil-bench/src/scenarios/graph_memory.rs: BENCH-014
+crates/anvil-bench/src/scenarios/incremental_throughput.rs: BENCH-015
+crates/anvil-bench/src/scenarios/policy_scaling.rs: BENCH-016
+crates/anvil-bench/src/scenarios/cold_start_scaling.rs: BENCH-017
+README.md: BENCH-006
+.github/workflows/: BENCH-020, BENCH-021
+docs/architecture/kernel-benchmarking-spec.md: BENCH
 ```
