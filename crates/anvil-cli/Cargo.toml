@@ -27,6 +27,7 @@ ratatui = { workspace = true }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 dirs = { workspace = true }
+walkdir = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"
