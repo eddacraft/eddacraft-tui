@@ -1,3 +1,4 @@
+<<<<<<< feat/dependabot-skill
 # Security & Quality Alert Remediation Skill — Design Spec
 
 **Date:** 2026-03-16 (updated 2026-03-17)
@@ -30,11 +31,34 @@ The skill embodies an investigative, problem-solving approach:
 - For code quality findings, independently assess whether the suggestion is
   correct — write a better fix when the suggested diff is wrong
 - Cite every decision with a source link
+=======
+# Dependabot Alert Remediation Skill — Design Spec
+
+**Date:** 2026-03-16 **Status:** Draft **Skill name:** `dependabot`
+**Invocation:** `/dependabot` (optional args: severity filter, ecosystem filter)
+
+## Overview
+
+Full-lifecycle Dependabot alert remediation skill. Sweeps all open alerts,
+builds a prioritised fix plan with research citations, executes fixes with
+persistent problem-solving, and opens draft PRs (one per alert or alert group)
+with detailed reports.
+
+The skill embodies an investigative, problem-solving approach rather than
+surface-level bumps:
+
+- Try bold upgrades (major version bumps) rather than assuming they'll break
+- Don't treat lock file pins as intentional — investigate why before giving up
+- Research the dependency itself (changelogs, issues, community)
+- Be willing to replace unmaintained deps with modern alternatives
+- Treat alerts as an opportunity to refresh stale corners of the codebase
+>>>>>>> dev
 
 ## Pipeline Phases
 
 ### Phase 1 — Discovery
 
+<<<<<<< feat/dependabot-skill
 #### 1.1 Determine active tracks
 
 Based on invocation args, activate one or both tracks:
@@ -44,6 +68,8 @@ Based on invocation args, activate one or both tracks:
 
 #### 1.2 Fetch dependabot alerts (dependabot track)
 
+=======
+>>>>>>> dev
 Fetch all open Dependabot alerts via `gh api` (handle pagination for repos with
 many alerts). For each alert, gather:
 
@@ -53,6 +79,7 @@ many alerts). For each alert, gather:
 - Whether it's a direct or transitive dependency
 - What direct deps pull it in (dependency chain)
 
+<<<<<<< feat/dependabot-skill
 Check for existing open PRs or branches from previous runs
 (`dependabot/fix/*`) to avoid duplicate work. If a prior draft PR exists for an
 alert that is still open, note it for the user in the plan rather than creating
@@ -123,6 +150,26 @@ Group alerts by root cause. Multiple alerts caused by the same underlying
 dependency (e.g., 3 CVEs in `undici` via different paths) become one group.
 Separate npm alerts from github-actions alerts — they follow different fix
 paths.
+=======
+Check for existing open PRs or branches from previous runs (`dependabot/fix/*`)
+to avoid duplicate work. If a prior draft PR exists for an alert that is still
+open, note it for the user in the plan rather than creating a new branch.
+
+If zero alerts are open, report that and exit cleanly.
+
+Detect the repo setup:
+
+- Package manager (pnpm, npm, yarn)
+- Workspace structure (monorepo or single-package)
+- Override mechanism (pnpm overrides, npm overrides, yarn resolutions)
+- Build and test commands
+- Default branch via `gh repo view --json defaultBranchRef`
+
+### Phase 2 — Assessment & Grouping
+
+Group alerts by root cause. Multiple alerts caused by the same underlying
+dependency (e.g., 3 CVEs in `undici` via different paths) become one group.
+>>>>>>> dev
 
 For each group, research:
 
@@ -136,6 +183,7 @@ For each group, research:
 
 Classify each group into a strategy:
 
+<<<<<<< feat/dependabot-skill
 | Strategy             | When                                                         |
 | -------------------- | ------------------------------------------------------------ |
 | **Quick bump**       | Patch/minor update available, low risk                       |
@@ -143,21 +191,39 @@ Classify each group into a strategy:
 | **Replace**          | Dependency is unmaintained/legacy, modern alternative exists  |
 | **Override**         | Transitive dep can be forced via lock file overrides          |
 | **Escalate**         | Fix requires architectural changes beyond dependency surface  |
+=======
+| Strategy          | When                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| **Quick bump**    | Patch/minor update available, low risk                       |
+| **Major upgrade** | Breaking changes, needs testing and possibly code changes    |
+| **Replace**       | Dependency is unmaintained/legacy, modern alternative exists |
+| **Override**      | Transitive dep can be forced via lock file overrides         |
+| **Escalate**      | Fix requires architectural changes beyond dependency surface |
+>>>>>>> dev
 
 Perform a reachability check: does the project import or use the vulnerable
 package directly? This is a grep-based approximation (search for imports of the
 package name across affected workspace packages), not full code-path analysis.
+<<<<<<< feat/dependabot-skill
 Note the result in the report. Still fix if the upgrade is easy, but deprioritise
 if it requires significant effort on an unreachable path.
 
 Groups classified as **Escalate** skip execution entirely and go straight to the
 sweep report with their research findings attached.
+=======
+Note the result in the report. Still fix if the upgrade is easy, but
+deprioritise if it requires significant effort on an unreachable path.
+
+Groups classified as **Escalate** in this phase skip execution entirely and go
+straight to the sweep report with their research findings attached.
+>>>>>>> dev
 
 **Research tools:** Use `gh` CLI for GitHub data (issues, releases, changelogs
 on the dependency repo). Use web search for community experience (migration
 guides, blog posts). Acknowledge that community research has a staleness caveat
 — note when sources are from training knowledge vs live fetches.
 
+<<<<<<< feat/dependabot-skill
 #### Code quality track
 
 **Grouping:** Group findings by category first (e.g., all "missing error
@@ -236,11 +302,36 @@ Ask:
 Wait for the user's response. If the user modifies the plan, acknowledge the
 changes and proceed without re-presenting the full plan (unless the change is
 ambiguous). This is a single approval checkpoint, not an interactive loop.
+=======
+### Phase 3 — Plan Presentation
+
+Present the full sweep plan for user approval before any changes. Each group
+shows:
+
+- Alerts covered (by number)
+- Proposed strategy
+- Research findings with source links (URLs to changelogs, issues, guides)
+- Risk assessment
+- Expected scope of changes
+
+The skill pauses and asks the user for approval. The user can respond with:
+
+- **"approve all"** or **"go"** — execute every group as planned
+- **"skip group N"** or **"skip \<package\>"** — exclude specific groups
+- **"only groups 1, 3"** — execute only named groups
+- **Modification requests** — e.g., "try replacement instead of bump for group
+  2"
+
+If the user modifies the plan, the skill acknowledges the changes and proceeds
+without re-presenting the full plan (unless the change is ambiguous). This is a
+single approval checkpoint, not an interactive loop.
+>>>>>>> dev
 
 ### Phase 4 — Execution
 
 **Baseline test run:** Before starting any fixes, run the test suite on the
 unmodified default branch. Record any pre-existing failures so they can be
+<<<<<<< feat/dependabot-skill
 distinguished from regressions.
 
 Work through approved groups in priority order. Dependabot groups (especially
@@ -262,13 +353,34 @@ For each group:
 9. **Continue regardless** — a failed group does not block subsequent groups
 
 Return to the default branch between groups.
+=======
+distinguished from regressions caused by dependency changes.
+
+Work through approved groups in priority order (critical/high first).
+
+For each group:
+
+1. Create a branch from the default branch (detected in Phase 1)
+2. Attempt the fix
+3. Build and run tests on affected packages
+4. If it fails, iterate using the fix strategy escalation ladder
+5. If resolved, open a draft PR targeting the default branch
+6. If escalated, document what was tried and why it failed
+7. **Clean up on failure** — if the group is abandoned, delete the branch if
+   nothing was committed; leave it if partial commits exist (for reference)
+8. **Continue regardless** — a failed group does not block subsequent groups
+>>>>>>> dev
 
 The sweep report distinguishes three states: **fixed** (PR opened),
 **escalated** (attempted and abandoned), **skipped** (excluded by user).
 
+<<<<<<< feat/dependabot-skill
 #### Dependabot execution details
 
 **Fix strategy escalation ladder (up to 5 attempts per group):**
+=======
+**Fix strategy escalation ladder (up to 3-4 attempts per group):**
+>>>>>>> dev
 
 1. **Direct bump** — Update version constraint, install, build, test
 2. **Lock file override** — Use pnpm overrides (or npm/yarn equivalent) to force
@@ -288,7 +400,11 @@ resolution override in `package.json` (intentional) or is just a lock file
 artifact (incidental). If incidental, proceed with the upgrade. If intentional,
 investigate why (git blame, commit messages) before deciding.
 
+<<<<<<< feat/dependabot-skill
 **Escalation triggers:**
+=======
+**Escalation triggers (stop and report, don't attempt):**
+>>>>>>> dev
 
 - Fix requires changing build tooling (e.g., esbuild to vite)
 - Fix requires framework migration (e.g., React major version)
@@ -297,6 +413,7 @@ investigate why (git blame, commit messages) before deciding.
 - Package is being deprecated/removed anyway (flag for dismissal via
   `gh api --method PATCH` with a documented reason)
 
+<<<<<<< feat/dependabot-skill
 #### Code quality execution details
 
 For each finding in an approved group:
@@ -317,10 +434,13 @@ For each finding in an approved group:
 - Fix changes observable behaviour (tests fail after the change)
 - Hard backstop: >10 files, >3 packages, architectural changes
 
+=======
+>>>>>>> dev
 ### Phase 5 — Sweep Report
 
 Final output to terminal summarising the full sweep:
 
+<<<<<<< feat/dependabot-skill
 ```
 ## Sweep Complete
 
@@ -353,6 +473,12 @@ Final output to terminal summarising the full sweep:
 - <package> — last release 18 months ago, consider <alternative>
 - <package> — deprecated upstream, successor is <new-package>
 ```
+=======
+- Draft PRs created (with links)
+- Alerts resolved per PR
+- Alerts escalated with reasons and what was attempted
+- Refresh opportunities spotted (legacy deps worth replacing)
+>>>>>>> dev
 
 ## GitHub Actions Ecosystem
 
@@ -363,8 +489,13 @@ ladder (lock file overrides, upstream bumps) does not apply.
 
 1. Identify the action repo and the vulnerable version
 2. Check the action repo for the latest release/tag that fixes the CVE
+<<<<<<< feat/dependabot-skill
 3. Update the `uses:` version pin in the workflow YAML file(s)
    (e.g., `actions/checkout@v3` → `actions/checkout@v4`)
+=======
+3. Update the `uses:` version pin in the workflow YAML file(s) (e.g.,
+   `actions/checkout@v3` → `actions/checkout@v4`)
+>>>>>>> dev
 4. Validate the workflow YAML parses correctly (`yq` or syntax check)
 5. If the action has a major version bump, check the action's changelog for
    breaking changes (new required inputs, removed features, runner version
@@ -381,6 +512,7 @@ workflow files using the same vulnerable action become one group.
 
 ## PR Structure
 
+<<<<<<< feat/dependabot-skill
 ### Dependabot PRs
 
 **Branch naming:**
@@ -389,6 +521,12 @@ Every alert belongs to exactly one group (even if that group has one alert).
 Every group that completes a fix attempt gets exactly one branch and one draft
 PR. Groups that were escalated or skipped do not get branches or PRs — they
 appear only in the sweep report.
+=======
+**Branch naming:**
+
+Every alert belongs to exactly one group (even if that group has one alert).
+Every group gets exactly one branch and one draft PR.
+>>>>>>> dev
 
 - `dependabot/fix/<package-name>` for single-alert groups
 - `dependabot/fix/<root-dep>-group` for multi-alert groups
@@ -396,7 +534,11 @@ appear only in the sweep report.
 
 **Commit conventions:**
 
+<<<<<<< feat/dependabot-skill
 - `fix(deps): upgrade <package> to vN.x`
+=======
+- `fix(deps): upgrade \<package\> to vN.x`
+>>>>>>> dev
 - `fix(deps): replace <old> with <new>`
 - Atomic commits — version bump separate from code adaptations
 
@@ -405,6 +547,7 @@ appear only in the sweep report.
 ```markdown
 ## Dependabot Alert Fix
 
+<<<<<<< feat/dependabot-skill
 **Alerts addressed:** #N, #M
 **Severity:** high
 **Strategy:** upstream bump
@@ -413,21 +556,40 @@ appear only in the sweep report.
 <package> via <dependency chain> — <CVE summary in plain English>
 
 ## What was done
+=======
+**Alerts addressed:** #N, #M **Severity:** high **Strategy:** upstream bump
+
+## What was vulnerable
+
+\<package\> via \<dependency chain\> — \<CVE summary in plain English\>
+
+## What was done
+
+>>>>>>> dev
 - Upgraded <direct-dep> from vX to vY (pulls in patched <transitive-dep>)
 - Updated import path in <file> due to breaking API change
 - <any other changes>
 
 ## Research sources
+<<<<<<< feat/dependabot-skill
+=======
+
+>>>>>>> dev
 - [changelog entry](url) — breaking changes in vY
 - [GitHub issue](url) — confirms compatibility
 - [migration guide](url) — API surface changes
 
 ## What was tested
+<<<<<<< feat/dependabot-skill
+=======
+
+>>>>>>> dev
 - Full build: pass/fail
 - Test suite: pass (N tests)
 - Affected packages: <list of workspace packages>
 
 ## Escalated items
+<<<<<<< feat/dependabot-skill
 (none, or description of what needs architectural discussion)
 ```
 
@@ -475,12 +637,17 @@ appear only in the sweep report.
 
 ## Escalated findings
 - <file:line> — <reason for escalation>
+=======
+
+(none, or description of what needs architectural discussion)
+>>>>>>> dev
 ```
 
 ## Repo Detection
 
 **Generic detection (runs on startup):**
 
+<<<<<<< feat/dependabot-skill
 | Signal                | Detection                                                |
 | --------------------- | -------------------------------------------------------- |
 | Package manager       | Lock file presence: pnpm-lock.yaml, yarn.lock, etc.     |
@@ -488,6 +655,15 @@ appear only in the sweep report.
 | Override mechanism    | pnpm overrides, npm overrides, yarn resolutions          |
 | Build command         | scripts in package.json, Nx/Turbo detection              |
 | Test command          | vitest, jest, etc.                                       |
+=======
+| Signal              | Detection                                              |
+| ------------------- | ------------------------------------------------------ |
+| Package manager     | Lock file presence: pnpm-lock.yaml, yarn.lock, etc.    |
+| Workspace structure | pnpm-workspace.yaml, workspaces in package.json, lerna |
+| Override mechanism  | pnpm overrides, npm overrides, yarn resolutions        |
+| Build command       | scripts in package.json, Nx/Turbo detection            |
+| Test command        | vitest, jest, etc.                                     |
+>>>>>>> dev
 
 **Monorepo behaviour:**
 
@@ -500,7 +676,11 @@ appear only in the sweep report.
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`
+<<<<<<< feat/dependabot-skill
 - Test: `pnpm nx run-many -t test --exclude=@eddacraft/anvil-e2e` (excludes Playwright e2e targets)
+=======
+- Test: `pnpm vitest run` (direct vitest, not via Nx)
+>>>>>>> dev
 - Overrides: root `package.json` under `pnpm.overrides`
 - Two ecosystems: npm + github-actions (actions alerts update workflow YAML
   version pins)
@@ -521,6 +701,7 @@ appear only in the sweep report.
 - Conventional commits
 - Atomic commits (version bump separate from code changes)
 
+<<<<<<< feat/dependabot-skill
 **Scope limits (dependabot track):**
 
 - Replacement that touches >10 files or >3 workspace packages → escalate
@@ -533,6 +714,8 @@ appear only in the sweep report.
 - Fix changes observable behaviour (tests fail) → revert and escalate
 - Hard backstop: >10 files, >3 packages, architectural changes
 
+=======
+>>>>>>> dev
 ## Key Principles
 
 1. Try the bold path first — don't assume major bumps will break
@@ -542,6 +725,9 @@ appear only in the sweep report.
 5. Alerts are a refresh opportunity — surface stale deps worth modernising
 6. Cite your sources — every decision backed by a link
 7. Escalate on architecture, persist on everything else
+<<<<<<< feat/dependabot-skill
 8. For code quality: think independently — don't blindly apply suggestions,
    write a better fix when the suggestion is wrong
 9. Code quality escalation is stricter — single-file, no behaviour changes
+=======
+>>>>>>> dev

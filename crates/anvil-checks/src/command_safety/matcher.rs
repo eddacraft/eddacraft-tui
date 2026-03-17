@@ -159,10 +159,10 @@ fn match_args(
     };
 
     let mut all_args = parsed.args.clone();
-    if rule.subcommand.is_none() {
-        if let Some(subcommand) = &parsed.subcommand {
-            all_args.insert(0, subcommand.clone());
-        }
+    if rule.subcommand.is_none()
+        && let Some(subcommand) = &parsed.subcommand
+    {
+        all_args.insert(0, subcommand.clone());
     }
 
     if let Some(position) = args_config.position {
