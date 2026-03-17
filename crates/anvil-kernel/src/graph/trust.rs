@@ -52,10 +52,10 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
         // Preserve TrustLevel::External on synthetic external nodes created by
         // resolve_import — re-classifying them as Boundary would disable the
         // NewDependencyIntroduction invariant that checks for External targets.
-        if let Some(node) = graph.get_symbol(id) {
-            if node.trust_level == TrustLevel::External {
-                continue;
-            }
+        if let Some(node) = graph.get_symbol(id)
+            && node.trust_level == TrustLevel::External
+        {
+            continue;
         }
 
         let trust = if privileged_files.contains(file.as_str()) {
