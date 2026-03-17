@@ -1,8 +1,6 @@
 # Dependabot Alert Remediation Skill — Design Spec
 
-**Date:** 2026-03-16
-**Status:** Draft
-**Skill name:** `dependabot`
+**Date:** 2026-03-16 **Status:** Draft **Skill name:** `dependabot`
 **Invocation:** `/dependabot` (optional args: severity filter, ecosystem filter)
 
 ## Overview
@@ -34,10 +32,9 @@ many alerts). For each alert, gather:
 - Whether it's a direct or transitive dependency
 - What direct deps pull it in (dependency chain)
 
-Check for existing open PRs or branches from previous runs
-(`dependabot/fix/*`) to avoid duplicate work. If a prior draft PR exists for an
-alert that is still open, note it for the user in the plan rather than creating
-a new branch.
+Check for existing open PRs or branches from previous runs (`dependabot/fix/*`)
+to avoid duplicate work. If a prior draft PR exists for an alert that is still
+open, note it for the user in the plan rather than creating a new branch.
 
 If zero alerts are open, report that and exit cleanly.
 
@@ -66,19 +63,19 @@ For each group, research:
 
 Classify each group into a strategy:
 
-| Strategy             | When                                                         |
-| -------------------- | ------------------------------------------------------------ |
-| **Quick bump**       | Patch/minor update available, low risk                       |
-| **Major upgrade**    | Breaking changes, needs testing and possibly code changes     |
-| **Replace**          | Dependency is unmaintained/legacy, modern alternative exists  |
-| **Override**         | Transitive dep can be forced via lock file overrides          |
-| **Escalate**         | Fix requires architectural changes beyond dependency surface  |
+| Strategy          | When                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| **Quick bump**    | Patch/minor update available, low risk                       |
+| **Major upgrade** | Breaking changes, needs testing and possibly code changes    |
+| **Replace**       | Dependency is unmaintained/legacy, modern alternative exists |
+| **Override**      | Transitive dep can be forced via lock file overrides         |
+| **Escalate**      | Fix requires architectural changes beyond dependency surface |
 
 Perform a reachability check: does the project import or use the vulnerable
 package directly? This is a grep-based approximation (search for imports of the
 package name across affected workspace packages), not full code-path analysis.
-Note the result in the report. Still fix if the upgrade is easy, but deprioritise
-if it requires significant effort on an unreachable path.
+Note the result in the report. Still fix if the upgrade is easy, but
+deprioritise if it requires significant effort on an unreachable path.
 
 Groups classified as **Escalate** in this phase skip execution entirely and go
 straight to the sweep report with their research findings attached.
@@ -102,9 +99,10 @@ shows:
 The skill pauses and asks the user for approval. The user can respond with:
 
 - **"approve all"** or **"go"** — execute every group as planned
-- **"skip group N"** or **"skip <package>"** — exclude specific groups
+- **"skip group N"** or **"skip \<package\>"** — exclude specific groups
 - **"only groups 1, 3"** — execute only named groups
-- **Modification requests** — e.g., "try replacement instead of bump for group 2"
+- **Modification requests** — e.g., "try replacement instead of bump for group
+  2"
 
 If the user modifies the plan, the skill acknowledges the changes and proceeds
 without re-presenting the full plan (unless the change is ambiguous). This is a
@@ -180,8 +178,8 @@ ladder (lock file overrides, upstream bumps) does not apply.
 
 1. Identify the action repo and the vulnerable version
 2. Check the action repo for the latest release/tag that fixes the CVE
-3. Update the `uses:` version pin in the workflow YAML file(s)
-   (e.g., `actions/checkout@v3` → `actions/checkout@v4`)
+3. Update the `uses:` version pin in the workflow YAML file(s) (e.g.,
+   `actions/checkout@v3` → `actions/checkout@v4`)
 4. Validate the workflow YAML parses correctly (`yq` or syntax check)
 5. If the action has a major version bump, check the action's changelog for
    breaking changes (new required inputs, removed features, runner version
@@ -209,7 +207,7 @@ Every group gets exactly one branch and one draft PR.
 
 **Commit conventions:**
 
-- `fix(deps): upgrade <package> to vN.x`
+- `fix(deps): upgrade \<package\> to vN.x`
 - `fix(deps): replace <old> with <new>`
 - Atomic commits — version bump separate from code adaptations
 
@@ -218,29 +216,32 @@ Every group gets exactly one branch and one draft PR.
 ```markdown
 ## Dependabot Alert Fix
 
-**Alerts addressed:** #N, #M
-**Severity:** high
-**Strategy:** upstream bump
+**Alerts addressed:** #N, #M **Severity:** high **Strategy:** upstream bump
 
 ## What was vulnerable
-<package> via <dependency chain> — <CVE summary in plain English>
+
+\<package\> via \<dependency chain\> — \<CVE summary in plain English\>
 
 ## What was done
+
 - Upgraded <direct-dep> from vX to vY (pulls in patched <transitive-dep>)
 - Updated import path in <file> due to breaking API change
 - <any other changes>
 
 ## Research sources
+
 - [changelog entry](url) — breaking changes in vY
 - [GitHub issue](url) — confirms compatibility
 - [migration guide](url) — API surface changes
 
 ## What was tested
+
 - Full build: pass/fail
 - Test suite: pass (N tests)
 - Affected packages: <list of workspace packages>
 
 ## Escalated items
+
 (none, or description of what needs architectural discussion)
 ```
 
@@ -248,13 +249,13 @@ Every group gets exactly one branch and one draft PR.
 
 **Generic detection (runs on startup):**
 
-| Signal                | Detection                                                |
-| --------------------- | -------------------------------------------------------- |
-| Package manager       | Lock file presence: pnpm-lock.yaml, yarn.lock, etc.     |
-| Workspace structure   | pnpm-workspace.yaml, workspaces in package.json, lerna   |
-| Override mechanism    | pnpm overrides, npm overrides, yarn resolutions          |
-| Build command         | scripts in package.json, Nx/Turbo detection              |
-| Test command          | vitest, jest, etc.                                       |
+| Signal              | Detection                                              |
+| ------------------- | ------------------------------------------------------ |
+| Package manager     | Lock file presence: pnpm-lock.yaml, yarn.lock, etc.    |
+| Workspace structure | pnpm-workspace.yaml, workspaces in package.json, lerna |
+| Override mechanism  | pnpm overrides, npm overrides, yarn resolutions        |
+| Build command       | scripts in package.json, Nx/Turbo detection            |
+| Test command        | vitest, jest, etc.                                     |
 
 **Monorepo behaviour:**
 

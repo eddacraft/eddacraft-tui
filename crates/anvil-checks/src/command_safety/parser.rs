@@ -325,10 +325,10 @@ fn extract_interpreter_commands(tokens: &[String], interpreter: Option<&str>) ->
         .filter_map(|p| Regex::new(p).ok())
         .collect();
 
-    if interpreter.is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&cmd)) {
-        if let Ok(re) = Regex::new(r"\$\(\s*(.*?)\s*\)") {
-            patterns.push(re);
-        }
+    if interpreter.is_none_or(|cmd| SHELL_LIKE_INTERPRETERS.contains(&cmd))
+        && let Ok(re) = Regex::new(r"\$\(\s*(.*?)\s*\)")
+    {
+        patterns.push(re);
     }
 
     let mut results = Vec::new();
@@ -648,10 +648,10 @@ fn parse_from_tokens(tokens: &[String], raw_cmd: &str, wrappers: &[String]) -> P
             if token.starts_with('-') {
                 continue;
             }
-            if let Some(sub) = &subcommand {
-                if token == sub {
-                    continue;
-                }
+            if let Some(sub) = &subcommand
+                && token == sub
+            {
+                continue;
             }
             filtered.push(token.clone());
         }
