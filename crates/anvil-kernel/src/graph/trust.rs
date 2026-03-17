@@ -49,6 +49,15 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
     };
 
     for (id, file, visibility) in symbol_info {
+        // Preserve TrustLevel::External on synthetic external nodes created by
+        // resolve_import — re-classifying them as Boundary would disable the
+        // NewDependencyIntroduction invariant that checks for External targets.
+        if let Some(node) = graph.get_symbol(id) {
+            if node.trust_level == TrustLevel::External {
+                continue;
+            }
+        }
+
         let trust = if privileged_files.contains(file.as_str()) {
             TrustLevel::Privileged
         } else if visibility == Visibility::Public {
@@ -187,6 +196,22 @@ mod tests {
             g.get_symbol(1).unwrap().trust_level,
             TrustLevel::Privileged,
             "node:fs/promises should be classified as Privileged"
+        );
+    }
+
+    #[test]
+    fn external_trust_preserved_by_annotate_trust() {
+        let mut g = SymbolGraph::new();
+        let mut sym = make_symbol(1, "axios", "axios", Visibility::Public);
+        sym.trust_level = TrustLevel::External;
+        g.add_symbol(sym).unwrap();
+
+        annotate_trust(&mut g, &[]);
+
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::External,
+            "annotate_trust should not overwrite External with Boundary"
         );
     }
 
