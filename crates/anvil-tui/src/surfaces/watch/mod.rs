@@ -180,6 +180,33 @@ impl WatchState {
     }
 }
 
+impl crate::surface::Surface for WatchState {
+    fn surface_name(&self) -> &'static str {
+        "Watch"
+    }
+
+    fn help_text(&self) -> &'static str {
+        "j/k navigate  h/l switch panel  PgUp/PgDn row  q quit"
+    }
+
+    fn handle_key(&mut self, action: eddacraft_tui::keyboard::Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

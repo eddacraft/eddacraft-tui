@@ -308,6 +308,37 @@ impl GateSummary {
     }
 }
 
+impl crate::surface::Surface for GateState {
+    fn surface_name(&self) -> &'static str {
+        "Gate"
+    }
+
+    fn help_text(&self) -> &'static str {
+        if self.search_mode {
+            "type to search  enter confirm  esc cancel"
+        } else {
+            "j/k navigate  enter expand  n/N next/prev fail  /search  a/p/f/w/s filter  q quit"
+        }
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
