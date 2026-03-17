@@ -54,6 +54,14 @@ impl WelcomeState {
         }
     }
 
+    pub fn surface_name(&self) -> &'static str {
+        "w e l c o m e"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        "j/k navigate  enter select  q quit"
+    }
+
     pub fn handle_key(&mut self, action: Action) {
         match action {
             Action::Up => {

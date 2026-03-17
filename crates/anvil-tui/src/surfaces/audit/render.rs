@@ -9,39 +9,17 @@ use super::{AuditPanel, AuditState, IssueSeverity};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
     let chunks = Layout::vertical([
-        Constraint::Length(1),   // Title
         Constraint::Ratio(1, 4), // Project panel
         Constraint::Ratio(1, 4), // Issues panel
         Constraint::Ratio(1, 4), // Historical panel
         Constraint::Ratio(1, 4), // Next steps panel
-        Constraint::Length(2),   // Help text
     ])
     .split(area);
 
-    // Title
-    let title = Paragraph::new(Line::from(Span::styled(
-        "Audit Results",
-        Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
-    )));
-    frame.render_widget(title, chunks[0]);
-
-    render_project_panel(frame, chunks[1], state, theme);
-    render_issues_panel(frame, chunks[2], state, theme);
-    render_historical_panel(frame, chunks[3], state, theme);
-    render_next_steps_panel(frame, chunks[4], state, theme);
-
-    // Help text
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("j/k", Style::default().fg(theme.accent())),
-        Span::styled(" navigate  ", Style::default().fg(theme.muted())),
-        Span::styled("h/l", Style::default().fg(theme.accent())),
-        Span::styled(" switch panel  ", Style::default().fg(theme.muted())),
-        Span::styled("enter", Style::default().fg(theme.accent())),
-        Span::styled(" details  ", Style::default().fg(theme.muted())),
-        Span::styled("q", Style::default().fg(theme.accent())),
-        Span::styled(" quit", Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(help, chunks[5]);
+    render_project_panel(frame, chunks[0], state, theme);
+    render_issues_panel(frame, chunks[1], state, theme);
+    render_historical_panel(frame, chunks[2], state, theme);
+    render_next_steps_panel(frame, chunks[3], state, theme);
 }
 
 fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Block<'a> {

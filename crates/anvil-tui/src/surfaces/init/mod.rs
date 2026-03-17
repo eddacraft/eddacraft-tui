@@ -147,6 +147,19 @@ pub struct InitState {
 }
 
 impl InitState {
+    pub fn surface_name(&self) -> &'static str {
+        "i n i t"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        match self.step {
+            InitStep::Mode | InitStep::Format => "j/k navigate  enter select  esc back  q quit",
+            InitStep::Directory => "type directory  enter next  esc back  q quit",
+            InitStep::Checks => "j/k navigate  space toggle  enter next  esc back  q quit",
+            InitStep::Summary => "enter confirm  esc back  q quit",
+        }
+    }
+
     pub fn new(available_checks: Vec<AvailableCheck>) -> Self {
         Self {
             step: InitStep::Mode,

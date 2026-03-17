@@ -24,7 +24,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         Constraint::Length(2), // Tagline
         Constraint::Length(1), // Spacer
         Constraint::Min(6),    // Menu
-        Constraint::Length(2), // Help text
     ])
     .split(area);
 
@@ -70,15 +69,4 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
 
     let menu = Paragraph::new(Text::from(items));
     frame.render_widget(menu, menu_area);
-
-    // Help text
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("j/k", Style::default().fg(theme.accent())),
-        Span::styled(" navigate  ", Style::default().fg(theme.muted())),
-        Span::styled("enter", Style::default().fg(theme.accent())),
-        Span::styled(" select  ", Style::default().fg(theme.muted())),
-        Span::styled("q", Style::default().fg(theme.accent())),
-        Span::styled(" quit", Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(help, chunks[4]);
 }

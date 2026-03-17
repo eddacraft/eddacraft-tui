@@ -11,13 +11,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &GateState, theme: &EddaCraf
     let chunks = Layout::vertical([
         Constraint::Length(3), // Header with summary
         Constraint::Min(6),    // 2-panel content
-        Constraint::Length(2), // Help text
     ])
     .split(area);
 
     render_header(frame, chunks[0], state, theme);
     render_panels(frame, chunks[1], state, theme);
-    render_help(frame, chunks[2], state, theme);
 }
 
 fn status_colour(status: GateCheckStatus, theme: &EddaCraftTheme) -> ratatui::style::Color {
@@ -240,36 +238,4 @@ fn render_detail_panel(frame: &mut Frame, area: Rect, state: &GateState, theme: 
     }
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
-}
-
-fn render_help(frame: &mut Frame, area: Rect, state: &GateState, theme: &EddaCraftTheme) {
-    if state.search_mode {
-        let help = Paragraph::new(Line::from(vec![
-            Span::styled("Search: ", Style::default().fg(theme.accent())),
-            Span::styled(&state.search_term, Style::default().fg(theme.fg())),
-            Span::styled("_  ", Style::default().fg(theme.accent())),
-            Span::styled(
-                "enter confirm  esc cancel",
-                Style::default().fg(theme.muted()),
-            ),
-        ]));
-        frame.render_widget(help, area);
-        return;
-    }
-
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("j/k", Style::default().fg(theme.accent())),
-        Span::styled(" navigate  ", Style::default().fg(theme.muted())),
-        Span::styled("enter", Style::default().fg(theme.accent())),
-        Span::styled(" details  ", Style::default().fg(theme.muted())),
-        Span::styled("n/N", Style::default().fg(theme.accent())),
-        Span::styled(" next/prev failure  ", Style::default().fg(theme.muted())),
-        Span::styled("a/p/f/w/s", Style::default().fg(theme.accent())),
-        Span::styled(" filter  ", Style::default().fg(theme.muted())),
-        Span::styled("/", Style::default().fg(theme.accent())),
-        Span::styled(" search  ", Style::default().fg(theme.muted())),
-        Span::styled("q", Style::default().fg(theme.accent())),
-        Span::styled(" quit", Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(help, area);
 }

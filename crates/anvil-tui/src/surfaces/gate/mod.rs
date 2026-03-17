@@ -100,6 +100,18 @@ pub struct GateState {
 }
 
 impl GateState {
+    pub fn surface_name(&self) -> &'static str {
+        "g a t e"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        if self.search_mode {
+            "type to search  esc cancel  enter confirm"
+        } else {
+            "j/k navigate  enter expand  / search  n/N failures  a/f/p/s/w filter  q quit"
+        }
+    }
+
     pub fn new(result: GateResult) -> Self {
         Self {
             result,

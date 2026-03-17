@@ -15,5 +15,8 @@ thiserror = { workspace = true }
 [dev-dependencies]
 insta = { workspace = true }
 
+[[example]]
+name = "demo"
+
 [lints]
 workspace = true

@@ -8,51 +8,24 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use super::{TutorialPhase, TutorialState};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
-    let chunks = Layout::vertical([
-        Constraint::Length(3), // Progress / title
-        Constraint::Min(6),    // Content
-        Constraint::Length(2), // Help text
-    ])
-    .split(area);
-
     match state.phase {
         TutorialPhase::PathSelect => {
-            render_title(frame, chunks[0], "Tutorial", theme);
-            render_path_select(frame, chunks[1], state, theme);
-            let help = "j/k navigate  enter select  q quit";
-            render_help(frame, chunks[2], help, theme);
+            render_path_select(frame, area, state, theme);
         }
         TutorialPhase::Running => {
+            let chunks = Layout::vertical([
+                Constraint::Length(3), // Progress indicator
+                Constraint::Min(6),    // Content
+            ])
+            .split(area);
+
             render_step_progress(frame, chunks[0], state, theme);
             render_step_content(frame, chunks[1], state, theme);
-            let help = "enter/space next step  esc back to paths  q quit";
-            render_help(frame, chunks[2], help, theme);
         }
         TutorialPhase::Complete => {
-            render_title(frame, chunks[0], "Tutorial Complete", theme);
-            render_complete(frame, chunks[1], state, theme);
-            let help = "enter choose another path  q quit";
-            render_help(frame, chunks[2], help, theme);
+            render_complete(frame, area, state, theme);
         }
     }
-}
-
-fn render_title(frame: &mut Frame, area: Rect, title: &str, theme: &EddaCraftTheme) {
-    let widget = Paragraph::new(Line::from(Span::styled(
-        title,
-        Style::default()
-            .fg(theme.accent())
-            .add_modifier(Modifier::BOLD),
-    )));
-    frame.render_widget(widget, area);
-}
-
-fn render_help(frame: &mut Frame, area: Rect, text: &str, theme: &EddaCraftTheme) {
-    let widget = Paragraph::new(Line::from(Span::styled(
-        text,
-        Style::default().fg(theme.muted()),
-    )));
-    frame.render_widget(widget, area);
 }
 
 fn render_path_select(

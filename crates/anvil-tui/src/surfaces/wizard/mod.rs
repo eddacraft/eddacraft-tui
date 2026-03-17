@@ -83,6 +83,19 @@ pub struct WizardState {
 }
 
 impl WizardState {
+    pub fn surface_name(&self) -> &'static str {
+        "w i z a r d"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        match self.step {
+            WizardStep::TemplateSelect => "j/k navigate  enter select  q quit",
+            WizardStep::ProjectName => "type name  enter next  esc back  q quit",
+            WizardStep::Configure => "j/k navigate  space toggle  enter next  esc back  q quit",
+            WizardStep::Summary => "enter confirm  esc back  q quit",
+        }
+    }
+
     pub fn new(templates: Vec<Template>) -> Self {
         Self {
             step: WizardStep::TemplateSelect,

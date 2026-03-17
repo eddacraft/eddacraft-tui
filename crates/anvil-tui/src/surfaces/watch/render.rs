@@ -8,23 +8,9 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 use super::{WatchPanel, WatchState, WatchStatus};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
-    let chunks = Layout::vertical([
-        Constraint::Length(1), // Title
-        Constraint::Min(6),    // 2x2 grid
-        Constraint::Length(2), // Help text
-    ])
-    .split(area);
-
-    // Title
-    let title = Paragraph::new(Line::from(Span::styled(
-        "Watch Dashboard",
-        Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
-    )));
-    frame.render_widget(title, chunks[0]);
-
     // 2x2 grid: split vertically into top/bottom rows, each row split horizontally
     let rows =
-        Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(chunks[1]);
+        Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
 
     let top_cols =
         Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(rows[0]);
@@ -35,19 +21,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCra
     render_queue_panel(frame, top_cols[1], state, theme);
     render_history_panel(frame, bottom_cols[0], state, theme);
     render_stats_panel(frame, bottom_cols[1], state, theme);
-
-    // Help text
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("j/k", Style::default().fg(theme.accent())),
-        Span::styled(" navigate  ", Style::default().fg(theme.muted())),
-        Span::styled("h/l", Style::default().fg(theme.accent())),
-        Span::styled(" switch panel  ", Style::default().fg(theme.muted())),
-        Span::styled("PgUp/PgDn", Style::default().fg(theme.accent())),
-        Span::styled(" up/down row  ", Style::default().fg(theme.muted())),
-        Span::styled("q", Style::default().fg(theme.accent())),
-        Span::styled(" quit", Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(help, chunks[2]);
 }
 
 fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Block<'a> {

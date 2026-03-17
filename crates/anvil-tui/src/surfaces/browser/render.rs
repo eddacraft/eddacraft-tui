@@ -9,13 +9,12 @@ use super::{BrowserState, BrowserView};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &BrowserState, theme: &EddaCraftTheme) {
     let chunks = Layout::vertical([
-        Constraint::Length(1), // Title + view indicator
+        Constraint::Length(1), // Breadcrumb
         Constraint::Min(6),    // Content area
-        Constraint::Length(2), // Help text
     ])
     .split(area);
 
-    // Title with breadcrumb
+    // Breadcrumb
     let breadcrumb = match state.view {
         BrowserView::Categories => "Categories".to_string(),
         BrowserView::Templates => {
@@ -50,27 +49,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &BrowserState, theme: &EddaC
         BrowserView::Templates => render_templates(frame, chunks[1], state, theme),
         BrowserView::Detail => render_detail(frame, chunks[1], state, theme),
     }
-
-    // Help text
-    let help_text = match state.view {
-        BrowserView::Categories => "j/k navigate  enter select  q quit",
-        BrowserView::Templates => "j/k navigate  enter detail  / search  esc back  q quit",
-        BrowserView::Detail => "j/k navigate  enter choose  esc back  q quit",
-    };
-
-    let mut help_spans = vec![Span::styled(help_text, Style::default().fg(theme.muted()))];
-    if state.search_mode {
-        help_spans = vec![
-            Span::styled("Search: ", Style::default().fg(theme.accent())),
-            Span::styled(&state.search_term, Style::default().fg(theme.fg())),
-            Span::styled("_  ", Style::default().fg(theme.accent())),
-            Span::styled(
-                "enter confirm  esc cancel",
-                Style::default().fg(theme.muted()),
-            ),
-        ];
-    }
-    frame.render_widget(Paragraph::new(Line::from(help_spans)), chunks[2]);
 }
 
 fn render_categories(frame: &mut Frame, area: Rect, state: &BrowserState, theme: &EddaCraftTheme) {
