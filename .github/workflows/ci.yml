@@ -220,6 +220,9 @@ jobs:
       - name: Set Nx SHAs
         uses: nrwl/nx-set-shas@v4
 
+      - name: Build test dependencies
+        run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
+
       - name: Run unit tests (affected on PRs, all on push)
         run: |
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then

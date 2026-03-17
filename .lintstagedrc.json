@@ -1,7 +1,7 @@
 {
-  "*.{js,jsx,ts,tsx}": ["eslint --fix", "prettier --write"],
-  "*.json": ["eslint --fix", "prettier --write"],
-  "!(pnpm-lock|temper).{yml,yaml}": ["yamllint", "prettier --write"],
-  "temper.{yml,yaml}": ["prettier --write"],
-  "*.md": ["markdownlint --fix", "prettier --write"]
+  "*.{js,jsx,ts,tsx}": ["oxlint --fix", "eslint --fix", "oxfmt --write"],
+  "*.json": ["eslint --fix", "oxfmt --write"],
+  "!(pnpm-lock|temper).{yml,yaml}": ["yamllint", "oxfmt --write"],
+  "temper.{yml,yaml}": ["oxfmt --write"],
+  "*.md": ["markdownlint --fix", "oxfmt --write"]
 }

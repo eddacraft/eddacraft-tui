@@ -49,6 +49,8 @@ Sanity assertions before release:
 - `apps/anvil-cli/package.json` version is correct.
 - No `workspace:*` in published runtime metadata expectations.
 - `CHANGELOG.md` has release notes.
+- `docs/public/anvil/beta-testing-guide.md` version is current.
+- `docs/public/anvil/releases/upgrade-notes.md` has a section for this version.
 
 ---
 
@@ -80,10 +82,16 @@ git switch main && git pull
 
 2. Bump `apps/anvil-cli/package.json` version.
 3. Update `CHANGELOG.md`.
-4. Commit and tag:
+4. Update `docs/public/anvil/beta-testing-guide.md` — bump "Current version" and
+   add any new feature areas to "What to Test".
+5. Update `docs/public/anvil/releases/upgrade-notes.md` — add a new section for
+   the release version with upgrade instructions and what's new.
+6. Commit and tag:
 
 ```bash
-git add apps/anvil-cli/package.json CHANGELOG.md
+git add apps/anvil-cli/package.json CHANGELOG.md \
+  docs/public/anvil/beta-testing-guide.md \
+  docs/public/anvil/releases/upgrade-notes.md
 git commit -m "chore(release): vX.Y.Z"
 git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin main

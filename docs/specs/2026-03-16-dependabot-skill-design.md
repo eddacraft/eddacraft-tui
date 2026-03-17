@@ -207,7 +207,7 @@ Every group gets exactly one branch and one draft PR.
 
 **Commit conventions:**
 
-- `fix(deps): upgrade <package> to vN.x`
+- `fix(deps): upgrade \<package\> to vN.x`
 - `fix(deps): replace <old> with <new>`
 - Atomic commits — version bump separate from code adaptations
 
@@ -220,7 +220,7 @@ Every group gets exactly one branch and one draft PR.
 
 ## What was vulnerable
 
-<package> via <dependency chain> — <CVE summary in plain English>
+\<package\> via \<dependency chain\> — \<CVE summary in plain English\>
 
 ## What was done
 

@@ -8,6 +8,8 @@ vi.mock('../../src/keyvault.js', () => ({
       'resend-api-key': 'mock-resend-key',
       'anvil-admin-key': 'mock-admin-key',
       'waitlist-resend-admin-token': 'mock-waitlist-token',
+      'resend-waitlist-audience-id': 'mock-waitlist-audience-id',
+      'resend-beta-audience-id': 'mock-beta-audience-id',
     };
     const value = secrets[name];
     if (value === undefined) {
