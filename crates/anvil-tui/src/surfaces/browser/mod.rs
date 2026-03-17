@@ -275,7 +275,7 @@ impl crate::surface::Surface for BrowserState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.chosen.is_some()
     }
 
     fn render(
