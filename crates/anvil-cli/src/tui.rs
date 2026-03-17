@@ -1,4 +1,5 @@
 use std::io;
+use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use anvil_kernel_types::EngineEvent;
@@ -7,8 +8,8 @@ use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::watch::WatchState;
 use anvil_tui::surfaces::watch::event_adapter::WatchEventAdapter;
 use crossterm::event::{self, Event};
+use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
-use crossterm::{execute};
 use eddacraft_tui::keyboard::KeyHandler;
 use eddacraft_tui::theme::EddaCraftTheme;
 use ratatui::Terminal;
@@ -49,11 +50,11 @@ fn surface_loop<S: Surface>(
             state.render(frame, content, theme);
         })?;
 
-        if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                let action = KeyHandler::map(key);
-                state.handle_key(action);
-            }
+        if event::poll(Duration::from_millis(100))?
+            && let Event::Key(key) = event::read()?
+        {
+            let action = KeyHandler::map(key);
+            state.handle_key(action);
         }
 
         if state.should_quit() {
@@ -65,9 +66,10 @@ fn surface_loop<S: Surface>(
 }
 
 /// Run the watch dashboard, draining kernel events from the given channel.
+#[allow(dead_code)]
 pub fn run_watch(
     mut state: WatchState,
-    event_rx: std::sync::mpsc::Receiver<EngineEvent>,
+    event_rx: &Receiver<EngineEvent>,
 ) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -76,7 +78,7 @@ pub fn run_watch(
     let mut terminal = Terminal::new(backend)?;
     let theme = EddaCraftTheme;
 
-    let result = watch_loop(&mut terminal, &mut state, &event_rx, &theme);
+    let result = watch_loop(&mut terminal, &mut state, event_rx, &theme);
 
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
@@ -87,7 +89,7 @@ pub fn run_watch(
 fn watch_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut WatchState,
-    event_rx: &std::sync::mpsc::Receiver<EngineEvent>,
+    event_rx: &Receiver<EngineEvent>,
     theme: &EddaCraftTheme,
 ) -> anyhow::Result<()> {
     let mut adapter = WatchEventAdapter::new();
@@ -103,11 +105,11 @@ fn watch_loop(
             anvil_tui::surfaces::watch::render::render(frame, area, state, theme);
         })?;
 
-        if event::poll(Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                let action = KeyHandler::map(key);
-                state.handle_key(action);
-            }
+        if event::poll(Duration::from_millis(50))?
+            && let Event::Key(key) = event::read()?
+        {
+            let action = KeyHandler::map(key);
+            state.handle_key(action);
         }
 
         if state.should_quit {
