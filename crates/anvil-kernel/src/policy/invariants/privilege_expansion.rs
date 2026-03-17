@@ -26,7 +26,9 @@ impl Invariant for PrivilegeExpansion {
             let Some(sym) = graph.get_symbol(sym_id) else {
                 continue;
             };
-            if sym.trust_level == TrustLevel::Privileged {
+            if sym.trust_level == TrustLevel::Privileged
+                && !delta.previously_privileged.contains(&sym.name)
+            {
                 violations.push(Violation {
                     policy_id: self.id().to_string(),
                     file: sym.file.clone(),
@@ -109,6 +111,37 @@ mod tests {
         let violations = inv.evaluate(&delta, &graph, &empty_config());
 
         assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn does_not_fire_on_previously_privileged_symbol() {
+        let mut graph = SymbolGraph::new();
+        graph
+            .add_symbol(make_sym(
+                1,
+                "deleteFiles",
+                "src/cleanup.ts",
+                TrustLevel::Privileged,
+            ))
+            .unwrap();
+
+        let mut previously_privileged = std::collections::HashSet::new();
+        previously_privileged.insert("deleteFiles".to_string());
+
+        let delta = GraphDelta {
+            added_symbols: vec![1],
+            file: "src/cleanup.ts".to_string(),
+            previously_privileged,
+            ..Default::default()
+        };
+
+        let inv = PrivilegeExpansion;
+        let violations = inv.evaluate(&delta, &graph, &empty_config());
+
+        assert!(
+            violations.is_empty(),
+            "should not flag a symbol that was already privileged"
+        );
     }
 
     #[test]

@@ -18,6 +18,8 @@ pub struct GraphDelta {
     pub previously_imported: HashSet<String>,
     /// Symbol names that were already public before this update (for API-expansion detection).
     pub previously_public: HashSet<String>,
+    /// Symbol names that were already privileged before this update (for privilege-expansion detection).
+    pub previously_privileged: HashSet<String>,
     pub file: String,
 }
 
@@ -56,6 +58,12 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         .iter()
         .filter_map(|&id| graph.get_symbol(id))
         .filter(|s| s.visibility == Visibility::Public)
+        .map(|s| s.name.clone())
+        .collect();
+    let previously_privileged: HashSet<String> = old_ids
+        .iter()
+        .filter_map(|&id| graph.get_symbol(id))
+        .filter(|s| s.trust_level == TrustLevel::Privileged)
         .map(|s| s.name.clone())
         .collect();
 
@@ -144,6 +152,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         errors,
         previously_imported,
         previously_public,
+        previously_privileged,
         file,
     }
 }
