@@ -7,7 +7,7 @@ use std::thread;
 use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode};
 use walkdir::WalkDir;
 
-use crate::graph::{SymbolGraph, annotate_trust, update_file};
+use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file};
 use crate::parser::Parser;
 use crate::parser::extract::{ImportEdge, extract_symbols};
 use crate::policy::config::ArchitectureConfig;
@@ -173,6 +173,7 @@ fn initial_scan(
         }
     }
 
+    re_resolve_imports(&mut state.graph, &state.all_imports);
     annotate_trust(&mut state.graph, &state.all_imports);
     emitter.snapshot(&state.graph, state.file_count);
 }

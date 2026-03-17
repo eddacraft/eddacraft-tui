@@ -247,6 +247,44 @@ pub(crate) fn resolve_import(
     None
 }
 
+/// Re-resolve imports that could not be resolved during initial scan because
+/// the target file had not been parsed yet.
+pub fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[crate::parser::extract::ImportEdge]) {
+    let known_files: Vec<String> = graph
+        .inner()
+        .node_weights()
+        .map(|s| s.file.clone())
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+
+    for import in imports {
+        let from_id = graph
+            .symbols_in_file(&import.from_file)
+            .first()
+            .map(|s| s.id);
+        let Some(from) = from_id else { continue };
+
+        let to_id = resolve_import(&import.to_source, &import.from_file, &known_files, graph);
+        let Some(to) = to_id else { continue };
+
+        let already_exists = graph
+            .outgoing_edges(from)
+            .iter()
+            .any(|e| e.to == to && e.edge_type == EdgeType::Imports);
+        if already_exists {
+            continue;
+        }
+
+        let edge = anvil_kernel_types::SymbolEdge {
+            from,
+            to,
+            edge_type: EdgeType::Imports,
+        };
+        let _ = graph.add_edge(edge);
+    }
+}
+
 /// Remove a deleted file from the graph entirely.
 pub fn remove_file(graph: &mut SymbolGraph, file: &str) -> GraphDelta {
     let removed_ids = graph.remove_file(file);
@@ -565,6 +603,65 @@ mod tests {
         assert_eq!(
             delta.added_edges[0].1, 50,
             "should resolve to shortest path (src/utils.ts, id=50)"
+        );
+    }
+
+    #[test]
+    fn re_resolve_imports_adds_missing_edges() {
+        let mut g = SymbolGraph::new();
+
+        // Simulate watch-mode initial scan: main.ts parsed before utils.ts.
+        // main.ts imports ./utils but utils.ts isn't in the graph yet, so the
+        // edge can't resolve during update_file.
+        let main_syms = FileSymbols {
+            file: "src/main.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 1,
+                kind: SymbolKind::Function,
+                name: "app".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/main.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![ImportEdge {
+                from_file: "src/main.ts".to_string(),
+                to_source: "./utils".to_string(),
+            }],
+        };
+        let delta1 = update_file(&mut g, main_syms);
+        assert!(
+            delta1.added_edges.is_empty(),
+            "edge should NOT resolve yet — utils.ts not in graph"
+        );
+
+        // Now parse utils.ts
+        let util_syms = FileSymbols {
+            file: "src/utils.ts".to_string(),
+            symbols: vec![SymbolNode {
+                id: 50,
+                kind: SymbolKind::Function,
+                name: "helper".to_string(),
+                visibility: Visibility::Internal,
+                file: "src/utils.ts".to_string(),
+                trust_level: TrustLevel::Unknown,
+            }],
+            imports: vec![],
+        };
+        update_file(&mut g, util_syms);
+
+        assert_eq!(g.edge_count(), 0, "no edges yet before re-resolve");
+
+        // Re-resolve: should now create main->utils edge
+        let all_imports = vec![ImportEdge {
+            from_file: "src/main.ts".to_string(),
+            to_source: "./utils".to_string(),
+        }];
+        re_resolve_imports(&mut g, &all_imports);
+
+        assert_eq!(
+            g.edge_count(),
+            1,
+            "re_resolve_imports should add the missing edge"
         );
     }
 
