@@ -190,11 +190,11 @@ modules.
 
 | Phase | Description                                              | Status   | Progress |
 | ----- | -------------------------------------------------------- | -------- | -------- |
-| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI _(validated in external Rust workspace)_ | In Progress | 4/5 |
-| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Draft    | 0/4 |
-| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Draft    | 0/4 |
-| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Draft    | 0/4 |
-| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks, cross-compilation | Draft    | 0/5 |
+| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI | Done | 5/5 |
+| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Done    | 4/4 |
+| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Done    | 4/4 |
+| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Done    | 4/4 |
+| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks, cross-compilation | Done    | 5/5 |
 | 5 — Daemon (Deferred) | Unix socket, JSON-RPC, session management        | Draft    | 0/3      |
 
 **Module:** [KERN — Rust Kernel](./modules/rust-kernel.aps.md)
@@ -215,9 +215,9 @@ modules.
 | RENG-001 | Port secret scan to Rust (regex + entropy)               | Done     |
 | RENG-002 | Port anti-pattern detection (uses kernel ASTs)           | Done     |
 | RENG-003 | Port command safety check                                | Done     |
-| RENG-004 | Validate architecture check parity with kernel invariants | Draft   |
+| RENG-004 | Validate architecture check parity with kernel invariants | Done    |
 | RENG-005 | Benchmark all ported checks vs JS                        | Done     |
-| RENG-006 | Feature flag + dual-run for ported checks                | Draft   |
+| RENG-006 | Feature flag + dual-run for ported checks                | Done    |
 
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
@@ -487,8 +487,8 @@ waves; 39 tasks total.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 4/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | In Progress | 1/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |

@@ -30,12 +30,11 @@
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (4/6) — In Progress
-  <!-- ADR-011: scope reduced from 24 to 6; RENG-001–003, 005 done in external workspace -->
-- KERN: rust-kernel (4/25) — In Progress
+- RENG: rust-core-engine (6/6) — Complete
+- KERN: rust-kernel (22/25) — In Progress (Phase 5 deferred)
 - BAUTH: beta-auth-streamline (20/20) — Complete
-- RATS: ratatui-tui (1/7) — In Progress
-- PORT: ink-to-ratatui-port (0/15) — Proposed
+- RATS: ratatui-tui (7/7) — Complete
+- PORT: ink-to-ratatui-port (15/15) — Complete
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
@@ -209,28 +208,50 @@ core/src/gate/__fixtures__/library/scope/: OPAE-009
 core/src/gate/__fixtures__/library/security/: OPAE-007
 core/src/diagnostics/diagnostic-schema.ts: AIGUARD-002
 core/src/diagnostics/diagnostic-schema.test.ts: AIGUARD-002
-# REVIEW(ADR-011): crates/ entries below reference an older 24-item RENG scope.
-# RENG is now 6 items (RENG-001–006). IDs RENG-007+ are from a prior plan
-# iteration and should be reconciled with KERN/RATS/PORT modules.
-# crates/ paths don't exist in this monorepo — work done in external workspace.
-# TUI crates (anvil-tui, eddacraft-tui) → now covered by RATS module.
-crates/anvil-engine/src/antipattern/: RENG-012   # old scope — reconcile with KERN
-crates/anvil-engine/src/architecture/: RENG-011  # old scope — reconcile with KERN
-crates/anvil-engine/src/lint/: RENG-023          # old scope — reconcile with KERN
-crates/anvil-engine/src/parse/: RENG-010         # old scope — reconcile with KERN
-crates/anvil-engine/src/secret/: RENG-006        # old scope — now RENG-001
-crates/anvil-gate/: RENG-016                     # old scope — reconcile with KERN
-crates/anvil-napi/: RENG-007, RENG-013, RENG-019 # old scope — N-API dropped per ADR-011
-crates/anvil-tui/src/dashboard/: RENG-021        # old scope — now RATS-002
-crates/anvil-tui/src/wizard/: RENG-022           # old scope — now RATS-004
-crates/anvil-watcher/: RENG-014, RENG-024        # old scope — now KERN Phase 1
-crates/anvil-watcher/src/cache.rs: RENG-017      # old scope — now KERN Phase 1
-crates/anvil-watcher/src/git.rs: RENG-015        # old scope — now KERN Phase 1
-crates/bench/: RENG-008                          # old scope — now RENG-005
-crates/eddacraft-kindling/: RENG-018             # old scope — reconcile with KERN
-crates/eddacraft-kindling/src/query.rs: RENG-019 # old scope — reconcile with KERN
-crates/eddacraft-tui/: RENG-020                  # old scope — now RATS-001 (done)
-crates/spike/: RENG-001, RENG-002, RENG-003, RENG-004, RENG-005  # done in external workspace
+# RENG: Rust Engine Ports (6 items, all complete)
+crates/anvil-checks/src/secret/: RENG-001
+crates/anvil-checks/src/antipattern/: RENG-002
+crates/anvil-checks/src/command_safety/: RENG-003
+crates/anvil-checks/benches/checks.rs: RENG-005
+crates/anvil-kernel/tests/architecture_parity.rs: RENG-004
+crates/anvil-kernel/src/engine_mode.rs: RENG-006
+# KERN: Rust Kernel
+crates/anvil-kernel/src/watcher/: KERN-010, KERN-013
+crates/anvil-kernel/src/parser/: KERN-011, KERN-012
+crates/anvil-kernel/src/graph/symbol_graph.rs: KERN-020
+crates/anvil-kernel/src/graph/dependency.rs: KERN-021
+crates/anvil-kernel/src/graph/trust.rs: KERN-022
+crates/anvil-kernel/src/graph/incremental.rs: KERN-023
+crates/anvil-kernel/src/policy/config.rs: KERN-030
+crates/anvil-kernel/src/policy/engine.rs: KERN-031
+crates/anvil-kernel/src/policy/invariants/: KERN-032
+crates/anvil-kernel/src/protocol/emitter.rs: KERN-033
+crates/anvil-kernel/src/embedded.rs: KERN-040
+crates/anvil-kernel/src/watch.rs: KERN-041
+crates/anvil-kernel/tests/dual_run.rs: KERN-042
+crates/anvil-kernel/benches/kernel.rs: KERN-043
+.github/workflows/rust.yml: KERN-005, KERN-044
+# RATS: Ratatui TUI (7 items, all complete)
+crates/eddacraft-tui/src/widgets/: RATS-001, PORT-001, PORT-002
+crates/eddacraft-tui/src/theme/: RATS-001
+crates/eddacraft-tui/src/keyboard/: RATS-001
+crates/anvil-tui/src/surfaces/watch/event_adapter.rs: RATS-002
+crates/anvil-tui/src/surfaces/gate/event_adapter.rs: RATS-003
+crates/anvil-tui/src/surfaces/wizard/: RATS-004
+crates/anvil-tui/src/migration.rs: RATS-005
+crates/anvil-tui/src/compat.rs: RATS-006
+crates/anvil-tui/src/app.rs: RATS-007
+# PORT: Ink-to-Ratatui Port (15 items, all complete)
+crates/anvil-tui/src/surfaces/welcome/: PORT-010
+crates/anvil-tui/src/surfaces/doctor/: PORT-011
+crates/anvil-tui/src/surfaces/status/: PORT-012
+crates/anvil-tui/src/surfaces/init/: PORT-020
+crates/anvil-tui/src/surfaces/audit/: PORT-021
+crates/anvil-tui/src/surfaces/browser/: PORT-022
+crates/anvil-tui/src/surfaces/gate/: PORT-023
+crates/anvil-tui/src/surfaces/watch/: PORT-030
+crates/anvil-tui/src/surfaces/tutorial/mod.rs: PORT-040
+crates/anvil-tui/src/surfaces/tutorial/paths.rs: PORT-041, PORT-042, PORT-043, PORT-044
 apps/anvil-api/src/routes/auth-device.ts: BAUTH-006, BAUTH-007, BAUTH-008
 apps/anvil-api/src/routes/auth-otp.ts: BAUTH-009, BAUTH-010
 apps/anvil-api/src/routes/auth-session.ts: BAUTH-011
