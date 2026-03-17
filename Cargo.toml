@@ -7,6 +7,9 @@ members = [
   "crates/eddacraft-tui",
   "crates/anvil-tui",
   "crates/anvil-checks",
+  "crates/anvil-cli",
+  "crates/anvil-policy",
+  "crates/anvil-architecture",
 ]
 
 [workspace.package]
@@ -35,6 +38,12 @@ serde_yaml = "0.9"
 # TUI
 ratatui = "0.30"
 crossterm = "0.29"
+
+# CLI
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+anyhow = "1"
+dirs = "5"
 
 # Error handling
 thiserror = "2"
