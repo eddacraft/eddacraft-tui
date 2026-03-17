@@ -297,15 +297,15 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 
 ## Documentation
 
-| Document                                                             | Description                 |
-| -------------------------------------------------------------------- | --------------------------- |
-| [Quick Start](./docs/public/anvil/quickstart.md)                     | Get running in 5 minutes    |
-| [CLI Reference](./apps/anvil-cli/README.md)                          | Complete command reference  |
-| [First Project](./docs/public/anvil/first-project.md)                | Real-world setup example    |
-| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md) | Common issues and solutions |
-| [Configuration](./docs/public/anvil/operations/config.md)            | Configuration options       |
-| [Architecture](./docs/ARCHITECTURE.md)                               | System design               |
-| [Release Runbook](./docs/guides/release-runbook.md)                  | Safe CLI release checklist  |
-| [Plans](./plans/index.aps.md)                                        | Detailed roadmap            |
-| [LAC Module](./plans/modules/lineage-authorship-confidence.aps.md)   | Line-level authorship + confidence planning |
-| [ADR-014](./plans/decisions/014-language-allocation-tree-ts-vs-rust.md) | TS vs Rust language allocation policy |
+| Document                                                                | Description                                 |
+| ----------------------------------------------------------------------- | ------------------------------------------- |
+| [Quick Start](./docs/public/anvil/quickstart.md)                        | Get running in 5 minutes                    |
+| [CLI Reference](./apps/anvil-cli/README.md)                             | Complete command reference                  |
+| [First Project](./docs/public/anvil/first-project.md)                   | Real-world setup example                    |
+| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)    | Common issues and solutions                 |
+| [Configuration](./docs/public/anvil/operations/config.md)               | Configuration options                       |
+| [Architecture](./docs/ARCHITECTURE.md)                                  | System design                               |
+| [Release Runbook](./docs/guides/release-runbook.md)                     | Safe CLI release checklist                  |
+| [Plans](./plans/index.aps.md)                                           | Detailed roadmap                            |
+| [LAC Module](./plans/modules/lineage-authorship-confidence.aps.md)      | Line-level authorship + confidence planning |
+| [ADR-014](./plans/decisions/014-language-allocation-tree-ts-vs-rust.md) | TS vs Rust language allocation policy       |

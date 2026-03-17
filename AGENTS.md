@@ -38,21 +38,21 @@ with a marketing website and documentation site deployed on Vercel.
 
 ## Key Documents
 
-| Document                      | Purpose                                                    |
-| ----------------------------- | ---------------------------------------------------------- |
-| `plans/aps-rules.md`          | **Read first** — APS format rules for all planning work    |
-| `plans/index.aps.md`          | Root plan — modules, milestones, task IDs, release roadmap |
-| `docs/ARCHITECTURE.md`        | System design and package dependency graph                 |
-| `docs/TESTING.md`             | Testing strategy and best practices                        |
-| `docs/MONOREPO_STRUCTURE.md`  | Package layout and dependency rules                        |
-| `plans/decisions/`            | Architecture Decision Records (ADRs D-000+)                |
-| `plans/modules/lineage-authorship-confidence.aps.md` | LAC module for line-level authorship + confidence |
-| `plans/decisions/014-language-allocation-tree-ts-vs-rust.md` | Canonical TS vs Rust allocation policy |
-| `packages/adapters/AGENTS.md` | Adapter framework guide (FormatAdapter, registry)          |
-| `packages/aps/AGENTS.md`      | APS document parser and validator                          |
-| `apps/anvil-cli/AGENTS.md`    | CLI commands, services, TUI components                     |
-| `apps/website/AGENTS.md`      | Next.js marketing site                                     |
-| `apps/docs-site/AGENTS.md`    | Docusaurus documentation hub                               |
+| Document                                                     | Purpose                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------- |
+| `plans/aps-rules.md`                                         | **Read first** — APS format rules for all planning work    |
+| `plans/index.aps.md`                                         | Root plan — modules, milestones, task IDs, release roadmap |
+| `docs/ARCHITECTURE.md`                                       | System design and package dependency graph                 |
+| `docs/TESTING.md`                                            | Testing strategy and best practices                        |
+| `docs/MONOREPO_STRUCTURE.md`                                 | Package layout and dependency rules                        |
+| `plans/decisions/`                                           | Architecture Decision Records (ADRs D-000+)                |
+| `plans/modules/lineage-authorship-confidence.aps.md`         | LAC module for line-level authorship + confidence          |
+| `plans/decisions/014-language-allocation-tree-ts-vs-rust.md` | Canonical TS vs Rust allocation policy                     |
+| `packages/adapters/AGENTS.md`                                | Adapter framework guide (FormatAdapter, registry)          |
+| `packages/aps/AGENTS.md`                                     | APS document parser and validator                          |
+| `apps/anvil-cli/AGENTS.md`                                   | CLI commands, services, TUI components                     |
+| `apps/website/AGENTS.md`                                     | Next.js marketing site                                     |
+| `apps/docs-site/AGENTS.md`                                   | Docusaurus documentation hub                               |
 
 ## Technical Overview
 
