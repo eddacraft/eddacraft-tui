@@ -136,8 +136,10 @@ release must deliver both the core value AND a friction-free first experience.
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
+| Rust CLI Replacement       | Replace Node.js CLI with Rust binary (clap + Ratatui)    | Proposed    | 0/24     |
 
 **Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+**Design doc (Rust CLI):** [plans/specs/2026-03-18-rust-cli-design.md](specs/2026-03-18-rust-cli-design.md)
 
 ### 0.2.0 — Web Dashboard
 
