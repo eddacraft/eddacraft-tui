@@ -13,6 +13,7 @@
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
+- RCLI: rust-cli (0/24) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
 - DASHCORE: dashboard-core-views (0/9) — Ready
 - DASHARCH: dashboard-architecture-views (0/8) — Ready
