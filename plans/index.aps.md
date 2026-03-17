@@ -430,7 +430,7 @@ Task-level detail for all completed work is archived in
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 | — |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 8/8 | — |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 8/10 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
 
@@ -1226,6 +1226,8 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-006 | maint  | Nx generator for CLI commands                       | Complete | Low      |
 | MAINT-007 | maint  | Nx generator for gate checks                        | Complete | Low      |
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
+| MAINT-009 | maint  | Edda list filters parity with release claims        | Ready    | Medium   |
+| MAINT-010 | maint  | Authenticated release smoke harness                 | Ready    | Medium   |
 
 ### Task Status — 0.1.x (Nx Task Migration)
 

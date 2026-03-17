@@ -104,10 +104,13 @@ async function apiPost<T>(baseUrl: string, endpoint: string, body: unknown): Pro
     });
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
-      throw new Error('Request timed out. Check your internet connection and try again.');
+      throw new Error('Request timed out. Check your internet connection and try again.', {
+        cause: err,
+      });
     }
     throw new Error(
-      `Could not connect to ${baseUrl}. Check your internet connection and try again.`
+      `Could not connect to ${baseUrl}. Check your internet connection and try again.`,
+      { cause: err }
     );
   }
 

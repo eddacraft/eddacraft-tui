@@ -1,0 +1,213 @@
+use eddacraft_tui::theme::{EddaCraftTheme, Theme};
+use ratatui::Frame;
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::{Block, Borders, Paragraph};
+
+use super::{TutorialPhase, TutorialState};
+
+pub fn render(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
+    let chunks = Layout::vertical([
+        Constraint::Length(3), // Progress / title
+        Constraint::Min(6),    // Content
+        Constraint::Length(2), // Help text
+    ])
+    .split(area);
+
+    match state.phase {
+        TutorialPhase::PathSelect => {
+            render_title(frame, chunks[0], "Tutorial", theme);
+            render_path_select(frame, chunks[1], state, theme);
+            let help = "j/k navigate  enter select  q quit";
+            render_help(frame, chunks[2], help, theme);
+        }
+        TutorialPhase::Running => {
+            render_step_progress(frame, chunks[0], state, theme);
+            render_step_content(frame, chunks[1], state, theme);
+            let help = "enter/space next step  esc back to paths  q quit";
+            render_help(frame, chunks[2], help, theme);
+        }
+        TutorialPhase::Complete => {
+            render_title(frame, chunks[0], "Tutorial Complete", theme);
+            render_complete(frame, chunks[1], state, theme);
+            let help = "enter choose another path  q quit";
+            render_help(frame, chunks[2], help, theme);
+        }
+    }
+}
+
+fn render_title(frame: &mut Frame, area: Rect, title: &str, theme: &EddaCraftTheme) {
+    let widget = Paragraph::new(Line::from(Span::styled(
+        title,
+        Style::default()
+            .fg(theme.accent())
+            .add_modifier(Modifier::BOLD),
+    )));
+    frame.render_widget(widget, area);
+}
+
+fn render_help(frame: &mut Frame, area: Rect, text: &str, theme: &EddaCraftTheme) {
+    let widget = Paragraph::new(Line::from(Span::styled(
+        text,
+        Style::default().fg(theme.muted()),
+    )));
+    frame.render_widget(widget, area);
+}
+
+fn render_path_select(
+    frame: &mut Frame,
+    area: Rect,
+    state: &TutorialState,
+    theme: &EddaCraftTheme,
+) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent()))
+        .title(" Choose a Tutorial Path ");
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let items: Vec<Line> = state
+        .paths
+        .iter()
+        .enumerate()
+        .map(|(i, path)| {
+            let selected = i == state.path_selected;
+            let indicator = if selected { ">> " } else { "  " };
+            let name_style = if selected {
+                Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(theme.fg())
+            };
+
+            Line::from(vec![
+                Span::styled(indicator, name_style),
+                Span::styled(path.label(), name_style),
+                Span::styled(
+                    format!("  {}", path.description()),
+                    Style::default().fg(theme.muted()),
+                ),
+            ])
+        })
+        .collect();
+
+    frame.render_widget(Paragraph::new(Text::from(items)), inner);
+}
+
+fn render_step_progress(
+    frame: &mut Frame,
+    area: Rect,
+    state: &TutorialState,
+    theme: &EddaCraftTheme,
+) {
+    let path_label = state.chosen_path.map_or("Tutorial", TutorialPath::label);
+
+    let total = state.steps.len();
+    let completed = state.steps.iter().filter(|s| s.completed).count();
+
+    let spans: Vec<Span> = state
+        .steps
+        .iter()
+        .enumerate()
+        .flat_map(|(i, _step)| {
+            let style = match i.cmp(&state.current_step) {
+                std::cmp::Ordering::Less => Style::default().fg(theme.success()),
+                std::cmp::Ordering::Equal => Style::default()
+                    .fg(theme.accent())
+                    .add_modifier(Modifier::BOLD),
+                std::cmp::Ordering::Greater => Style::default().fg(theme.muted()),
+            };
+            let marker = match i.cmp(&state.current_step) {
+                std::cmp::Ordering::Less => "*",
+                std::cmp::Ordering::Equal => ">",
+                std::cmp::Ordering::Greater => "o",
+            };
+            let separator = if i < total - 1 { " - " } else { "" };
+            vec![
+                Span::styled(marker, style),
+                Span::styled(separator, Style::default().fg(theme.muted())),
+            ]
+        })
+        .collect();
+
+    let lines = vec![
+        Line::from(Span::styled(
+            format!("{path_label}  ({completed}/{total})"),
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        )),
+        Line::from(spans),
+    ];
+
+    frame.render_widget(Paragraph::new(Text::from(lines)), area);
+}
+
+fn render_step_content(
+    frame: &mut Frame,
+    area: Rect,
+    state: &TutorialState,
+    theme: &EddaCraftTheme,
+) {
+    let Some(step) = state.steps.get(state.current_step) else {
+        return;
+    };
+
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.accent()))
+        .title(format!(" {} ", step.title));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let lines = vec![
+        Line::default(),
+        Line::from(Span::styled(
+            &step.description,
+            Style::default().fg(theme.fg()),
+        )),
+        Line::default(),
+        Line::from(Span::styled(
+            &step.instruction,
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD),
+        )),
+    ];
+
+    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+}
+
+fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: &EddaCraftTheme) {
+    let block = Block::default()
+        .borders(Borders::ALL)
+        .border_style(Style::default().fg(theme.success()))
+        .title(" Well Done ");
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+
+    let path_label = state
+        .chosen_path
+        .map_or("the tutorial", TutorialPath::label);
+    let total = state.steps.len();
+
+    let lines = vec![
+        Line::default(),
+        Line::from(Span::styled(
+            format!("You completed all {total} steps of the {path_label} tutorial."),
+            Style::default().fg(theme.fg()),
+        )),
+        Line::default(),
+        Line::from(Span::styled(
+            "Press enter to choose another tutorial path, or q to quit.",
+            Style::default().fg(theme.accent()),
+        )),
+    ];
+
+    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+}
+
+use super::TutorialPath;
