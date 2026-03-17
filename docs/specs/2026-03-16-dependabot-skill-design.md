@@ -1,14 +1,13 @@
 # Security & Quality Alert Remediation Skill — Design Spec
 
-**Date:** 2026-03-16 (updated 2026-03-17)
-**Status:** Draft
-**Skill name:** `dependabot`
-**Invocation:**
+**Date:** 2026-03-16 (updated 2026-03-17) **Status:** Draft **Skill name:**
+`dependabot` **Invocation:**
+
 - `/dependabot` — dependabot alerts only (default, backwards compatible)
 - `/dependabot quality` — code quality findings only (alias: `--quality`)
 - `/dependabot --all` — both tracks in one sweep
-- Optional filters: severity (`/dependabot high`), ecosystem (`/dependabot npm`),
-  specific alert (`/dependabot #82`)
+- Optional filters: severity (`/dependabot high`), ecosystem
+  (`/dependabot npm`), specific alert (`/dependabot #82`)
 
 ## Overview
 
@@ -38,6 +37,7 @@ The skill embodies an investigative, problem-solving approach:
 #### 1.1 Determine active tracks
 
 Based on invocation args, activate one or both tracks:
+
 - Default (`/dependabot`): dependabot track only
 - `--quality` / `quality`: code quality track only
 - `--all`: both tracks
@@ -53,10 +53,9 @@ many alerts). For each alert, gather:
 - Whether it's a direct or transitive dependency
 - What direct deps pull it in (dependency chain)
 
-Check for existing open PRs or branches from previous runs
-(`dependabot/fix/*`) to avoid duplicate work. If a prior draft PR exists for an
-alert that is still open, note it for the user in the plan rather than creating
-a new branch.
+Check for existing open PRs or branches from previous runs (`dependabot/fix/*`)
+to avoid duplicate work. If a prior draft PR exists for an alert that is still
+open, note it for the user in the plan rather than creating a new branch.
 
 If zero dependabot alerts are open, report that. If only the dependabot track is
 active, exit cleanly.
@@ -82,14 +81,15 @@ NOT fall back to processing all code scanning alerts — the skill only handles
 Copilot AI quality findings, not arbitrary SAST tools.
 
 For each finding, gather:
+
 - Rule ID and description
 - Severity
 - File path and line range
 - Suggested diff (from the alert instance)
 - Surrounding code context
 
-Check for existing open PRs or branches from previous runs (`quality/fix/*`).
-If a prior draft PR exists for a quality category that still has open findings,
+Check for existing open PRs or branches from previous runs (`quality/fix/*`). If
+a prior draft PR exists for a quality category that still has open findings,
 note it for the user in the plan rather than creating a new branch — same
 handling as the dependabot track.
 
@@ -97,13 +97,13 @@ handling as the dependabot track.
 
 Determine the project's tooling:
 
-| Signal              | How to detect                                                      |
-| ------------------- | ------------------------------------------------------------------ |
-| Package manager     | Lock file: `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`     |
-| Workspace structure | `pnpm-workspace.yaml`, `workspaces` in root `package.json`        |
-| Override mechanism  | pnpm: `pnpm.overrides`, npm: `overrides`, yarn: `resolutions`     |
-| Build command       | `scripts` in root `package.json`, Nx/Turbo detection              |
-| Test command        | vitest, jest, etc. from scripts or config files                    |
+| Signal              | How to detect                                                        |
+| ------------------- | -------------------------------------------------------------------- |
+| Package manager     | Lock file: `pnpm-lock.yaml`, `yarn.lock`, `package-lock.json`        |
+| Workspace structure | `pnpm-workspace.yaml`, `workspaces` in root `package.json`           |
+| Override mechanism  | pnpm: `pnpm.overrides`, npm: `overrides`, yarn: `resolutions`        |
+| Build command       | `scripts` in root `package.json`, Nx/Turbo detection                 |
+| Test command        | vitest, jest, etc. from scripts or config files                      |
 | Default branch      | `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'` |
 
 #### 1.5 Gather dependency details (dependabot track)
@@ -139,16 +139,16 @@ Classify each group into a strategy:
 | Strategy          | When                                                         |
 | ----------------- | ------------------------------------------------------------ |
 | **Quick bump**    | Patch/minor update available, low risk                       |
-| **Major upgrade** | Breaking changes, needs testing and possibly code changes     |
-| **Replace**       | Dependency is unmaintained/legacy, modern alternative exists  |
-| **Override**      | Transitive dep can be forced via lock file overrides          |
-| **Escalate**      | Fix requires architectural changes beyond dependency surface  |
+| **Major upgrade** | Breaking changes, needs testing and possibly code changes    |
+| **Replace**       | Dependency is unmaintained/legacy, modern alternative exists |
+| **Override**      | Transitive dep can be forced via lock file overrides         |
+| **Escalate**      | Fix requires architectural changes beyond dependency surface |
 
 Perform a reachability check: does the project import or use the vulnerable
 package directly? This is a grep-based approximation (search for imports of the
 package name across affected workspace packages), not full code-path analysis.
-Note the result in the report. Still fix if the upgrade is easy, but deprioritise
-if it requires significant effort on an unreachable path.
+Note the result in the report. Still fix if the upgrade is easy, but
+deprioritise if it requires significant effort on an unreachable path.
 
 Groups classified as **Escalate** skip execution entirely and go straight to the
 sweep report with their research findings attached.
@@ -178,12 +178,12 @@ independently assess:
 
 Classify each finding:
 
-| Classification       | Meaning                                                      |
-| -------------------- | ------------------------------------------------------------ |
-| **Apply suggestion** | Copilot's diff is correct, apply it                          |
+| Classification       | Meaning                                                                                                                                                                     |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Apply suggestion** | Copilot's diff is correct, apply it                                                                                                                                         |
 | **Fix differently**  | Finding is valid but write a better fix, note why deviated. Must be confined to the same file — if the better fix requires cross-file changes, classify as Escalate instead |
-| **Dismiss**          | Finding is invalid or code is intentionally written that way |
-| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge |
+| **Dismiss**          | Finding is invalid or code is intentionally written that way                                                                                                                |
+| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge                                                                                                            |
 
 The scope check happens at assessment time, not execution time. If reading the
 context reveals that any fix (suggested or alternative) would require changes
@@ -226,6 +226,7 @@ classifications before execution begins.
 Ask:
 
 > "Here is the fix plan. You can respond with:
+>
 > - **approve all** or **go** — execute every group as planned
 > - **skip group N** or **skip \<name\>** — exclude specific groups
 > - **only groups 1, 3** — execute only named groups
@@ -363,8 +364,8 @@ ladder (lock file overrides, upstream bumps) does not apply.
 
 1. Identify the action repo and the vulnerable version
 2. Check the action repo for the latest release/tag that fixes the CVE
-3. Update the `uses:` version pin in the workflow YAML file(s)
-   (e.g., `actions/checkout@v3` → `actions/checkout@v4`)
+3. Update the `uses:` version pin in the workflow YAML file(s) (e.g.,
+   `actions/checkout@v3` → `actions/checkout@v4`)
 4. Validate the workflow YAML parses correctly (`yq` or syntax check)
 5. If the action has a major version bump, check the action's changelog for
    breaking changes (new required inputs, removed features, runner version
@@ -405,9 +406,7 @@ appear only in the sweep report.
 ```markdown
 ## Dependabot Alert Fix
 
-**Alerts addressed:** #N, #M
-**Severity:** high
-**Strategy:** upstream bump
+**Alerts addressed:** #N, #M **Severity:** high **Strategy:** upstream bump
 
 ## What was vulnerable
 
@@ -454,19 +453,21 @@ appear only in the sweep report.
 ```markdown
 ## Code Quality Fix
 
-**Findings addressed:** N findings across M files
-**Category:** <error-handling / unused-code / misc>
-**Source:** GitHub Copilot AI Code Quality
+**Findings addressed:** N findings across M files **Category:** <error-handling
+/ unused-code / misc> **Source:** GitHub Copilot AI Code Quality
 
 ## Findings
 
 ### <file-path>:<line>
+
 - **Finding:** <what Copilot flagged>
 - **Action:** applied suggestion / fixed differently / dismissed
-- **Rationale:** <why this fix is correct, or why it differs from the suggestion>
+- **Rationale:** <why this fix is correct, or why it differs from the
+  suggestion>
 - **Diff context:** <brief description of the change>
 
 ### <file-path>:<line>
+
 ...
 
 ## What was tested
@@ -489,13 +490,13 @@ appear only in the sweep report.
 
 **Generic detection (runs on startup):**
 
-| Signal              | Detection                                                |
-| ------------------- | -------------------------------------------------------- |
-| Package manager     | Lock file presence: pnpm-lock.yaml, yarn.lock, etc.     |
-| Workspace structure | pnpm-workspace.yaml, workspaces in package.json, lerna   |
-| Override mechanism  | pnpm overrides, npm overrides, yarn resolutions          |
-| Build command       | scripts in package.json, Nx/Turbo detection              |
-| Test command        | vitest, jest, etc.                                       |
+| Signal              | Detection                                              |
+| ------------------- | ------------------------------------------------------ |
+| Package manager     | Lock file presence: pnpm-lock.yaml, yarn.lock, etc.    |
+| Workspace structure | pnpm-workspace.yaml, workspaces in package.json, lerna |
+| Override mechanism  | pnpm overrides, npm overrides, yarn resolutions        |
+| Build command       | scripts in package.json, Nx/Turbo detection            |
+| Test command        | vitest, jest, etc.                                     |
 
 **Monorepo behaviour:**
 
@@ -508,7 +509,8 @@ appear only in the sweep report.
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`
-- Test: `pnpm nx run-many -t test --exclude=@eddacraft/anvil-e2e` (excludes Playwright e2e targets)
+- Test: `pnpm nx run-many -t test --exclude=@eddacraft/anvil-e2e` (excludes
+  Playwright e2e targets)
 - Overrides: root `package.json` under `pnpm.overrides`
 - Two ecosystems: npm + github-actions (actions alerts update workflow YAML
   version pins)
