@@ -9,7 +9,8 @@ use super::{WatchPanel, WatchState, WatchStatus};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WatchState, theme: &EddaCraftTheme) {
     // 2x2 grid: split vertically into top/bottom rows, each row split horizontally
-    let rows = Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
+    let rows =
+        Layout::vertical([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(area);
 
     let top_cols =
         Layout::horizontal([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)]).split(rows[0]);
