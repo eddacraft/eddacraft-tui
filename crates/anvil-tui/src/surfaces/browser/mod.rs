@@ -262,7 +262,9 @@ impl crate::surface::Surface for BrowserState {
         } else {
             match self.view {
                 BrowserView::Categories => "j/k navigate  enter/l drill in  q quit",
-                BrowserView::Templates => "j/k navigate  enter/l detail  esc/h back  /search  q quit",
+                BrowserView::Templates => {
+                    "j/k navigate  enter/l detail  esc/h back  /search  q quit"
+                }
                 BrowserView::Detail => "j/k navigate  enter select  esc/h back  q quit",
             }
         }
