@@ -316,6 +316,39 @@ impl InitState {
     }
 }
 
+impl crate::surface::Surface for InitState {
+    fn surface_name(&self) -> &'static str {
+        "Init"
+    }
+
+    fn help_text(&self) -> &'static str {
+        match self.step {
+            InitStep::Mode => "j/k navigate  enter select  q quit",
+            InitStep::Format => "j/k navigate  enter select  esc back  q quit",
+            InitStep::Directory => "type path  enter confirm  esc back  q quit",
+            InitStep::Checks => "j/k navigate  space toggle  enter confirm  esc back  q quit",
+            InitStep::Summary => "enter confirm  esc back  q quit",
+        }
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -251,6 +251,41 @@ impl BrowserState {
     }
 }
 
+impl crate::surface::Surface for BrowserState {
+    fn surface_name(&self) -> &'static str {
+        "Browser"
+    }
+
+    fn help_text(&self) -> &'static str {
+        if self.search_mode {
+            "type to search  enter confirm  esc cancel"
+        } else {
+            match self.view {
+                BrowserView::Categories => "j/k navigate  enter/l drill in  q quit",
+                BrowserView::Templates => "j/k navigate  enter/l detail  esc/h back  /search  q quit",
+                BrowserView::Detail => "j/k navigate  enter select  esc/h back  q quit",
+            }
+        }
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

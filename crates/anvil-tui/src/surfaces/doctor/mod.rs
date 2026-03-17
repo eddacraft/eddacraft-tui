@@ -119,6 +119,33 @@ impl DoctorState {
     }
 }
 
+impl crate::surface::Surface for DoctorState {
+    fn surface_name(&self) -> &'static str {
+        "Doctor"
+    }
+
+    fn help_text(&self) -> &'static str {
+        "j/k navigate  enter expand  q quit"
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
