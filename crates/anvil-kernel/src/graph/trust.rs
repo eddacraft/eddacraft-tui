@@ -1,4 +1,4 @@
-use anvil_kernel_types::{TrustLevel, Visibility};
+use anvil_kernel_types::{SymbolKind, TrustLevel, Visibility};
 
 use super::symbol_graph::SymbolGraph;
 use crate::parser::extract::ImportEdge;
@@ -49,6 +49,19 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
     };
 
     for (id, file, visibility) in symbol_info {
+        // Preserve TrustLevel::External on synthetic external module nodes created
+        // by resolve_import — re-classifying them as Boundary would disable the
+        // NewDependencyIntroduction invariant that checks for External targets.
+        // Only protect Module-kind nodes (package placeholders like "react",
+        // "node:fs"), not regular project symbols that may have External trust
+        // from a previous pass.
+        if let Some(node) = graph.get_symbol(id)
+            && node.trust_level == TrustLevel::External
+            && node.kind == SymbolKind::Module
+        {
+            continue;
+        }
+
         let trust = if privileged_files.contains(file.as_str()) {
             TrustLevel::Privileged
         } else if visibility == Visibility::Public {
@@ -187,6 +200,34 @@ mod tests {
             g.get_symbol(1).unwrap().trust_level,
             TrustLevel::Privileged,
             "node:fs/promises should be classified as Privileged"
+        );
+    }
+
+    #[test]
+    fn external_trust_preserved_for_synthetic_module_nodes() {
+        let mut g = SymbolGraph::new();
+        // Synthetic external module node (as created by resolve_import)
+        let mut syn = make_symbol(1, "axios", "axios", Visibility::Public);
+        syn.trust_level = TrustLevel::External;
+        syn.kind = SymbolKind::Module;
+        g.add_symbol(syn).unwrap();
+
+        // Regular project symbol that happens to have External trust
+        let mut proj = make_symbol(2, "handler", "src/api.ts", Visibility::Public);
+        proj.trust_level = TrustLevel::External;
+        g.add_symbol(proj).unwrap();
+
+        annotate_trust(&mut g, &[]);
+
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::External,
+            "synthetic Module node should preserve External trust"
+        );
+        assert_eq!(
+            g.get_symbol(2).unwrap().trust_level,
+            TrustLevel::Boundary,
+            "regular project symbol should be reclassified based on visibility"
         );
     }
 

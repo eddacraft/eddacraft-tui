@@ -7,7 +7,7 @@ use std::thread;
 use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode};
 use walkdir::WalkDir;
 
-use crate::graph::{SymbolGraph, annotate_trust, update_file};
+use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file};
 use crate::parser::Parser;
 use crate::parser::extract::{ImportEdge, extract_symbols};
 use crate::policy::config::ArchitectureConfig;
@@ -136,10 +136,13 @@ impl WatchState {
 fn initial_scan(
     root: &Path,
     filter: &FileFilter,
+    arch_config: &ArchitectureConfig,
     state: &mut WatchState,
     emitter: &EventEmitter,
     stop: &AtomicBool,
 ) {
+    let mut scanned_files: Vec<PathBuf> = Vec::new();
+
     for result in WalkDir::new(root) {
         if stop.load(Ordering::Relaxed) {
             return;
@@ -170,10 +173,47 @@ fn initial_scan(
         let rel_path = entry.path().strip_prefix(root).unwrap_or(entry.path());
         if state.parse_and_update(entry.path(), rel_path, emitter) {
             state.file_count += 1;
+            scanned_files.push(rel_path.to_path_buf());
         }
     }
 
+    re_resolve_imports(&mut state.graph, &state.all_imports);
     annotate_trust(&mut state.graph, &state.all_imports);
+
+    // Run baseline policy evaluation so the first snapshot reflects real
+    // invariant results rather than an empty 0/0 checks placeholder.
+    for rel_path in &scanned_files {
+        let rel_str = rel_path.to_string_lossy().to_string();
+        let symbols_in_file: Vec<u64> = state
+            .graph
+            .symbols_in_file(&rel_str)
+            .iter()
+            .map(|s| s.id)
+            .collect();
+
+        if symbols_in_file.is_empty() {
+            continue;
+        }
+
+        let file_edges: Vec<(u64, u64, anvil_kernel_types::EdgeType)> = symbols_in_file
+            .iter()
+            .flat_map(|&sid| state.graph.outgoing_edges(sid))
+            .map(|e| (e.from, e.to, e.edge_type))
+            .collect();
+
+        let delta = crate::graph::GraphDelta {
+            added_symbols: symbols_in_file,
+            added_edges: file_edges,
+            file: rel_str,
+            ..Default::default()
+        };
+
+        let violations = state.engine.evaluate(&delta, &state.graph, arch_config);
+        for v in &violations {
+            emitter.violation(v);
+        }
+    }
+
     emitter.snapshot(&state.graph, state.file_count);
 }
 
@@ -323,7 +363,14 @@ pub fn run_watch(
         let emitter = EventEmitter::new(event_tx, EngineId::Rust);
         let mut state = WatchState::new();
 
-        initial_scan(&root, &filter, &mut state, &emitter, &stop_clone);
+        initial_scan(
+            &root,
+            &filter,
+            &arch_config,
+            &mut state,
+            &emitter,
+            &stop_clone,
+        );
         watch_loop(
             &root,
             &batch_rx,
