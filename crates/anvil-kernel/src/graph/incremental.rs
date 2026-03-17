@@ -16,6 +16,8 @@ pub struct GraphDelta {
     pub errors: Vec<String>,
     /// Import sources that existed before this update (for new-dep detection).
     pub previously_imported: HashSet<String>,
+    /// Symbol names that were already public before this update (for API-expansion detection).
+    pub previously_public: HashSet<String>,
     pub file: String,
 }
 
@@ -49,6 +51,12 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         .flat_map(|&id| graph.outgoing_edges(id))
         .filter(|e| e.edge_type == EdgeType::Imports)
         .filter_map(|e| graph.get_symbol(e.to).map(|s| s.file.clone()))
+        .collect();
+    let previously_public: HashSet<String> = old_ids
+        .iter()
+        .filter_map(|&id| graph.get_symbol(id))
+        .filter(|s| s.visibility == Visibility::Public)
+        .map(|s| s.name.clone())
         .collect();
 
     let removed_ids = graph.remove_file(&file);
@@ -135,6 +143,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
         removed_edges: Vec::new(),
         errors,
         previously_imported,
+        previously_public,
         file,
     }
 }
@@ -145,7 +154,7 @@ pub fn update_file(graph: &mut SymbolGraph, new_symbols: FileSymbols) -> GraphDe
 /// file's directory and try common extensions (.ts, .tsx, .js, /index.ts, etc.).
 /// For bare specifiers (`express`, `node:fs`), match against file names directly
 /// (these represent external/virtual modules).
-fn resolve_import(
+pub(crate) fn resolve_import(
     specifier: &str,
     from_file: &str,
     known_files: &[String],
@@ -244,7 +253,6 @@ pub fn remove_file(graph: &mut SymbolGraph, file: &str) -> GraphDelta {
     GraphDelta {
         removed_symbols: removed_ids,
         file: file.to_string(),
-        previously_imported: HashSet::new(),
         ..Default::default()
     }
 }

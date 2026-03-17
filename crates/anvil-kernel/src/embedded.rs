@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode};
 use walkdir::WalkDir;
 
-use crate::graph::{SymbolGraph, annotate_trust, update_file};
+use crate::graph::{SymbolGraph, annotate_trust, resolve_import, update_file};
 use crate::parser::Parser;
 use crate::parser::extract::{ImportEdge, extract_symbols};
 use crate::policy::config::ArchitectureConfig;
@@ -127,13 +127,17 @@ pub fn run_embedded(config: &EmbeddedConfig) -> Result<EmbeddedResult, EmbeddedE
             .map_or(0, |m| m + 1);
     }
 
-    // 3. Annotate trust levels
+    // 3. Re-resolve imports that could not be resolved during the initial scan
+    //    because the target file had not been parsed yet.
+    re_resolve_imports(&mut graph, &all_imports);
+
+    // 4. Annotate trust levels
     annotate_trust(&mut graph, &all_imports);
 
-    // 4. Emit snapshot
+    // 5. Emit snapshot
     emitter.snapshot(&graph, total);
 
-    // 5. Run policy engine with all H1 invariants
+    // 6. Run policy engine with all H1 invariants
     let mut engine = PolicyEngine::new();
     engine.register(Box::new(CrossLayerViolation));
     engine.register(Box::new(NewDependencyIntroduction));
@@ -162,6 +166,42 @@ pub fn run_embedded(config: &EmbeddedConfig) -> Result<EmbeddedResult, EmbeddedE
         events,
         duration,
     })
+}
+
+fn re_resolve_imports(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
+    let known_files: Vec<String> = graph
+        .inner()
+        .node_weights()
+        .map(|s| s.file.clone())
+        .collect::<std::collections::BTreeSet<_>>()
+        .into_iter()
+        .collect();
+
+    for import in imports {
+        let from_id = graph
+            .symbols_in_file(&import.from_file)
+            .first()
+            .map(|s| s.id);
+        let Some(from) = from_id else { continue };
+
+        let to_id = resolve_import(&import.to_source, &import.from_file, &known_files, graph);
+        let Some(to) = to_id else { continue };
+
+        let already_exists = graph
+            .outgoing_edges(from)
+            .iter()
+            .any(|e| e.to == to && e.edge_type == anvil_kernel_types::EdgeType::Imports);
+        if already_exists {
+            continue;
+        }
+
+        let edge = anvil_kernel_types::SymbolEdge {
+            from,
+            to,
+            edge_type: anvil_kernel_types::EdgeType::Imports,
+        };
+        let _ = graph.add_edge(edge);
+    }
 }
 
 fn evaluate_files(

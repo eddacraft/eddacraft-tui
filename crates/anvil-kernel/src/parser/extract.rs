@@ -137,6 +137,32 @@ fn extract_export(
         return;
     }
 
+    // `export default <expression>` uses the "value" field. Try to extract a
+    // named symbol from the expression; if it is anonymous (function expression
+    // or class expression with no name), emit a synthetic "default" symbol so
+    // the module's public API surface is not silently omitted.
+    if let Some(value) = node.child_by_field_name("value") {
+        let name = value
+            .child_by_field_name("name")
+            .map(|n| node_text(n, source));
+        let sym_name = name.unwrap_or_else(|| String::from("default"));
+        let kind = match value.kind() {
+            "function_expression" | "arrow_function" => SymbolKind::Function,
+            "class" => SymbolKind::Class,
+            _ => SymbolKind::Export,
+        };
+        symbols.push(SymbolNode {
+            id: *next_id,
+            kind,
+            name: sym_name,
+            visibility: Visibility::Public,
+            file: file.to_string(),
+            trust_level: TrustLevel::default(),
+        });
+        *next_id += 1;
+        return;
+    }
+
     let mut handled_clause = false;
     for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
         if let Some(child) = node.named_child(i)
@@ -525,6 +551,62 @@ export { foo as bar };
             Visibility::Internal,
             "bar should stay Internal (it is not exported)"
         );
+    }
+
+    #[test]
+    fn anonymous_default_export_emits_default_symbol() {
+        let source = b"export default function() { return 42; }";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+        let default_sym = symbols.symbols.iter().find(|s| s.name == "default");
+
+        assert!(
+            default_sym.is_some(),
+            "anonymous default export should produce a 'default' symbol"
+        );
+        let sym = default_sym.unwrap();
+        assert_eq!(sym.visibility, Visibility::Public);
+        assert_eq!(sym.kind, SymbolKind::Function);
+    }
+
+    #[test]
+    fn anonymous_default_class_export_emits_default_symbol() {
+        let source = b"export default class {}";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+        let default_sym = symbols.symbols.iter().find(|s| s.name == "default");
+
+        assert!(
+            default_sym.is_some(),
+            "anonymous default class export should produce a 'default' symbol"
+        );
+        let sym = default_sym.unwrap();
+        assert_eq!(sym.visibility, Visibility::Public);
+    }
+
+    #[test]
+    fn named_default_export_does_not_duplicate() {
+        let source = b"export default function greet() { return 'hi'; }";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+        let public_syms: Vec<&SymbolNode> = symbols
+            .symbols
+            .iter()
+            .filter(|s| s.visibility == Visibility::Public)
+            .collect();
+
+        assert_eq!(
+            public_syms.len(),
+            1,
+            "named default export should produce exactly one public symbol"
+        );
+        assert_eq!(public_syms[0].name, "greet");
     }
 
     #[test]

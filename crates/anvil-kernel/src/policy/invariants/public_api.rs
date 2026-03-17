@@ -26,7 +26,8 @@ impl Invariant for PublicApiExpansion {
             let Some(sym) = graph.get_symbol(sym_id) else {
                 continue;
             };
-            if sym.visibility == Visibility::Public {
+            if sym.visibility == Visibility::Public && !delta.previously_public.contains(&sym.name)
+            {
                 violations.push(Violation {
                     policy_id: self.id().to_string(),
                     file: sym.file.clone(),
@@ -100,6 +101,32 @@ mod tests {
         let violations = inv.evaluate(&delta, &graph, &empty_config());
 
         assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn does_not_fire_on_previously_public_symbol() {
+        let mut graph = SymbolGraph::new();
+        graph
+            .add_symbol(make_sym(1, "greet", "src/api.ts", Visibility::Public))
+            .unwrap();
+
+        let mut previously_public = std::collections::HashSet::new();
+        previously_public.insert("greet".to_string());
+
+        let delta = GraphDelta {
+            added_symbols: vec![1],
+            file: "src/api.ts".to_string(),
+            previously_public,
+            ..Default::default()
+        };
+
+        let inv = PublicApiExpansion;
+        let violations = inv.evaluate(&delta, &graph, &empty_config());
+
+        assert!(
+            violations.is_empty(),
+            "should not flag a symbol that was already public"
+        );
     }
 
     #[test]
