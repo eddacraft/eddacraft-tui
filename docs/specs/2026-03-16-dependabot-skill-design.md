@@ -73,7 +73,7 @@ If that returns empty, the tool name may have changed. List distinct tool names
 to confirm:
 
 ```bash
-gh api repos/{owner}/{repo}/code-scanning/alerts --jq '[.[].tool.name] | unique'
+gh api repos/{owner}/{repo}/code-scanning/alerts --paginate --jq '[.[].tool.name]' | jq -s 'add | unique'
 ```
 
 If no Copilot-like tool is found, report "No code quality findings (Copilot not
@@ -500,7 +500,7 @@ appear only in the sweep report.
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`
-- Test: `pnpm nx run-many -t test` (via Nx test targets, not raw vitest)
+- Test: `pnpm nx run-many -t test --exclude=@eddacraft/anvil-e2e` (excludes Playwright e2e targets)
 - Overrides: root `package.json` under `pnpm.overrides`
 - Two ecosystems: npm + github-actions (actions alerts update workflow YAML
   version pins)
