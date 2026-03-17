@@ -3,27 +3,25 @@ use anvil_kernel_types::{TrustLevel, Visibility};
 use super::symbol_graph::SymbolGraph;
 use crate::parser::extract::ImportEdge;
 
-/// Sensitive API patterns that indicate privileged access.
-const PRIVILEGED_PATTERNS: &[&str] = &[
-    "node:fs",
-    "node:child_process",
-    "node:net",
-    "node:http",
-    "node:https",
-    "node:crypto",
-    "fs",
-    "child_process",
-    "net",
-    "http",
-    "https",
-    "exec",
-    "spawn",
-    "process.env",
-];
+/// Sensitive module names that indicate privileged access.
+/// Matched by exact module token (or `node:` prefix), not substring, to avoid
+/// false positives on packages like `fsevents` or `http-errors`.
+const PRIVILEGED_MODULES: &[&str] = &["fs", "child_process", "net", "http", "https", "crypto"];
 
 /// External module patterns (not relative imports).
 fn is_external_import(source: &str) -> bool {
     !source.starts_with('.') && !source.starts_with('/')
+}
+
+/// Check whether an import source refers to a privileged Node.js module.
+/// Matches the bare name (`"fs"`) or the `node:` prefixed form (`"node:fs"`)
+/// as an exact token so that unrelated packages (e.g. `fsevents`, `http-errors`)
+/// are not misclassified.
+fn is_privileged_import(source: &str) -> bool {
+    let module = source.strip_prefix("node:").unwrap_or(source);
+    // Only match the top-level module name (before any `/` subpath).
+    let token = module.split('/').next().unwrap_or(module);
+    PRIVILEGED_MODULES.contains(&token)
 }
 
 /// Annotate trust levels on all symbols in the graph based on heuristics.
@@ -37,10 +35,7 @@ pub fn annotate_trust(graph: &mut SymbolGraph, imports: &[ImportEdge]) {
         if is_external_import(&import.to_source) {
             external_files.insert(&import.from_file);
         }
-        if PRIVILEGED_PATTERNS
-            .iter()
-            .any(|p| import.to_source.contains(p))
-        {
+        if is_privileged_import(&import.to_source) {
             privileged_files.insert(&import.from_file);
         }
     }
@@ -136,6 +131,63 @@ mod tests {
         annotate_trust(&mut g, &imports);
 
         assert_eq!(g.get_symbol(1).unwrap().trust_level, TrustLevel::Privileged);
+    }
+
+    #[test]
+    fn substring_match_does_not_false_positive() {
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "watcher", "a.ts", Visibility::Internal))
+            .unwrap();
+
+        let imports = vec![ImportEdge {
+            from_file: "a.ts".to_string(),
+            to_source: "fsevents".to_string(),
+        }];
+        annotate_trust(&mut g, &imports);
+
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::External,
+            "fsevents should not be classified as Privileged"
+        );
+    }
+
+    #[test]
+    fn http_errors_not_privileged() {
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "handler", "a.ts", Visibility::Internal))
+            .unwrap();
+
+        let imports = vec![ImportEdge {
+            from_file: "a.ts".to_string(),
+            to_source: "http-errors".to_string(),
+        }];
+        annotate_trust(&mut g, &imports);
+
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::External,
+            "http-errors should not be classified as Privileged"
+        );
+    }
+
+    #[test]
+    fn node_prefixed_subpath_is_privileged() {
+        let mut g = SymbolGraph::new();
+        g.add_symbol(make_symbol(1, "reader", "a.ts", Visibility::Internal))
+            .unwrap();
+
+        let imports = vec![ImportEdge {
+            from_file: "a.ts".to_string(),
+            to_source: "node:fs/promises".to_string(),
+        }];
+        annotate_trust(&mut g, &imports);
+
+        assert_eq!(
+            g.get_symbol(1).unwrap().trust_level,
+            TrustLevel::Privileged,
+            "node:fs/promises should be classified as Privileged"
+        );
     }
 
     #[test]

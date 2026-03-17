@@ -65,10 +65,13 @@ fn extract_from_node(
         _ => {}
     }
 
-    // Recurse into children (except for nodes we've already handled)
+    // Recurse into children (except for nodes we've already handled).
+    // Note: lexical_declaration is NOT excluded — we must recurse into it so
+    // that nested call_expression nodes (e.g. `const fs = require('node:fs')`)
+    // are visited by extract_require.
     if !matches!(
         node.kind(),
-        "function_declaration" | "class_declaration" | "lexical_declaration" | "export_statement"
+        "function_declaration" | "class_declaration" | "export_statement"
     ) {
         for i in 0..u32::try_from(node.named_child_count()).unwrap_or(0) {
             if let Some(child) = node.named_child(i) {
@@ -660,6 +663,29 @@ module.exports = { foo };
             bar.visibility,
             Visibility::Internal,
             "bar should stay Internal (it is not in the module.exports object)"
+        );
+    }
+
+    #[test]
+    fn extracts_require_inside_lexical_declaration() {
+        let source = b"const fs = require('node:fs');\nconst path = require('path');\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.js"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.js"), 0);
+        let import_sources: Vec<&str> = symbols
+            .imports
+            .iter()
+            .map(|i| i.to_source.as_str())
+            .collect();
+
+        assert!(
+            import_sources.contains(&"node:fs"),
+            "require('node:fs') inside const should be captured"
+        );
+        assert!(
+            import_sources.contains(&"path"),
+            "require('path') inside const should be captured"
         );
     }
 
