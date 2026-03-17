@@ -73,6 +73,22 @@ pub struct BrowserState {
 }
 
 impl BrowserState {
+    pub fn surface_name(&self) -> &'static str {
+        "b r o w s e r"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        if self.search_mode {
+            "type to search  esc cancel"
+        } else {
+            match self.view {
+                BrowserView::Categories => "j/k navigate  enter select  / search  q quit",
+                BrowserView::Templates => "j/k navigate  enter detail  esc back  / search  q quit",
+                BrowserView::Detail => "j/k navigate  esc back  q quit",
+            }
+        }
+    }
+
     pub fn new(categories: Vec<TemplateCategory>, templates: Vec<TemplateEntry>) -> Self {
         Self {
             categories,

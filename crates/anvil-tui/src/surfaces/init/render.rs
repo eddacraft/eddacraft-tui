@@ -11,7 +11,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &InitState, theme: &EddaCraf
     let chunks = Layout::vertical([
         Constraint::Length(3), // Progress bar
         Constraint::Min(6),    // Step content
-        Constraint::Length(2), // Help text
     ])
     .split(area);
 
@@ -26,19 +25,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &InitState, theme: &EddaCraf
         InitStep::Checks => render_checks_step(frame, chunks[1], state, theme),
         InitStep::Summary => render_summary_step(frame, chunks[1], state, theme),
     }
-
-    // Help text
-    let help_text = match state.step {
-        InitStep::Mode | InitStep::Format => "j/k navigate  enter select  q quit",
-        InitStep::Directory => "type path  enter confirm  esc back  q quit",
-        InitStep::Checks => "j/k navigate  space toggle  enter next  esc back  q quit",
-        InitStep::Summary => "enter confirm  esc back  q quit",
-    };
-    let help = Paragraph::new(Line::from(Span::styled(
-        help_text,
-        Style::default().fg(theme.muted()),
-    )));
-    frame.render_widget(help, chunks[2]);
 }
 
 fn render_progress(frame: &mut Frame, area: Rect, state: &InitState, theme: &EddaCraftTheme) {

@@ -78,6 +78,18 @@ impl TutorialState {
         }
     }
 
+    pub fn surface_name(&self) -> &'static str {
+        "t u t o r i a l"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        match self.phase {
+            TutorialPhase::PathSelect => "j/k navigate  enter select  q quit",
+            TutorialPhase::Running => "enter/space next step  esc back  q quit",
+            TutorialPhase::Complete => "enter choose another  q quit",
+        }
+    }
+
     pub fn load_steps(&mut self, path: TutorialPath) {
         self.steps = match path {
             TutorialPath::Policy => paths::policy_steps(),

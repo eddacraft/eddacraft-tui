@@ -74,6 +74,14 @@ pub struct StatusState {
 }
 
 impl StatusState {
+    pub fn surface_name(&self) -> &'static str {
+        "s t a t u s"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        "h/l panels  j/k navigate  q quit"
+    }
+
     pub fn new(data: StatusData) -> Self {
         Self {
             data,
