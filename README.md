@@ -197,23 +197,23 @@ regression detection. These validate the performance targets defined in the
 
 ### Performance Targets
 
-| Metric | Target | Status |
-| ------ | ------ | ------ |
-| Cold graph build (100k LOC / ~2000 files) | < 3 seconds | Pending validation at scale |
-| Incremental update (single file) | < 100ms | Validated (micro-bench) |
-| Event emission overhead | < 10ms | Validated (micro-bench) |
-| Memory footprint (medium repo) | < 500MB | Pending stress test |
-| File detection latency (p99) | < 20ms | Validated (spike) |
-| tree-sitter parse (single file) | < 1ms | Validated (spike + micro-bench) |
+| Metric                                    | Target      | Status                          |
+| ----------------------------------------- | ----------- | ------------------------------- |
+| Cold graph build (100k LOC / ~2000 files) | < 3 seconds | Pending validation at scale     |
+| Incremental update (single file)          | < 100ms     | Validated (micro-bench)         |
+| Event emission overhead                   | < 10ms      | Validated (micro-bench)         |
+| Memory footprint (medium repo)            | < 500MB     | Pending stress test             |
+| File detection latency (p99)              | < 20ms      | Validated (spike)               |
+| tree-sitter parse (single file)           | < 1ms       | Validated (spike + micro-bench) |
 
 ### Existing Benchmark Groups
 
-| Group | What it measures | Scale |
-| ----- | ---------------- | ----- |
-| `cold_graph_build` | Full scan → parse → graph build | 10, 50, 100 files |
-| `incremental_update` | Reparse + graph delta for single file change | 1 file |
-| `policy_evaluation` | All H1 invariants evaluated on one delta | 1 delta, 4 invariants |
-| `event_emission` | 1000 progress events through mpsc channel | 1000 events |
+| Group                | What it measures                             | Scale                 |
+| -------------------- | -------------------------------------------- | --------------------- |
+| `cold_graph_build`   | Full scan → parse → graph build              | 10, 50, 100 files     |
+| `incremental_update` | Reparse + graph delta for single file change | 1 file                |
+| `policy_evaluation`  | All H1 invariants evaluated on one delta     | 1 delta, 4 invariants |
+| `event_emission`     | 1000 progress events through mpsc channel    | 1000 events           |
 
 ### Running Benchmarks
 
@@ -236,9 +236,9 @@ previous runs.
 
 The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
 defines additional benchmark groups (graph queries, debouncer throughput, varied
-file complexity) and a stress-test harness (`anvil-bench`) for capacity discovery
-— watcher saturation, graph memory ceiling, incremental throughput under
-sustained load, policy scaling, and cold start scaling. See the
+file complexity) and a stress-test harness (`anvil-bench`) for capacity
+discovery — watcher saturation, graph memory ceiling, incremental throughput
+under sustained load, policy scaling, and cold start scaling. See the
 [BENCH module](./plans/modules/kernel-benchmarking.aps.md) for work items.
 
 ## Deployment

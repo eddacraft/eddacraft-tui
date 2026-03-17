@@ -36,25 +36,25 @@ conditions. They run in CI on every PR to detect regressions.
 
 ### 1.1 Existing Groups
 
-| Group | What it measures | Current scale |
-|-------|-----------------|---------------|
-| `cold_graph_build` | Full scan → parse → graph | 10, 50, 100 files |
-| `incremental_update` | Reparse + graph delta for single file | 1 file |
-| `policy_evaluation` | All H1 invariants on one delta | 1 delta, 4 invariants |
-| `event_emission` | 1000 progress events through mpsc | 1000 events |
+| Group                | What it measures                      | Current scale         |
+| -------------------- | ------------------------------------- | --------------------- |
+| `cold_graph_build`   | Full scan → parse → graph             | 10, 50, 100 files     |
+| `incremental_update` | Reparse + graph delta for single file | 1 file                |
+| `policy_evaluation`  | All H1 invariants on one delta        | 1 delta, 4 invariants |
+| `event_emission`     | 1000 progress events through mpsc     | 1000 events           |
 
 ### 1.2 Extensions Needed
 
-| Group | What it measures | Scale |
-|-------|-----------------|-------|
-| `cold_graph_build` (extended) | Same, at realistic scale | 500, 1k, 5k, 10k files |
-| `incremental_update_varied` | Reparse files of varying complexity | 10 LOC, 100 LOC, 500 LOC, 1k LOC |
-| `symbol_extraction` | Extract symbols from parsed AST | Per-language, varied complexity |
-| `import_resolution` | Resolve imports against known file set | 100, 1k, 10k known files |
-| `trust_annotation` | Annotate trust levels for a file's symbols | Varied import patterns |
-| `debouncer_throughput` | Record + tick cycle under burst | 100, 500, 1k pending changes |
-| `filter_throughput` | `should_process` calls per second | 10k paths with varied patterns |
-| `graph_query` | `symbols_in_file`, `outgoing_edges` | 1k, 10k, 50k node graphs |
+| Group                         | What it measures                           | Scale                            |
+| ----------------------------- | ------------------------------------------ | -------------------------------- |
+| `cold_graph_build` (extended) | Same, at realistic scale                   | 500, 1k, 5k, 10k files           |
+| `incremental_update_varied`   | Reparse files of varying complexity        | 10 LOC, 100 LOC, 500 LOC, 1k LOC |
+| `symbol_extraction`           | Extract symbols from parsed AST            | Per-language, varied complexity  |
+| `import_resolution`           | Resolve imports against known file set     | 100, 1k, 10k known files         |
+| `trust_annotation`            | Annotate trust levels for a file's symbols | Varied import patterns           |
+| `debouncer_throughput`        | Record + tick cycle under burst            | 100, 500, 1k pending changes     |
+| `filter_throughput`           | `should_process` calls per second          | 10k paths with varied patterns   |
+| `graph_query`                 | `symbols_in_file`, `outgoing_edges`        | 1k, 10k, 50k node graphs         |
 
 ### 1.3 Fixture Generator
 
@@ -251,8 +251,8 @@ Each scenario produces a JSON report:
 }
 ```
 
-Reports are written to `bench-results/` (gitignored) and optionally to
-stdout as a formatted table for quick review.
+Reports are written to `bench-results/` (gitignored) and optionally to stdout as
+a formatted table for quick review.
 
 ### 2.4 Memory Measurement
 
@@ -261,8 +261,8 @@ On Linux, read `/proc/self/statm` before and after each operation. Fields:
 - `VmRSS` — resident set size (physical memory)
 - `VmHWM` — high-water mark RSS
 
-For more precise allocation tracking, optionally compile with `tikv-jemallocator`
-and use `jemalloc_ctl` to query:
+For more precise allocation tracking, optionally compile with
+`tikv-jemallocator` and use `jemalloc_ctl` to query:
 
 - `stats.allocated` — bytes currently allocated
 - `stats.resident` — bytes in physical memory
@@ -277,9 +277,9 @@ capacity discovery. Jemalloc is opt-in via a cargo feature flag.
 
 ### 3.1 Criterion Benchmarks (every PR)
 
-The existing `cargo bench` run should be added to the Rust CI pipeline. Criterion
-produces HTML reports in `target/criterion/` — these can be uploaded as CI
-artefacts.
+The existing `cargo bench` run should be added to the Rust CI pipeline.
+Criterion produces HTML reports in `target/criterion/` — these can be uploaded
+as CI artefacts.
 
 **Regression detection:** Criterion compares against the previous baseline
 automatically. If a benchmark regresses by > 5%, the report flags it. CI should
@@ -300,14 +300,16 @@ Store results in `bench-results/` as JSON for trend analysis.
 
 ## 4. README Integration
 
-The root `README.md` should include a **Rust Kernel Benchmarks** section showing:
+The root `README.md` should include a **Rust Kernel Benchmarks** section
+showing:
 
 - Current Criterion results (cold build, incremental, policy, events)
 - Performance targets from the kernel spec
 - How to run benchmarks locally
 - Link to this spec for methodology
 
-This section is manually updated after significant benchmark runs (not automated).
+This section is manually updated after significant benchmark runs (not
+automated).
 
 ---
 
@@ -331,8 +333,8 @@ cargo bench --bench kernel -- event_emission
 ### Quick wins (extend existing benchmarks, no new crate)
 
 1. **Scale up `cold_graph_build`** — add 500, 1000, 5000 to the file count array
-2. **Add `graph_query` group** — benchmark `symbols_in_file` and `outgoing_edges`
-   on pre-built graphs
+2. **Add `graph_query` group** — benchmark `symbols_in_file` and
+   `outgoing_edges` on pre-built graphs
 3. **Add `debouncer_throughput` group** — benchmark `record` + `tick` cycle
 4. **Add `filter_throughput` group** — benchmark `should_process` on 10k paths
 
