@@ -2,8 +2,8 @@ use std::fs;
 use std::io::{BufRead, IsTerminal, Write};
 use std::path::{Path, PathBuf};
 
-use anyhow::Context;
 use anvil_tui::surfaces::init::{AvailableCheck, InitState};
+use anyhow::Context;
 use clap::Args;
 use serde::Serialize;
 
@@ -51,9 +51,7 @@ fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<(
     let config_path = root.join(".anvilrc");
 
     if config_path.exists() && !args.force {
-        anyhow::bail!(
-            ".anvilrc already exists. Use --force to overwrite."
-        );
+        anyhow::bail!(".anvilrc already exists. Use --force to overwrite.");
     }
 
     if global.no_tui || !std::io::stdout().is_terminal() {
@@ -101,12 +99,10 @@ fn run_plain(root: &Path) -> anyhow::Result<()> {
 }
 
 fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<()> {
-    let json = serde_json::to_string_pretty(config)
-        .context("failed to serialise config")?;
+    let json = serde_json::to_string_pretty(config).context("failed to serialise config")?;
     fs::write(root.join(".anvilrc"), json).context("failed to write .anvilrc")?;
 
-    fs::create_dir_all(root.join(".anvil/cache"))
-        .context("failed to create .anvil/cache/")?;
+    fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
 
     append_gitignore_entry(root)?;
 
@@ -165,9 +161,7 @@ fn print_success(planning_dir: &str, checks: &[String]) {
     println!();
 }
 
-fn format_label(
-    fmt: anvil_tui::surfaces::init::ConfigFormat,
-) -> String {
+fn format_label(fmt: anvil_tui::surfaces::init::ConfigFormat) -> String {
     match fmt {
         anvil_tui::surfaces::init::ConfigFormat::Yaml => "yaml".to_string(),
         anvil_tui::surfaces::init::ConfigFormat::Json => "json".to_string(),
