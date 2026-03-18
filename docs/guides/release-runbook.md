@@ -57,7 +57,7 @@ Sanity assertions before release:
 ## 2) Promote dev → main
 
 All day-to-day work lands on `dev`. Releases are cut from `main` after
-promotion. See `docs/branching-strategy.md` for the full model.
+promotion. See `docs/guides/branching-strategy.md` for the full model.
 
 1. Ensure `dev` is green (CI passing, no known blockers).
 2. Open a PR from `dev` → `main`.

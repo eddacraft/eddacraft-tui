@@ -42,9 +42,9 @@ with a marketing website and documentation site deployed on Vercel.
 | ------------------------------------------------------------ | ---------------------------------------------------------- |
 | `plans/aps-rules.md`                                         | **Read first** — APS format rules for all planning work    |
 | `plans/index.aps.md`                                         | Root plan — modules, milestones, task IDs, release roadmap |
-| `docs/ARCHITECTURE.md`                                       | System design and package dependency graph                 |
-| `docs/TESTING.md`                                            | Testing strategy and best practices                        |
-| `docs/MONOREPO_STRUCTURE.md`                                 | Package layout and dependency rules                        |
+| `docs/architecture/overview.md`                              | System design and package dependency graph                 |
+| `docs/guides/testing.md`                                     | Testing strategy and best practices                        |
+| `docs/architecture/monorepo-structure.md`                    | Package layout and dependency rules                        |
 | `plans/decisions/`                                           | Architecture Decision Records (ADRs D-000+)                |
 | `plans/modules/lineage-authorship-confidence.aps.md`         | LAC module for line-level authorship + confidence          |
 | `plans/decisions/014-language-allocation-tree-ts-vs-rust.md` | Canonical TS vs Rust allocation policy                     |
@@ -343,12 +343,12 @@ class MyCheck extends BaseCheck {
 
 ## Documentation
 
-| Document                      | Purpose                       |
-| ----------------------------- | ----------------------------- |
-| `docs/ARCHITECTURE.md`        | System design                 |
-| `docs/TESTING.md`             | Testing best practices        |
-| `plans/decisions/`            | Architecture decision records |
-| `packages/adapters/README.md` | Adapter framework guide       |
+| Document                        | Purpose                       |
+| ------------------------------- | ----------------------------- |
+| `docs/architecture/overview.md` | System design                 |
+| `docs/guides/testing.md`        | Testing best practices        |
+| `plans/decisions/`              | Architecture decision records |
+| `packages/adapters/README.md`   | Adapter framework guide       |
 
 ## Package-Specific Instructions
 

@@ -47,7 +47,7 @@ only what is new relative to `main`'s current state.
 ### 2. ADR N-API integration path contradicts KERN module
 
 **Branch:** docs/rust-core-engine-decision-space
-**File:** `plans/decisions/011-rust-core-engine.md:393-445`
+**File:** `plans/decisions/011a-rust-core-engine.md:393-445`
 
 The ADR proposes N-API bindings as the integration mechanism. KERN module
 (already on `main`) explicitly states "N-API bindings (superseded by standalone
@@ -57,7 +57,7 @@ to reflect the actual embedded library API approach.
 ### 3. ADR crate naming contradicts existing APS modules
 
 **Branch:** docs/rust-core-engine-decision-space
-**File:** `plans/decisions/011-rust-core-engine.md:253-278`
+**File:** `plans/decisions/011a-rust-core-engine.md:253-278`
 
 Three different crate layouts exist across: (a) this ADR, (b) the RENG module,
 and (c) the KERN module. The ADR must acknowledge this divergence, reference the
