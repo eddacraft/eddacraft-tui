@@ -66,16 +66,23 @@ fn gather_hooks(root: &Path) -> Vec<HookStatus> {
         .collect();
 
     // Fallback: bare git hook if no husky pre-commit was found.
+    // Resolve worktree `.git` files (pointer to real git dir) so hooks are
+    // found regardless of checkout type.
     let has_husky_precommit = hooks.iter().any(|h| h.name == "pre-commit" && h.active);
 
     if !has_husky_precommit {
-        let git_hook = root.join(".git/hooks/pre-commit");
+        let git_dir = resolve_git_dir(root);
+        let git_hook = git_dir.join("hooks/pre-commit");
         if git_hook.exists() {
+            let rel = match git_hook.strip_prefix(root) {
+                Ok(p) => p.to_string_lossy().into_owned(),
+                Err(_) => git_hook.to_string_lossy().into_owned(),
+            };
             let active = is_executable(&git_hook);
             hooks.push(HookStatus {
                 name: "pre-commit".to_string(),
                 active,
-                path: ".git/hooks/pre-commit".to_string(),
+                path: rel,
             });
         }
     }
@@ -215,6 +222,28 @@ fn format_unix_timestamp(secs: i64) -> String {
     let y = if m <= 2 { y + 1 } else { y };
 
     format!("{y:04}-{m:02}-{d:02} {hours:02}:{minutes:02}")
+}
+
+// ---------------------------------------------------------------------------
+// Git helpers
+// ---------------------------------------------------------------------------
+
+/// Resolve the actual git directory. In worktrees, `.git` is a file containing
+/// `gitdir: <path>` rather than a directory.
+fn resolve_git_dir(root: &Path) -> std::path::PathBuf {
+    let dot_git = root.join(".git");
+    if dot_git.is_file()
+        && let Ok(content) = std::fs::read_to_string(&dot_git)
+        && let Some(path) = content.strip_prefix("gitdir: ")
+    {
+        let path = path.trim();
+        return if Path::new(path).is_absolute() {
+            std::path::PathBuf::from(path)
+        } else {
+            root.join(path)
+        };
+    }
+    dot_git
 }
 
 // ---------------------------------------------------------------------------
