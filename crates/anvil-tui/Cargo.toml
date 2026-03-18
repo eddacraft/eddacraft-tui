@@ -1,0 +1,19 @@
+[package]
+name = "anvil-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Anvil TUI surfaces built on eddacraft-tui — watch dashboard, gate explorer, wizard"
+
+[dependencies]
+eddacraft-tui = { path = "../eddacraft-tui" }
+anvil-kernel-types = { path = "../anvil-kernel-types" }
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
+
+[lints]
+workspace = true

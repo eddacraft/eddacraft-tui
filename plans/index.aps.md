@@ -190,11 +190,11 @@ modules.
 
 | Phase | Description                                              | Status   | Progress |
 | ----- | -------------------------------------------------------- | -------- | -------- |
-| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI _(validated in external Rust workspace)_ | In Progress | 4/5 |
-| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Draft    | 0/4 |
-| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Draft    | 0/4 |
-| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Draft    | 0/4 |
-| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks, cross-compilation | Draft    | 0/5 |
+| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI | Done | 5/5 |
+| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Done    | 4/4 |
+| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Done    | 4/4 |
+| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Done    | 4/4 |
+| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks, cross-compilation | Done    | 5/5 |
 | 5 — Daemon (Deferred) | Unix socket, JSON-RPC, session management        | Draft    | 0/3      |
 
 **Module:** [KERN — Rust Kernel](./modules/rust-kernel.aps.md)
@@ -215,47 +215,47 @@ modules.
 | RENG-001 | Port secret scan to Rust (regex + entropy)               | Done     |
 | RENG-002 | Port anti-pattern detection (uses kernel ASTs)           | Done     |
 | RENG-003 | Port command safety check                                | Done     |
-| RENG-004 | Validate architecture check parity with kernel invariants | Draft   |
+| RENG-004 | Validate architecture check parity with kernel invariants | Done    |
 | RENG-005 | Benchmark all ported checks vs JS                        | Done     |
-| RENG-006 | Feature flag + dual-run for ported checks                | Draft   |
+| RENG-006 | Feature flag + dual-run for ported checks                | Done    |
 
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
 
-### Future — Ratatui TUI (RATS, Proposed)
+### Future — Ratatui TUI (RATS, Complete)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
 | RATS-001 | eddacraft-tui shared crate (theme, keyboard, widgets)    | Done     |
-| RATS-002 | Watch dashboard (live gate results, file status)         | Draft    |
-| RATS-003 | Gate result viewer (interactive)                         | Draft    |
-| RATS-004 | APS onboarding wizard                                    | Draft    |
-| RATS-005 | Ink-to-Ratatui migration path                            | Draft    |
-| RATS-006 | Terminal platform compatibility testing                   | Draft    |
-| RATS-007 | `anvil watch` TUI integration entry point                | Draft    |
+| RATS-002 | Watch dashboard (live gate results, file status)         | Done     |
+| RATS-003 | Gate result viewer (interactive)                         | Done     |
+| RATS-004 | APS onboarding wizard                                    | Done     |
+| RATS-005 | Ink-to-Ratatui migration path                            | Done     |
+| RATS-006 | Terminal platform compatibility testing                   | Done     |
+| RATS-007 | `anvil watch` TUI integration entry point                | Done     |
 
 **Module:** [RATS — Ratatui TUI](./modules/ratatui-tui.aps.md)
 **Depends on:** KERN (consumes kernel events)
 
-### Future — Ink-to-Ratatui Port (PORT, Proposed)
+### Future — Ink-to-Ratatui Port (PORT, Complete)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
-| PORT-001 | Port shared layout and display components                | Draft    |
-| PORT-002 | Port composite panel components                          | Draft    |
-| PORT-010 | Port welcome surface                                     | Draft    |
-| PORT-011 | Port doctor surface                                      | Draft    |
-| PORT-012 | Port status dashboard surface                            | Draft    |
-| PORT-020 | Port init wizard surface                                 | Draft    |
-| PORT-021 | Port audit results surface                               | Draft    |
-| PORT-022 | Port template browser surface                            | Draft    |
-| PORT-023 | Port gate explorer surface                               | Draft    |
-| PORT-030 | Port watch dashboard surface                             | Draft    |
-| PORT-040 | Port tutorial orchestrator and picker                    | Draft    |
-| PORT-041 | Port policy tutorial path                                | Draft    |
-| PORT-042 | Port architecture tutorial path                          | Draft    |
-| PORT-043 | Port drift tutorial path                                 | Draft    |
-| PORT-044 | Port CI tutorial path                                    | Draft    |
+| PORT-001 | Port shared layout and display components                | Done     |
+| PORT-002 | Port composite panel components                          | Done     |
+| PORT-010 | Port welcome surface                                     | Done     |
+| PORT-011 | Port doctor surface                                      | Done     |
+| PORT-012 | Port status dashboard surface                            | Done     |
+| PORT-020 | Port init wizard surface                                 | Done     |
+| PORT-021 | Port audit results surface                               | Done     |
+| PORT-022 | Port template browser surface                            | Done     |
+| PORT-023 | Port gate explorer surface                               | Done     |
+| PORT-030 | Port watch dashboard surface                             | Done     |
+| PORT-040 | Port tutorial orchestrator and picker                    | Done     |
+| PORT-041 | Port policy tutorial path                                | Done     |
+| PORT-042 | Port architecture tutorial path                          | Done     |
+| PORT-043 | Port drift tutorial path                                 | Done     |
+| PORT-044 | Port CI tutorial path                                    | Done     |
 
 **Module:** [PORT — Ink-to-Ratatui Port](./modules/ink-to-ratatui-port.aps.md)
 **Depends on:** RATS-001 (shared component library, complete)
@@ -430,7 +430,7 @@ Task-level detail for all completed work is archived in
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 | — |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 8/8 | — |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 8/10 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
 
@@ -487,10 +487,10 @@ waves; 39 tasks total.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 4/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
-| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | In Progress | 1/7 | KERN Phase 3 |
-| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
+| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-dotnet](./modules/lang-dotnet.aps.md) | DNLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
@@ -1226,6 +1226,8 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-006 | maint  | Nx generator for CLI commands                       | Complete | Low      |
 | MAINT-007 | maint  | Nx generator for gate checks                        | Complete | Low      |
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
+| MAINT-009 | maint  | Edda list filters parity with release claims        | Ready    | Medium   |
+| MAINT-010 | maint  | Authenticated release smoke harness                 | Ready    | Medium   |
 
 ### Task Status — 0.1.x (Nx Task Migration)
 

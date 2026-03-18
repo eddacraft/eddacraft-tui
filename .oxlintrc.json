@@ -9,7 +9,9 @@
     "no-unused-vars": "off",
     "no-explicit-any": "off",
     "no-await-in-loop": "off",
-    "no-shadow": "off"
+    "no-shadow": "off",
+    "unicorn/no-array-sort": "off",
+    "unicorn/consistent-function-scoping": "off"
   },
   "ignorePatterns": [
     "dist/",

@@ -9,9 +9,9 @@ Scopes: RATS (main)
 
 # Ratatui TUI
 
-| ID   | Owner | Status      |
-| ---- | ----- | ----------- |
-| RATS | —     | In Progress |
+| ID   | Owner | Status   |
+| ---- | ----- | -------- |
+| RATS | —     | Complete |
 
 ## Purpose
 
@@ -79,6 +79,7 @@ Change status to **Ready** when:
 ### RATS-001: eddacraft-tui shared crate (theme, keyboard, widgets)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Create a shared Ratatui component library with EddaCraft theme,
   keyboard conventions (j/k, space, enter, esc), and reusable widgets (Select,
   MultiSelect, TextInput, ProgressBar, StatusBar)
@@ -99,7 +100,8 @@ Change status to **Ready** when:
 
 ### RATS-002: Watch dashboard (live gate results, file status)
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Build a Ratatui watch dashboard that renders live gate results,
   file change status, and violation list. Consumes kernel events via in-process
   channel.
@@ -116,7 +118,8 @@ Change status to **Ready** when:
 
 ### RATS-003: Gate result viewer (interactive)
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Build an interactive gate result viewer with navigable violation
   list, detail panes, and keyboard shortcuts for explaining/suppressing
   individual violations
@@ -133,7 +136,8 @@ Change status to **Ready** when:
 
 ### RATS-004: APS onboarding wizard
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Build a multi-step onboarding wizard for APS project initialisation
   using Ratatui. Covers template selection, configuration, and scaffold
   generation.
@@ -152,7 +156,8 @@ Change status to **Ready** when:
 
 ### RATS-005: Ink-to-Ratatui migration path
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Define and implement the deprecation/migration path from the
   existing Ink TUI to Ratatui surfaces, including feature flags to switch
   between Ink and Ratatui rendering for each surface
@@ -169,7 +174,8 @@ Change status to **Ready** when:
 
 ### RATS-006: Terminal platform compatibility testing
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Validate Ratatui TUI surfaces render correctly across target
   terminals (iTerm2, WezTerm, GNOME Terminal, Windows Terminal, VS Code
   integrated terminal) and minimum terminal size (80×24)
@@ -186,7 +192,8 @@ Change status to **Ready** when:
 
 ### RATS-007: `anvil watch` TUI integration entry point
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Wire the Ratatui watch dashboard into the `anvil` binary so that
   `anvil watch` launches the TUI, connects to the kernel event channel, and
   renders live updates
@@ -215,6 +222,6 @@ Change status to **Ready** when:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 1 — Shared Components | 1 | Done |
-| 2 — Core Surfaces | 3 | Draft |
-| 3 — Integration | 3 | Draft |
-| **Total** | **7** | — |
+| 2 — Core Surfaces | 3 | Done |
+| 3 — Integration | 3 | Done |
+| **Total** | **7** | **Complete** |

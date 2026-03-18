@@ -9,9 +9,9 @@ Scopes: PORT (main)
 
 # Ink-to-Ratatui Port
 
-| ID   | Owner | Status      |
-| ---- | ----- | ----------- |
-| PORT | —     | In Progress |
+| ID   | Owner | Status   |
+| ---- | ----- | -------- |
+| PORT | —     | Complete |
 
 ## Purpose
 
@@ -139,6 +139,7 @@ Change status to **Ready** when:
 ### PORT-001: Port shared layout and display components to eddacraft-tui
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port Header, Container, Divider, Spinner, StatusBadge, and Confirm
   components to Ratatui equivalents in the `eddacraft-tui` crate
 - **Expected Outcome:** Shared component library covers all layout and feedback
@@ -155,6 +156,7 @@ Change status to **Ready** when:
 ### PORT-002: Port LogPanel, ParallelProgress, QuickWinsPanel, ResultsDashboard
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the composite display components that combine multiple
   primitives into reusable panels
 - **Expected Outcome:** Panel components render structured data (logs, progress
@@ -172,7 +174,8 @@ Change status to **Ready** when:
 
 ### PORT-010: Port welcome surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the first-run welcome screen to Ratatui — static content,
   no service dependencies
 - **Expected Outcome:** Welcome screen renders with EddaCraft branding, value
@@ -187,7 +190,8 @@ Change status to **Ready** when:
 
 ### PORT-011: Port doctor surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the diagnostics screen to Ratatui — receives diagnostic
   check results as input, renders pass/fail status with details
 - **Expected Outcome:** Doctor surface displays diagnostic checks with status
@@ -203,7 +207,8 @@ Change status to **Ready** when:
 
 ### PORT-012: Port status dashboard surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the status dashboard to Ratatui — three-panel layout (hooks,
   profile, results) receiving `StatusData` as input
 - **Expected Outcome:** Status dashboard renders all three panels with correct
@@ -220,7 +225,8 @@ Change status to **Ready** when:
 
 ### PORT-020: Port init wizard surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the multi-step init wizard (Mode, Format, Directory, Checks,
   Summary) to Ratatui with step navigation and configuration output
 - **Expected Outcome:** Wizard flow with forward/back navigation, input
@@ -236,7 +242,8 @@ Change status to **Ready** when:
 
 ### PORT-021: Port audit results surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the audit results viewer to Ratatui — displays repo scan
   results with grouping and detail expansion
 - **Expected Outcome:** Audit surface renders scan results with the same
@@ -252,7 +259,8 @@ Change status to **Ready** when:
 
 ### PORT-022: Port template browser surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the template browser to Ratatui — list view with preview
   pane, search/filter, and template selection
 - **Expected Outcome:** Template browser renders template list with metadata
@@ -268,7 +276,8 @@ Change status to **Ready** when:
 
 ### PORT-023: Port gate explorer surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the gate explorer to Ratatui — three-panel layout (check
   tree, detail, filter) with navigable violation list
 - **Expected Outcome:** Gate explorer renders check results with tree
@@ -287,7 +296,8 @@ Change status to **Ready** when:
 
 ### PORT-030: Port watch dashboard surface
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the watch dashboard to Ratatui — four-panel layout with
   live updates, imperative handle API for external control
 - **Expected Outcome:** Watch dashboard renders file status, gate results,
@@ -305,7 +315,8 @@ Change status to **Ready** when:
 
 ### PORT-040: Port tutorial orchestrator and picker
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the tutorial orchestrator (Tutorial.tsx, TutorialPicker.tsx)
   and core step components (ScanStep, WatchStep, FixStep, NextStepsStep) to
   Ratatui
@@ -322,7 +333,8 @@ Change status to **Ready** when:
 
 ### PORT-041: Port policy tutorial path (6 steps)
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the policy tutorial path (CreateDir, Customise, Intro,
   SeePolicyFire, TestPolicy, WritePolicy) to Ratatui
 - **Expected Outcome:** All 6 policy tutorial steps render and progress
@@ -337,7 +349,8 @@ Change status to **Ready** when:
 
 ### PORT-042: Port architecture tutorial path (6 steps)
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the architecture tutorial path (Compile, Detect, Intro,
   Summary, Template, Validate) to Ratatui
 - **Expected Outcome:** All 6 architecture tutorial steps render and progress
@@ -352,7 +365,8 @@ Change status to **Ready** when:
 
 ### PORT-043: Port drift tutorial path (5 steps)
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the drift tutorial path (Capture, Compare, Inspect, Intro,
   Summary) to Ratatui
 - **Expected Outcome:** All 5 drift tutorial steps render and progress correctly
@@ -366,7 +380,8 @@ Change status to **Ready** when:
 
 ### PORT-044: Port CI tutorial path (6 steps)
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Port the CI tutorial path (Detect, ExitCodes, Hooks, Intro,
   Summary, Workflow) to Ratatui
 - **Expected Outcome:** All 6 CI tutorial steps render and progress correctly
@@ -408,8 +423,8 @@ wire those surfaces to live kernel events and extend them with new capabilities.
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — Shared Component Ports | 2 | Draft |
-| 2 — Simple Surface Ports | 3 | Draft |
-| 3 — Medium Surface Ports | 4 | Draft |
-| 4 — Complex Surface Ports | 6 | Draft |
-| **Total** | **15** | — |
+| 1 — Shared Component Ports | 2 | Done |
+| 2 — Simple Surface Ports | 3 | Done |
+| 3 — Medium Surface Ports | 4 | Done |
+| 4 — Complex Surface Ports | 6 | Done |
+| **Total** | **15** | **Complete** |

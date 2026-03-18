@@ -29,10 +29,10 @@ fn benchmark_detection_latency(dir: &Path, iterations: usize) {
     let (tx, rx) = mpsc::channel();
     let mut watcher =
         notify::recommended_watcher(move |result: Result<notify::Event, notify::Error>| {
-            if let Ok(event) = result {
-                if is_relevant(event.kind) {
-                    let _ = tx.send(Instant::now());
-                }
+            if let Ok(event) = result
+                && is_relevant(event.kind)
+            {
+                let _ = tx.send(Instant::now());
             }
         })
         .expect("failed to create watcher");
@@ -106,10 +106,10 @@ fn benchmark_burst_detection(dir: &Path, file_count: usize) {
     let (tx, rx) = mpsc::channel();
     let mut watcher =
         notify::recommended_watcher(move |result: Result<notify::Event, notify::Error>| {
-            if let Ok(event) = result {
-                if is_relevant(event.kind) {
-                    let _ = tx.send(Instant::now());
-                }
+            if let Ok(event) = result
+                && is_relevant(event.kind)
+            {
+                let _ = tx.send(Instant::now());
             }
         })
         .expect("failed to create watcher");
