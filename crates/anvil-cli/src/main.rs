@@ -52,6 +52,12 @@ enum Commands {
     /// Show the welcome screen with quick-start options.
     #[command(alias = "start")]
     Welcome(commands::welcome::WelcomeArgs),
+    /// Initialise Anvil configuration for a project.
+    Init(commands::init::InitArgs),
+    /// Scaffold a new project from a template.
+    New(commands::new::NewArgs),
+    /// Guided project setup wizard.
+    Wizard(commands::wizard::WizardArgs),
     // Not yet implemented — uncomment as each command ships:
     // /// Administrative commands (approvals, user management).
     // Admin(commands::admin::AdminArgs),
@@ -65,16 +71,10 @@ enum Commands {
     // Gate(commands::gate::GateArgs),
     // /// Install and manage git hooks.
     // Hooks(commands::hooks::HooksArgs),
-    // /// Initialise Anvil configuration for a project.
-    // Init(commands::init::InitArgs),
-    // /// Scaffold a new project from a template.
-    // New(commands::new::NewArgs),
     // /// Manage and evaluate policies.
     // Policy(commands::policy::PolicyArgs),
     // /// Start file-watching mode with live gate checks.
     // Watch(commands::watch::WatchArgs),
-    // /// Guided project setup wizard.
-    // Wizard(commands::wizard::WizardArgs),
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -103,6 +103,9 @@ fn main() -> ExitCode {
         Commands::Status(args) => commands::status::run(args, &cli.global),
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
+        Commands::Init(args) => commands::init::run(args, &cli.global),
+        Commands::New(args) => commands::new::run(args, &cli.global),
+        Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
     };
 
     match result {

@@ -1,9 +1,12 @@
 // Implemented commands
 pub mod audit;
 pub mod doctor;
+pub mod init;
+pub mod new;
 pub mod status;
 pub mod tutorial;
 pub mod welcome;
+pub mod wizard;
 
 // Not yet implemented — uncomment as each command ships:
 // pub mod admin;
@@ -12,8 +15,5 @@ pub mod welcome;
 // pub mod export;
 // pub mod gate;
 // pub mod hooks;
-// pub mod init;
-// pub mod new;
 // pub mod policy;
 // pub mod watch;
-// pub mod wizard;
