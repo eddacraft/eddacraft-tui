@@ -63,7 +63,7 @@ describe('Vercel resources', () => {
     expect(domains.length).toBe(3);
   });
 
-  it('creates environment variables for website when secrets are configured', () => {
+  it('creates environment variables for anvil-api when secrets are configured', () => {
     const envVars = resources.filter(
       (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
     );
