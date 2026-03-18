@@ -16,9 +16,9 @@ pub enum QuickStartOption {
 
 impl QuickStartOption {
     pub const ALL: [Self; 4] = [
-        Self::RunTutorial,
-        Self::RunAudit,
         Self::RunDoctor,
+        Self::RunAudit,
+        Self::RunTutorial,
         Self::ViewDocs,
     ];
 

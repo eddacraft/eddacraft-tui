@@ -54,76 +54,109 @@ that feature. E.g.:
 
 If no relevant findings exist, show a curated example instead.
 
-## Work Items
+## Tasks
 
 ### Phase 1: Discovery Scan Surface
 
-- **WELCOME-001**: Create `ScanFilter` in `anvil-checks` that excludes test
+### WELCOME-001: Create scan filter for test fixtures
+
+- **Status:** Proposed
+- **Intent:** Create `ScanFilter` in `anvil-checks` that excludes test
   fixture paths from results. Add unit tests for pattern matching.
 
-- **WELCOME-002**: Create `DiscoverySurface` in
+### WELCOME-002: Create discovery surface
+
+- **Status:** Proposed
+- **Intent:** Create `DiscoverySurface` in
   `crates/anvil-tui/src/surfaces/tutorial/discovery.rs`. Phases: Scanning
   (spinner + progress from kernel events) → Results (warning list with
   file:line, message, suggestion) → Continue. Thread `ScanResults` into
   tutorial state.
 
-- **WELCOME-003**: Implement **showcase mode** fallback. When filtered scan
-  returns zero warnings, display 3–4 curated example findings covering
-  different check types (secret detection, anti-pattern, architecture
-  violation). Each clearly labelled "[Example]" with muted styling.
+### WELCOME-003: Implement showcase mode fallback
 
-- **WELCOME-004**: Wire discovery into welcome flow. After user selects
-  "Interactive Tutorial" from welcome menu, run discovery scan before
-  entering tutorial path selection. Pass `ScanResults` through to tutorial
-  state.
+- **Status:** Proposed
+- **Intent:** When filtered scan returns zero warnings, display 3–4 curated
+  example findings covering different check types (secret detection,
+  anti-pattern, architecture violation). Each clearly labelled "[Example]"
+  with muted styling.
+
+### WELCOME-004: Wire discovery into welcome flow
+
+- **Status:** Proposed
+- **Intent:** After user selects "Interactive Tutorial" from welcome menu,
+  run discovery scan before entering tutorial path selection. Pass
+  `ScanResults` through to tutorial state.
 
 ### Phase 2: Inline Editor Widget
 
-- **WELCOME-005**: Create `EditorState` / `EditorWidget` in
+### WELCOME-005: Create inline editor widget
+
+- **Status:** Proposed
+- **Intent:** Create `EditorState` / `EditorWidget` in
   `crates/eddacraft-tui/src/widgets/editor.rs`. Multi-line text editing
   with: line numbers, syntax-aware line highlighting (current line), scroll,
   cursor movement (hjkl/arrows, Home/End, PgUp/PgDn), insert/delete/
   backspace. Load from file path, save back to file.
 
-- **WELCOME-006**: Create fix step in tutorial that presents the top warning
-  with context (5 lines above/below), opens inline editor focused on the
-  warning line, and validates the fix by re-running the check on save.
-  Fallback: show file path + watch for external changes.
+### WELCOME-006: Create fix step in tutorial
+
+- **Status:** Proposed
+- **Intent:** Present the top warning with context (5 lines above/below),
+  open inline editor focused on the warning line, and validate the fix by
+  re-running the check on save. Fallback: show file path + watch for
+  external changes.
 
 ### Phase 3: Hands-On Feature Tutorials
 
-- **WELCOME-007**: Add **"In Your Project"** step to Policy tutorial path.
-  Run policy-specific checks against the user's codebase. Display real
-  policy violations if found, otherwise show curated example. Step content
-  adapts based on findings.
+### WELCOME-007: Add in-project step to policy tutorial
 
-- **WELCOME-008**: Add **"In Your Project"** step to Architecture tutorial
-  path. Run architecture checks (import rules, module boundaries). Display
-  real violations or curated example.
+- **Status:** Proposed
+- **Intent:** Run policy-specific checks against the user's codebase.
+  Display real policy violations if found, otherwise show curated example.
+  Step content adapts based on findings.
 
-- **WELCOME-009**: Add **"In Your Project"** step to Drift tutorial path.
-  Look for existing snapshots in `.anvil/snapshots/`. If found, show drift
-  between latest two. Otherwise, capture a baseline and explain what drift
-  detection does.
+### WELCOME-008: Add in-project step to architecture tutorial
 
-- **WELCOME-010**: Add **"In Your Project"** step to CI tutorial path.
-  Detect existing CI configuration (`.github/workflows/`, `.gitlab-ci.yml`,
-  `Jenkinsfile`). Show what Anvil hooks/checks would integrate. If no CI
-  found, show setup instructions.
+- **Status:** Proposed
+- **Intent:** Run architecture checks (import rules, module boundaries).
+  Display real violations or curated example.
+
+### WELCOME-009: Add in-project step to drift tutorial
+
+- **Status:** Proposed
+- **Intent:** Look for existing snapshots in `.anvil/snapshots/`. If found,
+  show drift between latest two. Otherwise, capture a baseline and explain
+  what drift detection does.
+
+### WELCOME-010: Add in-project step to CI tutorial
+
+- **Status:** Proposed
+- **Intent:** Detect existing CI configuration (`.github/workflows/`,
+  `.gitlab-ci.yml`, `Jenkinsfile`). Show what Anvil hooks/checks would
+  integrate. If no CI found, show setup instructions.
 
 ### Phase 4: Welcome Flow Polish
 
-- **WELCOME-011**: Restore watch demo step in core tutorial. After discovery
-  scan, launch file watcher showing real-time check results. Progressive
-  hints after 10s/20s/30s. Skip with 's'.
+### WELCOME-011: Restore watch demo step in core tutorial
 
-- **WELCOME-012**: Wire `ScanResults` threading through all tutorial phases.
-  Results from discovery flow into feature tutorials so "In Your Project"
-  steps can reference already-found issues rather than re-scanning.
+- **Status:** Proposed
+- **Intent:** After discovery scan, launch file watcher showing real-time
+  check results. Progressive hints after 10s/20s/30s. Skip with 's'.
 
-- **WELCOME-013**: Add tutorial progress persistence to
-  `~/.anvil/tutorial-progress.json` (already exists in Ratatui tutorial but
-  needs to include discovery completion state and scan results cache).
+### WELCOME-012: Wire ScanResults threading through tutorial phases
+
+- **Status:** Proposed
+- **Intent:** Results from discovery flow into feature tutorials so "In
+  Your Project" steps can reference already-found issues rather than
+  re-scanning.
+
+### WELCOME-013: Add tutorial progress persistence
+
+- **Status:** Proposed
+- **Intent:** Add persistence to `~/.anvil/tutorial-progress.json` (already
+  exists in Ratatui tutorial but needs to include discovery completion state
+  and scan results cache).
 
 ## File Map
 
