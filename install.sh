@@ -7,7 +7,7 @@
 
 set -e
 
-PACKAGE="@eddacraft/anvil-cli@stable"
+PACKAGE="@eddacraft/anvil-cli@latest"
 MIN_NODE_MAJOR=20   # Together with MIN_NODE_MINOR, this enforces >= 20.19.0 (as documented)
 MIN_NODE_MINOR=19   # i.e., minimum version is 20.19.0 and above
 
