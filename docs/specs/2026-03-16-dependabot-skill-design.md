@@ -509,7 +509,7 @@ appear only in the sweep report.
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`
-- Test: `pnpm nx run-many -t test --exclude=@eddacraft/anvil-e2e` (excludes
+- Test: `pnpm nx run-many --target test --exclude=@eddacraft/anvil-e2e` (excludes
   Playwright e2e targets)
 - Overrides: root `package.json` under `pnpm.overrides`
 - Two ecosystems: npm + github-actions (actions alerts update workflow YAML
