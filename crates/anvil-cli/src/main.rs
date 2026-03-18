@@ -76,8 +76,24 @@ enum Commands {
     Export(commands::export::ExportArgs),
 }
 
+/// Check whether `--json` appears in raw args before clap parses them.
+/// This lets us emit JSON errors even when clap rejects the input.
+fn wants_json() -> bool {
+    std::env::args().any(|a| a == "--json")
+}
+
 fn main() -> ExitCode {
-    let cli = Cli::parse();
+    let cli = match Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            if wants_json() {
+                eprintln!("{}", serde_json::json!({ "error": err.to_string() }));
+            } else {
+                let _ = err.print();
+            }
+            return ExitCode::from(EXIT_ERROR);
+        }
+    };
 
     let result = match &cli.command {
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
