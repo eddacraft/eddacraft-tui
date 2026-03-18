@@ -185,6 +185,7 @@ const activationCode: React.CSSProperties = {
   margin: '0 0 4px',
   fontSize: '24px',
   fontWeight: 'bold',
+  fontFamily: fontMono,
   color: '#ffffff',
   letterSpacing: '2px',
   textAlign: 'center' as const,

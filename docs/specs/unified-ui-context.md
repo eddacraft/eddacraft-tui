@@ -272,7 +272,10 @@ Non-interactive commands (no TUI surface):
 
 ### 7.3 Output Conventions
 
-- **Silence over noise.** Do not print `✅ Success!` — print `STATUS: OK [200ms]`.
+- **Silence over noise.** Do not print `✅ Success!` — the target format is
+  `STATUS: OK [200ms]`. *(Not yet emitted by all commands — current handlers
+  still use ad-hoc prose like `Anvil initialised successfully.` Adopt this
+  envelope as commands are ported to the Rust CLI.)*
 - **No emojis.** Ever.
 - **Exit codes are contracts:**
   - `0` — Success
