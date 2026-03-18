@@ -273,9 +273,6 @@ Non-interactive commands (no TUI surface):
 - **Exit codes are contracts:**
   - `0` — Success
   - `1` — General error
-  - `2` — Gate failed (checks did not pass)
-  - `3` — Authentication required
-  - `4` — Configuration error
 - **Structured output:** `--json` serialises the same data the TUI consumes.
   CI consumers depend on this contract.
 
@@ -287,8 +284,8 @@ Non-interactive commands (no TUI surface):
 3. **Gate check:** `anvil gate plan.aps.md` → pass/fail breakdown with
    colour-coded results. *(Planned — `gate` not yet implemented in the Rust
    CLI; use the TypeScript CLI or `anvil status` for current demos.)*
-4. **Auth flow:** `anvil auth login` → device code displayed → browser
-   activation → token stored.
+4. **Auth flow:** `anvil auth` → device code displayed → browser activation
+   → token stored.
 
 ---
 
@@ -384,9 +381,12 @@ from each engineer's `.anvil/` workspace storage.
 - **Route:** `/dashboard` (route group `(dashboard)`)
 - **Deployment:** Local dev server (reads from engineer's `.anvil/` workspace)
 
-### 9.2 View Modules
+### 9.2 View Modules *(Planned)*
 
-#### Core Views (DASHCORE)
+> **Note:** The dashboard route group is not yet implemented. All routes below
+> are planned — see DASH-001 in `plans/modules/dashboard-foundation.aps.md`.
+
+#### Core Views (DASHCORE) *(Planned)*
 
 | Route | Purpose |
 |-------|---------|
@@ -397,7 +397,7 @@ from each engineer's `.anvil/` workspace storage.
 | `/dashboard/warnings/breakdown` | Warning breakdown by category |
 | `/dashboard/warnings/patterns` | Warning pattern analysis |
 
-#### Architecture Views (DASHARCH)
+#### Architecture Views (DASHARCH) *(Planned)*
 
 | Route | Purpose |
 |-------|---------|
@@ -410,7 +410,7 @@ from each engineer's `.anvil/` workspace storage.
 | `/dashboard/suppressions` | Suppression management |
 | `/dashboard/suppressions/trends` | Suppression trend analysis |
 
-#### Ops Views (DASHOPS)
+#### Ops Views (DASHOPS) *(Planned)*
 
 | Route | Purpose |
 |-------|---------|
@@ -422,7 +422,7 @@ from each engineer's `.anvil/` workspace storage.
 | `/dashboard/config` | Configuration viewer |
 | `/dashboard/diagnostics` | System diagnostics |
 
-#### AI Builder Views (DASHAI)
+#### AI Builder Views (DASHAI) *(Planned)*
 
 | Route | Purpose |
 |-------|---------|
@@ -641,7 +641,7 @@ The CLI command structure maps directly to dashboard routes:
 | `anvil audit` | `/dashboard/audit` | Audit |
 | `anvil watch` | — (real-time only) | Watch |
 | `anvil doctor` | `/dashboard/diagnostics` | Doctor |
-| `anvil policy list` | `/dashboard/config` | — |
+| `anvil policy` | `/dashboard/config` | — |
 | `anvil architecture` | `/dashboard/architecture` | — |
 
 ### 14.3 Terminology
@@ -692,7 +692,8 @@ All surfaces follow the same silence protocol:
    generated. Show the config file briefly.
 
 3. **The Core Loop (90s):**
-   - `anvil gate plan.aps.md` → TUI shows check results.
+   - `anvil gate plan.aps.md` → TUI shows check results. *(Planned — `gate`
+     is not yet implemented in the Rust CLI.)*
    - Open dashboard → same data, richer visualisation. *(Planned — the
      `/dashboard` route group is not yet implemented; see DASH-001 in
      `plans/modules/dashboard-foundation.aps.md`.)*
@@ -712,7 +713,7 @@ All surfaces follow the same silence protocol:
 - Dashboard overview with KPI cards (static or slow scroll).
 - `anvil doctor` fixing issues (checks flipping green).
 - Architecture graph rotating/zooming.
-- Terminal showing `anvil auth login` → device code flow.
+- Terminal showing `anvil auth` → device code flow.
 
 ### 15.4 What NOT to Show
 
