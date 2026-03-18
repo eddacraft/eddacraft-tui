@@ -23,16 +23,17 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
     if global.json {
         print_json(&checks)?;
-        return Ok(());
-    }
-
-    if global.no_tui || !std::io::stdout().is_terminal() {
+    } else if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain(&checks);
-        return Ok(());
+    } else {
+        let state = DoctorState::new(checks.clone());
+        crate::tui::run_surface(state)?;
     }
 
-    let state = DoctorState::new(checks);
-    crate::tui::run_surface(state)?;
+    let has_failures = checks.iter().any(|c| c.status == CheckStatus::Fail);
+    if has_failures {
+        anyhow::bail!("Doctor check failed");
+    }
 
     Ok(())
 }
@@ -79,27 +80,32 @@ fn check_git_available() -> DiagnosticCheck {
 }
 
 fn check_git_repo() -> DiagnosticCheck {
-    let exists = Path::new(".git").exists();
+    // Use git rev-parse to detect repos from subdirectories and worktrees,
+    // rather than checking for a .git entry in the current directory.
+    let is_repo = Command::new("git")
+        .args(["rev-parse", "--git-dir"])
+        .output()
+        .is_ok_and(|o| o.status.success());
 
     DiagnosticCheck {
         name: "git-repo".to_string(),
         category: "System".to_string(),
-        status: if exists {
+        status: if is_repo {
             CheckStatus::Pass
         } else {
             CheckStatus::Fail
         },
-        message: if exists {
+        message: if is_repo {
             "git repository detected".to_string()
         } else {
             "not a git repository".to_string()
         },
-        details: if exists {
+        details: if is_repo {
             None
         } else {
             Some("Run `git init` to initialise a repository".to_string())
         },
-        auto_fixable: !exists,
+        auto_fixable: !is_repo,
     }
 }
 
