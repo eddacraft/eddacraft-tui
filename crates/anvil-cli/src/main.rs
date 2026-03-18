@@ -52,7 +52,6 @@ enum Commands {
     /// Show the welcome screen with quick-start options.
     #[command(alias = "start")]
     Welcome(commands::welcome::WelcomeArgs),
-
     // Not yet implemented — uncomment as each command ships:
     // /// Administrative commands (approvals, user management).
     // Admin(commands::admin::AdminArgs),
