@@ -289,7 +289,7 @@ Non-interactive commands (no TUI surface):
    colour-coded results. *(Planned — `gate` not yet implemented in the Rust
    CLI; use the TypeScript CLI or `anvil status` for current demos.)*
 4. **Auth flow:** `anvil auth` → device code displayed → browser activation
-   → token stored.
+   → token stored. *(Planned — `auth` is not yet implemented in the Rust CLI.)*
 
 ---
 
@@ -303,35 +303,29 @@ layout shell.
 
 ### 8.2 Architecture & Layout
 
-Strict 3-part vertical layout:
+The shared shell (`crates/anvil-tui/src/shell.rs`) uses a minimal 3-part
+vertical layout:
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  ████     ████                                       │
-│  ██         ██                                       │
-│  ██  █████  ██                                       │
-│  ██         ██   a n v i l                           │
-│  ██  █████  ██                                       │
-│  ██         ██                                       │
-│  ████     ████                                       │
-├─────────────────────┬────────────────────────────────│
-│                     │                                │
-│  [ ≡ ] LEFT PANE    │  [ > ] RIGHT PANE              │
-│  (40%)              │  (60%)                         │
-│  --structure border │  --anvil-ember border          │
-│                     │                                │
-│                     │                                │
-├─────────────────────┴───────────────────┬────────────│
-│  [ SYSTEM_LOGS ]                        │  [ ■ ]     │
-│  (80%)                                  │  eddacraft │
-└─────────────────────────────────────────┴────────────┘
+│  Anvil > SurfaceName                                 │  ← Header (1 line)
+├──────────────────────────────────────────────────────│
+│                                                      │
+│  Surface content area                                │
+│  (each surface renders its own internal panels)      │  ← Content (flexible)
+│                                                      │
+│                                                      │
+├──────────────────────────────────────────────────────│
+│  q: quit  ?: help                                    │  ← Footer (1 line)
+└──────────────────────────────────────────────────────┘
 ```
 
-- **Header:** Fixed `Constraint::Length(9)`. Macro Anvil logo in `EMBER`.
-- **Core:** `Constraint::Min(10)`. Split horizontally — left (40%) with
-  `BORDER` colour, right (60%) with `EMBER` border.
-- **Footer:** Fixed `Constraint::Length(5)`. System logs (80%) + EddaCraft
-  watermark (20%).
+- **Header:** Fixed `Constraint::Length(1)`. Shows `Anvil > SurfaceName` with
+  the surface name in `--text-primary` and `>` separator in `--text-muted`.
+- **Content:** `Constraint::Min(1)`. Each surface owns its internal layout
+  (panels, splits, etc.).
+- **Footer:** Fixed `Constraint::Length(1)`. Contextual help text in
+  `--text-muted`.
 
 ### 8.3 The 10 Surfaces
 
@@ -550,7 +544,11 @@ Shared dashboard components (all in `components/dashboard/`):
   - Warning → `--warning` (`#D08C38`)
   - Information → `--anvil-ember` (`#CC5500`)
   - Hint → `--text-muted` (`#85858A`)
-- **Status bar:** Display Anvil status using bracket syntax: `[ = ] 3 checks`.
+- **Status bar:** Display Anvil status using VS Code codicon strings. The
+  deployed extension (`packages/vscode-extension/src/services/statusBar.ts`)
+  uses: `$(shield) Anvil` (idle), `$(loading~spin) Anvil: Running gates...`
+  (active), `$(check) Anvil: Passed` (success), `$(error) Anvil: Failed`
+  (error), `$(warning) Anvil: Warning` (warning).
 - **Tree views:** Use `--structure` for borders. No icons beyond VS Code
   defaults.
 
@@ -558,7 +556,8 @@ Shared dashboard components (all in `components/dashboard/`):
 
 1. **Inline diagnostics:** Show a policy violation appearing as a squiggly
    underline in the editor with hover detail.
-2. **Status bar:** The `[ = ]` status updating as files are saved.
+2. **Status bar:** The codicon status updating as files are saved (e.g.,
+   `$(loading~spin)` → `$(check) Anvil: Passed`).
 
 ---
 
@@ -579,7 +578,10 @@ customer-facing because AI agents present its output to users.
   and dashboard consume.
 - **Resource descriptions:** Use declarative, technical language. No marketing
   copy.
-- **Error messages:** Match CLI conventions — `STATUS: FAIL [reason]`.
+- **Error messages:** Return `isError: true` with a JSON text body shaped as
+  `{"error": "<message>"}`. This matches the envelope used by `registerStatusTool()`
+  and `registerGateTool()` in the deployed server — do not use CLI-style
+  `STATUS: FAIL [reason]` strings.
 
 ### 12.3 Demo Scenarios (Marketing / Video)
 
@@ -720,7 +722,8 @@ All surfaces follow the same silence protocol:
 - Dashboard overview with KPI cards (static or slow scroll).
 - `anvil doctor` fixing issues (checks flipping green).
 - Architecture graph rotating/zooming.
-- Terminal showing `anvil auth` → device code flow.
+- Terminal showing `anvil auth` → device code flow. *(Planned — `auth` not
+  yet implemented.)*
 
 ### 15.4 What NOT to Show
 
