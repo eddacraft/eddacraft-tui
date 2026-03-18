@@ -29,8 +29,8 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let state = WelcomeState::new();
     let state = crate::tui::run_surface(state)?;
 
-    print_chosen_action(state.chosen);
     create_first_run_marker(&marker_path)?;
+    launch_chosen_action(state.chosen)?;
 
     Ok(())
 }
@@ -61,14 +61,29 @@ fn create_first_run_marker(path: &PathBuf) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn print_chosen_action(chosen: Option<QuickStartOption>) {
-    match chosen {
-        Some(QuickStartOption::RunTutorial) => println!("Run: anvil tutorial"),
-        Some(QuickStartOption::RunGate) => println!("Run: anvil gate"),
-        Some(QuickStartOption::StartWatch) => println!("Run: anvil watch"),
-        Some(QuickStartOption::ViewDocs) => println!("Visit: https://docs.eddacraft.ai"),
-        None => {}
+fn launch_chosen_action(chosen: Option<QuickStartOption>) -> anyhow::Result<()> {
+    let args: &[&str] = match chosen {
+        Some(QuickStartOption::RunTutorial) => &["tutorial"],
+        Some(QuickStartOption::RunGate) => &["gate"],
+        Some(QuickStartOption::StartWatch) => &["watch"],
+        Some(QuickStartOption::ViewDocs) => {
+            println!("Visit: https://docs.eddacraft.ai");
+            return Ok(());
+        }
+        None => return Ok(()),
+    };
+
+    let exe = std::env::current_exe().context("failed to resolve current executable")?;
+    let status = std::process::Command::new(&exe)
+        .args(args)
+        .status()
+        .with_context(|| format!("failed to launch anvil {}", args[0]))?;
+
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
     }
+
+    Ok(())
 }
 
 fn print_plain_welcome() {
@@ -110,13 +125,10 @@ mod tests {
     }
 
     #[test]
-    fn print_chosen_action_tutorial() {
-        // Smoke test — just ensure it doesn't panic
-        print_chosen_action(Some(QuickStartOption::RunTutorial));
-        print_chosen_action(Some(QuickStartOption::RunGate));
-        print_chosen_action(Some(QuickStartOption::StartWatch));
-        print_chosen_action(Some(QuickStartOption::ViewDocs));
-        print_chosen_action(None);
+    fn launch_chosen_action_docs_does_not_panic() {
+        // ViewDocs just prints a URL, doesn't exec — safe to test.
+        launch_chosen_action(Some(QuickStartOption::ViewDocs)).unwrap();
+        launch_chosen_action(None).unwrap();
     }
 
     #[test]

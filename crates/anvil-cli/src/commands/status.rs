@@ -108,8 +108,22 @@ fn gather_profile(root: &Path) -> ProfileInfo {
         .and_then(serde_json::Value::as_array)
         .map(|arr| {
             arr.iter()
-                .filter_map(serde_json::Value::as_str)
-                .map(String::from)
+                .filter_map(|v| {
+                    // Check objects: { "name": "...", "enabled": true, ... }
+                    if let Some(obj) = v.as_object() {
+                        let name = obj.get("name")?.as_str()?;
+                        let enabled = obj
+                            .get("enabled")
+                            .and_then(serde_json::Value::as_bool)
+                            .unwrap_or(true);
+                        if enabled {
+                            return Some(name.to_string());
+                        }
+                        return None;
+                    }
+                    // Bare string fallback
+                    v.as_str().map(String::from)
+                })
                 .collect()
         })
         .unwrap_or_default();
@@ -149,16 +163,26 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
 }
 
 fn parse_gate_entry(key: &str, val: &serde_json::Value) -> Option<GateRunResult> {
-    // Key format: "gate:<file>:<unix_timestamp>"
-    let timestamp_str = key.rsplit(':').next()?;
-    let ts: i64 = timestamp_str.parse().ok()?;
+    // Only process gate cache entries (key format: "gate:check:{name}:{hash}").
+    if !key.starts_with("gate:") {
+        return None;
+    }
 
-    // Format as ISO-ish date string.
-    let secs = ts;
-    let timestamp = format_unix_timestamp(secs);
+    // Timestamp comes from the index metadata, not the key.
+    let created_at = val.get("created_at").and_then(serde_json::Value::as_f64)?;
+    #[allow(clippy::cast_possible_truncation)]
+    let timestamp = format_unix_timestamp(created_at as i64);
 
-    let passed = val.get("passed").and_then(serde_json::Value::as_bool).unwrap_or(false);
-    let score = val.get("score").and_then(serde_json::Value::as_f64).unwrap_or(0.0);
+    // The index entry points to a result file; read summary fields if present,
+    // otherwise fall back to the index entry's own fields.
+    let passed = val
+        .get("passed")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let score = val
+        .get("score")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0);
     #[allow(clippy::cast_possible_truncation)]
     let checks_run = val
         .get("checksRun")
@@ -386,11 +410,33 @@ mod tests {
     }
 
     #[test]
-    fn gather_with_anvilrc() {
+    fn gather_with_anvilrc_bare_strings() {
         let dir = make_temp_dir();
         std::fs::write(
             dir.join(".anvilrc"),
             r#"{"checks": ["secret-detection", "import-boundaries"], "format": "yaml"}"#,
+        )
+        .unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.profile.name, "default");
+        assert_eq!(data.profile.checks.len(), 2);
+        assert_eq!(data.profile.checks[0], "secret-detection");
+        assert_eq!(data.profile.checks[1], "import-boundaries");
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn gather_with_anvilrc_check_objects() {
+        let dir = make_temp_dir();
+        std::fs::write(
+            dir.join(".anvilrc"),
+            r#"{"checks": [
+                {"name": "secret-detection", "enabled": true},
+                {"name": "import-boundaries"},
+                {"name": "disabled-check", "enabled": false}
+            ]}"#,
         )
         .unwrap();
 
@@ -424,14 +470,18 @@ mod tests {
             cache_dir.join("index.json"),
             r#"{
                 "entries": {
-                    "gate:plan.md:1710000000": {
+                    "gate:check:secret-detection:abc123def456": {
+                        "file": "abc123.json",
+                        "created_at": 1710000000,
                         "passed": true,
                         "score": 0.95,
                         "checksRun": 8,
                         "checksPassed": 8,
                         "durationMs": 1850
                     },
-                    "gate:plan.md:1709990000": {
+                    "gate:check:import-boundaries:fed654cba321": {
+                        "file": "fed654.json",
+                        "created_at": 1709990000,
                         "passed": false,
                         "score": 0.75,
                         "checksRun": 8,
@@ -496,7 +546,7 @@ mod tests {
                 entries.push(',');
             }
             let ts = 1_710_000_000 + i * 1000;
-            let _ = write!(entries, "\"gate:f.md:{ts}\":{{\"passed\":true,\"score\":0.9,\"checksRun\":1,\"checksPassed\":1,\"durationMs\":100}}");
+            let _ = write!(entries, "\"gate:check:chk{i}:hash{i}\":{{\"file\":\"h{i}.json\",\"created_at\":{ts},\"passed\":true,\"score\":0.9,\"checksRun\":1,\"checksPassed\":1,\"durationMs\":100}}");
         }
         entries.push_str("}}");
         std::fs::write(cache_dir.join("index.json"), &entries).unwrap();
