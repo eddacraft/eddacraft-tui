@@ -336,7 +336,7 @@ vertical layout:
 | **Welcome** | First-run menu | Action list, version info, quick-start options |
 | **Tutorial** | Guided paths | Step indicators, progress tracking, instruction panes |
 | **Doctor** | Diagnostics | Check list with pass/fail/warn badges, detail expand |
-| **Status** | Project overview | Policy summary, check counts, file stats |
+| **Status** | Project overview | Hooks panel, active profile, recent gate runs |
 | **Gate** | Check explorer | Check tree with expandable detail, severity badges |
 | **Watch** | Live dashboard | Real-time event stream from kernel, file change log |
 | **Init** | Setup wizard | Multi-step form, config preview, file generation |
@@ -360,7 +360,8 @@ vertical layout:
    as files change — the "flight recorder" experience. *(Planned — not yet
    implemented.)*
 2. **Gate surface:** Expanding a failed check to see the policy rule, the
-   violation, and the file location.
+   violation, and the file location. *(Planned — `gate` is not yet implemented
+   in the Rust CLI; use `anvil status` for current demos.)*
 3. **Doctor surface:** Running `anvil doctor --fix` — fixes are applied before
    the TUI launches, then the surface shows the updated check results.
 4. **Tutorial surface:** Walking through a learning path with step-by-step
@@ -663,14 +664,15 @@ current CLI vs MCP divergence). Schema unification is a future goal.
 ### 14.2 Navigation Parity *(Target State)*
 
 The CLI command structure will map to dashboard routes once both surfaces are
-implemented. Today, only `anvil status` and `anvil doctor` are functional in the
-Rust CLI; the remaining CLI commands and all dashboard routes are planned.
+implemented. Today, `anvil status`, `anvil doctor`, and `anvil audit` are
+functional in the Rust CLI; the remaining CLI commands and all dashboard routes
+are planned.
 
 | CLI Command | Dashboard Route | TUI Surface | Status |
 |-------------|----------------|-------------|--------|
 | `anvil status` | `/dashboard` | Status | CLI: Live, Dashboard: Planned |
 | `anvil gate` | `/dashboard/gates` | Gate | Both Planned |
-| `anvil audit` | `/dashboard/audit` | Audit | Both Planned |
+| `anvil audit` | `/dashboard/audit` | Audit | CLI: Live, Dashboard: Planned |
 | `anvil watch` | — (real-time only) | Watch | Both Planned |
 | `anvil doctor` | `/dashboard/diagnostics` | Doctor | CLI: Live, Dashboard: Planned |
 | `anvil policy` | `/dashboard/config` | — | Both Planned |
