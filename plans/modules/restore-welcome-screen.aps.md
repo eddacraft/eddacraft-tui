@@ -56,7 +56,7 @@ If no relevant findings exist, show a curated example instead.
 
 ## Tasks
 
-### Phase 1: Discovery Scan Surface
+#### Phase 1: Discovery Scan Surface
 
 ### WELCOME-001: Create scan filter for test fixtures
 
@@ -88,7 +88,7 @@ If no relevant findings exist, show a curated example instead.
   run discovery scan before entering tutorial path selection. Pass
   `ScanResults` through to tutorial state.
 
-### Phase 2: Inline Editor Widget
+#### Phase 2: Inline Editor Widget
 
 ### WELCOME-005: Create inline editor widget
 
@@ -107,7 +107,7 @@ If no relevant findings exist, show a curated example instead.
   re-running the check on save. Fallback: show file path + watch for
   external changes.
 
-### Phase 3: Hands-On Feature Tutorials
+#### Phase 3: Hands-On Feature Tutorials
 
 ### WELCOME-007: Add in-project step to policy tutorial
 
@@ -136,7 +136,7 @@ If no relevant findings exist, show a curated example instead.
   `.gitlab-ci.yml`, `Jenkinsfile`). Show what Anvil hooks/checks would
   integrate. If no CI found, show setup instructions.
 
-### Phase 4: Welcome Flow Polish
+#### Phase 4: Welcome Flow Polish
 
 ### WELCOME-011: Restore watch demo step in core tutorial
 
