@@ -9,6 +9,6 @@ System design and architectural deep-dives.
 - [Rust Architecture Overview](rust-architecture-overview.md) — Crate structure
   and design
 
-For the high-level overview, see [overview.md](overview.md).
-Pre-implementation EDDA docs are in
+For the high-level overview, see [overview.md](overview.md). Pre-implementation
+EDDA docs are in
 [archive/edda-pre-implementation/](../archive/edda-pre-implementation/).

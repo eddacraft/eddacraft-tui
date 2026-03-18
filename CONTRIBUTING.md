@@ -129,8 +129,8 @@ export type MyType = z.infer<typeof MySchema>;
 
 ## Testing
 
-See **[docs/guides/testing.md](docs/guides/testing.md)** for comprehensive testing guidelines,
-including:
+See **[docs/guides/testing.md](docs/guides/testing.md)** for comprehensive
+testing guidelines, including:
 
 - Vitest mocking best practices
 - Fixture and factory patterns
@@ -179,13 +179,13 @@ anvil/
 
 ## Additional Resources
 
-| Document               | Purpose                  |
-| ---------------------- | ------------------------ |
-| `AGENTS.md`            | AI agent instructions    |
-| `CLAUDE.md`            | Claude Code instructions |
+| Document                        | Purpose                  |
+| ------------------------------- | ------------------------ |
+| `AGENTS.md`                     | AI agent instructions    |
+| `CLAUDE.md`                     | Claude Code instructions |
 | `docs/architecture/overview.md` | System design            |
-| `docs/guides/testing.md`       | Testing best practices   |
-| `docs/adr/`            | Architecture decisions   |
+| `docs/guides/testing.md`        | Testing best practices   |
+| `docs/adr/`                     | Architecture decisions   |
 
 ## Questions?
 

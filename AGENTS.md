@@ -343,12 +343,12 @@ class MyCheck extends BaseCheck {
 
 ## Documentation
 
-| Document                      | Purpose                       |
-| ----------------------------- | ----------------------------- |
+| Document                        | Purpose                       |
+| ------------------------------- | ----------------------------- |
 | `docs/architecture/overview.md` | System design                 |
-| `docs/guides/testing.md`       | Testing best practices        |
-| `plans/decisions/`            | Architecture decision records |
-| `packages/adapters/README.md` | Adapter framework guide       |
+| `docs/guides/testing.md`        | Testing best practices        |
+| `plans/decisions/`              | Architecture decision records |
+| `packages/adapters/README.md`   | Adapter framework guide       |
 
 ## Package-Specific Instructions
 

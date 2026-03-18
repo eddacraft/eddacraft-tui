@@ -32,8 +32,10 @@ docs/
 
 ### Architecture
 
-- [architecture/overview.md](architecture/overview.md) — System architecture overview
-- [architecture/monorepo-structure.md](architecture/monorepo-structure.md) — Repository layout
+- [architecture/overview.md](architecture/overview.md) — System architecture
+  overview
+- [architecture/monorepo-structure.md](architecture/monorepo-structure.md) —
+  Repository layout
 - [architecture/edda-stack.md](architecture/edda-stack.md) — Edda stack design
 - [architecture/rust-kernel-spec.md](architecture/rust-kernel-spec.md) — Rust
   kernel specification
@@ -43,7 +45,8 @@ docs/
 ### Development
 
 - [guides/testing.md](guides/testing.md) — Test strategy and practices
-- [guides/branching-strategy.md](guides/branching-strategy.md) — Branching strategy
+- [guides/branching-strategy.md](guides/branching-strategy.md) — Branching
+  strategy
 - [guides/](guides/) — Developer how-to guides
 - [runbooks/](runbooks/) — Operational playbooks
 
