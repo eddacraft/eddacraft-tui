@@ -2,7 +2,7 @@ use ratatui::style::Color;
 
 use super::traits::Theme;
 
-/// The EddaCraft Terminal Standard palette.
+/// The `EddaCraft` Terminal Standard palette.
 ///
 /// Colour names follow the brand design system:
 /// - The Void (bg), Structure (border)

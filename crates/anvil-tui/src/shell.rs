@@ -17,7 +17,7 @@ pub fn render_shell(
 ) -> Rect {
     let chunks = Layout::vertical([
         Constraint::Length(1), // Header
-        Constraint::Min(1),   // Content
+        Constraint::Min(1),    // Content
         Constraint::Length(1), // Footer / help
     ])
     .split(area);

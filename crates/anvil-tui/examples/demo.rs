@@ -25,12 +25,12 @@ use crossterm::execute;
 use crossterm::terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use eddacraft_tui::keyboard::{Action, KeyHandler};
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
+use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Terminal;
 
 // ---------------------------------------------------------------------------
 // Surface descriptor for the picker
@@ -318,7 +318,9 @@ fn mock_gate_result() -> GateResult {
                 status: GateCheckStatus::Warning,
                 score: 0.6,
                 message: "1 module boundary mismatch".into(),
-                details: Some("packages/core moved to packages/kernel without updating rules".into()),
+                details: Some(
+                    "packages/core moved to packages/kernel without updating rules".into(),
+                ),
                 file: Some(".anvil/architecture.yaml".into()),
                 line: None,
             },
@@ -703,11 +705,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     result
 }
 
-fn draw_surface(
-    frame: &mut ratatui::Frame,
-    app: &DemoApp,
-    theme: &EddaCraftTheme,
-) {
+fn draw_surface(frame: &mut ratatui::Frame, app: &DemoApp, theme: &EddaCraftTheme) {
     let area = frame.area();
     let name = surface_name(app);
     let help = help_text(app);
@@ -759,9 +757,7 @@ fn should_escape_to_picker(app: &DemoApp, action: Action) -> bool {
             s.phase == anvil_tui::surfaces::tutorial::TutorialPhase::PathSelect
         }
         DemoSurface::Init(s) => s.step == anvil_tui::surfaces::init::InitStep::Mode,
-        DemoSurface::Wizard(s) => {
-            s.step == anvil_tui::surfaces::wizard::WizardStep::TemplateSelect
-        }
+        DemoSurface::Wizard(s) => s.step == anvil_tui::surfaces::wizard::WizardStep::TemplateSelect,
         DemoSurface::Gate(s) => !s.search_mode,
         DemoSurface::Browser(s) => {
             s.view == anvil_tui::surfaces::browser::BrowserView::Categories && !s.search_mode
