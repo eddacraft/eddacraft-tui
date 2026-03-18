@@ -280,7 +280,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
             category: "Hooks".to_string(),
             status: CheckStatus::Warn,
             message: "git hooks not installed".to_string(),
-            details: Some("Run `npx husky install` or configure git hooks manually".to_string()),
+            details: Some("Run `npx husky init` to create .husky/pre-commit".to_string()),
             auto_fixable: false,
         };
     }

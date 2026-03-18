@@ -29,17 +29,17 @@ pub fn policy_steps() -> Vec<TutorialStep> {
         step(
             "Test the Policy",
             "Before enforcing a policy, test it locally to confirm it catches the expected patterns. Anvil's dry-run mode evaluates policies without blocking commits.",
-            "Run: anvil gate --dry-run --policy no-todos",
+            "Run: anvil doctor to verify your setup is healthy.",
         ),
         step(
             "See the Policy Fire",
             "Add a TODO comment to any source file, then run the gate. You should see the no-todos policy flag a warning with the file path and line number.",
-            "Add a TODO comment and run: anvil gate",
+            "Add a TODO comment and run: anvil audit",
         ),
         step(
             "Customise Severity",
             "Policies support four severity levels: critical, high, medium, and low. Critical findings block the gate; lower severities produce warnings. Adjust to match your team workflow.",
-            "Edit the severity field in no-todos.yaml and re-run the gate.",
+            "Edit the severity field in no-todos.yaml and re-run anvil audit.",
         ),
     ]
 }
@@ -54,7 +54,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         step(
             "Choose a Template",
             "Anvil ships with architecture templates for common patterns: layered, hexagonal, and modular. Pick a template that matches your project structure.",
-            "Run: anvil init --template layered",
+            "Create .anvil/architecture.yaml with your layer definitions.",
         ),
         step(
             "Compile the Architecture",
@@ -73,7 +73,7 @@ pub fn architecture_steps() -> Vec<TutorialStep> {
         ),
         step(
             "Summary",
-            "You now have architecture enforcement configured. The architecture check runs as part of anvil gate, so boundary violations surface in every commit review.",
+            "You now have architecture enforcement configured. The architecture check runs as part of anvil audit, so boundary violations surface in every commit review.",
             "Architecture enforcement is ready. Press enter to finish.",
         ),
     ]
@@ -119,11 +119,11 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         step(
             "Install Git Hooks",
             "Git hooks run Anvil checks before each commit. The pre-commit hook evaluates your gate profile and blocks commits that fail critical checks.",
-            "Run: anvil hooks install",
+            "Run: npx husky init && echo 'anvil audit' > .husky/pre-commit",
         ),
         step(
             "Add CI Workflow",
-            "Create a GitHub Actions workflow that runs anvil gate on every push and pull request. The workflow exits with a non-zero code when checks fail.",
+            "Create a GitHub Actions workflow that runs anvil audit on every push and pull request. The workflow exits with a non-zero code when checks fail.",
             "Add .github/workflows/anvil.yml with the gate step.",
         ),
         step(
@@ -134,7 +134,7 @@ pub fn ci_steps() -> Vec<TutorialStep> {
         step(
             "Detect CI Environment",
             "Anvil auto-detects CI environments and adjusts its output format. In CI mode, it produces machine-readable JSON output suitable for downstream tooling.",
-            "Run: CI=true anvil gate --format json",
+            "Run: CI=true anvil audit --json",
         ),
         step(
             "Summary",
