@@ -82,16 +82,21 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
             .with_context(|| format!("failed to create project directory: {name}"))?;
     }
 
+    let anvilrc_path = project_dir.join(".anvilrc");
+    if anvilrc_path.exists() {
+        anyhow::bail!(".anvilrc already exists in {name} — use `anvil init --force` to overwrite");
+    }
+
     let anvil_dir = project_dir.join(".anvil");
     std::fs::create_dir_all(&anvil_dir).context("failed to create .anvil directory")?;
 
-    let anvilrc_content = format!(
-        "# Anvil configuration\ntemplate: {template_id}\nwatch: {watch}\nhooks: {hooks}\n",
-        watch = state.config.enable_watch,
-        hooks = state.config.enable_hooks,
-    );
-    std::fs::write(project_dir.join(".anvilrc"), &anvilrc_content)
-        .context("failed to write .anvilrc")?;
+    let config = serde_json::json!({
+        "template": template_id,
+        "watch": state.config.enable_watch,
+        "hooks": state.config.enable_hooks,
+    });
+    let anvilrc_content = serde_json::to_string_pretty(&config)?;
+    std::fs::write(&anvilrc_path, &anvilrc_content).context("failed to write .anvilrc")?;
 
     println!();
     println!("  Project scaffolded successfully!");
@@ -109,7 +114,7 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
     println!(
         "  Git hooks:  {}",
         if state.config.enable_hooks {
-            "enabled"
+            "configured (run `anvil hooks install` to activate)"
         } else {
             "disabled"
         }
@@ -117,6 +122,9 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
     println!();
     println!("  Next steps:");
     println!("    cd {name}");
+    if state.config.enable_hooks {
+        println!("    anvil hooks install");
+    }
     println!("    anvil gate");
     println!();
 
@@ -162,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn scaffold_creates_project_files() {
+    fn scaffold_creates_project_files_as_json() {
         let dir = tempfile::tempdir().unwrap();
         let project_name = dir.path().join("my-project");
         let project_name_str = project_name.to_string_lossy().to_string();
@@ -181,9 +189,26 @@ mod tests {
         assert!(project_name.join(".anvilrc").exists());
 
         let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
-        assert!(rc_content.contains("template: typescript-monorepo"));
-        assert!(rc_content.contains("watch: true"));
-        assert!(rc_content.contains("hooks: false"));
+        let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
+        assert_eq!(parsed["template"], "typescript-monorepo");
+        assert_eq!(parsed["watch"], true);
+        assert_eq!(parsed["hooks"], false);
+    }
+
+    #[test]
+    fn scaffold_rejects_existing_anvilrc() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_name = dir.path().join("existing-project");
+        std::fs::create_dir_all(&project_name).unwrap();
+        std::fs::write(project_name.join(".anvilrc"), "{}").unwrap();
+
+        let mut state = WizardState::new(builtin_templates());
+        state.config.project_name = project_name.to_string_lossy().to_string();
+        state.confirmed = true;
+
+        let result = scaffold_project(&state);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("already exists"));
     }
 
     #[test]
@@ -202,5 +227,9 @@ mod tests {
         assert!(result.is_ok());
         assert!(dir.path().join(".anvil").exists());
         assert!(dir.path().join(".anvilrc").exists());
+
+        let rc_content = std::fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
+        assert_eq!(parsed["template"], "minimal");
     }
 }
