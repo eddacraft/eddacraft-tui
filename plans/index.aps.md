@@ -186,6 +186,7 @@ modules.
 | Ember                  | Interpretive layer — candidate memory proposals | Complete    |
 | Edda                   | Canonical memory — git-backed, provenance-tracked | Complete  |
 | Edda Stack Integration | Shared schemas, event bus, layer ports          | In Progress |
+| Intent Ledger Governance | Canonical intent lineage from Kindling to gates  | Ready      |
 | Edda-Ember Review      | Non-critical improvements from consolidated review | In Progress |
 
 ### Future — Rust Kernel (KERN, In Progress)
