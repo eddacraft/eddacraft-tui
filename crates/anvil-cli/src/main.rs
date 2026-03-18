@@ -102,10 +102,7 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::from(EXIT_OK),
         Err(err) => {
             if cli.global.json {
-                eprintln!(
-                    "{}",
-                    serde_json::json!({ "error": format!("{err:#}") })
-                );
+                eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
             } else {
                 eprintln!("Error: {err:#}");
             }
