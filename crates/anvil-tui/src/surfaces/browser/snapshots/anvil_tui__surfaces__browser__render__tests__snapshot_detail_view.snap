@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/browser/render.rs
+expression: buffer_to_string(&buf)
+---
+Templates  Categories > Starter > Basic TypeScript                              
+┌ Basic TypeScript ────────────────────────────────────────────────────────────┐
+│Name:        Basic TypeScript                                                 │
+│Description: Minimal TS project                                               │
+│Tags:        typescript                                                       │
+│                                                                              │
+│Variables:                                                                    │
+│>> project_name *  Name of the project  (default: my-project)                 │
+│                                                                              │
+│Press enter to use this template                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

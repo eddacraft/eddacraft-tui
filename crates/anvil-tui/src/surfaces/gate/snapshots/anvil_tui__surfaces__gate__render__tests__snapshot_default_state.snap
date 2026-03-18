@@ -1,0 +1,28 @@
+---
+source: crates/anvil-tui/src/surfaces/gate/render.rs
+expression: buffer_to_string(&buf)
+---
+x Gate default  Score: 45%  3200ms                                              
+1 passed  1 failed  1 warnings  0 skipped  filter: all                          
+                                                                                
+┌ Checks ──────────────────────────────┐┌ ESLint ──────────────────────────────┐
+│>> * ESLint  100% [+]                 ││Status:  * PASS                       │
+│  x Secret scan  0% [+]               ││Score:   100%                         │
+│  ! Architecture  70%                 ││ID:      eslint                       │
+│                                      ││                                      │
+│                                      ││Message: No issues found              │
+│                                      ││                                      │
+│                                      ││Details:                              │
+│                                      ││  Checked 42 files                    │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+│                                      ││                                      │
+└──────────────────────────────────────┘└──────────────────────────────────────┘

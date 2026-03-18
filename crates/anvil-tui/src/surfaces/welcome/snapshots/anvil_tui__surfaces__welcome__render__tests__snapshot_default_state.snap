@@ -1,0 +1,28 @@
+---
+source: crates/anvil-tui/src/surfaces/welcome/render.rs
+expression: buffer_to_string(&buf)
+---
+                                                                                
+   _____              .__.__                                                    
+  /  _  \   _______  _|__|  |                                                   
+ /  /_\  \ /    \  \/ /  |  |                                                   
+/    |    \   |  \   /|  |  |__                                                 
+\____|__  /___|  /\_/ |__|____/                                                 
+        \/     \/                                                               
+                                                                                
+Structural governance for AI-assisted development                               
+                                                                                
+                                                                                
+┌ Quick Start ─────────────────────────────────────────────────────────────────┐
+│>> Run project audit  Scan your project for security issues and anti-patterns │
+│  Run diagnostics  Check your environment and fix common issues               │
+│  Run interactive tutorial  Learn Anvil with a guided walkthrough             │
+│  View documentation  Open the Anvil documentation in your browser            │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

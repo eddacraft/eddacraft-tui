@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/tutorial/render.rs
+expression: buffer_to_string(&buf)
+---
+┌ Choose a Tutorial Path ──────────────────────────────────────────────────────┐
+│>> Policy  Learn to write and test gate policies                              │
+│  Architecture  Set up architecture boundary enforcement                      │
+│  Drift  Capture and compare configuration drift snapshots                    │
+│  CI Integration  Integrate Anvil checks into your CI pipeline                │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

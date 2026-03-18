@@ -226,3 +226,135 @@ fn render_detail(frame: &mut Frame, area: Rect, state: &BrowserState, theme: &Ed
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    fn sample_state() -> BrowserState {
+        use super::super::{TemplateCategory, TemplateEntry, TemplateVariable};
+
+        let categories = vec![
+            TemplateCategory {
+                name: "Starter".to_string(),
+                description: "Basic templates".to_string(),
+                template_count: 1,
+            },
+            TemplateCategory {
+                name: "Advanced".to_string(),
+                description: "Full-featured".to_string(),
+                template_count: 1,
+            },
+        ];
+        let templates = vec![
+            TemplateEntry {
+                id: "basic-ts".to_string(),
+                name: "Basic TypeScript".to_string(),
+                description: "Minimal TS project".to_string(),
+                category: "Starter".to_string(),
+                tags: vec!["typescript".to_string()],
+                variables: vec![TemplateVariable {
+                    name: "project_name".to_string(),
+                    description: "Name of the project".to_string(),
+                    default_value: Some("my-project".to_string()),
+                    required: true,
+                }],
+            },
+            TemplateEntry {
+                id: "monorepo".to_string(),
+                name: "Monorepo".to_string(),
+                description: "Multi-package workspace".to_string(),
+                category: "Advanced".to_string(),
+                tags: vec!["monorepo".to_string()],
+                variables: vec![],
+            },
+        ];
+
+        BrowserState::new(categories, templates)
+    }
+
+    fn buffer_to_string(buf: &ratatui::buffer::Buffer) -> String {
+        let area = buf.area;
+        let mut output = String::new();
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                output.push_str(buf[(x, y)].symbol());
+            }
+            output.push('\n');
+        }
+        output
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_categories_view() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_templates_view() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.view = BrowserView::Templates;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_detail_view() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.view = BrowserView::Detail;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}

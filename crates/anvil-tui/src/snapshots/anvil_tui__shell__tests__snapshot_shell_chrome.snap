@@ -1,0 +1,14 @@
+---
+source: crates/anvil-tui/src/shell.rs
+expression: buffer_to_string(&buf)
+---
+Anvil > Gate                                                
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+j/k navigate  enter expand  q quit

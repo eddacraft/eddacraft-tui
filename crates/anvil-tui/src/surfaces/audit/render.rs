@@ -244,3 +244,111 @@ fn render_next_steps_panel(
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    fn sample_data() -> super::super::AuditData {
+        super::super::AuditData {
+            project_name: "test-project".to_string(),
+            total_files: 42,
+            issues: vec![
+                super::super::AuditIssue {
+                    severity: IssueSeverity::Critical,
+                    category: "Security".to_string(),
+                    message: "Hardcoded API key".to_string(),
+                    file: "src/config.ts".to_string(),
+                    line: 15,
+                    fixable: false,
+                },
+                super::super::AuditIssue {
+                    severity: IssueSeverity::Medium,
+                    category: "Architecture".to_string(),
+                    message: "Cross-boundary import".to_string(),
+                    file: "src/utils/db.ts".to_string(),
+                    line: 3,
+                    fixable: true,
+                },
+            ],
+            historical_scores: vec![super::super::HistoricalScore {
+                timestamp: "2026-03-15".to_string(),
+                score: 0.85,
+                issue_count: 5,
+            }],
+            next_steps: vec![
+                "Fix critical security issue".to_string(),
+                "Review boundary violations".to_string(),
+            ],
+        }
+    }
+
+    fn buffer_to_string(buf: &ratatui::buffer::Buffer) -> String {
+        let area = buf.area;
+        let mut output = String::new();
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                output.push_str(buf[(x, y)].symbol());
+            }
+            output.push('\n');
+        }
+        output
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = super::super::AuditState::new(sample_data());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_default_state() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = super::super::AuditState::new(sample_data());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_issues_focused() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = super::super::AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = super::super::AuditState::new(sample_data());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}

@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/tutorial/render.rs
+expression: buffer_to_string(&buf)
+---
+┌ Well Done ───────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│You completed all 5 steps of the Drift tutorial.                              │
+│                                                                              │
+│Press enter to choose another tutorial path, or q to quit.                    │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

@@ -239,3 +239,121 @@ fn render_detail_panel(frame: &mut Frame, area: Rect, state: &GateState, theme: 
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
+
+    fn sample_result() -> super::super::GateResult {
+        use super::super::GateCheck;
+
+        super::super::GateResult {
+            plan_id: "default".to_string(),
+            overall_passed: false,
+            score: 0.45,
+            checks: vec![
+                GateCheck {
+                    id: "eslint".to_string(),
+                    name: "ESLint".to_string(),
+                    status: GateCheckStatus::Passed,
+                    score: 1.0,
+                    message: "No issues found".to_string(),
+                    details: Some("Checked 42 files".to_string()),
+                    file: None,
+                    line: None,
+                },
+                GateCheck {
+                    id: "secret-scan".to_string(),
+                    name: "Secret scan".to_string(),
+                    status: GateCheckStatus::Failed,
+                    score: 0.0,
+                    message: "API key detected".to_string(),
+                    details: Some("Line 15: AWS_SECRET_KEY=...".to_string()),
+                    file: Some("src/config.ts".to_string()),
+                    line: Some(15),
+                },
+                GateCheck {
+                    id: "architecture".to_string(),
+                    name: "Architecture".to_string(),
+                    status: GateCheckStatus::Warning,
+                    score: 0.7,
+                    message: "2 boundary violations".to_string(),
+                    details: None,
+                    file: None,
+                    line: None,
+                },
+            ],
+            duration_ms: 3200,
+            timestamp: "2026-03-16T10:00:00Z".to_string(),
+        }
+    }
+
+    fn buffer_to_string(buf: &ratatui::buffer::Buffer) -> String {
+        let area = buf.area;
+        let mut output = String::new();
+        for y in area.y..area.y + area.height {
+            for x in area.x..area.x + area.width {
+                output.push_str(buf[(x, y)].symbol());
+            }
+            output.push('\n');
+        }
+        output
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = GateState::new(sample_result());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_default_state() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = GateState::new(sample_result());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_with_filter() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = GateState::new(sample_result());
+        state.filter = super::super::FilterStatus::Failed;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = GateState::new(sample_result());
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}

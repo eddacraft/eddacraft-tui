@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/init/render.rs
+expression: buffer_to_string(&buf)
+---
+Mode > Format > Directory > Checks > Summary                                    
+                                                                                
+                                                                                
+┌ Project Directory ───────────────────────────────────────────────────────────┐
+│Enter the project root directory:                                             │
+│>> src/app_                                                                   │
+│                                                                              │
+│Leave empty for current directory (.)                                         │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

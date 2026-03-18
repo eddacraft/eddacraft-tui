@@ -1,0 +1,28 @@
+---
+source: crates/anvil-tui/src/surfaces/doctor/render.rs
+expression: buffer_to_string(&buf)
+---
+Diagnostics  1 passed  1 failed  1 warnings                                     
+                                                                                
+                                                                                
+┌ Checks ──────────────────────────────────────────────────────────────────────┐
+│>> <<diamond>> Node.js  [Runtime]  v22.0.0 found                              │
+│  x ESLint config  [Linting]  No .eslintrc found                              │
+│  ! Git hooks  [Hooks]  Hooks not installed                                   │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ Node.js ─────────────────────────────────────────────────────────────────────┐
+│Path: /usr/bin/node                                                           │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

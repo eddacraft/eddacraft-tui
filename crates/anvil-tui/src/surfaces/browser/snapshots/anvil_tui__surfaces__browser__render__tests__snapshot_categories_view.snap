@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/browser/render.rs
+expression: buffer_to_string(&buf)
+---
+Templates  Categories                                                           
+┌ Categories ──────────────────────────────────────────────────────────────────┐
+│>> Starter  (1 templates)  Basic templates                                    │
+│  Advanced  (1 templates)  Full-featured                                      │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

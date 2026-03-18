@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/wizard/render.rs
+expression: buffer_to_string(&buf)
+---
+Template > Name > Configure > Summary                                           
+                                                                                
+                                                                                
+┌ Project Name ────────────────────────────────────────────────────────────────┐
+│Enter a name for your project:                                                │
+│>> my-project_                                                                │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘

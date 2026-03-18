@@ -1,0 +1,24 @@
+---
+source: crates/anvil-tui/src/surfaces/tutorial/render.rs
+expression: buffer_to_string(&buf)
+---
+Policy  (0/6)                                                                   
+> - o - o - o - o - o                                                           
+                                                                                
+┌ Introduction ────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│Policies are the rules that Anvil enforces on your codebase. Each policy is a │
+│                                                                              │
+│Press enter to continue to the next step.                                     │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
