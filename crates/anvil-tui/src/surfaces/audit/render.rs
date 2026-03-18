@@ -248,6 +248,7 @@ fn render_next_steps_panel(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::surface::Surface;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
@@ -306,7 +307,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Audit", "h/l panels  j/k navigate  enter expand  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -325,7 +326,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Audit", "h/l panels  j/k navigate  enter expand  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();

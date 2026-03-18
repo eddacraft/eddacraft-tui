@@ -243,6 +243,7 @@ fn render_detail_panel(frame: &mut Frame, area: Rect, state: &GateState, theme: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::surface::Surface;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
@@ -311,7 +312,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Gate", "j/k navigate  enter expand  / search  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -330,7 +331,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Gate", "j/k navigate  enter expand  / search  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();
