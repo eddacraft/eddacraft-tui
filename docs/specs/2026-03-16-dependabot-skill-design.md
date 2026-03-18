@@ -301,11 +301,8 @@ investigate why (git blame, commit messages) before deciding.
 - Fix touches more than the dependency's API surface
 - No viable upgrade path AND no alternative exists
 - Package is being deprecated/removed anyway (flag for dismissal via
-  `gh api --method PATCH repos/{owner}/{repo}/dependabot/alerts/{alert_number}`
-  `-f state=dismissed -f dismissed_reason="not_used"`
-  `-f dismissed_comment="Package is being deprecated/removed; alert closed per`
-  `remediation guidelines."` with a documented reason and payload that sets the
-  alert state to dismissed)
+  `gh api --method PATCH repos/{owner}/{repo}/dependabot/alerts/{alert_number} -f state=dismissed -f dismissed_reason="not_used" -f dismissed_comment="Package is being deprecated/removed; alert closed per remediation guidelines."`
+  with a documented reason and payload that sets the alert state to dismissed)
 
 #### Code quality execution details
 
