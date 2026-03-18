@@ -567,6 +567,11 @@ files do not exist yet; they are defined as future DASH-003 work in
 
 ### 11.3 Demo Scenarios (Marketing / Video)
 
+> **Note:** The deployed extension shells out to the **Node CLI** (`npx anvil`
+> by default, or a custom path via `anvil.cli.path`). The Rust CLI does not yet
+> have a `validate` subcommand and its `gate` command is stubbed. Until those
+> commands are implemented, demos must target the Node CLI.
+
 1. **Inline diagnostics:** Show a policy violation appearing as a squiggly
    underline in the editor with hover detail.
 2. **Status bar:** The codicon status updating as files are saved (e.g.,
@@ -587,12 +592,14 @@ files do not exist yet; they are defined as future DASH-003 work in
 The MCP server is not visually rendered — it is an API surface. However, it is
 customer-facing because AI agents present its output to users.
 
-- **Tool responses:** Return structured JSON. Note that MCP tool responses and
-  CLI `--json` output use different schemas today — for example, `anvil_status`
-  returns `{status, workspaceRoot, availableChecks, config, hasBaseline,
-  version}` while `anvil status --json` serialises `{hooks, profile,
-  recent_runs}`. Consumers should not assume the two surfaces share a single
-  contract; schema unification is a future goal.
+- **Tool responses:** Return structured JSON wrapped in the MCP content
+  envelope — i.e., `{ content: [{ type: "text", text: "<JSON string>" }] }`.
+  Consumers must parse `content[0].text` to reach the data payload. Note that
+  MCP tool responses and CLI `--json` output use different schemas today — for
+  example, `anvil_status` returns `{status, workspaceRoot, availableChecks,
+  config, hasBaseline, version}` while `anvil status --json` serialises
+  `{hooks, profile, recent_runs}`. Consumers should not assume the two surfaces
+  share a single contract; schema unification is a future goal.
 - **Resource descriptions:** Use declarative, technical language. No marketing
   copy.
 - **Error messages:** Return `isError: true` with a JSON text body shaped as
