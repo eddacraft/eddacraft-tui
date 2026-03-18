@@ -92,7 +92,7 @@ fn main() -> ExitCode {
             } else {
                 let _ = err.print();
             }
-            return ExitCode::from(code as u8);
+            return ExitCode::from(u8::try_from(code).unwrap_or(EXIT_ERROR));
         }
     };
 
