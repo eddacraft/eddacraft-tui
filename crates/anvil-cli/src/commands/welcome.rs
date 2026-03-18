@@ -2,8 +2,8 @@ use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::Context;
 use anvil_tui::surfaces::welcome::{QuickStartOption, WelcomeState};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;

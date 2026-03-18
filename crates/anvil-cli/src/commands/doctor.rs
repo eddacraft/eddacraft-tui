@@ -259,9 +259,7 @@ fn check_plans_dir() -> DiagnosticCheck {
             category: "Configuration".to_string(),
             status: CheckStatus::Warn,
             message: "no plans directory found".to_string(),
-            details: Some(
-                "Create plans/ or docs/plans/ for specification documents".to_string(),
-            ),
+            details: Some("Create plans/ or docs/plans/ for specification documents".to_string()),
             auto_fixable: false,
         }
     }

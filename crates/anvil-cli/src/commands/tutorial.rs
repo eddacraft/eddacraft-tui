@@ -1,8 +1,8 @@
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
-use anyhow::Context;
 use anvil_tui::surfaces::tutorial::{TutorialPath, TutorialPhase, TutorialState};
+use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
 use crate::GlobalArgs;
@@ -43,7 +43,9 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
 fn progress_file_path() -> anyhow::Result<PathBuf> {
     let home = std::env::var("HOME").context("HOME environment variable not set")?;
-    Ok(PathBuf::from(home).join(".anvil").join("tutorial-progress.json"))
+    Ok(PathBuf::from(home)
+        .join(".anvil")
+        .join("tutorial-progress.json"))
 }
 
 fn reset_progress(path: &PathBuf) -> anyhow::Result<()> {

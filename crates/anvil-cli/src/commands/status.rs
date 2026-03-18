@@ -1,7 +1,9 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
-use anvil_tui::surfaces::status::{GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState};
+use anvil_tui::surfaces::status::{
+    GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState,
+};
 use clap::Args;
 use serde::Serialize;
 
@@ -64,9 +66,7 @@ fn gather_hooks(root: &Path) -> Vec<HookStatus> {
         .collect();
 
     // Fallback: bare git hook if no husky pre-commit was found.
-    let has_husky_precommit = hooks
-        .iter()
-        .any(|h| h.name == "pre-commit" && h.active);
+    let has_husky_precommit = hooks.iter().any(|h| h.name == "pre-commit" && h.active);
 
     if !has_husky_precommit {
         let git_hook = root.join(".git/hooks/pre-commit");
@@ -381,10 +381,8 @@ mod tests {
 
     fn make_temp_dir() -> std::path::PathBuf {
         let id = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!(
-            "anvil-status-test-{}-{id}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("anvil-status-test-{}-{id}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create temp dir");
         dir
@@ -546,7 +544,10 @@ mod tests {
                 entries.push(',');
             }
             let ts = 1_710_000_000 + i * 1000;
-            let _ = write!(entries, "\"gate:check:chk{i}:hash{i}\":{{\"file\":\"h{i}.json\",\"created_at\":{ts},\"passed\":true,\"score\":0.9,\"checksRun\":1,\"checksPassed\":1,\"durationMs\":100}}");
+            let _ = write!(
+                entries,
+                "\"gate:check:chk{i}:hash{i}\":{{\"file\":\"h{i}.json\",\"created_at\":{ts},\"passed\":true,\"score\":0.9,\"checksRun\":1,\"checksPassed\":1,\"durationMs\":100}}"
+            );
         }
         entries.push_str("}}");
         std::fs::write(cache_dir.join("index.json"), &entries).unwrap();

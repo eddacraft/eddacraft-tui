@@ -42,13 +42,7 @@ fn surface_loop<S: Surface>(
     loop {
         terminal.draw(|frame| {
             let area = frame.area();
-            let content = render_shell(
-                frame,
-                area,
-                state.surface_name(),
-                state.help_text(),
-                theme,
-            );
+            let content = render_shell(frame, area, state.surface_name(), state.help_text(), theme);
             state.render(frame, content, theme);
         })?;
 
@@ -69,10 +63,7 @@ fn surface_loop<S: Surface>(
 
 /// Run the watch dashboard, draining kernel events from the given channel.
 #[allow(dead_code)]
-pub fn run_watch(
-    mut state: WatchState,
-    event_rx: &Receiver<EngineEvent>,
-) -> anyhow::Result<()> {
+pub fn run_watch(mut state: WatchState, event_rx: &Receiver<EngineEvent>) -> anyhow::Result<()> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
