@@ -102,24 +102,29 @@ fn gather_profile(root: &Path) -> ProfileInfo {
         };
     };
 
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
+    // Try JSON first, then fall back to simple YAML/TOML key extraction
+    // (init can generate any of the three formats).
+    let checks = if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
+        value
+            .get("checks")
+            .and_then(serde_json::Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else if contents.contains("schemaVersion:") || contents.contains("schema_version =") {
+        // Recognised YAML or TOML format — extract checks.
+        parse_checks_from_text(&contents)
+    } else {
         return ProfileInfo {
             name: "(invalid config)".to_string(),
             checks: vec![],
             path: ".anvilrc".to_string(),
         };
     };
-
-    let checks = value
-        .get("checks")
-        .and_then(serde_json::Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(serde_json::Value::as_str)
-                .map(String::from)
-                .collect()
-        })
-        .unwrap_or_default();
 
     ProfileInfo {
         name: "default".to_string(),
@@ -163,7 +168,12 @@ fn parse_gate_entry(key: &str, val: &serde_json::Value) -> Option<GateRunResult>
         .rsplit(':')
         .next()
         .and_then(|s| s.parse().ok())
-        .or_else(|| val.get("created_at").and_then(serde_json::Value::as_i64))?;
+        .or_else(|| {
+            // Runtime file-cache writes created_at as Date.now() (milliseconds).
+            val.get("created_at")
+                .and_then(serde_json::Value::as_i64)
+                .map(|ms| ms / 1000)
+        })?;
 
     let timestamp = format_unix_timestamp(ts);
 
@@ -222,6 +232,51 @@ fn format_unix_timestamp(secs: i64) -> String {
     let y = if m <= 2 { y + 1 } else { y };
 
     format!("{y:04}-{m:02}-{d:02} {hours:02}:{minutes:02}")
+}
+
+// ---------------------------------------------------------------------------
+// Config parsing helpers
+// ---------------------------------------------------------------------------
+
+/// Extract check names from YAML or TOML config text.
+fn parse_checks_from_text(text: &str) -> Vec<String> {
+    let mut checks = Vec::new();
+    let mut in_checks = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("checks") {
+            in_checks = true;
+            // TOML inline: checks = ["a", "b"]
+            if let Some(bracket) = trimmed.find('[') {
+                for item in trimmed[bracket..].split('"') {
+                    let item = item
+                        .trim()
+                        .trim_matches(|c| c == '[' || c == ']' || c == ',');
+                    if !item.is_empty()
+                        && item != ","
+                        && !item.starts_with('[')
+                        && !item.starts_with(']')
+                    {
+                        checks.push(item.to_string());
+                    }
+                }
+                in_checks = false;
+            }
+            continue;
+        }
+        if in_checks {
+            // YAML list item: `  - "name"` or `  - name`
+            if let Some(rest) = trimmed.strip_prefix("- ") {
+                let name = rest.trim().trim_matches('"');
+                if !name.is_empty() {
+                    checks.push(name.to_string());
+                }
+            } else if !trimmed.starts_with('-') && !trimmed.is_empty() {
+                in_checks = false;
+            }
+        }
+    }
+    checks
 }
 
 // ---------------------------------------------------------------------------
