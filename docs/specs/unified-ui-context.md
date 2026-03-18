@@ -277,9 +277,9 @@ Non-interactive commands (no TUI surface):
 
 ### 7.4 Demo Scenarios (Marketing / Video)
 
-1. **Cold start:** `anvil init` → wizard flow → `.anvil.yaml` generated.
+1. **Cold start:** `anvil init` → wizard flow → `.anvilrc` generated.
 2. **Live governance:** `anvil watch` → make a violating change → real-time
-   block with policy citation.
+   block with policy citation. *(Planned — `watch` not yet implemented.)*
 3. **Gate check:** `anvil gate plan.aps.md` → pass/fail breakdown with
    colour-coded results.
 4. **Auth flow:** `anvil auth login` → device code displayed → browser
@@ -355,7 +355,8 @@ Strict 3-part vertical layout:
 ### 8.5 Demo Scenarios (Marketing / Video)
 
 1. **Watch surface:** Split-screen showing policy on left, live events on right
-   as files change — the "flight recorder" experience.
+   as files change — the "flight recorder" experience. *(Planned — not yet
+   implemented.)*
 2. **Gate surface:** Expanding a failed check to see the policy rule, the
    violation, and the file location.
 3. **Doctor surface:** Running `anvil doctor --fix` and watching checks flip
@@ -370,12 +371,13 @@ Strict 3-part vertical layout:
 ### 9.1 Overview
 
 The dashboard is the strategic layer — it surfaces the same data the CLI
-produces, but for sustained observation and team-wide visibility.
+produces, but for sustained observation. It runs as a local dev tool, reading
+from each engineer's `.anvil/` workspace storage.
 
 - **Stack:** Next.js 16, React, Tailwind CSS 4, shadcn/ui, Recharts, TanStack
   Query
 - **Route:** `/dashboard` (route group `(dashboard)`)
-- **Deployment:** Vercel
+- **Deployment:** Local dev server (reads from engineer's `.anvil/` workspace)
 
 ### 9.2 View Modules
 
@@ -447,7 +449,7 @@ Shared dashboard components (all in `components/dashboard/`):
 
 - **Background:** `--void` (`#0D0D0F`). Never white. Never light mode.
 - **Cards:** 1px `--structure` border. No drop shadows. No rounded corners
-  beyond shadcn defaults (override to `rounded-none` or `rounded-sm`).
+  (override all shadcn defaults to `rounded-none`).
 - **Tables:** `--structure` grid lines. Row hover in subtle `--structure`
   lighten.
 - **Charts:** Use only the five core tokens. Desaturated palette for secondary
@@ -464,7 +466,10 @@ Shared dashboard components (all in `components/dashboard/`):
 - **Deep Linking:** Every view supports URL-based state (filters, selections,
   expanded rows) for shareable links.
 - **Data Hooks:** TanStack Query with `use-status`, `use-gates`, `use-warnings`,
-  `use-drift`, etc. All read from local `.anvil/` storage via API routes.
+  `use-drift`, etc. The dashboard runs as a local dev tool and reads from the
+  engineer's `.anvil/` storage via localhost API routes (see
+  `plans/modules/dashboard-foundation.aps.md`). It is not a hosted Vercel
+  deployment for team-wide visibility — each engineer runs their own instance.
 
 ### 9.6 Demo Scenarios (Marketing / Video)
 
@@ -675,9 +680,11 @@ All surfaces follow the same silence protocol:
 
 1. **The Hook (30s):** Show `anvil watch` running. Make a bad change. Watch it
    get blocked in real-time. No narration needed — the terminal speaks.
+   *(Planned — `watch` is not yet implemented; use `anvil status` or `anvil gate`
+   for demos until the watch surface ships.)*
 
-2. **The Setup (60s):** `anvil init` → wizard completes → `.anvil.yaml`
-   appears. Show the config file briefly.
+2. **The Setup (60s):** `anvil init` → wizard completes → `.anvilrc`
+   generated. Show the config file briefly.
 
 3. **The Core Loop (90s):**
    - `anvil gate plan.aps.md` → TUI shows check results.
@@ -694,7 +701,7 @@ All surfaces follow the same silence protocol:
 
 ### 15.3 B-Roll Shots
 
-- The TUI Watch surface with events streaming (30s loop).
+- The TUI Watch surface with events streaming (30s loop). *(Planned.)*
 - Dashboard overview with KPI cards (static or slow scroll).
 - `anvil doctor` fixing issues (checks flipping green).
 - Architecture graph rotating/zooming.
