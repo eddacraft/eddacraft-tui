@@ -293,7 +293,7 @@ pub fn run_surface<S: Surface>(mut state: S) -> Result<()> {
 **`run_watch`** — for the watch command, which drains kernel events:
 
 ```rust
-pub fn run_watch(mut state: WatchState, event_rx: mpsc::Receiver<EngineEvent>) -> Result<()> {
+pub fn run_watch(mut state: WatchState, event_rx: &mpsc::Receiver<EngineEvent>) -> Result<()> {
     // Same crossterm/terminal setup as run_surface...
     let mut adapter = WatchEventAdapter::new();
 
