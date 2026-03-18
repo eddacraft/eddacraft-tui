@@ -1,6 +1,8 @@
 use std::io::IsTerminal;
 
-use anvil_tui::surfaces::browser::{BrowserState, TemplateCategory, TemplateEntry, TemplateVariable};
+use anvil_tui::surfaces::browser::{
+    BrowserState, TemplateCategory, TemplateEntry, TemplateVariable,
+};
 use clap::Args;
 use serde::Serialize;
 
@@ -107,8 +109,10 @@ fn print_plain(categories: &[TemplateCategory], templates: &[TemplateEntry]) {
 
     for cat in categories {
         println!("  {} \u{2014} {}", cat.name, cat.description);
-        let cat_templates: Vec<&TemplateEntry> =
-            templates.iter().filter(|t| t.category == cat.name).collect();
+        let cat_templates: Vec<&TemplateEntry> = templates
+            .iter()
+            .filter(|t| t.category == cat.name)
+            .collect();
         for t in cat_templates {
             println!("    {:<20}{}", t.id, t.name);
         }
@@ -153,10 +157,7 @@ struct VariableOutput {
     required: bool,
 }
 
-fn print_json(
-    categories: &[TemplateCategory],
-    templates: &[TemplateEntry],
-) -> anyhow::Result<()> {
+fn print_json(categories: &[TemplateCategory], templates: &[TemplateEntry]) -> anyhow::Result<()> {
     let output = CatalogueOutput {
         categories: categories
             .iter()
