@@ -240,6 +240,7 @@ fn render_summary_step(frame: &mut Frame, area: Rect, state: &InitState, theme: 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::surface::Surface;
     use ratatui::backend::TestBackend;
     use ratatui::Terminal;
 
@@ -286,7 +287,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Init", "j/k navigate  enter select  esc back  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -305,7 +306,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Init", "j/k navigate  enter select  esc back  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -325,7 +326,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Init", "j/k navigate  enter select  esc back  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -344,7 +345,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Init", "j/k navigate  enter select  esc back  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -366,7 +367,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Init", "j/k navigate  enter select  esc back  q quit", &theme);
+                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
                 render(frame, content, &state, &theme);
             })
             .unwrap();

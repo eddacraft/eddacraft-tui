@@ -303,8 +303,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Watch", "h/l j/k panels  q quit", &theme);
-                render(frame, content, &state, &theme);
+                render(frame, frame.area(), &state, &theme);
             })
             .unwrap();
 
@@ -322,8 +321,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Watch", "h/l j/k panels  q quit", &theme);
-                render(frame, content, &state, &theme);
+                render(frame, frame.area(), &state, &theme);
             })
             .unwrap();
 
@@ -350,8 +348,7 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Watch", "h/l j/k panels  q quit", &theme);
-                render(frame, content, &state, &theme);
+                render(frame, frame.area(), &state, &theme);
             })
             .unwrap();
 
