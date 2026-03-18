@@ -585,10 +585,11 @@ customer-facing because AI agents present its output to users.
 
 ### 12.3 Demo Scenarios (Marketing / Video)
 
-1. **Agent integration:** Show Claude using the `anvil_gate` tool to check a
-   plan, receiving structured results, and presenting them to the user.
-2. **Resource browsing:** Show an agent listing available Anvil resources and
-   reading project status.
+1. **Agent integration:** Show Claude using the `anvil_gate` tool to run gate
+   checks against the workspace (via `workspaceRoot` and optional `targetFiles`),
+   receiving structured results, and presenting them to the user.
+2. **Status check:** Show an agent calling the `anvil_status` tool to retrieve
+   project health, then summarising the results for the user.
 
 ---
 
@@ -694,8 +695,8 @@ All surfaces follow the same silence protocol:
 
 1. **The Hook (30s):** Show `anvil watch` running. Make a bad change. Watch it
    get blocked in real-time. No narration needed — the terminal speaks.
-   *(Planned — `watch` is not yet implemented; use `anvil status` or `anvil gate`
-   for demos until the watch surface ships.)*
+   *(Planned — `watch` is not yet implemented; use `anvil status` for demos
+   until the watch surface ships.)*
 
 2. **The Setup (60s):** `anvil init` → wizard completes → `.anvilrc`
    generated. Show the config file briefly.
