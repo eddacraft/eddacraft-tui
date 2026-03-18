@@ -63,14 +63,15 @@ export function OtpCode({
 
 export default OtpCode;
 
-const fontFamily = "'Courier New', Courier, monospace";
+const fontMono = "'JetBrains Mono', 'Courier New', Courier, monospace";
+const fontBody = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 const body: React.CSSProperties = {
   margin: 0,
   padding: 0,
-  backgroundColor: '#0a0a0a',
-  fontFamily,
-  color: '#d4d4d4',
+  backgroundColor: '#0D0D0F',
+  fontFamily: fontBody,
+  color: '#EBEBEB',
 };
 
 const container: React.CSSProperties = {
@@ -87,6 +88,7 @@ const headerText: React.CSSProperties = {
   margin: 0,
   fontSize: '14px',
   lineHeight: '1.5',
+  fontFamily: fontMono,
 };
 
 const prompt: React.CSSProperties = {
@@ -94,13 +96,13 @@ const prompt: React.CSSProperties = {
 };
 
 const headerBold: React.CSSProperties = {
-  color: '#d4d4d4',
+  color: '#EBEBEB',
   fontWeight: 'bold',
 };
 
 const divider: React.CSSProperties = {
-  borderColor: '#262626',
-  borderTop: '1px solid #262626',
+  borderColor: '#2A2A2E',
+  borderTop: '1px solid #2A2A2E',
   margin: 0,
 };
 
@@ -111,9 +113,9 @@ const content: React.CSSProperties = {
 const codeDisplay: React.CSSProperties = {
   margin: '0 0 24px',
   fontSize: '40px',
-  fontFamily,
+  fontFamily: fontMono,
   fontWeight: 'bold',
-  color: '#22c55e',
+  color: '#CC5500',
   textAlign: 'center',
   letterSpacing: '8px',
   lineHeight: '1',

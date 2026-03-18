@@ -86,14 +86,15 @@ export function BetaInvite({
 
 export default BetaInvite;
 
-const fontFamily = "'Courier New', Courier, monospace";
+const fontMono = "'JetBrains Mono', 'Courier New', Courier, monospace";
+const fontBody = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
 const body: React.CSSProperties = {
   margin: 0,
   padding: 0,
-  backgroundColor: '#0a0a0a',
-  fontFamily,
-  color: '#d4d4d4',
+  backgroundColor: '#0D0D0F',
+  fontFamily: fontBody,
+  color: '#EBEBEB',
 };
 
 const container: React.CSSProperties = {
@@ -110,6 +111,7 @@ const headerText: React.CSSProperties = {
   margin: 0,
   fontSize: '14px',
   lineHeight: '1.5',
+  fontFamily: fontMono,
 };
 
 const prompt: React.CSSProperties = {
@@ -117,13 +119,13 @@ const prompt: React.CSSProperties = {
 };
 
 const headerBold: React.CSSProperties = {
-  color: '#d4d4d4',
+  color: '#EBEBEB',
   fontWeight: 'bold',
 };
 
 const divider: React.CSSProperties = {
-  borderColor: '#262626',
-  borderTop: '1px solid #262626',
+  borderColor: '#2A2A2E',
+  borderTop: '1px solid #2A2A2E',
   margin: 0,
 };
 
@@ -134,13 +136,14 @@ const content: React.CSSProperties = {
 const okBadge: React.CSSProperties = {
   margin: '0 0 16px',
   fontSize: '14px',
-  color: '#22c55e',
+  fontFamily: fontMono,
+  color: '#CC5500',
 };
 
 const bodyText: React.CSSProperties = {
   margin: '0 0 24px',
   fontSize: '14px',
-  color: '#d4d4d4',
+  color: '#EBEBEB',
 };
 
 const emailHighlight: React.CSSProperties = {
@@ -159,14 +162,14 @@ const linkBlock: React.CSSProperties = {
 };
 
 const activateLink: React.CSSProperties = {
-  color: '#22c55e',
+  color: '#CC5500',
   textDecoration: 'underline',
 };
 
 const codeBlock: React.CSSProperties = {
   backgroundColor: '#1a1a1a',
-  border: '1px solid #262626',
-  borderRadius: '4px',
+  border: '1px solid #2A2A2E',
+  borderRadius: '0px',
   padding: '12px 16px',
   marginBottom: '24px',
 };
@@ -174,14 +177,15 @@ const codeBlock: React.CSSProperties = {
 const codeText: React.CSSProperties = {
   margin: 0,
   fontSize: '14px',
-  color: '#d4d4d4',
-  fontFamily,
+  color: '#EBEBEB',
+  fontFamily: fontMono,
 };
 
 const activationCode: React.CSSProperties = {
   margin: '0 0 4px',
   fontSize: '24px',
   fontWeight: 'bold',
+  fontFamily: fontMono,
   color: '#ffffff',
   letterSpacing: '2px',
   textAlign: 'center' as const,
