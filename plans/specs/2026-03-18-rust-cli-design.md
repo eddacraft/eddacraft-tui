@@ -233,13 +233,13 @@ pub trait Surface {
     fn help_text(&self) -> &'static str;
     fn handle_key(&mut self, action: Action);
     fn should_quit(&self) -> bool;
-    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
+    fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
 }
 ```
 
-Note: `render` takes `&mut self` to allow surfaces to accumulate render-time
-state (scroll offsets, cursor blink, animation ticks) without requiring interior
-mutability.
+Note: `render` takes `&self`; surfaces that need to track render-time state
+(scroll offsets, cursor blink, animation ticks) can use interior mutability as
+appropriate.
 
 All 10 existing surface states implement this trait. Each impl delegates to:
 - `self.help_text()` and `self.surface_name()` — already exist on all states
