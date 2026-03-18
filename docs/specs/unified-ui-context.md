@@ -18,22 +18,22 @@ any Anvil surface.
 EddaCraft ships six distinct control surfaces. Each must feel like the same
 system wearing different form factors.
 
-| # | Surface | Technology | Status | Primary Audience |
-|---|---------|-----------|--------|-----------------|
-| 1 | **CLI** | Rust / clap | In Development | Engineers (CI/CD, scripts, daily workflow) |
-| 2 | **TUI** | Rust / Ratatui | Complete | Engineers (interactive terminal sessions) |
-| 3 | **Web Dashboard** | Next.js 16 / Tailwind 4 / shadcn/ui | Planned | Tech Leads, Principals, CTOs |
-| 4 | **Documentation Site** | Docusaurus / Vercel | Deployed | All users (onboarding, reference) |
-| 5 | **VS Code Extension** | VS Code API | Deployed | Engineers (real-time diagnostics) |
-| 6 | **MCP Server** | Node.js / MCP Protocol | Deployed | AI Agents (tool integration) |
+| #   | Surface                | Technology                          | Status         | Primary Audience                           |
+| --- | ---------------------- | ----------------------------------- | -------------- | ------------------------------------------ |
+| 1   | **CLI**                | Rust / clap                         | In Development | Engineers (CI/CD, scripts, daily workflow) |
+| 2   | **TUI**                | Rust / Ratatui                      | Complete       | Engineers (interactive terminal sessions)  |
+| 3   | **Web Dashboard**      | Next.js 16 / Tailwind 4 / shadcn/ui | Planned        | Tech Leads, Principals, CTOs               |
+| 4   | **Documentation Site** | Docusaurus / Vercel                 | Deployed       | All users (onboarding, reference)          |
+| 5   | **VS Code Extension**  | VS Code API                         | Deployed       | Engineers (real-time diagnostics)          |
+| 6   | **MCP Server**         | Node.js / MCP Protocol              | Deployed       | AI Agents (tool integration)               |
 
 Supporting assets (not interactive, but customer-visible):
 
-| Asset | Format | Use |
-|-------|--------|-----|
-| **Investor Decks** | PPTX (generated) | Fundraising, partner pitches |
-| **OG / Social Images** | PNG (generated) | Link previews, social posts |
-| **Transactional Email** | React Email | Beta invites, OTP codes, waitlist confirmation |
+| Asset                   | Format           | Use                                            |
+| ----------------------- | ---------------- | ---------------------------------------------- |
+| **Investor Decks**      | PPTX (generated) | Fundraising, partner pitches                   |
+| **OG / Social Images**  | PNG (generated)  | Link previews, social posts                    |
+| **Transactional Email** | React Email      | Beta invites, OTP codes, waitlist confirmation |
 
 ---
 
@@ -62,14 +62,13 @@ Before shipping any surface or asset, run this diff:
 
 - [ ] Does it have a gradient? → **REJECT** (unless heatmap).
 - [ ] Does it use a drop shadow for depth? → **REJECT** (use 1px `--structure`
-  border).
+      border).
 - [ ] Is the copy "exciting"? (e.g., "Revolutionize your workflow!") →
-  **REJECT** (rewrite to be declarative: "Validate your workflow.").
+      **REJECT** (rewrite to be declarative: "Validate your workflow.").
 - [ ] Is the primary font monospace? → Headers: **PASS**. Body paragraphs:
-  **REJECT** (use sans).
+      **REJECT** (use sans).
 - [ ] Does it use rounded corners? → **REJECT** (sharp corners only).
-- [ ] Does it use emojis or decorative icons? → **REJECT** (use bracket
-  syntax).
+- [ ] Does it use emojis or decorative icons? → **REJECT** (use bracket syntax).
 
 ---
 
@@ -79,21 +78,21 @@ Before shipping any surface or asset, run this diff:
 
 Our world is dark. Light is used only for signal.
 
-| Token | Hex | RGB | Usage |
-|-------|-----|-----|-------|
-| `--void` | `#0D0D0F` | `(13, 13, 15)` | Global background. Never use pure `#000000`. |
-| `--structure` | `#2A2A2E` | `(42, 42, 46)` | Borders, dividers, grid lines. No drop shadows. |
-| `--text-primary` | `#EBEBEB` | `(235, 235, 235)` | Primary content text. Never pure `#FFFFFF`. |
-| `--anvil-ember` | `#CC5500` | `(204, 85, 0)` | Anvil action: headers, active borders, primary buttons, deletion. |
-| `--edda-growth` | `#2E8B57` | `(46, 139, 87)` | Edda memory: success, additions, valid states. |
+| Token            | Hex       | RGB               | Usage                                                             |
+| ---------------- | --------- | ----------------- | ----------------------------------------------------------------- |
+| `--void`         | `#0D0D0F` | `(13, 13, 15)`    | Global background. Never use pure `#000000`.                      |
+| `--structure`    | `#2A2A2E` | `(42, 42, 46)`    | Borders, dividers, grid lines. No drop shadows.                   |
+| `--text-primary` | `#EBEBEB` | `(235, 235, 235)` | Primary content text. Never pure `#FFFFFF`.                       |
+| `--anvil-ember`  | `#CC5500` | `(204, 85, 0)`    | Anvil action: headers, active borders, primary buttons, deletion. |
+| `--edda-growth`  | `#2E8B57` | `(46, 139, 87)`   | Edda memory: success, additions, valid states.                    |
 
 ### 4.2 Extended Tokens (Semantic States)
 
-| Token | Hex | RGB | Usage |
-|-------|-----|-----|-------|
+| Token          | Hex       | RGB               | Usage                                         |
+| -------------- | --------- | ----------------- | --------------------------------------------- |
 | `--text-muted` | `#85858A` | `(133, 133, 138)` | Inactive text, comments, footers, timestamps. |
-| `--error` | `#C94A4A` | `(201, 74, 74)` | Blocked actions, failures, gate rejections. |
-| `--warning` | `#D08C38` | `(208, 140, 56)` | Warnings, partial compliance. |
+| `--error`      | `#C94A4A` | `(201, 74, 74)`   | Blocked actions, failures, gate rejections.   |
+| `--warning`    | `#D08C38` | `(208, 140, 56)`  | Warnings, partial compliance.                 |
 
 ### 4.3 Surface-Specific Token Mapping
 
@@ -132,14 +131,14 @@ colors: {
 
 ```css
 :root {
-  --void: #0D0D0F;
-  --structure: #2A2A2E;
-  --text-primary: #EBEBEB;
-  --text-muted: #85858A;
-  --anvil-ember: #CC5500;
-  --edda-growth: #2E8B57;
-  --error: #C94A4A;
-  --warning: #D08C38;
+  --void: #0d0d0f;
+  --structure: #2a2a2e;
+  --text-primary: #ebebeb;
+  --text-muted: #85858a;
+  --anvil-ember: #cc5500;
+  --edda-growth: #2e8b57;
+  --error: #c94a4a;
+  --warning: #d08c38;
 }
 ```
 
@@ -167,15 +166,15 @@ White  → --text-primary (never bold white)
 
 ### 5.2 Per-Surface Typography
 
-| Surface | Headers | Body | Code |
-|---------|---------|------|------|
-| CLI (plain) | N/A (terminal font) | N/A | N/A |
-| TUI | Terminal mono | Terminal mono | Terminal mono |
-| Web Dashboard | JetBrains Mono | Inter | JetBrains Mono |
-| Documentation | JetBrains Mono | Inter | JetBrains Mono |
-| Decks / Slides | JetBrains Mono (UPPERCASE) | Inter | JetBrains Mono |
-| OG Images | JetBrains Mono | — | JetBrains Mono |
-| Email | IBM Plex Mono (headers) | Inter | IBM Plex Mono |
+| Surface        | Headers                    | Body          | Code           |
+| -------------- | -------------------------- | ------------- | -------------- |
+| CLI (plain)    | N/A (terminal font)        | N/A           | N/A            |
+| TUI            | Terminal mono              | Terminal mono | Terminal mono  |
+| Web Dashboard  | JetBrains Mono             | Inter         | JetBrains Mono |
+| Documentation  | JetBrains Mono             | Inter         | JetBrains Mono |
+| Decks / Slides | JetBrains Mono (UPPERCASE) | Inter         | JetBrains Mono |
+| OG Images      | JetBrains Mono             | —             | JetBrains Mono |
+| Email          | IBM Plex Mono (headers)    | Inter         | IBM Plex Mono  |
 
 ---
 
@@ -238,29 +237,29 @@ indistinguishable from the brand.
 Every interactive command delegates to a Ratatui TUI surface when running in a
 TTY. Non-TTY environments (CI, pipes) receive plain text or JSON.
 
-| Command | TUI Surface | Description |
-|---------|-------------|-------------|
-| `anvil init` | Init | Project initialisation wizard |
-| `anvil watch` | Watch | Live file-watch dashboard (kernel events) *(Planned)* |
-| `anvil gate` | Gate | Check explorer with pass/fail detail *(Planned)* |
-| `anvil status` | Status | Project health overview |
-| `anvil doctor [--fix]` | Doctor | Environment diagnostics |
-| `anvil audit` | Audit | Repository scan results |
-| `anvil tutorial [--reset]` | Tutorial | Guided learning paths |
-| `anvil start` | Welcome | First-run quick-start menu |
-| `anvil new` | Browser | Template catalogue browser |
-| `anvil wizard` | Wizard | APS onboarding wizard |
+| Command                    | TUI Surface | Description                                           |
+| -------------------------- | ----------- | ----------------------------------------------------- |
+| `anvil init`               | Init        | Project initialisation wizard                         |
+| `anvil watch`              | Watch       | Live file-watch dashboard (kernel events) _(Planned)_ |
+| `anvil gate`               | Gate        | Check explorer with pass/fail detail _(Planned)_      |
+| `anvil status`             | Status      | Project health overview                               |
+| `anvil doctor [--fix]`     | Doctor      | Environment diagnostics                               |
+| `anvil audit`              | Audit       | Repository scan results                               |
+| `anvil tutorial [--reset]` | Tutorial    | Guided learning paths                                 |
+| `anvil start`              | Welcome     | First-run quick-start menu                            |
+| `anvil new`                | Browser     | Template catalogue browser                            |
+| `anvil wizard`             | Wizard      | APS onboarding wizard                                 |
 
 Non-interactive commands (no TUI surface):
 
-| Command | Description | Status |
-|---------|-------------|--------|
-| `anvil auth` | Authentication management | *(Planned)* |
-| `anvil admin` | Beta user approval | *(Planned)* |
-| `anvil policy` | Policy operations | *(Planned)* |
-| `anvil architecture` | Architecture enforcement | *(Planned)* |
-| `anvil hooks` | Git hook management | *(Planned)* |
-| `anvil export` | Constraint export | *(Planned)* |
+| Command              | Description               | Status      |
+| -------------------- | ------------------------- | ----------- |
+| `anvil auth`         | Authentication management | _(Planned)_ |
+| `anvil admin`        | Beta user approval        | _(Planned)_ |
+| `anvil policy`       | Policy operations         | _(Planned)_ |
+| `anvil architecture` | Architecture enforcement  | _(Planned)_ |
+| `anvil hooks`        | Git hook management       | _(Planned)_ |
+| `anvil export`       | Constraint export         | _(Planned)_ |
 
 > **Note:** The commands above are defined in clap but their handlers are
 > stubbed (`bail!("not yet implemented")`). They are listed here for surface
@@ -273,28 +272,28 @@ Non-interactive commands (no TUI surface):
 ### 7.3 Output Conventions
 
 - **Silence over noise.** Do not print `✅ Success!` — the target format is
-  `STATUS: OK [200ms]`. *(Not yet emitted by all commands — current handlers
+  `STATUS: OK [200ms]`. _(Not yet emitted by all commands — current handlers
   still use ad-hoc prose like `Anvil initialised successfully.` Adopt this
-  envelope as commands are ported to the Rust CLI.)*
+  envelope as commands are ported to the Rust CLI.)_
 - **No emojis.** Ever.
 - **Exit codes are contracts:**
   - `0` — Success
   - `1` — General error
 - **Structured output:** `--json` is supported on commands that have data to
   serialise (e.g., `status`, `doctor`). Interactive-only commands (`tutorial`,
-  `welcome`) fall back to plain text or TUI and do not honour `--json`.
-  CI consumers should verify `--json` support per command.
+  `welcome`) fall back to plain text or TUI and do not honour `--json`. CI
+  consumers should verify `--json` support per command.
 
 ### 7.4 Demo Scenarios (Marketing / Video)
 
 1. **Cold start:** `anvil init` → wizard flow → `.anvilrc` generated.
 2. **Live governance:** `anvil watch` → make a violating change → real-time
-   block with policy citation. *(Planned — `watch` not yet implemented.)*
+   block with policy citation. _(Planned — `watch` not yet implemented.)_
 3. **Gate check:** `anvil gate plan.aps.md` → pass/fail breakdown with
-   colour-coded results. *(Planned — `gate` not yet implemented in the Rust
-   CLI; use the TypeScript CLI or `anvil status` for current demos.)*
-4. **Auth flow:** `anvil auth` → device code displayed → browser activation
-   → token stored. *(Planned — `auth` is not yet implemented in the Rust CLI.)*
+   colour-coded results. _(Planned — `gate` not yet implemented in the Rust CLI;
+   use the TypeScript CLI or `anvil status` for current demos.)_
+4. **Auth flow:** `anvil auth` → device code displayed → browser activation →
+   token stored. _(Planned — `auth` is not yet implemented in the Rust CLI.)_
 
 ---
 
@@ -302,9 +301,9 @@ Non-interactive commands (no TUI surface):
 
 ### 8.1 Overview
 
-The TUI is the richest interactive experience. It runs inside the CLI when a
-TTY is detected. All 10 surfaces share the same theme, keyboard handling, and
-layout shell.
+The TUI is the richest interactive experience. It runs inside the CLI when a TTY
+is detected. All 10 surfaces share the same theme, keyboard handling, and layout
+shell.
 
 ### 8.2 Architecture & Layout
 
@@ -334,18 +333,18 @@ vertical layout:
 
 ### 8.3 The 10 Surfaces
 
-| Surface | Purpose | Key Visual Elements |
-|---------|---------|-------------------|
-| **Welcome** | First-run menu | Action list, version info, quick-start options |
-| **Tutorial** | Guided paths | Step indicators, progress tracking, instruction panes |
-| **Doctor** | Diagnostics | Check list with pass/fail/warn badges, detail expand |
-| **Status** | Project overview | Hooks panel, active profile, recent gate runs |
-| **Gate** | Check explorer | Check tree with expandable detail, severity badges |
-| **Watch** | Live dashboard | Real-time event stream from kernel, file change log |
-| **Init** | Setup wizard | Multi-step form, config preview, file generation |
-| **Wizard** | APS onboarding | Module selection, dependency graph, plan generation |
-| **Audit** | Scan results | Finding list, severity breakdown, remediation hints |
-| **Browser** | Template catalogue | Searchable list, template preview, scaffold action |
+| Surface      | Purpose            | Key Visual Elements                                   |
+| ------------ | ------------------ | ----------------------------------------------------- |
+| **Welcome**  | First-run menu     | Action list, version info, quick-start options        |
+| **Tutorial** | Guided paths       | Step indicators, progress tracking, instruction panes |
+| **Doctor**   | Diagnostics        | Check list with pass/fail/warn badges, detail expand  |
+| **Status**   | Project overview   | Hooks panel, active profile, recent gate runs         |
+| **Gate**     | Check explorer     | Check tree with expandable detail, severity badges    |
+| **Watch**    | Live dashboard     | Real-time event stream from kernel, file change log   |
+| **Init**     | Setup wizard       | Multi-step form, config preview, file generation      |
+| **Wizard**   | APS onboarding     | Module selection, dependency graph, plan generation   |
+| **Audit**    | Scan results       | Finding list, severity breakdown, remediation hints   |
+| **Browser**  | Template catalogue | Searchable list, template preview, scaffold action    |
 
 ### 8.4 Rendering Rules
 
@@ -360,11 +359,11 @@ vertical layout:
 ### 8.5 Demo Scenarios (Marketing / Video)
 
 1. **Watch surface:** Split-screen showing policy on left, live events on right
-   as files change — the "flight recorder" experience. *(Planned — not yet
-   implemented.)*
+   as files change — the "flight recorder" experience. _(Planned — not yet
+   implemented.)_
 2. **Gate surface:** Expanding a failed check to see the policy rule, the
-   violation, and the file location. *(Planned — `gate` is not yet implemented
-   in the Rust CLI; use `anvil status` for current demos.)*
+   violation, and the file location. _(Planned — `gate` is not yet implemented
+   in the Rust CLI; use `anvil status` for current demos.)_
 3. **Doctor surface:** Running `anvil doctor --fix` — fixes are applied before
    the TUI launches, then the surface shows the updated check results.
 4. **Tutorial surface:** Walking through a learning path with step-by-step
@@ -385,76 +384,76 @@ from each engineer's `.anvil/` workspace storage.
 - **Route:** `/dashboard` (route group `(dashboard)`)
 - **Deployment:** Local dev server (reads from engineer's `.anvil/` workspace)
 
-### 9.2 View Modules *(Planned)*
+### 9.2 View Modules _(Planned)_
 
 > **Note:** The dashboard route group is not yet implemented. All routes below
 > are planned — see DASH-001 in `plans/modules/dashboard-foundation.aps.md`.
 
-#### Core Views (DASHCORE) *(Planned)*
+#### Core Views (DASHCORE) _(Planned)_
 
-| Route | Purpose |
-|-------|---------|
-| `/dashboard` | Overview — KPIs, status summary, recent activity |
-| `/dashboard/gates` | Gate results list with filtering |
-| `/dashboard/gates/[id]` | Individual gate run detail |
-| `/dashboard/warnings` | Warning aggregation |
-| `/dashboard/warnings/breakdown` | Warning breakdown by category |
-| `/dashboard/warnings/patterns` | Warning pattern analysis |
+| Route                           | Purpose                                          |
+| ------------------------------- | ------------------------------------------------ |
+| `/dashboard`                    | Overview — KPIs, status summary, recent activity |
+| `/dashboard/gates`              | Gate results list with filtering                 |
+| `/dashboard/gates/[id]`         | Individual gate run detail                       |
+| `/dashboard/warnings`           | Warning aggregation                              |
+| `/dashboard/warnings/breakdown` | Warning breakdown by category                    |
+| `/dashboard/warnings/patterns`  | Warning pattern analysis                         |
 
-#### Architecture Views (DASHARCH) *(Planned)*
+#### Architecture Views (DASHARCH) _(Planned)_
 
-| Route | Purpose |
-|-------|---------|
-| `/dashboard/architecture` | Architecture overview |
-| `/dashboard/architecture/violations` | Violation list |
-| `/dashboard/architecture/graph` | Dependency graph visualisation |
-| `/dashboard/drift` | Drift snapshot list |
-| `/dashboard/drift/[name]` | Individual snapshot detail |
-| `/dashboard/drift/compare` | Snapshot comparison |
-| `/dashboard/suppressions` | Suppression management |
-| `/dashboard/suppressions/trends` | Suppression trend analysis |
+| Route                                | Purpose                        |
+| ------------------------------------ | ------------------------------ |
+| `/dashboard/architecture`            | Architecture overview          |
+| `/dashboard/architecture/violations` | Violation list                 |
+| `/dashboard/architecture/graph`      | Dependency graph visualisation |
+| `/dashboard/drift`                   | Drift snapshot list            |
+| `/dashboard/drift/[name]`            | Individual snapshot detail     |
+| `/dashboard/drift/compare`           | Snapshot comparison            |
+| `/dashboard/suppressions`            | Suppression management         |
+| `/dashboard/suppressions/trends`     | Suppression trend analysis     |
 
-#### Ops Views (DASHOPS) *(Planned)*
+#### Ops Views (DASHOPS) _(Planned)_
 
-| Route | Purpose |
-|-------|---------|
-| `/dashboard/audit` | Audit log |
-| `/dashboard/audit/users` | Per-user audit trail |
+| Route                       | Purpose                |
+| --------------------------- | ---------------------- |
+| `/dashboard/audit`          | Audit log              |
+| `/dashboard/audit/users`    | Per-user audit trail   |
 | `/dashboard/audit/ai-tools` | AI tool usage tracking |
-| `/dashboard/plans` | APS plan browser |
-| `/dashboard/plans/[id]` | Plan detail |
-| `/dashboard/config` | Configuration viewer |
-| `/dashboard/diagnostics` | System diagnostics |
+| `/dashboard/plans`          | APS plan browser       |
+| `/dashboard/plans/[id]`     | Plan detail            |
+| `/dashboard/config`         | Configuration viewer   |
+| `/dashboard/diagnostics`    | System diagnostics     |
 
-#### AI Builder Views (DASHAI) *(Planned)*
+#### AI Builder Views (DASHAI) _(Planned)_
 
-| Route | Purpose |
-|-------|---------|
-| `/dashboard/builder` | Custom dashboard builder |
-| `/dashboard/builder/templates` | Dashboard templates |
-| `/dashboard/dashboards` | Saved dashboards |
-| `/dashboard/dashboards/[id]` | Individual dashboard |
+| Route                          | Purpose                  |
+| ------------------------------ | ------------------------ |
+| `/dashboard/builder`           | Custom dashboard builder |
+| `/dashboard/builder/templates` | Dashboard templates      |
+| `/dashboard/dashboards`        | Saved dashboards         |
+| `/dashboard/dashboards/[id]`   | Individual dashboard     |
 
-### 9.3 Component Library *(Planned — DASH-003)*
+### 9.3 Component Library _(Planned — DASH-003)_
 
 Shared dashboard components (target location: `components/dashboard/`). These
 files do not exist yet; they are defined as future DASH-003 work in
 `plans/modules/dashboard-foundation.aps.md`.
 
-| Component | Purpose |
-|-----------|---------|
-| `sidebar.tsx` | Navigation sidebar |
-| `top-bar.tsx` | Header with breadcrumbs |
-| `dashboard-shell.tsx` | Layout wrapper |
-| `metric-card.tsx` | KPI display card |
-| `data-table.tsx` | Sortable, filterable table |
-| `status-badge.tsx` | Pass/fail/warn status indicator |
-| `severity-badge.tsx` | Severity level indicator |
-| `code-block.tsx` | Code display with syntax highlighting |
-| `empty-state.tsx` | Zero-data placeholder |
-| `loading-skeleton.tsx` | Loading state placeholder |
-| `command-palette.tsx` | `⌘K` quick navigation |
-| `charts/` | Recharts-based visualisations |
+| Component              | Purpose                               |
+| ---------------------- | ------------------------------------- |
+| `sidebar.tsx`          | Navigation sidebar                    |
+| `top-bar.tsx`          | Header with breadcrumbs               |
+| `dashboard-shell.tsx`  | Layout wrapper                        |
+| `metric-card.tsx`      | KPI display card                      |
+| `data-table.tsx`       | Sortable, filterable table            |
+| `status-badge.tsx`     | Pass/fail/warn status indicator       |
+| `severity-badge.tsx`   | Severity level indicator              |
+| `code-block.tsx`       | Code display with syntax highlighting |
+| `empty-state.tsx`      | Zero-data placeholder                 |
+| `loading-skeleton.tsx` | Loading state placeholder             |
+| `command-palette.tsx`  | `⌘K` quick navigation                 |
+| `charts/`              | Recharts-based visualisations         |
 
 ### 9.4 Visual Rules
 
@@ -472,8 +471,8 @@ files do not exist yet; they are defined as future DASH-003 work in
 
 ### 9.5 Interactive Patterns
 
-- **Command Palette:** `⌘K` / `Ctrl+K` opens quick navigation. Same feel as
-  the CLI — type to filter, enter to navigate.
+- **Command Palette:** `⌘K` / `Ctrl+K` opens quick navigation. Same feel as the
+  CLI — type to filter, enter to navigate.
 - **Deep Linking:** Every view supports URL-based state (filters, selections,
   expanded rows) for shareable links.
 - **Data Hooks:** TanStack Query with `use-status`, `use-gates`, `use-warnings`,
@@ -482,7 +481,7 @@ files do not exist yet; they are defined as future DASH-003 work in
   `plans/modules/dashboard-foundation.aps.md`). It is not a hosted Vercel
   deployment for team-wide visibility — each engineer runs their own instance.
 
-### 9.6 Demo Scenarios (Marketing / Video) *(Planned)*
+### 9.6 Demo Scenarios (Marketing / Video) _(Planned)_
 
 > **Note:** All dashboard demo scenarios below require the `/dashboard` route
 > group, which is not yet implemented (see DASH-001). Use staging data or
@@ -515,12 +514,13 @@ files do not exist yet; they are defined as future DASH-003 work in
   (`disableSwitch: false`, `respectPrefersColorScheme: true`). A future update
   should enforce dark-only to match the brand spec.
 - **Code blocks:** JetBrains Mono. Syntax highlighting uses brand palette
-  (`--anvil-ember` for keywords, `--edda-growth` for strings, `--text-muted`
-  for comments).
+  (`--anvil-ember` for keywords, `--edda-growth` for strings, `--text-muted` for
+  comments).
 - **Navigation:** Sidebar with `--structure` borders. Active item highlighted
   with `--anvil-ember`.
 - **Headers:** JetBrains Mono. Body: Inter.
-- **Diagrams:** White/ember lines on dark background. Mermaid diagrams preferred.
+- **Diagrams:** White/ember lines on dark background. Mermaid diagrams
+  preferred.
 
 ### 10.3 Content Tone
 
@@ -535,10 +535,10 @@ files do not exist yet; they are defined as future DASH-003 work in
 
 1. **Quickstart:** Walk through `docs/public/anvil/quickstart.md` (served at
    `/anvil/quickstart`) — from install to first gate check in under 5 minutes.
-   *(Note: the quickstart currently documents the TypeScript CLI surface —
+   _(Note: the quickstart currently documents the TypeScript CLI surface —
    commands like `anvil login`, `anvil check`, and `anvil watch` are not
    available in the Rust CLI. Update the quickstart before using it in Rust CLI
-   demos.)*
+   demos.)_
 2. **Concept deep-dive:** Show a concept page with embedded CLI output and
    architecture diagrams.
 
@@ -595,26 +595,28 @@ files do not exist yet; they are defined as future DASH-003 work in
 The MCP server is not visually rendered — it is an API surface. However, it is
 customer-facing because AI agents present its output to users.
 
-- **Tool responses:** Return structured JSON wrapped in the MCP content
-  envelope — i.e., `{ content: [{ type: "text", text: "<JSON string>" }] }`.
-  Consumers must parse `content[0].text` to reach the data payload. Note that
-  MCP tool responses and CLI `--json` output use different schemas today — for
-  example, `anvil_status` returns `{status, workspaceRoot, availableChecks,
-  config, hasBaseline, version}` while `anvil status --json` serialises
-  `{hooks, profile, recent_runs}`. Consumers should not assume the two surfaces
-  share a single contract; schema unification is a future goal.
+- **Tool responses:** Return structured JSON wrapped in the MCP content envelope
+  — i.e., `{ content: [{ type: "text", text: "<JSON string>" }] }`. Consumers
+  must parse `content[0].text` to reach the data payload. Note that MCP tool
+  responses and CLI `--json` output use different schemas today — for example,
+  `anvil_status` returns
+  `{status, workspaceRoot, availableChecks, config, hasBaseline, version}` while
+  `anvil status --json` serialises `{hooks, profile, recent_runs}`. Consumers
+  should not assume the two surfaces share a single contract; schema unification
+  is a future goal.
 - **Resource descriptions:** Use declarative, technical language. No marketing
   copy.
 - **Error messages:** Return `isError: true` with a JSON text body shaped as
-  `{"error": "<message>"}`. This matches the envelope used by `registerStatusTool()`
-  and `registerGateTool()` in the deployed server — do not use CLI-style
-  `STATUS: FAIL [reason]` strings.
+  `{"error": "<message>"}`. This matches the envelope used by
+  `registerStatusTool()` and `registerGateTool()` in the deployed server — do
+  not use CLI-style `STATUS: FAIL [reason]` strings.
 
 ### 12.3 Demo Scenarios (Marketing / Video)
 
 1. **Agent integration:** Show Claude using the `anvil_gate` tool to run gate
-   checks against the workspace (via `workspaceRoot` and optional `targetFiles`),
-   receiving structured results, and presenting them to the user.
+   checks against the workspace (via `workspaceRoot` and optional
+   `targetFiles`), receiving structured results, and presenting them to the
+   user.
 2. **Status check:** Show an agent calling the `anvil_status` tool to retrieve
    project health, then summarising the results for the user.
 
@@ -679,37 +681,37 @@ surface. The underlying data should be semantically equivalent, though the
 serialisation schema may differ between surfaces today (see §12.2 for the
 current CLI vs MCP divergence). Schema unification is a future goal.
 
-### 14.2 Navigation Parity *(Target State)*
+### 14.2 Navigation Parity _(Target State)_
 
 The CLI command structure will map to dashboard routes once both surfaces are
 implemented. Today, `anvil status`, `anvil doctor`, and `anvil audit` are
 functional in the Rust CLI; the remaining CLI commands and all dashboard routes
 are planned.
 
-| CLI Command | Dashboard Route | TUI Surface | Status |
-|-------------|----------------|-------------|--------|
-| `anvil status` | `/dashboard` | Status | CLI: Live, Dashboard: Planned |
-| `anvil gate` | `/dashboard/gates` | Gate | Both Planned |
-| `anvil audit` | `/dashboard/audit` | Audit | CLI: Live, Dashboard: Planned |
-| `anvil watch` | — (real-time only) | Watch | Both Planned |
-| `anvil doctor` | `/dashboard/diagnostics` | Doctor | CLI: Live, Dashboard: Planned |
-| `anvil policy` | `/dashboard/config` | — | Both Planned |
-| `anvil architecture` | `/dashboard/architecture` | — | Both Planned |
+| CLI Command          | Dashboard Route           | TUI Surface | Status                        |
+| -------------------- | ------------------------- | ----------- | ----------------------------- |
+| `anvil status`       | `/dashboard`              | Status      | CLI: Live, Dashboard: Planned |
+| `anvil gate`         | `/dashboard/gates`        | Gate        | Both Planned                  |
+| `anvil audit`        | `/dashboard/audit`        | Audit       | CLI: Live, Dashboard: Planned |
+| `anvil watch`        | — (real-time only)        | Watch       | Both Planned                  |
+| `anvil doctor`       | `/dashboard/diagnostics`  | Doctor      | CLI: Live, Dashboard: Planned |
+| `anvil policy`       | `/dashboard/config`       | —           | Both Planned                  |
+| `anvil architecture` | `/dashboard/architecture` | —           | Both Planned                  |
 
 ### 14.3 Terminology
 
 Use consistent terminology across all surfaces:
 
-| Term | Meaning | Do Not Use |
-|------|---------|-----------|
-| Gate | A policy check pass/fail | Test, scan, check |
-| Check | An individual rule within a gate | Rule, test, assertion |
-| Watch | Real-time file monitoring | Monitor, listen, observe |
-| Drift | Configuration change over time | Deviation, delta, diff |
-| Surface | A TUI view | Screen, page, panel |
-| Ember | A candidate pattern for promotion | Suggestion, recommendation |
-| Edda | Long-term memory store | History, log, archive |
-| Kindling | Ephemeral observations | Events, signals, logs |
+| Term     | Meaning                           | Do Not Use                 |
+| -------- | --------------------------------- | -------------------------- |
+| Gate     | A policy check pass/fail          | Test, scan, check          |
+| Check    | An individual rule within a gate  | Rule, test, assertion      |
+| Watch    | Real-time file monitoring         | Monitor, listen, observe   |
+| Drift    | Configuration change over time    | Deviation, delta, diff     |
+| Surface  | A TUI view                        | Screen, page, panel        |
+| Ember    | A candidate pattern for promotion | Suggestion, recommendation |
+| Edda     | Long-term memory store            | History, log, archive      |
+| Kindling | Ephemeral observations            | Events, signals, logs      |
 
 ### 14.4 Silence Protocol
 
@@ -737,22 +739,22 @@ All surfaces follow the same silence protocol:
 
 1. **The Hook (30s):** Show `anvil watch` running. Make a bad change. Watch it
    get blocked in real-time. No narration needed — the terminal speaks.
-   *(Planned — `watch` is not yet implemented; use `anvil status` for demos
-   until the watch surface ships.)*
+   _(Planned — `watch` is not yet implemented; use `anvil status` for demos
+   until the watch surface ships.)_
 
-2. **The Setup (60s):** `anvil init` → wizard completes → `.anvilrc`
-   generated. Show the config file briefly.
+2. **The Setup (60s):** `anvil init` → wizard completes → `.anvilrc` generated.
+   Show the config file briefly.
 
 3. **The Core Loop (90s):**
-   - `anvil gate plan.aps.md` → TUI shows check results. *(Planned — `gate`
-     is not yet implemented in the Rust CLI.)*
-   - Open dashboard → same data, richer visualisation. *(Planned — the
+   - `anvil gate plan.aps.md` → TUI shows check results. _(Planned — `gate` is
+     not yet implemented in the Rust CLI.)_
+   - Open dashboard → same data, richer visualisation. _(Planned — the
      `/dashboard` route group is not yet implemented; see DASH-001 in
-     `plans/modules/dashboard-foundation.aps.md`.)*
+     `plans/modules/dashboard-foundation.aps.md`.)_
    - Show architecture graph with a violation highlighted.
 
-4. **The Stack (60s):** *(Planned — `anvil status` does not display memory
-   layers today.)*
+4. **The Stack (60s):** _(Planned — `anvil status` does not display memory
+   layers today.)_
    - `anvil status` currently shows hooks, active profile, and recent gate runs.
      The Kindling → Ember → Edda memory layer visualisation is future work.
    - Demonstrate the memory pipeline concept using the `edda-stack` library
@@ -764,12 +766,14 @@ All surfaces follow the same silence protocol:
 
 ### 15.3 B-Roll Shots
 
-- The TUI Watch surface with events streaming (30s loop). *(Planned.)*
-- Dashboard overview with KPI cards (static or slow scroll). *(Planned — dashboard routes not yet implemented; see DASH-001.)*
+- The TUI Watch surface with events streaming (30s loop). _(Planned.)_
+- Dashboard overview with KPI cards (static or slow scroll). _(Planned —
+  dashboard routes not yet implemented; see DASH-001.)_
 - `anvil doctor` fixing issues (checks flipping green).
-- Architecture graph rotating/zooming. *(Planned — requires dashboard architecture views; see DASHARCH-003.)*
-- Terminal showing `anvil auth` → device code flow. *(Planned — `auth` not
-  yet implemented.)*
+- Architecture graph rotating/zooming. _(Planned — requires dashboard
+  architecture views; see DASHARCH-003.)_
+- Terminal showing `anvil auth` → device code flow. _(Planned — `auth` not yet
+  implemented.)_
 
 ### 15.4 What NOT to Show
 

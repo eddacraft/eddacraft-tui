@@ -448,6 +448,7 @@ waves; 39 tasks total.
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | 0/8 | 2 | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | 0/7 | 3 | dashboard-foundation |
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Draft | 0/6 | 4 | dashboard-foundation |
+| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Ready | 0/13 | — | ratatui-tui, ink-to-ratatui-port |
 
 ### Planned — 0.3.0 (Organisational Policy Governance)
 

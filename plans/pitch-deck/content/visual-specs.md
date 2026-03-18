@@ -3,6 +3,7 @@
 ## Global Design Standards
 
 ### Palette (from EddaTheme)
+
 | Token | Hex | Usage |
 |-------|-----|-------|
 | `--void` | `#0d0d0f` | Slide background (all slides) |
@@ -16,6 +17,7 @@
 | WARNING | `#d08c38` | Caution states |
 
 ### Typography
+
 | Element | Font | Size | Colour |
 |---------|------|------|--------|
 | Headline | JetBrains Mono | 36-44px | `--text-primary` |

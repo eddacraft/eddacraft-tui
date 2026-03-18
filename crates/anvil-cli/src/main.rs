@@ -41,39 +41,40 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Commands {
-    /// Interactive guided tutorial.
-    Tutorial(commands::tutorial::TutorialArgs),
-    /// Show project status and health.
-    Status(commands::status::StatusArgs),
+    /// Run a full project audit.
+    Audit(commands::audit::AuditArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
+    /// Show project status and health.
+    Status(commands::status::StatusArgs),
+    /// Interactive guided tutorial.
+    Tutorial(commands::tutorial::TutorialArgs),
     /// Show the welcome screen with quick-start options.
     #[command(alias = "start")]
     Welcome(commands::welcome::WelcomeArgs),
-    /// Run a full project audit.
-    Audit(commands::audit::AuditArgs),
     /// Initialise Anvil configuration for a project.
     Init(commands::init::InitArgs),
-    /// Guided project setup wizard.
-    Wizard(commands::wizard::WizardArgs),
     /// Scaffold a new project from a template.
     New(commands::new::NewArgs),
-    /// Run gate checks against the current project.
-    Gate(commands::gate::GateArgs),
-    /// Start file-watching mode with live gate checks.
-    Watch(commands::watch::WatchArgs),
-    /// Authenticate with the Anvil service.
-    Auth(commands::auth::AuthArgs),
-    /// Administrative commands (approvals, user management).
-    Admin(commands::admin::AdminArgs),
-    /// Manage and evaluate policies.
-    Policy(commands::policy::PolicyArgs),
-    /// Manage architecture boundary definitions.
-    Architecture(commands::architecture::ArchitectureArgs),
-    /// Install and manage git hooks.
-    Hooks(commands::hooks::HooksArgs),
-    /// Export constraints and configuration.
-    Export(commands::export::ExportArgs),
+    /// Guided project setup wizard.
+    Wizard(commands::wizard::WizardArgs),
+    // Not yet implemented — uncomment as each command ships:
+    // /// Administrative commands (approvals, user management).
+    // Admin(commands::admin::AdminArgs),
+    // /// Manage architecture boundary definitions.
+    // Architecture(commands::architecture::ArchitectureArgs),
+    // /// Authenticate with the Anvil service.
+    // Auth(commands::auth::AuthArgs),
+    // /// Export constraints and configuration.
+    // Export(commands::export::ExportArgs),
+    // /// Run gate checks against the current project.
+    // Gate(commands::gate::GateArgs),
+    // /// Install and manage git hooks.
+    // Hooks(commands::hooks::HooksArgs),
+    // /// Manage and evaluate policies.
+    // Policy(commands::policy::PolicyArgs),
+    // /// Start file-watching mode with live gate checks.
+    // Watch(commands::watch::WatchArgs),
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -97,22 +98,14 @@ fn main() -> ExitCode {
     };
 
     let result = match &cli.command {
-        Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
-        Commands::Status(args) => commands::status::run(args, &cli.global),
-        Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
-        Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
+        Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
+        Commands::Status(args) => commands::status::run(args, &cli.global),
+        Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
+        Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
         Commands::Init(args) => commands::init::run(args, &cli.global),
-        Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
-        Commands::Gate(args) => commands::gate::run(args, &cli.global),
-        Commands::Watch(args) => commands::watch::run(args, &cli.global),
-        Commands::Auth(args) => commands::auth::run(args, &cli.global),
-        Commands::Admin(args) => commands::admin::run(args, &cli.global),
-        Commands::Policy(args) => commands::policy::run(args, &cli.global),
-        Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
-        Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
-        Commands::Export(args) => commands::export::run(args, &cli.global),
+        Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
     };
 
     match result {
