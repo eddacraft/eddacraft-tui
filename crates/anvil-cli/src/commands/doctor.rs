@@ -281,7 +281,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
             status: CheckStatus::Warn,
             message: "git hooks not installed".to_string(),
             details: Some(
-                "Create .husky/pre-commit with your Anvil checks (e.g. anvil gate once shipped)"
+                "Create .husky/pre-commit (chmod +x) with your Anvil checks (e.g. anvil gate once shipped)"
                     .to_string(),
             ),
             auto_fixable: false,
