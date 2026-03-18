@@ -431,9 +431,11 @@ from each engineer's `.anvil/` workspace storage.
 | `/dashboard/dashboards` | Saved dashboards |
 | `/dashboard/dashboards/[id]` | Individual dashboard |
 
-### 9.3 Component Library
+### 9.3 Component Library *(Planned — DASH-003)*
 
-Shared dashboard components (all in `components/dashboard/`):
+Shared dashboard components (target location: `components/dashboard/`). These
+files do not exist yet; they are defined as future DASH-003 work in
+`plans/modules/dashboard-foundation.aps.md`.
 
 | Component | Purpose |
 |-----------|---------|
@@ -646,8 +648,11 @@ anvil-kernel (Rust)
     ├── CLI JSON output  → serialises kernel data as JSON
     ├── TUI surfaces     → renders kernel data via Ratatui
     ├── Dashboard API    → reads .anvil/ storage (kernel output)
-    ├── MCP server       → exposes kernel data as tools/resources
-    └── VS Code ext      → reads kernel diagnostics
+    │
+    │   (TypeScript surfaces — consume @eddacraft/anvil-runtime, not kernel directly)
+    ├── MCP server       → imports @eddacraft/anvil-runtime for gate/status tools
+    └── VS Code ext      → shells out to CLI commands (validate, gate, export)
+                           and parses their JSON output
 ```
 
 When data appears on one surface, it must be representable on every other
@@ -726,9 +731,12 @@ All surfaces follow the same silence protocol:
      `plans/modules/dashboard-foundation.aps.md`.)*
    - Show architecture graph with a violation highlighted.
 
-4. **The Stack (60s):**
-   - `anvil status` → shows Kindling → Ember → Edda memory layers.
-   - Demonstrate a pattern being observed, proposed, and promoted.
+4. **The Stack (60s):** *(Planned — `anvil status` does not display memory
+   layers today.)*
+   - `anvil status` currently shows hooks, active profile, and recent gate runs.
+     The Kindling → Ember → Edda memory layer visualisation is future work.
+   - Demonstrate the memory pipeline concept using the `edda-stack` library
+     directly, or mock output, until the status command integrates memory data.
 
 5. **The Integration (30s):**
    - VS Code showing inline diagnostics.
