@@ -476,7 +476,11 @@ Shared dashboard components (all in `components/dashboard/`):
   `plans/modules/dashboard-foundation.aps.md`). It is not a hosted Vercel
   deployment for team-wide visibility — each engineer runs their own instance.
 
-### 9.6 Demo Scenarios (Marketing / Video)
+### 9.6 Demo Scenarios (Marketing / Video) *(Planned)*
+
+> **Note:** All dashboard demo scenarios below require the `/dashboard` route
+> group, which is not yet implemented (see DASH-001). Use staging data or
+> mockups for pre-implementation marketing material.
 
 1. **Dashboard overview:** Landing page with KPI cards showing gate pass rate,
    warning count, drift status.
@@ -647,22 +651,25 @@ anvil-kernel (Rust)
 ```
 
 When data appears on one surface, it must be representable on every other
-surface. A gate check result looks the same whether viewed in the TUI, the
-dashboard, or a JSON response.
+surface. The underlying data should be semantically equivalent, though the
+serialisation schema may differ between surfaces today (see §12.2 for the
+current CLI vs MCP divergence). Schema unification is a future goal.
 
-### 14.2 Navigation Parity
+### 14.2 Navigation Parity *(Target State)*
 
-The CLI command structure maps directly to dashboard routes:
+The CLI command structure will map to dashboard routes once both surfaces are
+implemented. Today, only `anvil status` and `anvil doctor` are functional in the
+Rust CLI; the remaining CLI commands and all dashboard routes are planned.
 
-| CLI Command | Dashboard Route | TUI Surface |
-|-------------|----------------|-------------|
-| `anvil status` | `/dashboard` | Status |
-| `anvil gate` | `/dashboard/gates` | Gate |
-| `anvil audit` | `/dashboard/audit` | Audit |
-| `anvil watch` | — (real-time only) | Watch |
-| `anvil doctor` | `/dashboard/diagnostics` | Doctor |
-| `anvil policy` | `/dashboard/config` | — |
-| `anvil architecture` | `/dashboard/architecture` | — |
+| CLI Command | Dashboard Route | TUI Surface | Status |
+|-------------|----------------|-------------|--------|
+| `anvil status` | `/dashboard` | Status | CLI: Live, Dashboard: Planned |
+| `anvil gate` | `/dashboard/gates` | Gate | Both Planned |
+| `anvil audit` | `/dashboard/audit` | Audit | Both Planned |
+| `anvil watch` | — (real-time only) | Watch | Both Planned |
+| `anvil doctor` | `/dashboard/diagnostics` | Doctor | CLI: Live, Dashboard: Planned |
+| `anvil policy` | `/dashboard/config` | — | Both Planned |
+| `anvil architecture` | `/dashboard/architecture` | — | Both Planned |
 
 ### 14.3 Terminology
 
