@@ -167,9 +167,10 @@ mod tests {
     #[test]
     fn select_sets_chosen() {
         let mut state = WelcomeState::new();
-        state.handle_key(Action::Down); // RunAudit
+        // Default is RunAudit (index 0); Down moves to RunDoctor (index 1)
+        state.handle_key(Action::Down);
         state.handle_key(Action::Select);
-        assert_eq!(state.chosen, Some(QuickStartOption::RunAudit));
+        assert_eq!(state.chosen, Some(QuickStartOption::RunDoctor));
     }
 
     #[test]

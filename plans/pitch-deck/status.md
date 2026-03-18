@@ -7,6 +7,7 @@
 **Last updated**: 2026-03-18
 
 ## Phase Progress
+
 | Phase | Status | Agent | Outputs | Quality Gate |
 |-------|--------|-------|---------|-------------|
 | 1. Research | complete | pitch-researcher | market-sizing.md, competitive-landscape.md, problem-quantification.md, regulatory-landscape.md, trend-analysis.md | pass |
@@ -16,6 +17,7 @@
 | 5. Deck Production | complete | pitch-deck-producer | deliverables/eddacraft-anvil-pitch-deck.pptx | pass |
 
 ## Quality Issues
+
 | Phase | Issue | Severity | Resolution |
 |-------|-------|----------|------------|
 | 1 | Semgrep ARR data unavailable | medium | Marked [DATA NEEDED]; non-blocking |
@@ -31,6 +33,7 @@
 - Breakdown of AI governance spend by sub-segment
 
 ## Decisions Log
+
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-03-18 | Pipeline initialised, starting Phase 1 | Full pipeline execution from scratch |

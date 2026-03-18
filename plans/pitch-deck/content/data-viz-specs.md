@@ -3,6 +3,7 @@
 ## Global Chart Standards
 
 ### Colour Mapping
+
 | Data Category | Colour | Token |
 |---------------|--------|-------|
 | Anvil / primary data | `#cc5500` | `--anvil` |
@@ -73,6 +74,7 @@ Horizontal timeline with milestone markers and spend forecast overlay.
 | 2030 | >75% of economies have AI regulation | Future |
 
 ### Overlay: Governance Spend
+
 | Year | Spend |
 |------|-------|
 | 2026 | USD 492M |
