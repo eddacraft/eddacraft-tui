@@ -86,12 +86,13 @@ fn main() -> ExitCode {
     let cli = match Cli::try_parse() {
         Ok(cli) => cli,
         Err(err) => {
-            if wants_json() {
+            let code = err.exit_code();
+            if wants_json() && code != 0 {
                 eprintln!("{}", serde_json::json!({ "error": err.to_string() }));
             } else {
                 let _ = err.print();
             }
-            return ExitCode::from(EXIT_ERROR);
+            return ExitCode::from(code as u8);
         }
     };
 
