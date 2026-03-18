@@ -112,7 +112,9 @@ The CLI does not depend on `eddacraft-tui` directly. Similarly, `anvil-checks`
 is invoked through the kernel pipeline, not directly by CLI commands.
 
 TTY detection uses `std::io::IsTerminal` (stable since Rust 1.70), not the
-deprecated `atty` crate.
+deprecated `atty` crate. This implies a minimum supported Rust version (MSRV)
+of 1.70+ for this project, which must be documented in the root `Cargo.toml`
+and/or README so developers use a compatible toolchain.
 
 ### 1.3 Surface-to-Command Mapping
 
