@@ -29,7 +29,7 @@
   },
   "devDependencies": {
     "@types/react": "^19",
-    "react-email": "^5.2.9",
+    "react-email": "^5.2.10",
     "typescript": "~5.9.3"
   },
   "license": "PROPRIETARY"
