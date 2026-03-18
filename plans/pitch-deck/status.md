@@ -13,13 +13,14 @@
 | 2. Strategy | complete | pitch-strategist | win-themes.md, narrative-arc.md, slide-outline.md, positioning.md | pass |
 | 3. Content | complete | pitch-writer + pitch-designer | slide-copy.md, talking-points.md, investor-faq.md, visual-specs.md, data-viz-specs.md | pass |
 | 4. Synthesis | complete | pitch-exec-summary | executive-summary.md, one-pager.md | pass |
+| 5. Deck Production | complete | pitch-deck-producer | deliverables/eddacraft-anvil-pitch-deck.pptx | pass |
 
 ## Quality Issues
 | Phase | Issue | Severity | Resolution |
 |-------|-------|----------|------------|
 | 1 | Semgrep ARR data unavailable | medium | Marked [DATA NEEDED]; non-blocking |
 | 1 | Precise global org count unavailable | medium | Used proxy data; non-blocking |
-| 3 | Traction slide (10), Team slide (11), Ask slide (12) lack content | high | Marked [EVIDENCE NEEDED]; requires human input |
+| 3 | Traction slide (10), Team slide (11), Ask slide (12) lack content | high | Resolved via direction spec decisions; launch targets used for traction numbers |
 
 ## Data Gaps
 - Semgrep ARR / revenue figures
@@ -37,4 +38,6 @@
 | 2026-03-18 | Phase 2 complete, gate passed | 4/4 strategy docs, themes are Anvil-specific |
 | 2026-03-18 | Phase 3 complete, gate passed | 5/5 content docs, brand compliance verified |
 | 2026-03-18 | Phase 4 complete, gate passed | 2/2 deliverables, cross-reference check passed |
-| 2026-03-18 | Pipeline complete | All 16 documents delivered. 3 slides require human input (traction, team, ask). |
+| 2026-03-18 | Slides 10–12 filled with direction spec decisions | Traction, team, and ask slides populated; traction numbers are launch targets |
+| 2026-03-18 | Phase 5 complete, deck produced | 13-slide .pptx generated at deliverables/eddacraft-anvil-pitch-deck.pptx |
+| 2026-03-18 | Pipeline complete | All phases complete. Slides 10–12 traction numbers are launch targets and will be updated with actuals ahead of the raise. |
