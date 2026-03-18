@@ -32,14 +32,14 @@
     </mxCell>
 
     <!-- PATH 1 nodes -->
-    <mxCell id="t1" value="ANALYSE TEMPLATE&#xa;markitdown template.pptx" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
-      <mxGeometry x="130" y="220" width="250" height="50" as="geometry"/>
+    <mxCell id="t1" value="ANALYSE TEMPLATE&#xa;markitdown eddacraft-anvil-pitch-deck.pptx" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+      <mxGeometry x="130" y="220" width="300" height="50" as="geometry"/>
     </mxCell>
     <mxCell id="t2" value="PLAN SLIDE MAPPING&#xa;choose varied layouts" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="290" width="250" height="50" as="geometry"/>
     </mxCell>
-    <mxCell id="t3" value="UNPACK&#xa;unzip template.pptx -d work/" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
-      <mxGeometry x="130" y="360" width="250" height="50" as="geometry"/>
+    <mxCell id="t3" value="UNPACK&#xa;unzip eddacraft-anvil-pitch-deck.pptx -d work/" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+      <mxGeometry x="130" y="360" width="300" height="50" as="geometry"/>
     </mxCell>
     <mxCell id="t4" value="BUILD PRESENTATION&#xa;delete / duplicate / reorder&#xa;edit slide XML directly" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="430" width="250" height="60" as="geometry"/>
@@ -127,7 +127,7 @@
     </mxCell>
 
     <!-- QA nodes -->
-    <mxCell id="qa1" value="CONTENT QA&#xa;markitdown output.pptx&#xa;check typos, missing content,&#xa;leftover placeholders" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#CC5500;strokeWidth=2;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+    <mxCell id="qa1" value="CONTENT QA&#xa;markitdown out.pptx&#xa;check typos, missing content,&#xa;leftover placeholders" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#CC5500;strokeWidth=2;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="430" y="830" width="260" height="70" as="geometry"/>
     </mxCell>
     <mxCell id="qa2" value="VISUAL QA&#xa;soffice &gt; PDF &gt; pdftoppm &gt; JPGs&#xa;subagent visual inspection" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#CC5500;strokeWidth=2;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
@@ -164,9 +164,9 @@
     </mxCell>
 
     <!-- Loop back arrow -->
-    <mxCell id="e_check_loop" value="Yes" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#CC5500;strokeWidth=2;fontColor=#CC5500;fontFamily=JetBrains Mono;fontSize=10;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" source="qa_check" target="qa2" parent="1">
+    <mxCell id="e_check_loop" value="Yes" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#CC5500;strokeWidth=2;fontColor=#CC5500;fontFamily=JetBrains Mono;fontSize=10;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" source="qa_check" target="converge" parent="1">
       <mxGeometry relative="1" as="geometry">
-        <Array as="points"><mxPoint x="1140" y="1035"/><mxPoint x="1140" y="865"/></Array>
+        <Array as="points"><mxPoint x="1140" y="1035"/><mxPoint x="1140" y="750"/></Array>
       </mxGeometry>
     </mxCell>
 
