@@ -56,10 +56,7 @@ interface StoredCredentials {
 }
 
 function getApiUrl(opts: AuthLoginOptions): string {
-  const raw =
-    opts.apiUrl ??
-    process.env['ANVIL_API_URL'] ??
-    'https://api.eddacraft.ai';
+  const raw = opts.apiUrl ?? process.env['ANVIL_API_URL'] ?? 'https://api.eddacraft.ai';
 
   // Normalize: strip /api/v1 suffix if present so the base URL is
   // always the bare origin. apiPost() prepends /api/v1 to endpoints.
