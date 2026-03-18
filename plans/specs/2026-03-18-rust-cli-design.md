@@ -357,6 +357,11 @@ pub fn run(args: Args, global: &GlobalArgs) -> Result<()> {
 ```rust
 pub fn run(args: Args, global: &GlobalArgs) -> Result<()> {
     let config = resolve_watch_config(&args)?;
+    // Use a standard-library, blocking channel here because the kernel watch loop
+    // runs on a dedicated thread and events are consumed synchronously by the CLI.
+    // This keeps the implementation simple and avoids pulling in additional async
+    // channel dependencies (e.g. `tokio::sync::mpsc`, `crossbeam-channel`) until
+    // we have a concrete need for async-aware backpressure or multiplexing.
     let (tx, rx) = std::sync::mpsc::channel();
 
     let kernel_handle = std::thread::spawn(move || {
