@@ -15,11 +15,10 @@ developers.
 
 ```
 docs/
-├── ARCHITECTURE.md         # System architecture overview
-├── MONOREPO_STRUCTURE.md   # Repository layout
-├── TESTING.md              # Test strategy and practices
-├── architecture/           # Architecture deep-dives
-├── guides/                 # Developer how-to guides
+├── architecture/           # Architecture deep-dives (incl. overview, monorepo structure)
+│   ├── overview.md         # System architecture overview
+│   └── monorepo-structure.md # Repository layout
+├── guides/                 # Developer how-to guides (incl. testing, branching strategy)
 ├── runbooks/               # Operational playbooks
 ├── specs/                  # Technical specifications
 ├── reviews/                # Point-in-time adversarial code reviews
@@ -33,7 +32,8 @@ docs/
 
 ### Architecture
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) — System architecture overview
+- [architecture/overview.md](architecture/overview.md) — System architecture overview
+- [architecture/monorepo-structure.md](architecture/monorepo-structure.md) — Repository layout
 - [architecture/edda-stack.md](architecture/edda-stack.md) — Edda stack design
 - [architecture/rust-kernel-spec.md](architecture/rust-kernel-spec.md) — Rust
   kernel specification
@@ -42,7 +42,8 @@ docs/
 
 ### Development
 
-- [TESTING.md](TESTING.md) — Test strategy and practices
+- [guides/testing.md](guides/testing.md) — Test strategy and practices
+- [guides/branching-strategy.md](guides/branching-strategy.md) — Branching strategy
 - [guides/](guides/) — Developer how-to guides
 - [runbooks/](runbooks/) — Operational playbooks
 
