@@ -54,7 +54,7 @@
 
 ## Slide 6: Product
 
-**Headline**: Built in Rust. Runs in your terminal.
+**Headline**: Built in Rust. No AI inside. 50ms per check.
 **Purpose**: Prove the product exists and demonstrate the experience
 **Primary data point**: Visual -- Terminal UI screenshot or live demo
 **Win themes**: N/A (product credibility)
@@ -94,31 +94,31 @@
 
 ## Slide 10: Traction
 
-**Headline**: [EVIDENCE NEEDED -- waitlist, partners, community metrics]
-**Purpose**: Show momentum and market validation
-**Primary data point**: [EVIDENCE NEEDED]
-**Win themes**: N/A (social proof)
-**One takeaway**: The market is responding to this product
+**Headline**: Built what others are pitching
+**Purpose**: Show product maturity and early market validation -- the traction story is "built and validated, now accelerating adoption"
+**Primary data point**: Production Rust kernel, 5 pilot teams, 50ms checks, 2 open source packages
+**Win themes**: N/A (social proof / product credibility)
+**One takeaway**: This is the most technically complete product in the AI governance category
 
 ---
 
 ## Slide 11: Team
 
-**Headline**: [EVIDENCE NEEDED -- team positioning]
-**Purpose**: Build trust in the team's ability to execute
-**Primary data point**: [EVIDENCE NEEDED -- team credentials]
+**Headline**: 25 years building what enterprises buy
+**Purpose**: Build trust in founder's ability to execute -- enterprise pedigree + capital efficiency
+**Primary data point**: 25+ years enterprise software, Microsoft Azure Lead, CEO Arkahna (100+ SaaS clients)
 **Win themes**: N/A (trust)
-**One takeaway**: This team understands the problem and can build the solution
+**One takeaway**: Solo founder who built a production product with £0 raised -- capital efficient and domain expert
 
 ---
 
 ## Slide 12: The Ask
 
-**Headline**: [EVIDENCE NEEDED -- funding amount and milestone targets]
-**Purpose**: Clear call to action with specific use of funds
-**Primary data point**: [EVIDENCE NEEDED -- amount, milestones]
+**Headline**: Own the category before the window closes
+**Purpose**: Clear call to action with urgency tied to EU AI Act deadline
+**Primary data point**: £3–5M seed, £15–25M pre-money, profitability on phase 1
 **Win themes**: N/A (commitment)
-**One takeaway**: This is what we need and what it enables
+**One takeaway**: This round gets us to profitability; phase 2 (knowledge worker governance) is self-funded
 
 ---
 
