@@ -1,7 +1,10 @@
 # Security & Quality Alert Remediation Skill — Design Spec
 
-**Date:** 2026-03-16 (updated 2026-03-17) **Status:** Draft **Skill name:**
-`dependabot` **Invocation:**
+- **Date:** 2026-03-16 (updated 2026-03-17)
+- **Status:** Draft
+- **Skill name:** `dependabot`
+
+**Invocation:**
 
 - `/dependabot` — dependabot alerts only (default, backwards compatible)
 - `/dependabot quality` — code quality findings only (alias: `--quality`)
