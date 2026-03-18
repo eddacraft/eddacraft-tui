@@ -8,7 +8,7 @@
 > ([Architecture Evolution](../../docs/architecture/anvil-architecture-evolution.md)),
 > the entire watch cycle drops from ~3s to ~200ms, making the Ratatui TUI a
 > natural fit. See [RATS — Ratatui TUI](../modules/ratatui-tui.aps.md) and
-> [ADR-011](./011-rust-core-engine.md) (itself superseded).
+> [ADR-011a](./011a-rust-core-engine.md) (itself superseded).
 
 ## Question
 

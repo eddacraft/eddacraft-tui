@@ -83,6 +83,19 @@ pub struct WizardState {
 }
 
 impl WizardState {
+    pub fn surface_name(&self) -> &'static str {
+        "w i z a r d"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        match self.step {
+            WizardStep::TemplateSelect => "j/k navigate  enter select  q quit",
+            WizardStep::ProjectName => "type name  enter next  esc back  q quit",
+            WizardStep::Configure => "j/k navigate  space toggle  enter next  esc back  q quit",
+            WizardStep::Summary => "enter confirm  esc back  q quit",
+        }
+    }
+
     pub fn new(templates: Vec<Template>) -> Self {
         Self {
             step: WizardStep::TemplateSelect,
@@ -196,6 +209,38 @@ impl WizardState {
             Action::Quit => self.should_quit = true,
             _ => {}
         }
+    }
+}
+
+impl crate::surface::Surface for WizardState {
+    fn surface_name(&self) -> &'static str {
+        "Wizard"
+    }
+
+    fn help_text(&self) -> &'static str {
+        match self.step {
+            WizardStep::TemplateSelect => "j/k navigate  enter select  q quit",
+            WizardStep::ProjectName => "type name  enter confirm  esc back  q quit",
+            WizardStep::Configure => "j/k navigate  space toggle  l/enter next  esc back  q quit",
+            WizardStep::Summary => "enter confirm  esc back  q quit",
+        }
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit || self.confirmed
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
     }
 }
 

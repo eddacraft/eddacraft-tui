@@ -103,6 +103,14 @@ pub struct AuditState {
 }
 
 impl AuditState {
+    pub fn surface_name(&self) -> &'static str {
+        "a u d i t"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        "h/l panels  j/k navigate  enter expand  q quit"
+    }
+
     pub fn new(data: AuditData) -> Self {
         Self {
             data,
@@ -157,6 +165,33 @@ impl AuditState {
             }
             _ => {}
         }
+    }
+}
+
+impl crate::surface::Surface for AuditState {
+    fn surface_name(&self) -> &'static str {
+        "Audit"
+    }
+
+    fn help_text(&self) -> &'static str {
+        "j/k navigate  h/l switch panel  enter expand  q quit"
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
     }
 }
 

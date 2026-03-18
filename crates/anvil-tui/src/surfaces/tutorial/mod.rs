@@ -78,6 +78,18 @@ impl TutorialState {
         }
     }
 
+    pub fn surface_name(&self) -> &'static str {
+        "t u t o r i a l"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        match self.phase {
+            TutorialPhase::PathSelect => "j/k navigate  enter select  q quit",
+            TutorialPhase::Running => "enter/space next step  esc back  q quit",
+            TutorialPhase::Complete => "enter choose another  q quit",
+        }
+    }
+
     pub fn load_steps(&mut self, path: TutorialPath) {
         self.steps = match path {
             TutorialPath::Policy => paths::policy_steps(),
@@ -153,6 +165,37 @@ impl TutorialState {
             Action::Quit => self.should_quit = true,
             _ => {}
         }
+    }
+}
+
+impl crate::surface::Surface for TutorialState {
+    fn surface_name(&self) -> &'static str {
+        "Tutorial"
+    }
+
+    fn help_text(&self) -> &'static str {
+        match self.phase {
+            TutorialPhase::PathSelect => "j/k navigate  enter select  q quit",
+            TutorialPhase::Running => "enter/space next step  esc back  q quit",
+            TutorialPhase::Complete => "enter choose another  q quit",
+        }
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
     }
 }
 

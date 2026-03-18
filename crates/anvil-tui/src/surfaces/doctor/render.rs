@@ -10,10 +10,9 @@ use super::{CheckStatus, DoctorState};
 #[allow(clippy::too_many_lines)]
 pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCraftTheme) {
     let chunks = Layout::vertical([
-        Constraint::Length(3), // Header + summary
+        Constraint::Length(3), // Summary header
         Constraint::Min(4),    // Check list
         Constraint::Length(4), // Detail panel (when expanded)
-        Constraint::Length(2), // Help text
     ])
     .split(area);
 
@@ -116,15 +115,4 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
         }
         frame.render_widget(Paragraph::new(Text::from(lines)), detail_area);
     }
-
-    // Help text
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("j/k", Style::default().fg(theme.accent())),
-        Span::styled(" navigate  ", Style::default().fg(theme.muted())),
-        Span::styled("enter", Style::default().fg(theme.accent())),
-        Span::styled(" details  ", Style::default().fg(theme.muted())),
-        Span::styled("q", Style::default().fg(theme.accent())),
-        Span::styled(" quit", Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(help, chunks[3]);
 }

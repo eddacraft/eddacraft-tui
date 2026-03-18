@@ -92,8 +92,8 @@ Define module boundaries and dependency rules declaratively:
 }
 ```
 
-Anvil enforces these boundaries deterministically. The same input always produces
-the same output — no flaky results, no race conditions.
+Anvil enforces these boundaries deterministically. The same input always
+produces the same output — no flaky results, no race conditions.
 
 ### Drift Detection
 
@@ -186,14 +186,14 @@ Add Anvil to CI with a single step. A reusable GitHub Action is provided:
 
 ## Surfaces & Integrations
 
-| Surface             | Description                                  |
-| ------------------- | -------------------------------------------- |
-| **CLI**             | Full-featured terminal interface (Commander.js + Ink TUI) |
-| **VS Code**         | Real-time in-editor diagnostics and warnings |
-| **MCP Server**      | Model Context Protocol integration for AI tools |
-| **GitHub Actions**  | CI/CD gate checks and PR annotations         |
-| **REST API**        | Programmatic access for dashboards and automation |
-| **Web Dashboard**   | Visual overview of gates, drift, and warnings (in development) |
+| Surface            | Description                                                    |
+| ------------------ | -------------------------------------------------------------- |
+| **CLI**            | Full-featured terminal interface (Commander.js + Ink TUI)      |
+| **VS Code**        | Real-time in-editor diagnostics and warnings                   |
+| **MCP Server**     | Model Context Protocol integration for AI tools                |
+| **GitHub Actions** | CI/CD gate checks and PR annotations                           |
+| **REST API**       | Programmatic access for dashboards and automation              |
+| **Web Dashboard**  | Visual overview of gates, drift, and warnings (in development) |
 
 ---
 
@@ -202,11 +202,11 @@ Add Anvil to CI with a single step. A reusable GitHub Action is provided:
 Anvil includes a unique observational memory system called the **Edda Stack**,
 designed for teams working with AI coding agents:
 
-| Layer         | Purpose                                                        |
-| ------------- | -------------------------------------------------------------- |
-| **Kindling**  | Raw observations — what happened during a coding session       |
-| **Ember**     | Pattern proposals — recurring behaviours detected across sessions |
-| **Edda**      | Confirmed memories — validated patterns that inform governance |
+| Layer        | Purpose                                                           |
+| ------------ | ----------------------------------------------------------------- |
+| **Kindling** | Raw observations — what happened during a coding session          |
+| **Ember**    | Pattern proposals — recurring behaviours detected across sessions |
+| **Edda**     | Confirmed memories — validated patterns that inform governance    |
 
 The Edda Stack lets Anvil learn from your codebase's evolution over time,
 detecting emerging anti-patterns and architectural trends before they become
@@ -216,8 +216,8 @@ structural problems.
 
 ## Design Principles
 
-1. **Planless-first** — Delivers value without requiring plans, specs, or upfront
-   configuration. Your codebase is the baseline.
+1. **Planless-first** — Delivers value without requiring plans, specs, or
+   upfront configuration. Your codebase is the baseline.
 
 2. **Deterministic** — Same input, same output. Always. No flaky results.
 
@@ -230,8 +230,8 @@ structural problems.
 
 ## Technology
 
-- **TypeScript/Node.js** core with a **Rust** high-performance engine for
-  AST parsing, secret scanning, and real-time file watching
+- **TypeScript/Node.js** core with a **Rust** high-performance engine for AST
+  parsing, secret scanning, and real-time file watching
 - **OPA/Rego** policy engine for custom rule authoring
 - **Zod** schemas for type-safe contracts
 - **Tree-sitter** for incremental AST parsing

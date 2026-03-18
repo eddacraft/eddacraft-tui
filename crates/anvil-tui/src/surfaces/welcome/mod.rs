@@ -54,6 +54,14 @@ impl WelcomeState {
         }
     }
 
+    pub fn surface_name(&self) -> &'static str {
+        "w e l c o m e"
+    }
+
+    pub fn help_text(&self) -> &'static str {
+        "j/k navigate  enter select  q quit"
+    }
+
     pub fn handle_key(&mut self, action: Action) {
         match action {
             Action::Up => {
@@ -74,6 +82,33 @@ impl WelcomeState {
             }
             _ => {}
         }
+    }
+}
+
+impl crate::surface::Surface for WelcomeState {
+    fn surface_name(&self) -> &'static str {
+        "Welcome"
+    }
+
+    fn help_text(&self) -> &'static str {
+        "j/k navigate  enter select  q quit"
+    }
+
+    fn handle_key(&mut self, action: Action) {
+        self.handle_key(action);
+    }
+
+    fn should_quit(&self) -> bool {
+        self.should_quit || self.chosen.is_some()
+    }
+
+    fn render(
+        &self,
+        frame: &mut ratatui::Frame,
+        area: ratatui::layout::Rect,
+        theme: &eddacraft_tui::theme::EddaCraftTheme,
+    ) {
+        render::render(frame, area, self, theme);
     }
 }
 

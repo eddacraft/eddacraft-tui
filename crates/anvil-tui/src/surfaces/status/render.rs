@@ -9,40 +9,15 @@ use super::{StatusPanel, StatusState};
 
 pub fn render(frame: &mut Frame, area: Rect, state: &StatusState, theme: &EddaCraftTheme) {
     let chunks = Layout::vertical([
-        Constraint::Length(1),   // Title
         Constraint::Ratio(1, 3), // Hooks panel
         Constraint::Ratio(1, 3), // Profile panel
         Constraint::Ratio(1, 3), // Results panel
-        Constraint::Length(2),   // Help text
     ])
     .split(area);
 
-    // Title
-    let title = Paragraph::new(Line::from(Span::styled(
-        "Anvil Status",
-        Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
-    )));
-    frame.render_widget(title, chunks[0]);
-
-    // Hooks panel
-    render_hooks_panel(frame, chunks[1], state, theme);
-
-    // Profile panel
-    render_profile_panel(frame, chunks[2], state, theme);
-
-    // Results panel
-    render_results_panel(frame, chunks[3], state, theme);
-
-    // Help text
-    let help = Paragraph::new(Line::from(vec![
-        Span::styled("j/k", Style::default().fg(theme.accent())),
-        Span::styled(" navigate  ", Style::default().fg(theme.muted())),
-        Span::styled("h/l", Style::default().fg(theme.accent())),
-        Span::styled(" switch panel  ", Style::default().fg(theme.muted())),
-        Span::styled("q", Style::default().fg(theme.accent())),
-        Span::styled(" quit", Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(help, chunks[4]);
+    render_hooks_panel(frame, chunks[0], state, theme);
+    render_profile_panel(frame, chunks[1], state, theme);
+    render_results_panel(frame, chunks[2], state, theme);
 }
 
 fn panel_block<'a>(title: &'a str, focused: bool, theme: &EddaCraftTheme) -> Block<'a> {

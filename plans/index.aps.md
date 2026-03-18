@@ -136,8 +136,10 @@ release must deliver both the core value AND a friction-free first experience.
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
+| Rust CLI Replacement       | Replace Node.js CLI with Rust binary (clap + Ratatui)    | Proposed    | 0/24     |
 
 **Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+**Design doc (Rust CLI):** [plans/specs/2026-03-18-rust-cli-design.md](specs/2026-03-18-rust-cli-design.md)
 
 ### 0.2.0 — Web Dashboard
 
@@ -269,7 +271,7 @@ most Ink surfaces are purely presentational. RENG and RATS depend on KERN but
 don't block it. See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan. ADR-011 is
-[superseded](./decisions/011-rust-core-engine.md).
+[superseded](./decisions/011a-rust-core-engine.md).
 
 ### Post-1.0.0 — Multi-Language Support (Placeholders)
 
@@ -472,6 +474,7 @@ waves; 39 tasks total.
 | [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
 | [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
 | [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | opa-agent-orchestration, compliance-evidence-workspace |
 
 ### Planned — 0.4.0 (Edda Stack — Memory System)
 
@@ -1343,13 +1346,16 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
   ([ADR](./decisions/007-pulumi-iac.md))
 - **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
   watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
-  ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
+  ([ADR](./decisions/011a-rust-core-engine.md)) — **Proposed**
 - **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
   evaluation, remediation guidance, and auditable exception workflows
   ([ADR](./decisions/012-opa-agent-orchestration.md))
 - **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
   ([ADR](./decisions/013-eval-harness-adoption.md))
+- **D-014:** Language Allocation Tree (TypeScript vs Rust) — default to TypeScript
+  for orchestration/UX, promote hot paths to Rust when benchmark thresholds are breached
+  ([ADR](./decisions/014-language-allocation-tree-ts-vs-rust.md))
 
 ## Open Questions
 
