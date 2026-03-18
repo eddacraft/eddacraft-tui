@@ -296,40 +296,127 @@ Two zones: left (adoption funnel), right (pricing tiers).
 ## Slide 10: Traction
 
 ### Layout
-[To be designed when traction data is available]
+Three-column dashboard. Left: "Built Today" (confirmed). Centre: "Launch Trajectory" (targets). Right: "Ecosystem". Data callout below all three columns.
+
+### Visual Hierarchy
+1. Data callout: "Not vibe-coded. Precision-engineered." in `--anvil`, large (below columns)
+2. Three column headers in `--text-muted`
+3. Metric items within each column in `--text-primary`
 
 ### Visual Elements
-- Metric cards with large numbers in `--anvil`
-- Growth chart if time-series data available
-- Logo grid if design partner logos are available
+- Three equal-width columns on `--surface` background with `--structure` borders, sharp corners
+- **"Built Today" column** — items prefixed with `✓` in `--edda`:
+  - `✓` Production Rust kernel
+  - `✓` 50ms deterministic checks
+  - `✓` OPA/Rego policy engine
+  - `✓` Semantic graph + attribution
+- **"Launch Trajectory" column** — items prefixed with `→` in `--anvil`:
+  - `→` 5,000+ waitlist target
+  - `→` 10–15 pilot teams (5 currently engaged)
+  - `→` Enterprise pipeline via Arkahna
+- **"Ecosystem" column** — items prefixed with `→` in `--anvil`:
+  - `→` 2 open source packages
+  - `→` Community building
+- **Data callout** centred below all columns: "Not vibe-coded. Precision-engineered." in JetBrains Mono 24px `--anvil`
+- Column background: `--surface` with 1px `--structure` border, sharp corners
+
+### Typography
+- Column headers: JetBrains Mono, 16px, `--text-muted`
+- Item text: Inter, 16px, `--text-primary`
+- Item prefixes: JetBrains Mono, 16px, respective column colour (`--edda` or `--anvil`)
+- Data callout: JetBrains Mono, 24px, `--anvil`
+
+### Colour Usage
+- "Built Today" prefixes and checkmarks: `--edda` (#2e8b57)
+- "Launch Trajectory" and "Ecosystem" prefixes: `--anvil` (#cc5500)
+- Column borders and dividers: `--structure`
+- Data callout: `--anvil`
 
 ---
 
 ## Slide 11: Team
 
 ### Layout
-[To be designed when team information is provided]
+Split: left 40% (founder portrait area), right 60% (credentials + advisory). Advisory bench and capital efficiency metric below the split as a full-width zone.
+
+### Visual Hierarchy
+1. Founder name and title (top of right zone, dominant)
+2. Credentials list with `--structure` dividers
+3. Unfair advantage callout box
+4. Advisory bench (below split, full width)
+5. Capital efficiency metric card
 
 ### Visual Elements
-- Headshots in `--surface` frames with `--structure` borders (sharp corners)
-- Name: JetBrains Mono, `--text-primary`
-- Role: Inter, `--text-muted`
-- No background imagery
+- **Left zone**: Portrait placeholder frame (`--surface` background, `--structure` border, sharp corners, 1px). If no photo, monogram "JB" in JetBrains Mono, `--anvil`, centred within the frame
+- **Right zone**:
+  - Name: "Joshua Boys" — JetBrains Mono, 28px, `--text-primary`
+  - Title: "Founder & CEO" — Inter, 20px, `--text-muted`
+  - Credentials as list items with 1px `--structure` horizontal dividers between each entry, Inter, 18px, `--text-primary`
+  - Unfair advantage callout box: `--surface` background, 4px `--anvil` left-border accent, text in Inter, 16px, `--text-primary`
+- **Below the split** (full width, `--void` background):
+  - Advisory bench as a single text block: Inter, 16px, `--text-muted` — no silhouette placeholders
+  - Capital efficiency metric: "£0 raised → production product" as a small metric card, `--surface` background, `--structure` border, sharp corners, number in `--anvil`
+
+### Typography
+- Founder name: JetBrains Mono, 28px, `--text-primary`
+- Founder title: Inter, 20px, `--text-muted`
+- Credentials: Inter, 18px, `--text-primary`
+- Unfair advantage callout: Inter, 16px, `--text-primary`
+- Advisory bench: Inter, 16px, `--text-muted`
+- Capital efficiency metric: JetBrains Mono, 16px, `--anvil` for the number
+
+### Colour Usage
+- Monogram (if no photo): `--anvil`
+- Left-border accent on callout box: `--anvil` (4px solid)
+- Credentials dividers: `--structure`
+- Advisory text: `--text-muted`
+- Capital efficiency number: `--anvil`
 
 ---
 
 ## Slide 12: The ask
 
 ### Layout
-Centred, minimal. Large number (funding amount) with use-of-funds breakdown.
+Centred, three vertical zones: top (funding amount + valuation subtitle), middle (use of funds stacked bar), bottom (milestones timeline + phase 2 vision hint).
+
+### Visual Hierarchy
+1. Funding amount large (top zone, dominant)
+2. Valuation subtitle immediately below the amount
+3. Use of funds horizontal stacked bar with segment labels
+4. Milestones timeline
+5. Phase 2 vision hint (single line, bottom)
 
 ### Visual Elements
-- **Funding amount**: JetBrains Mono, 96px, `--anvil`
-- **Use of funds**: Horizontal stacked bar
-  - Engineering: `--anvil`
-  - Go-to-market: `--edda`
-  - Compliance certification: `--text-muted`
-- **Milestones**: Timeline below the bar (same style as Slide 3)
+- **Funding amount**: "£3–5M" in JetBrains Mono, 96px, `--anvil`, centred
+- **Valuation subtitle**: "£15–25M pre-money" in Inter, 20px, `--text-muted`, centred below the amount
+- **Horizontal stacked bar** (use of funds), full width, sharp corners:
+  - Engineering 40%: `--anvil` (#cc5500)
+  - Go-to-Market 30%: `--edda` (#2e8b57)
+  - Strategic Acquisition 20%: `--text-primary` (#ebebeb)
+  - Operations 10%: `--text-muted` (#85858a)
+  - Segment labels below each segment: JetBrains Mono, 12px, matching segment colour
+- **Milestones timeline** (same horizontal style as Slide 3):
+  - Profitability (dot, `--edda`)
+  - 50+ paying teams (dot, `--anvil`)
+  - August 2026 EU AI Act (large dot, `--anvil`, emphasised — bold label)
+  - Phase 2: Knowledge worker governance (dot, `--text-muted`)
+  - Timeline track: `--structure`, connecting dots with thin horizontal line
+- **Phase 2 vision**: single line centred at bottom — "Phase 2: AI governance for all knowledge work — self-funded" in Inter, 14px, `--text-muted`
+
+### Typography
+- Funding amount: JetBrains Mono, 96px, `--anvil`
+- Valuation subtitle: Inter, 20px, `--text-muted`
+- Bar segment labels: JetBrains Mono, 12px, respective segment colour
+- Milestone labels: Inter, 14px, `--text-primary` (emphasised milestone in `--anvil`)
+- Phase 2 vision: Inter, 14px, `--text-muted`
+
+### Colour Usage
+- Funding amount: `--anvil`
+- Bar segments: `--anvil` / `--edda` / `--text-primary` / `--text-muted` (as above)
+- Timeline track: `--structure`
+- Active milestone dot: `--anvil`
+- Positive future milestone: `--edda`
+- Deferred future milestone: `--text-muted`
 
 ---
 
