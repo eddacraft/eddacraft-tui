@@ -33,7 +33,7 @@ Supporting assets (not interactive, but customer-visible):
 |-------|--------|-----|
 | **Investor Decks** | PPTX (generated) | Fundraising, partner pitches |
 | **OG / Social Images** | PNG (generated) | Link previews, social posts |
-| **Transactional Email** | React Email | Beta invites, OTP codes |
+| **Transactional Email** | React Email | Beta invites, OTP codes, waitlist confirmation |
 
 ---
 
@@ -241,8 +241,8 @@ TTY. Non-TTY environments (CI, pipes) receive plain text or JSON.
 | Command | TUI Surface | Description |
 |---------|-------------|-------------|
 | `anvil init` | Init | Project initialisation wizard |
-| `anvil watch` | Watch | Live file-watch dashboard (kernel events) |
-| `anvil gate <plan>` | Gate | Check explorer with pass/fail detail |
+| `anvil watch` | Watch | Live file-watch dashboard (kernel events) *(Planned)* |
+| `anvil gate` | Gate | Check explorer with pass/fail detail *(Planned)* |
 | `anvil status` | Status | Project health overview |
 | `anvil doctor [--fix]` | Doctor | Environment diagnostics |
 | `anvil audit` | Audit | Repository scan results |
@@ -335,7 +335,7 @@ vertical layout:
 |---------|---------|-------------------|
 | **Welcome** | First-run menu | Action list, version info, quick-start options |
 | **Tutorial** | Guided paths | Step indicators, progress tracking, instruction panes |
-| **Doctor** | Diagnostics | Check list with pass/fail/warn badges, `--fix` actions |
+| **Doctor** | Diagnostics | Check list with pass/fail/warn badges, detail expand |
 | **Status** | Project overview | Policy summary, check counts, file stats |
 | **Gate** | Check explorer | Check tree with expandable detail, severity badges |
 | **Watch** | Live dashboard | Real-time event stream from kernel, file change log |
@@ -361,8 +361,8 @@ vertical layout:
    implemented.)*
 2. **Gate surface:** Expanding a failed check to see the policy rule, the
    violation, and the file location.
-3. **Doctor surface:** Running `anvil doctor --fix` and watching checks flip
-   from `WARN` to `PASS`.
+3. **Doctor surface:** Running `anvil doctor --fix` — fixes are applied before
+   the TUI launches, then the surface shows the updated check results.
 4. **Tutorial surface:** Walking through a learning path with step-by-step
    guidance.
 
@@ -624,7 +624,7 @@ customer-facing because AI agents present its output to users.
 ### 13.3 Transactional Email
 
 - **Templates:** React Email (`packages/transactional/`)
-- **Types:** Beta invite, OTP code
+- **Types:** Beta invite, OTP code, waitlist confirmation
 - **Visual rules:** `--void` background, JetBrains Mono headers, Inter body,
   `--anvil-ember` for CTA buttons.
 
