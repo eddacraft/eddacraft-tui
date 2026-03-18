@@ -14,13 +14,17 @@ AI-generated code produces 1.7x more defects, fails security tests 45% of the ti
 
 ## The Solution: Anvil
 
+**Built in Rust. No AI inside. 50ms per check.**
+
 Anvil is a deterministic policy engine that enforces governance at file save -- the moment code is generated.
 
 - **Pre-commit enforcement**: operates at file save, not PR time or CI
 - **Deterministic analysis**: policy-as-code (OPA/Rego), not AI reviewing AI
 - **Authorship attribution**: every line classified as human, AI, mixed, or unknown
 - **Architecture drift detection**: persistent semantic graph tracks structural trajectory
-- **Built in Rust**: ships as a single binary, runs in the terminal
+- **Built in Rust**: ships as a single binary, runs in the terminal, under 50ms per check
+
+Anvil contains zero AI. Every check is deterministic, mechanical, programmatic. Built to make you trust your AI more -- not by asking you to trust ours.
 
 Anvil is the only tool that is both deterministic and pre-commit. Every competitor is either post-commit, probabilistic, or both.
 
@@ -36,16 +40,36 @@ Anvil is the only tool that is both deterministic and pre-commit. Every competit
 
 ## Traction
 
-- Functional product: Rust kernel, Ratatui TUI, OPA/Rego engine, authorship attribution
-- [EVIDENCE NEEDED: waitlist, design partners, community metrics, revenue]
+We built what others are pitching.
+
+- Production Rust kernel with Ratatui TUI, OPA/Rego engine, and authorship attribution
+- 5 pilot teams onboarded; targeting 10-15 by close
+- Waitlist targeting 5,000+ developers
+- 2 open source packages published
+- 2 open source packages in the community
 
 ## Business Model
 
 Developer-led adoption (CLI install, bottom-up). Per-seat subscription. Policy packs for compliance frameworks (SOC 2, HIPAA, EU AI Act) as expansion revenue. Enterprise tier with centralised management, SSO, audit dashboards.
 
+**Phase 2 vision**: Expand from developer governance to knowledge worker governance -- without further dilution.
+
+## The Team
+
+**Joshua Boys** -- Founder & CEO. 25+ years enterprise software. Former Microsoft Azure Lead, Australia. CEO of Arkahna -- platform engineering for 100+ SaaS companies. Advisory bench across enterprise, startups, and large SaaS.
+
 ## The Ask
 
-[EVIDENCE NEEDED: funding amount, use of funds, milestones]
+**£3-5M seed at £15-25M pre-money.**
+
+| Use of Funds | Allocation |
+|-------------|------------|
+| Engineering | 40% |
+| Go-to-Market | 30% |
+| Strategic Acquisition | 20% |
+| Operations | 10% |
+
+**Milestones**: profitability on phase 1, 50+ paying teams, enterprise contracts.
 
 ---
 
