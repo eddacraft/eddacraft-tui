@@ -748,7 +748,8 @@ anvil gate spec.md --skip-checks coverage
 - Read [plans/index.aps.md](../../plans/index.aps.md) for project roadmap
 - Read [packages/adapters/README.md](../../packages/adapters/README.md) for
   adapter development
-- Read [docs/ARCHITECTURE.md](../../docs/ARCHITECTURE.md) for system design
+- Read [docs/architecture/overview.md](../../docs/architecture/overview.md) for
+  system design
 
 ---
 

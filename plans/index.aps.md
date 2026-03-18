@@ -271,7 +271,7 @@ most Ink surfaces are purely presentational. RENG and RATS depend on KERN but
 don't block it. See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan. ADR-011 is
-[superseded](./decisions/011-rust-core-engine.md).
+[superseded](./decisions/011a-rust-core-engine.md).
 
 ### Post-1.0.0 — Multi-Language Support (Placeholders)
 
@@ -1347,7 +1347,7 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
   ([ADR](./decisions/007-pulumi-iac.md))
 - **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
   watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
-  ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
+  ([ADR](./decisions/011a-rust-core-engine.md)) — **Proposed**
 - **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
   evaluation, remediation guidance, and auditable exception workflows
   ([ADR](./decisions/012-opa-agent-orchestration.md))

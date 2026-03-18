@@ -304,7 +304,7 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 | [First Project](./docs/public/anvil/first-project.md)                   | Real-world setup example                    |
 | [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)    | Common issues and solutions                 |
 | [Configuration](./docs/public/anvil/operations/config.md)               | Configuration options                       |
-| [Architecture](./docs/ARCHITECTURE.md)                                  | System design                               |
+| [Architecture](./docs/architecture/overview.md)                         | System design                               |
 | [Release Runbook](./docs/guides/release-runbook.md)                     | Safe CLI release checklist                  |
 | [Plans](./plans/index.aps.md)                                           | Detailed roadmap                            |
 | [LAC Module](./plans/modules/lineage-authorship-confidence.aps.md)      | Line-level authorship + confidence planning |

@@ -231,7 +231,7 @@ impl crate::surface::Surface for WizardState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.confirmed
     }
 
     fn render(

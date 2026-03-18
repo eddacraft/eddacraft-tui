@@ -66,16 +66,23 @@ fn gather_hooks(root: &Path) -> Vec<HookStatus> {
         .collect();
 
     // Fallback: bare git hook if no husky pre-commit was found.
+    // Resolve worktree `.git` files (pointer to real git dir) so hooks are
+    // found regardless of checkout type.
     let has_husky_precommit = hooks.iter().any(|h| h.name == "pre-commit" && h.active);
 
     if !has_husky_precommit {
-        let git_hook = root.join(".git/hooks/pre-commit");
+        let git_dir = resolve_git_dir(root);
+        let git_hook = git_dir.join("hooks/pre-commit");
         if git_hook.exists() {
+            let rel = match git_hook.strip_prefix(root) {
+                Ok(p) => p.to_string_lossy().into_owned(),
+                Err(_) => git_hook.to_string_lossy().into_owned(),
+            };
             let active = is_executable(&git_hook);
             hooks.push(HookStatus {
                 name: "pre-commit".to_string(),
                 active,
-                path: ".git/hooks/pre-commit".to_string(),
+                path: rel,
             });
         }
     }
@@ -95,38 +102,29 @@ fn gather_profile(root: &Path) -> ProfileInfo {
         };
     };
 
-    let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
+    // Try JSON first, then fall back to simple YAML/TOML key extraction
+    // (init can generate any of the three formats).
+    let checks = if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
+        value
+            .get("checks")
+            .and_then(serde_json::Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else if contents.contains("schemaVersion:") || contents.contains("schema_version =") {
+        // Recognised YAML or TOML format — extract checks.
+        parse_checks_from_text(&contents)
+    } else {
         return ProfileInfo {
             name: "(invalid config)".to_string(),
             checks: vec![],
             path: ".anvilrc".to_string(),
         };
     };
-
-    let checks = value
-        .get("checks")
-        .and_then(serde_json::Value::as_array)
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| {
-                    // Check objects: { "name": "...", "enabled": true, ... }
-                    if let Some(obj) = v.as_object() {
-                        let name = obj.get("name")?.as_str()?;
-                        let enabled = obj
-                            .get("enabled")
-                            .and_then(serde_json::Value::as_bool)
-                            .unwrap_or(true);
-                        if enabled {
-                            return Some(name.to_string());
-                        }
-                        return None;
-                    }
-                    // Bare string fallback
-                    v.as_str().map(String::from)
-                })
-                .collect()
-        })
-        .unwrap_or_default();
 
     ProfileInfo {
         name: "default".to_string(),
@@ -153,7 +151,7 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
 
     let mut runs: Vec<GateRunResult> = entries
         .iter()
-        .filter_map(|(key, val)| parse_gate_entry(key, val, root))
+        .filter_map(|(key, val)| parse_gate_entry(key, val))
         .collect();
 
     // Sort by timestamp descending, take 5 most recent.
@@ -162,43 +160,42 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
     runs
 }
 
-fn parse_gate_entry(key: &str, val: &serde_json::Value, root: &Path) -> Option<GateRunResult> {
-    // Only process gate cache entries (key format: "gate:check:{name}:{hash}").
-    if !key.starts_with("gate:") {
-        return None;
-    }
+fn parse_gate_entry(key: &str, val: &serde_json::Value) -> Option<GateRunResult> {
+    // Try timestamp from the last colon-separated segment of the key.
+    // Falls back to `created_at` field in the entry metadata (used by the
+    // runtime file-cache provider whose keys are `gate:check:<name>:<hash>`).
+    let ts: i64 = key
+        .rsplit(':')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
+            // Runtime file-cache writes created_at as Date.now() (milliseconds).
+            val.get("created_at")
+                .and_then(serde_json::Value::as_i64)
+                .map(|ms| ms / 1000)
+        })?;
 
-    // created_at is milliseconds (from Date.now()) — convert to seconds.
-    let created_at_ms = val.get("created_at").and_then(serde_json::Value::as_f64)?;
-    #[allow(clippy::cast_possible_truncation)]
-    let timestamp = format_unix_timestamp((created_at_ms / 1000.0) as i64);
+    let timestamp = format_unix_timestamp(ts);
 
-    // The index only stores metadata (file, created_at, expires_at, size_bytes).
-    // The actual gate result lives in the per-entry JSON file.
-    let file_name = val.get("file").and_then(serde_json::Value::as_str)?;
-    let entry_path = root.join(".anvil/cache/entries").join(file_name);
-
-    let entry_value = read_cache_entry_value(&entry_path)?;
-
-    let passed = entry_value
+    let passed = val
         .get("passed")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(false);
-    let score = entry_value
+    let score = val
         .get("score")
         .and_then(serde_json::Value::as_f64)
         .unwrap_or(0.0);
     #[allow(clippy::cast_possible_truncation)]
-    let checks_run = entry_value
+    let checks_run = val
         .get("checksRun")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0) as usize;
     #[allow(clippy::cast_possible_truncation)]
-    let checks_passed = entry_value
+    let checks_passed = val
         .get("checksPassed")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0) as usize;
-    let duration_ms = entry_value
+    let duration_ms = val
         .get("durationMs")
         .and_then(serde_json::Value::as_u64)
         .unwrap_or(0);
@@ -211,19 +208,6 @@ fn parse_gate_entry(key: &str, val: &serde_json::Value, root: &Path) -> Option<G
         checks_passed,
         duration_ms,
     })
-}
-
-/// Read and parse a cache entry file.
-///
-/// Entry files are stored as `{hmac}\n{json}` where the JSON has a `value`
-/// field containing the actual gate result.
-fn read_cache_entry_value(path: &Path) -> Option<serde_json::Value> {
-    let raw = std::fs::read_to_string(path).ok()?;
-    // Skip the first line (HMAC) and parse the rest as JSON.
-    let json_start = raw.find('\n').map_or(0, |i| i + 1);
-    let entry: serde_json::Value = serde_json::from_str(&raw[json_start..]).ok()?;
-    // The gate result is nested under "value".
-    entry.get("value").cloned()
 }
 
 /// Format a Unix timestamp as `YYYY-MM-DD HH:MM` (UTC, no external crate).
@@ -248,6 +232,73 @@ fn format_unix_timestamp(secs: i64) -> String {
     let y = if m <= 2 { y + 1 } else { y };
 
     format!("{y:04}-{m:02}-{d:02} {hours:02}:{minutes:02}")
+}
+
+// ---------------------------------------------------------------------------
+// Config parsing helpers
+// ---------------------------------------------------------------------------
+
+/// Extract check names from YAML or TOML config text.
+fn parse_checks_from_text(text: &str) -> Vec<String> {
+    let mut checks = Vec::new();
+    let mut in_checks = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("checks") {
+            in_checks = true;
+            // TOML inline: checks = ["a", "b"]
+            if let Some(bracket) = trimmed.find('[') {
+                for item in trimmed[bracket..].split('"') {
+                    let item = item
+                        .trim()
+                        .trim_matches(|c| c == '[' || c == ']' || c == ',');
+                    if !item.is_empty()
+                        && item != ","
+                        && !item.starts_with('[')
+                        && !item.starts_with(']')
+                    {
+                        checks.push(item.to_string());
+                    }
+                }
+                in_checks = false;
+            }
+            continue;
+        }
+        if in_checks {
+            // YAML list item: `  - "name"` or `  - name`
+            if let Some(rest) = trimmed.strip_prefix("- ") {
+                let name = rest.trim().trim_matches('"');
+                if !name.is_empty() {
+                    checks.push(name.to_string());
+                }
+            } else if !trimmed.starts_with('-') && !trimmed.is_empty() {
+                in_checks = false;
+            }
+        }
+    }
+    checks
+}
+
+// ---------------------------------------------------------------------------
+// Git helpers
+// ---------------------------------------------------------------------------
+
+/// Resolve the actual git directory. In worktrees, `.git` is a file containing
+/// `gitdir: <path>` rather than a directory.
+fn resolve_git_dir(root: &Path) -> std::path::PathBuf {
+    let dot_git = root.join(".git");
+    if dot_git.is_file()
+        && let Ok(content) = std::fs::read_to_string(&dot_git)
+        && let Some(path) = content.strip_prefix("gitdir: ")
+    {
+        let path = path.trim();
+        return if Path::new(path).is_absolute() {
+            std::path::PathBuf::from(path)
+        } else {
+            root.join(path)
+        };
+    }
+    dot_git
 }
 
 // ---------------------------------------------------------------------------
@@ -426,33 +477,11 @@ mod tests {
     }
 
     #[test]
-    fn gather_with_anvilrc_bare_strings() {
+    fn gather_with_anvilrc() {
         let dir = make_temp_dir();
         std::fs::write(
             dir.join(".anvilrc"),
             r#"{"checks": ["secret-detection", "import-boundaries"], "format": "yaml"}"#,
-        )
-        .unwrap();
-
-        let data = gather_status_data(dir.to_str().unwrap());
-        assert_eq!(data.profile.name, "default");
-        assert_eq!(data.profile.checks.len(), 2);
-        assert_eq!(data.profile.checks[0], "secret-detection");
-        assert_eq!(data.profile.checks[1], "import-boundaries");
-
-        cleanup(&dir);
-    }
-
-    #[test]
-    fn gather_with_anvilrc_check_objects() {
-        let dir = make_temp_dir();
-        std::fs::write(
-            dir.join(".anvilrc"),
-            r#"{"checks": [
-                {"name": "secret-detection", "enabled": true},
-                {"name": "import-boundaries"},
-                {"name": "disabled-check", "enabled": false}
-            ]}"#,
         )
         .unwrap();
 
@@ -477,52 +506,33 @@ mod tests {
         cleanup(&dir);
     }
 
-    /// Helper to write a fake cache entry file (HMAC line + JSON with value).
-    fn write_entry_file(
-        entries_dir: &Path,
-        file_name: &str,
-        passed: bool,
-        score: f64,
-        checks_run: u64,
-        checks_passed: u64,
-        duration_ms: u64,
-    ) {
-        let value = format!(
-            r#"{{"passed":{passed},"score":{score},"checksRun":{checks_run},"checksPassed":{checks_passed},"durationMs":{duration_ms}}}"#,
-        );
-        let content = format!(r#"{{"value":{value}}}"#);
-        let file_content =
-            format!("0000000000000000000000000000000000000000000000000000000000000000\n{content}");
-        std::fs::write(entries_dir.join(file_name), file_content).unwrap();
-    }
-
     #[test]
     fn gather_with_cache_index() {
         let dir = make_temp_dir();
         let cache_dir = dir.join(".anvil/cache");
-        let entries_dir = cache_dir.join("entries");
-        std::fs::create_dir_all(&entries_dir).unwrap();
-
-        // created_at values in milliseconds (Date.now() format)
+        std::fs::create_dir_all(&cache_dir).unwrap();
         std::fs::write(
             cache_dir.join("index.json"),
             r#"{
                 "entries": {
-                    "gate:check:secret-detection:abc123def456": {
-                        "file": "abc123.json",
-                        "created_at": 1710000000000
+                    "gate:plan.md:1710000000": {
+                        "passed": true,
+                        "score": 0.95,
+                        "checksRun": 8,
+                        "checksPassed": 8,
+                        "durationMs": 1850
                     },
-                    "gate:check:import-boundaries:fed654cba321": {
-                        "file": "fed654.json",
-                        "created_at": 1709990000000
+                    "gate:plan.md:1709990000": {
+                        "passed": false,
+                        "score": 0.75,
+                        "checksRun": 8,
+                        "checksPassed": 6,
+                        "durationMs": 2100
                     }
                 }
             }"#,
         )
         .unwrap();
-
-        write_entry_file(&entries_dir, "abc123.json", true, 0.95, 8, 8, 1850);
-        write_entry_file(&entries_dir, "fed654.json", false, 0.75, 8, 6, 2100);
 
         let data = gather_status_data(dir.to_str().unwrap());
         assert_eq!(data.recent_runs.len(), 2);
@@ -569,25 +579,21 @@ mod tests {
 
         let dir = make_temp_dir();
         let cache_dir = dir.join(".anvil/cache");
-        let entries_dir = cache_dir.join("entries");
-        std::fs::create_dir_all(&entries_dir).unwrap();
+        std::fs::create_dir_all(&cache_dir).unwrap();
 
-        let mut index = String::from("{\"entries\":{");
-        for i in 0..8u64 {
+        let mut entries = String::from("{\"entries\":{");
+        for i in 0..8 {
             if i > 0 {
-                index.push(',');
+                entries.push(',');
             }
-            // created_at in milliseconds
-            #[allow(clippy::cast_possible_wrap)]
-            let ts_ms = 1_710_000_000_000i64 + (i as i64) * 1_000_000;
+            let ts = 1_710_000_000 + i * 1000;
             let _ = write!(
-                index,
-                "\"gate:check:chk{i}:hash{i}\":{{\"file\":\"h{i}.json\",\"created_at\":{ts_ms}}}"
+                entries,
+                "\"gate:f.md:{ts}\":{{\"passed\":true,\"score\":0.9,\"checksRun\":1,\"checksPassed\":1,\"durationMs\":100}}"
             );
-            write_entry_file(&entries_dir, &format!("h{i}.json"), true, 0.9, 1, 1, 100);
         }
-        index.push_str("}}");
-        std::fs::write(cache_dir.join("index.json"), &index).unwrap();
+        entries.push_str("}}");
+        std::fs::write(cache_dir.join("index.json"), &entries).unwrap();
 
         let data = gather_status_data(dir.to_str().unwrap());
         assert_eq!(data.recent_runs.len(), 5);

@@ -112,7 +112,9 @@ The CLI does not depend on `eddacraft-tui` directly. Similarly, `anvil-checks`
 is invoked through the kernel pipeline, not directly by CLI commands.
 
 TTY detection uses `std::io::IsTerminal` (stable since Rust 1.70), not the
-deprecated `atty` crate.
+deprecated `atty` crate. This implies a minimum supported Rust version (MSRV)
+of 1.70+ for this project, which must be documented in the root `Cargo.toml`
+and/or README so developers use a compatible toolchain.
 
 ### 1.3 Surface-to-Command Mapping
 
@@ -233,13 +235,13 @@ pub trait Surface {
     fn help_text(&self) -> &'static str;
     fn handle_key(&mut self, action: Action);
     fn should_quit(&self) -> bool;
-    fn render(&mut self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
+    fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
 }
 ```
 
-Note: `render` takes `&mut self` to allow surfaces to accumulate render-time
-state (scroll offsets, cursor blink, animation ticks) without requiring interior
-mutability.
+Note: `render` takes `&self`; surfaces that need to track render-time state
+(scroll offsets, cursor blink, animation ticks) can use interior mutability as
+appropriate.
 
 All 10 existing surface states implement this trait. Each impl delegates to:
 - `self.help_text()` and `self.surface_name()` — already exist on all states
@@ -293,7 +295,7 @@ pub fn run_surface<S: Surface>(mut state: S) -> Result<()> {
 **`run_watch`** — for the watch command, which drains kernel events:
 
 ```rust
-pub fn run_watch(mut state: WatchState, event_rx: mpsc::Receiver<EngineEvent>) -> Result<()> {
+pub fn run_watch(mut state: WatchState, event_rx: &mpsc::Receiver<EngineEvent>) -> Result<()> {
     // Same crossterm/terminal setup as run_surface...
     let mut adapter = WatchEventAdapter::new();
 
@@ -357,6 +359,11 @@ pub fn run(args: Args, global: &GlobalArgs) -> Result<()> {
 ```rust
 pub fn run(args: Args, global: &GlobalArgs) -> Result<()> {
     let config = resolve_watch_config(&args)?;
+    // Use a standard-library, blocking channel here because the kernel watch loop
+    // runs on a dedicated thread and events are consumed synchronously by the CLI.
+    // This keeps the implementation simple and avoids pulling in additional async
+    // channel dependencies (e.g. `tokio::sync::mpsc`, `crossbeam-channel`) until
+    // we have a concrete need for async-aware backpressure or multiplexing.
     let (tx, rx) = std::sync::mpsc::channel();
 
     let kernel_handle = std::thread::spawn(move || {

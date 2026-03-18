@@ -1,7 +1,10 @@
 # Security & Quality Alert Remediation Skill — Design Spec
 
-**Date:** 2026-03-16 (updated 2026-03-17) **Status:** Draft **Skill name:**
-`dependabot` **Invocation:**
+- **Date:** 2026-03-16 (updated 2026-03-17)
+- **Status:** Draft
+- **Skill name:** `dependabot`
+
+**Invocation:**
 
 - `/dependabot` — dependabot alerts only (default, backwards compatible)
 - `/dependabot quality` — code quality findings only (alias: `--quality`)
@@ -146,9 +149,11 @@ Classify each group into a strategy:
 
 Perform a reachability check: does the project import or use the vulnerable
 package directly? This is a grep-based approximation (search for imports of the
-package name across affected workspace packages), not full code-path analysis.
-Note the result in the report. Still fix if the upgrade is easy, but
-deprioritise if it requires significant effort on an unreachable path.
+package name across affected workspace packages), not full code-path analysis
+and may miss dynamic or aliased imports and other indirect usages that do not
+mention the package name explicitly. Note the result in the report. Still fix if
+the upgrade is easy, but deprioritise if it requires significant effort on an
+unreachable path.
 
 Groups classified as **Escalate** skip execution entirely and go straight to the
 sweep report with their research findings attached.
@@ -178,12 +183,12 @@ independently assess:
 
 Classify each finding:
 
-| Classification       | Meaning                                                                                                                                                                     |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Apply suggestion** | Copilot's diff is correct, apply it                                                                                                                                         |
-| **Fix differently**  | Finding is valid but write a better fix, note why deviated. Must be confined to the same file — if the better fix requires cross-file changes, classify as Escalate instead |
-| **Dismiss**          | Finding is invalid or code is intentionally written that way                                                                                                                |
-| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge                                                                                                            |
+| Classification       | Meaning                                                          |
+| -------------------- | ---------------------------------------------------------------- |
+| **Apply suggestion** | Copilot's diff is correct, apply it                              |
+| **Fix differently**  | Finding is valid but write a better fix, note why deviated       |
+| **Dismiss**          | Finding is invalid or code is intentionally written that way     |
+| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge |
 
 The scope check happens at assessment time, not execution time. If reading the
 context reveals that any fix (suggested or alternative) would require changes
@@ -296,7 +301,8 @@ investigate why (git blame, commit messages) before deciding.
 - Fix touches more than the dependency's API surface
 - No viable upgrade path AND no alternative exists
 - Package is being deprecated/removed anyway (flag for dismissal via
-  `gh api --method PATCH` with a documented reason)
+  `gh api --method PATCH repos/{owner}/{repo}/dependabot/alerts/{alert_number} -f state=dismissed -f dismissed_reason="not_used" -f dismissed_comment="Package is being deprecated/removed; alert closed per remediation guidelines."`
+  with a documented reason and payload that sets the alert state to dismissed)
 
 #### Code quality execution details
 
@@ -509,8 +515,8 @@ appear only in the sweep report.
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`
-- Test: `pnpm nx run-many -t test --exclude=@eddacraft/anvil-e2e` (excludes
-  Playwright e2e targets)
+- Test: `pnpm nx run-many --target test --exclude=@eddacraft/anvil-e2e`
+  (excludes Playwright e2e targets)
 - Overrides: root `package.json` under `pnpm.overrides`
 - Two ecosystems: npm + github-actions (actions alerts update workflow YAML
   version pins)
