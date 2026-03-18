@@ -1,8 +1,8 @@
 use std::io::IsTerminal;
 use std::path::Path;
 
-use anyhow::Context;
 use anvil_tui::surfaces::wizard::{Template, WizardState};
+use anyhow::Context;
 use clap::Args;
 
 use crate::GlobalArgs;
@@ -73,11 +73,7 @@ fn print_plain_templates(templates: &[Template]) {
 
 fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
     let name = &state.config.project_name;
-    let template_id = state
-        .config
-        .template_id
-        .as_deref()
-        .unwrap_or("minimal");
+    let template_id = state.config.template_id.as_deref().unwrap_or("minimal");
 
     let project_dir = Path::new(name);
 
@@ -102,8 +98,22 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
     println!();
     println!("  Directory:  {name}");
     println!("  Template:   {template_id}");
-    println!("  Watch mode: {}", if state.config.enable_watch { "enabled" } else { "disabled" });
-    println!("  Git hooks:  {}", if state.config.enable_hooks { "enabled" } else { "disabled" });
+    println!(
+        "  Watch mode: {}",
+        if state.config.enable_watch {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+    println!(
+        "  Git hooks:  {}",
+        if state.config.enable_hooks {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
     println!();
     println!("  Next steps:");
     println!("    cd {name}");
