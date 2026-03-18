@@ -648,10 +648,11 @@ customer-facing because AI agents present its output to users.
 
 ### 14.1 Data Contract Parity
 
-All surfaces consume the same underlying data structures:
+All surfaces will converge on the same underlying data structures, but the
+current architecture has not fully unified yet:
 
 ```
-anvil-kernel (Rust)
+anvil-kernel (Rust) — target shared data layer
     ├── CLI plain output → serialises kernel data as text
     ├── CLI JSON output  → serialises kernel data as JSON
     ├── TUI surfaces     → renders kernel data via Ratatui
@@ -662,6 +663,13 @@ anvil-kernel (Rust)
     └── VS Code ext      → shells out to CLI commands (validate, gate, export)
                            and parses their JSON output
 ```
+
+> **Current divergence:** The Rust CLI (`status`, `doctor`, `audit`) assembles
+> its own structs directly in each command module rather than importing from a
+> shared kernel data layer. The TypeScript MCP server imports
+> `@eddacraft/anvil-runtime`. Unifying these behind `anvil-kernel` is in
+> progress (see KERN module). Until then, extending surface contracts may
+> require changes in different backends depending on the surface.
 
 When data appears on one surface, it must be representable on every other
 surface. The underlying data should be semantically equivalent, though the
@@ -754,9 +762,9 @@ All surfaces follow the same silence protocol:
 ### 15.3 B-Roll Shots
 
 - The TUI Watch surface with events streaming (30s loop). *(Planned.)*
-- Dashboard overview with KPI cards (static or slow scroll).
+- Dashboard overview with KPI cards (static or slow scroll). *(Planned — dashboard routes not yet implemented; see DASH-001.)*
 - `anvil doctor` fixing issues (checks flipping green).
-- Architecture graph rotating/zooming.
+- Architecture graph rotating/zooming. *(Planned — requires dashboard architecture views; see DASHARCH-003.)*
 - Terminal showing `anvil auth` → device code flow. *(Planned — `auth` not
   yet implemented.)*
 
