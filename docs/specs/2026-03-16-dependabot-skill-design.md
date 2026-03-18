@@ -149,10 +149,10 @@ Classify each group into a strategy:
 
 Perform a reachability check: does the project import or use the vulnerable
 package directly? This is a grep-based approximation (search for imports of the
-package name across affected workspace packages), not full code-path analysis and
-may miss dynamic or aliased imports and other indirect usages that do not mention
-the package name explicitly. Note the result in the report. Still fix if the
-upgrade is easy, but deprioritise if it requires significant effort on an
+package name across affected workspace packages), not full code-path analysis
+and may miss dynamic or aliased imports and other indirect usages that do not
+mention the package name explicitly. Note the result in the report. Still fix if
+the upgrade is easy, but deprioritise if it requires significant effort on an
 unreachable path.
 
 Groups classified as **Escalate** skip execution entirely and go straight to the
@@ -183,12 +183,12 @@ independently assess:
 
 Classify each finding:
 
-| Classification       | Meaning                                                                                                                                                                     |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Apply suggestion** | Copilot's diff is correct, apply it                                                                                                                                         |
-| **Fix differently**  | Finding is valid but write a better fix, note why deviated                                                                                                                  |
-| **Dismiss**          | Finding is invalid or code is intentionally written that way                                                                                                                |
-| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge                                                                                                            |
+| Classification       | Meaning                                                          |
+| -------------------- | ---------------------------------------------------------------- |
+| **Apply suggestion** | Copilot's diff is correct, apply it                              |
+| **Fix differently**  | Finding is valid but write a better fix, note why deviated       |
+| **Dismiss**          | Finding is invalid or code is intentionally written that way     |
+| **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge |
 
 The scope check happens at assessment time, not execution time. If reading the
 context reveals that any fix (suggested or alternative) would require changes
@@ -518,8 +518,8 @@ appear only in the sweep report.
 
 - pnpm workspaces with Nx
 - Build: `pnpm nx run-many --target=build` or `pnpm nx run <project>:build`
-- Test: `pnpm nx run-many --target test --exclude=@eddacraft/anvil-e2e` (excludes
-  Playwright e2e targets)
+- Test: `pnpm nx run-many --target test --exclude=@eddacraft/anvil-e2e`
+  (excludes Playwright e2e targets)
 - Overrides: root `package.json` under `pnpm.overrides`
 - Two ecosystems: npm + github-actions (actions alerts update workflow YAML
   version pins)
