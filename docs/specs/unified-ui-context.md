@@ -253,14 +253,18 @@ TTY. Non-TTY environments (CI, pipes) receive plain text or JSON.
 
 Non-interactive commands (no TUI surface):
 
-| Command | Description |
-|---------|-------------|
-| `anvil auth` | Authentication management |
-| `anvil admin` | Beta user approval |
-| `anvil policy` | Policy operations |
-| `anvil architecture` | Architecture enforcement |
-| `anvil hooks` | Git hook management |
-| `anvil export` | Constraint export |
+| Command | Description | Status |
+|---------|-------------|--------|
+| `anvil auth` | Authentication management | *(Planned)* |
+| `anvil admin` | Beta user approval | *(Planned)* |
+| `anvil policy` | Policy operations | *(Planned)* |
+| `anvil architecture` | Architecture enforcement | *(Planned)* |
+| `anvil hooks` | Git hook management | *(Planned)* |
+| `anvil export` | Constraint export | *(Planned)* |
+
+> **Note:** The commands above are defined in clap but their handlers are
+> stubbed (`bail!("not yet implemented")`). They are listed here for surface
+> completeness — do not use them in demos or scripts until implemented.
 
 > **Note:** The Rust CLI currently exposes these as flat subcommands (e.g.,
 > `anvil auth`, `anvil policy`). Nested subcommands (`anvil auth login`,
@@ -500,7 +504,10 @@ Shared dashboard components (all in `components/dashboard/`):
 
 ### 10.2 Visual Rules
 
-- **Dark theme only.** The default and only option. `--void` background.
+- **Dark theme preferred.** The default is dark (`--void` background), but the
+  deployed Docusaurus config currently allows theme switching
+  (`disableSwitch: false`, `respectPrefersColorScheme: true`). A future update
+  should enforce dark-only to match the brand spec.
 - **Code blocks:** JetBrains Mono. Syntax highlighting uses brand palette
   (`--anvil-ember` for keywords, `--edda-growth` for strings, `--text-muted`
   for comments).
@@ -520,8 +527,8 @@ Shared dashboard components (all in `components/dashboard/`):
 
 ### 10.4 Demo Scenarios (Marketing / Video)
 
-1. **Quickstart:** Walk through `docs/public/quickstart` — from install to
-   first gate check in under 5 minutes.
+1. **Quickstart:** Walk through `docs/public/anvil/quickstart.md` (served at
+   `/anvil/quickstart`) — from install to first gate check in under 5 minutes.
 2. **Concept deep-dive:** Show a concept page with embedded CLI output and
    architecture diagrams.
 
