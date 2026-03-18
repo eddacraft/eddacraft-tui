@@ -129,7 +129,7 @@ interface IntentLedgerRecord {
 - **Intent:** Enable deterministic guardrails against scope drift and missing constraints.
 - **Expected Outcome:** Policy rules can assert required intent fields and detect out-of-scope changes.
 - **Validation:** `pnpm nx test anvil-cli --testNamePattern="intent policy"`
-- **Dependencies:** ILGOV-004
+- **Dependencies:** ILGOV-003, ILGOV-004
 - **Status:** Draft
 
 ### ILGOV-006: Add explainability and evidence export surfaces

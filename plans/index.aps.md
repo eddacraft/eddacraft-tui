@@ -487,6 +487,7 @@ waves; 39 tasks total.
 | [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
 | [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
 | [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Ready | 0/6 | edda-stack-integration, Kindling (external) |
 
 ### Future (Post-1.0.0)
 
