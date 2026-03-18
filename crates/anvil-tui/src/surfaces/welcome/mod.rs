@@ -99,7 +99,7 @@ impl crate::surface::Surface for WelcomeState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.chosen.is_some()
     }
 
     fn render(

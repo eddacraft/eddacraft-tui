@@ -16,7 +16,9 @@ use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
 /// Run an interactive TUI surface inside the branded shell chrome.
-pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<()> {
+/// Returns the state after the surface exits, so callers can inspect
+/// final state (e.g. which menu option was chosen).
+pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<S> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -29,7 +31,7 @@ pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<()> {
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
-    result
+    result.map(|()| state)
 }
 
 fn surface_loop<S: Surface>(

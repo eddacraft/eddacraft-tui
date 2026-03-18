@@ -66,10 +66,12 @@ and tooling.
 
 | Directory                   | Description                                             |
 | --------------------------- | ------------------------------------------------------- |
-| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph  |
-| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)  |
+| `crates/anvil-kernel`       | Rust kernel — watcher, parser, semantic graph, policy   |
 | `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust) |
+| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer) |
+| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)  |
 | `crates/eddacraft-tui`      | Shared Ratatui component library                        |
+| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph  |
 
 ### Tools
 
@@ -186,6 +188,58 @@ pnpm vitest run --coverage
 
 Coverage output is written to the root `coverage/` directory (HTML, JSON, and
 JSON summary), which is the path used by the built-in coverage gate check.
+
+## Rust Kernel Benchmarks
+
+The Rust kernel (`anvil-kernel`) includes Criterion micro-benchmarks for
+regression detection. These validate the performance targets defined in the
+[Kernel Spec](./docs/architecture/rust-kernel-spec.md).
+
+### Performance Targets
+
+| Metric                                    | Target      | Status                          |
+| ----------------------------------------- | ----------- | ------------------------------- |
+| Cold graph build (100k LOC / ~2000 files) | < 3 seconds | Pending validation at scale     |
+| Incremental update (single file)          | < 100ms     | Validated (micro-bench)         |
+| Event emission overhead                   | < 10ms      | Validated (micro-bench)         |
+| Memory footprint (medium repo)            | < 500MB     | Pending stress test             |
+| File detection latency (p99)              | < 20ms      | Validated (spike)               |
+| tree-sitter parse (single file)           | < 1ms       | Validated (spike + micro-bench) |
+
+### Existing Benchmark Groups
+
+| Group                | What it measures                             | Scale                 |
+| -------------------- | -------------------------------------------- | --------------------- |
+| `cold_graph_build`   | Full scan → parse → graph build              | 10, 50, 100 files     |
+| `incremental_update` | Reparse + graph delta for single file change | 1 file                |
+| `policy_evaluation`  | All H1 invariants evaluated on one delta     | 1 delta, 4 invariants |
+| `event_emission`     | 1000 progress events through mpsc channel    | 1000 events           |
+
+### Running Benchmarks
+
+```bash
+# Run all Criterion micro-benchmarks
+cargo bench --bench kernel
+
+# Run a specific group
+cargo bench --bench kernel -- cold_graph_build
+cargo bench --bench kernel -- incremental_update
+cargo bench --bench kernel -- policy_evaluation
+cargo bench --bench kernel -- event_emission
+```
+
+Criterion produces HTML reports in `target/criterion/` — open
+`target/criterion/report/index.html` for detailed charts and comparison against
+previous runs.
+
+### Planned Extensions
+
+The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
+defines additional benchmark groups (graph queries, debouncer throughput, varied
+file complexity) and a stress-test harness (`anvil-bench`) for capacity
+discovery — watcher saturation, graph memory ceiling, incremental throughput
+under sustained load, policy scaling, and cold start scaling. See the
+[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for work items.
 
 ## Deployment
 

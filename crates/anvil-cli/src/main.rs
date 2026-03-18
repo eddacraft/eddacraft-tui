@@ -48,6 +48,7 @@ enum Commands {
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
     /// Show the welcome screen with quick-start options.
+    #[command(alias = "start")]
     Welcome(commands::welcome::WelcomeArgs),
     /// Run a full project audit.
     Audit(commands::audit::AuditArgs),
