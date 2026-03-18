@@ -1,8 +1,7 @@
 # Pitch Deck Direction — Design Spec
 
-**Date**: 2026-03-18
-**Status**: Reviewed (spec review: approved with notes — all addressed)
-**Audience**: Angel / pre-seed investors (stretch to seed)
+**Date**: 2026-03-18 **Status**: Reviewed (spec review: approved with notes —
+all addressed) **Audience**: Angel / pre-seed investors (stretch to seed)
 **Approach**: Category Creator (B) with Platform Vision (C) undertone
 
 ---
@@ -11,11 +10,11 @@
 
 The pitch deck pipeline (Pitch Orchestrator) produced 16 documents across
 research, strategy, content, and synthesis phases. Slides 1–9 and 13 have
-complete copy, data, and visual specs. Three slides were flagged `[EVIDENCE
-NEEDED]`: Traction (10), Team (11), and The Ask (12).
+complete copy, data, and visual specs. Three slides were flagged
+`[EVIDENCE NEEDED]`: Traction (10), Team (11), and The Ask (12).
 
-This spec captures the decisions made during brainstorming to fill those gaps and
-refine the overall deck direction.
+This spec captures the decisions made during brainstorming to fill those gaps
+and refine the overall deck direction.
 
 ---
 
@@ -39,6 +38,7 @@ A recurring beat across slides 6, 10, and 11:
 > ours.
 
 Placement:
+
 - **Slide 6 (Product)**: "Built in Rust. No AI inside. 50ms per check."
 - **Slide 10 (Traction)**: "Not vibe-coded. Precision-engineered in a domain
   where AI fails."
@@ -61,21 +61,21 @@ not over-explained.
 
 ## Slide Deck Structure (13 Slides)
 
-| # | Slide | Headline |
-|---|-------|----------|
-| 1 | Title | AI governance for developers |
-| 2 | Problem | AI writes half the code. Nobody governs it. |
-| 3 | Why Now | The compliance clock is ticking |
-| 4 | Solution | Deterministic governance at file save |
-| 5 | How It Works | File save to governance event in milliseconds |
-| 6 | Product | Built in Rust. No AI inside. 50ms per check. |
-| 7 | Market Opportunity | USD 21.5B market. USD 492M in AI governance alone. |
-| 8 | Competitive Landscape | The only tool that is both deterministic and pre-commit |
-| 9 | Business Model | Land with developers. Expand with compliance. |
-| 10 | Traction | Built what others are pitching |
-| 11 | Team | 25 years building what enterprises buy |
-| 12 | The Ask | Own the category before the window closes |
-| 13 | Appendix | Deep dive materials |
+| #   | Slide                 | Headline                                                |
+| --- | --------------------- | ------------------------------------------------------- |
+| 1   | Title                 | AI governance for developers                            |
+| 2   | Problem               | AI writes half the code. Nobody governs it.             |
+| 3   | Why Now               | The compliance clock is ticking                         |
+| 4   | Solution              | Deterministic governance at file save                   |
+| 5   | How It Works          | File save to governance event in milliseconds           |
+| 6   | Product               | Built in Rust. No AI inside. 50ms per check.            |
+| 7   | Market Opportunity    | USD 21.5B market. USD 492M in AI governance alone.      |
+| 8   | Competitive Landscape | The only tool that is both deterministic and pre-commit |
+| 9   | Business Model        | Land with developers. Expand with compliance.           |
+| 10  | Traction              | Built what others are pitching                          |
+| 11  | Team                  | 25 years building what enterprises buy                  |
+| 12  | The Ask               | Own the category before the window closes               |
+| 13  | Appendix              | Deep dive materials                                     |
 
 ---
 
@@ -87,12 +87,12 @@ not over-explained.
 
 **Structure** (three columns):
 
-| Built Today | Launch Trajectory (targets) | Ecosystem |
-|---|---|---|
-| Production Rust kernel | 5,000+ waitlist target (dev influencer demos in pipeline) | 2 open source packages |
-| 50ms deterministic checks | 10–15 pilot teams target (5 currently engaged) | Community building |
-| OPA/Rego policy engine | Enterprise pipeline via Arkahna's 100+ SaaS network | |
-| Semantic graph + attribution | | |
+| Built Today                  | Launch Trajectory (targets)                               | Ecosystem              |
+| ---------------------------- | --------------------------------------------------------- | ---------------------- |
+| Production Rust kernel       | 5,000+ waitlist target (dev influencer demos in pipeline) | 2 open source packages |
+| 50ms deterministic checks    | 10–15 pilot teams target (5 currently engaged)            | Community building     |
+| OPA/Rego policy engine       | Enterprise pipeline via Arkahna's 100+ SaaS network       |                        |
+| Semantic graph + attribution |                                                           |                        |
 
 **Data callout**: "Competitors in this category are raising on decks. Anvil is
 raising on a working product. Not vibe-coded — precision-engineered in a domain
@@ -110,8 +110,8 @@ and that's the point."
 
 **Design note**: Metric cards with numbers, not screenshots. The product demo on
 slide 6 has already shown the TUI — this slide should feel like a progress
-dashboard. Clearly distinguish "built today" (confirmed) from "launch trajectory"
-(targets) — investors penalise projections dressed as facts.
+dashboard. Clearly distinguish "built today" (confirmed) from "launch
+trajectory" (targets) — investors penalise projections dressed as facts.
 
 ---
 
@@ -122,6 +122,7 @@ dashboard. Clearly distinguish "built today" (confirmed) from "launch trajectory
 **Structure**:
 
 **Founder**:
+
 - Joshua Boys, Founder & CEO
 - Former Microsoft Azure Lead, Australia
 - CEO of Arkahna — platform engineering for 100+ SaaS companies over 5 years
@@ -131,15 +132,18 @@ dashboard. Clearly distinguish "built today" (confirmed) from "launch trajectory
 enterprise buying process — not from a research lab"
 
 **Advisory bench**:
+
 - Senior advisors across enterprise software, startup scaling, and large SaaS
 - Name advisors on the slide if they consent; otherwise present as a text block
   ("Advisory support across enterprise, SaaS, and compliance") — avoid unnamed
   silhouette placeholders which imply hidden identities
 
 **Why solo founder = strength**:
+
 - Capital efficient: £0 raised, production-grade product delivered
 - No AI inside: this product required precision engineering, not prompt chaining
-- Arkahna's 100+ SaaS client base provides direct market insight and distribution
+- Arkahna's 100+ SaaS client base provides direct market insight and
+  distribution
 - First hires are engineering + CRO — the team scales with the raise
 
 **Closing beat**: "Built to make you trust your AI more — not by asking you to
@@ -165,23 +169,26 @@ built this" as a capital efficiency signal.
 **Headline**: Own the category before the window closes
 
 **The Raise**:
+
 - £3–5M seed round
 - £15–25M pre-money valuation
 - Category: AI governance — hottest new category in developer tooling
 
 **Use of Funds** (visual split):
+
 - **Engineering** (~40%): 3–4 hires. Scale Rust kernel, platform layer
   (dashboard, multi-tenant policy management), ecosystem integrations (IDE,
   CI/CD)
-- **Go-to-Market** (~30%): Enterprise-focused CRO + developer advocacy/community.
-  Land-and-expand through Arkahna's 100+ SaaS network
+- **Go-to-Market** (~30%): Enterprise-focused CRO + developer
+  advocacy/community. Land-and-expand through Arkahna's 100+ SaaS network
 - **Strategic Acquisition** (~20%): Acquire platform engineering IP from Arkahna
-  and potentially others — clean arm's-length transactions, independently valued.
-  Accelerates maturity and scale by absorbing proven infrastructure rather than
-  rebuilding (months saved, not cost arbitrage)
+  and potentially others — clean arm's-length transactions, independently
+  valued. Accelerates maturity and scale by absorbing proven infrastructure
+  rather than rebuilding (months saved, not cost arbitrage)
 - **Operations** (~10%): Compliance certification, infrastructure
 
 **Milestones this round delivers**:
+
 - Profitability and self-sufficiency on phase 1 (code governance)
 - 5,000+ waitlist, 50+ paying teams, enterprise contracts
 - Platform and ecosystem expansion complete
@@ -212,8 +219,8 @@ single line at the bottom — hint at scale, don't over-explain.
 
 ### Slide 6: Product — Headline Update
 
-**Old**: "Built in Rust. Runs in your terminal."
-**New**: "Built in Rust. No AI inside. 50ms per check."
+**Old**: "Built in Rust. Runs in your terminal." **New**: "Built in Rust. No AI
+inside. 50ms per check."
 
 Updated presenter notes should include: "Every check is deterministic —
 programmatic, mechanical, repeatable. No AI reviewing AI. The same input always
@@ -226,17 +233,17 @@ with: precision. And it runs in under 50 milliseconds."
 
 ### Valuation Justification (£15–25M pre-money)
 
-- Hottest new category in developer tooling — record pre-seed rounds being raised
-  in the AI governance space establish category-level valuation precedent
+- Hottest new category in developer tooling — record pre-seed rounds being
+  raised in the AI governance space establish category-level valuation precedent
 - First-mover with production-grade product (most competitors are pre-product) —
-  product completeness de-risks execution, which commands premium over pitch-stage
-  peers
+  product completeness de-risks execution, which commands premium over
+  pitch-stage peers
 - Regulatory forcing function (EU AI Act) creates mandatory spend with a known
   deadline — this is not speculative demand
-- Solo founder capital efficiency — £0 raised to date, production product built —
-  demonstrates exceptional capital-to-output ratio
-- Arkahna distribution channel (100+ SaaS clients) — built-in early market access
-  that would take years to build from scratch
+- Solo founder capital efficiency — £0 raised to date, production product built
+  — demonstrates exceptional capital-to-output ratio
+- Arkahna distribution channel (100+ SaaS clients) — built-in early market
+  access that would take years to build from scratch
 
 **Investor FAQ addition needed**: Add a valuation rationale question to
 `plans/pitch-deck/content/investor-faq.md` addressing "why £15–25M pre-money for

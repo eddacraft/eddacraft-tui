@@ -1,10 +1,20 @@
 # Pitch Deck Production — Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use
+> superpowers:subagent-driven-development (recommended) or
+> superpowers:executing-plans to implement this plan task-by-task. Steps use
+> checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce a 13-slide investor pitch deck (.pptx) from the approved direction spec and pipeline materials, following the EddaCraft design system (Nordic Terminal / dark brutalist).
+**Goal:** Produce a 13-slide investor pitch deck (.pptx) from the approved
+direction spec and pipeline materials, following the EddaCraft design system
+(Nordic Terminal / dark brutalist).
 
-**Architecture:** Three-phase approach — (1) sync pipeline source files with brainstorming decisions, (2) generate the .pptx deck using the pptx skill, (3) update investor FAQ and create leave-behind one-pager. All content comes from two authoritative sources: `plans/pitch-deck/` (pipeline) and `docs/superpowers/specs/2026-03-18-pitch-deck-direction-design.md` (direction spec).
+**Architecture:** Three-phase approach — (1) sync pipeline source files with
+brainstorming decisions, (2) generate the .pptx deck using the pptx skill, (3)
+update investor FAQ and create leave-behind one-pager. All content comes from
+two authoritative sources: `plans/pitch-deck/` (pipeline) and
+`docs/superpowers/specs/2026-03-18-pitch-deck-direction-design.md` (direction
+spec).
 
 **Tech Stack:** pptx skill (EddaCraft Design System enforced), markdown, git
 
@@ -12,16 +22,16 @@
 
 ## Source Files
 
-| File | Role |
-|------|------|
+| File                                                               | Role                                                                                   |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
 | `docs/superpowers/specs/2026-03-18-pitch-deck-direction-design.md` | Direction spec — slides 10-12, slide 6 update, "no AI inside" thread, investor context |
-| `plans/pitch-deck/content/slide-copy.md` | Slide-by-slide copy (slides 1-9 complete, 10-12 to be updated) |
-| `plans/pitch-deck/content/visual-specs.md` | Per-slide layout, colour, typography, visual elements |
-| `plans/pitch-deck/content/data-viz-specs.md` | Chart types, data sources, colour mapping |
-| `plans/pitch-deck/content/talking-points.md` | Presenter notes per slide |
-| `plans/pitch-deck/strategy/slide-outline.md` | Slide structure and theme mapping |
-| `plans/pitch-deck/content/investor-faq.md` | Investor FAQ (needs valuation question added) |
-| `plans/pitch-deck/deliverables/one-pager.md` | One-pager (needs update with direction spec decisions) |
+| `plans/pitch-deck/content/slide-copy.md`                           | Slide-by-slide copy (slides 1-9 complete, 10-12 to be updated)                         |
+| `plans/pitch-deck/content/visual-specs.md`                         | Per-slide layout, colour, typography, visual elements                                  |
+| `plans/pitch-deck/content/data-viz-specs.md`                       | Chart types, data sources, colour mapping                                              |
+| `plans/pitch-deck/content/talking-points.md`                       | Presenter notes per slide                                                              |
+| `plans/pitch-deck/strategy/slide-outline.md`                       | Slide structure and theme mapping                                                      |
+| `plans/pitch-deck/content/investor-faq.md`                         | Investor FAQ (needs valuation question added)                                          |
+| `plans/pitch-deck/deliverables/one-pager.md`                       | One-pager (needs update with direction spec decisions)                                 |
 
 ---
 
@@ -33,24 +43,28 @@ generation. This ensures a single source of truth.
 ### Task 1: Update slide-copy.md with slides 10-12 and slide 6 headline
 
 **Files:**
-- Modify: `plans/pitch-deck/content/slide-copy.md` — slides 10-12 (search for `[EVIDENCE NEEDED]` blocks) and slide 6 headline
+
+- Modify: `plans/pitch-deck/content/slide-copy.md` — slides 10-12 (search for
+  `[EVIDENCE NEEDED]` blocks) and slide 6 headline
 - Reference: `docs/superpowers/specs/2026-03-18-pitch-deck-direction-design.md`
 
 - [ ] **Step 1: Replace slide 10 copy**
 
-Replace the `[EVIDENCE NEEDED]` block for slide 10 (find `## Slide 10: Traction`) with the
-traction copy from the direction spec:
+Replace the `[EVIDENCE NEEDED]` block for slide 10 (find
+`## Slide 10: Traction`) with the traction copy from the direction spec:
+
 - Headline: "Built what others are pitching"
 - Three-column structure: Built Today / Launch Trajectory (targets) / Ecosystem
 - Data callout: "Competitors in this category are raising on decks. Anvil is
-  raising on a working product. Not vibe-coded — precision-engineered in a domain
-  where AI fails."
+  raising on a working product. Not vibe-coded — precision-engineered in a
+  domain where AI fails."
 - Presenter notes from direction spec
 
 - [ ] **Step 2: Replace slide 11 copy**
 
-Replace the `[EVIDENCE NEEDED]` block for slide 11 (find `## Slide 11: Team`) with the
-team copy from the direction spec:
+Replace the `[EVIDENCE NEEDED]` block for slide 11 (find `## Slide 11: Team`)
+with the team copy from the direction spec:
+
 - Headline: "25 years building what enterprises buy"
 - Founder block: Joshua Boys credentials
 - Advisory bench text block
@@ -60,8 +74,9 @@ team copy from the direction spec:
 
 - [ ] **Step 3: Replace slide 12 copy**
 
-Replace the `[EVIDENCE NEEDED]` block for slide 12 (find `## Slide 12: The ask`) with the
-ask copy from the direction spec:
+Replace the `[EVIDENCE NEEDED]` block for slide 12 (find `## Slide 12: The ask`)
+with the ask copy from the direction spec:
+
 - Headline: "Own the category before the window closes"
 - The Raise: £3-5M, £15-25M pre-money
 - Use of Funds: Engineering 40%, GTM 30%, Strategic Acquisition 20%, Ops 10%
@@ -86,7 +101,9 @@ git commit -m "docs(pitch): sync slide copy with direction spec decisions"
 ### Task 2: Update slide-outline.md with completed slide metadata
 
 **Files:**
-- Modify: `plans/pitch-deck/strategy/slide-outline.md` — slides 10-12 (search for `[EVIDENCE NEEDED]`) and slide 6 headline
+
+- Modify: `plans/pitch-deck/strategy/slide-outline.md` — slides 10-12 (search
+  for `[EVIDENCE NEEDED]`) and slide 6 headline
 
 - [ ] **Step 1: Update slides 10-12 in outline**
 
@@ -116,12 +133,16 @@ will map these to canonical tokens (`--anvil-ember`, `--edda-growth`) at
 generation time (see Task 5 token aliasing note).
 
 **Files:**
-- Modify: `plans/pitch-deck/content/visual-specs.md` — slides 10-12 (search for `[To be designed`)
+
+- Modify: `plans/pitch-deck/content/visual-specs.md` — slides 10-12 (search for
+  `[To be designed`)
 
 - [ ] **Step 1: Write slide 10 visual spec**
 
 Replace the placeholder for slide 10 (find `## Slide 10: Traction`) with:
-- Layout: Three-column metric dashboard (Built Today / Launch Trajectory / Ecosystem)
+
+- Layout: Three-column metric dashboard (Built Today / Launch Trajectory /
+  Ecosystem)
 - Metric cards with large numbers in `--anvil`
 - Column headers in JetBrains Mono, `--text-muted`
 - "Built Today" items use `--edda` checkmark prefix
@@ -131,6 +152,7 @@ Replace the placeholder for slide 10 (find `## Slide 10: Traction`) with:
 - [ ] **Step 2: Write slide 11 visual spec**
 
 Replace the placeholder for slide 11 (find `## Slide 11: Team`) with:
+
 - Layout: Left 40% founder portrait, right 60% credentials
 - Founder name: JetBrains Mono, `--text-primary`
 - Credentials: Inter, `--text-primary`
@@ -144,6 +166,7 @@ Replace the placeholder for slide 12 (find `## Slide 12: The ask`). Note: the
 existing spec at lines 326-332 already has the correct horizontal stacked bar
 layout — only the category labels need updating from "Compliance certification"
 to the four-way split (Engineering/GTM/Strategic Acquisition/Ops):
+
 - Layout: Centred. Large funding number top, use-of-funds bar middle, milestones
   timeline bottom
 - Funding amount: JetBrains Mono, 96px, `--anvil-ember`
@@ -164,6 +187,7 @@ git commit -m "docs(pitch): add visual specs for slides 10-12"
 ### Task 4: Add valuation rationale to investor FAQ
 
 **Files:**
+
 - Modify: `plans/pitch-deck/content/investor-faq.md`
 
 - [ ] **Step 1: Read current investor FAQ**
@@ -200,16 +224,17 @@ git commit -m "docs(pitch): add valuation rationale to investor FAQ"
 ### Task 5: Generate .pptx pitch deck
 
 **Files:**
+
 - Create: `plans/pitch-deck/deliverables/eddacraft-anvil-pitch-deck.pptx`
 
-Use the `pptx` skill to generate the deck. The pptx skill enforces the
-EddaCraft Design System (dark-only, 5-colour palette, monospace headers, no
-decoration).
+Use the `pptx` skill to generate the deck. The pptx skill enforces the EddaCraft
+Design System (dark-only, 5-colour palette, monospace headers, no decoration).
 
 **Token aliasing note:** The visual-specs.md and direction spec use shorthand
 tokens (`--anvil`, `--edda`, `--text-muted`). The pptx skill's canonical tokens
 are `--anvil-ember`, `--edda-growth`, `--text-primary`, `--structure`. Map as
 follows when generating:
+
 - `--anvil` → `--anvil-ember` (#cc5500)
 - `--edda` → `--edda-growth` (#2e8b57)
 - `--text-muted` → `--text-muted` (#85858a) (same name)
@@ -221,12 +246,14 @@ follows when generating:
 - [ ] **Step 1: Invoke pptx skill**
 
 Generate a 13-slide .pptx deck using:
+
 - Slide copy from `plans/pitch-deck/content/slide-copy.md` (now updated)
 - Visual specs from `plans/pitch-deck/content/visual-specs.md` (now updated)
 - Data viz specs from `plans/pitch-deck/content/data-viz-specs.md`
 - EddaCraft design system palette and typography
 
 Slides to generate:
+
 1. Title — brand moment, Anvil logo, "AI governance for developers"
 2. Problem — "AI writes half the code. Nobody governs it." + bar chart
 3. Why Now — "The compliance clock is ticking" + timeline
@@ -250,6 +277,7 @@ pip install markitdown && python -m markitdown plans/pitch-deck/deliverables/edd
 ```
 
 Verify:
+
 - All 13 slides present with correct headlines
 - Presenter notes populated for all slides
 - No `[EVIDENCE NEEDED]` placeholders remain
@@ -268,7 +296,9 @@ pdftoppm -png -r 150 eddacraft-anvil-pitch-deck.pdf slide
 ```
 
 Verify visually:
-- EddaCraft palette applied (void background #0d0d0f, anvil-ember accent #cc5500)
+
+- EddaCraft palette applied (void background #0d0d0f, anvil-ember accent
+  #cc5500)
 - Typography correct (JetBrains Mono headlines, Inter body)
 - No rounded corners, no gradients, no shadows
 - Data callouts visible and correctly coloured
@@ -291,6 +321,7 @@ git commit -m "feat(pitch): generate 13-slide investor pitch deck"
 ### Task 6: Update one-pager with direction spec decisions
 
 **Files:**
+
 - Modify: `plans/pitch-deck/deliverables/one-pager.md`
 
 - [ ] **Step 1: Read current one-pager**
@@ -300,6 +331,7 @@ Read the file to understand existing content and format.
 - [ ] **Step 2: Update with brainstorming decisions**
 
 Ensure the one-pager reflects:
+
 - "No AI inside" positioning
 - Traction framing (built what others are pitching)
 - Team summary (Joshua Boys, 25+ years, Microsoft Azure, Arkahna)
@@ -318,11 +350,13 @@ git commit -m "docs(pitch): update one-pager with direction spec decisions"
 ### Task 7: Update pipeline status tracker
 
 **Files:**
+
 - Modify: `plans/pitch-deck/status.md`
 
 - [ ] **Step 1: Mark all phases complete**
 
 Update status.md to reflect:
+
 - Phase 1 Research: Complete
 - Phase 2 Strategy: Complete
 - Phase 3 Content: Complete (slides 10-12 now filled)
