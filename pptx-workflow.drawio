@@ -1,4 +1,4 @@
-<mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1000" background="#0D0D0F">
+<mxGraphModel dx="1422" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1250" background="#0D0D0F">
   <root>
     <mxCell id="0"/>
     <mxCell id="1" parent="0"/>
@@ -9,7 +9,7 @@
     </mxCell>
 
     <!-- Subtitle -->
-    <mxCell id="subtitle" value=".claude/skills/pptx/" style="text;html=1;fontSize=14;fontFamily=JetBrains Mono;fontColor=#2A2A2E;align=center;verticalAlign=middle;" vertex="1" parent="1">
+    <mxCell id="subtitle" value="template-edit or python-pptx from scratch" style="text;html=1;fontSize=14;fontFamily=JetBrains Mono;fontColor=#2A2A2E;align=center;verticalAlign=middle;" vertex="1" parent="1">
       <mxGeometry x="550" y="65" width="500" height="25" as="geometry"/>
     </mxCell>
 
@@ -32,25 +32,25 @@
     </mxCell>
 
     <!-- PATH 1 nodes -->
-    <mxCell id="t1" value="ANALYSE TEMPLATE&#xa;scripts/thumbnail.py + markitdown" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+    <mxCell id="t1" value="ANALYSE TEMPLATE&#xa;markitdown template.pptx" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="220" width="250" height="50" as="geometry"/>
     </mxCell>
     <mxCell id="t2" value="PLAN SLIDE MAPPING&#xa;choose varied layouts" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="290" width="250" height="50" as="geometry"/>
     </mxCell>
-    <mxCell id="t3" value="UNPACK&#xa;scripts/office/unpack.py" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+    <mxCell id="t3" value="UNPACK&#xa;unzip template.pptx -d work/" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="360" width="250" height="50" as="geometry"/>
     </mxCell>
-    <mxCell id="t4" value="BUILD PRESENTATION&#xa;delete / duplicate / reorder&#xa;scripts/add_slide.py" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+    <mxCell id="t4" value="BUILD PRESENTATION&#xa;delete / duplicate / reorder&#xa;edit slide XML directly" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="430" width="250" height="60" as="geometry"/>
     </mxCell>
     <mxCell id="t5" value="EDIT CONTENT&#xa;subagents work in parallel&#xa;on separate slide XMLs" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#CC5500;strokeWidth=2;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="510" width="250" height="60" as="geometry"/>
     </mxCell>
-    <mxCell id="t6" value="CLEAN&#xa;scripts/clean.py" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+    <mxCell id="t6" value="CLEAN&#xa;remove unused media + rels" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="590" width="250" height="50" as="geometry"/>
     </mxCell>
-    <mxCell id="t7" value="PACK&#xa;scripts/office/pack.py" style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
+    <mxCell id="t7" value="PACK&#xa;cd work/ &amp;&amp; zip -r ../out.pptx ." style="rounded=1;whiteSpace=wrap;fillColor=#2A2A2E;strokeColor=#2A2A2E;fontColor=#EBEBEB;fontSize=11;fontFamily=JetBrains Mono;spacingTop=4;spacingBottom=4;" vertex="1" parent="1">
       <mxGeometry x="130" y="660" width="250" height="50" as="geometry"/>
     </mxCell>
 
