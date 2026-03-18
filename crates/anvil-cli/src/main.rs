@@ -100,7 +100,14 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::from(EXIT_OK),
         Err(err) => {
-            eprintln!("Error: {err:#}");
+            if cli.global.json {
+                eprintln!(
+                    "{}",
+                    serde_json::json!({ "error": format!("{err:#}") })
+                );
+            } else {
+                eprintln!("Error: {err:#}");
+            }
             ExitCode::from(EXIT_ERROR)
         }
     }

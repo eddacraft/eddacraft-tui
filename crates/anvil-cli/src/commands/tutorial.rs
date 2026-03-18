@@ -9,7 +9,7 @@ use crate::GlobalArgs;
 pub struct TutorialArgs {}
 
 pub fn run(_args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
-    if global.no_tui || !std::io::stdout().is_terminal() {
+    if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         println!("Tutorial requires an interactive terminal. Run without --no-tui in a TTY.");
         return Ok(());
     }
