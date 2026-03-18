@@ -255,12 +255,16 @@ Non-interactive commands (no TUI surface):
 
 | Command | Description |
 |---------|-------------|
-| `anvil auth {login,logout,whoami}` | Authentication management |
-| `anvil admin approve` | Beta user approval |
-| `anvil policy {list,explain,diff,validate,test}` | Policy operations |
-| `anvil architecture {validate,watch}` | Architecture enforcement |
-| `anvil hooks {install,status}` | Git hook management |
+| `anvil auth` | Authentication management |
+| `anvil admin` | Beta user approval |
+| `anvil policy` | Policy operations |
+| `anvil architecture` | Architecture enforcement |
+| `anvil hooks` | Git hook management |
 | `anvil export` | Constraint export |
+
+> **Note:** The Rust CLI currently exposes these as flat subcommands (e.g.,
+> `anvil auth`, `anvil policy`). Nested subcommands (`anvil auth login`,
+> `anvil policy list`, etc.) are planned but not yet wired in clap.
 
 ### 7.3 Output Conventions
 
@@ -281,7 +285,8 @@ Non-interactive commands (no TUI surface):
 2. **Live governance:** `anvil watch` → make a violating change → real-time
    block with policy citation. *(Planned — `watch` not yet implemented.)*
 3. **Gate check:** `anvil gate plan.aps.md` → pass/fail breakdown with
-   colour-coded results.
+   colour-coded results. *(Planned — `gate` not yet implemented in the Rust
+   CLI; use the TypeScript CLI or `anvil status` for current demos.)*
 4. **Auth flow:** `anvil auth login` → device code displayed → browser
    activation → token stored.
 
@@ -571,8 +576,8 @@ customer-facing because AI agents present its output to users.
 
 ### 12.3 Demo Scenarios (Marketing / Video)
 
-1. **Agent integration:** Show Claude using `anvil.gate` tool to check a plan,
-   receiving structured results, and presenting them to the user.
+1. **Agent integration:** Show Claude using the `anvil_gate` tool to check a
+   plan, receiving structured results, and presenting them to the user.
 2. **Resource browsing:** Show an agent listing available Anvil resources and
    reading project status.
 
@@ -688,7 +693,9 @@ All surfaces follow the same silence protocol:
 
 3. **The Core Loop (90s):**
    - `anvil gate plan.aps.md` → TUI shows check results.
-   - Open dashboard → same data, richer visualisation.
+   - Open dashboard → same data, richer visualisation. *(Planned — the
+     `/dashboard` route group is not yet implemented; see DASH-001 in
+     `plans/modules/dashboard-foundation.aps.md`.)*
    - Show architecture graph with a violation highlighted.
 
 4. **The Stack (60s):**
