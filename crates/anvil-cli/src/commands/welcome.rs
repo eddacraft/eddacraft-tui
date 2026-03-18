@@ -64,8 +64,11 @@ fn create_first_run_marker(path: &PathBuf) -> anyhow::Result<()> {
 fn launch_chosen_action(chosen: Option<QuickStartOption>) -> anyhow::Result<()> {
     let args: &[&str] = match chosen {
         Some(QuickStartOption::RunTutorial) => &["tutorial"],
-        Some(QuickStartOption::RunGate) => &["gate"],
-        Some(QuickStartOption::StartWatch) => &["watch"],
+        Some(QuickStartOption::RunAudit) => &["audit"],
+        Some(QuickStartOption::RunDoctor) => &["doctor"],
+        // Not yet implemented — uncomment as each command ships:
+        // Some(QuickStartOption::RunGate) => &["gate"],
+        // Some(QuickStartOption::StartWatch) => &["watch"],
         Some(QuickStartOption::ViewDocs) => {
             println!("Visit: https://docs.eddacraft.ai");
             return Ok(());
@@ -92,10 +95,10 @@ fn print_plain_welcome() {
     println!("  Structural governance for AI-assisted development");
     println!();
     println!("  Available commands:");
-    println!("    anvil gate       Run quality gate checks");
-    println!("    anvil watch      Start file watch mode");
     println!("    anvil tutorial   Interactive tutorial");
+    println!("    anvil audit      Run project audit");
     println!("    anvil doctor     Diagnose your environment");
+    println!("    anvil status     Show project status");
     println!();
     println!("  Visit: https://docs.eddacraft.ai");
     println!();
@@ -137,7 +140,7 @@ mod tests {
 
         let mut state = WelcomeState::new();
         assert!(!Surface::should_quit(&state));
-        state.chosen = Some(QuickStartOption::RunGate);
+        state.chosen = Some(QuickStartOption::RunAudit);
         assert!(Surface::should_quit(&state));
     }
 }
