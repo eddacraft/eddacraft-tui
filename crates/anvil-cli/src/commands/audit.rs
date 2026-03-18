@@ -293,9 +293,7 @@ fn generate_next_steps(issues: &[AuditIssue]) -> Vec<String> {
         .filter(|i| i.category == "Documentation")
         .count();
     if todo_count > 0 {
-        steps.push(format!(
-            "Review {todo_count} TODO/FIXME/HACK comment(s)"
-        ));
+        steps.push(format!("Review {todo_count} TODO/FIXME/HACK comment(s)"));
     }
 
     if steps.is_empty() {
@@ -428,10 +426,8 @@ mod tests {
 
     fn make_temp_dir() -> std::path::PathBuf {
         let id = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let dir = std::env::temp_dir().join(format!(
-            "anvil-audit-test-{}-{id}",
-            std::process::id()
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("anvil-audit-test-{}-{id}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("create temp dir");
         dir
@@ -488,17 +484,22 @@ mod tests {
         // Only app.ts should be counted.
         assert_eq!(data.total_files, 1);
         // No issues from skipped dirs.
-        assert!(data
-            .issues
-            .iter()
-            .all(|i| !i.file.contains(".git") && !i.file.contains("node_modules")));
+        assert!(
+            data.issues
+                .iter()
+                .all(|i| !i.file.contains(".git") && !i.file.contains("node_modules"))
+        );
         cleanup(&dir);
     }
 
     #[test]
     fn detects_todo_comment() {
         let dir = make_temp_dir();
-        std::fs::write(dir.join("lib.rs"), "// TODO: fix this later\nfn main() {}\n").unwrap();
+        std::fs::write(
+            dir.join("lib.rs"),
+            "// TODO: fix this later\nfn main() {}\n",
+        )
+        .unwrap();
 
         let data = run_audit(&dir);
         let todo_issues: Vec<_> = data
