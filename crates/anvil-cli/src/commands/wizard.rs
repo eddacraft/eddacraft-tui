@@ -42,6 +42,11 @@ fn builtin_templates() -> Vec<Template> {
 pub fn run(_args: &WizardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let templates = builtin_templates();
 
+    if global.json {
+        print_json_templates(&templates)?;
+        return Ok(());
+    }
+
     if global.no_tui || !std::io::stdout().is_terminal() {
         print_plain_templates(&templates);
         return Ok(());
@@ -57,6 +62,23 @@ pub fn run(_args: &WizardArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn print_json_templates(templates: &[Template]) -> anyhow::Result<()> {
+    let items: Vec<serde_json::Value> = templates
+        .iter()
+        .map(|t| {
+            serde_json::json!({
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "tags": t.tags,
+            })
+        })
+        .collect();
+    let output = serde_json::json!({ "templates": items });
+    println!("{}", serde_json::to_string_pretty(&output)?);
+    Ok(())
+}
+
 fn print_plain_templates(templates: &[Template]) {
     println!();
     println!("  Available templates:");
@@ -69,6 +91,28 @@ fn print_plain_templates(templates: &[Template]) {
     println!();
     println!("  Run `anvil wizard` in an interactive terminal for the guided setup.");
     println!();
+}
+
+fn checks_for_template(template_id: &str) -> Vec<&'static str> {
+    match template_id {
+        "typescript-monorepo" => vec![
+            "secret-scan",
+            "dependency-audit",
+            "architecture-boundary",
+            "import-rules",
+            "antipattern",
+            "policy",
+        ],
+        "rust-workspace" => vec![
+            "secret-scan",
+            "architecture-boundary",
+            "antipattern",
+            "policy",
+        ],
+        "python-package" => vec!["secret-scan", "dependency-audit", "antipattern"],
+        // minimal or unknown — just secret scanning
+        _ => vec!["secret-scan"],
+    }
 }
 
 fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
@@ -90,10 +134,12 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
     let anvil_dir = project_dir.join(".anvil");
     std::fs::create_dir_all(&anvil_dir).context("failed to create .anvil directory")?;
 
+    let checks = checks_for_template(template_id);
     let config = serde_json::json!({
         "template": template_id,
         "watch": state.config.enable_watch,
         "hooks": state.config.enable_hooks,
+        "checks": checks,
     });
     let anvilrc_content = serde_json::to_string_pretty(&config)?;
     std::fs::write(&anvilrc_path, &anvilrc_content).context("failed to write .anvilrc")?;
@@ -193,6 +239,12 @@ mod tests {
         assert_eq!(parsed["template"], "typescript-monorepo");
         assert_eq!(parsed["watch"], true);
         assert_eq!(parsed["hooks"], false);
+        let checks = parsed["checks"].as_array().unwrap();
+        assert!(
+            checks.len() > 1,
+            "typescript-monorepo should have multiple checks"
+        );
+        assert!(checks.contains(&serde_json::json!("architecture-boundary")));
     }
 
     #[test]
@@ -231,5 +283,67 @@ mod tests {
         let rc_content = std::fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         assert_eq!(parsed["template"], "minimal");
+        let checks = parsed["checks"].as_array().unwrap();
+        assert_eq!(checks, &[serde_json::json!("secret-scan")]);
+    }
+
+    #[test]
+    fn checks_for_template_varies_by_template() {
+        let ts = checks_for_template("typescript-monorepo");
+        assert!(ts.contains(&"architecture-boundary"));
+        assert!(ts.contains(&"import-rules"));
+
+        let rust = checks_for_template("rust-workspace");
+        assert!(rust.contains(&"architecture-boundary"));
+        assert!(!rust.contains(&"import-rules"));
+
+        let python = checks_for_template("python-package");
+        assert!(python.contains(&"dependency-audit"));
+        assert!(!python.contains(&"architecture-boundary"));
+
+        let minimal = checks_for_template("minimal");
+        assert_eq!(minimal, vec!["secret-scan"]);
+    }
+
+    #[test]
+    fn json_templates_output_is_valid() {
+        let templates = builtin_templates();
+        let items: Vec<serde_json::Value> = templates
+            .iter()
+            .map(|t| {
+                serde_json::json!({
+                    "id": t.id,
+                    "name": t.name,
+                    "description": t.description,
+                    "tags": t.tags,
+                })
+            })
+            .collect();
+        let output = serde_json::json!({ "templates": items });
+        let arr = output["templates"].as_array().unwrap();
+        assert_eq!(arr.len(), 4);
+        assert_eq!(arr[0]["id"], "typescript-monorepo");
+    }
+
+    #[test]
+    fn scaffold_rust_workspace_has_architecture_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let project_name = dir.path().join("rust-proj");
+        let project_name_str = project_name.to_string_lossy().to_string();
+
+        let mut state = WizardState::new(builtin_templates());
+        state.config.project_name = project_name_str;
+        state.config.template_id = Some("rust-workspace".to_string());
+        state.config.enable_watch = false;
+        state.config.enable_hooks = false;
+        state.confirmed = true;
+
+        scaffold_project(&state).unwrap();
+
+        let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
+        let checks = parsed["checks"].as_array().unwrap();
+        assert!(checks.contains(&serde_json::json!("architecture-boundary")));
+        assert!(!checks.contains(&serde_json::json!("import-rules")));
     }
 }
