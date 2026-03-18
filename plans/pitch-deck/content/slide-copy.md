@@ -89,7 +89,7 @@
 
 ## Slide 6: Product
 
-**Headline**: Built in Rust. Runs in your terminal.
+**Headline**: Built in Rust. No AI inside. 50ms per check.
 
 **Body**:
 - Terminal UI (Ratatui) -- real-time governance watcher
@@ -100,7 +100,7 @@
 
 **Data callout**: N/A -- visual proof
 
-**Presenter notes**: "This is Anvil running in the terminal. The left pane shows the active policy -- the rules your team has defined. The right pane is the real-time signal interceptor -- it shows governance events as they happen. File saved, policy evaluated, architecture checked. The footer shows system logs. The product is built in Rust for performance and ships as a single binary. No runtime dependencies, no Docker containers, no cloud accounts required. It runs where your code runs."
+**Presenter notes**: "This is Anvil running in the terminal. The left pane shows the active policy -- the rules your team has defined. The right pane is the real-time signal interceptor -- it shows governance events as they happen. File saved, policy evaluated, architecture checked. The footer shows system logs. The product is built in Rust for performance and ships as a single binary. No runtime dependencies, no Docker containers, no cloud accounts required. It runs where your code runs. Every check is deterministic -- programmatic, mechanical, repeatable. No AI reviewing AI. The same input always produces the same output. This product plays in the exact space AI struggles with: precision. And it runs in under 50 milliseconds."
 
 ---
 
@@ -157,50 +157,59 @@
 
 ## Slide 10: Traction
 
-**Headline**: [EVIDENCE NEEDED]
-**Subhead**: [EVIDENCE NEEDED -- waitlist numbers, design partners, community metrics]
+**Headline**: Built what others are pitching
 
 **Body**:
-- [EVIDENCE NEEDED: waitlist size and growth rate]
-- [EVIDENCE NEEDED: design partner count and profile]
-- [EVIDENCE NEEDED: open source community metrics (stars, contributors, downloads)]
-- Product maturity: Rust kernel, Ratatui TUI, OPA/Rego engine, authorship attribution
-- Technical validation: persistent semantic graph, incremental analysis operational
+- Production Rust kernel with 6 crates, 50ms deterministic checks
+- OPA/Rego policy engine with line-level authorship attribution
+- Persistent semantic graph for architecture drift detection
+- 5 pilot teams engaged, targeting 10-15 by close
+- Waitlist targeting 5,000+ with developer influencer demos in pipeline
+- Enterprise pipeline via Arkahna's 100+ SaaS client network
+- 2 open source packages released
 
-**Data callout**: [EVIDENCE NEEDED]
+**Data callout**: Competitors in this category are raising on decks. Anvil is raising on a working product. Not vibe-coded -- precision-engineered in a domain where AI fails.
 
-**Presenter notes**: "[To be written when traction data is available. Key talking points should include: early market validation signals, product maturity (this is not a prototype), and any enterprise interest or design partner feedback.]"
+**Presenter notes**: "While other companies in the AI governance space are raising record rounds on pitch decks and prototypes, Anvil is a production-grade system. The Rust kernel, the policy engine, the semantic graph, the authorship attribution -- all built. Precision-engineered in a domain where AI struggles: deterministic analysis, sub-50-millisecond checks, repeatable results. We have 5 pilot teams today and developer influencers lined up to demo ahead of launch. We're targeting 5,000 on the waitlist and 10 to 15 pilot teams by the time we close this round. The product plays in the exact space AI fails at -- precision -- and that's the point."
 
 ---
 
 ## Slide 11: Team
 
-**Headline**: [EVIDENCE NEEDED]
+**Headline**: 25 years building what enterprises buy
 
 **Body**:
-- [EVIDENCE NEEDED: founder bios, relevant experience]
-- [EVIDENCE NEEDED: team composition and key hires]
-- [EVIDENCE NEEDED: advisors]
+- Joshua Boys, Founder and CEO
+- Former Microsoft Azure Lead, Australia
+- CEO of Arkahna -- platform engineering for 100+ SaaS companies over 5 years
+- 25+ years building enterprise software, leading teams, shipping SaaS
+- Advisory bench: senior advisors across enterprise software, startup scaling, and large SaaS
+- Capital efficient: £0 raised, production-grade product delivered
+- First hires are engineering + enterprise-focused CRO -- the team scales with the raise
 
-**Data callout**: [EVIDENCE NEEDED]
+**Data callout**: Built governance tooling from inside the enterprise buying process -- not from a research lab
 
-**Presenter notes**: "[To be written when team information is provided. Key talking points should include: domain expertise in developer tooling and governance, technical depth in systems programming (Rust), and understanding of the enterprise compliance landscape.]"
+**Presenter notes**: "I've spent 25 years in enterprise software -- the last five as CEO of Arkahna, a platform engineering company that works with over 100 SaaS companies. I was the Azure lead in Australia for Microsoft. I know how enterprises buy developer tools, because I've been on both sides of that transaction. Anvil exists because I've watched AI coding tools arrive in my clients' organisations with zero governance. The advisory bench includes senior operators from enterprise, startups, and large SaaS. The team scales with this raise -- first hires are engineers and a CRO. Built to make you trust your AI more -- not by asking you to trust ours."
 
 ---
 
 ## Slide 12: The ask
 
-**Headline**: [EVIDENCE NEEDED -- funding amount]
+**Headline**: Own the category before the window closes
 
 **Body**:
-- [EVIDENCE NEEDED: funding amount]
-- [EVIDENCE NEEDED: use of funds breakdown]
-- [EVIDENCE NEEDED: key milestones this funding enables]
-- [EVIDENCE NEEDED: timeline to next raise / revenue milestones]
+- £3--5M seed round at £15--25M pre-money valuation
+- Category: AI governance -- hottest new category in developer tooling
+- Engineering (~40%): 3--4 hires, scale Rust kernel, platform layer, ecosystem integrations
+- Go-to-Market (~30%): Enterprise-focused CRO + developer advocacy/community
+- Strategic Acquisition (~20%): Acquire platform engineering IP -- clean arm's-length transactions, accelerating maturity
+- Operations (~10%): Compliance certification, infrastructure
+- Milestones: profitability on phase 1, 5,000+ waitlist, 50+ paying teams, enterprise contracts
+- Phase 2 ready: expand to knowledge worker governance -- without further dilution
 
-**Data callout**: [EVIDENCE NEEDED]
+**Data callout**: EU AI Act enforcement: August 2026. 5 months to capture the compliance purchasing wave.
 
-**Presenter notes**: "[To be written when funding details are provided. Structure: amount, use of funds (engineering, go-to-market, compliance certification), milestones (GA launch, first enterprise customers, ARR targets), and what this positions the company for at the next stage.]"
+**Presenter notes**: "We're raising £3--5M to own this category before the compliance window closes. 40% goes to engineering -- scaling the Rust kernel, building the platform layer, and ecosystem integrations. 30% to go-to-market -- an enterprise CRO and developer advocacy to drive bottom-up adoption. 20% to strategic acquisition of platform engineering IP -- proven infrastructure we can absorb rather than rebuild, accelerating our maturity by months. This round gets us to profitability on code governance. That's phase 1. Phase 2 is the bigger thesis: AI governance for all knowledge work -- legal, finance, operations -- starting from the beachhead where the pain is sharpest and the tooling is most mature. We reach phase 2 self-funded. No further dilution required."
 
 ---
 
