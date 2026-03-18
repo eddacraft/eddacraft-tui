@@ -146,9 +146,11 @@ Classify each group into a strategy:
 
 Perform a reachability check: does the project import or use the vulnerable
 package directly? This is a grep-based approximation (search for imports of the
-package name across affected workspace packages), not full code-path analysis.
-Note the result in the report. Still fix if the upgrade is easy, but
-deprioritise if it requires significant effort on an unreachable path.
+package name across affected workspace packages), not full code-path analysis and
+may miss dynamic or aliased imports and other indirect usages that do not mention
+the package name explicitly. Note the result in the report. Still fix if the
+upgrade is easy, but deprioritise if it requires significant effort on an
+unreachable path.
 
 Groups classified as **Escalate** skip execution entirely and go straight to the
 sweep report with their research findings attached.
