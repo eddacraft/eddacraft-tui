@@ -54,7 +54,12 @@ fn run_in(args: &InitArgs, global: &GlobalArgs, root: &Path) -> anyhow::Result<(
         anyhow::bail!(".anvilrc already exists. Use --force to overwrite.");
     }
 
-    if global.no_tui || !std::io::stdout().is_terminal() {
+    if global.json {
+        let config = AnvilConfig::default();
+        generate_config(&config, root)?;
+        let json = serde_json::to_string_pretty(&config)?;
+        println!("{json}");
+    } else if global.no_tui || !std::io::stdout().is_terminal() {
         run_plain(root)?;
     } else {
         run_tui(root)?;
@@ -79,14 +84,23 @@ fn run_tui(root: &Path) -> anyhow::Result<()> {
         state.config.checks
     };
 
+    // Use the selected directory as the init root (not just the planning dir).
+    let init_root = if state.config.directory == "." {
+        root.to_path_buf()
+    } else {
+        root.join(&state.config.directory)
+    };
+    fs::create_dir_all(&init_root)
+        .with_context(|| format!("failed to create directory {}", init_root.display()))?;
+
     let config = AnvilConfig {
         schema_version: SCHEMA_VERSION.to_string(),
-        planning_dir: state.config.directory.clone(),
+        planning_dir: "plans".to_string(),
         format: format_label(state.config.format),
         checks: checks.clone(),
     };
 
-    generate_config(&config, root)?;
+    generate_config(&config, &init_root)?;
     print_success(&config.planning_dir, &checks);
     Ok(())
 }
@@ -99,8 +113,12 @@ fn run_plain(root: &Path) -> anyhow::Result<()> {
 }
 
 fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<()> {
-    let json = serde_json::to_string_pretty(config).context("failed to serialise config")?;
-    fs::write(root.join(".anvilrc"), json).context("failed to write .anvilrc")?;
+    let content = match config.format.as_str() {
+        "toml" => toml_serialise(config),
+        "yaml" => yaml_serialise(config),
+        _ => serde_json::to_string_pretty(config).context("failed to serialise config")?,
+    };
+    fs::write(root.join(".anvilrc"), content).context("failed to write .anvilrc")?;
 
     fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
 
@@ -159,6 +177,32 @@ fn print_success(planning_dir: &str, checks: &[String]) {
     println!("  Checks:    {}", checks.join(", "));
     println!("Run `anvil doctor` to verify your setup.");
     println!();
+}
+
+/// Simple YAML serialisation (no external crate needed for this shape).
+fn yaml_serialise(config: &AnvilConfig) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let _ = writeln!(out, "schemaVersion: \"{}\"", config.schema_version);
+    let _ = writeln!(out, "planningDir: \"{}\"", config.planning_dir);
+    let _ = writeln!(out, "format: \"{}\"", config.format);
+    out.push_str("checks:\n");
+    for check in &config.checks {
+        let _ = writeln!(out, "  - \"{check}\"");
+    }
+    out
+}
+
+/// Simple TOML serialisation.
+fn toml_serialise(config: &AnvilConfig) -> String {
+    use std::fmt::Write;
+    let mut out = String::new();
+    let _ = writeln!(out, "schema_version = \"{}\"", config.schema_version);
+    let _ = writeln!(out, "planning_dir = \"{}\"", config.planning_dir);
+    let _ = writeln!(out, "format = \"{}\"", config.format);
+    let checks: Vec<String> = config.checks.iter().map(|c| format!("\"{c}\"")).collect();
+    let _ = writeln!(out, "checks = [{}]", checks.join(", "));
+    out
 }
 
 fn format_label(fmt: anvil_tui::surfaces::init::ConfigFormat) -> String {
@@ -224,11 +268,12 @@ mod tests {
         assert!(dir.path().join("plans").is_dir());
 
         let content = fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert_eq!(parsed["schemaVersion"], "1.0.0");
-        assert_eq!(parsed["planningDir"], "plans");
-        assert_eq!(parsed["format"], "yaml");
-        assert!(parsed["checks"].as_array().unwrap().len() >= 2);
+        // Default format is YAML, so check as text.
+        assert!(content.contains("schemaVersion: \"1.0.0\""));
+        assert!(content.contains("planningDir: \"plans\""));
+        assert!(content.contains("format: \"yaml\""));
+        assert!(content.contains("secret-detection"));
+        assert!(content.contains("import-boundaries"));
 
         let gitignore = fs::read_to_string(dir.path().join(".gitignore")).unwrap();
         assert!(gitignore.contains(".anvil/cache/"));
@@ -259,8 +304,8 @@ mod tests {
         assert!(result.is_ok());
 
         let content = fs::read_to_string(dir.path().join(".anvilrc")).unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
-        assert_eq!(parsed["schemaVersion"], "1.0.0");
+        assert!(content.contains("schemaVersion"));
+        assert!(content.contains("1.0.0"));
         assert!(!content.contains("old"));
     }
 

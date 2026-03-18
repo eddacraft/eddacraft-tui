@@ -149,13 +149,16 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
 }
 
 fn parse_gate_entry(key: &str, val: &serde_json::Value) -> Option<GateRunResult> {
-    // Key format: "gate:<file>:<unix_timestamp>"
-    let timestamp_str = key.rsplit(':').next()?;
-    let ts: i64 = timestamp_str.parse().ok()?;
+    // Try timestamp from the last colon-separated segment of the key.
+    // Falls back to `created_at` field in the entry metadata (used by the
+    // runtime file-cache provider whose keys are `gate:check:<name>:<hash>`).
+    let ts: i64 = key
+        .rsplit(':')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| val.get("created_at").and_then(serde_json::Value::as_i64))?;
 
-    // Format as ISO-ish date string.
-    let secs = ts;
-    let timestamp = format_unix_timestamp(secs);
+    let timestamp = format_unix_timestamp(ts);
 
     let passed = val
         .get("passed")

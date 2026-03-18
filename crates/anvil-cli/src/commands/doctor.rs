@@ -18,7 +18,7 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mut checks = run_all_checks();
 
     if args.fix {
-        apply_fixes(&mut checks);
+        apply_fixes(&mut checks, global.json);
     }
 
     if global.json {
@@ -320,7 +320,7 @@ fn check_hooks_installed() -> DiagnosticCheck {
 
 // --- Fix application ---
 
-fn apply_fixes(checks: &mut [DiagnosticCheck]) {
+fn apply_fixes(checks: &mut [DiagnosticCheck], quiet: bool) {
     for check in checks.iter_mut() {
         if !check.auto_fixable || check.status == CheckStatus::Pass {
             continue;
@@ -332,7 +332,9 @@ fn apply_fixes(checks: &mut [DiagnosticCheck]) {
                     check.status = CheckStatus::Pass;
                     check.message = "git repository initialised".to_string();
                     check.auto_fixable = false;
-                    println!("  Fixed: git-repo — initialised git repository");
+                    if !quiet {
+                        println!("  Fixed: git-repo — initialised git repository");
+                    }
                 }
             }
             "config-exists" => {
@@ -341,7 +343,9 @@ fn apply_fixes(checks: &mut [DiagnosticCheck]) {
                     check.status = CheckStatus::Pass;
                     check.message = ".anvilrc created with defaults".to_string();
                     check.auto_fixable = false;
-                    println!("  Fixed: config-exists — created .anvilrc");
+                    if !quiet {
+                        println!("  Fixed: config-exists — created .anvilrc");
+                    }
                 }
             }
             "anvil-dir" => {
@@ -349,7 +353,9 @@ fn apply_fixes(checks: &mut [DiagnosticCheck]) {
                     check.status = CheckStatus::Pass;
                     check.message = ".anvil/ directory created".to_string();
                     check.auto_fixable = false;
-                    println!("  Fixed: anvil-dir — created .anvil/ directory");
+                    if !quiet {
+                        println!("  Fixed: anvil-dir — created .anvil/ directory");
+                    }
                 }
             }
             _ => {}
@@ -547,7 +553,7 @@ mod tests {
     #[test]
     fn apply_fixes_on_empty_list() {
         let mut checks = vec![];
-        apply_fixes(&mut checks);
+        apply_fixes(&mut checks, true);
         assert!(checks.is_empty());
     }
 }
