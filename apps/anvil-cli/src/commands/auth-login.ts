@@ -56,7 +56,15 @@ interface StoredCredentials {
 }
 
 function getApiUrl(opts: AuthLoginOptions): string {
-  return opts.apiUrl ?? process.env['ANVIL_API_URL'] ?? 'https://api.eddacraft.ai/api/v1';
+  const raw = opts.apiUrl ?? process.env['ANVIL_API_URL'] ?? 'https://api.eddacraft.ai';
+
+  // Normalize: strip /api/v1 suffix if present so the base URL is
+  // always the bare origin. apiPost() prepends /api/v1 to endpoints.
+  const trimmed = raw.replace(/\/+$/, '');
+  if (trimmed.endsWith('/api/v1')) {
+    return trimmed.slice(0, -'/api/v1'.length);
+  }
+  return trimmed;
 }
 
 function getCredentialsPath(): string {
@@ -92,7 +100,7 @@ function prompt(question: string): Promise<string> {
 }
 
 async function apiPost<T>(baseUrl: string, endpoint: string, body: unknown): Promise<T> {
-  const url = `${baseUrl.replace(/\/+$/, '')}${endpoint}`;
+  const url = `${baseUrl.replace(/\/+$/, '')}/api/v1${endpoint}`;
 
   let res: Response;
   try {

@@ -8,8 +8,8 @@
 set -e
 
 PACKAGE="@eddacraft/anvil-cli@latest"
-MIN_NODE_MAJOR=20
-MIN_NODE_MINOR=19
+MIN_NODE_MAJOR=20   # Together with MIN_NODE_MINOR, this enforces >= 20.19.0 (as documented)
+MIN_NODE_MINOR=19   # i.e., minimum version is 20.19.0 and above
 
 # --- Helpers ----------------------------------------------------------------
 
@@ -53,8 +53,20 @@ check_node() {
   node_major="$(printf '%s' "$node_version" | cut -d. -f1)"
   node_minor="$(printf '%s' "$node_version" | cut -d. -f2)"
 
-  if [ "$node_major" -lt "$MIN_NODE_MAJOR" ] 2>/dev/null || \
-     { [ "$node_major" -eq "$MIN_NODE_MAJOR" ] && [ "$node_minor" -lt "$MIN_NODE_MINOR" ]; } 2>/dev/null; then
+  case "$node_major" in
+    ''|*[!0-9]*)
+      fail "Unrecognised Node.js version format: ${node_version}"
+      ;;
+  esac
+
+  case "$node_minor" in
+    ''|*[!0-9]*)
+      fail "Unrecognised Node.js version format: ${node_version}"
+      ;;
+  esac
+
+  if [ "$node_major" -lt "$MIN_NODE_MAJOR" ] || \
+     { [ "$node_major" -eq "$MIN_NODE_MAJOR" ] && [ "$node_minor" -lt "$MIN_NODE_MINOR" ]; }; then
     fail "Node.js ${node_version} found, but >= ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}.0 is required. Update at https://nodejs.org"
   fi
 
