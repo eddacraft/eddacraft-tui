@@ -148,8 +148,8 @@ Band mapping:
 **Files:**
 
 - Create: `packages/anvil/core/src/provenance/store.ts`
-- Create: `packages/anvil/core/src/provenance/store.sqlite.ts` (or existing DB
-  adapter)
+- Create: `packages/anvil/core/src/provenance/store.sqlite.ts` (or existing
+  DB adapter)
 - Test: `packages/anvil/core/src/provenance/store.test.ts`
 
 Requirements:

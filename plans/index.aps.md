@@ -474,6 +474,7 @@ waves; 39 tasks total.
 | [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
 | [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
 | [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | opa-agent-orchestration, compliance-evidence-workspace |
 
 ### Planned — 0.4.0 (Edda Stack — Memory System)
 
@@ -1352,6 +1353,9 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 - **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
   ([ADR](./decisions/013-eval-harness-adoption.md))
+- **D-014:** Language Allocation Tree (TypeScript vs Rust) — default to TypeScript
+  for orchestration/UX, promote hot paths to Rust when benchmark thresholds are breached
+  ([ADR](./decisions/014-language-allocation-tree-ts-vs-rust.md))
 
 ## Open Questions
 
