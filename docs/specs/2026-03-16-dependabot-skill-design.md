@@ -181,7 +181,7 @@ Classify each finding:
 | Classification       | Meaning                                                                                                                                                                     |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Apply suggestion** | Copilot's diff is correct, apply it                                                                                                                                         |
-| **Fix differently**  | Finding is valid but write a better fix, note why deviated. Must be confined to the same file — if the better fix requires cross-file changes, classify as Escalate instead |
+| **Fix differently**  | Finding is valid but write a better fix, note why deviated                                                                                                                  |
 | **Dismiss**          | Finding is invalid or code is intentionally written that way                                                                                                                |
 | **Escalate**         | Fix is cross-file, behaviour-changing, or needs domain knowledge                                                                                                            |
 
