@@ -22,7 +22,7 @@ system wearing different form factors.
 |---|---------|-----------|--------|-----------------|
 | 1 | **CLI** | Rust / clap | In Development | Engineers (CI/CD, scripts, daily workflow) |
 | 2 | **TUI** | Rust / Ratatui | Complete | Engineers (interactive terminal sessions) |
-| 3 | **Web Dashboard** | Next.js 16 / Tailwind 4 / shadcn/ui | Ready | Tech Leads, Principals, CTOs |
+| 3 | **Web Dashboard** | Next.js 16 / Tailwind 4 / shadcn/ui | Planned | Tech Leads, Principals, CTOs |
 | 4 | **Documentation Site** | Docusaurus / Vercel | Deployed | All users (onboarding, reference) |
 | 5 | **VS Code Extension** | VS Code API | Deployed | Engineers (real-time diagnostics) |
 | 6 | **MCP Server** | Node.js / MCP Protocol | Deployed | AI Agents (tool integration) |
@@ -277,8 +277,10 @@ Non-interactive commands (no TUI surface):
 - **Exit codes are contracts:**
   - `0` — Success
   - `1` — General error
-- **Structured output:** `--json` serialises the same data the TUI consumes.
-  CI consumers depend on this contract.
+- **Structured output:** `--json` is supported on commands that have data to
+  serialise (e.g., `status`, `doctor`). Interactive-only commands (`tutorial`,
+  `welcome`) fall back to plain text or TUI and do not honour `--json`.
+  CI consumers should verify `--json` support per command.
 
 ### 7.4 Demo Scenarios (Marketing / Video)
 
@@ -523,6 +525,10 @@ Shared dashboard components (all in `components/dashboard/`):
 
 1. **Quickstart:** Walk through `docs/public/anvil/quickstart.md` (served at
    `/anvil/quickstart`) — from install to first gate check in under 5 minutes.
+   *(Note: the quickstart currently documents the TypeScript CLI surface —
+   commands like `anvil login`, `anvil check`, and `anvil watch` are not
+   available in the Rust CLI. Update the quickstart before using it in Rust CLI
+   demos.)*
 2. **Concept deep-dive:** Show a concept page with embedded CLI output and
    architecture diagrams.
 
@@ -574,8 +580,12 @@ Shared dashboard components (all in `components/dashboard/`):
 The MCP server is not visually rendered — it is an API surface. However, it is
 customer-facing because AI agents present its output to users.
 
-- **Tool responses:** Return structured JSON matching the same contracts the CLI
-  and dashboard consume.
+- **Tool responses:** Return structured JSON. Note that MCP tool responses and
+  CLI `--json` output use different schemas today — for example, `anvil_status`
+  returns `{status, workspaceRoot, availableChecks, config, hasBaseline,
+  version}` while `anvil status --json` serialises `{hooks, profile,
+  recent_runs}`. Consumers should not assume the two surfaces share a single
+  contract; schema unification is a future goal.
 - **Resource descriptions:** Use declarative, technical language. No marketing
   copy.
 - **Error messages:** Return `isError: true` with a JSON text body shaped as
