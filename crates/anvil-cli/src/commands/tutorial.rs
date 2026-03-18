@@ -26,7 +26,7 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         return reset_progress(&progress_path);
     }
 
-    if global.no_tui || !std::io::stdout().is_terminal() {
+    if global.no_tui || !std::io::stdout().is_terminal() || !std::io::stdin().is_terminal() {
         println!("Tutorial requires an interactive terminal. Run without --no-tui.");
         return Ok(());
     }
