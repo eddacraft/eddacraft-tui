@@ -290,18 +290,6 @@ mod tests {
         }
     }
 
-    fn buffer_to_string(buf: &ratatui::buffer::Buffer) -> String {
-        let area = buf.area;
-        let mut output = String::new();
-        for y in area.y..area.y + area.height {
-            for x in area.x..area.x + area.width {
-                output.push_str(buf[(x, y)].symbol());
-            }
-            output.push('\n');
-        }
-        output
-    }
-
     #[test]
     fn renders_without_panic() {
         let backend = TestBackend::new(80, 24);
@@ -322,11 +310,14 @@ mod tests {
         let theme = EddaCraftTheme;
 
         terminal
-            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .draw(|frame| {
+                let content = crate::shell::render_shell(frame, frame.area(), "Gate", "j/k navigate  enter expand  / search  q quit", &theme);
+                render(frame, content, &state, &theme);
+            })
             .unwrap();
 
         let buf = terminal.backend().buffer().clone();
-        insta::assert_snapshot!(buffer_to_string(&buf));
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
     }
 
     #[test]
@@ -338,11 +329,14 @@ mod tests {
         let theme = EddaCraftTheme;
 
         terminal
-            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .draw(|frame| {
+                let content = crate::shell::render_shell(frame, frame.area(), "Gate", "j/k navigate  enter expand  / search  q quit", &theme);
+                render(frame, content, &state, &theme);
+            })
             .unwrap();
 
         let buf = terminal.backend().buffer().clone();
-        insta::assert_snapshot!(buffer_to_string(&buf));
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
     }
 
     #[test]

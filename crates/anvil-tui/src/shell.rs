@@ -48,60 +48,9 @@ pub fn render_shell(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::snapshot::buffer_to_string;
     use ratatui::backend::TestBackend;
-    use ratatui::style::Color;
     use ratatui::Terminal;
-
-    fn style_annotation(cell: &ratatui::buffer::Cell) -> String {
-        let has_fg = cell.fg != Color::Reset;
-        let has_bg = cell.bg != Color::Reset;
-        let has_mod = !cell.modifier.is_empty();
-
-        if !has_fg && !has_bg && !has_mod {
-            return String::new();
-        }
-
-        let mut parts: Vec<String> = Vec::new();
-        if has_fg {
-            parts.push(format!("fg:{}", cell.fg));
-        }
-        if has_bg {
-            parts.push(format!("bg:{}", cell.bg));
-        }
-        if cell.modifier.contains(Modifier::BOLD) {
-            parts.push("bold".into());
-        }
-        if cell.modifier.contains(Modifier::DIM) {
-            parts.push("dim".into());
-        }
-        if cell.modifier.contains(Modifier::ITALIC) {
-            parts.push("italic".into());
-        }
-        if cell.modifier.contains(Modifier::UNDERLINED) {
-            parts.push("underlined".into());
-        }
-        if cell.modifier.contains(Modifier::REVERSED) {
-            parts.push("reversed".into());
-        }
-        if cell.modifier.contains(Modifier::CROSSED_OUT) {
-            parts.push("crossed_out".into());
-        }
-        format!("[{}]", parts.join(","))
-    }
-
-    fn buffer_to_string(buf: &ratatui::buffer::Buffer) -> String {
-        let area = buf.area;
-        let mut output = String::new();
-        for y in area.y..area.y + area.height {
-            for x in area.x..area.x + area.width {
-                let cell = &buf[(x, y)];
-                output.push_str(cell.symbol());
-                output.push_str(&style_annotation(cell));
-            }
-            output.push('\n');
-        }
-        output
-    }
 
     #[test]
     fn renders_without_panic() {
