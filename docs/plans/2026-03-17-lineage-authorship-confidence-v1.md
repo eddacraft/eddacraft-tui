@@ -40,9 +40,9 @@ adapters, real-time IDE overlays.
 
 **Files:**
 
-- Create: `packages/shared/src/provenance/attribution.schema.ts`
-- Create: `packages/shared/src/provenance/attribution.types.ts`
-- Test: `packages/shared/src/provenance/attribution.schema.test.ts`
+- Create: `packages/anvil/contracts/src/provenance/attribution.schema.ts`
+- Create: `packages/anvil/contracts/src/provenance/attribution.types.ts`
+- Test: `packages/anvil/contracts/src/provenance/attribution.schema.test.ts`
 
 Deliverables:
 
@@ -58,8 +58,8 @@ Deliverables:
 
 **Files:**
 
-- Create: `packages/shared/src/provenance/confidence-reasons.ts`
-- Test: `packages/shared/src/provenance/confidence-reasons.test.ts`
+- Create: `packages/anvil/contracts/src/provenance/confidence-reasons.ts`
+- Test: `packages/anvil/contracts/src/provenance/confidence-reasons.test.ts`
 
 Reason code set (initial):
 
@@ -78,21 +78,22 @@ Reason code set (initial):
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/services/provenance/git-collector.ts`
-- Test: `apps/anvil-cli/src/services/provenance/git-collector.test.ts`
+- Create: `packages/anvil/core/src/provenance/git-collector.ts`
+- Test: `packages/anvil/core/src/provenance/git-collector.test.ts`
 
 Collect:
 
 - commit metadata, author/committer
 - hunks/line ranges for changed files
-- git notes (if present)
+- git notes — auto-fetch `refs/notes/ai` from remote when not present locally
+  (mirrors the existing `authorship` command's fetch hint)
 
 ### Task 4: AI/session metadata collector
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/services/provenance/session-collector.ts`
-- Test: `apps/anvil-cli/src/services/provenance/session-collector.test.ts`
+- Create: `packages/anvil/core/src/provenance/session-collector.ts`
+- Test: `packages/anvil/core/src/provenance/session-collector.test.ts`
 
 Collect:
 
@@ -104,8 +105,8 @@ Collect:
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/services/provenance/reconciler.ts`
-- Test: `apps/anvil-cli/src/services/provenance/reconciler.test.ts`
+- Create: `packages/anvil/core/src/provenance/reconciler.ts`
+- Test: `packages/anvil/core/src/provenance/reconciler.test.ts`
 
 Rules:
 
@@ -121,8 +122,8 @@ Rules:
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/services/provenance/confidence-engine.ts`
-- Test: `apps/anvil-cli/src/services/provenance/confidence-engine.test.ts`
+- Create: `packages/anvil/core/src/provenance/confidence-engine.ts`
+- Test: `packages/anvil/core/src/provenance/confidence-engine.test.ts`
 
 Initial scoring profile:
 
@@ -146,10 +147,10 @@ Band mapping:
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/services/provenance/store.ts`
-- Create: `apps/anvil-cli/src/services/provenance/store.sqlite.ts` (or existing
+- Create: `packages/anvil/core/src/provenance/store.ts`
+- Create: `packages/anvil/core/src/provenance/store.sqlite.ts` (or existing
   DB adapter)
-- Test: `apps/anvil-cli/src/services/provenance/store.test.ts`
+- Test: `packages/anvil/core/src/provenance/store.test.ts`
 
 Requirements:
 
@@ -160,9 +161,8 @@ Requirements:
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/commands/authorship-blame.ts`
-- Modify: `apps/anvil-cli/src/index.ts` (command wiring)
-- Test: `apps/anvil-cli/src/commands/authorship-blame.test.ts`
+- Modify: `apps/anvil-cli/src/commands/authorship.ts` (add `blame` subcommand)
+- Test: `apps/anvil-cli/src/commands/authorship.test.ts`
 
 Output:
 
@@ -172,8 +172,8 @@ Output:
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/commands/authorship-summary.ts`
-- Test: `apps/anvil-cli/src/commands/authorship-summary.test.ts`
+- Modify: `apps/anvil-cli/src/commands/authorship.ts` (add `summary` subcommand)
+- Test: `apps/anvil-cli/src/commands/authorship.test.ts`
 
 Output:
 
@@ -188,9 +188,9 @@ Output:
 
 **Files:**
 
-- Create: `apps/anvil-cli/src/services/provenance/signer.ts`
+- Create: `packages/anvil/core/src/provenance/signer.ts`
 - Modify: `packages/platform/crypto/...` (minimal additions if needed)
-- Test: `apps/anvil-cli/src/services/provenance/signer.test.ts`
+- Test: `packages/anvil/core/src/provenance/signer.test.ts`
 
 Behavior:
 

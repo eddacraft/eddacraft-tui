@@ -474,7 +474,7 @@ waves; 39 tasks total.
 | [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
 | [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
 | [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
-| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | opa-agent-orchestration, compliance-evidence-workspace, rust-kernel |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | opa-agent-orchestration, compliance-evidence-workspace |
 
 ### Planned — 0.4.0 (Edda Stack — Memory System)
 
