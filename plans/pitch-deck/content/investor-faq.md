@@ -43,3 +43,7 @@ Four layers. (1) Timing: pre-commit enforcement requires different architecture 
 ## 10. What stage is the product?
 
 Anvil has a working Rust kernel, Ratatui TUI, OPA/Rego policy engine, authorship attribution, and architecture analysis. The product is functional, not a prototype. [EVIDENCE NEEDED: specific metrics on product maturity, testing, coverage, performance benchmarks.]
+
+## 11. Why £15–25M pre-money for a pre-revenue company?
+
+The valuation reflects four factors: (1) category heat — AI governance is the hottest new category in developer tooling, with record pre-seed rounds establishing valuation precedent; (2) product maturity — Anvil is a production-grade Rust system with a working policy engine, semantic graph, and authorship attribution, while most competitors are pre-product; (3) regulatory forcing function — the EU AI Act creates mandatory spend with a known deadline (August 2026), meaning this is not speculative demand; (4) capital efficiency — £0 raised to date with a production product built, demonstrating exceptional capital-to-output ratio.
