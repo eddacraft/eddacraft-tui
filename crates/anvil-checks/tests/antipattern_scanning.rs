@@ -4,10 +4,9 @@
 //! realistic code snippets that represent genuine development scenarios.
 
 use anvil_checks::antipattern::{
-    AntipatternCheckConfig, ScanOptions, WarningSeverity, count_by_severity,
-    create_warning_result, get_default_patterns, get_enabled_patterns, get_pattern_ids,
-    is_valid_pattern_id, run_antipattern_check, scan_file, scan_files,
-    validate_warning_result_consistency,
+    AntipatternCheckConfig, ScanOptions, WarningSeverity, count_by_severity, create_warning_result,
+    get_default_patterns, get_enabled_patterns, get_pattern_ids, is_valid_pattern_id,
+    run_antipattern_check, scan_file, scan_files, validate_warning_result_consistency,
 };
 
 // ---------------------------------------------------------------------------
@@ -63,7 +62,7 @@ fn default_patterns_exclude_opt_in() {
 
 #[test]
 fn detects_explicit_any_in_realistic_service() {
-    let content = r#"
+    let content = r"
 import { Injectable } from '@nestjs/common';
 
 @Injectable()
@@ -75,7 +74,7 @@ export class UserService {
     return result.rows[0] as any;
   }
 }
-"#;
+";
 
     let result = scan_file("src/services/user.service.ts", content, None);
     let any_warnings: Vec<_> = result
@@ -92,14 +91,14 @@ export class UserService {
 
 #[test]
 fn detects_empty_catch_block_in_error_handler() {
-    let content = r#"
+    let content = r"
 export async function fetchData(url: string) {
   try {
     const response = await fetch(url);
     return response.json();
   } catch (err) {}
 }
-"#;
+";
 
     let result = scan_file("src/api/client.ts", content, None);
     assert!(
@@ -157,7 +156,11 @@ fn detects_inline_style_in_html() {
         .filter(|w| w.id == "AP-008")
         .collect();
 
-    assert_eq!(style_warnings.len(), 1, "should find exactly 1 inline style");
+    assert_eq!(
+        style_warnings.len(),
+        1,
+        "should find exactly 1 inline style"
+    );
 }
 
 #[test]
@@ -227,7 +230,7 @@ fn detects_important_in_css() {
         patterns: Some(vec!["AP-012".to_string()]),
         include_opt_in: true,
     };
-    let content = r#"
+    let content = r"
 .header {
   background-color: #1a1a2e !important;
   color: white;
@@ -235,10 +238,14 @@ fn detects_important_in_css() {
 .override {
   margin: 0 !important;
 }
-"#;
+";
 
     let result = scan_file("styles/layout.css", content, Some(&options));
-    assert_eq!(result.warnings.len(), 2, "should find two !important usages");
+    assert_eq!(
+        result.warnings.len(),
+        2,
+        "should find two !important usages"
+    );
 }
 
 #[test]
@@ -252,7 +259,11 @@ fn detects_css_import() {
                    body { font-family: 'Inter', sans-serif; }\n";
 
     let result = scan_file("styles/main.css", content, Some(&options));
-    assert_eq!(result.warnings.len(), 2, "should find two @import statements");
+    assert_eq!(
+        result.warnings.len(),
+        2,
+        "should find two @import statements"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -326,11 +337,11 @@ const bridge: any = legacyModule.connect();\n";
     let result = scan_file("src/bridge.ts", content, None);
     assert_eq!(result.warnings.len(), 1);
     let w = &result.warnings[0];
-    assert!(w.suppressed.is_some(), "warning should be marked suppressed");
-    assert_eq!(
-        w.suppressed.as_ref().unwrap().reason,
-        "legacy bridge type"
+    assert!(
+        w.suppressed.is_some(),
+        "warning should be marked suppressed"
     );
+    assert_eq!(w.suppressed.as_ref().unwrap().reason, "legacy bridge type");
 }
 
 #[test]
@@ -447,7 +458,10 @@ fn suppressed_warnings_do_not_count_towards_failure() {
     let files = [fs.as_str()];
     let result = run_antipattern_check(&files, &config, None);
 
-    assert!(result.passed, "suppressed warnings should not cause failure");
+    assert!(
+        result.passed,
+        "suppressed warnings should not cause failure"
+    );
     assert_eq!(result.score, 100);
     assert_eq!(result.warnings.summary.suppressed, 1);
 
@@ -489,10 +503,8 @@ const b = legacy();\n\
 try { x(); } catch (e) {}\n";
 
     let result = scan_file("src/mixed.ts", content, None);
-    let warning_result = create_warning_result(
-        result.warnings.clone(),
-        result.patterns_checked.clone(),
-    );
+    let warning_result =
+        create_warning_result(result.warnings.clone(), result.patterns_checked.clone());
 
     assert!(validate_warning_result_consistency(&warning_result));
 
@@ -548,7 +560,10 @@ fn realistic_project_scan_finds_expected_issues() {
 
     let handler = dir.join("src/handler.ts").to_string_lossy().to_string();
     let utils = dir.join("src/utils.ts").to_string_lossy().to_string();
-    let page = dir.join("templates/page.html").to_string_lossy().to_string();
+    let page = dir
+        .join("templates/page.html")
+        .to_string_lossy()
+        .to_string();
     let css = dir.join("styles/app.css").to_string_lossy().to_string();
     let files = [
         handler.as_str(),

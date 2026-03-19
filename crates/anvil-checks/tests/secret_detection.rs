@@ -3,9 +3,7 @@
 //! These tests exercise the public API (`anvil_checks::secret::*`) with
 //! realistic file content that mirrors what developers actually commit.
 
-use anvil_checks::secret::{
-    SecretCheckConfig, calculate_entropy, run_secret_check, scan_content,
-};
+use anvil_checks::secret::{SecretCheckConfig, calculate_entropy, run_secret_check, scan_content};
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,7 +49,7 @@ fn temp_dir(label: &str) -> std::path::PathBuf {
 fn detects_aws_secret_key_in_config_module() {
     // The AWS Key pattern (AKIA...) is filtered by `looks_like_code` because
     // it is all-uppercase. The AWS Secret Key pattern matches assignments.
-    let content = r#"
+    let content = r"
 import { S3Client } from '@aws-sdk/client-s3';
 
 const client = new S3Client({
@@ -62,7 +60,7 @@ const client = new S3Client({
 });
 
 export default client;
-"#;
+";
 
     let findings = scan_content(content, "src/infra/s3.ts", &default_config());
     assert!(
@@ -74,9 +72,7 @@ export default client;
 #[test]
 fn detects_github_token_in_env_file() {
     let token = format!("ghp_{}", "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0");
-    let content = format!(
-        "# CI credentials\nGITHUB_TOKEN={token}\nNODE_ENV=production\n"
-    );
+    let content = format!("# CI credentials\nGITHUB_TOKEN={token}\nNODE_ENV=production\n");
 
     let findings = scan_content(&content, ".env.production", &default_config());
     assert!(
@@ -89,7 +85,7 @@ fn detects_github_token_in_env_file() {
 fn detects_stripe_live_key_among_normal_code() {
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
     let content = format!(
-        r#"
+        r"
 import Stripe from 'stripe';
 
 // Initialise Stripe with production key
@@ -100,7 +96,7 @@ const stripe = new Stripe('{stripe_key}', {{
 export async function createPaymentIntent(amount: number) {{
   return stripe.paymentIntents.create({{ amount, currency: 'gbp' }});
 }}
-"#
+"
     );
 
     let findings = scan_content(&content, "src/payments/stripe.ts", &default_config());
@@ -126,9 +122,7 @@ fn detects_generic_password_in_config() {
 
     let findings = scan_content(content, "config/db.ts", &default_config());
     assert!(
-        findings
-            .iter()
-            .any(|f| f.pattern_name == "Generic Secret"),
+        findings.iter().any(|f| f.pattern_name == "Generic Secret"),
         "should detect the password assignment, got: {:?}",
         findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
     );
@@ -158,7 +152,9 @@ fn detects_sendgrid_api_key() {
 
     let findings = scan_content(content, "src/email/config.ts", &default_config());
     assert!(
-        findings.iter().any(|f| f.pattern_name == "SendGrid API Key"),
+        findings
+            .iter()
+            .any(|f| f.pattern_name == "SendGrid API Key"),
         "should detect SendGrid API key, got patterns: {:?}",
         findings.iter().map(|f| &f.pattern_name).collect::<Vec<_>>()
     );
@@ -170,13 +166,13 @@ fn detects_sendgrid_api_key() {
 
 #[test]
 fn does_not_flag_placeholder_values() {
-    let content = r#"
+    let content = r"
 const config = {
   apiKey: 'placeholder-api-key-for-testing',
   secret: 'example-secret-value',
   token: 'test-token-for-local-dev',
 };
-"#;
+";
 
     let findings = scan_content(content, "src/config.ts", &config_without_entropy());
     assert!(
@@ -188,13 +184,13 @@ const config = {
 
 #[test]
 fn does_not_flag_code_identifiers_as_entropy() {
-    let content = r#"
+    let content = r"
 import { readFileSync } from 'node:fs';
 const serviceEndpoint = 'https://api.eddacraft.dev/v2/gate';
 function buildPayloadForArchitecture(id: string): string {
   return `${id}-processed`;
 }
-"#;
+";
 
     let findings = scan_content(content, "src/utils.ts", &config_with_entropy(3.0));
     assert!(
@@ -249,10 +245,7 @@ fn entropy_is_zero_for_repeated_characters() {
 fn entropy_scales_with_character_variety() {
     let low = calculate_entropy("aabbccdd");
     let high = calculate_entropy("9xY7qW2vK8mN4pR6");
-    assert!(
-        high > low,
-        "more varied string should have higher entropy"
-    );
+    assert!(high > low, "more varied string should have higher entropy");
 }
 
 // ---------------------------------------------------------------------------
@@ -264,7 +257,7 @@ fn mixed_file_finds_both_pattern_and_entropy_findings() {
     // Use a Stripe live key (not test — "test" is in the default allowlist)
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
     let content = format!(
-        r#"
+        r"
 // Config for production environment
 export const STRIPE_KEY = '{stripe_key}';
 
@@ -272,7 +265,7 @@ export const STRIPE_KEY = '{stripe_key}';
 export const NONCE = 'Qm9kR3p4VnNNdkxaWlhTamtCdQ==';
 
 export const APP_NAME = 'Anvil';
-"#
+"
     );
 
     let findings = scan_content(&content, "src/config.ts", &config_with_entropy(3.5));
@@ -298,9 +291,7 @@ fn entropy_findings_are_suppressed_on_lines_already_matched_by_pattern() {
     // Stripe pattern should not produce a duplicate entropy finding.
     let entropy_on_stripe_line: Vec<_> = findings
         .iter()
-        .filter(|f| {
-            f.finding_type == anvil_checks::secret::FindingType::Entropy && f.line == 1
-        })
+        .filter(|f| f.finding_type == anvil_checks::secret::FindingType::Entropy && f.line == 1)
         .collect();
     assert!(
         entropy_on_stripe_line.is_empty(),
@@ -318,7 +309,11 @@ fn run_secret_check_on_clean_files_passes() {
     let f1 = dir.join("app.ts");
     let f2 = dir.join("utils.ts");
     std::fs::write(&f1, "export const VERSION = '1.0.0';").unwrap();
-    std::fs::write(&f2, "export function add(a: number, b: number) { return a + b; }").unwrap();
+    std::fs::write(
+        &f2,
+        "export function add(a: number, b: number) { return a + b; }",
+    )
+    .unwrap();
 
     let f1s = f1.to_string_lossy().to_string();
     let f2s = f2.to_string_lossy().to_string();
@@ -340,9 +335,8 @@ fn run_secret_check_scores_degrade_with_findings() {
     // is filtered by `looks_like_code` due to all-uppercase) plus a Stripe key.
     let aws_secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
-    let content = format!(
-        "aws_secret_access_key='{aws_secret}';\nconst secret = '{stripe_key}';\n",
-    );
+    let content =
+        format!("aws_secret_access_key='{aws_secret}';\nconst secret = '{stripe_key}';\n",);
     std::fs::write(&f, content).unwrap();
 
     let fs = f.to_string_lossy().to_string();
@@ -352,11 +346,17 @@ fn run_secret_check_scores_degrade_with_findings() {
     assert!(!result.passed);
     assert!(result.score < 100, "score should be penalised");
     assert!(
-        result.findings.iter().any(|f| f.pattern_name == "AWS Secret Key"),
+        result
+            .findings
+            .iter()
+            .any(|f| f.pattern_name == "AWS Secret Key"),
         "should detect the AWS secret access key"
     );
     assert!(
-        result.findings.iter().any(|f| f.pattern_name == "Stripe Key"),
+        result
+            .findings
+            .iter()
+            .any(|f| f.pattern_name == "Stripe Key"),
         "should detect the Stripe live key"
     );
     assert!(result.findings.len() >= 2, "should find at least 2 secrets");
@@ -455,9 +455,7 @@ fn custom_allowlist_suppresses_known_safe_values() {
 fn findings_never_contain_raw_secrets() {
     let stripe_key = format!("sk_live_{}", "1234567890abcdefghijABCD");
     let github_token = format!("ghp_{}", "a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0");
-    let content = format!(
-        "const stripe = '{stripe_key}';\nconst gh = '{github_token}';\n"
-    );
+    let content = format!("const stripe = '{stripe_key}';\nconst gh = '{github_token}';\n");
 
     let findings = scan_content(&content, "src/secrets.ts", &default_config());
     assert!(

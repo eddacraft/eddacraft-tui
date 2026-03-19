@@ -4,13 +4,12 @@
 //! with realistic shell commands that developers and CI systems run.
 
 use anvil_checks::command_safety::{
+    CommandAction, CommandSafetyConfig, ScriptChange, ScriptChangeType, ScriptPlan,
+};
+use anvil_checks::command_safety::{
     CommandParser, CommandSafetyCheckContext, MatcherContext, RuleMatcher, analyse_command,
     default_filesystem_rules, default_git_rules, find_matching_rule, parse_command,
     parse_compound_command, run_command_safety_check,
-};
-use anvil_checks::command_safety::{
-    CommandAction, CommandSafetyConfig, ScriptChange, ScriptChangeType,
-    ScriptPlan,
 };
 
 // ---------------------------------------------------------------------------
@@ -93,9 +92,7 @@ fn parses_cargo_commands() {
 
 #[test]
 fn parses_typical_ci_pipeline_chain() {
-    let result = parse_compound_command(
-        "npm ci && npm run lint && npm run test && npm run build",
-    );
+    let result = parse_compound_command("npm ci && npm run lint && npm run test && npm run build");
     assert!(result.is_compound);
     assert_eq!(result.commands.len(), 4);
     assert_eq!(result.operators.len(), 3);
@@ -165,10 +162,7 @@ fn unwraps_nested_sudo_bash() {
     let result = parse_compound_command("sudo bash -c \"rm -rf /var/cache\"");
 
     // The compound parser should expose the inner rm command
-    let rm_cmd = result
-        .commands
-        .iter()
-        .find(|c| c.command == "rm");
+    let rm_cmd = result.commands.iter().find(|c| c.command == "rm");
     assert!(rm_cmd.is_some(), "should find the inner rm command");
 
     let rm = rm_cmd.unwrap();
@@ -200,7 +194,10 @@ fn blocks_git_push_force() {
     let rules = all_rules();
     let matched = find_matching_rule(&parsed, &rules, None);
 
-    assert!(matched.is_some(), "should match a rule for git push --force");
+    assert!(
+        matched.is_some(),
+        "should match a rule for git push --force"
+    );
     let rule = matched.unwrap();
     assert_eq!(rule.action, CommandAction::Block);
 }
@@ -211,7 +208,10 @@ fn blocks_git_reset_hard() {
     let rules = all_rules();
     let matched = find_matching_rule(&parsed, &rules, None);
 
-    assert!(matched.is_some(), "should match a rule for git reset --hard");
+    assert!(
+        matched.is_some(),
+        "should match a rule for git reset --hard"
+    );
     assert_eq!(matched.unwrap().action, CommandAction::Block);
 }
 
