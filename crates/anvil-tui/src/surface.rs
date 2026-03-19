@@ -17,3 +17,80 @@ pub trait Surface {
     /// Render the surface content into the given area.
     fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+    use ratatui::text::Line;
+    use ratatui::widgets::Paragraph;
+
+    struct StubSurface {
+        quit: bool,
+    }
+
+    impl Surface for StubSurface {
+        fn surface_name(&self) -> &'static str {
+            "Stub"
+        }
+
+        fn help_text(&self) -> &'static str {
+            "q quit"
+        }
+
+        fn handle_key(&mut self, action: Action) {
+            if action == Action::Quit {
+                self.quit = true;
+            }
+        }
+
+        fn should_quit(&self) -> bool {
+            self.quit
+        }
+
+        fn render(&self, frame: &mut Frame, area: Rect, _theme: &EddaCraftTheme) {
+            let content = Paragraph::new(Line::raw("stub content"));
+            frame.render_widget(content, area);
+        }
+    }
+
+    #[test]
+    fn trait_object_renders_without_panic() {
+        let backend = TestBackend::new(40, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+        let surface: Box<dyn Surface> = Box::new(StubSurface { quit: false });
+
+        terminal
+            .draw(|frame| {
+                surface.render(frame, frame.area(), &theme);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn trait_object_handles_keys() {
+        let mut surface = StubSurface { quit: false };
+        assert!(!surface.should_quit());
+
+        surface.handle_key(Action::Quit);
+        assert!(surface.should_quit());
+    }
+
+    #[test]
+    fn trait_object_metadata() {
+        let surface = StubSurface { quit: false };
+        assert_eq!(surface.surface_name(), "Stub");
+        assert_eq!(surface.help_text(), "q quit");
+    }
+
+    #[test]
+    fn all_concrete_surfaces_implement_trait() {
+        // Verify each concrete surface can be used as a trait object.
+        use crate::surfaces::welcome::WelcomeState;
+        let welcome = WelcomeState::new();
+        let surface: &dyn Surface = &welcome;
+        assert_eq!(surface.surface_name(), "Welcome");
+    }
+}

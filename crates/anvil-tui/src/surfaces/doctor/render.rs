@@ -116,3 +116,114 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
         frame.render_widget(Paragraph::new(Text::from(lines)), detail_area);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    fn sample_state() -> DoctorState {
+        use super::super::DiagnosticCheck;
+
+        DoctorState::new(vec![
+            DiagnosticCheck {
+                name: "Node.js".to_string(),
+                category: "Runtime".to_string(),
+                status: CheckStatus::Pass,
+                message: "v22.0.0 found".to_string(),
+                details: Some("Path: /usr/bin/node".to_string()),
+                auto_fixable: false,
+            },
+            DiagnosticCheck {
+                name: "ESLint config".to_string(),
+                category: "Linting".to_string(),
+                status: CheckStatus::Fail,
+                message: "No .eslintrc found".to_string(),
+                details: Some("Run `npx eslint --init`".to_string()),
+                auto_fixable: true,
+            },
+            DiagnosticCheck {
+                name: "Git hooks".to_string(),
+                category: "Hooks".to_string(),
+                status: CheckStatus::Warn,
+                message: "Hooks not installed".to_string(),
+                details: None,
+                auto_fixable: true,
+            },
+        ])
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_default_state() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Doctor",
+                    "j/k navigate  enter expand  q quit",
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_expanded() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.expanded = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Doctor",
+                    "j/k navigate  enter expand  q quit",
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}
