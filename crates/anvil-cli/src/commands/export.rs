@@ -6,6 +6,7 @@ use crate::GlobalArgs;
 #[derive(Debug, Args)]
 pub struct ExportArgs {}
 
+#[allow(dead_code)]
 pub fn run(_args: &ExportArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
     bail!("not yet implemented")
 }

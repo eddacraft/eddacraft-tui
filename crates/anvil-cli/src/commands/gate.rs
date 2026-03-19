@@ -6,6 +6,7 @@ use crate::GlobalArgs;
 #[derive(Debug, Args)]
 pub struct GateArgs {}
 
+#[allow(dead_code)]
 pub fn run(_args: &GateArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
     bail!("not yet implemented")
 }

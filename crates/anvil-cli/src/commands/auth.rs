@@ -6,6 +6,7 @@ use crate::GlobalArgs;
 #[derive(Debug, Args)]
 pub struct AuthArgs {}
 
+#[allow(dead_code)]
 pub fn run(_args: &AuthArgs, _global: &GlobalArgs) -> anyhow::Result<()> {
     bail!("not yet implemented")
 }
