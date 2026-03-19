@@ -2,7 +2,7 @@ import { gitExecSync } from '@eddacraft/anvil-core';
 
 import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult } from '../types.js';
 
-const MIN_NODE_VERSION = 20;
+const MIN_NODE_VERSION = 22;
 
 function isSpawnBlocked(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
