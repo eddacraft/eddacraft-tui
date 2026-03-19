@@ -249,8 +249,8 @@ fn render_next_steps_panel(
 mod tests {
     use super::*;
     use crate::surface::Surface;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     fn sample_data() -> super::super::AuditData {
         super::super::AuditData {
@@ -307,7 +307,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -326,7 +332,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();

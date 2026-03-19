@@ -49,8 +49,8 @@ pub fn render_shell(
 mod tests {
     use super::*;
     use crate::test_utils::snapshot::buffer_to_string;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn renders_without_panic() {
@@ -74,8 +74,7 @@ mod tests {
         let mut inner = Rect::default();
         terminal
             .draw(|frame| {
-                inner =
-                    render_shell(frame, frame.area(), "Audit", "h/l panels  q quit", &theme);
+                inner = render_shell(frame, frame.area(), "Audit", "h/l panels  q quit", &theme);
             })
             .unwrap();
 

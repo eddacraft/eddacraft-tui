@@ -13,10 +13,10 @@ pub(crate) mod snapshot {
     /// Returns an empty string when the cell has no styling.
     pub fn style_annotation(cell: &ratatui::buffer::Cell) -> String {
         let has_fg = cell.fg != Color::Reset;
-        let has_bg = cell.bg != Color::Reset;
+        let styled_bg = cell.bg != Color::Reset;
         let has_mod = !cell.modifier.is_empty();
 
-        if !has_fg && !has_bg && !has_mod {
+        if !has_fg && !styled_bg && !has_mod {
             return String::new();
         }
 
@@ -24,7 +24,7 @@ pub(crate) mod snapshot {
         if has_fg {
             parts.push(format!("fg:{}", cell.fg));
         }
-        if has_bg {
+        if styled_bg {
             parts.push(format!("bg:{}", cell.bg));
         }
         if cell.modifier.contains(Modifier::BOLD) {

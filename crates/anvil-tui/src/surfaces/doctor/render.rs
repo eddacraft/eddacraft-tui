@@ -120,8 +120,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     fn sample_state() -> DoctorState {
         use super::super::DiagnosticCheck;
@@ -175,7 +175,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Doctor", "j/k navigate  enter expand  q quit", &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Doctor",
+                    "j/k navigate  enter expand  q quit",
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -194,7 +200,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Doctor", "j/k navigate  enter expand  q quit", &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Doctor",
+                    "j/k navigate  enter expand  q quit",
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();

@@ -74,8 +74,8 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn renders_without_panic() {
@@ -98,7 +98,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Welcome", "j/k navigate  enter select  q quit", &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Welcome",
+                    "j/k navigate  enter select  q quit",
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -117,7 +123,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), "Welcome", "j/k navigate  enter select  q quit", &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    "Welcome",
+                    "j/k navigate  enter select  q quit",
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();

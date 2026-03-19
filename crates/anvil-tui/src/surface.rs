@@ -21,8 +21,8 @@ pub trait Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
     use ratatui::text::Line;
     use ratatui::widgets::Paragraph;
 
@@ -90,7 +90,7 @@ mod tests {
         // Verify each concrete surface can be used as a trait object.
         use crate::surfaces::welcome::WelcomeState;
         let welcome = WelcomeState::new();
-        let _surface: &dyn Surface = &welcome;
-        assert_eq!(_surface.surface_name(), "Welcome");
+        let surface: &dyn Surface = &welcome;
+        assert_eq!(surface.surface_name(), "Welcome");
     }
 }

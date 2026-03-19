@@ -231,8 +231,8 @@ fn render_detail(frame: &mut Frame, area: Rect, state: &BrowserState, theme: &Ed
 mod tests {
     use super::*;
     use crate::surface::Surface;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     fn sample_state() -> BrowserState {
         use super::super::{TemplateCategory, TemplateEntry, TemplateVariable};
@@ -297,7 +297,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -316,7 +322,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();
@@ -335,7 +347,13 @@ mod tests {
 
         terminal
             .draw(|frame| {
-                let content = crate::shell::render_shell(frame, frame.area(), Surface::surface_name(&state), Surface::help_text(&state), &theme);
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
                 render(frame, content, &state, &theme);
             })
             .unwrap();

@@ -237,8 +237,8 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     fn sample_state() -> WatchState {
         use super::super::{QueuedChange, RunHistory, WatchData, WatchStats};
