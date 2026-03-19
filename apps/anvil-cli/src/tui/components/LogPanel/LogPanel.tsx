@@ -182,9 +182,9 @@ export function LogPanel({
   useEffect(() => {
     if (autoScroll && filteredEntries.length > 0) {
       const newOffset = Math.max(0, filteredEntries.length - maxVisible);
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      // eslint-disable-next-line @eslint-react/set-state-in-effect
       setScrollOffset(newOffset);
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      // eslint-disable-next-line @eslint-react/set-state-in-effect
       setSelectedIndex(filteredEntries.length - 1);
     }
   }, [filteredEntries.length, autoScroll, maxVisible]);
