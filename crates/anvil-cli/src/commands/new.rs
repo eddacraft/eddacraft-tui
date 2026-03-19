@@ -634,12 +634,12 @@ mod tests {
 
     #[test]
     fn json_output_serialises() {
-        let cats = vec![TemplateCategory {
+        let cats = [TemplateCategory {
             name: "test".into(),
             description: "desc".into(),
             template_count: 1,
         }];
-        let tmpls = vec![TemplateEntry {
+        let tmpls = [TemplateEntry {
             id: "t1".into(),
             name: "T1".into(),
             description: "d".into(),
