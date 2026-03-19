@@ -24,7 +24,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@react-email/components": "^1.0.7",
+    "@react-email/components": "^1.0.10",
     "react": "^19.2.4"
   },
   "devDependencies": {
