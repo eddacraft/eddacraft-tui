@@ -176,3 +176,130 @@ fn render_results_panel(
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::surface::Surface;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    fn sample_state() -> StatusState {
+        use super::super::{GateRunResult, HookStatus, ProfileInfo, StatusData};
+
+        StatusState::new(StatusData {
+            hooks: vec![
+                HookStatus {
+                    name: "pre-commit".to_string(),
+                    active: true,
+                    path: ".husky/pre-commit".to_string(),
+                },
+                HookStatus {
+                    name: "commit-msg".to_string(),
+                    active: false,
+                    path: ".husky/commit-msg".to_string(),
+                },
+            ],
+            profile: ProfileInfo {
+                name: "dev".to_string(),
+                checks: vec![
+                    "eslint".to_string(),
+                    "secret-scan".to_string(),
+                    "architecture".to_string(),
+                ],
+                path: ".anvil/profiles/dev.yaml".to_string(),
+            },
+            recent_runs: vec![
+                GateRunResult {
+                    timestamp: "2026-03-16T10:00:00Z".to_string(),
+                    passed: true,
+                    score: 0.95,
+                    checks_run: 5,
+                    checks_passed: 5,
+                    duration_ms: 2400,
+                },
+                GateRunResult {
+                    timestamp: "2026-03-15T15:30:00Z".to_string(),
+                    passed: false,
+                    score: 0.6,
+                    checks_run: 5,
+                    checks_passed: 3,
+                    duration_ms: 1800,
+                },
+            ],
+        })
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_default_state() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_results_focused() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.focused_panel = StatusPanel::Results;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}

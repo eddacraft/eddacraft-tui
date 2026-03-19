@@ -233,3 +233,138 @@ fn render_stats_panel(frame: &mut Frame, area: Rect, state: &WatchState, theme: 
 
     frame.render_widget(Paragraph::new(Text::from(lines)), inner);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    fn sample_state() -> WatchState {
+        use super::super::{QueuedChange, RunHistory, WatchData, WatchStats};
+
+        WatchState::new(WatchData {
+            status: WatchStatus::Passing,
+            queue: vec![
+                QueuedChange {
+                    file: "src/main.rs".to_string(),
+                    kind: "modified".to_string(),
+                    timestamp: "10:30:01".to_string(),
+                },
+                QueuedChange {
+                    file: "src/lib.rs".to_string(),
+                    kind: "created".to_string(),
+                    timestamp: "10:30:02".to_string(),
+                },
+            ],
+            history: vec![
+                RunHistory {
+                    passed: true,
+                    checks_run: 5,
+                    checks_passed: 5,
+                    duration_ms: 1200,
+                    timestamp: "10:29:50".to_string(),
+                },
+                RunHistory {
+                    passed: false,
+                    checks_run: 5,
+                    checks_passed: 3,
+                    duration_ms: 980,
+                    timestamp: "10:28:30".to_string(),
+                },
+            ],
+            stats: WatchStats {
+                total_runs: 42,
+                pass_rate: 0.88,
+                avg_duration_ms: 1050,
+                files_watched: 128,
+            },
+        })
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_default_state() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_queue_focused() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.focused_panel = WatchPanel::Queue;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_idle_empty() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = WatchState::new(super::super::WatchData {
+            status: WatchStatus::Idle,
+            queue: Vec::new(),
+            history: Vec::new(),
+            stats: super::super::WatchStats {
+                total_runs: 0,
+                pass_rate: 0.0,
+                avg_duration_ms: 0,
+                files_watched: 0,
+            },
+        });
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render(frame, frame.area(), &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}

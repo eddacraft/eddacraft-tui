@@ -44,3 +44,78 @@ pub fn render_shell(
 
     chunks[1]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::snapshot::buffer_to_string;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render_shell(frame, frame.area(), "Watch", "j/k navigate  q quit", &theme);
+            })
+            .unwrap();
+    }
+
+    #[test]
+    fn returns_inner_area() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        let mut inner = Rect::default();
+        terminal
+            .draw(|frame| {
+                inner = render_shell(frame, frame.area(), "Audit", "h/l panels  q quit", &theme);
+            })
+            .unwrap();
+
+        // Inner area should be smaller than the full area (header + footer = 2 rows)
+        assert_eq!(inner.height, 22);
+        assert_eq!(inner.width, 80);
+        assert_eq!(inner.y, 1);
+    }
+
+    #[test]
+    fn snapshot_shell_chrome() {
+        let backend = TestBackend::new(60, 10);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render_shell(
+                    frame,
+                    frame.area(),
+                    "Gate",
+                    "j/k navigate  enter expand  q quit",
+                    &theme,
+                );
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(30, 5);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                render_shell(frame, frame.area(), "Init", "q quit", &theme);
+            })
+            .unwrap();
+    }
+}
