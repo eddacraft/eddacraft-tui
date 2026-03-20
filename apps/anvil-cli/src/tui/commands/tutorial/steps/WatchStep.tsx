@@ -41,7 +41,7 @@ export function WatchStep({
     if (watchTriggered) return;
 
     const root = getWorkspaceRoot();
-    // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+    // eslint-disable-next-line @eslint-react/set-state-in-effect
     setWorkspaceRoot(root);
 
     const watcher = createTutorialWatcher(root, (event: WatchEvent) => {
