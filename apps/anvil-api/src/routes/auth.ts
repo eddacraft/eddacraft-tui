@@ -121,7 +121,7 @@ auth.post('/license/refresh', zValidator('json', verifySchema), async (c) => {
     );
   } catch (err) {
     debug('licence signing failed', { error: String(err) });
-    return c.json({ valid: false, reason: 'internal' });
+    return c.json({ error: 'internal' }, 500);
   }
 
   return c.json({ license: licence });
