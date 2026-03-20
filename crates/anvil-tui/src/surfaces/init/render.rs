@@ -236,3 +236,185 @@ fn render_summary_step(frame: &mut Frame, area: Rect, state: &InitState, theme: 
     ]));
     frame.render_widget(content, inner);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::surface::Surface;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    fn sample_state() -> InitState {
+        use super::super::AvailableCheck;
+
+        InitState::new(vec![
+            AvailableCheck {
+                name: "eslint".to_string(),
+                description: "JS/TS linting".to_string(),
+                enabled: true,
+            },
+            AvailableCheck {
+                name: "secret-scan".to_string(),
+                description: "Detect leaked secrets".to_string(),
+                enabled: true,
+            },
+            AvailableCheck {
+                name: "architecture".to_string(),
+                description: "Boundary enforcement".to_string(),
+                enabled: false,
+            },
+        ])
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_mode_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_format_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.step = InitStep::Format;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_directory_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.step = InitStep::Directory;
+        state.text_input.value = "src/app".to_string();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_checks_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.step = InitStep::Checks;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_summary_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.step = InitStep::Summary;
+        state.config.mode = InitMode::Existing;
+        state.config.format = ConfigFormat::Json;
+        state.config.directory = "/home/user/project".to_string();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}

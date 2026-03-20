@@ -221,3 +221,159 @@ fn render_summary_step(frame: &mut Frame, area: Rect, state: &WizardState, theme
     ]));
     frame.render_widget(content, inner);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::surface::Surface;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    fn sample_state() -> WizardState {
+        use super::super::Template;
+
+        WizardState::new(vec![
+            Template {
+                id: "basic".to_string(),
+                name: "Basic".to_string(),
+                description: "Minimal setup with core checks".to_string(),
+                tags: vec!["starter".to_string()],
+            },
+            Template {
+                id: "full".to_string(),
+                name: "Full".to_string(),
+                description: "All checks, hooks, and watch mode".to_string(),
+                tags: vec!["recommended".to_string()],
+            },
+        ])
+    }
+
+    #[test]
+    fn renders_without_panic() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_template_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_name_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.step = WizardStep::ProjectName;
+        state.text_input.value = "my-project".to_string();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_configure_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.step = WizardStep::Configure;
+        state.config.enable_watch = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_summary_step() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = sample_state();
+        state.step = WizardStep::Summary;
+        state.config.project_name = "my-project".to_string();
+        state.config.template_id = Some("basic".to_string());
+        state.config.enable_watch = true;
+        state.config.enable_hooks = false;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = sample_state();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}

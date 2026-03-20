@@ -8,12 +8,12 @@ pub mod tutorial;
 pub mod welcome;
 pub mod wizard;
 
-// Not yet implemented — uncomment as each command ships:
-// pub mod admin;
-// pub mod architecture;
-// pub mod auth;
-// pub mod export;
-// pub mod gate;
-// pub mod hooks;
-// pub mod policy;
-// pub mod watch;
+// Not yet implemented — exposed for test coverage only.
+pub mod admin;
+pub mod architecture;
+pub mod auth;
+pub mod export;
+pub mod gate;
+pub mod hooks;
+pub mod policy;
+pub mod watch;

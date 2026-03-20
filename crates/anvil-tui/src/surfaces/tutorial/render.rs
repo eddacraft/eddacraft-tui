@@ -184,3 +184,114 @@ fn render_complete(frame: &mut Frame, area: Rect, state: &TutorialState, theme: 
 }
 
 use super::TutorialPath;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::surface::Surface;
+    use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
+
+    #[test]
+    fn renders_without_panic_path_select() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+
+    #[test]
+    fn snapshot_path_select() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_running_phase() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Policy);
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_complete_phase() {
+        let backend = TestBackend::new(80, 20);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = TutorialState::new();
+        state.load_steps(TutorialPath::Drift);
+        // Complete all steps
+        for step in &mut state.steps {
+            step.completed = true;
+        }
+        state.phase = TutorialPhase::Complete;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn renders_in_small_area() {
+        let backend = TestBackend::new(40, 12);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let state = TutorialState::new();
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| render(frame, frame.area(), &state, &theme))
+            .unwrap();
+    }
+}
