@@ -10,9 +10,9 @@ Scopes: BENCH (main)
 
 # Kernel Benchmarking
 
-| ID    | Owner | Status |
-| ----- | ----- | ------ |
-| BENCH | —     | Ready  |
+| ID    | Owner | Status      |
+| ----- | ----- | ----------- |
+| BENCH | —     | In Progress |
 
 ## Purpose
 
@@ -89,7 +89,7 @@ Change status to **Ready** when:
 
 ### BENCH-001: Scale cold graph build benchmarks to 500/1k/5k files
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Validate cold graph build time scales linearly (not quadratically)
   with file count, catching O(n²) regressions in the parse → extract → graph
   pipeline
@@ -106,7 +106,7 @@ Change status to **Ready** when:
 
 ### BENCH-002: Add graph query benchmarks
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Measure `symbols_in_file` and `outgoing_edges` query performance
   on pre-built graphs of varying size, establishing baseline for graph lookups
   that the policy engine depends on
@@ -122,7 +122,7 @@ Change status to **Ready** when:
 
 ### BENCH-003: Add debouncer throughput benchmarks
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Measure debouncer `record` + `tick` cycle throughput under burst
   conditions to establish backpressure limits
 - **Expected Outcome:** Criterion group `debouncer_throughput` with benchmarks
@@ -137,7 +137,7 @@ Change status to **Ready** when:
 
 ### BENCH-004: Add incremental update benchmarks with varied file complexity
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Measure how parse + graph update latency scales with file
   complexity (LOC), not just file count — catching regressions in symbol
   extraction for large files
@@ -154,7 +154,7 @@ Change status to **Ready** when:
 
 ### BENCH-005: Add policy evaluation scaling benchmarks
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Measure how policy evaluation time scales with number of registered
   invariants and delta size, finding the invariant count where evaluation exceeds
   the 100ms budget
@@ -170,7 +170,7 @@ Change status to **Ready** when:
 
 ### BENCH-006: Publish benchmark results to root README
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Add a Rust Kernel Benchmarks section to `README.md` showing
   current Criterion results, performance targets, and instructions for running
   benchmarks locally
@@ -376,7 +376,7 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — Micro-Benchmark Extensions | 6 | Ready |
+| 1 — Micro-Benchmark Extensions | 6 | Complete (6/6) |
 | 2 — Stress Test Harness | 8 | Ready |
 | 3 — CI Integration | 2 | Mixed |
-| **Total** | **16** | — |
+| **Total** | **16** | 6 complete |
