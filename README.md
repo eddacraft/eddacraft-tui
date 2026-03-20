@@ -210,14 +210,18 @@ regression detection. These validate the performance targets defined in the
 | File detection latency (p99)              | < 20ms      | Validated (spike)               |
 | tree-sitter parse (single file)           | < 1ms       | Validated (spike + micro-bench) |
 
-### Existing Benchmark Groups
+### Benchmark Groups
 
-| Group                | What it measures                             | Scale                 |
-| -------------------- | -------------------------------------------- | --------------------- |
-| `cold_graph_build`   | Full scan → parse → graph build              | 10, 50, 100 files     |
-| `incremental_update` | Reparse + graph delta for single file change | 1 file                |
-| `policy_evaluation`  | All H1 invariants evaluated on one delta     | 1 delta, 4 invariants |
-| `event_emission`     | 1000 progress events through mpsc channel    | 1000 events           |
+| Group                       | What it measures                                   | Scale                                |
+| --------------------------- | -------------------------------------------------- | ------------------------------------ |
+| `cold_graph_build`          | Full scan → parse → graph build                    | 10, 50, 100, 500, 1k, 5k files       |
+| `incremental_update`        | Reparse + graph delta for single file change       | 1 file                               |
+| `incremental_update_varied` | Parse + graph update for files of varying size     | 10, 100, 500, 1000 LOC               |
+| `policy_evaluation`         | All H1 invariants evaluated on one delta           | 1 delta, 4 invariants                |
+| `policy_scaling`            | Policy evaluation with varied invariant/delta size | 4–50 invariants × 1–50 symbol deltas |
+| `event_emission`            | 1000 progress events through mpsc channel          | 1000 events                          |
+| `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs              |
+| `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes       |
 
 ### Running Benchmarks
 
@@ -228,8 +232,12 @@ cargo bench --bench kernel
 # Run a specific group
 cargo bench --bench kernel -- cold_graph_build
 cargo bench --bench kernel -- incremental_update
+cargo bench --bench kernel -- incremental_update_varied
 cargo bench --bench kernel -- policy_evaluation
+cargo bench --bench kernel -- policy_scaling
 cargo bench --bench kernel -- event_emission
+cargo bench --bench kernel -- graph_query
+cargo bench --bench kernel -- debouncer_throughput
 ```
 
 Criterion produces HTML reports in `target/criterion/` — open
@@ -239,11 +247,11 @@ previous runs.
 ### Planned Extensions
 
 The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
-defines additional benchmark groups (graph queries, debouncer throughput, varied
-file complexity) and a stress-test harness (`anvil-bench`) for capacity
-discovery — watcher saturation, graph memory ceiling, incremental throughput
-under sustained load, policy scaling, and cold start scaling. See the
-[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for work items.
+defines a stress-test harness (`anvil-bench`) for capacity discovery — watcher
+saturation, graph memory ceiling, incremental throughput under sustained load,
+and cold start scaling. See the
+[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for Phase 2 and Phase
+3 work items.
 
 ## Deployment
 

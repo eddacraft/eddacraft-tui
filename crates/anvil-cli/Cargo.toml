@@ -32,8 +32,5 @@ walkdir = { workspace = true }
 [dev-dependencies]
 tempfile = "3"
 
-[dev-dependencies]
-tempfile = "3"
-
 [lints]
 workspace = true

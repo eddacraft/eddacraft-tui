@@ -40,7 +40,7 @@
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
 - AGOV: agent-governance-patterns (0/7) — Draft
-- BENCH: kernel-benchmarking (0/16) — Ready
+- BENCH: kernel-benchmarking (6/16) — In Progress
 - CPACKS: compliance-policy-packs (0/28) — Draft
 
 ## Conventions

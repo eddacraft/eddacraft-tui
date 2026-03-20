@@ -42,7 +42,7 @@ mod tests {
     #[test]
     fn clone_produces_equal_value() {
         let original = TrustLevel::Boundary;
-        let cloned = original.clone();
+        let cloned = original;
         assert_eq!(original, cloned);
     }
 

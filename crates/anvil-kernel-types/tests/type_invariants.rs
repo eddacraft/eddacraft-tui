@@ -82,7 +82,7 @@ fn error_event_carries_error_payload() {
 
 #[test]
 fn edge_connects_two_distinct_nodes() {
-    let nodes = vec![
+    let nodes = [
         SymbolNode {
             id: 1,
             kind: SymbolKind::Module,
