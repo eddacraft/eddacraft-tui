@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 8/10 |
+| MAINT | @team | In Progress | 9/10 |
 
 ## Purpose
 
@@ -233,7 +233,11 @@ When working on any task across the codebase, note repeated patterns:
   - `apps/anvil-cli/README*` and release docs as needed
 - **Confidence:** high
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Complete
+- **Completed:** 2026-03-21
+- **Notes:** Implemented Option A — added `--confidence` and `--since` flags
+  to `anvil edda list`. Query API already supported both filters; wired up
+  CLI flags with validation and tests.
 - **Origin:** v0.2.1-beta release validation (2026-03-15)
 
 ---

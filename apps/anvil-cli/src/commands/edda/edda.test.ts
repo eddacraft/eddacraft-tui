@@ -52,4 +52,39 @@ describe('edda command', () => {
     );
     expect(subcommands).toHaveLength(5);
   });
+
+  describe('edda list options', () => {
+    it('registers --confidence option', () => {
+      const command = createEddaListCommand();
+      const option = command.options.find((o) => o.long === '--confidence');
+      expect(option).toBeDefined();
+      expect(option?.description).toContain('confidence');
+    });
+
+    it('registers --since option', () => {
+      const command = createEddaListCommand();
+      const option = command.options.find((o) => o.long === '--since');
+      expect(option).toBeDefined();
+      expect(option?.description).toContain('age');
+    });
+
+    it('registers --type option', () => {
+      const command = createEddaListCommand();
+      const option = command.options.find((o) => o.long === '--type');
+      expect(option).toBeDefined();
+    });
+
+    it('registers --status option with active default', () => {
+      const command = createEddaListCommand();
+      const option = command.options.find((o) => o.long === '--status');
+      expect(option).toBeDefined();
+      expect(option?.defaultValue).toBe('active');
+    });
+
+    it('registers --limit option with default 20', () => {
+      const command = createEddaListCommand();
+      const option = command.options.find((o) => o.long === '--limit');
+      expect(option).toBeDefined();
+    });
+  });
 });

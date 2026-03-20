@@ -8,7 +8,7 @@
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
 - CRB: code-review-backlog (29/29) — Complete
-- MAINT: codebase-maintenance (8/10) — In Progress
+- MAINT: codebase-maintenance (9/10) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
