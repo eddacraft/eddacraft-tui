@@ -212,16 +212,16 @@ regression detection. These validate the performance targets defined in the
 
 ### Benchmark Groups
 
-| Group                       | What it measures                                   | Scale                                          |
-| --------------------------- | -------------------------------------------------- | ---------------------------------------------- |
-| `cold_graph_build`          | Full scan → parse → graph build                    | 10, 50, 100, 500, 1k, 5k files                |
-| `incremental_update`        | Reparse + graph delta for single file change       | 1 file                                         |
-| `incremental_update_varied` | Parse + graph update for files of varying size     | 10, 100, 500, 1000 LOC                        |
-| `policy_evaluation`         | All H1 invariants evaluated on one delta           | 1 delta, 4 invariants                          |
-| `policy_scaling`            | Policy evaluation with varied invariant/delta size | 4–50 invariants × 1–50 symbol deltas           |
-| `event_emission`            | 1000 progress events through mpsc channel          | 1000 events                                    |
-| `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs                       |
-| `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes                 |
+| Group                       | What it measures                                   | Scale                                |
+| --------------------------- | -------------------------------------------------- | ------------------------------------ |
+| `cold_graph_build`          | Full scan → parse → graph build                    | 10, 50, 100, 500, 1k, 5k files       |
+| `incremental_update`        | Reparse + graph delta for single file change       | 1 file                               |
+| `incremental_update_varied` | Parse + graph update for files of varying size     | 10, 100, 500, 1000 LOC               |
+| `policy_evaluation`         | All H1 invariants evaluated on one delta           | 1 delta, 4 invariants                |
+| `policy_scaling`            | Policy evaluation with varied invariant/delta size | 4–50 invariants × 1–50 symbol deltas |
+| `event_emission`            | 1000 progress events through mpsc channel          | 1000 events                          |
+| `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs              |
+| `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes       |
 
 ### Running Benchmarks
 

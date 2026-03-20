@@ -68,7 +68,9 @@ fn generate_fixture(file_count: usize) -> TempDir {
 /// Generate a TypeScript source string of approximately `target_loc` lines.
 fn generate_ts_content(target_loc: usize, file_index: usize) -> String {
     let mut lines = Vec::with_capacity(target_loc + 10);
-    lines.push(format!("// Generated file #{file_index} with ~{target_loc} LOC"));
+    lines.push(format!(
+        "// Generated file #{file_index} with ~{target_loc} LOC"
+    ));
     lines.push("import { something } from './utils';".to_string());
     lines.push(String::new());
 
@@ -80,16 +82,14 @@ fn generate_ts_content(target_loc: usize, file_index: usize) -> String {
         lines.push(format!(
             "export function handler_{file_index}_{fn_idx}(input: string): string {{"
         ));
-        lines.push(format!("    const step1 = input.trim();"));
-        lines.push(format!("    const step2 = step1.toUpperCase();"));
-        lines.push(format!(
-            "    const step3 = step2.replace(/[^A-Z]/g, '');"
-        ));
-        lines.push(format!("    if (step3.length === 0) {{"));
-        lines.push(format!("        return 'empty';"));
-        lines.push(format!("    }}"));
-        lines.push(format!("    return step3;"));
-        lines.push(format!("}}"));
+        lines.push("    const step1 = input.trim();".to_string());
+        lines.push("    const step2 = step1.toUpperCase();".to_string());
+        lines.push("    const step3 = step2.replace(/[^A-Z]/g, '');".to_string());
+        lines.push("    if (step3.length === 0) {".to_string());
+        lines.push("        return 'empty';".to_string());
+        lines.push("    }".to_string());
+        lines.push("    return step3;".to_string());
+        lines.push("}".to_string());
         lines.push(String::new());
 
         fn_idx += 1;
@@ -102,7 +102,7 @@ fn generate_ts_content(target_loc: usize, file_index: usize) -> String {
     lines.join("\n")
 }
 
-/// Build a SymbolGraph with the given number of nodes, each belonging to a
+/// Build a [`SymbolGraph`] with the given number of nodes, each belonging to a
 /// distinct file, with import edges connecting roughly 30% of adjacent nodes.
 fn build_graph_fixture(node_count: usize) -> SymbolGraph {
     let mut graph = SymbolGraph::new();
@@ -228,9 +228,7 @@ fn bench_incremental_update_varied(c: &mut Criterion) {
             let updated_bytes = updated.as_bytes();
 
             b.iter(|| {
-                let result = parser
-                    .parse_bytes(path, black_box(updated_bytes))
-                    .unwrap();
+                let result = parser.parse_bytes(path, black_box(updated_bytes)).unwrap();
                 let symbols = extract_symbols(&result.tree, updated_bytes, path, 10_000);
                 let delta = update_file(&mut graph, symbols);
                 black_box(&delta);
@@ -327,12 +325,12 @@ layers:
     // repeatedly to keep evaluation cost realistic.
     for &invariant_count in &[4, 10, 25, 50] {
         // Vary delta size
-        for &delta_symbols in &[1, 10, 50] {
+        for &delta_symbols in &[1u64, 10, 50] {
             let delta = GraphDelta {
-                added_symbols: (0..delta_symbols as u64).collect(),
+                added_symbols: (0..delta_symbols).collect(),
                 removed_symbols: Vec::new(),
                 added_edges: (0..delta_symbols.min(50))
-                    .map(|i| (i as u64, (i as u64 + 1).min(199), EdgeType::Imports))
+                    .map(|i| (i, (i + 1).min(199), EdgeType::Imports))
                     .collect(),
                 removed_edges: Vec::new(),
                 errors: Vec::new(),
@@ -360,8 +358,7 @@ layers:
                                 _ => engine.register(Box::new(PrivilegeExpansion)),
                             }
                         }
-                        let violations =
-                            engine.evaluate(black_box(&delta), &graph, &arch_config);
+                        let violations = engine.evaluate(black_box(&delta), &graph, &arch_config);
                         black_box(&violations);
                     });
                 },
