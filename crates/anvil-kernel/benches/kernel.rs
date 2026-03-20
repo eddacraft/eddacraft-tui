@@ -499,33 +499,40 @@ fn bench_debouncer_throughput(c: &mut Criterion) {
     let mut group = c.benchmark_group("debouncer_throughput");
 
     for &pending_count in &[100, 500, 1000] {
+        // Pre-build changes outside the timed loop so path allocation
+        // doesn't mask debouncer record/tick cost.
+        let changes: Vec<FileChange> = (0..pending_count)
+            .map(|i| FileChange {
+                path: PathBuf::from(format!("src/file_{i}.ts")),
+                kind: ChangeKind::Modified,
+            })
+            .collect();
+
         // Benchmark: record N changes then tick to flush
         group.bench_with_input(
             BenchmarkId::new("record_and_tick", pending_count),
             &pending_count,
             |b, &n| {
-                b.iter(|| {
-                    // Use a zero window so tick() flushes all pending changes
-                    let mut debouncer = Debouncer::new(Duration::from_millis(0), n + 1);
-                    let mut flush_count = 0u32;
+                b.iter_batched(
+                    || changes.clone(),
+                    |prepared| {
+                        let mut debouncer = Debouncer::new(Duration::from_millis(0), n + 1);
+                        let mut flush_count = 0u32;
 
-                    for i in 0..n {
-                        let change = FileChange {
-                            path: PathBuf::from(format!("src/file_{i}.ts")),
-                            kind: ChangeKind::Modified,
-                        };
-                        if debouncer.record(change).is_some() {
-                            flush_count += 1;
+                        for change in prepared {
+                            if debouncer.record(change).is_some() {
+                                flush_count += 1;
+                            }
                         }
-                    }
 
-                    // Flush via tick to measure the full record+tick cycle
-                    if let Some(batch) = debouncer.tick() {
-                        flush_count += 1;
-                        black_box(&batch);
-                    }
-                    black_box(flush_count);
-                });
+                        if let Some(batch) = debouncer.tick() {
+                            flush_count += 1;
+                            black_box(&batch);
+                        }
+                        black_box(flush_count);
+                    },
+                    BatchSize::SmallInput,
+                );
             },
         );
 
@@ -534,22 +541,22 @@ fn bench_debouncer_throughput(c: &mut Criterion) {
             BenchmarkId::new("backpressure_flush", pending_count),
             &pending_count,
             |b, &n| {
-                b.iter(|| {
-                    let mut debouncer = Debouncer::new(Duration::from_secs(60), n / 2);
-                    let mut flush_count = 0u32;
+                b.iter_batched(
+                    || changes.clone(),
+                    |prepared| {
+                        let mut debouncer = Debouncer::new(Duration::from_secs(60), n / 2);
+                        let mut flush_count = 0u32;
 
-                    for i in 0..n {
-                        let change = FileChange {
-                            path: PathBuf::from(format!("src/file_{i}.ts")),
-                            kind: ChangeKind::Modified,
-                        };
-                        if debouncer.record(change).is_some() {
-                            flush_count += 1;
+                        for change in prepared {
+                            if debouncer.record(change).is_some() {
+                                flush_count += 1;
+                            }
                         }
-                    }
 
-                    black_box(flush_count);
-                });
+                        black_box(flush_count);
+                    },
+                    BatchSize::SmallInput,
+                );
             },
         );
     }
