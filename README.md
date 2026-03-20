@@ -250,8 +250,8 @@ The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
 defines a stress-test harness (`anvil-bench`) for capacity discovery — watcher
 saturation, graph memory ceiling, incremental throughput under sustained load,
 and cold start scaling. See the
-[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for Phase 2 and
-Phase 3 work items.
+[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for Phase 2 and Phase
+3 work items.
 
 ## Deployment
 
