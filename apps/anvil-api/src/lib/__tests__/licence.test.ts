@@ -97,9 +97,9 @@ describe('signLicence', () => {
   });
 
   it('throws when tokenExpiresAt is an invalid date string', async () => {
-    await expect(
-      signLicence(makeClaims(), 'not-a-date' as unknown as string)
-    ).rejects.toThrow('Invalid tokenExpiresAt');
+    await expect(signLicence(makeClaims(), 'not-a-date' as unknown as string)).rejects.toThrow(
+      'Invalid tokenExpiresAt'
+    );
   });
 
   it('uses custom ttlDays when provided', async () => {
