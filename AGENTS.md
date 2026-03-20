@@ -38,19 +38,21 @@ with a marketing website and documentation site deployed on Vercel.
 
 ## Key Documents
 
-| Document                      | Purpose                                                    |
-| ----------------------------- | ---------------------------------------------------------- |
-| `plans/aps-rules.md`          | **Read first** — APS format rules for all planning work    |
-| `plans/index.aps.md`          | Root plan — modules, milestones, task IDs, release roadmap |
-| `docs/ARCHITECTURE.md`        | System design and package dependency graph                 |
-| `docs/TESTING.md`             | Testing strategy and best practices                        |
-| `docs/MONOREPO_STRUCTURE.md`  | Package layout and dependency rules                        |
-| `plans/decisions/`            | Architecture Decision Records (ADRs D-000 through D-011)   |
-| `packages/adapters/AGENTS.md` | Adapter framework guide (FormatAdapter, registry)          |
-| `packages/aps/AGENTS.md`      | APS document parser and validator                          |
-| `apps/anvil-cli/AGENTS.md`    | CLI commands, services, TUI components                     |
-| `apps/website/AGENTS.md`      | Next.js marketing site                                     |
-| `apps/docs-site/AGENTS.md`    | Docusaurus documentation hub                               |
+| Document                                                     | Purpose                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------- |
+| `plans/aps-rules.md`                                         | **Read first** — APS format rules for all planning work    |
+| `plans/index.aps.md`                                         | Root plan — modules, milestones, task IDs, release roadmap |
+| `docs/architecture/overview.md`                              | System design and package dependency graph                 |
+| `docs/guides/testing.md`                                     | Testing strategy and best practices                        |
+| `docs/architecture/monorepo-structure.md`                    | Package layout and dependency rules                        |
+| `plans/decisions/`                                           | Architecture Decision Records (ADRs D-000+)                |
+| `plans/modules/lineage-authorship-confidence.aps.md`         | LAC module for line-level authorship + confidence          |
+| `plans/decisions/014-language-allocation-tree-ts-vs-rust.md` | Canonical TS vs Rust allocation policy                     |
+| `packages/adapters/AGENTS.md`                                | Adapter framework guide (FormatAdapter, registry)          |
+| `packages/aps/AGENTS.md`                                     | APS document parser and validator                          |
+| `apps/anvil-cli/AGENTS.md`                                   | CLI commands, services, TUI components                     |
+| `apps/website/AGENTS.md`                                     | Next.js marketing site                                     |
+| `apps/docs-site/AGENTS.md`                                   | Docusaurus documentation hub                               |
 
 ## Technical Overview
 
@@ -58,6 +60,16 @@ Anvil validates AI-generated code changes through **APS (Anvil Plan
 Specification)** – a hash-stable internal format enabling deterministic
 validation. Users work in external formats (SpecKit, BMAD); Anvil translates
 internally.
+
+### Current provenance planning focus
+
+Anvil is actively planning **line-level authorship attribution with confidence**
+(`LAC` module): for any file/line, classify `human | ai | mixed | unknown`,
+capture model identity when known, and expose confidence + reason codes.
+
+Language allocation decisions for this and future mixed-language features are
+governed by ADR-014 (TypeScript by default, promote hot paths to Rust by
+measured thresholds).
 
 ## Planning Work
 
@@ -331,12 +343,12 @@ class MyCheck extends BaseCheck {
 
 ## Documentation
 
-| Document                      | Purpose                       |
-| ----------------------------- | ----------------------------- |
-| `docs/ARCHITECTURE.md`        | System design                 |
-| `docs/TESTING.md`             | Testing best practices        |
-| `plans/decisions/`            | Architecture decision records |
-| `packages/adapters/README.md` | Adapter framework guide       |
+| Document                        | Purpose                       |
+| ------------------------------- | ----------------------------- |
+| `docs/architecture/overview.md` | System design                 |
+| `docs/guides/testing.md`        | Testing best practices        |
+| `plans/decisions/`              | Architecture decision records |
+| `packages/adapters/README.md`   | Adapter framework guide       |
 
 ## Package-Specific Instructions
 

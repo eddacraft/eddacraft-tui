@@ -3,7 +3,7 @@
  * Test Quality Audit Script
  *
  * AST-based analysis of test files to detect violations of testing best practices
- * as documented in docs/TESTING.md.
+ * as documented in docs/guides/testing.md.
  *
  * Usage:
  *   npx tsx scripts/audit-tests.ts          # Console output

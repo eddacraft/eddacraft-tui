@@ -5,7 +5,7 @@
 **Relationship to other documents:**
 
 - This spec refines the Rust kernel originally described in
-  [ADR-011](../../plans/decisions/011-rust-core-engine.md) (Superseded)
+  [ADR-011a](../../plans/decisions/011a-rust-core-engine.md) (Superseded)
 - The [Architecture Evolution](anvil-architecture-evolution.md) document
   supersedes ADR-011 and defines the phased rollout (Current → H1 → H2)
 - The kernel's policy model draws from

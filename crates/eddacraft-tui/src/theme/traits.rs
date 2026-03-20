@@ -8,6 +8,7 @@ pub trait Theme {
     fn error(&self) -> Color;
     fn warning(&self) -> Color;
     fn muted(&self) -> Color;
+    fn border(&self) -> Color;
 
     fn base(&self) -> Style {
         Style::default().fg(self.fg()).bg(self.bg())
@@ -31,7 +32,7 @@ pub trait Theme {
     }
 
     fn border_unfocused(&self) -> Style {
-        Style::default().fg(self.muted())
+        Style::default().fg(self.border())
     }
 
     fn status_ok(&self) -> Style {

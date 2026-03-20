@@ -17,7 +17,8 @@ export interface LicenceClaims {
 
 export async function signLicence(
   claims: LicenceClaims,
-  tokenExpiresAt?: string | Date
+  tokenExpiresAt?: string | Date,
+  ttlDays?: number
 ): Promise<string> {
   const pem = process.env['LICENSE_SIGNING_KEY'];
   if (!pem) {
@@ -26,7 +27,8 @@ export async function signLicence(
 
   const privateKey = await importPKCS8(pem, 'ES256');
   const now = Math.floor(Date.now() / 1000);
-  const maxExp = now + LICENCE_TTL_DAYS * 86400;
+  const effectiveTtl = ttlDays ?? LICENCE_TTL_DAYS;
+  const maxExp = now + effectiveTtl * 86400;
   let tokenExp = maxExp;
   if (tokenExpiresAt) {
     const parsed = Math.floor(new Date(tokenExpiresAt).getTime() / 1000);

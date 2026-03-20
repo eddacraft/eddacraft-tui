@@ -49,32 +49,76 @@ Sanity assertions before release:
 - `apps/anvil-cli/package.json` version is correct.
 - No `workspace:*` in published runtime metadata expectations.
 - `CHANGELOG.md` has release notes.
+- `docs/public/anvil/beta-testing-guide.md` version is current.
+- `docs/public/anvil/releases/upgrade-notes.md` has a section for this version.
 
 ---
 
-## 2) Version + tag
+## 2) Promote dev → main
 
-1. Bump `apps/anvil-cli/package.json` version.
-2. Update `CHANGELOG.md`.
-3. Commit to `main`.
-4. Create tag matching CLI version:
+All day-to-day work lands on `dev`. Releases are cut from `main` after
+promotion. See `docs/guides/branching-strategy.md` for the full model.
+
+1. Ensure `dev` is green (CI passing, no known blockers).
+2. Open a PR from `dev` → `main`.
+   - This triggers the **release gate** (cross-platform macOS + Windows tests).
+   - Title convention: `release: vX.Y.Z`.
+3. Once the release gate passes, merge the PR.
 
 ```bash
+gh pr create --base main --head dev --title "release: vX.Y.Z" \
+  --body "Promote dev to main for release vX.Y.Z"
+```
+
+---
+
+## 3) Version, tag + GitHub release
+
+1. Switch to `main` and pull the merge:
+
+```bash
+git switch main && git pull
+```
+
+2. Bump `apps/anvil-cli/package.json` version.
+3. Update `CHANGELOG.md`.
+4. Update `docs/public/anvil/beta-testing-guide.md` — bump "Current version" and
+   add any new feature areas to "What to Test".
+5. Update `docs/public/anvil/releases/upgrade-notes.md` — add a new section for
+   the release version with upgrade instructions and what's new.
+6. Commit and tag:
+
+```bash
+git add apps/anvil-cli/package.json CHANGELOG.md \
+  docs/public/anvil/beta-testing-guide.md \
+  docs/public/anvil/releases/upgrade-notes.md
+git commit -m "chore(release): vX.Y.Z"
 git tag -a vX.Y.Z -m "vX.Y.Z"
 git push origin main
 git push origin vX.Y.Z
 ```
 
-For beta releases, either format works (both are matched by the workflow):
+Pushing the tag triggers the publish workflow which also creates a GitHub
+release automatically (pre-release for beta/alpha/rc tags).
+
+For beta releases, either format works (both matched by the workflow):
 
 ```bash
 vX.Y.Z-beta      # e.g. v0.1.2-beta
 vX.Y.Z-beta.N    # e.g. v0.1.2-beta.0
 ```
 
+After tagging, merge the version bump back to `dev` via PR:
+
+```bash
+gh pr create --base dev --head main \
+  --title "chore: merge release vX.Y.Z back to dev" \
+  --body "Sync version bump and changelog from release vX.Y.Z"
+```
+
 ---
 
-## 3) Monitor publish workflow
+## 4) Monitor publish workflow
 
 Watch run in real time:
 
@@ -97,7 +141,7 @@ Expected behaviour:
 
 ---
 
-## 4) Post-release verification (required)
+## 5) Post-release verification (required)
 
 Verify the specific version landed (replace with your version):
 
@@ -123,7 +167,7 @@ done
 
 ---
 
-## 5) Fast incident playbook
+## 6) Fast incident playbook
 
 ### If login fails for testers
 
@@ -154,7 +198,7 @@ git push origin :refs/tags/vX.Y.Z
 
 ---
 
-## 6) Known gotchas
+## 7) Known gotchas
 
 - **`--provenance` requires `id-token: write`** — The publish workflow uses
   `--provenance` for npm supply chain attestation. This requires the GitHub
@@ -164,7 +208,7 @@ git push origin :refs/tags/vX.Y.Z
 
 ---
 
-## 7) Human comms template
+## 8) Human comms template
 
 After successful release, send:
 

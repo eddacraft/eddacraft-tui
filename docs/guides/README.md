@@ -27,6 +27,11 @@ How-to guides for developers working on Anvil.
 - [Custom Architecture Policies](custom-architecture-policies.md) — Writing
   custom OPA policies
 
+### Testing & Workflow
+
+- [Testing Guide](testing.md) — Test strategy and practices
+- [Branching Strategy](branching-strategy.md) — Git branching model
+
 ### CLI
 
 - [CLI Output Streams](cli-output-streams.md) — CLI output and stream handling
@@ -37,8 +42,8 @@ How-to guides for developers working on Anvil.
 ### For New Contributors
 
 1. Start with [Project README](../../README.md)
-2. Review [Architecture](../ARCHITECTURE.md)
-3. Read [Testing Guide](../TESTING.md)
+2. Review [Architecture](../architecture/overview.md)
+3. Read [Testing Guide](testing.md)
 
 ### For Building Adapters
 

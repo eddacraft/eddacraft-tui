@@ -136,8 +136,10 @@ release must deliver both the core value AND a friction-free first experience.
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
+| Rust CLI Replacement       | Replace Node.js CLI with Rust binary (clap + Ratatui)    | Proposed    | 0/24     |
 
 **Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+**Design doc (Rust CLI):** [plans/specs/2026-03-18-rust-cli-design.md](specs/2026-03-18-rust-cli-design.md)
 
 ### 0.2.0 — Web Dashboard
 
@@ -184,17 +186,18 @@ modules.
 | Ember                  | Interpretive layer — candidate memory proposals | Complete    |
 | Edda                   | Canonical memory — git-backed, provenance-tracked | Complete  |
 | Edda Stack Integration | Shared schemas, event bus, layer ports          | In Progress |
+| Intent Ledger Governance | Canonical intent lineage from Kindling to gates  | Ready      |
 | Edda-Ember Review      | Non-critical improvements from consolidated review | In Progress |
 
 ### Future — Rust Kernel (KERN, In Progress)
 
 | Phase | Description                                              | Status   | Progress |
 | ----- | -------------------------------------------------------- | -------- | -------- |
-| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI _(validated in external Rust workspace)_ | In Progress | 4/5 |
-| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Draft    | 0/4 |
-| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Draft    | 0/4 |
-| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Draft    | 0/4 |
-| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks, cross-compilation | Draft    | 0/5 |
+| 0 — Spike | tree-sitter, notify-rs, petgraph, Cargo workspace, CI | Done | 5/5 |
+| 1 — Watcher + Parser | notify-rs, tree-sitter, symbol extraction, filters | Done    | 4/4 |
+| 2 — Semantic Graph | petgraph symbol/dependency graph, trust, incremental | Done    | 4/4 |
+| 3 — Policy Engine | Config loader, invariant framework, H1 invariants, events | Done    | 4/4 |
+| 4 — Integration | Embedded mode, watch mode, dual-run, benchmarks, cross-compilation | Done    | 5/5 |
 | 5 — Daemon (Deferred) | Unix socket, JSON-RPC, session management        | Draft    | 0/3      |
 
 **Module:** [KERN — Rust Kernel](./modules/rust-kernel.aps.md)
@@ -215,47 +218,47 @@ modules.
 | RENG-001 | Port secret scan to Rust (regex + entropy)               | Done     |
 | RENG-002 | Port anti-pattern detection (uses kernel ASTs)           | Done     |
 | RENG-003 | Port command safety check                                | Done     |
-| RENG-004 | Validate architecture check parity with kernel invariants | Draft   |
+| RENG-004 | Validate architecture check parity with kernel invariants | Done    |
 | RENG-005 | Benchmark all ported checks vs JS                        | Done     |
-| RENG-006 | Feature flag + dual-run for ported checks                | Draft   |
+| RENG-006 | Feature flag + dual-run for ported checks                | Done    |
 
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
 
-### Future — Ratatui TUI (RATS, Proposed)
+### Future — Ratatui TUI (RATS, Complete)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
 | RATS-001 | eddacraft-tui shared crate (theme, keyboard, widgets)    | Done     |
-| RATS-002 | Watch dashboard (live gate results, file status)         | Draft    |
-| RATS-003 | Gate result viewer (interactive)                         | Draft    |
-| RATS-004 | APS onboarding wizard                                    | Draft    |
-| RATS-005 | Ink-to-Ratatui migration path                            | Draft    |
-| RATS-006 | Terminal platform compatibility testing                   | Draft    |
-| RATS-007 | `anvil watch` TUI integration entry point                | Draft    |
+| RATS-002 | Watch dashboard (live gate results, file status)         | Done     |
+| RATS-003 | Gate result viewer (interactive)                         | Done     |
+| RATS-004 | APS onboarding wizard                                    | Done     |
+| RATS-005 | Ink-to-Ratatui migration path                            | Done     |
+| RATS-006 | Terminal platform compatibility testing                   | Done     |
+| RATS-007 | `anvil watch` TUI integration entry point                | Done     |
 
 **Module:** [RATS — Ratatui TUI](./modules/ratatui-tui.aps.md)
 **Depends on:** KERN (consumes kernel events)
 
-### Future — Ink-to-Ratatui Port (PORT, Proposed)
+### Future — Ink-to-Ratatui Port (PORT, Complete)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
-| PORT-001 | Port shared layout and display components                | Draft    |
-| PORT-002 | Port composite panel components                          | Draft    |
-| PORT-010 | Port welcome surface                                     | Draft    |
-| PORT-011 | Port doctor surface                                      | Draft    |
-| PORT-012 | Port status dashboard surface                            | Draft    |
-| PORT-020 | Port init wizard surface                                 | Draft    |
-| PORT-021 | Port audit results surface                               | Draft    |
-| PORT-022 | Port template browser surface                            | Draft    |
-| PORT-023 | Port gate explorer surface                               | Draft    |
-| PORT-030 | Port watch dashboard surface                             | Draft    |
-| PORT-040 | Port tutorial orchestrator and picker                    | Draft    |
-| PORT-041 | Port policy tutorial path                                | Draft    |
-| PORT-042 | Port architecture tutorial path                          | Draft    |
-| PORT-043 | Port drift tutorial path                                 | Draft    |
-| PORT-044 | Port CI tutorial path                                    | Draft    |
+| PORT-001 | Port shared layout and display components                | Done     |
+| PORT-002 | Port composite panel components                          | Done     |
+| PORT-010 | Port welcome surface                                     | Done     |
+| PORT-011 | Port doctor surface                                      | Done     |
+| PORT-012 | Port status dashboard surface                            | Done     |
+| PORT-020 | Port init wizard surface                                 | Done     |
+| PORT-021 | Port audit results surface                               | Done     |
+| PORT-022 | Port template browser surface                            | Done     |
+| PORT-023 | Port gate explorer surface                               | Done     |
+| PORT-030 | Port watch dashboard surface                             | Done     |
+| PORT-040 | Port tutorial orchestrator and picker                    | Done     |
+| PORT-041 | Port policy tutorial path                                | Done     |
+| PORT-042 | Port architecture tutorial path                          | Done     |
+| PORT-043 | Port drift tutorial path                                 | Done     |
+| PORT-044 | Port CI tutorial path                                    | Done     |
 
 **Module:** [PORT — Ink-to-Ratatui Port](./modules/ink-to-ratatui-port.aps.md)
 **Depends on:** RATS-001 (shared component library, complete)
@@ -269,7 +272,7 @@ most Ink surfaces are purely presentational. RENG and RATS depend on KERN but
 don't block it. See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan. ADR-011 is
-[superseded](./decisions/011-rust-core-engine.md).
+[superseded](./decisions/011a-rust-core-engine.md).
 
 ### Post-1.0.0 — Multi-Language Support (Placeholders)
 
@@ -430,7 +433,7 @@ Task-level detail for all completed work is archived in
 | [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
 | [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 | — |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | Complete | 8/8 | — |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 8/10 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
 
@@ -446,6 +449,7 @@ waves; 39 tasks total.
 | [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | 0/8 | 2 | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
 | [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | 0/7 | 3 | dashboard-foundation |
 | [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Draft | 0/6 | 4 | dashboard-foundation |
+| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Ready | 0/13 | — | ratatui-tui, ink-to-ratatui-port |
 
 ### Planned — 0.3.0 (Organisational Policy Governance)
 
@@ -461,6 +465,7 @@ waves; 39 tasks total.
 | [compliance-reporting](./modules/compliance-reporting.aps.md) | COMPLY | Draft | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
 | [policy-federation](./modules/policy-federation.aps.md) | POLFED | Draft | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
 | [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | opa-architecture-integration |
+| [compliance-policy-packs](./modules/compliance-policy-packs.aps.md) | CPACKS | Draft | policy-pack-validation, opa-enhancements, agent-governance-patterns |
 | [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | opa-architecture-integration, architecture-safety |
 | [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
 | [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
@@ -472,6 +477,7 @@ waves; 39 tasks total.
 | [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
 | [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
 | [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | opa-agent-orchestration, compliance-evidence-workspace |
 
 ### Planned — 0.4.0 (Edda Stack — Memory System)
 
@@ -482,15 +488,16 @@ waves; 39 tasks total.
 | [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
 | [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
 | [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Ready | 0/6 | edda-stack-integration, Kindling (external) |
 
 ### Future (Post-1.0.0)
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 4/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
-| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | In Progress | 1/7 | KERN Phase 3 |
-| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
+| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-dotnet](./modules/lang-dotnet.aps.md) | DNLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
@@ -1226,6 +1233,8 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-006 | maint  | Nx generator for CLI commands                       | Complete | Low      |
 | MAINT-007 | maint  | Nx generator for gate checks                        | Complete | Low      |
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
+| MAINT-009 | maint  | Edda list filters parity with release claims        | Ready    | Medium   |
+| MAINT-010 | maint  | Authenticated release smoke harness                 | Ready    | Medium   |
 
 ### Task Status — 0.1.x (Nx Task Migration)
 
@@ -1341,13 +1350,16 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
   ([ADR](./decisions/007-pulumi-iac.md))
 - **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
   watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
-  ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
+  ([ADR](./decisions/011a-rust-core-engine.md)) — **Proposed**
 - **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
   evaluation, remediation guidance, and auditable exception workflows
   ([ADR](./decisions/012-opa-agent-orchestration.md))
 - **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
   ([ADR](./decisions/013-eval-harness-adoption.md))
+- **D-014:** Language Allocation Tree (TypeScript vs Rust) — default to TypeScript
+  for orchestration/UX, promote hot paths to Rust when benchmark thresholds are breached
+  ([ADR](./decisions/014-language-allocation-tree-ts-vs-rust.md))
 
 ## Open Questions
 

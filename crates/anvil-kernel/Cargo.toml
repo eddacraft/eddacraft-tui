@@ -1,0 +1,32 @@
+[package]
+name = "anvil-kernel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Anvil Rust kernel — watcher, parser, semantic graph, policy engine"
+
+[dependencies]
+anvil-kernel-types = { path = "../anvil-kernel-types" }
+tree-sitter = { workspace = true }
+tree-sitter-typescript = { workspace = true }
+tree-sitter-javascript = { workspace = true }
+notify = { workspace = true }
+petgraph = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+tokio = { workspace = true }
+thiserror = { workspace = true }
+walkdir = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+insta = { workspace = true }
+tempfile = "3"
+
+[[bench]]
+name = "kernel"
+harness = false
+
+[lints]
+workspace = true

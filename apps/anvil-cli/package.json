@@ -1,6 +1,6 @@
 {
   "name": "@eddacraft/anvil-cli",
-  "version": "0.2.0-beta",
+  "version": "0.2.1-beta",
   "description": "CLI for Anvil - deterministic development automation platform",
   "type": "module",
   "bin": {
@@ -58,7 +58,7 @@
     "chalk": "^5.6.2",
     "chokidar": "5.0.0",
     "commander": "^14.0.3",
-    "esbuild": "^0.27.3",
+    "esbuild": "^0.27.4",
     "fs-extra": "^11.3.4",
     "glob": "^13.0.0",
     "ink": "6.8.0",
@@ -66,7 +66,7 @@
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
     "ink-testing-library": "^4.0.0",
-    "inquirer": "13.3.0",
+    "inquirer": "13.3.2",
     "jose": "^6.2.1",
     "node-pty": "^1.1.0",
     "ora": "9.3.0",
