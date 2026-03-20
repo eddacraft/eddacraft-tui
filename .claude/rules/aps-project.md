@@ -41,6 +41,7 @@
 - RTVF: real-time-validation-full — Draft
 - AGOV: agent-governance-patterns (0/7) — Draft
 - BENCH: kernel-benchmarking (6/16) — In Progress
+- CPACKS: compliance-policy-packs (0/28) — Draft
 
 ## Conventions
 
@@ -422,4 +423,42 @@ crates/anvil-bench/src/scenarios/cold_start_scaling.rs: BENCH-017
 README.md: BENCH-006
 .github/workflows/: BENCH-020, BENCH-021
 docs/architecture/kernel-benchmarking-spec.md: BENCH
+# CPACKS: Compliance Policy Packs
+core/src/gate/policy/compliance-manifest.ts: CPACKS-002
+core/src/gate/policy/compliance-manifest.test.ts: CPACKS-002
+core/src/gate/__fixtures__/library/compliance/common/: CPACKS-001
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/manifest.json: CPACKS-010
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/injection.rego: CPACKS-011
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/broken-access-control.rego: CPACKS-012
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/cryptographic-failures.rego: CPACKS-013
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/security-misconfiguration.rego: CPACKS-014
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/vulnerable-components.rego: CPACKS-015
+core/src/gate/__fixtures__/library/compliance/soc2/manifest.json: CPACKS-020
+core/src/gate/__fixtures__/library/compliance/soc2/logical-access.rego: CPACKS-021
+core/src/gate/__fixtures__/library/compliance/soc2/change-management.rego: CPACKS-022
+core/src/gate/__fixtures__/library/compliance/soc2/monitoring-and-risk.rego: CPACKS-023
+core/src/gate/__fixtures__/library/compliance/iso-27001/manifest.json: CPACKS-030
+core/src/gate/__fixtures__/library/compliance/iso-27001/access-and-crypto.rego: CPACKS-031
+core/src/gate/__fixtures__/library/compliance/iso-27001/operations-security.rego: CPACKS-032
+core/src/gate/__fixtures__/library/compliance/iso-27001/secure-development.rego: CPACKS-033
+core/src/gate/__fixtures__/library/compliance/gdpr/manifest.json: CPACKS-040
+core/src/gate/__fixtures__/library/compliance/gdpr/data-protection-by-design.rego: CPACKS-041
+core/src/gate/__fixtures__/library/compliance/gdpr/security-of-processing.rego: CPACKS-042
+core/src/gate/__fixtures__/library/compliance/gdpr/data-rights-and-breach.rego: CPACKS-043
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/manifest.json: CPACKS-050
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/transparency.rego: CPACKS-051
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/robustness.rego: CPACKS-052
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/fairness.rego: CPACKS-053
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/manifest.json: CPACKS-060
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/human-oversight.rego: CPACKS-061
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/transparency-logging.rego: CPACKS-062
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/data-governance-robustness.rego: CPACKS-063
+core/src/gate/policy/compliance-packs.integration.test.ts: CPACKS-070
+docs/guides/compliance-packs.md: CPACKS-071
+docs/guides/compliance-packs-owasp.md: CPACKS-071
+docs/guides/compliance-packs-soc2.md: CPACKS-071
+docs/guides/compliance-packs-iso-27001.md: CPACKS-071
+docs/guides/compliance-packs-gdpr.md: CPACKS-071
+docs/guides/compliance-packs-nist-ai-rmf.md: CPACKS-071
+docs/guides/compliance-packs-eu-ai-act.md: CPACKS-071
 ```
