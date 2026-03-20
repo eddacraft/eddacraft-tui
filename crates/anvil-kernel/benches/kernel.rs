@@ -215,19 +215,22 @@ fn bench_incremental_update_varied(c: &mut Criterion) {
         let path = Path::new("src/module/target.ts");
 
         group.bench_with_input(BenchmarkId::new("loc", loc), &loc, |b, _| {
-            let mut parser = Parser::new();
-            let mut graph = SymbolGraph::new();
-
-            // Initial parse to populate graph
-            let result = parser.parse_bytes(path, content_bytes).unwrap();
-            let symbols = extract_symbols(&result.tree, content_bytes, path, 0);
-            update_file(&mut graph, symbols);
-
             // Slightly modified content for incremental update
             let updated = format!("{content}\nexport const UPDATED = true;\n");
             let updated_bytes = updated.as_bytes();
 
             b.iter(|| {
+                // Fresh parser each sample so the AST cache doesn't mask
+                // parse cost — we want to measure parse+update scaling.
+                let mut parser = Parser::new();
+                let mut graph = SymbolGraph::new();
+
+                // Initial parse to populate graph
+                let init = parser.parse_bytes(path, content_bytes).unwrap();
+                let symbols = extract_symbols(&init.tree, content_bytes, path, 0);
+                update_file(&mut graph, symbols);
+
+                // Incremental update
                 let result = parser.parse_bytes(path, black_box(updated_bytes)).unwrap();
                 let symbols = extract_symbols(&result.tree, updated_bytes, path, 10_000);
                 let delta = update_file(&mut graph, symbols);
@@ -306,38 +309,39 @@ layers:
 
     let arch_config = ArchitectureConfig::from_yaml(config_yaml).unwrap();
 
-    // Build a graph with nodes across layers so CrossLayerViolation has
-    // real edges to traverse. IDs 0..99 are domain, 100..199 are infra.
-    let mut graph = SymbolGraph::new();
-    for i in 0..100u64 {
-        let node = SymbolNode {
-            id: i,
-            kind: SymbolKind::Function,
-            name: format!("fn_{i}"),
-            visibility: Visibility::Public,
-            file: format!("src/domain/mod_{}.ts", i / 10),
-            trust_level: TrustLevel::Unknown,
-        };
-        graph.add_symbol(node).unwrap();
-    }
-    for i in 100..200u64 {
-        let node = SymbolNode {
-            id: i,
-            kind: SymbolKind::Function,
-            name: format!("fn_{i}"),
-            visibility: Visibility::Public,
-            file: format!("src/infra/mod_{}.ts", i / 10),
-            trust_level: TrustLevel::Unknown,
-        };
-        graph.add_symbol(node).unwrap();
-    }
-
     // Vary invariant count: 4 (H1 real) then pad with duplicated invariants
     // to simulate higher invariant counts. We use the real invariants
     // repeatedly to keep evaluation cost realistic.
     for &invariant_count in &[4, 10, 25, 50] {
         // Vary delta size
         for &delta_symbols in &[1u64, 10, 50] {
+            // Rebuild graph per input combination so edges don't accumulate
+            // across iterations, which would make later benchmarks measure
+            // a progressively denser graph than the label suggests.
+            let mut graph = SymbolGraph::new();
+            for i in 0..100u64 {
+                let node = SymbolNode {
+                    id: i,
+                    kind: SymbolKind::Function,
+                    name: format!("fn_{i}"),
+                    visibility: Visibility::Public,
+                    file: format!("src/domain/mod_{}.ts", i / 10),
+                    trust_level: TrustLevel::Unknown,
+                };
+                graph.add_symbol(node).unwrap();
+            }
+            for i in 100..200u64 {
+                let node = SymbolNode {
+                    id: i,
+                    kind: SymbolKind::Function,
+                    name: format!("fn_{i}"),
+                    visibility: Visibility::Public,
+                    file: format!("src/infra/mod_{}.ts", i / 10),
+                    trust_level: TrustLevel::Unknown,
+                };
+                graph.add_symbol(node).unwrap();
+            }
+
             // Insert cross-layer edges into the graph so
             // CrossLayerViolation actually traverses real imports
             let edge_count = delta_symbols.min(50);
@@ -371,8 +375,13 @@ layers:
                 &(invariant_count, delta_symbols),
                 |b, _| {
                     b.iter(|| {
+                        // NOTE: PolicyEngine::new() + register() are kept inside
+                        // b.iter because evaluate() is &mut self (it mutates
+                        // `seen`), so we need a fresh engine each sample to avoid
+                        // the dedup set masking evaluation cost on repeat runs.
+                        // The allocation cost of new() + register() is negligible
+                        // (Vec::push) compared to evaluate().
                         let mut engine = PolicyEngine::new();
-                        // Register real invariants, cycling to reach the target count
                         for j in 0..invariant_count {
                             match j % 4 {
                                 0 => engine.register(Box::new(CrossLayerViolation)),
