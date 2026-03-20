@@ -3,9 +3,10 @@ use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, StatefulWidget, Widget};
 
-use crate::theme::Theme;
-use crate::widgets::header::Header;
-use crate::widgets::quick_wins_panel::{QuickWinsAnalysis, QuickWinsPanel, QuickWinsPanelState};
+use eddacraft_tui::theme::Theme;
+use eddacraft_tui::widgets::header::Header;
+
+use super::quick_wins_panel::{QuickWinsAnalysis, QuickWinsPanel, QuickWinsPanelState};
 
 #[derive(Debug, Clone, Default)]
 pub struct HistoricalAnalysis {
@@ -243,8 +244,8 @@ mod tests {
     use ratatui::widgets::StatefulWidget;
 
     use super::*;
-    use crate::theme::EddaCraftTheme;
     use crate::widgets::quick_wins_panel::{BatchGroup, QuickWinType};
+    use eddacraft_tui::theme::EddaCraftTheme;
 
     #[test]
     fn renders_with_full_data() {

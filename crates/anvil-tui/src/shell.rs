@@ -1,11 +1,10 @@
-use eddacraft_tui::theme::{EddaCraftTheme, Theme};
-use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Modifier, Style};
-use ratatui::text::{Line, Span};
-use ratatui::widgets::Paragraph;
+//! Re-export from eddacraft-tui with Anvil-branded shell.
 
-/// Render the branded shell chrome around a surface content area.
+use eddacraft_tui::theme::EddaCraftTheme;
+use ratatui::layout::Rect;
+use ratatui::Frame;
+
+/// Render the Anvil-branded shell chrome around a surface content area.
 ///
 /// Returns the inner `Rect` that the surface should render into.
 pub fn render_shell(
@@ -15,42 +14,15 @@ pub fn render_shell(
     help_text: &str,
     theme: &EddaCraftTheme,
 ) -> Rect {
-    let chunks = Layout::vertical([
-        Constraint::Length(1), // Header
-        Constraint::Min(1),    // Content
-        Constraint::Length(1), // Footer / help
-    ])
-    .split(area);
-
-    // Header: "Anvil > SurfaceName"
-    let header = Paragraph::new(Line::from(vec![
-        Span::styled(
-            "Anvil",
-            Style::default()
-                .fg(theme.accent())
-                .add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(" > ", Style::default().fg(theme.muted())),
-        Span::styled(surface_name, Style::default().fg(theme.fg())),
-    ]));
-    frame.render_widget(header, chunks[0]);
-
-    // Footer: help text
-    let footer = Paragraph::new(Line::from(Span::styled(
-        help_text,
-        Style::default().fg(theme.muted()),
-    )));
-    frame.render_widget(footer, chunks[2]);
-
-    chunks[1]
+    eddacraft_tui::shell::render_shell(frame, area, "Anvil", surface_name, help_text, theme)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::test_utils::snapshot::buffer_to_string;
-    use ratatui::Terminal;
     use ratatui::backend::TestBackend;
+    use ratatui::Terminal;
 
     #[test]
     fn renders_without_panic() {
@@ -78,7 +50,6 @@ mod tests {
             })
             .unwrap();
 
-        // Inner area should be smaller than the full area (header + footer = 2 rows)
         assert_eq!(inner.height, 22);
         assert_eq!(inner.width, 80);
         assert_eq!(inner.y, 1);

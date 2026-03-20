@@ -4,7 +4,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, StatefulWidget, Widget};
 
-use crate::theme::Theme;
+use eddacraft_tui::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuickWinType {
@@ -197,7 +197,7 @@ mod tests {
     use ratatui::widgets::StatefulWidget;
 
     use super::*;
-    use crate::theme::EddaCraftTheme;
+    use eddacraft_tui::theme::EddaCraftTheme;
 
     #[test]
     fn renders_with_data() {
