@@ -62,8 +62,10 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - POLVAL-002 — Pack manifest format (manifest.json structure)
 - POLVAL-003 — Pack validator (structural validation)
 - POLVAL-004 — Policy test runner (test enforcement)
+- POLVAL-005 — CLI `anvil policy validate` with `--pack` mode
 - OPAE-006 — Policy library infrastructure (discovery and loading)
 - OPAE-012 — OPA executor (Rego evaluation runtime)
+- AGOV-002 — `anvil policy install --pack <name>` CLI entry point
 
 **Exposes:**
 
@@ -117,15 +119,15 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   shared Rego helper functions (string matching, severity mapping, metadata
   extraction) and shared test fixture generators. All packs import from common
   rather than duplicating logic.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/common/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/`
 - **Non-scope:** Framework-specific policies
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/common/helpers.rego`
-  - `core/src/gate/__fixtures__/library/compliance/common/severity.rego`
-  - `core/src/gate/__fixtures__/library/compliance/common/metadata.rego`
-  - `core/src/gate/__fixtures__/library/compliance/common/test-helpers.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/helpers.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/severity.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/metadata.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/test-helpers.rego`
 - **Dependencies:** OPAE-012 (OPA executor)
-- **Validation:** `nx test core --testNamePattern="compliance-common"`
+- **Validation:** `nx test @eddacraft/anvil-runtime --testNamePattern="compliance-common"`
 - **Confidence:** high
 
 #### CPACKS-002: Pack manifest and control-mapping schema
@@ -135,13 +137,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** Each pack manifest includes a `controlMappings` array
   linking policy IDs to framework control IDs, control titles, and control
   categories. Schema is validated by POLVAL-003 automatically.
-- **Scope:** `core/src/gate/policy/`
+- **Scope:** `packages/anvil/runtime/src/gate/policy/`
 - **Non-scope:** Reporting or evidence generation
 - **Files:**
-  - `core/src/gate/policy/compliance-manifest.ts`
-  - `core/src/gate/policy/compliance-manifest.test.ts`
+  - `packages/anvil/runtime/src/gate/policy/compliance-manifest.ts`
+  - `packages/anvil/runtime/src/gate/policy/compliance-manifest.test.ts`
 - **Dependencies:** POLVAL-001, POLVAL-002
-- **Validation:** `nx test core --testNamePattern="compliance-manifest"`
+- **Validation:** `nx test @eddacraft/anvil-runtime --testNamePattern="compliance-manifest"`
 - **Confidence:** high
 
 ### Phase B: OWASP Top 10 Pack
@@ -152,11 +154,11 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   with mappings to the 2021 OWASP Top 10 categories.
 - **Expected Outcome:** A complete manifest.json listing all policies, their
   mappings to OWASP categories (A01–A10), pack version, and dependencies.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/owasp-top-10/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/`
 - **Non-scope:** Policy implementation
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/README.md`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/manifest.json`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/README.md`
 - **Dependencies:** CPACKS-002
 - **Validation:** `anvil policy validate --pack owasp-top-10`
 - **Confidence:** high
@@ -169,13 +171,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   concatenation in queries), command injection (unsanitised shell execution),
   XSS patterns (unescaped user input in HTML output), and template injection.
   Each with passing and failing test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/owasp-top-10/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/`
 - **Non-scope:** Runtime DAST scanning
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/injection.rego`
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/injection_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/injection.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/injection_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-010
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/owasp-top-10/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/ -v`
 - **Confidence:** high
 
 #### CPACKS-012: OWASP broken access control policies (A01)
@@ -185,13 +187,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** Rego policies for: missing auth middleware on route
   handlers, direct object reference without ownership checks, CORS
   misconfiguration patterns, and directory traversal risks. Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/owasp-top-10/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/`
 - **Non-scope:** Identity provider configuration
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/broken-access-control.rego`
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/broken-access-control_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/broken-access-control.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/broken-access-control_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-010
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/owasp-top-10/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/ -v`
 - **Confidence:** high
 
 #### CPACKS-013: OWASP cryptographic failures policies (A02)
@@ -202,13 +204,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   DES, RC4), hardcoded credentials and API keys, missing encryption on
   sensitive data stores, and insecure random number generation. Each with
   test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/owasp-top-10/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/`
 - **Non-scope:** Key management infrastructure
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/cryptographic-failures.rego`
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/cryptographic-failures_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/cryptographic-failures.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/cryptographic-failures_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-010
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/owasp-top-10/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/ -v`
 - **Confidence:** high
 
 #### CPACKS-014: OWASP security misconfiguration and logging policies (A05, A09)
@@ -219,13 +221,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   configs, default credentials, missing security headers, verbose error messages
   exposing internals, missing audit logging on sensitive operations, and
   insufficient log detail. Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/owasp-top-10/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/`
 - **Non-scope:** Infrastructure-level configuration scanning
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/security-misconfiguration.rego`
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/security-misconfiguration_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/security-misconfiguration.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/security-misconfiguration_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-010
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/owasp-top-10/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/ -v`
 - **Confidence:** medium
 
 #### CPACKS-015: OWASP vulnerable components policies (A06)
@@ -235,13 +237,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** Rego policies for: dependency age thresholds,
   known-vulnerable package patterns, unpinned dependency versions, and use of
   deprecated APIs. Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/owasp-top-10/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/`
 - **Non-scope:** Vulnerability database integration (uses static patterns)
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/vulnerable-components.rego`
-  - `core/src/gate/__fixtures__/library/compliance/owasp-top-10/vulnerable-components_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/vulnerable-components.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/vulnerable-components_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-010
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/owasp-top-10/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/owasp-top-10/ -v`
 - **Confidence:** medium
 
 ### Phase C: SOC 2 Pack
@@ -253,11 +255,11 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** A complete manifest.json listing all policies, their
   mappings to SOC 2 TSC categories (CC1–CC9, A1, C1), pack version, and
   dependencies.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/soc2/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/`
 - **Non-scope:** Policy implementation
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/soc2/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/soc2/README.md`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/manifest.json`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/README.md`
 - **Dependencies:** CPACKS-002
 - **Validation:** `anvil policy validate --pack soc2`
 - **Confidence:** high
@@ -270,13 +272,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** Rego policies for: missing authentication checks
   (CC6.1), authorisation bypass patterns (CC6.3), session timeout configuration
   (CC6.1), and least-privilege violations (CC6.3). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/soc2/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/`
 - **Non-scope:** Physical access controls
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/soc2/logical-access.rego`
-  - `core/src/gate/__fixtures__/library/compliance/soc2/logical-access_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/logical-access.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/logical-access_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-020
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/soc2/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/ -v`
 - **Confidence:** high
 
 #### CPACKS-022: SOC 2 change management policies (CC8)
@@ -286,13 +288,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** Rego policies for: minimum reviewer requirements
   (CC8.1), test coverage thresholds (CC8.1), and CI pipeline integrity checks
   (CC8.1). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/soc2/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/`
 - **Non-scope:** Deployment orchestration
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/soc2/change-management.rego`
-  - `core/src/gate/__fixtures__/library/compliance/soc2/change-management_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/change-management.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/change-management_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-020
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/soc2/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/ -v`
 - **Confidence:** high
 
 #### CPACKS-023: SOC 2 monitoring and risk policies (CC7, CC9)
@@ -304,13 +306,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   health-check endpoint detection (CC7.1), error monitoring configuration
   (CC7.3), unhandled exception patterns (CC9.1), and missing error boundaries
   (CC9.1). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/soc2/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/`
 - **Non-scope:** Monitoring infrastructure deployment; runtime resilience testing
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/soc2/monitoring-and-risk.rego`
-  - `core/src/gate/__fixtures__/library/compliance/soc2/monitoring-and-risk_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/monitoring-and-risk.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/monitoring-and-risk_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-020
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/soc2/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/soc2/ -v`
 - **Confidence:** medium
 
 ### Phase D: ISO 27001 Pack
@@ -322,11 +324,11 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** A complete manifest.json listing all policies in the
   pack, their control mappings to ISO 27001 Annex A controls (A.5–A.18), pack
   version, and dependencies.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/iso-27001/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/`
 - **Non-scope:** Policy implementation
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/README.md`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/manifest.json`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/README.md`
 - **Dependencies:** CPACKS-002
 - **Validation:** `anvil policy validate --pack iso-27001`
 - **Confidence:** high
@@ -339,13 +341,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   (A.9.2.3), permissive file modes (A.9.4.1), missing auth middleware (A.9.4.2),
   weak cipher detection (A.10.1.1), minimum key length enforcement (A.10.1.1),
   and plaintext secret patterns (A.10.1.2). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/iso-27001/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/`
 - **Non-scope:** Runtime authentication; key management systems
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/access-and-crypto.rego`
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/access-and-crypto_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/access-and-crypto.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/access-and-crypto_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-030
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/iso-27001/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/ -v`
 - **Confidence:** high
 
 #### CPACKS-032: ISO 27001 operations security policies (A.12)
@@ -355,13 +357,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** Rego policies for: missing audit logging patterns
   (A.12.4.1), debug/console statement detection (A.12.1.4), and input
   validation gaps (A.12.2.1). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/iso-27001/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/`
 - **Non-scope:** Log aggregation infrastructure
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/operations-security.rego`
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/operations-security_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/operations-security.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/operations-security_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-030
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/iso-27001/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/ -v`
 - **Confidence:** medium
 
 #### CPACKS-033: ISO 27001 secure development policies (A.14)
@@ -372,13 +374,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** Rego policies for: dependency vulnerability thresholds
   (A.14.2.1), security test coverage requirements (A.14.2.8), and unsafe
   function usage patterns (A.14.2.5). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/iso-27001/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/`
 - **Non-scope:** Vulnerability scanning tools
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/secure-development.rego`
-  - `core/src/gate/__fixtures__/library/compliance/iso-27001/secure-development_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/secure-development.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/secure-development_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-030
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/iso-27001/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/iso-27001/ -v`
 - **Confidence:** medium
 
 ### Phase E: GDPR Pack
@@ -390,11 +392,11 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** A complete manifest.json listing all policies, their
   mappings to GDPR articles (Art. 5, 25, 30, 32, 33, 35), pack version, and
   dependencies.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/gdpr/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/`
 - **Non-scope:** Policy implementation; organisational measures
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/README.md`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/manifest.json`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/README.md`
 - **Dependencies:** CPACKS-002
 - **Validation:** `anvil policy validate --pack gdpr`
 - **Confidence:** high
@@ -408,13 +410,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   over-collection of user fields), missing consent-check patterns before data
   processing, hardcoded retention periods without expiry, and PII logging
   detection. Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/gdpr/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/`
 - **Non-scope:** Cookie consent UI; privacy policy content
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/data-protection-by-design.rego`
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/data-protection-by-design_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/data-protection-by-design.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/data-protection-by-design_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-040
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/gdpr/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/ -v`
 - **Confidence:** medium
 
 #### CPACKS-042: GDPR security of processing policies (Art. 32)
@@ -425,13 +427,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   personal data paths, pseudonymisation patterns (detecting raw PII in
   analytics/logging), and access control on personal data endpoints. Each with
   test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/gdpr/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/`
 - **Non-scope:** Organisational security measures
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/security-of-processing.rego`
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/security-of-processing_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/security-of-processing.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/security-of-processing_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-040
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/gdpr/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/ -v`
 - **Confidence:** medium
 
 #### CPACKS-043: GDPR data subject rights and breach readiness policies (Art. 17, Art. 33)
@@ -442,13 +444,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   soft-delete mechanism for user data, missing data export/portability patterns,
   and breach notification configuration (logging, alerting). Each with test
   cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/gdpr/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/`
 - **Non-scope:** Breach response procedures; DPO appointment
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/data-rights-and-breach.rego`
-  - `core/src/gate/__fixtures__/library/compliance/gdpr/data-rights-and-breach_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/data-rights-and-breach.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/data-rights-and-breach_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-040
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/gdpr/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/gdpr/ -v`
 - **Confidence:** low
 
 ### Phase F: NIST AI RMF Pack
@@ -460,11 +462,11 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** A complete manifest.json listing all policies, their
   mappings to NIST AI RMF functions (Govern, Map, Measure, Manage) and
   subcategories, pack version, and dependencies.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/`
 - **Non-scope:** Policy implementation; organisational governance functions
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/README.md`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/manifest.json`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/README.md`
 - **Dependencies:** CPACKS-002
 - **Validation:** `anvil policy validate --pack nist-ai-rmf`
 - **Confidence:** high
@@ -477,13 +479,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   metadata (MAP 1.1), model version documentation in configuration (MAP 1.5),
   missing rationale on AI-suggested architectural changes (GOV 1.3), and
   provenance trail completeness (GOV 1.7). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/`
 - **Non-scope:** Model card generation; AI training data governance
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/transparency.rego`
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/transparency_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/transparency.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/transparency_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-050, AGOV-001 (trust scoring)
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/ -v`
 - **Confidence:** medium
 
 #### CPACKS-052: NIST AI RMF robustness and reliability policies (Measure, Manage)
@@ -495,13 +497,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   code (MANAGE 2.2), input validation on AI-generated endpoints (MEASURE 2.9),
   and rollback capability on AI-driven changes (MANAGE 4.1). Each with test
   cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/`
 - **Non-scope:** Model performance benchmarking
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/robustness.rego`
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/robustness_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/robustness.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/robustness_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-050
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/ -v`
 - **Confidence:** medium
 
 #### CPACKS-053: NIST AI RMF fairness and bias policies (Measure)
@@ -514,13 +516,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   (MEASURE 2.11), missing bias testing fixtures (MEASURE 2.6), and
   feature-selection patterns that proxy for protected attributes. Each with
   test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/`
 - **Non-scope:** Statistical bias measurement; model fairness metrics
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/fairness.rego`
-  - `core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/fairness_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/fairness.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/fairness_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-050
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/nist-ai-rmf/ -v`
 - **Confidence:** low
 
 ### Phase G: EU AI Act Pack
@@ -532,11 +534,11 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Expected Outcome:** A complete manifest.json listing all policies, their
   mappings to EU AI Act articles (Art. 9–15, Art. 52), pack version, and the
   regulation revision tracked.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/eu-ai-act/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/`
 - **Non-scope:** Policy implementation; classification of AI system risk levels
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/manifest.json`
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/README.md`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/manifest.json`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/README.md`
 - **Dependencies:** CPACKS-002
 - **Validation:** `anvil policy validate --pack eu-ai-act`
 - **Confidence:** high
@@ -550,13 +552,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   AI-driven configuration changes (Art. 14.4), and override mechanisms
   documented in capability manifests (Art. 14.3). Integrates with AGOV trust
   scoring to determine oversight level. Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/eu-ai-act/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/`
 - **Non-scope:** Approval workflow orchestration
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/human-oversight.rego`
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/human-oversight_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/human-oversight.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/human-oversight_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-060, AGOV-001 (trust scoring)
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/eu-ai-act/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/ -v`
 - **Confidence:** medium
 
 #### CPACKS-062: EU AI Act transparency and logging policies (Art. 12, Art. 13, Art. 52)
@@ -569,13 +571,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   invocations and parameters (Art. 12), traceability from output back to AI
   tool version and prompt (Art. 13), and log retention configuration. Each
   with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/eu-ai-act/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/`
 - **Non-scope:** User-facing AI disclosure UI
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/transparency-logging.rego`
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/transparency-logging_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/transparency-logging.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/transparency-logging_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-060, AGOV-006 (hash-chained audit)
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/eu-ai-act/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/ -v`
 - **Confidence:** medium
 
 #### CPACKS-063: EU AI Act data governance and robustness policies (Art. 10, Art. 15)
@@ -587,13 +589,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   15.3), adversarial input handling on AI-generated endpoints (Art. 15.4),
   data quality assertions in test fixtures (Art. 10.2), and configuration
   guardrails on AI tool capabilities (Art. 10.5). Each with test cases.
-- **Scope:** `core/src/gate/__fixtures__/library/compliance/eu-ai-act/`
+- **Scope:** `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/`
 - **Non-scope:** Training data curation; model robustness testing
 - **Files:**
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/data-governance-robustness.rego`
-  - `core/src/gate/__fixtures__/library/compliance/eu-ai-act/data-governance-robustness_test.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/data-governance-robustness.rego`
+  - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/data-governance-robustness_test.rego`
 - **Dependencies:** CPACKS-001, CPACKS-060, AGOV-007 (capability declarations)
-- **Validation:** `opa test core/src/gate/__fixtures__/library/compliance/eu-ai-act/ -v`
+- **Validation:** `opa test packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/eu-ai-act/ -v`
 - **Confidence:** low
 
 ### Phase H: Integration & Documentation
@@ -606,12 +608,13 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   `anvil policy validate`, evaluate policies against fixture data, and verify
   control-mapping metadata is accessible. Tests cover pack isolation (installing
   one does not affect others) and combined loading.
-- **Scope:** `core/src/gate/policy/`, `apps/anvil-cli/src/commands/`
+- **Scope:** `packages/anvil/runtime/src/gate/policy/`, `apps/anvil-cli/src/commands/`
 - **Non-scope:** Performance benchmarking
 - **Files:**
-  - `core/src/gate/policy/compliance-packs.integration.test.ts`
-- **Dependencies:** All Phase B–G manifest tasks
-- **Validation:** `nx test core --testNamePattern="compliance-packs.integration"`
+  - `packages/anvil/runtime/src/gate/policy/compliance-packs.integration.test.ts`
+- **Dependencies:** All Phase B–G manifest and policy implementation tasks
+    (CPACKS-010–061 inclusive)
+- **Validation:** `nx test @eddacraft/anvil-runtime --testNamePattern="compliance-packs.integration"`
 - **Confidence:** high
 
 #### CPACKS-071: Compliance pack documentation
