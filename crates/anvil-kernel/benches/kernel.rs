@@ -102,8 +102,11 @@ fn generate_ts_content(target_loc: usize, file_index: usize) -> String {
     lines.join("\n")
 }
 
-/// Build a [`SymbolGraph`] with the given number of nodes, each belonging to a
-/// distinct file, with import edges connecting roughly 30% of adjacent nodes.
+/// Build a [`SymbolGraph`] with the given number of nodes. Groups of 10
+/// symbols share the same file so `symbols_in_file` returns ~10 results.
+/// Import edges fan out from every 3rd node to the next 3 nodes so
+/// `outgoing_edges` returns a variable (1-3) number of edges that scales
+/// with graph density, not a constant 1.
 fn build_graph_fixture(node_count: usize) -> SymbolGraph {
     let mut graph = SymbolGraph::new();
 
@@ -117,21 +120,24 @@ fn build_graph_fixture(node_count: usize) -> SymbolGraph {
             } else {
                 Visibility::Internal
             },
-            file: format!("src/module_{}/file_{}.ts", i / 10, i),
+            // Group 10 symbols per file so symbols_in_file returns ~10
+            file: format!("src/module_{}/file_{}.ts", i / 100, i / 10),
             trust_level: TrustLevel::Unknown,
         };
         graph.add_symbol(node).unwrap();
     }
 
-    // Add import edges between ~30% of consecutive nodes
+    // Add import edges: every 3rd node fans out to the next 1-3 nodes
     for i in 0..node_count.saturating_sub(1) {
         if i % 3 == 0 {
-            let edge = anvil_kernel_types::SymbolEdge {
-                from: i as u64,
-                to: (i + 1) as u64,
-                edge_type: EdgeType::Imports,
-            };
-            let _ = graph.add_edge(edge);
+            for offset in 1..=3.min(node_count - 1 - i) {
+                let edge = anvil_kernel_types::SymbolEdge {
+                    from: i as u64,
+                    to: (i + offset) as u64,
+                    edge_type: EdgeType::Imports,
+                };
+                let _ = graph.add_edge(edge);
+            }
         }
     }
 
@@ -321,24 +327,39 @@ layers:
             // a progressively denser graph than the label suggests.
             let mut graph = SymbolGraph::new();
             for i in 0..100u64 {
+                // Mix trust levels so PrivilegeExpansion fires on ~25% of
+                // added symbols (those with TrustLevel::Privileged).
+                let trust = if i % 4 == 0 {
+                    TrustLevel::Privileged
+                } else {
+                    TrustLevel::Unknown
+                };
                 let node = SymbolNode {
                     id: i,
                     kind: SymbolKind::Function,
                     name: format!("fn_{i}"),
                     visibility: Visibility::Public,
                     file: format!("src/domain/mod_{}.ts", i / 10),
-                    trust_level: TrustLevel::Unknown,
+                    trust_level: trust,
                 };
                 graph.add_symbol(node).unwrap();
             }
             for i in 100..200u64 {
+                // Mark ~50% of infra symbols as External so
+                // NewDependencyIntroduction fires on cross-layer edges
+                // targeting external modules.
+                let trust = if i % 2 == 0 {
+                    TrustLevel::External
+                } else {
+                    TrustLevel::Unknown
+                };
                 let node = SymbolNode {
                     id: i,
                     kind: SymbolKind::Function,
                     name: format!("fn_{i}"),
                     visibility: Visibility::Public,
                     file: format!("src/infra/mod_{}.ts", i / 10),
-                    trust_level: TrustLevel::Unknown,
+                    trust_level: trust,
                 };
                 graph.add_symbol(node).unwrap();
             }
