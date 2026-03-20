@@ -96,17 +96,10 @@ describe('signLicence', () => {
     expect(header.alg).toBe('ES256');
   });
 
-  it('falls back to maxExp when tokenExpiresAt is an invalid date string', async () => {
-    const before = Math.floor(Date.now() / 1000);
-    const jwt = await signLicence(makeClaims(), 'not-a-date' as unknown as string);
-    const after = Math.floor(Date.now() / 1000);
-
-    const pubKey = await importSPKI(testPublicKeyPem, 'ES256');
-    const { payload } = await jwtVerify(jwt, pubKey);
-
-    const ninetyDays = 90 * 24 * 60 * 60;
-    expect(payload.exp).toBeGreaterThanOrEqual(before + ninetyDays);
-    expect(payload.exp).toBeLessThanOrEqual(after + ninetyDays);
+  it('throws when tokenExpiresAt is an invalid date string', async () => {
+    await expect(signLicence(makeClaims(), 'not-a-date' as unknown as string)).rejects.toThrow(
+      'Invalid tokenExpiresAt'
+    );
   });
 
   it('throws if LICENSE_SIGNING_KEY is not set', async () => {

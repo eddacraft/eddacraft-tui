@@ -30,7 +30,10 @@ export async function signLicence(
   let tokenExp = maxExp;
   if (tokenExpiresAt) {
     const parsed = Math.floor(new Date(tokenExpiresAt).getTime() / 1000);
-    tokenExp = Number.isNaN(parsed) ? maxExp : parsed;
+    if (Number.isNaN(parsed)) {
+      throw new Error(`Invalid tokenExpiresAt: ${String(tokenExpiresAt)}`);
+    }
+    tokenExp = parsed;
   }
   const exp = Math.min(tokenExp, maxExp);
 
