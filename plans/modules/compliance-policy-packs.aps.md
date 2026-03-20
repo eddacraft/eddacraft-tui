@@ -66,6 +66,10 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - OPAE-006 — Policy library infrastructure (discovery and loading)
 - `packages/anvil/policy` — OPA executor (existing infrastructure, not a planned task)
 - AGOV-002 — `anvil policy install --pack <name>` CLI entry point
+- AGOV-001/006/007 — AI-governance signal producers (trust scores, capability
+  manifests, audit-chain state) required by AI-specific packs. An OPA input
+  bridge task in AGOV or OPAE must serialise these signals into policy
+  evaluation context before CPACKS-051/061/062/063 can implement AI checks.
 
 **Exposes:**
 
@@ -613,7 +617,7 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - **Files:**
   - `packages/anvil/runtime/src/gate/policy/compliance-packs.integration.test.ts`
 - **Dependencies:** All Phase B–G manifest and policy implementation tasks
-    (CPACKS-010–061 inclusive)
+    (CPACKS-010–063 inclusive)
 - **Validation:** `nx test runtime --testNamePattern="compliance-packs.integration"`
 - **Confidence:** high
 
