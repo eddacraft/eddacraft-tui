@@ -77,7 +77,7 @@ Micro-Prefixes (For inline logs and statuses):
 The Macro Anvil Header (Must be rendered perfectly in EMBER, with text in
 FG/MUTED):
 
-```Plaintext
+```plaintext
 ████     ████
 ██         ██
 ██  █████  ██
@@ -90,7 +90,7 @@ FG/MUTED):
 The EddaCraft Footer Watermark (Bottom right of the TUI, rendered in MUTED and
 BORDER):
 
-```Plaintext
+```plaintext
   [ ■ ] e d d a c r a f t
         v0.9.2-beta
 ```

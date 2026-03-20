@@ -458,12 +458,10 @@ fn bench_graph_query(c: &mut Criterion) {
     for &node_count in &[1_000, 5_000, 10_000] {
         let graph = build_graph_fixture(node_count);
 
-        // Benchmark symbols_in_file for a file in the middle of the graph
-        let target_file = format!(
-            "src/module_{}/file_{}.ts",
-            (node_count / 2) / 10,
-            node_count / 2
-        );
+        // Benchmark symbols_in_file for a file in the middle of the graph.
+        // Must match build_graph_fixture's file format: module_{i/100}/file_{i/10}.
+        let mid = node_count / 2;
+        let target_file = format!("src/module_{}/file_{}.ts", mid / 100, mid / 10);
 
         group.bench_with_input(
             BenchmarkId::new("symbols_in_file", node_count),
