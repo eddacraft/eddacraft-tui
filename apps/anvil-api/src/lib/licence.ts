@@ -2,7 +2,8 @@ import { SignJWT, importPKCS8 } from 'jose';
 
 const LICENCE_TTL_DAYS = 90;
 const RC_AFTER_DAYS = 7;
-const KEY_ID = '2026-03';
+const DEFAULT_KEY_ID = '2026-03';
+const KEY_ID = process.env['LICENSE_PUBLIC_KEY_KID'] ?? DEFAULT_KEY_ID;
 
 export interface LicenceClaims {
   sub: string;
@@ -28,7 +29,14 @@ export async function signLicence(
   const now = Math.floor(Date.now() / 1000);
   const effectiveTtl = ttlDays ?? LICENCE_TTL_DAYS;
   const maxExp = now + effectiveTtl * 86400;
-  const tokenExp = tokenExpiresAt ? Math.floor(new Date(tokenExpiresAt).getTime() / 1000) : maxExp;
+  let tokenExp = maxExp;
+  if (tokenExpiresAt) {
+    const parsed = Math.floor(new Date(tokenExpiresAt).getTime() / 1000);
+    if (Number.isNaN(parsed)) {
+      throw new Error(`Invalid tokenExpiresAt: ${String(tokenExpiresAt)}`);
+    }
+    tokenExp = parsed;
+  }
   const exp = Math.min(tokenExp, maxExp);
 
   return new SignJWT({

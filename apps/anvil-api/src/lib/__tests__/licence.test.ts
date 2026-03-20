@@ -96,6 +96,12 @@ describe('signLicence', () => {
     expect(header.alg).toBe('ES256');
   });
 
+  it('throws when tokenExpiresAt is an invalid date string', async () => {
+    await expect(signLicence(makeClaims(), 'not-a-date' as unknown as string)).rejects.toThrow(
+      'Invalid tokenExpiresAt'
+    );
+  });
+
   it('uses custom ttlDays when provided', async () => {
     const before = Math.floor(Date.now() / 1000);
     const jwt = await signLicence(makeClaims(), undefined, 7);
