@@ -77,7 +77,7 @@ Micro-Prefixes (For inline logs and statuses):
 The Macro Anvil Header (Must be rendered perfectly in EMBER, with text in
 FG/MUTED):
 
-```Plaintext
+```plaintext
 ████     ████
 ██         ██
 ██  █████  ██
