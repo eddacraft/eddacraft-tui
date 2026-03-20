@@ -306,15 +306,27 @@ layers:
 
     let arch_config = ArchitectureConfig::from_yaml(config_yaml).unwrap();
 
-    // Build a graph with enough nodes for varied delta sizes
+    // Build a graph with nodes across layers so CrossLayerViolation has
+    // real edges to traverse. IDs 0..99 are domain, 100..199 are infra.
     let mut graph = SymbolGraph::new();
-    for i in 0..200u64 {
+    for i in 0..100u64 {
         let node = SymbolNode {
             id: i,
             kind: SymbolKind::Function,
             name: format!("fn_{i}"),
             visibility: Visibility::Public,
             file: format!("src/domain/mod_{}.ts", i / 10),
+            trust_level: TrustLevel::Unknown,
+        };
+        graph.add_symbol(node).unwrap();
+    }
+    for i in 100..200u64 {
+        let node = SymbolNode {
+            id: i,
+            kind: SymbolKind::Function,
+            name: format!("fn_{i}"),
+            visibility: Visibility::Public,
+            file: format!("src/infra/mod_{}.ts", i / 10),
             trust_level: TrustLevel::Unknown,
         };
         graph.add_symbol(node).unwrap();
@@ -326,11 +338,22 @@ layers:
     for &invariant_count in &[4, 10, 25, 50] {
         // Vary delta size
         for &delta_symbols in &[1u64, 10, 50] {
+            // Insert cross-layer edges into the graph so
+            // CrossLayerViolation actually traverses real imports
+            let edge_count = delta_symbols.min(50);
+            for i in 0..edge_count {
+                let _ = graph.add_edge(anvil_kernel_types::SymbolEdge {
+                    from: i,
+                    to: 100 + i,
+                    edge_type: EdgeType::Imports,
+                });
+            }
+
             let delta = GraphDelta {
                 added_symbols: (0..delta_symbols).collect(),
                 removed_symbols: Vec::new(),
-                added_edges: (0..delta_symbols.min(50))
-                    .map(|i| (i, (i + 1).min(199), EdgeType::Imports))
+                added_edges: (0..edge_count)
+                    .map(|i| (i, 100 + i, EdgeType::Imports))
                     .collect(),
                 removed_edges: Vec::new(),
                 errors: Vec::new(),
@@ -453,9 +476,8 @@ fn bench_debouncer_throughput(c: &mut Criterion) {
             &pending_count,
             |b, &n| {
                 b.iter(|| {
-                    // Use a long window so tick won't flush during recording;
-                    // backpressure flush occurs when pending > max_pending
-                    let mut debouncer = Debouncer::new(Duration::from_secs(60), n + 1);
+                    // Use a zero window so tick() flushes all pending changes
+                    let mut debouncer = Debouncer::new(Duration::from_millis(0), n + 1);
                     let mut flush_count = 0u32;
 
                     for i in 0..n {
@@ -468,8 +490,12 @@ fn bench_debouncer_throughput(c: &mut Criterion) {
                         }
                     }
 
+                    // Flush via tick to measure the full record+tick cycle
+                    if let Some(batch) = debouncer.tick() {
+                        flush_count += 1;
+                        black_box(&batch);
+                    }
                     black_box(flush_count);
-                    black_box(debouncer.pending_count());
                 });
             },
         );
