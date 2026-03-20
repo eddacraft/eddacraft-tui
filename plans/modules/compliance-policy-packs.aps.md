@@ -64,7 +64,7 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
 - POLVAL-004 — Policy test runner (test enforcement)
 - POLVAL-005 — CLI `anvil policy validate` with `--pack` mode
 - OPAE-006 — Policy library infrastructure (discovery and loading)
-- OPAE-012 — OPA executor (Rego evaluation runtime)
+- `packages/anvil/policy` — OPA executor (existing infrastructure, not a planned task)
 - AGOV-002 — `anvil policy install --pack <name>` CLI entry point
 
 **Exposes:**
@@ -126,8 +126,8 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/severity.rego`
   - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/metadata.rego`
   - `packages/anvil/runtime/src/gate/__fixtures__/policies/compliance/common/test-helpers.rego`
-- **Dependencies:** OPAE-012 (OPA executor)
-- **Validation:** `nx test @eddacraft/anvil-runtime --testNamePattern="compliance-common"`
+- **Dependencies:** OPAE-006 (policy library infrastructure)
+- **Validation:** `nx test runtime --testNamePattern="compliance-common"`
 - **Confidence:** high
 
 #### CPACKS-002: Pack manifest and control-mapping schema
@@ -143,7 +143,7 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   - `packages/anvil/runtime/src/gate/policy/compliance-manifest.ts`
   - `packages/anvil/runtime/src/gate/policy/compliance-manifest.test.ts`
 - **Dependencies:** POLVAL-001, POLVAL-002
-- **Validation:** `nx test @eddacraft/anvil-runtime --testNamePattern="compliance-manifest"`
+- **Validation:** `nx test runtime --testNamePattern="compliance-manifest"`
 - **Confidence:** high
 
 ### Phase B: OWASP Top 10 Pack
@@ -614,7 +614,7 @@ AI-specific regulation (NIST AI RMF, EU AI Act).
   - `packages/anvil/runtime/src/gate/policy/compliance-packs.integration.test.ts`
 - **Dependencies:** All Phase B–G manifest and policy implementation tasks
     (CPACKS-010–061 inclusive)
-- **Validation:** `nx test @eddacraft/anvil-runtime --testNamePattern="compliance-packs.integration"`
+- **Validation:** `nx test runtime --testNamePattern="compliance-packs.integration"`
 - **Confidence:** high
 
 #### CPACKS-071: Compliance pack documentation
@@ -672,7 +672,7 @@ D-CPACKS-003: Policies as Rego, not TypeScript checks
   portability. TypeScript gate checks are for structural concerns; Rego is
   for policy logic.
 - **Alternatives:** Implement as native TypeScript gate checks
-- **Trade-offs:** Requires OPA runtime; but OPAE-012 already provides this.
+- **Trade-offs:** Requires OPA runtime; `packages/anvil/policy` already provides this.
 
 D-CPACKS-004: AI packs reference AGOV trust scoring and capability model
 
