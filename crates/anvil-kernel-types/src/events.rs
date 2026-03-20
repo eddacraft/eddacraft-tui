@@ -343,7 +343,7 @@ mod tests {
             let json = serde_json::to_string(payload).unwrap();
             let back: EventPayload = serde_json::from_str(&json).unwrap();
             // Verify round-trip succeeds (structural equality via debug)
-            assert_eq!(format!("{:?}", payload), format!("{:?}", back));
+            assert_eq!(format!("{payload:?}"), format!("{back:?}"));
         }
     }
 
