@@ -18,7 +18,7 @@ use anvil_kernel::watcher::debounce::Debouncer;
 use anvil_kernel::watcher::events::{ChangeKind, FileChange};
 
 use anvil_kernel_types::{EdgeType, EngineId, SymbolKind, SymbolNode, TrustLevel, Visibility};
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 use tempfile::TempDir;
 
 const SAMPLE_TS: &str = r"
@@ -215,27 +215,28 @@ fn bench_incremental_update_varied(c: &mut Criterion) {
         let path = Path::new("src/module/target.ts");
 
         group.bench_with_input(BenchmarkId::new("loc", loc), &loc, |b, _| {
-            // Slightly modified content for incremental update
             let updated = format!("{content}\nexport const UPDATED = true;\n");
             let updated_bytes = updated.as_bytes();
 
-            b.iter(|| {
-                // Fresh parser each sample so the AST cache doesn't mask
-                // parse cost — we want to measure parse+update scaling.
-                let mut parser = Parser::new();
-                let mut graph = SymbolGraph::new();
-
-                // Initial parse to populate graph
-                let init = parser.parse_bytes(path, content_bytes).unwrap();
-                let symbols = extract_symbols(&init.tree, content_bytes, path, 0);
-                update_file(&mut graph, symbols);
-
-                // Incremental update
-                let result = parser.parse_bytes(path, black_box(updated_bytes)).unwrap();
-                let symbols = extract_symbols(&result.tree, updated_bytes, path, 10_000);
-                let delta = update_file(&mut graph, symbols);
-                black_box(&delta);
-            });
+            b.iter_batched(
+                || {
+                    // Setup: fresh parser + prepopulated graph (untimed)
+                    let mut parser = Parser::new();
+                    let mut graph = SymbolGraph::new();
+                    let init = parser.parse_bytes(path, content_bytes).unwrap();
+                    let symbols = extract_symbols(&init.tree, content_bytes, path, 0);
+                    update_file(&mut graph, symbols);
+                    (parser, graph)
+                },
+                |(mut parser, mut graph)| {
+                    // Timed: only the incremental update path
+                    let result = parser.parse_bytes(path, black_box(updated_bytes)).unwrap();
+                    let symbols = extract_symbols(&result.tree, updated_bytes, path, 10_000);
+                    let delta = update_file(&mut graph, symbols);
+                    black_box(&delta);
+                },
+                BatchSize::SmallInput,
+            );
         });
     }
 
