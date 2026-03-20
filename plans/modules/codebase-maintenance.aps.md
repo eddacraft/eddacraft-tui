@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 6/10 |
+| MAINT | @team | In Progress | 8/10 |
 
 ## Purpose
 
@@ -168,9 +168,10 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `tools/generators/`
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** In Progress
-- **Notes:** Generator scaffolded in PR #516 (open, not yet merged).
-  `tools/generators/src/generators/command/` does not exist on main yet.
+- **Status:** Complete
+- **Completed:** 2026-03-08
+- **Notes:** Generator merged via PR #516.
+  `tools/generators/src/generators/command/` exists on main.
 
 ---
 
@@ -185,9 +186,10 @@ When working on any task across the codebase, note repeated patterns:
 - **Files:** `tools/generators/`, `packages/anvil/runtime/src/gate/`
 - **Confidence:** high
 - **Priority:** Low
-- **Status:** In Progress
-- **Notes:** Generator scaffolded in PR #516 (open, not yet merged).
-  `tools/generators/src/generators/gate-check/` does not exist on main yet.
+- **Status:** Complete
+- **Completed:** 2026-03-08
+- **Notes:** Generator merged via PR #516.
+  `tools/generators/src/generators/gate-check/` exists on main.
 
 ---
 
