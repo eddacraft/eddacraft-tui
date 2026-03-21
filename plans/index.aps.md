@@ -168,13 +168,32 @@ only make sense after the core policy engine is battle-tested.
 
 ### Multi-Language Support (Placeholder)
 
-| Feature | Description | Status |
-| ------- | ----------- | ------ |
-| Python Support | `import`/`from` extraction, `# type: ignore` | Placeholder |
-| Rust Support | `use`/`mod` extraction, `unsafe` detection | Placeholder |
-| .NET Support | `using` extraction, `dynamic` type detection | Placeholder |
+Each language needs: tree-sitter grammar, import extraction, anti-pattern
+catalogue, suppression syntax. Promoted to Ready as demand and resources allow.
 
-Each depends on configurable extensions from 0.1.0 (HTMLCSS-001).
+| Module | Language | Est. Tasks | Prerequisite | tree-sitter |
+| ------ | -------- | ---------- | ------------ | ----------- |
+| [lang-python](./modules/lang-python.aps.md) | Python | 6 | HTMLCSS-001 | tree-sitter-python |
+| [lang-go](./modules/lang-go.aps.md) | Go | 6 | HTMLCSS-001 | tree-sitter-go |
+| [lang-rust](./modules/lang-rust.aps.md) | Rust | 5 | HTMLCSS-001 | tree-sitter-rust |
+| [lang-java](./modules/lang-java.aps.md) | Java | 5 | HTMLCSS-001 | tree-sitter-java |
+| [lang-kotlin](./modules/lang-kotlin.aps.md) | Kotlin | 4 | HTMLCSS-001 | tree-sitter-kotlin |
+| [lang-dotnet](./modules/lang-dotnet.aps.md) | .NET/C# | 5 | HTMLCSS-001 | tree-sitter-c-sharp |
+| [lang-dart](./modules/lang-dart.aps.md) | Dart/Flutter | 3 | HTMLCSS-001 | tree-sitter-dart |
+| [lang-swift](./modules/lang-swift.aps.md) | Swift | 3 | HTMLCSS-001 | tree-sitter-swift |
+| [lang-c-cpp](./modules/lang-c-cpp.aps.md) | C/C++ | 5 | HTMLCSS-001 | tree-sitter-c, cpp |
+| [lang-zig](./modules/lang-zig.aps.md) | Zig | 3 | HTMLCSS-001 | tree-sitter-zig |
+
+### Config Intelligence (Placeholder)
+
+Extract dependency graphs and project structure from config files
+(package.json, Cargo.toml, go.mod, tsconfig.json, etc.) without language-
+specific analysers. Feeds the architecture edge detector with dependency
+graph data.
+
+| Module | Scope | Est. Tasks | Dependencies |
+| ------ | ----- | ---------- | ------------ |
+| [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | 7 | architecture-safety |
 
 ### Future
 
