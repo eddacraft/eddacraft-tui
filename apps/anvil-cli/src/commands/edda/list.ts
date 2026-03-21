@@ -36,8 +36,14 @@ export function createEddaListCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--type <type>', 'Filter by memory type (comma-separated for multiple)')
     .option('--status <status>', 'Filter by memory status', 'active')
-    .option('--confidence <level>', 'Filter by confidence level (low, medium, high)')
-    .option('--since <duration>', 'Filter by age (e.g. 7d, 24h, 30d)')
+    .option(
+      '--confidence <level>',
+      'Filter by confidence level(s) (low, medium, high; comma-separated for multiple)'
+    )
+    .option(
+      '--since <duration>',
+      'Filter by age; supports m (minutes), h (hours), d (days) (e.g. 30m, 24h, 7d, 30d)'
+    )
     .option('--limit <n>', 'Maximum memories to display', parseLimit, 20)
     .action(async (options: EddaListOptions) => {
       const workspaceRoot = getWorkspaceRoot();
@@ -120,6 +126,8 @@ export function createEddaListCommand(): Command {
         const result = await store.queryMemories({
           types: parsedTypes.length > 0 ? parsedTypes : undefined,
           statuses: [parsedStatus],
+          confidence_levels: parsedConfidence.length > 0 ? parsedConfidence : undefined,
+          created_after: createdAfter,
           include_superseded: parsedStatus === 'superseded',
           limit: options.limit,
           offset: 0,
@@ -133,7 +141,8 @@ export function createEddaListCommand(): Command {
           `status: ${parsedStatus}`,
           `type: ${parsedTypes.length > 0 ? parsedTypes.join(', ') : 'all'}`,
         ];
-        if (parsedConfidence.length > 0) filterParts.push(`confidence: ${parsedConfidence.join(', ')}`);
+        if (parsedConfidence.length > 0)
+          filterParts.push(`confidence: ${parsedConfidence.join(', ')}`);
         if (options.since) filterParts.push(`since: ${options.since}`);
         print(chalk.gray(`${result.total} found  |  ${filterParts.join('  |  ')}`));
         print(chalk.gray('─'.repeat(118)));
@@ -195,7 +204,8 @@ function parseStatus(value: string): MemoryStatus {
   return parsed.data;
 }
 
-function parseConfidence(value?: string): EddaConfidenceLevel[] {
+/** @internal Exported for testing. */
+export function parseConfidence(value?: string): EddaConfidenceLevel[] {
   if (!value) return [];
   return value.split(',').map((v) => {
     const trimmed = v.trim();
@@ -207,19 +217,17 @@ function parseConfidence(value?: string): EddaConfidenceLevel[] {
   });
 }
 
-function parseSince(value?: string): string | undefined {
+/** @internal Exported for testing. */
+export function parseSince(value?: string): string | undefined {
   if (!value) return undefined;
   const match = value.match(/^(\d+)([dhm])$/);
   if (!match) {
     throw new CliError(`Invalid --since format: ${value}. Use e.g. 7d, 24h, 30m`);
   }
-  const amount = parseInt(match[1], 10);
+  const amount = Number(match[1]);
   const unit = match[2];
   const now = Date.now();
-  const ms =
-    unit === 'd' ? amount * 86400000 :
-    unit === 'h' ? amount * 3600000 :
-    amount * 60000;
+  const ms = unit === 'd' ? amount * 86400000 : unit === 'h' ? amount * 3600000 : amount * 60000;
   return new Date(now - ms).toISOString();
 }
 
