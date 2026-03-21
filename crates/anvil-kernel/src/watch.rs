@@ -309,6 +309,7 @@ fn watch_loop(
                     // Replace imports for this file (remove old, add new)
                     state.all_imports.retain(|i| i.from_file != rel_str);
                     state.all_imports.extend(new_imports);
+                    re_resolve_imports(&mut state.graph, &state.all_imports);
                     annotate_trust(&mut state.graph, &state.all_imports);
 
                     // Clear policy dedupe state so reintroduced violations

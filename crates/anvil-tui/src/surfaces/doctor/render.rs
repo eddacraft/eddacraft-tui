@@ -9,10 +9,11 @@ use super::{CheckStatus, DoctorState};
 
 #[allow(clippy::too_many_lines)]
 pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCraftTheme) {
+    let detail_height = if state.expanded { 4 } else { 0 };
     let chunks = Layout::vertical([
-        Constraint::Length(3), // Summary header
-        Constraint::Min(4),    // Check list
-        Constraint::Length(4), // Detail panel (when expanded)
+        Constraint::Length(3),            // Summary header
+        Constraint::Min(4),               // Check list
+        Constraint::Length(detail_height), // Detail panel (when expanded)
     ])
     .split(area);
 

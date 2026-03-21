@@ -9,7 +9,7 @@ use super::events::{ChangeBatch, ChangeKind, FileChange};
 /// Files changed multiple times within the debounce window are
 /// collapsed into a single change. Backpressure is applied by
 /// bounding the pending change map to `max_pending` entries --
-/// if exceeded, the oldest batch is flushed immediately.
+/// if exceeded, all pending changes are flushed immediately.
 pub struct Debouncer {
     window: Duration,
     max_pending: usize,

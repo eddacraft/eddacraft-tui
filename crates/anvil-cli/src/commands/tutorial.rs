@@ -42,10 +42,8 @@ pub fn run(args: &TutorialArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 }
 
 fn progress_file_path() -> anyhow::Result<PathBuf> {
-    let home = std::env::var("HOME").context("HOME environment variable not set")?;
-    Ok(PathBuf::from(home)
-        .join(".anvil")
-        .join("tutorial-progress.json"))
+    let home = dirs::home_dir().context("could not determine home directory")?;
+    Ok(home.join(".anvil").join("tutorial-progress.json"))
 }
 
 fn reset_progress(path: &PathBuf) -> anyhow::Result<()> {

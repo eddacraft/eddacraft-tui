@@ -178,7 +178,7 @@ impl crate::surface::Surface for AuditState {
     }
 
     fn handle_key(&mut self, action: Action) {
-        self.handle_key(action);
+        AuditState::handle_key(self, action);
     }
 
     fn should_quit(&self) -> bool {
