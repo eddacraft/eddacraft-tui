@@ -94,18 +94,18 @@ deprecation policy, or consistent error shapes.
 - **Status:** Draft
 - **Intent:** Define how endpoints are deprecated and sunset
 - **Expected Outcome:** Deprecated endpoints return Sunset and Deprecation headers
-- **Validation:** `curl -I deprecated-endpoint | grep Sunset`
+- **Validation:** `curl -I localhost:3000/api/v1/test-deprecated -H "Accept: application/json" | grep -i sunset`
 
 ### APGOV-006: Health endpoint and dependency checks
 
 - **Status:** Draft
-- **Intent:** Add `/health` endpoint that checks DB and external deps
-- **Expected Outcome:** `/health` returns `{ status: "ok", checks: {...} }`
-- **Validation:** `curl localhost:3000/health | jq .status` returns "ok"
+- **Intent:** Add `/api/v1/health` endpoint that checks DB and external deps
+- **Expected Outcome:** `/api/v1/health` returns `{ status: "ok", checks: {...} }`
+- **Validation:** `curl localhost:3000/api/v1/health | jq .status` returns "ok"
 
 ### APGOV-007: CORS policy documentation and configuration
 
 - **Status:** Draft
 - **Intent:** Document and configure CORS origins as integrations grow
 - **Expected Outcome:** CORS policy documented in docs/guides/
-- **Validation:** `cat docs/guides/cors-policy.md | grep -q "origins"`- **Status:** Draft
+- **Validation:** `cat docs/guides/cors-policy.md | grep -q "origins"`
