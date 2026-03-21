@@ -131,14 +131,21 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
                     self.theme.base()
                 };
                 let desc_style = if i == state.selected {
-                    ratatui::style::Style::default().fg(self.theme.muted())
+                    label_style.fg(self.theme.muted())
                 } else {
                     self.theme.disabled()
                 };
 
                 Line::from(vec![
                     Span::styled(format!("{prefix}{}", item.label), label_style),
-                    Span::styled("  ", self.theme.base()),
+                    Span::styled(
+                        "  ",
+                        if i == state.selected {
+                            label_style
+                        } else {
+                            self.theme.base()
+                        },
+                    ),
                     Span::styled(item.description.as_deref().unwrap_or(""), desc_style),
                 ])
             } else {
