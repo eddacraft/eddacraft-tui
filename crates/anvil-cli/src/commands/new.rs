@@ -160,6 +160,58 @@ fn find_templates_dir() -> Option<PathBuf> {
     None
 }
 
+/// Embedded templates for `cargo install` where no filesystem templates exist.
+/// Each entry is `(template_id, content)` loaded at compile time via `include_str!`.
+fn embedded_template(name: &str) -> Option<&'static str> {
+    let templates: &[(&str, &str)] = &[
+        (
+            "api-integration",
+            include_str!("../../templates/api-integration.md"),
+        ),
+        (
+            "authentication-jwt",
+            include_str!("../../templates/authentication-jwt.md"),
+        ),
+        (
+            "caching-layer",
+            include_str!("../../templates/caching-layer.md"),
+        ),
+        (
+            "ci-cd-pipeline",
+            include_str!("../../templates/ci-cd-pipeline.md"),
+        ),
+        (
+            "database-migration",
+            include_str!("../../templates/database-migration.md"),
+        ),
+        (
+            "error-handling",
+            include_str!("../../templates/error-handling.md"),
+        ),
+        (
+            "file-upload",
+            include_str!("../../templates/file-upload.md"),
+        ),
+        (
+            "frontend-component",
+            include_str!("../../templates/frontend-component.md"),
+        ),
+        (
+            "rest-api-crud",
+            include_str!("../../templates/rest-api-crud.md"),
+        ),
+        (
+            "testing-suite",
+            include_str!("../../templates/testing-suite.md"),
+        ),
+        (
+            "websocket-realtime",
+            include_str!("../../templates/websocket-realtime.md"),
+        ),
+    ];
+    templates.iter().find(|(n, _)| *n == name).map(|(_, c)| *c)
+}
+
 /// Best-effort workspace root detection via `git rev-parse`.
 fn workspace_root() -> PathBuf {
     Command::new("git")
@@ -200,11 +252,33 @@ type TemplateCatalogue = (
 );
 
 fn load_templates() -> anyhow::Result<TemplateCatalogue> {
-    let Some(dir) = find_templates_dir() else {
-        anyhow::bail!(
-            "templates directory not found; set ANVIL_TEMPLATES_DIR or run from the workspace root"
-        )
-    };
+    if let Some(dir) = find_templates_dir() {
+        return load_templates_from_dir(&dir);
+    }
+    // Fall back to embedded templates for `cargo install` environments.
+    // Write embedded templates to a temp directory and load from there.
+    let tmp = tempfile::tempdir()?;
+    let template_names = [
+        "api-integration",
+        "authentication-jwt",
+        "caching-layer",
+        "ci-cd-pipeline",
+        "database-migration",
+        "error-handling",
+        "file-upload",
+        "frontend-component",
+        "rest-api-crud",
+        "testing-suite",
+        "websocket-realtime",
+    ];
+    for name in &template_names {
+        if let Some(content) = embedded_template(name) {
+            std::fs::write(tmp.path().join(format!("{name}.md")), content)?;
+        }
+    }
+    // Keep the tempdir so it persists for the duration of the process.
+    #[allow(deprecated)]
+    let dir = tmp.into_path();
     load_templates_from_dir(&dir)
 }
 

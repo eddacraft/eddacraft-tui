@@ -160,10 +160,21 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
                 && !file.contains('\\')
                 && file != ".."
                 && file != "."
-                && let Ok(entry_contents) = std::fs::read_to_string(cache_dir.join(file))
-                && let Ok(entry_val) = serde_json::from_str::<serde_json::Value>(&entry_contents)
             {
-                return parse_gate_entry(key, &entry_val);
+                // Try entries/ subdirectory (workspace FileCacheProvider format)
+                // then cache root (standalone format).
+                let entry_path = cache_dir.join("entries").join(file);
+                let entry_path = if entry_path.exists() {
+                    entry_path
+                } else {
+                    cache_dir.join(file)
+                };
+                if let Ok(entry_contents) = std::fs::read_to_string(entry_path)
+                    && let Ok(entry_val) =
+                        serde_json::from_str::<serde_json::Value>(&entry_contents)
+                {
+                    return parse_gate_entry(key, &entry_val);
+                }
             }
             // Fall back to parsing the index entry directly.
             parse_gate_entry(key, val)
