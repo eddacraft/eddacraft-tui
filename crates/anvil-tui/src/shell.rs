@@ -1,8 +1,8 @@
 //! Re-export from eddacraft-tui with Anvil-branded shell.
 
 use eddacraft_tui::theme::EddaCraftTheme;
-use ratatui::layout::Rect;
 use ratatui::Frame;
+use ratatui::layout::Rect;
 
 /// Render the Anvil-branded shell chrome around a surface content area.
 ///
@@ -21,8 +21,8 @@ pub fn render_shell(
 mod tests {
     use super::*;
     use crate::test_utils::snapshot::buffer_to_string;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn renders_without_panic() {
