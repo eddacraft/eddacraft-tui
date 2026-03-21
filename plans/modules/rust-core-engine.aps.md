@@ -73,9 +73,9 @@ into kernel APIs rather than reimplementing parsing.
 
 Change status to **Ready** when:
 
-- [ ] KERN Phase 1 (parser infrastructure) is complete
-- [ ] Cargo workspace structure agreed
-- [ ] Current TS check test fixtures identified for parity validation
+- [x] KERN Phase 1 (parser infrastructure) is complete
+- [x] Cargo workspace structure agreed
+- [x] Current TS check test fixtures identified for parity validation
 
 ---
 

@@ -129,7 +129,7 @@ impl crate::surface::Surface for DoctorState {
     }
 
     fn handle_key(&mut self, action: Action) {
-        self.handle_key(action);
+        DoctorState::handle_key(self, action);
     }
 
     fn should_quit(&self) -> bool {

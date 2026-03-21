@@ -10,7 +10,6 @@ pub fn events_to_gate_result(
     timestamp: &str,
 ) -> GateResult {
     let mut checks = Vec::new();
-    let mut violation_files: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for event in events {
         match &event.payload {
@@ -20,7 +19,6 @@ pub fn events_to_gate_result(
                 symbol: _,
                 message,
             } => {
-                violation_files.insert(file.clone());
                 checks.push(GateCheck {
                     id: policy_id.clone(),
                     name: policy_id.clone(),
