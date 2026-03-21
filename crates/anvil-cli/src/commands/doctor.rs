@@ -149,6 +149,14 @@ fn check_config_valid() -> DiagnosticCheck {
     }
 
     match std::fs::read_to_string(path) {
+        Ok(content) if content.trim().is_empty() => DiagnosticCheck {
+            name: "config-valid".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Fail,
+            message: ".anvilrc is empty".to_string(),
+            details: None,
+            auto_fixable: false,
+        },
         Ok(content) => {
             // Accept JSON, YAML, or TOML — must parse as a mapping/table, not a scalar.
             let json_ok = serde_json::from_str::<serde_json::Value>(&content)
