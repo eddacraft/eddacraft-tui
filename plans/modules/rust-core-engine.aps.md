@@ -73,9 +73,9 @@ into kernel APIs rather than reimplementing parsing.
 
 Change status to **Ready** when:
 
-- [ ] KERN Phase 1 (parser infrastructure) is complete
-- [ ] Cargo workspace structure agreed
-- [ ] Current TS check test fixtures identified for parity validation
+- [x] KERN Phase 1 (parser infrastructure) is complete
+- [x] Cargo workspace structure agreed
+- [x] Current TS check test fixtures identified for parity validation
 
 ---
 
@@ -202,7 +202,7 @@ Change status to **Ready** when:
 | RENG-001 Secret scan | Done |
 | RENG-002 Anti-pattern detection | Done |
 | RENG-003 Command safety | Done |
-| RENG-004 Architecture check merge | Draft |
+| RENG-004 Architecture check merge | Draft (blocked on KERN-032, now done) |
 | RENG-005 Benchmarks | Done |
-| RENG-006 Feature flag + dual-run | Draft |
-| **Total** | **6 items** |
+| RENG-006 Feature flag + dual-run | Draft (blocked on KERN-042, now done) |
+| **Total** | **6 items (4/6 done)** |

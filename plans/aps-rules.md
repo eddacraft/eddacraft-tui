@@ -145,11 +145,12 @@ Tasks use the module's ID prefix: `AUTH-001`, `AUTH-002`, `CORE-001`, etc.
 
 ### When Asked to Plan
 
-1. Read existing `plans/index.aps.md` if present
-2. Identify which template fits (index, module, simple)
-3. Fill sections with **intent**, not implementation
-4. Mark assumptions explicitly
-5. Leave tasks empty until module is Ready
+1. Read existing `plans/index.aps.md` if present (active/planned work)
+2. Check `plans/completed-index.aps.md` for completed work context
+3. Identify which template fits (index, module, simple)
+4. Fill sections with **intent**, not implementation
+5. Mark assumptions explicitly
+6. Leave tasks empty until module is Ready
 
 ### When Asked to Execute
 
@@ -163,15 +164,16 @@ Tasks use the module's ID prefix: `AUTH-001`, `AUTH-002`, `CORE-001`, etc.
 
 ```text
 plans/
-├── aps-rules.md           # This file (agent guidance)
-├── index.aps.md           # Root plan
-├── modules/               # Module specs (numbered by dependency order)
+├── aps-rules.md              # This file (agent guidance)
+├── index.aps.md              # Root plan (active/planned work)
+├── completed-index.aps.md    # Completed work archive
+├── modules/                  # Module specs (numbered by dependency order)
 │   ├── 01-core.aps.md
 │   └── 02-auth.aps.md
-├── execution/             # Action plan files
-│   ├── [TASK-ID].steps.md     # Per-task (complex projects)
-│   └── [MODULE].steps.md      # Per-module (simple projects)
-└── decisions/             # ADRs (optional)
+├── execution/                # Action plan files
+│   ├── [TASK-ID].steps.md    # Per-task (complex projects)
+│   └── [MODULE].steps.md     # Per-module (simple projects)
+└── decisions/                # ADRs (optional)
     └── [NNN]-[title].md
 ```
 
@@ -183,3 +185,4 @@ plans/
 | Writing tasks | Outcome-focused? Has validation command? |
 | Planning module | Boundaries clear? Status set? No premature tasks? |
 | Executing | Module status is Ready/In Progress? Prerequisites met? |
+| Starting work | Read index.aps.md (active) + completed-index.aps.md (context)? |
