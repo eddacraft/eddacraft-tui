@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status      |
 | ------ | ----- | ----------- |
-| RSTLAN | —     | Placeholder |
+| RSTLAN | —     | Draft |
 
 ## Purpose
 

@@ -192,7 +192,6 @@ Task-level detail for all completed work is archived in
 | [website-migration](./archive/modules/website-migration.aps.md) | WEB | 0.1.0 |
 | [monorepo-migration](./archive/modules/monorepo-migration.aps.md) | MONO | 0.1.0 |
 | [test-quality](./archive/modules/test-quality.aps.md) | TEST | — |
-| [pulumi-iac](./modules/pulumi-iac.aps.md) | IAC | 0.1.0 |
 | [beta-launch-checklist](./archive/modules/beta-launch-checklist.aps.md) | — | 0.1.2-beta |
 | [beta-testing-improvements](./archive/modules/beta-testing-improvements.aps.md) | — | 0.1.2-beta |
 | [post-beta-launch-uplift](./archive/modules/post-beta-launch-uplift.aps.md) | PBLU | 0.1.x |
@@ -202,12 +201,12 @@ Task-level detail for all completed work is archived in
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [cli-hardening](./modules/cli-hardening.aps.md) | CLIH | Complete | — |
-| [coaching-nudges](./modules/coaching-nudges.aps.md) | NUDGE | Complete | — |
-| [mcp-server-hardening](./modules/mcp-server-hardening.aps.md) | MCPH | Complete | — |
-| [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
-| [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — |
-| [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 |
+| [cli-hardening](./archive/modules/cli-hardening.aps.md) | CLIH | Complete | — |
+| [coaching-nudges](./archive/modules/coaching-nudges.aps.md) | NUDGE | Complete | — |
+| [mcp-server-hardening](./archive/modules/mcp-server-hardening.aps.md) | MCPH | Complete | — |
+| [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
+| [security-ci-pipeline](./archive/modules/security-ci-pipeline.aps.md) | SEC | Complete | — |
+| [cli-esbuild-bundling](./archive/modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 |
 | [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | 5/5 |
 | [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | 5/5 |
 | [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 |
@@ -722,7 +721,7 @@ Design doc: [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plan
   ([ADR](./decisions/007-pulumi-iac.md))
 - **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
   evaluation, remediation guidance, and auditable exception workflows
-  ([ADR](./decisions/012-opa-agent-orchestration.md))
+  ([ADR](./decisions/011-opa-agent-orchestration.md))
 - **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
-  ([ADR](./decisions/013-eval-harness-adoption.md))
+  ([ADR](./decisions/012-eval-harness-adoption.md))

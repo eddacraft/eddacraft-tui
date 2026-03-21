@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status    |
 | ------ | ----- | --------- |
-| ZIGLAN | —     | Placeholder |
+| ZIGLAN | —     | Draft |
 
 ## Purpose
 

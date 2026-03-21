@@ -11,7 +11,7 @@ Scopes: RENG (main)
 
 | ID   | Owner | Status      |
 | ---- | ----- | ----------- |
-| RENG | —     | Complete |
+| RENG | —     | In Progress |
 
 ## Purpose
 
@@ -128,8 +128,7 @@ Change status to **Ready** when:
 
 ### RENG-004: Validate architecture check parity with kernel invariants
 
-- **Status:** Done
-- **Completed:** 2026-03-16
+- **Status:** Draft
 - **Intent:** Validate that the kernel's policy engine (KERN-032 invariants)
   produces equivalent architecture violation results to the current JS
   architecture check. RENG-004 owns the parity validation and gap analysis —
@@ -163,8 +162,7 @@ Change status to **Ready** when:
 
 ### RENG-006: Feature flag + dual-run for ported checks
 
-- **Status:** Done
-- **Completed:** 2026-03-16
+- **Status:** Draft
 - **Intent:** Add `--engine rust/legacy/dual` flag so ported checks can be
   validated against JS originals before cutover. In dual mode, both engines run
   and results are diffed.
@@ -204,7 +202,7 @@ Change status to **Ready** when:
 | RENG-001 Secret scan | Done |
 | RENG-002 Anti-pattern detection | Done |
 | RENG-003 Command safety | Done |
-| RENG-004 Architecture check merge | Done |
+| RENG-004 Architecture check merge | Draft (blocked on KERN-032, now done) |
 | RENG-005 Benchmarks | Done |
-| RENG-006 Feature flag + dual-run | Done |
-| **Total** | **6 items** |
+| RENG-006 Feature flag + dual-run | Draft (blocked on KERN-042, now done) |
+| **Total** | **6 items (4/6 done)** |

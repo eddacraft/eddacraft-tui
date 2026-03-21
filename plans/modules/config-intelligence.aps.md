@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID     | Owner | Status    |
 | ------ | ----- | --------- |
-| CFGINT | —     | Placeholder |
+| CFGINT | —     | Draft |
 
 ## Purpose
 
