@@ -9,9 +9,9 @@ Scopes: RCLI (main)
 
 # Rust CLI
 
-| ID   | Owner | Status   |
-| ---- | ----- | -------- |
-| RCLI | —     | Proposed |
+| ID   | Owner | Status     |
+| ---- | ----- | ---------- |
+| RCLI | —     | In Progress |
 
 ## Purpose
 
@@ -81,8 +81,8 @@ Change status to **Ready** when:
 - [x] All 10 TUI surfaces have `help_text()` and `surface_name()` methods
 - [x] Shared shell chrome implemented (header + footer)
 - [x] EddaCraft design system colours applied
-- [ ] `Surface` trait defined and implemented on all 10 states
-- [ ] Demo binary validated visually
+- [x] `Surface` trait defined and implemented on all 10 states
+- [x] CLI binary builds and all 16 commands wired up
 
 ---
 
@@ -497,10 +497,10 @@ Commands that launch TUI surfaces without kernel integration.
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 1 — Foundation | 4 | Proposed |
-| 2 — Static Surface Commands | 8 | Proposed |
-| 3 — Kernel-Integrated Commands | 2 | Proposed |
-| 4 — Auth & API | 2 | Proposed |
-| 5 — Policy & Architecture | 4 | Proposed |
-| 6 — Utilities & Cutover | 4 | Proposed |
+| 1 — Foundation | 4 | Complete |
+| 2 — Static Surface Commands | 8 | Complete |
+| 3 — Kernel-Integrated Commands | 2 | Complete |
+| 4 — Auth & API | 2 | Complete |
+| 5 — Policy & Architecture | 4 | Complete |
+| 6 — Utilities & Cutover | 4 | In Progress |
 | **Total** | **24** | — |

@@ -873,7 +873,7 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-007 | maint  | Nx generator for gate checks                        | Complete | Low      |
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
 | MAINT-009 | maint  | Edda list filters parity with release claims        | Ready    | Medium   |
-| MAINT-010 | maint  | Authenticated release smoke harness                 | Ready    | Medium   |
+| MAINT-010 | maint  | Authenticated release smoke harness                 | Deferred | Medium   |
 
 ### Task Status — Hardening & Maintenance (Nx Task Migration)
 

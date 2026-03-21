@@ -259,5 +259,7 @@ When working on any task across the codebase, note repeated patterns:
   - release checklist docs under `docs/` and/or `.github/` as appropriate
 - **Confidence:** medium
 - **Priority:** Medium
-- **Status:** Ready
+- **Status:** Deferred — rebuild against new CLI once stable
 - **Origin:** v0.2.1-beta release validation (2026-03-15)
+- **Deferred:** PR #628 closed; harness tested a CLI about to be replaced.
+  Rebuild against the new CLI when it lands.
