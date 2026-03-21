@@ -1,8 +1,8 @@
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
-use ratatui::Frame;
 
 use crate::theme::{EddaCraftTheme, Theme};
 
@@ -51,8 +51,8 @@ pub fn render_shell(
 mod tests {
     use super::*;
     use crate::test_utils::snapshot::buffer_to_string;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn renders_without_panic() {

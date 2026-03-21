@@ -1,5 +1,5 @@
-use ratatui::layout::Rect;
 use ratatui::Frame;
+use ratatui::layout::Rect;
 
 use crate::keyboard::Action;
 use crate::theme::EddaCraftTheme;
@@ -22,10 +22,10 @@ pub trait Surface {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::Terminal;
     use ratatui::backend::TestBackend;
     use ratatui::text::Line;
     use ratatui::widgets::Paragraph;
-    use ratatui::Terminal;
 
     struct StubSurface {
         quit: bool,

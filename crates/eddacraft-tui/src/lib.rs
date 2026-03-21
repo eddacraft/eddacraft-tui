@@ -7,7 +7,7 @@ pub mod theme;
 pub mod widgets;
 
 pub mod prelude {
-    pub use crate::compat::{detect_terminal, validate_minimum_size, TerminalInfo};
+    pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
     pub use crate::keyboard::{Action, KeyHandler};
     pub use crate::shell::render_shell;
     pub use crate::surface::Surface;
@@ -18,8 +18,8 @@ pub mod prelude {
     pub use crate::widgets::header::Header;
     pub use crate::widgets::log_panel::{LogEntry, LogFilter, LogLevel, LogPanel, LogPanelState};
     pub use crate::widgets::parallel_progress::{
-        calculate_eta, calculate_overall_progress, format_duration, CheckProgress, CheckStatus,
-        ParallelProgress, ParallelProgressState,
+        CheckProgress, CheckStatus, ParallelProgress, ParallelProgressState, calculate_eta,
+        calculate_overall_progress, format_duration,
     };
     pub use crate::widgets::progress_bar::{ProgressBar, ProgressBarState};
     pub use crate::widgets::select::{Select, SelectItem, SelectState};
