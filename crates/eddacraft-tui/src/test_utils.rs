@@ -1,8 +1,7 @@
 //! Shared test utilities for TUI snapshot testing.
 //!
 //! Provides a style-aware `buffer_to_string` that serialises both cell
-//! symbols *and* style annotations, plus a helper to render a surface
-//! inside shell chrome (matching production layout).
+//! symbols *and* style annotations for use in snapshot tests.
 
 pub mod snapshot {
     use ratatui::buffer::Buffer;

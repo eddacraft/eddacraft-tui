@@ -67,9 +67,13 @@ impl SelectState {
 }
 
 impl<'a, T: Theme> Select<'a, T> {
-    pub fn new(items: Vec<SelectItem>, theme: &'a T) -> Self {
+    pub fn new<I, S>(items: I, theme: &'a T) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<SelectItem>,
+    {
         Self {
-            items,
+            items: items.into_iter().map(Into::into).collect(),
             theme,
             block: None,
         }
@@ -130,11 +134,7 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
                 } else {
                     self.theme.base()
                 };
-                let desc_style = if i == state.selected {
-                    label_style.fg(self.theme.muted())
-                } else {
-                    self.theme.disabled()
-                };
+                let desc_style = label_style.fg(self.theme.muted());
 
                 Line::from(vec![
                     Span::styled(format!("{prefix}{}", item.label), label_style),
