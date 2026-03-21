@@ -100,7 +100,7 @@ systematically (PORT). See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan.
 
-### Beta Auth (Ready)
+### Beta Auth (Complete)
 
 Streamline beta access: device code + email OTP activation flows, JWT session
 model with rotating refresh tokens, admin CLI approval, Resend audience
@@ -767,13 +767,13 @@ Tasks will be defined when each module moves from Draft to Ready status.
   ([ADR](./decisions/009-ink-vs-ratatui-watch-mode-performance.md)) — **Superseded**
 - **D-010:** Pulumi TypeScript IaC — TypeScript-first Pulumi with Azure backend
   ([ADR](./decisions/010-pulumi-typescript-iac.md))
-- **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
-  watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
-  ([ADR](./decisions/011a-rust-core-engine.md)) — **Proposed**
-- **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
+- **D-011:** OPA Agent Orchestration — orchestration layer for checkpointed policy
   evaluation, remediation guidance, and auditable exception workflows
   ([ADR](./decisions/011-opa-agent-orchestration.md))
-- **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
+- **D-011a:** Rust Core Engine — Rust for performance-critical subsystems (engine,
+  watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
+  ([ADR](./decisions/011a-rust-core-engine.md)) — **Proposed**
+- **D-012:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
   ([ADR](./decisions/012-eval-harness-adoption.md))
 

@@ -14,7 +14,7 @@ See: plans/aps-rules.md
 ## Purpose
 
 Govern schema evolution in `packages/anvil/contracts` and
-`packages/anvil-kernel-types`. Establish breaking-change governance, schema
+`crates/anvil-kernel-types`. Establish breaking-change governance, schema
 generation workflow, golden hash management, and cross-language type
 generation (TypeScript ↔ Rust).
 
@@ -45,7 +45,7 @@ are handled.
 **Depends on:**
 
 - `packages/anvil/contracts` — Zod schema definitions
-- `packages/anvil-kernel-types` — Rust type definitions
+- `crates/anvil-kernel-types` — Rust type definitions
 - `packages/anvil/core` — schema validation, JSON schema generation
 
 **Exposes:**

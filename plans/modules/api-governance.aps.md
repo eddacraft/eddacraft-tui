@@ -64,27 +64,48 @@ deprecation policy, or consistent error shapes.
 ### APGOV-001: API versioning strategy and URL prefix convention
 
 - **Status:** Draft
+- **Intent:** Establish URL versioning convention (e.g. `/api/v1/`)
+- **Expected Outcome:** All endpoints follow `/api/vN/` pattern; version documented
+- **Validation:** `grep -r "/api/v" apps/anvil-api/src/routes/ | wc -l` matches route count
 
 ### APGOV-002: Error contract specification (consistent shapes)
 
 - **Status:** Draft
+- **Intent:** Define standard error response shape across all endpoints
+- **Expected Outcome:** All error responses match `{ error: { code, message, details? } }`
+- **Validation:** Integration test asserts error shape on 400/401/404/500
 
 ### APGOV-003: Rate limiting framework
 
 - **Status:** Draft
+- **Intent:** Add per-endpoint rate limiting with configurable limits
+- **Expected Outcome:** Rate limit headers on all responses; 429 on exceeded
+- **Validation:** `curl -I localhost:3000/api/v1/health | grep X-RateLimit`
 
 ### APGOV-004: OpenAPI spec generation from Hono routes
 
 - **Status:** Draft
+- **Intent:** Auto-generate OpenAPI spec from route definitions
+- **Expected Outcome:** `/api/openapi.json` returns valid spec
+- **Validation:** `curl localhost:3000/api/openapi.json | jq .openapi` returns "3.0.0"
 
 ### APGOV-005: Deprecation policy and sunset header support
 
 - **Status:** Draft
+- **Intent:** Define how endpoints are deprecated and sunset
+- **Expected Outcome:** Deprecated endpoints return Sunset and Deprecation headers
+- **Validation:** `curl -I deprecated-endpoint | grep Sunset`
 
 ### APGOV-006: Health endpoint and dependency checks
 
 - **Status:** Draft
+- **Intent:** Add `/health` endpoint that checks DB and external deps
+- **Expected Outcome:** `/health` returns `{ status: "ok", checks: {...} }`
+- **Validation:** `curl localhost:3000/health | jq .status` returns "ok"
 
 ### APGOV-007: CORS policy documentation and configuration
 
 - **Status:** Draft
+- **Intent:** Document and configure CORS origins as integrations grow
+- **Expected Outcome:** CORS policy documented in docs/guides/
+- **Validation:** `cat docs/guides/cors-policy.md | grep -q "origins"`- **Status:** Draft

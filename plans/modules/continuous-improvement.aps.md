@@ -46,7 +46,7 @@ trackable — not just "we'll clean it up later."
 
 **Depends on:**
 
-- `code-review-backlog` — existing review findings (29 tasks, mostly complete)
+- `code-review-backlog` — existing review findings (29 tasks, complete)
 - `codebase-maintenance` — existing pattern extraction work
 - `packages/shared` — target for shared utilities
 - `tools/generators` — Nx generator infrastructure
@@ -62,7 +62,7 @@ trackable — not just "we'll clean it up later."
 | Module | Scope | Status |
 | ------ | ----- | -------- |
 | [codebase-maintenance](./codebase-maintenance.aps.md) | MAINT | In Progress |
-| [code-review-backlog](./code-review-backlog.aps.md) | CRB | Mostly Complete |
+| [code-review-backlog](./code-review-backlog.aps.md) | CRB | Complete |
 
 ## Tasks
 

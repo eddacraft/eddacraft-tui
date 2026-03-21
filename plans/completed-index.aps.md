@@ -719,9 +719,9 @@ Design doc: [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plan
 - **D-007:** Pulumi for IaC — open-source Pulumi with TypeScript over Terraform
   for consistency with the monorepo's TypeScript-first toolchain
   ([ADR](./decisions/007-pulumi-iac.md))
-- **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
+- **D-011:** OPA Agent Orchestration — orchestration layer for checkpointed policy
   evaluation, remediation guidance, and auditable exception workflows
   ([ADR](./decisions/011-opa-agent-orchestration.md))
-- **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
+- **D-012:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
   ([ADR](./decisions/012-eval-harness-adoption.md))
