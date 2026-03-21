@@ -2,43 +2,55 @@ use ratatui::style::Color;
 
 use super::traits::Theme;
 
+/// The `EddaCraft` Terminal Standard palette.
+///
+/// Colour names follow the brand design system:
+/// - The Void (bg), Structure (border)
+/// - Off-White (fg), Ghost Grey (muted)
+/// - Anvil Ember (accent), Edda Growth (success)
+/// - Brick Red (error), Dull Amber (warning)
 pub struct EddaCraftTheme;
 
-const SLATE_900: Color = Color::Rgb(15, 23, 42);
-const SLATE_400: Color = Color::Rgb(148, 163, 184);
-const SLATE_100: Color = Color::Rgb(241, 245, 249);
-const CYAN_400: Color = Color::Rgb(34, 211, 238);
-const GREEN_400: Color = Color::Rgb(74, 222, 128);
-const RED_400: Color = Color::Rgb(248, 113, 113);
-const AMBER_400: Color = Color::Rgb(251, 191, 36);
+const VOID: Color = Color::Rgb(13, 13, 15);
+const STRUCTURE: Color = Color::Rgb(42, 42, 46);
+const OFF_WHITE: Color = Color::Rgb(235, 235, 235);
+const GHOST_GREY: Color = Color::Rgb(133, 133, 138);
+const ANVIL_EMBER: Color = Color::Rgb(204, 85, 0);
+const EDDA_GROWTH: Color = Color::Rgb(46, 139, 87);
+const BRICK_RED: Color = Color::Rgb(201, 74, 74);
+const DULL_AMBER: Color = Color::Rgb(208, 140, 56);
 
 impl Theme for EddaCraftTheme {
     fn bg(&self) -> Color {
-        SLATE_900
+        VOID
     }
 
     fn fg(&self) -> Color {
-        SLATE_100
+        OFF_WHITE
     }
 
     fn accent(&self) -> Color {
-        CYAN_400
+        ANVIL_EMBER
     }
 
     fn success(&self) -> Color {
-        GREEN_400
+        EDDA_GROWTH
     }
 
     fn error(&self) -> Color {
-        RED_400
+        BRICK_RED
     }
 
     fn warning(&self) -> Color {
-        AMBER_400
+        DULL_AMBER
     }
 
     fn muted(&self) -> Color {
-        SLATE_400
+        GHOST_GREY
+    }
+
+    fn border(&self) -> Color {
+        STRUCTURE
     }
 }
 
@@ -57,6 +69,7 @@ mod tests {
             theme.error(),
             theme.warning(),
             theme.muted(),
+            theme.border(),
         ];
 
         for (i, a) in colours.iter().enumerate() {
@@ -72,7 +85,7 @@ mod tests {
     fn base_style_uses_fg_and_bg() {
         let theme = EddaCraftTheme;
         let style = theme.base();
-        assert_eq!(style.fg, Some(SLATE_100));
-        assert_eq!(style.bg, Some(SLATE_900));
+        assert_eq!(style.fg, Some(OFF_WHITE));
+        assert_eq!(style.bg, Some(VOID));
     }
 }
