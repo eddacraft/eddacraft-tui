@@ -88,6 +88,36 @@ systematically (PORT). See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan.
 
+### Beta Auth (Ready)
+
+Streamline beta access: device code + email OTP activation flows, JWT session
+model with rotating refresh tokens, admin CLI approval, Resend audience
+management. 20 tasks across 7 phases.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [beta-auth-streamline](./modules/beta-auth-streamline.aps.md) | BAUTH | Ready | 0/20 | — |
+
+**Design spec:** `docs/specs/2026-03-15-beta-auth-streamline-design.md`
+
+### Observability Foundation (Draft)
+
+Unified observability: telemetry contracts, Neon health instrumentation,
+dashboard ops data contract, alert thresholds, runbook pack. 5 tasks.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [observability-foundation](./modules/observability-foundation.aps.md) | OBS | Draft | 0/5 | kindling-integration, dashboard-ops-views |
+
+### Infrastructure as Code (In Progress)
+
+Pulumi-managed infrastructure: Vercel projects, Azure DNS, backend migration
+to Azure Blob Storage + KeyVault. 12 tasks complete, 8 draft (Azure migration).
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [pulumi-iac](./modules/pulumi-iac.aps.md) | IAC | In Progress | 12/20 | — |
+
 ### Web Dashboard (Ready)
 
 Browser-based interface for exploring Anvil data. Built into `apps/website/`
