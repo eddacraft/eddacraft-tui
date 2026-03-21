@@ -6,9 +6,7 @@ license.workspace = true
 description = "Anvil policy engine — evaluation, library loading, policy lifecycle"
 
 [dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
-thiserror = { workspace = true }
+# Dependencies will be added when implementation begins.
 
 [lints]
 workspace = true

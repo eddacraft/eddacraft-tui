@@ -149,24 +149,65 @@ fn check_config_valid() -> DiagnosticCheck {
     }
 
     match std::fs::read_to_string(path) {
-        Ok(content) => match serde_json::from_str::<serde_json::Value>(&content) {
-            Ok(_) => DiagnosticCheck {
-                name: "config-valid".to_string(),
-                category: "Configuration".to_string(),
-                status: CheckStatus::Pass,
-                message: ".anvilrc is valid JSON".to_string(),
-                details: None,
-                auto_fixable: false,
-            },
-            Err(e) => DiagnosticCheck {
-                name: "config-valid".to_string(),
-                category: "Configuration".to_string(),
-                status: CheckStatus::Fail,
-                message: "invalid JSON in .anvilrc".to_string(),
-                details: Some(e.to_string()),
-                auto_fixable: false,
-            },
-        },
+        Ok(content) => {
+            // Accept JSON, YAML, or TOML — must parse as a mapping/table, not a scalar.
+            let json_ok = serde_json::from_str::<serde_json::Value>(&content)
+                .ok()
+                .is_some_and(|v| v.is_object());
+            let yaml_ok = serde_yaml::from_str::<serde_yaml::Value>(&content)
+                .ok()
+                .is_some_and(|v| v.is_mapping());
+            let toml_ok = toml::from_str::<toml::Value>(&content)
+                .ok()
+                .is_some_and(|v| v.is_table());
+
+            if json_ok || yaml_ok || toml_ok {
+                DiagnosticCheck {
+                    name: "config-valid".to_string(),
+                    category: "Configuration".to_string(),
+                    status: CheckStatus::Pass,
+                    message: ".anvilrc is valid (JSON/YAML/TOML)".to_string(),
+                    details: None,
+                    auto_fixable: false,
+                }
+            } else {
+                let mut errors = Vec::new();
+                match serde_json::from_str::<serde_json::Value>(&content) {
+                    Ok(v) if !v.is_object() => {
+                        errors.push("JSON: parsed but is not an object".into());
+                    }
+                    Err(e) => errors.push(format!("JSON: {e}")),
+                    _ => {}
+                }
+                match serde_yaml::from_str::<serde_yaml::Value>(&content) {
+                    Ok(v) if !v.is_mapping() => {
+                        errors.push("YAML: parsed but is not a mapping".into());
+                    }
+                    Err(e) => errors.push(format!("YAML: {e}")),
+                    _ => {}
+                }
+                match toml::from_str::<toml::Value>(&content) {
+                    Ok(v) if !v.is_table() => {
+                        errors.push("TOML: parsed but is not a table".into());
+                    }
+                    Err(e) => errors.push(format!("TOML: {e}")),
+                    _ => {}
+                }
+                let detail = if errors.is_empty() {
+                    "content is not a valid object/mapping/table".to_string()
+                } else {
+                    errors.join("; ")
+                };
+                DiagnosticCheck {
+                    name: "config-valid".to_string(),
+                    category: "Configuration".to_string(),
+                    status: CheckStatus::Fail,
+                    message: "invalid .anvilrc (not valid JSON, YAML, or TOML)".to_string(),
+                    details: Some(detail),
+                    auto_fixable: false,
+                }
+            }
+        }
         Err(e) => DiagnosticCheck {
             name: "config-valid".to_string(),
             category: "Configuration".to_string(),

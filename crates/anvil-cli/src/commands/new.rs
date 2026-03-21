@@ -101,7 +101,7 @@ pub fn run(args: &NewArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         template.name
     );
     println!("Next steps:");
-    println!("  anvil validate {}", output_path.display());
+    println!("  anvil doctor");
 
     Ok(())
 }
@@ -112,8 +112,10 @@ pub fn run(args: &NewArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
 /// Locate the templates directory by checking:
 /// 1. `ANVIL_TEMPLATES_DIR` env var
-/// 2. `<binary-dir>/templates/`
-/// 3. `<binary-dir>/../templates/` (cargo workspace layout)
+/// 2. `<binary-dir>/templates/` (adjacent to installed binary)
+/// 3. `<binary-dir>/../../crates/anvil-cli/templates/` (cargo workspace layout)
+/// 4. `<binary-dir>/../../apps/anvil-cli/templates/` (workspace development)
+/// 5. `<workspace-root>/apps/anvil-cli/templates/` (workspace-relative fallback)
 fn find_templates_dir() -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("ANVIL_TEMPLATES_DIR") {
         let p = PathBuf::from(dir);
@@ -125,17 +127,25 @@ fn find_templates_dir() -> Option<PathBuf> {
     if let Ok(exe) = std::env::current_exe()
         && let Some(bin_dir) = exe.parent()
     {
+        // Check adjacent to binary (for installed crates).
         let candidate = bin_dir.join("templates");
         if candidate.is_dir() {
             return Some(candidate);
         }
-        // In a cargo workspace the binary sits in target/debug|release
+
+        // In a cargo workspace: target/debug/anvil → ../../crates/anvil-cli/templates
         if let Some(parent) = bin_dir.parent()
             && let Some(grandparent) = parent.parent()
         {
-            let candidate = grandparent.join("apps/anvil-cli/templates");
-            if candidate.is_dir() {
-                return Some(candidate);
+            // Check crate-bundled templates first (works for cargo install).
+            let crate_templates = grandparent.join("crates/anvil-cli/templates");
+            if crate_templates.is_dir() {
+                return Some(crate_templates);
+            }
+            // Fall back to apps/ path (workspace development).
+            let apps_templates = grandparent.join("apps/anvil-cli/templates");
+            if apps_templates.is_dir() {
+                return Some(apps_templates);
             }
         }
     }
@@ -378,10 +388,13 @@ fn resolve_output_path(output: Option<&str>, template_id: &str) -> anyhow::Resul
         let parent = resolved
             .parent()
             .ok_or_else(|| anyhow::anyhow!("cannot determine parent directory"))?;
+
+        // Canonicalise parent if it exists; otherwise normalise path segments
+        // to prevent traversal attacks via ".." components.
         let canonical_parent = if parent.exists() {
             std::fs::canonicalize(parent)?
         } else {
-            parent.to_path_buf()
+            normalize_path(parent)
         };
         canonical_parent.join(resolved.file_name().unwrap_or_default())
     };
@@ -395,6 +408,30 @@ fn resolve_output_path(output: Option<&str>, template_id: &str) -> anyhow::Resul
     }
 
     Ok(resolved)
+}
+
+/// Normalise a path by resolving `.` and `..` segments without requiring
+/// the path to exist on disk. Prevents traversal attacks on non-existent paths.
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut components = Vec::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                // Never pop past the root/prefix — prevents turning absolute paths relative.
+                if components.last().is_some_and(|c| {
+                    !matches!(
+                        c,
+                        std::path::Component::RootDir | std::path::Component::Prefix(_)
+                    )
+                }) {
+                    components.pop();
+                }
+            }
+            other => components.push(other),
+        }
+    }
+    components.iter().collect()
 }
 
 // ---------------------------------------------------------------------------

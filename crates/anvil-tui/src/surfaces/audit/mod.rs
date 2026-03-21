@@ -103,14 +103,6 @@ pub struct AuditState {
 }
 
 impl AuditState {
-    pub fn surface_name(&self) -> &'static str {
-        "a u d i t"
-    }
-
-    pub fn help_text(&self) -> &'static str {
-        "h/l panels  j/k navigate  enter expand  q quit"
-    }
-
     pub fn new(data: AuditData) -> Self {
         Self {
             data,

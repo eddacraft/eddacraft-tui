@@ -82,14 +82,6 @@ impl DoctorState {
         }
     }
 
-    pub fn surface_name(&self) -> &'static str {
-        "d o c t o r"
-    }
-
-    pub fn help_text(&self) -> &'static str {
-        "j/k navigate  enter expand  q quit"
-    }
-
     pub fn summary(&self) -> DiagnosticSummary {
         DiagnosticSummary::from_checks(&self.checks)
     }

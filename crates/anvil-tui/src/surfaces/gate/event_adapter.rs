@@ -47,18 +47,10 @@ pub fn events_to_gate_result(
     }
 
     let overall_passed = checks.is_empty();
-    let total = checks.len();
-    let passed_count = checks
-        .iter()
-        .filter(|c| c.status == GateCheckStatus::Passed)
-        .count();
 
-    #[allow(clippy::cast_precision_loss)]
-    let score = if total == 0 {
-        1.0
-    } else {
-        passed_count as f64 / total as f64
-    };
+    // Binary pass/fail: kernel only emits violations and errors.
+    // No violations or errors = 1.0, any violations/errors = 0.0.
+    let score = if overall_passed { 1.0 } else { 0.0 };
 
     GateResult {
         plan_id: "kernel".to_string(),

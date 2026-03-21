@@ -2,6 +2,7 @@ use std::io;
 use std::time::Duration;
 
 use anvil_tui::shell::render_shell;
+use anvil_tui::surface::Surface;
 use anvil_tui::surfaces::audit::{
     AuditData, AuditIssue, AuditState, HistoricalScore, IssueSeverity,
 };

@@ -10,7 +10,7 @@ use crate::surfaces::watch::{WatchData, WatchState, WatchStats, WatchStatus};
 /// Error type for TUI application failures.
 #[derive(Debug, thiserror::Error)]
 pub enum TuiError {
-    #[error("terminal too small: {0}")]
+    #[error("{0}")]
     TerminalTooSmall(String),
     #[error("backend not supported: {0}")]
     BackendNotSupported(String),

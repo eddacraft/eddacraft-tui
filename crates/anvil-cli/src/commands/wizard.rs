@@ -96,22 +96,21 @@ fn print_plain_templates(templates: &[Template]) {
 fn checks_for_template(template_id: &str) -> Vec<&'static str> {
     match template_id {
         "typescript-monorepo" => vec![
-            "secret-scan",
-            "dependency-audit",
-            "architecture-boundary",
-            "import-rules",
-            "antipattern",
+            "secret-detection",
+            "import-boundaries",
+            "architecture",
+            "antipattern-scan",
             "policy",
         ],
         "rust-workspace" => vec![
-            "secret-scan",
-            "architecture-boundary",
-            "antipattern",
+            "secret-detection",
+            "architecture",
+            "antipattern-scan",
             "policy",
         ],
-        "python-package" => vec!["secret-scan", "dependency-audit", "antipattern"],
+        "python-package" => vec!["secret-detection", "import-boundaries", "antipattern-scan"],
         // minimal or unknown — just secret scanning
-        _ => vec!["secret-scan"],
+        _ => vec!["secret-detection"],
     }
 }
 
@@ -168,10 +167,7 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
     println!();
     println!("  Next steps:");
     println!("    cd {name}");
-    if state.config.enable_hooks {
-        println!("    anvil hooks install");
-    }
-    println!("    anvil gate");
+    println!("    anvil doctor");
     println!();
 
     Ok(())
@@ -244,7 +240,7 @@ mod tests {
             checks.len() > 1,
             "typescript-monorepo should have multiple checks"
         );
-        assert!(checks.contains(&serde_json::json!("architecture-boundary")));
+        assert!(checks.contains(&serde_json::json!("architecture")));
     }
 
     #[test]
@@ -284,25 +280,25 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         assert_eq!(parsed["template"], "minimal");
         let checks = parsed["checks"].as_array().unwrap();
-        assert_eq!(checks, &[serde_json::json!("secret-scan")]);
+        assert_eq!(checks, &[serde_json::json!("secret-detection")]);
     }
 
     #[test]
     fn checks_for_template_varies_by_template() {
         let ts = checks_for_template("typescript-monorepo");
-        assert!(ts.contains(&"architecture-boundary"));
-        assert!(ts.contains(&"import-rules"));
+        assert!(ts.contains(&"architecture"));
+        assert!(ts.contains(&"import-boundaries"));
 
         let rust = checks_for_template("rust-workspace");
-        assert!(rust.contains(&"architecture-boundary"));
-        assert!(!rust.contains(&"import-rules"));
+        assert!(rust.contains(&"architecture"));
+        assert!(!rust.contains(&"import-boundaries"));
 
         let python = checks_for_template("python-package");
-        assert!(python.contains(&"dependency-audit"));
-        assert!(!python.contains(&"architecture-boundary"));
+        assert!(python.contains(&"antipattern-scan"));
+        assert!(!python.contains(&"architecture"));
 
         let minimal = checks_for_template("minimal");
-        assert_eq!(minimal, vec!["secret-scan"]);
+        assert_eq!(minimal, vec!["secret-detection"]);
     }
 
     #[test]
@@ -343,7 +339,7 @@ mod tests {
         let rc_content = std::fs::read_to_string(project_name.join(".anvilrc")).unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&rc_content).unwrap();
         let checks = parsed["checks"].as_array().unwrap();
-        assert!(checks.contains(&serde_json::json!("architecture-boundary")));
-        assert!(!checks.contains(&serde_json::json!("import-rules")));
+        assert!(checks.contains(&serde_json::json!("architecture")));
+        assert!(!checks.contains(&serde_json::json!("import-boundaries")));
     }
 }

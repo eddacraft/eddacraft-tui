@@ -136,6 +136,7 @@ fn gather_profile(root: &Path) -> ProfileInfo {
 /// Read the most recent gate runs from the cache index.
 fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
     let index_path = root.join(".anvil/cache/index.json");
+    let cache_dir = root.join(".anvil/cache");
 
     let Ok(contents) = std::fs::read_to_string(&index_path) else {
         return vec![];
@@ -151,7 +152,22 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
 
     let mut runs: Vec<GateRunResult> = entries
         .iter()
-        .filter_map(|(key, val)| parse_gate_entry(key, val))
+        .filter_map(|(key, val)| {
+            // Try loading the actual entry file for full gate results.
+            // The index entry only has metadata (file, created_at, expires_at, size_bytes).
+            if let Some(file) = val.get("file").and_then(serde_json::Value::as_str)
+                && !file.contains('/')
+                && !file.contains('\\')
+                && file != ".."
+                && file != "."
+                && let Ok(entry_contents) = std::fs::read_to_string(cache_dir.join(file))
+                && let Ok(entry_val) = serde_json::from_str::<serde_json::Value>(&entry_contents)
+            {
+                return parse_gate_entry(key, &entry_val);
+            }
+            // Fall back to parsing the index entry directly.
+            parse_gate_entry(key, val)
+        })
         .collect();
 
     // Sort by timestamp descending, take 5 most recent.
