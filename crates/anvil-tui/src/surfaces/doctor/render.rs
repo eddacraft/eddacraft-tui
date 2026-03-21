@@ -11,8 +11,8 @@ use super::{CheckStatus, DoctorState};
 pub fn render(frame: &mut Frame, area: Rect, state: &DoctorState, theme: &EddaCraftTheme) {
     let detail_height = if state.expanded { 4 } else { 0 };
     let chunks = Layout::vertical([
-        Constraint::Length(3),            // Summary header
-        Constraint::Min(4),               // Check list
+        Constraint::Length(3),             // Summary header
+        Constraint::Min(4),                // Check list
         Constraint::Length(detail_height), // Detail panel (when expanded)
     ])
     .split(area);
