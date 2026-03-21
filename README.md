@@ -10,6 +10,10 @@ EddaCraft monorepo. Currently home to **Anvil** — a deterministic development
 automation platform that catches architecture drift and AI anti-patterns at file
 save, before they reach code review.
 
+Current trust/provenance direction includes line-level authorship attribution
+planning (human/AI/mixed/unknown + model metadata + confidence), tracked in APS
+module `LAC` and governed by ADR-014 (TypeScript vs Rust allocation tree).
+
 ## Repository Structure
 
 This is an NX-managed pnpm workspace containing the following apps, packages,
@@ -66,10 +70,12 @@ and tooling.
 
 | Directory                   | Description                                             |
 | --------------------------- | ------------------------------------------------------- |
-| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph  |
-| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)  |
+| `crates/anvil-kernel`       | Rust kernel — watcher, parser, semantic graph, policy   |
 | `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust) |
+| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer) |
+| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)  |
 | `crates/eddacraft-tui`      | Shared Ratatui component library                        |
+| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph  |
 
 ### Tools
 
@@ -187,6 +193,66 @@ pnpm vitest run --coverage
 Coverage output is written to the root `coverage/` directory (HTML, JSON, and
 JSON summary), which is the path used by the built-in coverage gate check.
 
+## Rust Kernel Benchmarks
+
+The Rust kernel (`anvil-kernel`) includes Criterion micro-benchmarks for
+regression detection. These validate the performance targets defined in the
+[Kernel Spec](./docs/architecture/rust-kernel-spec.md).
+
+### Performance Targets
+
+| Metric                                    | Target      | Status                          |
+| ----------------------------------------- | ----------- | ------------------------------- |
+| Cold graph build (100k LOC / ~2000 files) | < 3 seconds | Pending validation at scale     |
+| Incremental update (single file)          | < 100ms     | Validated (micro-bench)         |
+| Event emission overhead                   | < 10ms      | Validated (micro-bench)         |
+| Memory footprint (medium repo)            | < 500MB     | Pending stress test             |
+| File detection latency (p99)              | < 20ms      | Validated (spike)               |
+| tree-sitter parse (single file)           | < 1ms       | Validated (spike + micro-bench) |
+
+### Benchmark Groups
+
+| Group                       | What it measures                                   | Scale                                |
+| --------------------------- | -------------------------------------------------- | ------------------------------------ |
+| `cold_graph_build`          | Full scan → parse → graph build                    | 10, 50, 100, 500, 1k, 5k files       |
+| `incremental_update`        | Reparse + graph delta for single file change       | 1 file                               |
+| `incremental_update_varied` | Parse + graph update for files of varying size     | 10, 100, 500, 1000 LOC               |
+| `policy_evaluation`         | All H1 invariants evaluated on one delta           | 1 delta, 4 invariants                |
+| `policy_scaling`            | Policy evaluation with varied invariant/delta size | 4–50 invariants × 1–50 symbol deltas |
+| `event_emission`            | 1000 progress events through mpsc channel          | 1000 events                          |
+| `graph_query`               | `symbols_in_file` and `outgoing_edges` lookups     | 1k, 5k, 10k node graphs              |
+| `debouncer_throughput`      | Record + tick cycle under burst and backpressure   | 100, 500, 1000 pending changes       |
+
+### Running Benchmarks
+
+```bash
+# Run all Criterion micro-benchmarks
+cargo bench --bench kernel
+
+# Run a specific group
+cargo bench --bench kernel -- cold_graph_build
+cargo bench --bench kernel -- incremental_update
+cargo bench --bench kernel -- incremental_update_varied
+cargo bench --bench kernel -- policy_evaluation
+cargo bench --bench kernel -- policy_scaling
+cargo bench --bench kernel -- event_emission
+cargo bench --bench kernel -- graph_query
+cargo bench --bench kernel -- debouncer_throughput
+```
+
+Criterion produces HTML reports in `target/criterion/` — open
+`target/criterion/report/index.html` for detailed charts and comparison against
+previous runs.
+
+### Planned Extensions
+
+The [Kernel Benchmarking Spec](./docs/architecture/kernel-benchmarking-spec.md)
+defines a stress-test harness (`anvil-bench`) for capacity discovery — watcher
+saturation, graph memory ceiling, incremental throughput under sustained load,
+and cold start scaling. See the
+[BENCH module](./plans/modules/kernel-benchmarking.aps.md) for Phase 2 and Phase
+3 work items.
+
 ## Deployment
 
 | App         | Platform | Trigger                                               |
@@ -239,13 +305,15 @@ See [AGENTS.md](./AGENTS.md) for AI-assisted development instructions.
 
 ## Documentation
 
-| Document                                                             | Description                 |
-| -------------------------------------------------------------------- | --------------------------- |
-| [Quick Start](./docs/public/anvil/quickstart.md)                     | Get running in 5 minutes    |
-| [CLI Reference](./apps/anvil-cli/README.md)                          | Complete command reference  |
-| [First Project](./docs/public/anvil/first-project.md)                | Real-world setup example    |
-| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md) | Common issues and solutions |
-| [Configuration](./docs/public/anvil/operations/config.md)            | Configuration options       |
-| [Architecture](./docs/ARCHITECTURE.md)                               | System design               |
-| [Release Runbook](./docs/guides/release-runbook.md)                  | Safe CLI release checklist  |
-| [Plans](./plans/index.aps.md)                                        | Detailed roadmap            |
+| Document                                                                | Description                                 |
+| ----------------------------------------------------------------------- | ------------------------------------------- |
+| [Quick Start](./docs/public/anvil/quickstart.md)                        | Get running in 5 minutes                    |
+| [CLI Reference](./apps/anvil-cli/README.md)                             | Complete command reference                  |
+| [First Project](./docs/public/anvil/first-project.md)                   | Real-world setup example                    |
+| [Troubleshooting](./docs/public/anvil/operations/troubleshooting.md)    | Common issues and solutions                 |
+| [Configuration](./docs/public/anvil/operations/config.md)               | Configuration options                       |
+| [Architecture](./docs/architecture/overview.md)                         | System design                               |
+| [Release Runbook](./docs/guides/release-runbook.md)                     | Safe CLI release checklist                  |
+| [Plans](./plans/index.aps.md)                                           | Detailed roadmap                            |
+| [LAC Module](./plans/modules/lineage-authorship-confidence.aps.md)      | Line-level authorship + confidence planning |
+| [ADR-014](./plans/decisions/014-language-allocation-tree-ts-vs-rust.md) | TS vs Rust language allocation policy       |

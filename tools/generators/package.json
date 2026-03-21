@@ -8,10 +8,10 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@nx/devkit": "^22.5.4"
+    "@nx/devkit": "^22.6.0"
   },
   "devDependencies": {
-    "@types/node": "^25.4.0",
+    "@types/node": "^25.5.0",
     "typescript": "^5.9.3"
   },
   "keywords": [

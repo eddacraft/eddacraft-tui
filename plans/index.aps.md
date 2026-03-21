@@ -68,6 +68,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 
 **Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+**Design doc (Rust CLI):** [plans/specs/2026-03-18-rust-cli-design.md](specs/2026-03-18-rust-cli-design.md)
 
 ### Rust Engine (In Progress)
 
@@ -76,17 +77,18 @@ ports (RENG). RATS (Ratatui TUI) and PORT (Ink-to-Ratatui port) are complete.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 20/25 | — |
-| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
-| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Done | 7/7 | KERN Phase 3 |
-| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Done | 15/15 | RATS-001 (complete) |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
+| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
 
 The TypeScript CLI stays — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
 surfaces move to Ratatui (RATS), and existing Ink surfaces are ported
 systematically (PORT). See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
-for the phased rollout plan.
+for the phased rollout plan. ADR-011 is
+[superseded](./decisions/011a-rust-core-engine.md).
 
 ### Beta Auth (Ready)
 
@@ -260,7 +262,275 @@ Module tables are in the Release Plan above. Completed modules are archived in
 > ~~tui-enhancement~~ (TUIENH) — see D-005: Ink over OpenTUI, then
 > ADR-011: Ratatui replaces Ink.
 
-### Task Status — Web Dashboard
+### Current (0.1.x)
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [cli-hardening](./modules/cli-hardening.aps.md) | CLIH | Complete | — | — |
+| [coaching-nudges](./modules/coaching-nudges.aps.md) | NUDGE | Complete | — | antipattern-library |
+| [mcp-server-hardening](./modules/mcp-server-hardening.aps.md) | MCPH | Complete | — | — |
+| [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 | — |
+| [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — | — |
+| [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 | — |
+| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | 5/5 | — |
+| [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | 5/5 | forge-hook-agent |
+| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
+| [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
+| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
+| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 | — |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 8/10 | — |
+| [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
+| [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
+
+### Planned — 0.2.0 (Web Dashboard)
+
+Built into `apps/website/` (Next.js 16 + shadcn/ui + Recharts). Four execution
+waves; 39 tasks total.
+
+| Module | Scope | Status | Progress | Wave | Dependencies |
+| ------ | ----- | ------ | -------- | ---- | ------------ |
+| [dashboard-foundation](./modules/dashboard-foundation.aps.md) | DASH | Ready | 0/9 | 1 | apps/website, contracts |
+| [dashboard-core-views](./modules/dashboard-core-views.aps.md) | DASHCORE | Ready | 0/9 | 2 | dashboard-foundation |
+| [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md) | DASHARCH | Ready | 0/8 | 2 | dashboard-foundation, architecture-safety, drift-reporting, suppressions |
+| [dashboard-ops-views](./modules/dashboard-ops-views.aps.md) | DASHOPS | Ready | 0/7 | 3 | dashboard-foundation |
+| [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) | DASHAI | Draft | 0/6 | 4 | dashboard-foundation |
+| [restore-welcome-screen](./modules/restore-welcome-screen.aps.md) | WELCOME | Ready | 0/13 | — | ratatui-tui, ink-to-ratatui-port |
+
+### Planned — 0.3.0 (Organisational Policy Governance)
+
+<!-- REVIEW(ADR-011): OPAE TUI items (014, 019, 023, 032, 033) target
+     cli/src/tui/ (Ink). Reassess against Ratatui direction. CLI items
+     (005, 011, 013, 015, 016) reference pre-monorepo cli/src/ paths. -->
+
+| Module | Scope | Status | Dependencies |
+| ------ | ----- | ------ | ------------ |
+| [opa-enhancements](./modules/opa-enhancements.aps.md) | OPAE | Draft | opa-architecture-integration, architecture-safety, tui |
+| [org-policy-hierarchy](./modules/org-policy-hierarchy.aps.md) | ORGHIER | Draft | opa-architecture-integration, policy-pack-validation, opa-enhancements |
+| [policy-lifecycle](./modules/policy-lifecycle.aps.md) | POLLC | Draft | opa-architecture-integration, policy-pack-validation, org-policy-hierarchy |
+| [compliance-reporting](./modules/compliance-reporting.aps.md) | COMPLY | Draft | org-policy-hierarchy, policy-lifecycle, drift-reporting, suppressions |
+| [policy-federation](./modules/policy-federation.aps.md) | POLFED | Draft | opa-enhancements, org-policy-hierarchy, policy-lifecycle, policy-pack-validation |
+| [policy-pack-validation](./modules/policy-pack-validation.aps.md) | POLVAL | Draft | opa-architecture-integration |
+| [compliance-policy-packs](./modules/compliance-policy-packs.aps.md) | CPACKS | Draft | policy-pack-validation, opa-enhancements, agent-governance-patterns |
+| [architecture-config-validation](./modules/architecture-config-validation.aps.md) | ARCHCFG | Draft | opa-architecture-integration, architecture-safety |
+| [ai-guardrail-profile](./modules/ai-guardrail-profile.aps.md) | AIGUARD | Draft | architecture-safety, antipattern-library, opa-architecture-integration, policy-pack-validation, architecture-config-validation |
+| [opa-agent-orchestration](./modules/opa-agent-orchestration.aps.md) | OPAG | Ready | opa-architecture-integration, opa-enhancements, architecture-safety, mcp-server |
+| [eval-harness-integration](./modules/eval-harness-integration.aps.md) | EVAL | Ready | opa-enhancements, opa-agent-orchestration, drift-reporting |
+| [compliance-evidence-workspace](./modules/compliance-evidence-workspace.aps.md) | CEWS | Ready | compliance-reporting, policy-lifecycle, eval-harness-integration |
+| [contextual-policy-assertions](./modules/contextual-policy-assertions.aps.md) | CPOL | Ready | opa-enhancements, opa-agent-orchestration |
+| [io-risk-controls](./modules/io-risk-controls.aps.md) | IORISK | Ready | opa-enhancements, opa-agent-orchestration |
+| [gateway-control-plane-patterns](./modules/gateway-control-plane-patterns.aps.md) | GATE | Ready | opa-agent-orchestration, mcp-server |
+| [adversarial-testing-catalog](./modules/adversarial-testing-catalog.aps.md) | ATC | Ready | eval-harness-integration, opa-agent-orchestration |
+| [prompt-attack-regression-packs](./modules/prompt-attack-regression-packs.aps.md) | PATT | Ready | adversarial-testing-catalog, eval-harness-integration |
+| [trust-center-automation](./modules/trust-center-automation.aps.md) | TRUST | Ready | compliance-evidence-workspace, compliance-reporting |
+| [lineage-authorship-confidence](./modules/lineage-authorship-confidence.aps.md) | LAC | Ready | opa-agent-orchestration, compliance-evidence-workspace |
+
+### Planned — 0.4.0 (Edda Stack — Memory System)
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [kindling-integration](./archive/modules/kindling-integration.aps.md) | KINDLING | Complete | 19/19 | save-time-trust, drift-reporting |
+| [ember](./modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
+| [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
+| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
+| [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
+| [intent-ledger-governance](./modules/intent-ledger-governance.aps.md) | ILGOV | Ready | 0/6 | edda-stack-integration, Kindling (external) |
+
+### Future (Post-1.0.0)
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
+| [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | Complete | 6/6 | KERN Phase 1, KERN Phase 2 |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
+| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
+| [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
+| [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
+| [lang-dotnet](./modules/lang-dotnet.aps.md) | DNLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
+| [open-spec-adapter](./modules/open-spec-adapter.aps.md) | OPENSPEC | Draft | — | — |
+| [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | — | save-time-trust |
+| [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Draft | — | save-time-trust, ide-integration |
+| [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Draft | 0/7 | edda-stack-integration, opa-agent-orchestration, Kindling (external) |
+| ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI, then ADR-011: Ratatui replaces Ink |
+
+### Task Status — 0.1.0 (Core Engine)
+
+| Task     | Module          | Description                      | Status   |
+| -------- | --------------- | -------------------------------- | -------- |
+| CORE-001 | save-time-trust | Warning schema definition        | Complete |
+| CORE-002 | save-time-trust | Check runner refactor            | Complete |
+| CORE-003 | save-time-trust | CLI check command                | Complete |
+| CORE-004 | save-time-trust | Git-aware changed file detection | Complete |
+| CORE-005 | save-time-trust | Source file watch mode           | Complete |
+| ARCH-001 | architecture    | Baseline inference               | Complete |
+| ARCH-002 | architecture    | Edge detection                   | Complete |
+| ARCH-003 | architecture    | Architecture check integration   | Complete |
+| ARCH-004 | architecture    | CLI architecture service         | Complete |
+| ANTI-001 | antipattern     | Pattern catalogue definition     | Complete |
+| ANTI-002 | antipattern     | Scanner implementation           | Complete |
+| ANTI-003 | antipattern     | Antipattern check integration    | Complete |
+| ANTI-004 | antipattern     | Allowlist and opt-in support     | Complete |
+| SUPP-001 | suppressions    | Suppression parser               | Complete |
+| SUPP-002 | suppressions    | Suppression store                | Complete |
+| SUPP-003 | suppressions    | Gate runner integration          | Complete |
+| CI-001   | ci-integration  | GitHub Action composite          | Complete |
+| CI-002   | ci-integration  | Changed files detection          | Complete |
+| CI-003   | ci-integration  | PR comments and status checks    | Complete |
+| CI-004   | ci-integration  | Documentation and configuration  | Complete |
+
+### Task Status — 0.1.0 (Onboarding TUI)
+
+| Task    | Module | Description                   | Status   | Priority |
+| ------- | ------ | ----------------------------- | -------- | -------- |
+| TUI-001 | tui    | Ink foundation and components | Complete | high     |
+| TUI-002 | tui    | `anvil init` wizard           | Complete | high     |
+| TUI-003 | tui    | `anvil status` dashboard      | Complete | high     |
+| TUI-004 | tui    | `anvil doctor` diagnostics    | Complete | high     |
+| TUI-005 | tui    | First-run welcome experience  | Complete | high     |
+| TUI-008 | tui    | Testing infrastructure        | Complete | medium   |
+
+### Task Status — 0.1.0 (Documentation)
+
+| Task     | Module | Description            | Status   | Priority |
+| -------- | ------ | ---------------------- | -------- | -------- |
+| DOCS-001 | docs   | Quick Start Guide      | Complete | high     |
+| DOCS-002 | docs   | User Guide command ref | Complete | high     |
+| DOCS-003 | docs   | Demo material creation | Complete | high     |
+| DOCS-004 | docs   | Error message audit    | Complete | medium   |
+| DOCS-005 | docs   | Troubleshooting guide  | Complete | medium   |
+| DOCS-006 | docs   | README refresh         | Complete | high     |
+
+### Task Status — 0.1.0 (Explain Command)
+
+| Task       | Module  | Description               | Status   | Priority |
+| ---------- | ------- | ------------------------- | -------- | -------- |
+| EXPLAIN-001 | explain | Warning ID system         | Complete | high     |
+| EXPLAIN-002 | explain | Explanation templates     | Complete | high     |
+| EXPLAIN-003 | explain | Architecture explanations | Complete | high     |
+| EXPLAIN-004 | explain | Anti-pattern explanations | Complete | high     |
+| EXPLAIN-005 | explain | ExplainService            | Complete | high     |
+| EXPLAIN-006 | explain | CLI explain command       | Complete | high     |
+
+### Task Status — 0.1.0 (Drift Reporting)
+
+| Task     | Module | Description               | Status   | Priority |
+| -------- | ------ | ------------------------- | -------- | -------- |
+| DRIFT-001 | drift  | Snapshot schema & storage | Complete | high     |
+| DRIFT-002 | drift  | Snapshot capture          | Complete | high     |
+| DRIFT-003 | drift  | Snapshot comparison       | Complete | high     |
+| DRIFT-004 | drift  | Report generator          | Complete | medium   |
+| DRIFT-005 | drift  | CLI drift commands        | Complete | high     |
+
+### Task Status — 0.1.0 (Onboarding Feedback Resolution)
+
+| Task     | Module | Description                                 | Status   | Priority |
+| -------- | ------ | ------------------------------------------- | -------- | -------- |
+| ONFBK-001 | onfbk  | Fix --no-tui flag handling                  | Complete | high     |
+| ONFBK-002 | onfbk  | Fix TUI wizard early exit                   | Complete | high     |
+| ONFBK-003 | onfbk  | Improve layer detection for project variety | Complete | high     |
+| ONFBK-004 | onfbk  | Improve entry points presentation           | Complete | medium   |
+| ONFBK-005 | onfbk  | Add architecture explanation                | Complete | medium   |
+
+### Task Status — 0.1.0 (OPA & Architecture Integration)
+
+| Task    | Module | Description                         | Status      | Priority |
+| ------- | ------ | ----------------------------------- | ----------- | -------- |
+| OPA-001 | opa    | Architecture YAML schema (Zod)      | Complete    | high     |
+| OPA-002 | opa    | YAML parser with template expansion | Complete    | high     |
+| OPA-003 | opa    | DC config generator from YAML       | Complete    | high     |
+| OPA-004 | opa    | `anvil architecture init` command   | Complete    | high     |
+| OPA-005 | opa    | Architecture context extraction     | Complete    | high     |
+| OPA-006 | opa    | OPA input schema enhancement        | Complete    | high     |
+| OPA-007 | opa    | Gate runner integration             | Complete    | high     |
+| OPA-008 | opa    | Rego generator from architecture    | Complete    | high     |
+| OPA-009 | opa    | Generated policy marker             | Complete    | medium   |
+| OPA-010 | opa    | Auto-regeneration on YAML change    | Complete    | medium   |
+| OPA-011 | opa    | Layered architecture template       | Complete    | medium   |
+| OPA-012 | opa    | Hexagonal architecture template     | Complete    | medium   |
+| OPA-013 | opa    | Clean Architecture template         | Complete    | medium   |
+| OPA-014 | opa    | DDD template with bounded contexts  | Complete    | medium   |
+| OPA-015 | opa    | Template loader and validator       | Complete    | medium   |
+| OPA-016 | opa    | TypeScript analyser foundation      | Deferred    | low      |
+| OPA-017 | opa    | Path alias resolver                 | Deferred    | low      |
+| OPA-018 | opa    | Analyser feature flag               | Deferred    | low      |
+| OPA-019 | opa    | Bundle download and caching         | Complete    | medium   |
+| OPA-020 | opa    | Signature verification              | Complete    | medium   |
+| OPA-021 | opa    | Basic auth and CLI commands         | Complete    | medium   |
+
+> **Note:** OPA-016 through OPA-018 were deferred when the OPA module was marked
+> Complete at OPA-015. OPA-019 through OPA-021 (remote policy bundles) were
+> subsequently implemented. The remaining tasks may be revisited in the OPA
+> Enhancements module (OPAE) or a future release.
+
+### Task Status — 0.1.0 (Monorepo Migration)
+
+| Task     | Module | Description                          | Status   | Priority |
+| -------- | ------ | ------------------------------------ | -------- | -------- |
+| MONO-001 | mono   | Nx generators for package scaffolding | Complete | high     |
+| MONO-002 | mono   | Import path codemod                  | Complete | high     |
+| MONO-003 | mono   | Shared tooling packages              | Complete | medium   |
+| MONO-004 | mono   | Extract contracts from core          | Complete | high     |
+| MONO-005 | mono   | Extract ports from core              | Complete | high     |
+| MONO-006 | mono   | Extract pure domain to core          | Complete | high     |
+| MONO-007 | mono   | Extract runtime package              | Complete | high     |
+| MONO-008 | mono   | Extract policy package               | Complete | high     |
+| MONO-009 | mono   | Extract config package               | Complete | medium   |
+| MONO-010 | mono   | Extract storage package              | Complete | medium   |
+| MONO-011 | mono   | Extract crypto package               | Complete | medium   |
+| MONO-012 | mono   | Split adapters per-integration       | Complete | medium   |
+| MONO-013 | mono   | Move CLI to apps/                    | Complete | high     |
+| MONO-014 | mono   | Reorganise E2E tests                 | Complete | medium   |
+| MONO-015 | mono   | Move scripts to tools/               | Complete | low      |
+| MONO-016 | mono   | Full test suite validation           | Complete | high     |
+| MONO-017 | mono   | Dependency graph validation          | Complete | high     |
+| MONO-018 | mono   | Documentation update                 | Complete | medium   |
+
+### Task Status — 0.1.0 (APS Markdown Adapter)
+
+| Task     | Module | Description                          | Status   | Priority |
+| -------- | ------ | ------------------------------------ | -------- | -------- |
+| APSMD-001 | apsmd  | APSMarkdownAdapter with detection    | Complete | high     |
+| APSMD-002 | apsmd  | Confidence scoring system            | Complete | high     |
+| APSMD-003 | apsmd  | Parse method implementation          | Complete | high     |
+| APSMD-004 | apsmd  | Task-to-Change conversion            | Complete | high     |
+| APSMD-005 | apsmd  | Registry integration                 | Complete | high     |
+| APSMD-006 | apsmd  | CLI PlanLoader integration           | Complete | high     |
+
+### Task Status — 0.1.0 (Advanced Experience)
+
+#### IDE Integration (VS Code Extension)
+
+| Task    | Module | Description                                     | Status   | Priority |
+| ------- | ------ | ----------------------------------------------- | -------- | -------- |
+| IDE-001 | ide    | Embed @eddacraft/anvil-core for fast-path operations      | Complete | high     |
+| IDE-002 | ide    | Anti-pattern detection on save with diagnostics | Complete | high     |
+| IDE-003 | ide    | Improve source location mapping from CLI output | Complete | medium   |
+| IDE-004 | ide    | Architecture gate display in tree view          | Complete | high     |
+| IDE-005 | ide    | OPA policy failure display with remediation     | Complete | high     |
+| IDE-006 | ide    | Click-to-navigate for all violation types       | Complete | medium   |
+| IDE-007 | ide    | APS and Rego syntax highlighting                | Complete | medium   |
+| IDE-008 | ide    | Analysis caching and Marketplace preparation    | Complete | medium   |
+
+#### TUI Operational (CLI)
+
+<!-- REVIEW(ADR-011): All deferred Ink TUI items below should be reassessed.
+     ADR-011 adopts Ratatui as the TUI surface. These items were deferred when
+     Ink was the target; they should either be absorbed into PORT/RATS modules
+     or cancelled. TUI-009 (watch dashboard) is complete in Ink but has a
+     Ratatui counterpart planned as RATS-002/PORT-030. -->
+
+| Task    | Module | Description                       | Status  | Priority | Review |
+| ------- | ------ | --------------------------------- | ------- | -------- | ------ |
+| TUI-006 | tui    | Static template library           | Deferred | medium   | Reassess: absorb into PORT or cancel |
+| TUI-007 | tui    | Interactive tutorial              | Deferred | low      | Reassess: absorb into PORT-040–044 or cancel |
+| TUI-009 | tui    | `anvil watch` real-time dashboard | Complete | medium   | Ratatui counterpart: RATS-002, PORT-030 |
+| TUI-010 | tui    | `anvil gate` interactive explorer | Deferred | medium   | Reassess: absorb into RATS-003/PORT-023 or cancel |
+| TUI-011 | tui    | Parallel progress visualisation   | Deferred | low      | Reassess: absorb into RATS or cancel |
+| TUI-012 | tui    | Log panel with filtering          | Deferred | low      | Reassess: absorb into RATS or cancel |
+| TUI-013 | tui    | `<MermaidDiagram />` component + `layersToMermaid()` helper ([brainstorm](./brainstorms/mermaid-tui-diagrams.md)) | Complete | high | — |
+| TUI-014 | tui    | Replace existing ASCII diagrams with mermaid rendering | Complete | high | — |
+| TUI-015 | tui    | `anvil architecture visualise` command (ascii/svg/mermaid formats) | Complete | high | — |
+
+### Task Status — 0.2.0 (Web Dashboard)
 
 The web dashboard provides a browser-based interface for exploring Anvil data.
 See [brainstorm](./brainstorms/dashboard-web-ui.md) and
@@ -719,13 +989,16 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
   ([ADR](./decisions/007-pulumi-iac.md))
 - **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
   watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
-  ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
+  ([ADR](./decisions/011a-rust-core-engine.md)) — **Proposed**
 - **D-012:** OPA Agent Orchestration — orchestration layer for checkpointed policy
   evaluation, remediation guidance, and auditable exception workflows
   ([ADR](./decisions/012-opa-agent-orchestration.md))
 - **D-013:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
   ([ADR](./decisions/013-eval-harness-adoption.md))
+- **D-014:** Language Allocation Tree (TypeScript vs Rust) — default to TypeScript
+  for orchestration/UX, promote hot paths to Rust when benchmark thresholds are breached
+  ([ADR](./decisions/014-language-allocation-tree-ts-vs-rust.md))
 
 ## Open Questions
 

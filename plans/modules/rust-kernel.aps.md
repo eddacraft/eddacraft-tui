@@ -163,7 +163,7 @@ Change status to **Ready** when:
 
 ### KERN-005: Rust CI pipeline (cargo test, clippy, fmt)
 
-- **Status:** In Progress _(validated externally; rust.yml synced to monorepo, pending full CI integration)_
+- **Status:** Done
 - **Intent:** Establish a Rust CI pipeline in GitHub Actions that runs `cargo
   test`, `cargo clippy`, and `cargo fmt --check` on every PR alongside the
   existing pnpm pipeline
@@ -184,6 +184,7 @@ Change status to **Ready** when:
 ### KERN-010: notify-rs watcher with debounce + backpressure
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Implement file watching with platform-native notifications,
   coalescing rapid changes within a debounce window (50-100ms), and bounding
   memory growth under burst conditions
@@ -201,6 +202,7 @@ Change status to **Ready** when:
 ### KERN-011: tree-sitter incremental parsing with AST cache
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Integrate tree-sitter for incremental parsing with an AST cache
   keyed by file content hash. On file change, reparse only the changed file and
   replace its AST subtree.
@@ -218,6 +220,7 @@ Change status to **Ready** when:
 ### KERN-012: Symbol extraction (functions, classes, modules, exports)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Extract symbol nodes from tree-sitter ASTs using `.scm` query
   files. Produce SymbolNode entries for functions, classes, modules, and exports.
 - **Expected Outcome:** Symbol table populated from parsed ASTs, covering H1
@@ -234,6 +237,7 @@ Change status to **Ready** when:
 ### KERN-013: Ignore patterns + git-aware filtering
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Support ignore patterns (node_modules, build outputs, .gitignore)
   and optional git-aware filtering to skip untracked/ignored files
 - **Expected Outcome:** Watcher and parser skip files matching ignore patterns
@@ -250,6 +254,7 @@ Change status to **Ready** when:
 ### KERN-020: Symbol graph (petgraph, SymbolNode + SymbolEdge)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Build the persistent in-memory symbol graph using petgraph. Nodes
   are SymbolNode (functions, classes, modules, exports). Edges are SymbolEdge
   (contains, references, calls, imports).
@@ -267,6 +272,7 @@ Change status to **Ready** when:
 ### KERN-021: Dependency graph derived from import edges
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Derive a module-level dependency graph from the symbol graph's
   import edges. Nodes are modules/files, edges are import/require relationships.
 - **Expected Outcome:** Dependency graph correctly reflects import structure,
@@ -282,6 +288,7 @@ Change status to **Ready** when:
 ### KERN-022: Trust metadata on nodes (TrustLevel enum)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Annotate graph nodes with TrustLevel (Unknown, Internal, Boundary,
   External, Privileged) based on symbol extraction heuristics and configuration
 - **Expected Outcome:** Nodes have correct trust levels based on their
@@ -298,6 +305,7 @@ Change status to **Ready** when:
 ### KERN-023: Incremental graph update (reparse → update subgraph)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** On file change, reparse the affected file, diff the old and new
   symbol sets, and update only the affected subgraph (add/remove/modify nodes
   and edges). Produce a GraphDelta for the policy engine.
@@ -317,6 +325,7 @@ Change status to **Ready** when:
 ### KERN-030: Architecture config loader (`.anvil/architecture.yaml`)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Load layer definitions from `.anvil/architecture.yaml` (existing
   format: clean.yaml, layered.yaml, etc.) and annotate graph nodes with their
   architectural layer
@@ -334,6 +343,7 @@ Change status to **Ready** when:
 ### KERN-031: Invariant evaluation framework (GraphDelta → violations)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Build the framework for evaluating invariants against GraphDeltas.
   Invariants are Rust functions that receive a delta and return violations.
   Violations are fingerprinted by (policy_id, file, symbol) for deduplication.
@@ -351,6 +361,7 @@ Change status to **Ready** when:
 ### KERN-032: H1 invariants (cross-layer, new dep, public API, privilege)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Implement the four H1 invariants as Rust functions:
   1. Cross-layer boundary violation
   2. New external dependency introduction
@@ -370,6 +381,7 @@ Change status to **Ready** when:
 ### KERN-033: Event emission (Progress, Snapshot, Violation, Error)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Implement the EngineEvent envelope and all H1 event types. Events
   are emitted in-process via a channel (tokio::sync or crossbeam) for consumption
   by surfaces.
@@ -389,6 +401,7 @@ Change status to **Ready** when:
 ### KERN-040: Embedded mode (library API for one-shot checks)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Expose a library API for one-shot checks. The `anvil` binary calls
   kernel functions directly (no IPC, no serialization). Runs engine, emits
   events, exits.
@@ -406,6 +419,7 @@ Change status to **Ready** when:
 ### KERN-041: Foreground watch mode (long-lived event stream)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Implement `anvil watch` as a long-lived process that runs the full
   watcher → parser → graph → policy → event pipeline continuously
 - **Expected Outcome:** Watch mode detects file changes, incrementally updates
@@ -422,6 +436,7 @@ Change status to **Ready** when:
 ### KERN-042: Dual-run harness (compare with legacy TS engine)
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Build a test harness that runs both the Rust kernel and the legacy
   TS engine against the same change stream, normalises their event output, and
   diffs the results
@@ -439,6 +454,7 @@ Change status to **Ready** when:
 ### KERN-043: Performance benchmarks against spec targets
 
 - **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Benchmark the kernel against all performance targets from the spec:
   cold build <3s, incremental <100ms, event overhead <10ms, memory <500MB
 - **Expected Outcome:** Benchmark report confirming all targets are met (or
@@ -453,7 +469,8 @@ Change status to **Ready** when:
 
 ### KERN-044: Cross-compilation for Linux, macOS, Windows
 
-- **Status:** Draft
+- **Status:** Done
+- **Completed:** 2026-03-16
 - **Intent:** Ensure the `anvil` binary cross-compiles for all target platforms
   (Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64) and passes
   platform-specific smoke tests
@@ -540,10 +557,10 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Spike | 5 | Done (4/5, KERN-005 In Progress) |
+| 0 — Spike | 5 | Done |
 | 1 — Watcher + Parser | 4 | Done |
 | 2 — Semantic Graph | 4 | Done |
 | 3 — Policy Engine + Events | 4 | Done |
-| 4 — Integration & Validation | 5 | In Progress (4/5, KERN-044 Draft) |
+| 4 — Integration & Validation | 5 | Done |
 | 5 — Daemon Mode (Deferred) | 3 | Draft |
-| **Total** | **25** | **20/25 done** |
+| **Total** | **25** | **22 Done, 3 Deferred** |

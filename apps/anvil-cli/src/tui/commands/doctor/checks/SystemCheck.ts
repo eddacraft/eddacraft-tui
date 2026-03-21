@@ -2,7 +2,8 @@ import { gitExecSync } from '@eddacraft/anvil-core';
 
 import type { DiagnosticCheck, DiagnosticContext, DiagnosticResult } from '../types.js';
 
-const MIN_NODE_VERSION = 20;
+const MIN_NODE_MAJOR = 22;
+const MIN_NODE_MINOR = 13;
 
 function isSpawnBlocked(error: unknown): boolean {
   if (!error || typeof error !== 'object') return false;
@@ -24,13 +25,18 @@ function isSpawnBlocked(error: unknown): boolean {
 export class NodeVersionCheck implements DiagnosticCheck {
   readonly id = 'node-version';
   readonly name = 'Node.js Version';
-  readonly description = `Verifies Node.js version >= ${MIN_NODE_VERSION}`;
+  readonly description = `Verifies Node.js version >= ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}`;
 
   async run(_context: DiagnosticContext): Promise<DiagnosticResult> {
     const version = process.versions.node;
-    const major = parseInt(version.split('.')[0], 10);
+    const parts = version.split('.');
+    const major = parseInt(parts[0], 10);
+    const minor = parseInt(parts[1], 10);
 
-    if (major >= MIN_NODE_VERSION) {
+    const meetsMinimum =
+      major > MIN_NODE_MAJOR || (major === MIN_NODE_MAJOR && minor >= MIN_NODE_MINOR);
+
+    if (meetsMinimum) {
       return {
         checkId: this.id,
         name: this.name,
@@ -44,9 +50,9 @@ export class NodeVersionCheck implements DiagnosticCheck {
       checkId: this.id,
       name: this.name,
       status: 'fail',
-      message: `Node.js v${version} (requires >= v${MIN_NODE_VERSION})`,
+      message: `Node.js v${version} (requires >= v${MIN_NODE_MAJOR}.${MIN_NODE_MINOR})`,
       fixable: false,
-      suggestion: `Install Node.js ${MIN_NODE_VERSION} or later from https://nodejs.org`,
+      suggestion: `Install Node.js ${MIN_NODE_MAJOR}.${MIN_NODE_MINOR} or later from https://nodejs.org`,
     };
   }
 }
