@@ -58,8 +58,8 @@ struct OtpVerifyRequest<'a> {
 }
 
 fn api_url() -> String {
-    let raw = std::env::var("ANVIL_API_URL")
-        .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
+    let raw =
+        std::env::var("ANVIL_API_URL").unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
     raw.trim_end_matches('/').to_string()
 }
 
