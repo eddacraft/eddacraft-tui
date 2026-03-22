@@ -38,8 +38,8 @@ impl AnvilClient {
 
     pub fn with_admin_key() -> Result<Self> {
         let mut client = Self::new();
-        let key =
-            std::env::var("ADMIN_KEY").context("ADMIN_KEY environment variable is required")?;
+        let key = std::env::var("ANVIL_ADMIN_KEY")
+            .context("ANVIL_ADMIN_KEY environment variable is required")?;
         client.token = Some(key);
         Ok(client)
     }

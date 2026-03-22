@@ -103,7 +103,7 @@ pub async fn login_device_flow() -> Result<()> {
     eprintln!("Waiting for confirmation...");
 
     let poll_interval = std::time::Duration::from_secs(5);
-    let max_attempts = (start.expires_in / 5).max(1);
+    let max_attempts = (start.expires_in / poll_interval.as_secs()).max(1);
 
     for _ in 0..max_attempts {
         tokio::time::sleep(poll_interval).await;
@@ -139,8 +139,9 @@ pub async fn login_device_flow() -> Result<()> {
 
                 eprintln!();
                 eprintln!("\u{2713} Authenticated as {email}");
-                let path = credentials::credentials_path();
-                eprintln!("  Credentials saved to {}", path.display());
+                if let Ok(path) = credentials::credentials_path_checked() {
+                    eprintln!("  Credentials saved to {}", path.display());
+                }
                 return Ok(());
             }
             "expired" => bail!("Device code has expired. Please try again."),
@@ -173,7 +174,9 @@ pub async fn login_otp_flow() -> Result<()> {
         .await
         .context("parsing OTP send response")?;
 
-    let _ = resp.sent;
+    if !resp.sent {
+        bail!("Server could not send verification code. Please try again later.");
+    }
 
     eprintln!();
     eprintln!("A verification code has been sent to your email.");

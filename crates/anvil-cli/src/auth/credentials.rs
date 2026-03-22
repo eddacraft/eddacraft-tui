@@ -11,24 +11,28 @@ pub struct Credentials {
     pub expires_at: Option<String>,
 }
 
-pub fn credentials_dir() -> PathBuf {
-    let config_home = std::env::var("XDG_CONFIG_HOME").map_or_else(
-        |_| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".config")
-        },
-        PathBuf::from,
-    );
-    config_home.join("anvil")
+pub fn credentials_dir() -> Result<PathBuf> {
+    let config_home = match std::env::var("XDG_CONFIG_HOME") {
+        Ok(val) => PathBuf::from(val),
+        Err(_) => dirs::home_dir()
+            .context("unable to determine home directory")?
+            .join(".config"),
+    };
+    Ok(config_home.join("anvil"))
+}
+
+pub fn credentials_path_checked() -> Result<PathBuf> {
+    Ok(credentials_dir()?.join("credentials.json"))
 }
 
 pub fn credentials_path() -> PathBuf {
-    credentials_dir().join("credentials.json")
+    credentials_dir()
+        .unwrap_or_else(|_| PathBuf::from(".config/anvil"))
+        .join("credentials.json")
 }
 
 pub fn load() -> Result<Option<Credentials>> {
-    let path = credentials_path();
+    let path = credentials_path_checked()?;
     if !path.exists() {
         return Ok(None);
     }
@@ -40,7 +44,7 @@ pub fn load() -> Result<Option<Credentials>> {
 }
 
 pub fn save(creds: &Credentials) -> Result<()> {
-    let dir = credentials_dir();
+    let dir = credentials_dir()?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
     let path = dir.join("credentials.json");
@@ -48,10 +52,19 @@ pub fn save(creds: &Credentials) -> Result<()> {
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::write(&path, &content).with_context(|| format!("writing {}", path.display()))?;
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
-            .with_context(|| format!("setting permissions on {}", path.display()))?;
+        use std::fs::OpenOptions;
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(&path)
+            .with_context(|| format!("opening {}", path.display()))?;
+        file.write_all(content.as_bytes())
+            .with_context(|| format!("writing {}", path.display()))?;
     }
 
     #[cfg(not(unix))]
@@ -63,7 +76,7 @@ pub fn save(creds: &Credentials) -> Result<()> {
 }
 
 pub fn clear() -> Result<()> {
-    let path = credentials_path();
+    let path = credentials_path_checked()?;
     if path.exists() {
         std::fs::remove_file(&path).with_context(|| format!("removing {}", path.display()))?;
     }

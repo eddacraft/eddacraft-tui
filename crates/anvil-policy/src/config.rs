@@ -80,7 +80,9 @@ policies:
 
     #[test]
     fn load_config_returns_not_found_for_missing_file() {
-        match load_config("/tmp/does-not-exist-anvil-test.yaml") {
+        let tmpdir = tempfile::TempDir::new().unwrap();
+        let missing = tmpdir.path().join("does-not-exist.yaml");
+        match load_config(missing.to_str().unwrap()) {
             Err(ConfigError::NotFound(_)) => {}
             other => panic!("expected NotFound, got: {other:?}"),
         }
