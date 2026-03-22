@@ -1,4 +1,5 @@
-#![allow(dead_code)]
+use std::path::PathBuf;
+
 use anyhow::{Result, bail};
 use clap::Args;
 use regex::Regex;
@@ -10,6 +11,7 @@ use crate::GlobalArgs;
 #[allow(clippy::struct_excessive_bools)]
 pub struct GateArgs {
     /// Plan file to run gates against (omit for full codebase scan)
+    #[allow(dead_code)] // scaffold: plan-scoped gating not yet wired
     plan: Option<String>,
 
     /// Gate profile: dev, ci, production
@@ -38,6 +40,7 @@ pub struct GateArgs {
 
     /// Disable caching
     #[arg(long)]
+    #[allow(dead_code)] // scaffold: cache bypass not yet wired
     no_cache: bool,
 }
 
@@ -81,9 +84,25 @@ struct CheckResult {
     message: String,
 }
 
+/// Best-effort workspace root detection via `git rev-parse`.
+fn workspace_root() -> PathBuf {
+    std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| {
+            let s = String::from_utf8(o.stdout).ok()?;
+            Some(PathBuf::from(s.trim()))
+        })
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+}
+
 fn run_check_lint(name: &str) -> CheckResult {
-    let output = std::process::Command::new("npx")
-        .args(["eslint", ".", "--max-warnings", "0"])
+    let root = workspace_root();
+    let output = std::process::Command::new("pnpm")
+        .args(["lint:check"])
+        .current_dir(&root)
         .output();
     match output {
         Ok(o) if o.status.success() => CheckResult {
@@ -92,12 +111,16 @@ fn run_check_lint(name: &str) -> CheckResult {
             score: 100.0,
             message: "No lint errors".to_string(),
         },
-        Ok(o) => CheckResult {
-            name: name.to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Lint errors found\n{}", String::from_utf8_lossy(&o.stderr)),
-        },
+        Ok(o) => {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            CheckResult {
+                name: name.to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Lint errors found\n{stdout}\n{stderr}"),
+            }
+        }
         Err(e) => CheckResult {
             name: name.to_string(),
             passed: false,
@@ -108,7 +131,11 @@ fn run_check_lint(name: &str) -> CheckResult {
 }
 
 fn run_check_test(name: &str) -> CheckResult {
-    let output = std::process::Command::new("pnpm").args(["test"]).output();
+    let root = workspace_root();
+    let output = std::process::Command::new("pnpm")
+        .args(["test"])
+        .current_dir(&root)
+        .output();
     match output {
         Ok(o) if o.status.success() => CheckResult {
             name: name.to_string(),
@@ -116,12 +143,16 @@ fn run_check_test(name: &str) -> CheckResult {
             score: 100.0,
             message: "All tests passed".to_string(),
         },
-        Ok(o) => CheckResult {
-            name: name.to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Tests failed\n{}", String::from_utf8_lossy(&o.stderr)),
-        },
+        Ok(o) => {
+            let stdout = String::from_utf8_lossy(&o.stdout);
+            let stderr = String::from_utf8_lossy(&o.stderr);
+            CheckResult {
+                name: name.to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Tests failed\n{stdout}\n{stderr}"),
+            }
+        }
         Err(e) => CheckResult {
             name: name.to_string(),
             passed: false,
@@ -131,7 +162,18 @@ fn run_check_test(name: &str) -> CheckResult {
     }
 }
 
+const SECRET_SCAN_IGNORE: &[&str] = &[
+    "node_modules",
+    "dist",
+    "build",
+    "target",
+    ".git",
+    ".anvil",
+    "coverage",
+];
+
 fn run_check_secret(name: &str) -> CheckResult {
+    let root = workspace_root();
     let mut found = Vec::new();
     let secret_patterns: Vec<Regex> = [
         r"AKIA[0-9A-Z]{16}",
@@ -142,23 +184,35 @@ fn run_check_secret(name: &str) -> CheckResult {
     .filter_map(|p| Regex::new(p).ok())
     .collect();
 
-    for entry in walkdir::WalkDir::new(".")
+    for entry in walkdir::WalkDir::new(&root)
         .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            !SECRET_SCAN_IGNORE.iter().any(|&ig| name == ig)
+        })
         .filter_map(std::result::Result::ok)
         .filter(|e| e.file_type().is_file())
     {
         let path = entry.path();
-        if let Some(ext) = path.extension() {
+        let file_name = path.file_name().map(|f| f.to_string_lossy());
+
+        // Check extension-based files and dotfiles like .env*
+        let scannable = if let Some(ref fname) = file_name {
+            fname.starts_with(".env")
+        } else {
+            false
+        } || path.extension().is_some_and(|ext| {
             let ext_str = ext.to_string_lossy();
-            if !matches!(
+            matches!(
                 &*ext_str,
                 "ts" | "js" | "rs" | "json" | "yaml" | "yml" | "toml" | "env"
-            ) {
-                continue;
-            }
-        } else {
+            )
+        });
+
+        if !scannable {
             continue;
         }
+
         if let Ok(content) = std::fs::read_to_string(path) {
             for (line_no, line) in content.lines().enumerate() {
                 for re in &secret_patterns {
@@ -235,6 +289,22 @@ fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::Hash
     );
 }
 
+fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
+    let unknown: Vec<&&str> = names
+        .iter()
+        .filter(|n| !AVAILABLE_CHECKS.contains(n))
+        .collect();
+    if !unknown.is_empty() {
+        let unknown_str: Vec<&str> = unknown.into_iter().copied().collect();
+        bail!(
+            "unknown check(s): {}; available: {}",
+            unknown_str.join(", "),
+            AVAILABLE_CHECKS.join(", ")
+        );
+    }
+    Ok(())
+}
+
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     let profile_skips = resolve_profile_skips(args.profile.as_deref())?;
 
@@ -249,6 +319,11 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         .only_checks
         .as_deref()
         .map(|s| s.split(',').map(str::trim).collect());
+
+    validate_check_names(&skip_set)?;
+    if let Some(ref only_s) = only_set {
+        validate_check_names(only_s)?;
+    }
 
     let mut checks = Vec::new();
     for check_name in AVAILABLE_CHECKS {

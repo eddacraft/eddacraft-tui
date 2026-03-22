@@ -1,6 +1,7 @@
-#![allow(dead_code)]
 use std::io::IsTerminal;
-use std::sync::mpsc;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, mpsc};
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -11,10 +12,12 @@ use crate::GlobalArgs;
 #[derive(Debug, Args)]
 pub struct WatchArgs {
     /// Specific file to watch
+    #[allow(dead_code)] // scaffold: single-file watch not yet wired
     file: Option<String>,
 
     /// Action to run on change: validate, gate, check
     #[arg(long, short)]
+    #[allow(dead_code)] // scaffold: action dispatch not yet wired
     action: Option<String>,
 
     /// Watch planning documents
@@ -73,8 +76,22 @@ struct WatchEvent {
     detail: String,
 }
 
+/// Best-effort workspace root detection via `git rev-parse`.
+fn workspace_root() -> PathBuf {
+    std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| {
+            let s = String::from_utf8(o.stdout).ok()?;
+            Some(PathBuf::from(s.trim()))
+        })
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")))
+}
+
 pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
-    let workspace_root = std::env::current_dir().context("getting current directory")?;
+    let workspace_root = workspace_root();
 
     let _patterns: Vec<String> = if let Some(ref p) = args.patterns {
         p.split(',').map(|s| s.trim().to_string()).collect()
@@ -122,17 +139,33 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let handle = anvil_kernel::watch::run_watch(&watch_config, event_tx)
         .context("starting kernel watcher")?;
 
+    let shutdown = Arc::new(AtomicBool::new(false));
+    let shutdown_flag = Arc::clone(&shutdown);
+    ctrlc::set_handler(move || {
+        shutdown_flag.store(true, Ordering::SeqCst);
+    })
+    .context("setting Ctrl-C handler")?;
+
     if global.json || !std::io::stdout().is_terminal() || global.no_tui {
-        for event in &event_rx {
-            if global.json {
-                let watch_event = WatchEvent {
-                    timestamp: event.timestamp.clone(),
-                    event_type: format!("{:?}", event.event_type),
-                    detail: format!("{:?}", event.payload),
-                };
-                println!("{}", serde_json::to_string(&watch_event)?);
-            } else {
-                print_event_plain(&event);
+        loop {
+            if shutdown.load(Ordering::SeqCst) {
+                break;
+            }
+            match event_rx.recv_timeout(std::time::Duration::from_millis(250)) {
+                Ok(event) => {
+                    if global.json {
+                        let watch_event = WatchEvent {
+                            timestamp: event.timestamp.clone(),
+                            event_type: format!("{:?}", event.event_type),
+                            detail: format!("{:?}", event.payload),
+                        };
+                        println!("{}", serde_json::to_string(&watch_event)?);
+                    } else {
+                        print_event_plain(&event);
+                    }
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+                Err(mpsc::RecvTimeoutError::Disconnected) => break,
             }
         }
     } else {
@@ -171,14 +204,14 @@ fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
             current,
             total,
         } => {
-            eprintln!("{prefix} {phase}: {current}/{total}");
+            println!("{prefix} {phase}: {current}/{total}");
         }
         EventPayload::Snapshot {
             node_count,
             edge_count,
             files_watched,
         } => {
-            eprintln!(
+            println!(
                 "{prefix} Snapshot: {node_count} nodes, {edge_count} edges, {files_watched} files"
             );
         }
@@ -188,7 +221,7 @@ fn print_event_plain(event: &anvil_kernel_types::EngineEvent) {
             message,
             ..
         } => {
-            eprintln!("{prefix} [{policy_id}] {file}: {message}");
+            println!("{prefix} [{policy_id}] {file}: {message}");
         }
         EventPayload::Error(err) => {
             eprintln!("{prefix} Error: {}", err.message);
