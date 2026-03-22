@@ -66,7 +66,7 @@ deprecation policy, or consistent error shapes.
 - **Status:** Draft
 - **Intent:** Establish URL versioning convention (e.g. `/api/v1/`)
 - **Expected Outcome:** All endpoints follow `/api/vN/` pattern; version documented
-- **Validation:** `grep -r "/api/v" apps/anvil-api/src/routes/ | wc -l` matches route count
+- **Validation:** `grep -q "basePath('/api/v1')" apps/anvil-api/src/index.ts`
 
 ### APGOV-002: Error contract specification (consistent shapes)
 

@@ -3,7 +3,7 @@ APS Module: Pulumi IaC
 ======================
 AGENT RULES:
 - Purpose/Scope = WHAT this module does (not how)
-- Tasks = execution authority (add only when status=Ready)
+- Tasks = execution authority (required when status=Ready or In Progress)
 - Task fields: Intent + Outcome + Validation (required)
 - NO implementation detail in tasks
 See: plans/aps-rules.md
@@ -75,6 +75,7 @@ Change status to **Ready** when:
 
 ### IAC-001: Scaffold Pulumi project in the monorepo
 
+- **Status:** Complete
 - **Intent:** Establish the `infra/` directory as a Pulumi TypeScript project integrated with the Nx workspace
 - **Expected Outcome:** `infra/` directory exists with `Pulumi.yaml`, `package.json`, `tsconfig.json`, and `index.ts` entry point; `pnpm install` succeeds; `pulumi preview` runs without error against an empty stack
 - **Validation:** `cd infra && pulumi preview --stack dev 2>&1 | grep -q "0 unchanged"`
@@ -84,9 +85,10 @@ Change status to **Ready** when:
 
 ### IAC-002: Configure Pulumi state backend and provider authentication
 
+- **Status:** Complete
 - **Intent:** Store Pulumi state securely with locking and secrets encryption using Pulumi Cloud free tier; configure Azure, Vercel, and GitHub provider authentication for both local development and CI
 - **Expected Outcome:** `pulumi login` connects to Pulumi Cloud; `dev` and `prod` stacks are created; stack configs (`Pulumi.dev.yaml`, `Pulumi.prod.yaml`) exist with provider config including Azure DNS resource group, subscription, and encrypted tokens; Azure auth verified via CLI or service principal
-- **Validation:** `pulumi stack ls 2>&1 | grep -q "dev"` and `pulumi stack ls 2>&1 | grep -q "prod"` and `pulumi config get azure-dns:resourceGroupName --stack prod`
+- **Validation:** `sh -c 'pulumi stack ls 2>&1 | grep -q "dev" && pulumi stack ls 2>&1 | grep -q "prod" && pulumi config get azure-dns:resourceGroupName --stack prod >/dev/null'`
 - **Files:** `infra/Pulumi.dev.yaml`, `infra/Pulumi.prod.yaml`
 - **Dependencies:** IAC-001
 - **Confidence:** high
@@ -94,6 +96,7 @@ Change status to **Ready** when:
 
 ### IAC-003: Manage Vercel project configuration for website
 
+- **Status:** Complete
 - **Intent:** Declare the `apps/website` Vercel project, its custom domain, framework settings, and environment variables as Pulumi resources
 - **Expected Outcome:** `pulumi preview` shows a `vercel.Project`, `vercel.ProjectDomain`, and `vercel.ProjectEnvironmentVariable` resources for the website; `pulumi up` creates/imports them without manual Vercel dashboard changes
 - **Validation:** `pulumi preview --stack prod --diff 2>&1 | grep -q "vercel:index:Project"`
@@ -103,6 +106,7 @@ Change status to **Ready** when:
 
 ### IAC-004: Manage Vercel project configuration for docs-site
 
+- **Status:** Complete
 - **Intent:** Declare the `apps/docs-site` Vercel project, its custom domain, and build settings as Pulumi resources
 - **Expected Outcome:** `pulumi preview` shows Vercel resources for the docs-site; Docusaurus framework preset, build command, and root directory are configured
 - **Validation:** `pulumi preview --stack prod --diff 2>&1 | grep -q "docs-site"`
@@ -112,6 +116,7 @@ Change status to **Ready** when:
 
 ### IAC-005: Create reusable VercelApp ComponentResource
 
+- **Status:** Complete
 - **Intent:** Avoid duplication by abstracting the common Vercel project + domain + env var pattern into a reusable Pulumi ComponentResource
 - **Expected Outcome:** A `VercelApp` class exists that accepts app name, framework, root directory, domains, and environment variables; IAC-003 and IAC-004 use this abstraction; `pulumi preview` output is unchanged
 - **Validation:** `cd infra && pnpm exec vitest run --reporter=verbose 2>&1 | grep -q "VercelApp"`
@@ -121,6 +126,7 @@ Change status to **Ready** when:
 
 ### IAC-006: Manage GitHub repository configuration
 
+- **Status:** Complete
 - **Intent:** Codify GitHub Actions secrets, deployment environments, and branch protection rules so they are reproducible and auditable
 - **Expected Outcome:** `pulumi preview` shows `github.ActionsSecret`, `github.RepositoryEnvironment`, and `github.BranchProtectionV3` resources; secrets for `VERCEL_TOKEN`, `NPM_TOKEN`, and `CLAUDE_CODE_OAUTH_TOKEN` are managed
 - **Validation:** `pulumi preview --stack prod --diff 2>&1 | grep -q "github:index:ActionsSecret"`
@@ -130,6 +136,7 @@ Change status to **Ready** when:
 
 ### IAC-007: Manage Azure DNS zones and records
 
+- **Status:** Complete
 - **Intent:** Declare Azure DNS records across zones using a per-zone file organisation (one file per DNS zone, mirroring the existing Terraform `<domain>.tf` convention) so that DNS changes are version-controlled and follow a familiar pattern
 - **Expected Outcome:** `pulumi preview` shows `azure-native.network.RecordSet` resources for CNAME, A, and TXT records across all managed zones; each zone has its own source file under `infra/src/dns/`; records point to Vercel CNAMEs for web apps
 - **Validation:** `pulumi preview --stack prod --diff 2>&1 | grep -q "azure-native:network:RecordSet"`
@@ -140,6 +147,7 @@ Change status to **Ready** when:
 
 ### IAC-008: Add Pulumi CI/CD pipeline integration
 
+- **Status:** Complete
 - **Intent:** Run `pulumi preview` on pull requests and `pulumi up` on merge to main so infrastructure changes are reviewed before application
 - **Expected Outcome:** A new GitHub Actions workflow (or additions to `ci.yml`) runs `pulumi preview` on PRs and posts a comment with the diff; `pulumi up` runs automatically on merge to main; the workflow uses `PULUMI_ACCESS_TOKEN` from GitHub secrets
 - **Validation:** `.github/workflows/infra.yml` exists and `act -l 2>&1 | grep -q "pulumi"` (or manual PR test)
@@ -149,6 +157,7 @@ Change status to **Ready** when:
 
 ### IAC-009: Write unit tests for infrastructure code
 
+- **Status:** Complete
 - **Intent:** Ensure infrastructure definitions are correct before deployment by testing Pulumi resource outputs with vitest
 - **Expected Outcome:** Unit tests validate that the correct number and type of resources are created; tests run as part of the Nx `test` target for the `infra` project; tests pass in CI
 - **Validation:** `cd infra && pnpm exec vitest run --reporter=verbose`
@@ -158,6 +167,7 @@ Change status to **Ready** when:
 
 ### IAC-010: Import existing Vercel resources into Pulumi state
 
+- **Status:** Complete
 - **Intent:** Bring existing Vercel projects and domains under Pulumi management without recreating them
 - **Expected Outcome:** Import helper script retrieves project IDs from Vercel API; `pulumi import` commands successfully import the live website and docs-site projects; subsequent `pulumi preview` shows no pending changes (state matches live)
 - **Validation:** `pulumi preview --stack prod --expect-no-changes`
@@ -168,6 +178,7 @@ Change status to **Ready** when:
 
 ### IAC-011: Document IaC setup and contributor workflow
 
+- **Status:** Complete
 - **Intent:** Ensure contributors understand how to preview and apply infrastructure changes
 - **Expected Outcome:** `infra/README.md` documents prerequisites (Pulumi CLI, Pulumi Cloud login), stack selection, preview/up workflow, and secret management; root CONTRIBUTING.md references the infra workflow
 - **Validation:** `test -f infra/README.md && wc -l infra/README.md | awk '{print ($1 > 20)}'`
@@ -177,6 +188,7 @@ Change status to **Ready** when:
 
 ### IAC-012: Document rollback procedures
 
+- **Status:** Complete
 - **Intent:** Ensure contributors know how to revert infrastructure changes and recover from state corruption
 - **Expected Outcome:** `infra/README.md` documents rollback procedure (revert code → `pulumi up`), emergency manual procedures (Vercel dashboard), and state recovery (`pulumi stack export/import`)
 - **Validation:** `grep -q "rollback" infra/README.md`
