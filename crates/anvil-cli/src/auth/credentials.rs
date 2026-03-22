@@ -18,24 +18,24 @@ pub struct Credentials {
     pub expires_at: Option<String>,
 }
 
-pub fn credentials_dir() -> PathBuf {
+pub fn credentials_dir() -> Result<PathBuf> {
     let config_home = std::env::var("XDG_CONFIG_HOME").map_or_else(
         |_| {
             dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".config")
+                .map(|h| h.join(".config"))
+                .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))
         },
-        PathBuf::from,
-    );
-    config_home.join("anvil")
+        |v| Ok(PathBuf::from(v)),
+    )?;
+    Ok(config_home.join("anvil"))
 }
 
-pub fn credentials_path() -> PathBuf {
-    credentials_dir().join("credentials.json")
+pub fn credentials_path() -> Result<PathBuf> {
+    Ok(credentials_dir()?.join("credentials.json"))
 }
 
 pub fn load() -> Result<Option<Credentials>> {
-    let path = credentials_path();
+    let path = credentials_path()?;
     if !path.exists() {
         return Ok(None);
     }
@@ -47,7 +47,7 @@ pub fn load() -> Result<Option<Credentials>> {
 }
 
 pub fn save(creds: &Credentials) -> Result<()> {
-    let dir = credentials_dir();
+    let dir = credentials_dir()?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
     let path = dir.join("credentials.json");
@@ -57,6 +57,7 @@ pub fn save(creds: &Credentials) -> Result<()> {
     {
         use std::fs::OpenOptions;
         use std::os::unix::fs::OpenOptionsExt;
+        use std::os::unix::fs::PermissionsExt;
 
         let mut file = OpenOptions::new()
             .create(true)
@@ -67,6 +68,9 @@ pub fn save(creds: &Credentials) -> Result<()> {
             .with_context(|| format!("opening {}", path.display()))?;
         file.write_all(content.as_bytes())
             .with_context(|| format!("writing {}", path.display()))?;
+
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
+            .with_context(|| format!("setting permissions on {}", path.display()))?;
     }
 
     #[cfg(not(unix))]
@@ -78,17 +82,20 @@ pub fn save(creds: &Credentials) -> Result<()> {
 }
 
 pub fn clear() -> Result<()> {
-    let path = credentials_path();
+    let path = credentials_path()?;
     if path.exists() {
         std::fs::remove_file(&path).with_context(|| format!("removing {}", path.display()))?;
     }
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn is_expired(creds: &Credentials) -> bool {
-    creds
-        .expires_at
-        .as_deref()
-        .and_then(|expires| DateTime::parse_from_rfc3339(expires).ok())
-        .is_some_and(|expires| expires.with_timezone(&Utc) <= Utc::now())
+    match &creds.expires_at {
+        None => false,
+        Some(expires) => match DateTime::parse_from_rfc3339(expires) {
+            Ok(dt) => dt.with_timezone(&Utc) <= Utc::now(),
+            Err(_) => true,
+        },
+    }
 }

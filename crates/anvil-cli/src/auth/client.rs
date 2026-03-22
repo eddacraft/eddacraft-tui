@@ -14,35 +14,35 @@ pub struct AnvilClient {
 pub struct WhoamiResponse {
     pub email: String,
     pub plan: Option<String>,
+    #[allow(dead_code)]
     pub created_at: Option<String>,
 }
 
 impl AnvilClient {
-    pub fn new() -> Self {
-        let api_url = std::env::var("ANVIL_API_URL")
-            .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string())
-            .trim_end_matches('/')
-            .to_string();
-        Self {
+    pub fn new() -> Result<Self> {
+        let api_url = super::api_url()?;
+        Ok(Self {
             http: reqwest::Client::new(),
             api_url,
             token: None,
-        }
+        })
     }
 
+    #[allow(dead_code)]
     pub fn authenticated() -> Result<Self> {
-        let mut client = Self::new();
+        let mut client = Self::new()?;
         let creds = credentials::load()?.context("Not authenticated. Run: anvil auth login")?;
         client.token = Some(creds.license);
         Ok(client)
     }
 
-    pub fn with_token(token: String) -> Self {
-        let mut client = Self::new();
+    pub fn with_token(token: String) -> Result<Self> {
+        let mut client = Self::new()?;
         client.token = Some(token);
-        client
+        Ok(client)
     }
 
+    #[allow(dead_code)]
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}/api/v1{}", self.api_url, path);
         let mut req = self.http.get(&url);
@@ -75,6 +75,7 @@ impl AnvilClient {
         #[derive(Debug, Deserialize)]
         struct WhoamiResponseUser {
             email: String,
+            plan: Option<String>,
         }
 
         #[derive(Debug, Serialize)]
@@ -92,11 +93,14 @@ impl AnvilClient {
             bail!("Stored credentials are invalid or expired")
         }
 
+        let (email, plan) = match verify.user {
+            Some(u) => (u.email, u.plan),
+            None => ("unknown".to_string(), None),
+        };
+
         Ok(WhoamiResponse {
-            email: verify
-                .user
-                .map_or_else(|| "unknown".to_string(), |u| u.email),
-            plan: Some("beta".to_string()),
+            email,
+            plan,
             created_at: None,
         })
     }
@@ -108,11 +112,7 @@ impl AnvilClient {
         }
         #[derive(Deserialize)]
         struct ApproveResponse {
-            approved: Vec<ApproveEntry>,
-        }
-        #[derive(Deserialize)]
-        struct ApproveEntry {
-            email: String,
+            approved: Vec<serde_json::Value>,
         }
 
         let result: ApproveResponse = self.post("/admin/approve", ApproveBody { email }).await?;

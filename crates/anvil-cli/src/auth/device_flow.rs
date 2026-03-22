@@ -60,11 +60,8 @@ struct OtpVerifyRequest<'a> {
     code: &'a str,
 }
 
-fn api_url() -> String {
-    std::env::var("ANVIL_API_URL")
-        .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string())
-        .trim_end_matches('/')
-        .to_string()
+fn api_url() -> anyhow::Result<String> {
+    super::api_url()
 }
 
 fn prompt_input(label: &str) -> Result<String> {
@@ -78,7 +75,7 @@ fn prompt_input(label: &str) -> Result<String> {
 }
 
 pub async fn login_device_flow() -> Result<()> {
-    let url = api_url();
+    let url = api_url()?;
     let email = prompt_input("Email: ")?;
     if email.is_empty() {
         bail!("Email is required");
@@ -144,7 +141,7 @@ pub async fn login_device_flow() -> Result<()> {
 
                 eprintln!();
                 eprintln!("✓ Authenticated as {email}");
-                let path = credentials::credentials_path();
+                let path = credentials::credentials_path()?;
                 eprintln!("  Credentials saved to {}", path.display());
                 return Ok(());
             }
@@ -157,7 +154,7 @@ pub async fn login_device_flow() -> Result<()> {
 }
 
 pub async fn login_otp_flow() -> Result<()> {
-    let url = api_url();
+    let url = api_url()?;
     let email = prompt_input("Email: ")?;
     if email.is_empty() {
         bail!("Email is required");
@@ -214,7 +211,7 @@ pub async fn login_otp_flow() -> Result<()> {
 
                     eprintln!();
                     eprintln!("✓ Authenticated as {email}");
-                    let path = credentials::credentials_path();
+                    let path = credentials::credentials_path()?;
                     eprintln!("  Credentials saved to {}", path.display());
                     return Ok(());
                 }

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use anyhow::{Context, Result};
 use clap::{Args, Subcommand};
 use serde::Serialize;
@@ -56,42 +55,46 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
         AuthCommand::Whoami => {
             let creds = credentials::load()?.context("Not authenticated. Run: anvil auth login")?;
 
-            let client = crate::auth::client::AnvilClient::authenticated()?;
+            let client = crate::auth::client::AnvilClient::with_token(creds.license.clone())?;
 
-            if let Ok(whoami) = rt.block_on(client.whoami()) {
-                let data = WhoamiData {
-                    email: whoami.email,
-                    plan: whoami.plan,
-                    expires_at: creds.expires_at,
-                };
-                if global.json {
-                    crate::output::json::print(&data)?;
-                } else {
-                    println!();
-                    println!("Authenticated");
-                    println!("  Email:   {}", data.email);
-                    if let Some(plan) = &data.plan {
-                        println!("  Plan:    {plan}");
+            match rt.block_on(client.whoami()) {
+                Ok(whoami) => {
+                    let data = WhoamiData {
+                        email: whoami.email,
+                        plan: whoami.plan,
+                        expires_at: creds.expires_at,
+                    };
+                    if global.json {
+                        crate::output::json::print(&data)?;
+                    } else {
+                        println!();
+                        println!("Authenticated");
+                        println!("  Email:   {}", data.email);
+                        if let Some(plan) = &data.plan {
+                            println!("  Plan:    {plan}");
+                        }
+                        if let Some(expires) = &data.expires_at {
+                            println!("  Expires: {expires}");
+                        }
                     }
-                    if let Some(expires) = &data.expires_at {
-                        println!("  Expires: {expires}");
+                    Ok(())
+                }
+                Err(e) if e.to_string().contains("request") || e.to_string().contains("connect") => {
+                    let data = WhoamiData {
+                        email: creds.email.unwrap_or_else(|| "unknown".to_string()),
+                        plan: None,
+                        expires_at: creds.expires_at,
+                    };
+                    if global.json {
+                        crate::output::json::print(&data)?;
+                    } else {
+                        println!();
+                        println!("Authenticated (offline)");
+                        println!("  Email: {}", data.email);
                     }
+                    Ok(())
                 }
-                Ok(())
-            } else {
-                let data = WhoamiData {
-                    email: creds.email.unwrap_or_else(|| "unknown".to_string()),
-                    plan: None,
-                    expires_at: creds.expires_at,
-                };
-                if global.json {
-                    crate::output::json::print(&data)?;
-                } else {
-                    println!();
-                    println!("Authenticated (offline)");
-                    println!("  Email: {}", data.email);
-                }
-                Ok(())
+                Err(e) => Err(e),
             }
         }
     }

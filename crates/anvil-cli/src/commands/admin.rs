@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use anyhow::{Context, Result};
 use clap::Args;
 use serde::Serialize;
@@ -34,7 +33,7 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
     let rt = tokio::runtime::Runtime::new().context("creating tokio runtime")?;
     let admin_key = std::env::var("ANVIL_ADMIN_KEY")
         .context("ANVIL_ADMIN_KEY environment variable is required for admin commands")?;
-    let client = crate::auth::client::AnvilClient::with_token(admin_key);
+    let client = crate::auth::client::AnvilClient::with_token(admin_key)?;
 
     match &args.command {
         AdminCommand::Approve { email, batch } => {

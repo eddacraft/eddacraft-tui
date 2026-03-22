@@ -14,7 +14,6 @@ pub mod wizard;
 
 // Not yet implemented — exposed for test coverage only.
 pub mod architecture;
-pub mod auth;
 pub mod gate;
 pub mod policy;
 pub mod watch;
