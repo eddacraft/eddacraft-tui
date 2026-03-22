@@ -224,7 +224,10 @@ const EMBEDDED_TEMPLATES: &[(&str, &str)] = &[
         "error-handling",
         include_str!("../../templates/error-handling.md"),
     ),
-    ("file-upload", include_str!("../../templates/file-upload.md")),
+    (
+        "file-upload",
+        include_str!("../../templates/file-upload.md"),
+    ),
     (
         "frontend-component",
         include_str!("../../templates/frontend-component.md"),
