@@ -57,13 +57,17 @@ fn normalize_constraint_format(format: &str) -> String {
 
 fn generate_default_output(source: &str, ext: &str) -> String {
     let path = std::path::PathBuf::from(source);
-    let stem = path
-        .file_name()
+    let mut stem_path = path.clone();
+    if stem_path
+        .extension()
+        .is_some_and(|extname| extname.eq_ignore_ascii_case("md"))
+    {
+        stem_path = stem_path.with_extension("");
+    }
+    let stem = stem_path
+        .file_stem()
         .unwrap_or_default()
         .to_string_lossy()
-        .split('.')
-        .next()
-        .unwrap_or("output")
         .to_string();
     let dir = path
         .parent()
@@ -85,22 +89,27 @@ fn export_plan(
     if !std::path::Path::new(source).exists() {
         bail!("Source file not found: {source}");
     }
+    if from.is_some() {
+        bail!("--from override is not yet supported in the Rust CLI export command");
+    }
+    if std::path::Path::new(source)
+        .extension()
+        .is_some_and(|extname| extname.eq_ignore_ascii_case("md"))
+    {
+        bail!(
+            "Markdown/APS plan export is not yet implemented in the Rust CLI; use YAML/JSON sources only"
+        );
+    }
 
     let content = std::fs::read_to_string(source).with_context(|| format!("reading {source}"))?;
+    let target_ext = if target_format == "yaml" {
+        "yaml"
+    } else {
+        "json"
+    };
 
-    let output_path = output.map_or_else(
-        || {
-            generate_default_output(
-                source,
-                if target_format == "yaml" {
-                    "yaml"
-                } else {
-                    "json"
-                },
-            )
-        },
-        String::from,
-    );
+    let output_path =
+        output.map_or_else(|| generate_default_output(source, target_ext), String::from);
 
     let output_dir = std::path::Path::new(&output_path)
         .parent()
@@ -111,33 +120,19 @@ fn export_plan(
 
     let result_content = match target_format {
         "yaml" => {
-            let value: serde_yaml::Value = match from {
-                Some("json") => {
-                    let json: serde_json::Value = serde_json::from_str(&content)
-                        .with_context(|| format!("parsing {source} as JSON"))?;
-                    serde_yaml::to_value(json).context("converting JSON to YAML value")?
-                }
-                _ => {
-                    if let Ok(v) = serde_yaml::from_str(&content) {
-                        v
-                    } else {
-                        let json: serde_json::Value = serde_json::from_str(&content)
-                            .with_context(|| format!("parsing {source}"))?;
-                        serde_yaml::to_value(json)
-                            .with_context(|| format!("converting {source}"))?
-                    }
-                }
+            let value: serde_yaml::Value = if let Ok(v) = serde_yaml::from_str(&content) {
+                v
+            } else {
+                let json: serde_json::Value = serde_json::from_str(&content)
+                    .with_context(|| format!("parsing {source} as JSON or YAML"))?;
+                serde_yaml::to_value(json).context("converting JSON to YAML value")?
             };
             serde_yaml::to_string(&value).context("serialising to YAML")?
         }
         "json" | "aps" => {
-            let value: serde_json::Value = match from {
-                Some("yaml" | "yml") => serde_yaml::from_str(&content)
-                    .with_context(|| format!("parsing {source} as YAML"))?,
-                _ => serde_yaml::from_str(&content)
-                    .or_else(|_| serde_json::from_str(&content))
-                    .with_context(|| format!("parsing {source}"))?,
-            };
+            let value: serde_json::Value = serde_yaml::from_str(&content)
+                .or_else(|_| serde_json::from_str(&content))
+                .with_context(|| format!("parsing {source} as YAML or JSON"))?;
             if compact {
                 serde_json::to_string(&value)?
             } else {
@@ -169,7 +164,15 @@ fn export_plan(
 
 fn export_constraints(format: &str, output: Option<&str>, global: &GlobalArgs) -> Result<()> {
     let normalized = normalize_constraint_format(format);
-    let workspace_root = std::env::current_dir().context("getting current directory")?;
+    let workspace_root = if let Ok(output) = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        && output.status.success()
+    {
+        std::path::PathBuf::from(String::from_utf8_lossy(&output.stdout).trim())
+    } else {
+        std::env::current_dir().context("getting current directory")?
+    };
 
     let default_filename = match normalized.as_str() {
         "llms.txt" => ".llms.txt",
@@ -180,57 +183,8 @@ fn export_constraints(format: &str, output: Option<&str>, global: &GlobalArgs) -
         }
     };
 
-    let output_path = output.map_or_else(
-        || {
-            workspace_root
-                .join(default_filename)
-                .to_string_lossy()
-                .to_string()
-        },
-        String::from,
-    );
-
-    let placeholder_content = match normalized.as_str() {
-        "llms.txt" => {
-            "# Anvil Constraints\n\n(Constraint export pending implementation)\n".to_string()
-        }
-        "mcp-resource" => serde_json::to_string_pretty(&serde_json::json!({
-            "type": "anvil-constraints",
-            "version": "1.0",
-            "constraints": []
-        }))?,
-        "prompt-fragment" => {
-            "Anvil project constraints:\n(Constraint export pending implementation)\n".to_string()
-        }
-        _ => unreachable!(),
-    };
-
-    let output_dir = std::path::Path::new(&output_path)
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(std::path::Path::new("."));
-    std::fs::create_dir_all(output_dir)
-        .with_context(|| format!("creating {}", output_dir.display()))?;
-
-    std::fs::write(&output_path, &placeholder_content)
-        .with_context(|| format!("writing {output_path}"))?;
-
-    let result = ExportResult {
-        output_path: output_path.clone(),
-        format: normalized.clone(),
-        size_bytes: placeholder_content.len(),
-    };
-
-    if global.json {
-        crate::output::json::print(&result)?;
-    } else {
-        println!("Exported constraints as {normalized}");
-        println!("  Output: {output_path}");
-        println!("  Format: {normalized}");
-        println!("  Size:   {} bytes", placeholder_content.len());
-    }
-
-    Ok(())
+    let _ = (output, global, workspace_root, default_filename);
+    bail!("Constraint export for '{normalized}' is not yet implemented in the Rust CLI")
 }
 
 pub fn run(args: &ExportArgs, global: &GlobalArgs) -> Result<()> {
@@ -252,7 +206,7 @@ pub fn run(args: &ExportArgs, global: &GlobalArgs) -> Result<()> {
         )
     } else {
         bail!(
-            "Either --format or --to must be specified\n\nExamples:\n  Constraint export: anvil export --format llms.txt\n  Plan conversion:   anvil export source.md --to json"
+            "Either --format or --to must be specified\n\nExamples:\n  Constraint export: anvil export --format llms.txt\n  Data conversion:   anvil export source.yaml --to json"
         );
     }
 }

@@ -49,7 +49,7 @@ enum HooksCommand {
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
 # @anvil-managed
-# Anvil pre-commit hook — validates planning documents.
+# Anvil pre-commit hook — runs diagnostic checks.
 
 if [ "${ANVIL_SKIP_HOOKS:-0}" = "1" ]; then
   exit 0
@@ -60,15 +60,15 @@ if ! command -v anvil >/dev/null 2>&1; then
   exit 0
 fi
 
-ANVIL_HOOK=1 anvil gate --progress || {
-  echo "Anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git commit"
+ANVIL_HOOK=1 anvil doctor --no-tui || {
+  echo "Anvil doctor checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git commit"
   exit 1
 }
 "#;
 
 const PRE_PUSH_HOOK: &str = r#"#!/bin/sh
 # @anvil-managed
-# Anvil pre-push hook — runs quality gates before push.
+# Anvil pre-push hook — runs diagnostic checks before push.
 
 if [ "${ANVIL_SKIP_HOOKS:-0}" = "1" ]; then
   exit 0
@@ -79,8 +79,8 @@ if ! command -v anvil >/dev/null 2>&1; then
   exit 0
 fi
 
-ANVIL_HOOK=1 anvil gate || {
-  echo "Anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git push"
+ANVIL_HOOK=1 anvil doctor --no-tui || {
+  echo "Anvil doctor checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git push"
   exit 1
 }
 "#;
@@ -90,6 +90,19 @@ fn is_anvil_managed(content: &str) -> bool {
 }
 
 fn resolve_git_dir(workspace_root: &Path) -> Result<PathBuf> {
+    if let Ok(output) = std::process::Command::new("git")
+        .args(["rev-parse", "--git-dir"])
+        .current_dir(workspace_root)
+        .output()
+        && output.status.success()
+    {
+        let gitdir = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let resolved = workspace_root.join(gitdir);
+        if resolved.exists() {
+            return Ok(resolved);
+        }
+    }
+
     let git_path = workspace_root.join(".git");
     if !git_path.exists() {
         bail!("Not a Git repository");
@@ -119,7 +132,14 @@ fn detect_husky(workspace_root: &Path) -> (bool, Option<PathBuf>) {
     if husky_dir.is_dir() {
         (true, Some(husky_dir))
     } else {
-        (false, None)
+        let package_json = workspace_root.join("package.json");
+        if let Ok(content) = std::fs::read_to_string(package_json)
+            && content.contains("\"husky\"")
+        {
+            (true, Some(workspace_root.join(".husky")))
+        } else {
+            (false, None)
+        }
     }
 }
 
@@ -308,8 +328,8 @@ fn run_install(
             ],
         );
         println!();
-        println!("  pre-commit: Validates planning documents");
-        println!("  pre-push:   Runs quality gates");
+        println!("  pre-commit: Runs Anvil doctor checks");
+        println!("  pre-push:   Runs Anvil doctor checks");
         println!();
         println!("  Bypass: ANVIL_SKIP_HOOKS=1 git commit");
     }
@@ -406,7 +426,15 @@ fn run_status(workspace_root: &Path, git_dir: &Path, global: &GlobalArgs) -> Res
 }
 
 pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
-    let workspace_root = std::env::current_dir().context("getting current directory")?;
+    let workspace_root = if let Ok(output) = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        && output.status.success()
+    {
+        PathBuf::from(String::from_utf8_lossy(&output.stdout).trim())
+    } else {
+        std::env::current_dir().context("getting current directory")?
+    };
     let git_dir = resolve_git_dir(&workspace_root)?;
 
     match &args.command {
