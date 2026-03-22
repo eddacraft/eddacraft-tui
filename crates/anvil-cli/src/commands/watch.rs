@@ -82,22 +82,21 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         DEFAULT_WATCH_PATTERNS
             .iter()
             .chain(SOURCE_PATTERNS.iter())
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect()
     } else if args.source {
-        SOURCE_PATTERNS.iter().map(|s| s.to_string()).collect()
+        SOURCE_PATTERNS.iter().map(ToString::to_string).collect()
     } else {
         DEFAULT_WATCH_PATTERNS
             .iter()
-            .map(|s| s.to_string())
+            .map(ToString::to_string)
             .collect()
     };
 
-    let _exclude: Vec<String> = args
-        .exclude
-        .as_ref()
-        .map(|s| s.split(',').map(|s| s.trim().to_string()).collect())
-        .unwrap_or_else(|| DEFAULT_EXCLUDE.iter().map(|s| s.to_string()).collect());
+    let _exclude: Vec<String> = args.exclude.as_ref().map_or_else(
+        || DEFAULT_EXCLUDE.iter().map(ToString::to_string).collect(),
+        |s| s.split(',').map(|s| s.trim().to_string()).collect(),
+    );
 
     let arch_config_path = workspace_root.join(".anvil").join("architecture.yaml");
     let arch_config = if arch_config_path.exists() {
@@ -114,7 +113,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
 
     let watch_config = anvil_kernel::watch::WatchConfig {
         root: workspace_root.clone(),
-        architecture_config: arch_config.map(|p| p.to_path_buf()),
+        architecture_config: arch_config.clone(),
         watcher: watcher_config,
     };
 
@@ -124,7 +123,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         .context("starting kernel watcher")?;
 
     if global.json || !std::io::stdout().is_terminal() || global.no_tui {
-        for event in event_rx.iter() {
+        for event in &event_rx {
             if global.json {
                 let watch_event = WatchEvent {
                     timestamp: event.timestamp.clone(),

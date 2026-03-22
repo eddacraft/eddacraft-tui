@@ -60,6 +60,10 @@ enum Commands {
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
     Wizard(commands::wizard::WizardArgs),
+    /// Run gate checks against the current project.
+    Gate(commands::gate::GateArgs),
+    /// Start file-watching mode with live gate checks.
+    Watch(commands::watch::WatchArgs),
     // Not yet implemented — uncomment as each command ships:
     // /// Administrative commands (approvals, user management).
     // Admin(commands::admin::AdminArgs),
@@ -69,14 +73,10 @@ enum Commands {
     // Auth(commands::auth::AuthArgs),
     // /// Export constraints and configuration.
     // Export(commands::export::ExportArgs),
-    // /// Run gate checks against the current project.
-    // Gate(commands::gate::GateArgs),
     // /// Install and manage git hooks.
     // Hooks(commands::hooks::HooksArgs),
     // /// Manage and evaluate policies.
     // Policy(commands::policy::PolicyArgs),
-    // /// Start file-watching mode with live gate checks.
-    // Watch(commands::watch::WatchArgs),
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -108,6 +108,8 @@ fn main() -> ExitCode {
         Commands::Init(args) => commands::init::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
+        Commands::Gate(args) => commands::gate::run(args, &cli.global),
+        Commands::Watch(args) => commands::watch::run(args, &cli.global),
     };
 
     match result {

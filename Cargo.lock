@@ -103,6 +103,7 @@ dependencies = [
  "dirs",
  "eddacraft-tui",
  "ratatui",
+ "regex",
  "reqwest",
  "serde",
  "serde_json",

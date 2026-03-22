@@ -1,11 +1,13 @@
 #![allow(dead_code)]
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::Args;
+use regex::Regex;
 use serde::Serialize;
 
 use crate::GlobalArgs;
 
 #[derive(Debug, Args)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct GateArgs {
     /// Plan file to run gates against (omit for full codebase scan)
     plan: Option<String>,
@@ -53,6 +55,16 @@ const PROFILES: &[(&str, &str, &[&str])] = &[
     ),
 ];
 
+const AVAILABLE_CHECKS: &[&str] = &[
+    "lint",
+    "test",
+    "coverage",
+    "dependency",
+    "secret",
+    "architecture",
+    "policy",
+];
+
 #[derive(Debug, Serialize)]
 struct GateResult {
     overall: bool,
@@ -69,168 +81,188 @@ struct CheckResult {
     message: String,
 }
 
-fn run_single_check(name: &str) -> CheckResult {
-    match name {
-        "lint" => {
-            let output = std::process::Command::new("npx")
-                .args(["eslint", ".", "--max-warnings", "0"])
-                .output();
-            match output {
-                Ok(o) if o.status.success() => CheckResult {
-                    name: name.to_string(),
-                    passed: true,
-                    score: 100.0,
-                    message: "No lint errors".to_string(),
-                },
-                Ok(o) => CheckResult {
-                    name: name.to_string(),
-                    passed: false,
-                    score: 0.0,
-                    message: format!("Lint errors found\n{}", String::from_utf8_lossy(&o.stderr)),
-                },
-                Err(e) => CheckResult {
-                    name: name.to_string(),
-                    passed: false,
-                    score: 0.0,
-                    message: format!("Failed to run lint: {e}"),
-                },
-            }
-        }
-        "test" => {
-            let output = std::process::Command::new("pnpm").args(["test"]).output();
-            match output {
-                Ok(o) if o.status.success() => CheckResult {
-                    name: name.to_string(),
-                    passed: true,
-                    score: 100.0,
-                    message: "All tests passed".to_string(),
-                },
-                Ok(o) => CheckResult {
-                    name: name.to_string(),
-                    passed: false,
-                    score: 0.0,
-                    message: format!("Tests failed\n{}", String::from_utf8_lossy(&o.stderr)),
-                },
-                Err(e) => CheckResult {
-                    name: name.to_string(),
-                    passed: false,
-                    score: 0.0,
-                    message: format!("Failed to run tests: {e}"),
-                },
-            }
-        }
-        "secret" => {
-            let mut found = Vec::new();
-            let secret_patterns = [
-                "AKIA[0-9A-Z]{16}",
-                "sk-[a-zA-Z0-9]{48}",
-                "ghp_[a-zA-Z0-9]{36}",
-            ];
-            for entry in walkdir::WalkDir::new(".")
-                .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|e| e.file_type().is_file())
-            {
-                let path = entry.path();
-                if let Some(ext) = path.extension() {
-                    let ext_str = ext.to_string_lossy();
-                    if !matches!(
-                        &*ext_str,
-                        "ts" | "js" | "rs" | "json" | "yaml" | "yml" | "toml" | "env"
-                    ) {
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
-                if let Ok(content) = std::fs::read_to_string(path) {
-                    for line in content.lines() {
-                        for pattern in &secret_patterns {
-                            if line.contains(pattern) {
-                                found.push(format!("{}: {}", path.display(), line.trim()));
-                            }
-                        }
-                    }
-                }
-            }
-            if found.is_empty() {
-                CheckResult {
-                    name: name.to_string(),
-                    passed: true,
-                    score: 100.0,
-                    message: "No hardcoded secrets found".to_string(),
-                }
-            } else {
-                CheckResult {
-                    name: name.to_string(),
-                    passed: false,
-                    score: 0.0,
-                    message: format!("Potential secrets found:\n{}", found.join("\n")),
-                }
-            }
-        }
-        _ => CheckResult {
+fn run_check_lint(name: &str) -> CheckResult {
+    let output = std::process::Command::new("npx")
+        .args(["eslint", ".", "--max-warnings", "0"])
+        .output();
+    match output {
+        Ok(o) if o.status.success() => CheckResult {
             name: name.to_string(),
             passed: true,
             score: 100.0,
+            message: "No lint errors".to_string(),
+        },
+        Ok(o) => CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Lint errors found\n{}", String::from_utf8_lossy(&o.stderr)),
+        },
+        Err(e) => CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Failed to run lint: {e}"),
+        },
+    }
+}
+
+fn run_check_test(name: &str) -> CheckResult {
+    let output = std::process::Command::new("pnpm").args(["test"]).output();
+    match output {
+        Ok(o) if o.status.success() => CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: "All tests passed".to_string(),
+        },
+        Ok(o) => CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Tests failed\n{}", String::from_utf8_lossy(&o.stderr)),
+        },
+        Err(e) => CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Failed to run tests: {e}"),
+        },
+    }
+}
+
+fn run_check_secret(name: &str) -> CheckResult {
+    let mut found = Vec::new();
+    let secret_patterns: Vec<Regex> = [
+        r"AKIA[0-9A-Z]{16}",
+        r"sk-[a-zA-Z0-9]{48}",
+        r"ghp_[a-zA-Z0-9]{36}",
+    ]
+    .iter()
+    .filter_map(|p| Regex::new(p).ok())
+    .collect();
+
+    for entry in walkdir::WalkDir::new(".")
+        .into_iter()
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_file())
+    {
+        let path = entry.path();
+        if let Some(ext) = path.extension() {
+            let ext_str = ext.to_string_lossy();
+            if !matches!(
+                &*ext_str,
+                "ts" | "js" | "rs" | "json" | "yaml" | "yml" | "toml" | "env"
+            ) {
+                continue;
+            }
+        } else {
+            continue;
+        }
+        if let Ok(content) = std::fs::read_to_string(path) {
+            for (line_no, line) in content.lines().enumerate() {
+                for re in &secret_patterns {
+                    if re.is_match(line) {
+                        found.push(format!("{}:{}", path.display(), line_no + 1));
+                    }
+                }
+            }
+        }
+    }
+    if found.is_empty() {
+        CheckResult {
+            name: name.to_string(),
+            passed: true,
+            score: 100.0,
+            message: "No hardcoded secrets found".to_string(),
+        }
+    } else {
+        CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!(
+                "Potential secrets found in {} location(s):\n{}",
+                found.len(),
+                found.join("\n")
+            ),
+        }
+    }
+}
+
+fn run_single_check(name: &str) -> CheckResult {
+    match name {
+        "lint" => run_check_lint(name),
+        "test" => run_check_test(name),
+        "secret" => run_check_secret(name),
+        _ => CheckResult {
+            name: name.to_string(),
+            passed: false,
+            score: 0.0,
             message: "Check not yet implemented in Rust CLI".to_string(),
         },
     }
 }
 
-pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
-    if args.list_profiles {
-        println!();
-        println!("Available Gate Profiles");
-        println!();
-        for (name, desc, skips) in PROFILES {
-            println!("  {name}");
-            println!("    {desc}");
-            if !skips.is_empty() {
-                println!("    Skips: {}", skips.join(", "));
-            }
-            println!();
+fn list_profiles() {
+    println!();
+    println!("Available Gate Profiles");
+    println!();
+    for (name, desc, skips) in PROFILES {
+        println!("  {name}");
+        println!("    {desc}");
+        if !skips.is_empty() {
+            println!("    Skips: {}", skips.join(", "));
         }
-        println!("Usage: anvil gate [plan] --profile dev");
-        return Ok(());
+        println!();
     }
+    println!("Usage: anvil gate [plan] --profile dev");
+}
 
-    let start = std::time::Instant::now();
+fn resolve_profile_skips(profile: Option<&str>) -> Result<std::collections::HashSet<&str>> {
+    let Some(name) = profile else {
+        return Ok(std::collections::HashSet::new());
+    };
+    for (pname, _, skips) in PROFILES {
+        if *pname == name {
+            return Ok(skips.iter().copied().collect());
+        }
+    }
+    let valid: Vec<&str> = PROFILES.iter().map(|(n, _, _)| *n).collect();
+    bail!(
+        "unknown profile '{name}', valid profiles: {}",
+        valid.join(", ")
+    );
+}
 
-    let skip_set: std::collections::HashSet<&str> = args
+fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
+    let profile_skips = resolve_profile_skips(args.profile.as_deref())?;
+
+    let mut skip_set: std::collections::HashSet<&str> = args
         .skip_checks
         .as_deref()
-        .map(|s| s.split(',').map(|s| s.trim()).collect())
+        .map(|s| s.split(',').map(str::trim).collect())
         .unwrap_or_default();
+    skip_set.extend(&profile_skips);
 
     let only_set: Option<std::collections::HashSet<&str>> = args
         .only_checks
         .as_deref()
-        .map(|s| s.split(',').map(|s| s.trim()).collect());
-
-    let available_checks = [
-        "lint",
-        "test",
-        "coverage",
-        "dependency",
-        "secret",
-        "architecture",
-        "policy",
-    ];
+        .map(|s| s.split(',').map(str::trim).collect());
 
     let mut checks = Vec::new();
-    for check_name in available_checks {
+    for check_name in AVAILABLE_CHECKS {
         if skip_set.contains(check_name) {
             continue;
         }
-        if let Some(ref only_s) = only_set {
-            if !only_s.contains(check_name) {
-                continue;
-            }
+        if let Some(ref only_s) = only_set
+            && !only_s.contains(check_name)
+        {
+            continue;
         }
 
         if args.progress {
-            eprint!("  \u{25b6} {check_name} running...\n");
+            eprintln!("  \u{25b6} {check_name} running...");
         }
 
         let result = run_single_check(check_name);
@@ -241,7 +273,7 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
             } else {
                 "\u{2717}"
             };
-            eprint!("  {icon} {check_name}\n");
+            eprintln!("  {icon} {check_name}");
         }
 
         checks.push(result);
@@ -250,21 +282,36 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
             break;
         }
     }
+    Ok(checks)
+}
+
+pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
+    if args.list_profiles {
+        list_profiles();
+        return Ok(());
+    }
+
+    let start = std::time::Instant::now();
+    let checks = run_checks(args)?;
 
     let passed_count = checks.iter().filter(|c| c.passed).count();
     let total = checks.len();
     let overall = checks.iter().all(|c| c.passed);
     let score = if total > 0 {
-        (passed_count as f64 / total as f64) * 100.0
+        #[allow(clippy::cast_precision_loss)]
+        {
+            (passed_count as f64 / total as f64) * 100.0
+        }
     } else {
         100.0
     };
 
+    let elapsed = start.elapsed().as_millis();
     let result = GateResult {
         overall,
         score,
         checks,
-        duration_ms: start.elapsed().as_millis() as u64,
+        duration_ms: u64::try_from(elapsed).unwrap_or(u64::MAX),
     };
 
     if global.json {
@@ -298,7 +345,7 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
     }
 
     if !overall {
-        std::process::exit(crate::EXIT_GATE_FAIL as i32);
+        std::process::exit(i32::from(crate::EXIT_GATE_FAIL));
     }
 
     Ok(())
@@ -337,5 +384,30 @@ mod tests {
     fn args_parses_list_profiles() {
         let w = Wrapper::try_parse_from(["test", "--list-profiles"]).unwrap();
         assert!(w.inner.list_profiles);
+    }
+
+    #[test]
+    fn resolve_profile_dev_skips_coverage_and_dependency() {
+        let skips = resolve_profile_skips(Some("dev")).unwrap();
+        assert!(skips.contains("coverage"));
+        assert!(skips.contains("dependency"));
+    }
+
+    #[test]
+    fn resolve_profile_unknown_errors() {
+        assert!(resolve_profile_skips(Some("bogus")).is_err());
+    }
+
+    #[test]
+    fn resolve_profile_none_returns_empty() {
+        let skips = resolve_profile_skips(None).unwrap();
+        assert!(skips.is_empty());
+    }
+
+    #[test]
+    fn unimplemented_check_reports_failure() {
+        let result = run_single_check("coverage");
+        assert!(!result.passed);
+        assert!(result.message.contains("not yet implemented"));
     }
 }
