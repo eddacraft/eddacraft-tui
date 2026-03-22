@@ -50,7 +50,7 @@ fn resolve_arch_config(file: Option<&str>) -> Result<PathBuf> {
     let path = workspace.join(".anvil").join(ARCH_CONFIG_FILENAME);
     if !path.exists() {
         bail!(
-            "No architecture.yaml found. Run: anvil architecture init\n  Or create .anvil/architecture.yaml manually"
+            "No architecture.yaml found. Create .anvil/architecture.yaml to define your architecture"
         );
     }
     Ok(path)

@@ -50,25 +50,6 @@ enum PolicyCommand {
 }
 
 #[derive(Debug, Serialize)]
-struct PolicyEntry {
-    id: String,
-    name: String,
-    category: String,
-    enabled: bool,
-    description: String,
-}
-
-#[derive(Debug, Serialize)]
-struct PolicyExplanation {
-    id: String,
-    name: String,
-    description: String,
-    severity: String,
-    category: String,
-    enabled: bool,
-}
-
-#[derive(Debug, Serialize)]
 struct PolicyDiffResult {
     added: Vec<String>,
     removed: Vec<String>,
@@ -95,71 +76,10 @@ struct TestCase {
     message: String,
 }
 
-fn builtin_policies() -> Vec<PolicyEntry> {
-    vec![
-        PolicyEntry {
-            id: "AP-001".into(),
-            name: "Broad eslint-disable".into(),
-            category: "lint".into(),
-            enabled: true,
-            description: "Detects broad /* eslint-disable */ comments".into(),
-        },
-        PolicyEntry {
-            id: "AP-003".into(),
-            name: "Explicit any type".into(),
-            category: "type-safety".into(),
-            enabled: true,
-            description: "Detects explicit 'any' type usage".into(),
-        },
-        PolicyEntry {
-            id: "AP-004".into(),
-            name: "ts-ignore directive".into(),
-            category: "type-safety".into(),
-            enabled: true,
-            description: "Detects @ts-ignore directives".into(),
-        },
-        PolicyEntry {
-            id: "AP-006".into(),
-            name: "Empty catch block".into(),
-            category: "error-handling".into(),
-            enabled: true,
-            description: "Detects empty catch blocks".into(),
-        },
-        PolicyEntry {
-            id: "AP-007".into(),
-            name: "Console in production".into(),
-            category: "logging".into(),
-            enabled: false,
-            description: "Detects console.log in production code".into(),
-        },
-        PolicyEntry {
-            id: "ARCH-001".into(),
-            name: "Cross-layer import".into(),
-            category: "architecture".into(),
-            enabled: true,
-            description: "Detects imports violating layer boundaries".into(),
-        },
-        PolicyEntry {
-            id: "ARCH-002".into(),
-            name: "Circular dependency".into(),
-            category: "architecture".into(),
-            enabled: true,
-            description: "Detects circular import dependencies".into(),
-        },
-        PolicyEntry {
-            id: "SEC-001".into(),
-            name: "Hardcoded secret".into(),
-            category: "security".into(),
-            enabled: true,
-            description: "Detects hardcoded API keys and tokens".into(),
-        },
-    ]
-}
-
 fn run_list(category: Option<&String>, enabled: bool, global: &GlobalArgs) -> Result<()> {
-    let mut policies = builtin_policies();
+    let mut policies = anvil_policy::library::builtin_policies();
     if let Some(cat) = category {
-        policies.retain(|p| &p.category == cat);
+        policies.retain(|p| p.category == cat.as_str());
     }
     if enabled {
         policies.retain(|p| p.enabled);
@@ -183,31 +103,22 @@ fn run_list(category: Option<&String>, enabled: bool, global: &GlobalArgs) -> Re
 }
 
 fn run_explain(policy_id: &str, global: &GlobalArgs) -> Result<()> {
-    let policies = builtin_policies();
+    let policies = anvil_policy::library::builtin_policies();
     let policy = policies
         .iter()
         .find(|p| p.id == policy_id)
         .with_context(|| format!("Policy not found: {policy_id}"))?;
 
-    let explanation = PolicyExplanation {
-        id: policy.id.clone(),
-        name: policy.name.clone(),
-        description: policy.description.clone(),
-        severity: "warning".to_string(),
-        category: policy.category.clone(),
-        enabled: policy.enabled,
-    };
-
     if global.json {
-        crate::output::json::print(&explanation)?;
+        crate::output::json::print(policy)?;
     } else {
         println!();
-        println!("Policy: {} \u{2014} {}", explanation.id, explanation.name);
+        println!("Policy: {} \u{2014} {}", policy.id, policy.name);
         println!("{}", "\u{2500}".repeat(40));
-        println!("  Description: {}", explanation.description);
-        println!("  Severity:    {}", explanation.severity);
-        println!("  Category:    {}", explanation.category);
-        println!("  Enabled:     {}", explanation.enabled);
+        println!("  Description: {}", policy.description);
+        println!("  Severity:    {}", policy.severity);
+        println!("  Category:    {}", policy.category);
+        println!("  Enabled:     {}", policy.enabled);
     }
     Ok(())
 }
@@ -226,14 +137,16 @@ fn run_diff(base: &str, head: &str, global: &GlobalArgs) -> Result<()> {
     let base_lines: std::collections::HashSet<&str> = base_content.lines().collect();
     let head_lines: std::collections::HashSet<&str> = head_content.lines().collect();
 
-    let added: Vec<String> = head_lines
+    let mut added: Vec<String> = head_lines
         .difference(&base_lines)
         .map(ToString::to_string)
         .collect();
-    let removed: Vec<String> = base_lines
+    added.sort();
+    let mut removed: Vec<String> = base_lines
         .difference(&head_lines)
         .map(ToString::to_string)
         .collect();
+    removed.sort();
 
     if global.json {
         let result = PolicyDiffResult {
@@ -270,9 +183,18 @@ fn run_validate(file: Option<&String>, global: &GlobalArgs) -> Result<()> {
     let mut warnings = Vec::new();
 
     if std::path::Path::new(path).exists() {
-        let content = std::fs::read_to_string(path).with_context(|| format!("reading {path}"))?;
-        if content.trim().is_empty() {
-            warnings.push("Policy file is empty".to_string());
+        match anvil_policy::config::load_config(path) {
+            Ok(config) => {
+                if config.policies.is_empty() {
+                    warnings.push("Policy file contains no policies".to_string());
+                }
+            }
+            Err(anvil_policy::config::ConfigError::Parse(msg)) => {
+                errors.push(format!("Invalid YAML: {msg}"));
+            }
+            Err(e) => {
+                errors.push(e.to_string());
+            }
         }
     } else {
         errors.push(format!("Policy file not found: {path}"));
@@ -299,6 +221,10 @@ fn run_validate(file: Option<&String>, global: &GlobalArgs) -> Result<()> {
         for w in &warnings {
             println!("  \u{26a0} {w}");
         }
+    }
+
+    if !result.valid {
+        std::process::exit(1);
     }
     Ok(())
 }
@@ -328,7 +254,10 @@ fn run_test(path: Option<&String>, verbose: bool, global: &GlobalArgs) -> Result
     }
 
     if test_cases.is_empty() {
-        for policy in builtin_policies().iter().filter(|p| p.enabled) {
+        for policy in anvil_policy::library::builtin_policies()
+            .iter()
+            .filter(|p| p.enabled)
+        {
             test_cases.push(TestCase {
                 name: format!("{}:{}", policy.id, policy.name),
                 passed: true,
