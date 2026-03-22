@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use anyhow::{Context, Result, bail};
 use clap::Args;
 use serde::Serialize;
@@ -22,8 +21,8 @@ pub struct ExportArgs {
     #[arg(long, short)]
     output: Option<String>,
 
-    /// Source format override (auto-detected if omitted)
-    #[arg(long)]
+    /// Source format override (auto-detected if omitted; not yet implemented)
+    #[arg(long, hide = true)]
     from: Option<String>,
 
     /// Compact JSON output

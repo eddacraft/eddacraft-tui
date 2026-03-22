@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, bail};
@@ -56,7 +55,7 @@ if [ "${ANVIL_SKIP_HOOKS:-0}" = "1" ]; then
 fi
 
 if ! command -v anvil >/dev/null 2>&1; then
-  echo "anvil: command not found — skipping gate checks"
+  echo "anvil: command not found — skipping doctor checks"
   exit 0
 fi
 
@@ -75,7 +74,7 @@ if [ "${ANVIL_SKIP_HOOKS:-0}" = "1" ]; then
 fi
 
 if ! command -v anvil >/dev/null 2>&1; then
-  echo "anvil: command not found — skipping gate checks"
+  echo "anvil: command not found — skipping doctor checks"
   exit 0
 fi
 
@@ -259,6 +258,7 @@ fn resolve_hooks_dir(workspace_root: &Path, git_dir: &Path, husky: bool) -> Resu
     }
     let (_detected, husky_dir_opt) = detect_husky(workspace_root);
     if let Some(dir) = husky_dir_opt {
+        std::fs::create_dir_all(&dir).context("creating detected .husky directory")?;
         eprintln!("Husky detected — installing hooks in .husky directory");
         return Ok(dir);
     }
