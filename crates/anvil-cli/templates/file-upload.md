@@ -75,7 +75,7 @@ storage, and proper error handling.
 ```typescript
 const uploadConfig = {
   maxFileSize: {{ max_file_size }} * 1024 * 1024, // {{ max_file_size }}MB
-  allowedTypes: ['{{ allowed_types }}'],
+  allowedTypes: '{{ allowed_types }}'.split(',').map((t) => t.trim()),
   storage: '{{ storage_type }}',
 };
 ```

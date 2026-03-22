@@ -582,6 +582,81 @@ mod tests {
         cleanup(&dir);
     }
 
+    #[test]
+    fn gather_with_file_cache_entries_subdir() {
+        let dir = make_temp_dir();
+        let cache_dir = dir.join(".anvil/cache");
+        let entries_dir = cache_dir.join("entries");
+        std::fs::create_dir_all(&entries_dir).unwrap();
+        std::fs::write(
+            cache_dir.join("index.json"),
+            r#"{
+                "entries": {
+                    "gate:plan.md:1710000000": {
+                        "file": "abc123.json",
+                        "created_at": 1710000000000,
+                        "size_bytes": 128
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            entries_dir.join("abc123.json"),
+            format!(
+                "{}\n{}",
+                "a".repeat(64),
+                r#"{"value":{"passed":true,"score":0.9,"checksRun":3,"checksPassed":3,"durationMs":1200}}"#
+            ),
+        )
+        .unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.recent_runs.len(), 1);
+        assert!(data.recent_runs[0].passed);
+        assert_eq!(data.recent_runs[0].checks_run, 3);
+        assert_eq!(data.recent_runs[0].checks_passed, 3);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn gather_with_file_cache_entries_root() {
+        let dir = make_temp_dir();
+        let cache_dir = dir.join(".anvil/cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        std::fs::write(
+            cache_dir.join("index.json"),
+            r#"{
+                "entries": {
+                    "gate:plan.md:1710001000": {
+                        "file": "root-entry.json",
+                        "created_at": 1710001000000,
+                        "size_bytes": 128
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            cache_dir.join("root-entry.json"),
+            format!(
+                "{}\n{}",
+                "b".repeat(64),
+                r#"{"value":{"passed":false,"score":0.5,"checksRun":4,"checksPassed":2,"durationMs":900}}"#
+            ),
+        )
+        .unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.recent_runs.len(), 1);
+        assert!(!data.recent_runs[0].passed);
+        assert_eq!(data.recent_runs[0].checks_run, 4);
+        assert_eq!(data.recent_runs[0].checks_passed, 2);
+
+        cleanup(&dir);
+    }
+
     #[cfg(unix)]
     #[test]
     fn gather_hooks_with_executable() {
