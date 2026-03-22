@@ -169,8 +169,7 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
                 } else {
                     cache_dir.join(file)
                 };
-                if let Ok(entry_contents) = std::fs::read_to_string(entry_path)
-                {
+                if let Ok(entry_contents) = std::fs::read_to_string(entry_path) {
                     // Workspace FileCacheProvider writes entries as
                     // <64-hex-hmac>\n<json>. Skip the HMAC prefix.
                     let json_str = if entry_contents.len() > 65

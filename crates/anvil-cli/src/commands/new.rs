@@ -296,7 +296,10 @@ fn load_embedded_templates() -> TemplateCatalogue {
     (categories, entries, bodies)
 }
 
-fn load_template_from_content(name: &str, content: &str) -> anyhow::Result<(TemplateEntry, String)> {
+fn load_template_from_content(
+    name: &str,
+    content: &str,
+) -> anyhow::Result<(TemplateEntry, String)> {
     let (fm_str, body) = split_frontmatter(content)
         .ok_or_else(|| anyhow::anyhow!("missing frontmatter delimiters"))?;
 
@@ -472,14 +475,8 @@ fn apply_template_variable(mut rendered: String, key: &str, value: &str) -> Stri
     let patterns = [
         (format!("{{{{ {key} }}}}"), value.to_string()),
         (format!("{{{{{key}}}}}"), value.to_string()),
-        (
-            format!("{{{{ {key} | uppercase }}}}"),
-            value.to_uppercase(),
-        ),
-        (
-            format!("{{{{{key}|uppercase}}}}"),
-            value.to_uppercase(),
-        ),
+        (format!("{{{{ {key} | uppercase }}}}"), value.to_uppercase()),
+        (format!("{{{{{key}|uppercase}}}}"), value.to_uppercase()),
     ];
 
     for (pattern, replacement) in patterns {
