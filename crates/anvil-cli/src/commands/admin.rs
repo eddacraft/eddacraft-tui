@@ -67,6 +67,8 @@ pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
                         println!("{} user(s) approved", approved.len());
                     }
                 }
+            } else {
+                unreachable!("clap requires either --email or --batch");
             }
         }
     }

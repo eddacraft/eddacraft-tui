@@ -79,9 +79,7 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
                     }
                     Ok(())
                 }
-                Err(e)
-                    if e.to_string().contains("request") || e.to_string().contains("connect") =>
-                {
+                Err(e) if is_network_error(&e) => {
                     let data = WhoamiData {
                         email: creds.email.unwrap_or_else(|| "unknown".to_string()),
                         plan: None,
@@ -100,6 +98,19 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
             }
         }
     }
+}
+
+/// Check whether an error is a network/connectivity failure (timeout, DNS,
+/// connection refused) so we can fall back to offline credential display.
+fn is_network_error(err: &anyhow::Error) -> bool {
+    for cause in err.chain() {
+        if let Some(re) = cause.downcast_ref::<reqwest::Error>()
+            && (re.is_connect() || re.is_timeout())
+        {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(test)]

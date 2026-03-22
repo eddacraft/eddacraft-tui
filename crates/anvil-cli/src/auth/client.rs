@@ -1,8 +1,13 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result, bail};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::credentials;
+
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct AnvilClient {
     http: reqwest::Client,
@@ -21,8 +26,13 @@ pub struct WhoamiResponse {
 impl AnvilClient {
     pub fn new() -> Result<Self> {
         let api_url = super::api_url()?;
+        let http = reqwest::Client::builder()
+            .timeout(REQUEST_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .build()
+            .context("building HTTP client")?;
         Ok(Self {
-            http: reqwest::Client::new(),
+            http,
             api_url,
             token: None,
         })

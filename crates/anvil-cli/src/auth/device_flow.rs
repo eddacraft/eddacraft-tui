@@ -1,4 +1,4 @@
-use std::io::Write;
+use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
@@ -64,7 +64,16 @@ fn api_url() -> anyhow::Result<String> {
     super::api_url()
 }
 
+fn build_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(10))
+        .build()
+        .context("building HTTP client")
+}
+
 fn prompt_input(label: &str) -> Result<String> {
+    use std::io::Write;
     eprint!("{label}");
     std::io::stderr().flush().context("flushing stderr")?;
     let mut input = String::new();
@@ -83,7 +92,7 @@ pub async fn login_device_flow() -> Result<()> {
 
     eprintln!("Starting device code flow...");
 
-    let client = reqwest::Client::new();
+    let client = build_client()?;
     let start: DeviceStartResponse = client
         .post(format!("{url}/api/v1/auth/device/start"))
         .json(&DeviceStartRequest { email: &email })
@@ -162,7 +171,7 @@ pub async fn login_otp_flow() -> Result<()> {
 
     eprintln!("Requesting verification code...");
 
-    let client = reqwest::Client::new();
+    let client = build_client()?;
     let _: OtpRequestResponse = client
         .post(format!("{url}/api/v1/auth/otp/request"))
         .json(&OtpSendRequest { email: &email })

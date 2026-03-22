@@ -12,7 +12,7 @@ pub mod tutorial;
 pub mod welcome;
 pub mod wizard;
 
-// Not yet implemented — exposed for test coverage only.
+// Wired into dispatch — implementation varies from full to scaffold.
 pub mod architecture;
 pub mod gate;
 pub mod policy;
