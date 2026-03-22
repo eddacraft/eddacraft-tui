@@ -136,7 +136,9 @@ impl AnvilClient {
             email: String,
         }
 
-        let result: BatchResponse = self.post("/admin/approve", BatchBody { batch: count }).await?;
+        let result: BatchResponse = self
+            .post("/admin/approve", BatchBody { batch: count })
+            .await?;
         Ok(result.approved.into_iter().map(|e| e.email).collect())
     }
 }

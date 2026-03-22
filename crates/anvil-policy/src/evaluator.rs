@@ -19,6 +19,8 @@ pub struct Violation {
 pub enum EvalError {
     #[error("policy not found: {0}")]
     PolicyNotFound(String),
+    #[error("policy evaluation is not yet implemented")]
+    NotImplemented,
     #[error("evaluation failed: {0}")]
     Internal(String),
 }
@@ -27,9 +29,16 @@ pub fn evaluate(
     _policies: &[super::config::PolicyEntry],
     _files: &[String],
 ) -> Result<EvaluationResult, EvalError> {
-    Ok(EvaluationResult {
-        passed: true,
-        violations: Vec::new(),
-        checks_run: 0,
-    })
+    Err(EvalError::NotImplemented)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evaluate_returns_not_implemented() {
+        let result = evaluate(&[], &[]);
+        assert!(matches!(result, Err(EvalError::NotImplemented)));
+    }
 }
