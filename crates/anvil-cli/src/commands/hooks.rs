@@ -7,6 +7,10 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 
+/// Marker comment embedded in generated hooks so we can reliably detect
+/// Anvil-managed hooks without false-positives from user comments.
+const ANVIL_MARKER: &str = "# @anvil-managed";
+
 #[derive(Debug, Args)]
 pub struct HooksArgs {
     #[command(subcommand)]
@@ -21,10 +25,10 @@ enum HooksCommand {
         #[arg(long, short)]
         force: bool,
         /// Only install pre-commit hook
-        #[arg(long)]
+        #[arg(long, conflicts_with = "pre_push_only")]
         pre_commit_only: bool,
         /// Only install pre-push hook
-        #[arg(long)]
+        #[arg(long, conflicts_with = "pre_commit_only")]
         pre_push_only: bool,
         /// Install hooks in .husky directory
         #[arg(long)]
@@ -33,10 +37,10 @@ enum HooksCommand {
     /// Remove Anvil git hooks
     Uninstall {
         /// Only remove pre-commit hook
-        #[arg(long)]
+        #[arg(long, conflicts_with = "pre_push_only")]
         pre_commit_only: bool,
         /// Only remove pre-push hook
-        #[arg(long)]
+        #[arg(long, conflicts_with = "pre_commit_only")]
         pre_push_only: bool,
     },
     /// Show status of Anvil git hooks
@@ -44,7 +48,18 @@ enum HooksCommand {
 }
 
 const PRE_COMMIT_HOOK: &str = r#"#!/bin/sh
-# Anvil pre-commit hook
+# @anvil-managed
+# Anvil pre-commit hook — validates planning documents.
+
+if [ "${ANVIL_SKIP_HOOKS:-0}" = "1" ]; then
+  exit 0
+fi
+
+if ! command -v anvil >/dev/null 2>&1; then
+  echo "anvil: command not found — skipping gate checks"
+  exit 0
+fi
+
 ANVIL_HOOK=1 anvil gate --progress || {
   echo "Anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git commit"
   exit 1
@@ -52,12 +67,27 @@ ANVIL_HOOK=1 anvil gate --progress || {
 "#;
 
 const PRE_PUSH_HOOK: &str = r#"#!/bin/sh
-# Anvil pre-push hook
+# @anvil-managed
+# Anvil pre-push hook — runs quality gates before push.
+
+if [ "${ANVIL_SKIP_HOOKS:-0}" = "1" ]; then
+  exit 0
+fi
+
+if ! command -v anvil >/dev/null 2>&1; then
+  echo "anvil: command not found — skipping gate checks"
+  exit 0
+fi
+
 ANVIL_HOOK=1 anvil gate || {
   echo "Anvil gate checks failed. Fix issues or bypass with: ANVIL_SKIP_HOOKS=1 git push"
   exit 1
 }
 "#;
+
+fn is_anvil_managed(content: &str) -> bool {
+    content.contains(ANVIL_MARKER)
+}
 
 fn resolve_git_dir(workspace_root: &Path) -> Result<PathBuf> {
     let git_path = workspace_root.join(".git");
@@ -69,10 +99,15 @@ fn resolve_git_dir(workspace_root: &Path) -> Result<PathBuf> {
     }
     let content = std::fs::read_to_string(&git_path).context("reading .git file")?;
     let gitdir = content
-        .trim()
-        .strip_prefix("gitdir: ")
+        .lines()
+        .find_map(|line| {
+            let trimmed = line.trim();
+            trimmed
+                .strip_prefix("gitdir:")
+                .map(|rest| rest.trim().to_string())
+        })
         .context(".git file does not contain gitdir reference")?;
-    let resolved = workspace_root.join(gitdir);
+    let resolved = workspace_root.join(&gitdir);
     if !resolved.exists() {
         bail!("Git directory not found: {}", resolved.display());
     }
@@ -81,21 +116,24 @@ fn resolve_git_dir(workspace_root: &Path) -> Result<PathBuf> {
 
 fn detect_husky(workspace_root: &Path) -> (bool, Option<PathBuf>) {
     let husky_dir = workspace_root.join(".husky");
-    let has_husky_dir = husky_dir.is_dir();
-    let has_pkg_dep = workspace_root.join("package.json").exists();
-    (
-        has_husky_dir || has_pkg_dep,
-        if has_husky_dir { Some(husky_dir) } else { None },
-    )
+    if husky_dir.is_dir() {
+        (true, Some(husky_dir))
+    } else {
+        (false, None)
+    }
 }
 
-fn install_hook(hooks_dir: &Path, name: &str, content: &str, force: bool) -> Result<HookResult> {
+fn install_hook(
+    hooks_dir: &Path,
+    name: &str,
+    content: &str,
+    force: bool,
+    had_existing: &mut bool,
+) -> Result<HookResult> {
     let path = hooks_dir.join(name);
     if path.exists() && !force {
-        let is_anvil = std::fs::read_to_string(&path)
-            .unwrap_or_default()
-            .contains("Anvil");
-        if is_anvil {
+        let existing = std::fs::read_to_string(&path).unwrap_or_default();
+        if is_anvil_managed(&existing) {
             return Ok(HookResult {
                 hook: name.to_string(),
                 action: "skipped".to_string(),
@@ -109,7 +147,8 @@ fn install_hook(hooks_dir: &Path, name: &str, content: &str, force: bool) -> Res
         });
     }
 
-    if path.exists() && force {
+    let existed = path.exists();
+    if existed && force {
         let backup = path.with_extension("bak");
         std::fs::copy(&path, &backup).with_context(|| format!("backing up {}", path.display()))?;
     }
@@ -123,11 +162,8 @@ fn install_hook(hooks_dir: &Path, name: &str, content: &str, force: bool) -> Res
             .with_context(|| format!("setting permissions on {}", path.display()))?;
     }
 
-    let action = if path.with_extension("bak").exists() {
-        "updated"
-    } else {
-        "created"
-    };
+    let action = if existed { "updated" } else { "created" };
+    *had_existing = existed;
     Ok(HookResult {
         hook: name.to_string(),
         action: action.to_string(),
@@ -146,7 +182,7 @@ fn uninstall_hook(hooks_dir: &Path, name: &str) -> Result<HookResult> {
     }
 
     let content = std::fs::read_to_string(&path).unwrap_or_default();
-    if !content.contains("Anvil") {
+    if !is_anvil_managed(&content) {
         return Ok(HookResult {
             hook: name.to_string(),
             action: "skipped".to_string(),
@@ -155,6 +191,17 @@ fn uninstall_hook(hooks_dir: &Path, name: &str) -> Result<HookResult> {
     }
 
     std::fs::remove_file(&path).with_context(|| format!("removing {}", path.display()))?;
+
+    let backup = path.with_extension("bak");
+    if backup.exists() {
+        std::fs::rename(&backup, &path)
+            .with_context(|| format!("restoring backup {}", backup.display()))?;
+        return Ok(HookResult {
+            hook: name.to_string(),
+            action: "restored".to_string(),
+            message: format!("{name} removed — original hook restored from backup"),
+        });
+    }
 
     Ok(HookResult {
         hook: name.to_string(),
@@ -190,10 +237,8 @@ fn resolve_hooks_dir(workspace_root: &Path, git_dir: &Path, husky: bool) -> Resu
         std::fs::create_dir_all(&dir).context("creating .husky directory")?;
         return Ok(dir);
     }
-    let (detected, husky_dir_opt) = detect_husky(workspace_root);
-    if let Some(dir) = husky_dir_opt
-        && detected
-    {
+    let (_detected, husky_dir_opt) = detect_husky(workspace_root);
+    if let Some(dir) = husky_dir_opt {
         eprintln!("Husky detected — installing hooks in .husky directory");
         return Ok(dir);
     }
@@ -230,17 +275,26 @@ fn run_install(
     let hooks_dir = resolve_hooks_dir(workspace_root, git_dir, husky)?;
 
     let mut results = Vec::new();
+    let mut had_existing = false;
     if !pre_push_only {
         results.push(install_hook(
             &hooks_dir,
             "pre-commit",
             PRE_COMMIT_HOOK,
             force,
+            &mut had_existing,
         )?);
     }
     if !pre_commit_only {
-        results.push(install_hook(&hooks_dir, "pre-push", PRE_PUSH_HOOK, force)?);
+        results.push(install_hook(
+            &hooks_dir,
+            "pre-push",
+            PRE_PUSH_HOOK,
+            force,
+            &mut had_existing,
+        )?);
     }
+    let _ = had_existing;
 
     if global.json {
         crate::output::json::print(&results)?;
@@ -287,7 +341,11 @@ fn run_uninstall(
     } else {
         print_hook_results(
             &results,
-            &[("removed", "\u{2713}"), ("skipped", "\u{26a0}")],
+            &[
+                ("removed", "\u{2713}"),
+                ("restored", "\u{21bb}"),
+                ("skipped", "\u{26a0}"),
+            ],
         );
     }
     Ok(())
@@ -307,10 +365,8 @@ fn run_status(workspace_root: &Path, git_dir: &Path, global: &GlobalArgs) -> Res
         for hook_name in ["pre-commit", "pre-push"] {
             let path = dir.join(hook_name);
             let installed = path.exists();
-            let anvil_managed = installed
-                && std::fs::read_to_string(&path)
-                    .unwrap_or_default()
-                    .contains("Anvil");
+            let anvil_managed =
+                installed && is_anvil_managed(&std::fs::read_to_string(&path).unwrap_or_default());
             hooks.push(HookStatusInfo {
                 location: name.to_string(),
                 hook: hook_name.to_string(),
@@ -415,5 +471,37 @@ mod tests {
     fn args_parses_install_force() {
         let w = Wrapper::try_parse_from(["test", "install", "--force"]).unwrap();
         let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn conflicting_flags_rejected() {
+        let result =
+            Wrapper::try_parse_from(["test", "install", "--pre-commit-only", "--pre-push-only"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn marker_detection() {
+        assert!(is_anvil_managed("#!/bin/sh\n# @anvil-managed\n"));
+        assert!(!is_anvil_managed("#!/bin/sh\n# Anvil hook\n"));
+        assert!(!is_anvil_managed(""));
+    }
+
+    #[test]
+    fn hook_scripts_contain_skip_check() {
+        assert!(PRE_COMMIT_HOOK.contains("ANVIL_SKIP_HOOKS"));
+        assert!(PRE_PUSH_HOOK.contains("ANVIL_SKIP_HOOKS"));
+    }
+
+    #[test]
+    fn hook_scripts_check_anvil_exists() {
+        assert!(PRE_COMMIT_HOOK.contains("command -v anvil"));
+        assert!(PRE_PUSH_HOOK.contains("command -v anvil"));
+    }
+
+    #[test]
+    fn hook_scripts_contain_marker() {
+        assert!(is_anvil_managed(PRE_COMMIT_HOOK));
+        assert!(is_anvil_managed(PRE_PUSH_HOOK));
     }
 }
