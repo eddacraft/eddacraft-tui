@@ -53,7 +53,6 @@ thiserror = "2"
 tokio = { version = "1", features = ["full"] }
 
 # File system
-tempfile = "3"
 walkdir = "2"
 
 # Testing

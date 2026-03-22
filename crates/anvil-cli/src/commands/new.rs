@@ -256,8 +256,13 @@ fn load_templates() -> anyhow::Result<TemplateCatalogue> {
         return load_templates_from_dir(&dir);
     }
     // Fall back to embedded templates for `cargo install` environments.
-    // Write embedded templates to a temp directory and load from there.
-    let tmp = tempfile::tempdir()?;
+    Ok(load_embedded_templates())
+}
+
+fn load_embedded_templates() -> TemplateCatalogue {
+    let mut entries: Vec<TemplateEntry> = Vec::new();
+    let mut bodies: BTreeMap<String, String> = BTreeMap::new();
+
     let template_names = [
         "api-integration",
         "authentication-jwt",
@@ -271,15 +276,61 @@ fn load_templates() -> anyhow::Result<TemplateCatalogue> {
         "testing-suite",
         "websocket-realtime",
     ];
+
     for name in &template_names {
         if let Some(content) = embedded_template(name) {
-            std::fs::write(tmp.path().join(format!("{name}.md")), content)?;
+            match load_template_from_content(name, content) {
+                Ok((te, body)) => {
+                    bodies.insert(te.id.clone(), body);
+                    entries.push(te);
+                }
+                Err(e) => {
+                    eprintln!("warning: skipping {name}: {e}");
+                }
+            }
         }
     }
-    // Keep the tempdir so it persists for the duration of the process.
-    #[allow(deprecated)]
-    let dir = tmp.into_path();
-    load_templates_from_dir(&dir)
+
+    entries.sort_by(|a, b| a.category.cmp(&b.category).then(a.id.cmp(&b.id)));
+    let categories = derive_categories(&entries);
+    (categories, entries, bodies)
+}
+
+fn load_template_from_content(name: &str, content: &str) -> anyhow::Result<(TemplateEntry, String)> {
+    let (fm_str, body) = split_frontmatter(content)
+        .ok_or_else(|| anyhow::anyhow!("missing frontmatter delimiters"))?;
+
+    let fm: TemplateFrontmatter = serde_yaml::from_str(fm_str)?;
+
+    let variables: Vec<TemplateVariable> = fm
+        .variables
+        .unwrap_or_default()
+        .into_iter()
+        .map(|v| {
+            let default_value = v.default.map(|d| match d {
+                serde_yaml::Value::String(s) => s,
+                other => format!("{other:?}"),
+            });
+            TemplateVariable {
+                name: v.name,
+                description: v.description.unwrap_or_default(),
+                default_value,
+                required: v.required,
+            }
+        })
+        .collect();
+
+    Ok((
+        TemplateEntry {
+            id: fm.id.unwrap_or_else(|| name.to_string()),
+            name: fm.name.unwrap_or_else(|| name.replace('-', " ")),
+            description: fm.description.unwrap_or_default(),
+            category: fm.category.unwrap_or_else(|| "general".to_string()),
+            tags: fm.tags.unwrap_or_default(),
+            variables,
+        },
+        body.to_string(),
+    ))
 }
 
 fn load_templates_from_dir(dir: &Path) -> anyhow::Result<TemplateCatalogue> {
@@ -404,23 +455,38 @@ fn render_template(
 
     // Substitute provided variables
     for (key, value) in variables {
-        let pattern = format!("{{{{ {key} }}}}");
-        rendered = rendered.replace(&pattern, value);
-        let pattern_tight = format!("{{{{{key}}}}}");
-        rendered = rendered.replace(&pattern_tight, value);
+        rendered = apply_template_variable(rendered, key, value);
     }
 
     // Substitute defaults for any remaining placeholders
     for var in &template.variables {
         if let Some(ref default) = var.default_value {
-            let pattern = format!("{{{{ {} }}}}", var.name);
-            rendered = rendered.replace(&pattern, default);
-            let pattern_tight = format!("{{{{{}}}}}", var.name);
-            rendered = rendered.replace(&pattern_tight, default);
+            rendered = apply_template_variable(rendered, &var.name, default);
         }
     }
 
     Ok(rendered)
+}
+
+fn apply_template_variable(mut rendered: String, key: &str, value: &str) -> String {
+    let patterns = [
+        (format!("{{{{ {key} }}}}"), value.to_string()),
+        (format!("{{{{{key}}}}}"), value.to_string()),
+        (
+            format!("{{{{ {key} | uppercase }}}}"),
+            value.to_uppercase(),
+        ),
+        (
+            format!("{{{{{key}|uppercase}}}}"),
+            value.to_uppercase(),
+        ),
+    ];
+
+    for (pattern, replacement) in patterns {
+        rendered = rendered.replace(&pattern, &replacement);
+    }
+
+    rendered
 }
 
 fn parse_variables(vars: &[String]) -> anyhow::Result<BTreeMap<String, String>> {
@@ -674,7 +740,7 @@ mod tests {
 
     #[test]
     fn render_substitutes_variables() {
-        let body = "Hello {{ name }}, version {{version}}";
+        let body = "Hello {{ name }}, version {{version}}, env {{ name | uppercase }}";
         let template = TemplateEntry {
             id: "t".into(),
             name: "T".into(),
@@ -700,7 +766,7 @@ mod tests {
         vars.insert("name".into(), "Anvil".into());
 
         let result = render_template(body, &template, &vars).unwrap();
-        assert_eq!(result, "Hello Anvil, version 1.0");
+        assert_eq!(result, "Hello Anvil, version 1.0, env ANVIL");
     }
 
     #[test]

@@ -170,10 +170,21 @@ fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
                     cache_dir.join(file)
                 };
                 if let Ok(entry_contents) = std::fs::read_to_string(entry_path)
-                    && let Ok(entry_val) =
-                        serde_json::from_str::<serde_json::Value>(&entry_contents)
                 {
-                    return parse_gate_entry(key, &entry_val);
+                    // Workspace FileCacheProvider writes entries as
+                    // <64-hex-hmac>\n<json>. Skip the HMAC prefix.
+                    let json_str = if entry_contents.len() > 65
+                        && entry_contents.as_bytes()[64] == b'\n'
+                        && entry_contents[..64].chars().all(|c| c.is_ascii_hexdigit())
+                    {
+                        &entry_contents[65..]
+                    } else {
+                        &entry_contents
+                    };
+                    if let Ok(entry_val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                        let gate_val = entry_val.get("value").unwrap_or(&entry_val);
+                        return parse_gate_entry(key, gate_val);
+                    }
                 }
             }
             // Fall back to parsing the index entry directly.
