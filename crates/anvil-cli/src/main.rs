@@ -66,14 +66,14 @@ enum Commands {
     Gate(commands::gate::GateArgs),
     /// Start file-watching mode with live gate checks.
     Watch(commands::watch::WatchArgs),
+    /// Export constraints and configuration.
+    Export(commands::export::ExportArgs),
+    /// Install and manage git hooks.
+    Hooks(commands::hooks::HooksArgs),
     // /// Manage architecture boundary definitions.
     // Architecture(commands::architecture::ArchitectureArgs),
     /// Authenticate with the Anvil service.
     Auth(commands::auth::AuthArgs),
-    // /// Export constraints and configuration.
-    // Export(commands::export::ExportArgs),
-    // /// Install and manage git hooks.
-    // Hooks(commands::hooks::HooksArgs),
     // /// Manage and evaluate policies.
     // Policy(commands::policy::PolicyArgs),
 }
@@ -111,6 +111,8 @@ fn main() -> ExitCode {
         Commands::Auth(args) => commands::auth::run(args, &cli.global),
         Commands::Gate(args) => commands::gate::run(args, &cli.global),
         Commands::Watch(args) => commands::watch::run(args, &cli.global),
+        Commands::Export(args) => commands::export::run(args, &cli.global),
+        Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
     };
 
     match result {
