@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use super::credentials::{self, Credentials};
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DeviceStartResponse {
     poll_token: String,
     user_code: String,
@@ -12,21 +13,24 @@ struct DeviceStartResponse {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct DevicePollResponse {
     status: String,
-    token: Option<String>,
+    license: Option<String>,
     refresh_token: Option<String>,
     expires_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OtpRequestResponse {
-    ok: bool,
+    sent: bool,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct OtpVerifyResponse {
-    token: String,
+    license: String,
     refresh_token: String,
     expires_at: String,
 }
@@ -37,6 +41,7 @@ struct DeviceStartRequest<'a> {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct DevicePollRequest<'a> {
     poll_token: &'a str,
 }
@@ -53,14 +58,16 @@ struct OtpVerifyRequest<'a> {
 }
 
 fn api_url() -> String {
-    std::env::var("ANVIL_API_URL")
-        .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string())
+    let raw = std::env::var("ANVIL_API_URL")
+        .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
+    raw.trim_end_matches('/').to_string()
 }
 
 fn prompt_input(label: &str) -> Result<String> {
     eprint!("{label}");
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input)
+    std::io::stdin()
+        .read_line(&mut input)
         .context("reading stdin")?;
     Ok(input.trim().to_string())
 }
@@ -103,7 +110,9 @@ pub async fn login_device_flow() -> Result<()> {
 
         let poll: DevicePollResponse = client
             .post(format!("{url}/api/v1/auth/device/poll"))
-            .json(&DevicePollRequest { poll_token: &start.poll_token })
+            .json(&DevicePollRequest {
+                poll_token: &start.poll_token,
+            })
             .send()
             .await
             .context("device poll request")?
@@ -115,8 +124,10 @@ pub async fn login_device_flow() -> Result<()> {
 
         match poll.status.as_str() {
             "confirmed" => {
-                let token = poll.token.context("server returned no token")?;
-                let refresh = poll.refresh_token.context("server returned no refresh token")?;
+                let token = poll.license.context("server returned no license")?;
+                let refresh = poll
+                    .refresh_token
+                    .context("server returned no refresh token")?;
                 let expires = poll.expires_at.context("server returned no expiry")?;
 
                 credentials::save(&Credentials {
@@ -127,7 +138,7 @@ pub async fn login_device_flow() -> Result<()> {
                 })?;
 
                 eprintln!();
-                eprintln!("✓ Authenticated as {email}");
+                eprintln!("\u{2713} Authenticated as {email}");
                 if let Ok(path) = credentials::credentials_path() {
                     eprintln!("  Credentials saved to {}", path.display());
                 }
@@ -151,7 +162,7 @@ pub async fn login_otp_flow() -> Result<()> {
     eprintln!("Requesting verification code...");
 
     let client = reqwest::Client::new();
-    let _: OtpRequestResponse = client
+    let resp: OtpRequestResponse = client
         .post(format!("{url}/api/v1/auth/otp/send"))
         .json(&OtpSendRequest { email: &email })
         .send()
@@ -162,6 +173,8 @@ pub async fn login_otp_flow() -> Result<()> {
         .json()
         .await
         .context("parsing OTP send response")?;
+
+    let _ = resp.sent;
 
     eprintln!();
     eprintln!("A verification code has been sent to your email.");
@@ -178,24 +191,27 @@ pub async fn login_otp_flow() -> Result<()> {
 
         match client
             .post(format!("{url}/api/v1/auth/otp/verify"))
-            .json(&OtpVerifyRequest { email: &email, code: &code })
+            .json(&OtpVerifyRequest {
+                email: &email,
+                code: &code,
+            })
             .send()
             .await
         {
             Ok(res) => match res.error_for_status() {
                 Ok(ok) => {
-                    let result: OtpVerifyResponse = ok.json().await
-                        .context("parsing OTP verify response")?;
+                    let result: OtpVerifyResponse =
+                        ok.json().await.context("parsing OTP verify response")?;
 
                     credentials::save(&Credentials {
-                        token: result.token.clone(),
+                        token: result.license.clone(),
                         refresh_token: Some(result.refresh_token),
                         email: Some(email.clone()),
                         expires_at: Some(result.expires_at),
                     })?;
 
                     eprintln!();
-                    eprintln!("✓ Authenticated as {email}");
+                    eprintln!("\u{2713} Authenticated as {email}");
                     if let Ok(path) = credentials::credentials_path() {
                         eprintln!("  Credentials saved to {}", path.display());
                     }

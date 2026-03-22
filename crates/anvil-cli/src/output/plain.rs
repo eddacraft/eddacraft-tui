@@ -47,7 +47,7 @@ pub fn table_row(columns: &[(&str, bool)]) {
             print!("  ");
         }
         if *is_header {
-            print!("{text:<20}");
+            print!("{:<20}", text.to_uppercase());
         } else {
             print!("{text:<20}");
         }

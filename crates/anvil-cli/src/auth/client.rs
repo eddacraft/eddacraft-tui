@@ -17,13 +17,11 @@ pub struct WhoamiResponse {
     pub created_at: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
-struct EmptyBody {}
-
 impl AnvilClient {
     pub fn new() -> Result<Self> {
         let api_url = std::env::var("ANVIL_API_URL")
             .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
+        let api_url = api_url.trim_end_matches('/').to_string();
         Ok(Self {
             http: reqwest::Client::new(),
             api_url,
@@ -38,8 +36,16 @@ impl AnvilClient {
         Ok(client)
     }
 
+    pub fn with_admin_key() -> Result<Self> {
+        let mut client = Self::new()?;
+        let key =
+            std::env::var("ADMIN_KEY").context("ADMIN_KEY environment variable is required")?;
+        client.token = Some(key);
+        Ok(client)
+    }
+
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let url = format!("{}/api/v1{}", self.api_url.trim_end_matches('/'), path);
+        let url = format!("{}/api/v1{}", self.api_url, path);
         let mut req = self.http.get(&url);
         if let Some(token) = &self.token {
             req = req.bearer_auth(token);
@@ -50,7 +56,7 @@ impl AnvilClient {
     }
 
     pub async fn post<T: DeserializeOwned>(&self, path: &str, body: impl Serialize) -> Result<T> {
-        let url = format!("{}/api/v1{}", self.api_url.trim_end_matches('/'), path);
+        let url = format!("{}/api/v1{}", self.api_url, path);
         let mut req = self.http.post(&url).json(&body);
         if let Some(token) = &self.token {
             req = req.bearer_auth(token);
@@ -66,11 +72,17 @@ impl AnvilClient {
 
     pub async fn approve_user(&self, email: &str) -> Result<()> {
         #[derive(Serialize)]
-        struct ApproveBody<'a> { email: &'a str }
+        struct ApproveBody<'a> {
+            email: &'a str,
+        }
         #[derive(Deserialize)]
-        struct ApproveResponse { approved: Vec<ApproveEntry> }
+        struct ApproveResponse {
+            approved: Vec<ApproveEntry>,
+        }
         #[derive(Deserialize)]
-        struct ApproveEntry { email: String }
+        struct ApproveEntry {
+            email: String,
+        }
 
         let result: ApproveResponse = self.post("/admin/approve", ApproveBody { email }).await?;
         if result.approved.is_empty() {
@@ -81,11 +93,17 @@ impl AnvilClient {
 
     pub async fn approve_batch(&self, count: u32) -> Result<Vec<String>> {
         #[derive(Serialize)]
-        struct BatchBody { batch: u32 }
+        struct BatchBody {
+            batch: u32,
+        }
         #[derive(Deserialize)]
-        struct BatchResponse { approved: Vec<ApproveEntry> }
+        struct BatchResponse {
+            approved: Vec<ApproveEntry>,
+        }
         #[derive(Deserialize)]
-        struct ApproveEntry { email: String }
+        struct ApproveEntry {
+            email: String,
+        }
 
         let result: BatchResponse = self.post("/admin/approve", BatchBody { batch: count }).await?;
         Ok(result.approved.into_iter().map(|e| e.email).collect())
