@@ -125,8 +125,7 @@ fn parse_architecture(path: &std::path::Path) -> Result<ArchDefinition> {
     let rules_count = value
         .get("rules")
         .and_then(|v| v.as_sequence())
-        .map(|s| s.len())
-        .unwrap_or(0);
+        .map_or(0, Vec::len);
 
     Ok(ArchDefinition {
         template,
@@ -157,6 +156,62 @@ fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
         rules: def.rules_count,
         issues,
     })
+}
+
+fn run_watch(file: Option<&str>) -> Result<()> {
+    let path = resolve_arch_config(file)?;
+    let workspace_root = std::env::current_dir().context("getting current directory")?;
+
+    let watcher_config = anvil_kernel::watcher::WatcherConfig {
+        root: workspace_root.clone(),
+        ..Default::default()
+    };
+
+    let watch_config = anvil_kernel::watch::WatchConfig {
+        root: workspace_root,
+        architecture_config: Some(path),
+        watcher: watcher_config,
+    };
+
+    let (event_tx, event_rx) = std::sync::mpsc::channel();
+    let handle = anvil_kernel::watch::run_watch(&watch_config, event_tx)
+        .context("starting architecture watcher")?;
+
+    for event in &event_rx {
+        use anvil_kernel_types::EventPayload;
+        match &event.payload {
+            EventPayload::Violation {
+                policy_id,
+                file,
+                message,
+                ..
+            } => {
+                eprintln!("\u{26a0} [{policy_id}] {file}: {message}");
+            }
+            EventPayload::Snapshot {
+                node_count,
+                edge_count,
+                files_watched,
+            } => {
+                eprintln!(
+                    "\u{1f4f8} {node_count} nodes, {edge_count} edges, {files_watched} files"
+                );
+            }
+            EventPayload::Error(err) => {
+                eprintln!("\u{2717} {}", err.message);
+            }
+            EventPayload::Progress {
+                phase,
+                current,
+                total,
+            } => {
+                eprintln!("\u{25b6} {phase}: {current}/{total}");
+            }
+        }
+    }
+
+    handle.stop().context("stopping watcher")?;
+    Ok(())
 }
 
 pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
@@ -190,58 +245,7 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
             }
         }
         ArchitectureCommand::Watch { file } => {
-            let path = resolve_arch_config(file.as_deref())?;
-            let workspace_root = std::env::current_dir().context("getting current directory")?;
-
-            let watcher_config = anvil_kernel::watcher::WatcherConfig {
-                root: workspace_root.clone(),
-                ..Default::default()
-            };
-
-            let watch_config = anvil_kernel::watch::WatchConfig {
-                root: workspace_root,
-                architecture_config: Some(path),
-                watcher: watcher_config,
-            };
-
-            let (event_tx, event_rx) = std::sync::mpsc::channel();
-            let handle = anvil_kernel::watch::run_watch(&watch_config, event_tx)
-                .context("starting architecture watcher")?;
-
-            for event in event_rx.iter() {
-                use anvil_kernel_types::EventPayload;
-                match &event.payload {
-                    EventPayload::Violation {
-                        policy_id,
-                        file,
-                        message,
-                        ..
-                    } => {
-                        eprintln!("\u{26a0} [{policy_id}] {file}: {message}");
-                    }
-                    EventPayload::Snapshot {
-                        node_count,
-                        edge_count,
-                        files_watched,
-                    } => {
-                        eprintln!(
-                            "\u{1f4f8} {node_count} nodes, {edge_count} edges, {files_watched} files"
-                        );
-                    }
-                    EventPayload::Error(err) => {
-                        eprintln!("\u{2717} {}", err.message);
-                    }
-                    EventPayload::Progress {
-                        phase,
-                        current,
-                        total,
-                    } => {
-                        eprintln!("\u{25b6} {phase}: {current}/{total}");
-                    }
-                }
-            }
-
-            handle.stop().context("stopping watcher")?;
+            run_watch(file.as_deref())?;
         }
         ArchitectureCommand::Show { file } => {
             let path = resolve_arch_config(file.as_deref())?;
