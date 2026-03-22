@@ -58,43 +58,40 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
 
             let client = crate::auth::client::AnvilClient::authenticated()?;
 
-            match rt.block_on(client.whoami()) {
-                Ok(whoami) => {
-                    let data = WhoamiData {
-                        email: whoami.email,
-                        plan: whoami.plan,
-                        expires_at: creds.expires_at,
-                    };
-                    if global.json {
-                        crate::output::json::print(&data)?;
-                    } else {
-                        println!();
-                        println!("Authenticated");
-                        println!("  Email:   {}", data.email);
-                        if let Some(plan) = &data.plan {
-                            println!("  Plan:    {plan}");
-                        }
-                        if let Some(expires) = &data.expires_at {
-                            println!("  Expires: {expires}");
-                        }
+            if let Ok(whoami) = rt.block_on(client.whoami()) {
+                let data = WhoamiData {
+                    email: whoami.email,
+                    plan: whoami.plan,
+                    expires_at: creds.expires_at,
+                };
+                if global.json {
+                    crate::output::json::print(&data)?;
+                } else {
+                    println!();
+                    println!("Authenticated");
+                    println!("  Email:   {}", data.email);
+                    if let Some(plan) = &data.plan {
+                        println!("  Plan:    {plan}");
                     }
-                    Ok(())
-                }
-                Err(_) => {
-                    let data = WhoamiData {
-                        email: creds.email.unwrap_or_else(|| "unknown".to_string()),
-                        plan: None,
-                        expires_at: creds.expires_at,
-                    };
-                    if global.json {
-                        crate::output::json::print(&data)?;
-                    } else {
-                        println!();
-                        println!("Authenticated (offline)");
-                        println!("  Email: {}", data.email);
+                    if let Some(expires) = &data.expires_at {
+                        println!("  Expires: {expires}");
                     }
-                    Ok(())
                 }
+                Ok(())
+            } else {
+                let data = WhoamiData {
+                    email: creds.email.unwrap_or_else(|| "unknown".to_string()),
+                    plan: None,
+                    expires_at: creds.expires_at,
+                };
+                if global.json {
+                    crate::output::json::print(&data)?;
+                } else {
+                    println!();
+                    println!("Authenticated (offline)");
+                    println!("  Email: {}", data.email);
+                }
+                Ok(())
             }
         }
     }

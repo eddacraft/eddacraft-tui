@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use clap::Args;
 use serde::Serialize;
 
@@ -16,10 +16,11 @@ enum AdminCommand {
     /// Approve a waitlisted user by email
     Approve {
         /// Email address to approve
+        #[arg(conflicts_with = "batch", required_unless_present = "batch")]
         email: Option<String>,
 
         /// Approve the oldest N unapproved waitlist entries
-        #[arg(long)]
+        #[arg(long, conflicts_with = "email", required_unless_present = "email")]
         batch: Option<u32>,
     },
 }
@@ -31,17 +32,12 @@ struct ApproveResult {
 
 pub fn run(args: &AdminArgs, global: &GlobalArgs) -> Result<()> {
     let rt = tokio::runtime::Runtime::new().context("creating tokio runtime")?;
-    let client = crate::auth::client::AnvilClient::authenticated()?;
+    let admin_key = std::env::var("ANVIL_ADMIN_KEY")
+        .context("ANVIL_ADMIN_KEY environment variable is required for admin commands")?;
+    let client = crate::auth::client::AnvilClient::with_token(admin_key);
 
     match &args.command {
         AdminCommand::Approve { email, batch } => {
-            if email.is_none() && batch.is_none() {
-                bail!("Provide an <email> argument or --batch <n>");
-            }
-            if email.is_some() && batch.is_some() {
-                bail!("Provide either <email> or --batch, not both");
-            }
-
             if let Some(email) = email {
                 rt.block_on(client.approve_user(email))?;
                 let result = ApproveResult {
@@ -84,16 +80,16 @@ mod tests {
     use super::*;
     use clap::Parser;
 
-    #[derive(Parser)]
+    #[derive(Debug, Parser)]
     struct Wrapper {
         #[command(flatten)]
         inner: AdminArgs,
     }
 
     #[test]
-    fn args_parses_approve() {
-        let w = Wrapper::try_parse_from(["test", "approve"]).unwrap();
-        let _ = format!("{:?}", w.inner);
+    fn args_rejects_approve_without_email_or_batch() {
+        let err = Wrapper::try_parse_from(["test", "approve"]).unwrap_err();
+        assert_ne!(err.exit_code(), 0);
     }
 
     #[test]
@@ -106,5 +102,12 @@ mod tests {
     fn args_parses_approve_batch() {
         let w = Wrapper::try_parse_from(["test", "approve", "--batch", "5"]).unwrap();
         let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_rejects_approve_with_email_and_batch() {
+        let err = Wrapper::try_parse_from(["test", "approve", "user@example.com", "--batch", "5"])
+            .unwrap_err();
+        assert_ne!(err.exit_code(), 0);
     }
 }

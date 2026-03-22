@@ -60,13 +60,12 @@ enum Commands {
     New(commands::new::NewArgs),
     /// Guided project setup wizard.
     Wizard(commands::wizard::WizardArgs),
-    // Not yet implemented — uncomment as each command ships:
-    // /// Administrative commands (approvals, user management).
-    // Admin(commands::admin::AdminArgs),
+    /// Administrative commands (approvals, user management).
+    Admin(commands::admin::AdminArgs),
     // /// Manage architecture boundary definitions.
     // Architecture(commands::architecture::ArchitectureArgs),
-    // /// Authenticate with the Anvil service.
-    // Auth(commands::auth::AuthArgs),
+    /// Authenticate with the Anvil service.
+    Auth(commands::auth::AuthArgs),
     // /// Export constraints and configuration.
     // Export(commands::export::ExportArgs),
     // /// Run gate checks against the current project.
@@ -108,6 +107,8 @@ fn main() -> ExitCode {
         Commands::Init(args) => commands::init::run(args, &cli.global),
         Commands::New(args) => commands::new::run(args, &cli.global),
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
+        Commands::Admin(args) => commands::admin::run(args, &cli.global),
+        Commands::Auth(args) => commands::auth::run(args, &cli.global),
     };
 
     match result {

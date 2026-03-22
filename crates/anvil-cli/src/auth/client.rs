@@ -20,8 +20,9 @@ pub struct WhoamiResponse {
 impl AnvilClient {
     pub fn new() -> Self {
         let api_url = std::env::var("ANVIL_API_URL")
-            .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
-        let api_url = api_url.trim_end_matches('/').to_string();
+            .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string())
+            .trim_end_matches('/')
+            .to_string();
         Self {
             http: reqwest::Client::new(),
             api_url,
@@ -32,16 +33,14 @@ impl AnvilClient {
     pub fn authenticated() -> Result<Self> {
         let mut client = Self::new();
         let creds = credentials::load()?.context("Not authenticated. Run: anvil auth login")?;
-        client.token = Some(creds.token);
+        client.token = Some(creds.license);
         Ok(client)
     }
 
-    pub fn with_admin_key() -> Result<Self> {
+    pub fn with_token(token: String) -> Self {
         let mut client = Self::new();
-        let key = std::env::var("ANVIL_ADMIN_KEY")
-            .context("ANVIL_ADMIN_KEY environment variable is required")?;
-        client.token = Some(key);
-        Ok(client)
+        client.token = Some(token);
+        client
     }
 
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
@@ -67,7 +66,39 @@ impl AnvilClient {
     }
 
     pub async fn whoami(&self) -> Result<WhoamiResponse> {
-        self.get("/auth/whoami").await
+        #[derive(Debug, Deserialize)]
+        struct VerifyResponse {
+            valid: bool,
+            user: Option<WhoamiResponseUser>,
+        }
+
+        #[derive(Debug, Deserialize)]
+        struct WhoamiResponseUser {
+            email: String,
+        }
+
+        #[derive(Debug, Serialize)]
+        struct VerifyBody<'a> {
+            token: &'a str,
+        }
+
+        let token = self
+            .token
+            .as_deref()
+            .context("Not authenticated. Run: anvil auth login")?;
+
+        let verify: VerifyResponse = self.post("/auth/verify", VerifyBody { token }).await?;
+        if !verify.valid {
+            bail!("Stored credentials are invalid or expired")
+        }
+
+        Ok(WhoamiResponse {
+            email: verify
+                .user
+                .map_or_else(|| "unknown".to_string(), |u| u.email),
+            plan: Some("beta".to_string()),
+            created_at: None,
+        })
     }
 
     pub async fn approve_user(&self, email: &str) -> Result<()> {
@@ -105,9 +136,7 @@ impl AnvilClient {
             email: String,
         }
 
-        let result: BatchResponse = self
-            .post("/admin/approve", BatchBody { batch: count })
-            .await?;
+        let result: BatchResponse = self.post("/admin/approve", BatchBody { batch: count }).await?;
         Ok(result.approved.into_iter().map(|e| e.email).collect())
     }
 }
