@@ -79,7 +79,9 @@ pub fn run(args: &AuthArgs, global: &GlobalArgs) -> Result<()> {
                     }
                     Ok(())
                 }
-                Err(e) if e.to_string().contains("request") || e.to_string().contains("connect") => {
+                Err(e)
+                    if e.to_string().contains("request") || e.to_string().contains("connect") =>
+                {
                     let data = WhoamiData {
                         email: creds.email.unwrap_or_else(|| "unknown".to_string()),
                         plan: None,
