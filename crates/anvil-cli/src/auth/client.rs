@@ -1,8 +1,13 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result, bail};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::credentials;
+
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct AnvilClient {
     http: reqwest::Client,
@@ -14,36 +19,40 @@ pub struct AnvilClient {
 pub struct WhoamiResponse {
     pub email: String,
     pub plan: Option<String>,
+    #[allow(dead_code)]
     pub created_at: Option<String>,
 }
 
 impl AnvilClient {
-    pub fn new() -> Self {
-        let api_url = std::env::var("ANVIL_API_URL")
-            .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
-        let api_url = api_url.trim_end_matches('/').to_string();
-        Self {
-            http: reqwest::Client::new(),
+    pub fn new() -> Result<Self> {
+        let api_url = super::api_url()?;
+        let http = reqwest::Client::builder()
+            .timeout(REQUEST_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .build()
+            .context("building HTTP client")?;
+        Ok(Self {
+            http,
             api_url,
             token: None,
-        }
+        })
     }
 
+    #[allow(dead_code)]
     pub fn authenticated() -> Result<Self> {
-        let mut client = Self::new();
+        let mut client = Self::new()?;
         let creds = credentials::load()?.context("Not authenticated. Run: anvil auth login")?;
-        client.token = Some(creds.token);
+        client.token = Some(creds.license);
         Ok(client)
     }
 
-    pub fn with_admin_key() -> Result<Self> {
-        let mut client = Self::new();
-        let key = std::env::var("ANVIL_ADMIN_KEY")
-            .context("ANVIL_ADMIN_KEY environment variable is required")?;
-        client.token = Some(key);
+    pub fn with_token(token: String) -> Result<Self> {
+        let mut client = Self::new()?;
+        client.token = Some(token);
         Ok(client)
     }
 
+    #[allow(dead_code)]
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}/api/v1{}", self.api_url, path);
         let mut req = self.http.get(&url);
@@ -67,7 +76,43 @@ impl AnvilClient {
     }
 
     pub async fn whoami(&self) -> Result<WhoamiResponse> {
-        self.get("/auth/whoami").await
+        #[derive(Debug, Deserialize)]
+        struct VerifyResponse {
+            valid: bool,
+            user: Option<WhoamiResponseUser>,
+        }
+
+        #[derive(Debug, Deserialize)]
+        struct WhoamiResponseUser {
+            email: String,
+            plan: Option<String>,
+        }
+
+        #[derive(Debug, Serialize)]
+        struct VerifyBody<'a> {
+            token: &'a str,
+        }
+
+        let token = self
+            .token
+            .as_deref()
+            .context("Not authenticated. Run: anvil auth login")?;
+
+        let verify: VerifyResponse = self.post("/auth/verify", VerifyBody { token }).await?;
+        if !verify.valid {
+            bail!("Stored credentials are invalid or expired")
+        }
+
+        let (email, plan) = match verify.user {
+            Some(u) => (u.email, u.plan),
+            None => ("unknown".to_string(), None),
+        };
+
+        Ok(WhoamiResponse {
+            email,
+            plan,
+            created_at: None,
+        })
     }
 
     pub async fn approve_user(&self, email: &str) -> Result<()> {
@@ -77,11 +122,7 @@ impl AnvilClient {
         }
         #[derive(Deserialize)]
         struct ApproveResponse {
-            approved: Vec<ApproveEntry>,
-        }
-        #[derive(Deserialize)]
-        struct ApproveEntry {
-            email: String,
+            approved: Vec<serde_json::Value>,
         }
 
         let result: ApproveResponse = self.post("/admin/approve", ApproveBody { email }).await?;

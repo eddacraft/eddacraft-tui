@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::{Context, Result, bail};
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +26,8 @@ struct DevicePollResponse {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct OtpRequestResponse {
-    sent: bool,
+    #[allow(dead_code)]
+    message: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,14 +60,22 @@ struct OtpVerifyRequest<'a> {
     code: &'a str,
 }
 
-fn api_url() -> String {
-    let raw =
-        std::env::var("ANVIL_API_URL").unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
-    raw.trim_end_matches('/').to_string()
+fn api_url() -> anyhow::Result<String> {
+    super::api_url()
+}
+
+fn build_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(10))
+        .build()
+        .context("building HTTP client")
 }
 
 fn prompt_input(label: &str) -> Result<String> {
+    use std::io::Write;
     eprint!("{label}");
+    std::io::stderr().flush().context("flushing stderr")?;
     let mut input = String::new();
     std::io::stdin()
         .read_line(&mut input)
@@ -73,7 +84,7 @@ fn prompt_input(label: &str) -> Result<String> {
 }
 
 pub async fn login_device_flow() -> Result<()> {
-    let url = api_url();
+    let url = api_url()?;
     let email = prompt_input("Email: ")?;
     if email.is_empty() {
         bail!("Email is required");
@@ -81,7 +92,7 @@ pub async fn login_device_flow() -> Result<()> {
 
     eprintln!("Starting device code flow...");
 
-    let client = reqwest::Client::new();
+    let client = build_client()?;
     let start: DeviceStartResponse = client
         .post(format!("{url}/api/v1/auth/device/start"))
         .json(&DeviceStartRequest { email: &email })
@@ -124,24 +135,23 @@ pub async fn login_device_flow() -> Result<()> {
 
         match poll.status.as_str() {
             "confirmed" => {
-                let token = poll.license.context("server returned no license")?;
+                let license = poll.license.context("server returned no licence")?;
                 let refresh = poll
                     .refresh_token
                     .context("server returned no refresh token")?;
                 let expires = poll.expires_at.context("server returned no expiry")?;
 
                 credentials::save(&Credentials {
-                    token: token.clone(),
+                    license,
                     refresh_token: Some(refresh),
                     email: Some(email.clone()),
                     expires_at: Some(expires),
                 })?;
 
                 eprintln!();
-                eprintln!("\u{2713} Authenticated as {email}");
-                if let Ok(path) = credentials::credentials_path_checked() {
-                    eprintln!("  Credentials saved to {}", path.display());
-                }
+                eprintln!("✓ Authenticated as {email}");
+                let path = credentials::credentials_path()?;
+                eprintln!("  Credentials saved to {}", path.display());
                 return Ok(());
             }
             "expired" => bail!("Device code has expired. Please try again."),
@@ -153,7 +163,7 @@ pub async fn login_device_flow() -> Result<()> {
 }
 
 pub async fn login_otp_flow() -> Result<()> {
-    let url = api_url();
+    let url = api_url()?;
     let email = prompt_input("Email: ")?;
     if email.is_empty() {
         bail!("Email is required");
@@ -161,9 +171,9 @@ pub async fn login_otp_flow() -> Result<()> {
 
     eprintln!("Requesting verification code...");
 
-    let client = reqwest::Client::new();
-    let resp: OtpRequestResponse = client
-        .post(format!("{url}/api/v1/auth/otp/send"))
+    let client = build_client()?;
+    let _: OtpRequestResponse = client
+        .post(format!("{url}/api/v1/auth/otp/request"))
         .json(&OtpSendRequest { email: &email })
         .send()
         .await
@@ -173,10 +183,6 @@ pub async fn login_otp_flow() -> Result<()> {
         .json()
         .await
         .context("parsing OTP send response")?;
-
-    if !resp.sent {
-        bail!("Server could not send verification code. Please try again later.");
-    }
 
     eprintln!();
     eprintln!("A verification code has been sent to your email.");
@@ -206,15 +212,15 @@ pub async fn login_otp_flow() -> Result<()> {
                         ok.json().await.context("parsing OTP verify response")?;
 
                     credentials::save(&Credentials {
-                        token: result.license.clone(),
+                        license: result.license,
                         refresh_token: Some(result.refresh_token),
                         email: Some(email.clone()),
                         expires_at: Some(result.expires_at),
                     })?;
 
                     eprintln!();
-                    eprintln!("\u{2713} Authenticated as {email}");
-                    let path = credentials::credentials_path();
+                    eprintln!("✓ Authenticated as {email}");
+                    let path = credentials::credentials_path()?;
                     eprintln!("  Credentials saved to {}", path.display());
                     return Ok(());
                 }
