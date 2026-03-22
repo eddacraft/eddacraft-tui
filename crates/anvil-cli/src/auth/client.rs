@@ -18,26 +18,26 @@ pub struct WhoamiResponse {
 }
 
 impl AnvilClient {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Self {
         let api_url = std::env::var("ANVIL_API_URL")
             .unwrap_or_else(|_| "https://api.eddacraft.ai".to_string());
         let api_url = api_url.trim_end_matches('/').to_string();
-        Ok(Self {
+        Self {
             http: reqwest::Client::new(),
             api_url,
             token: None,
-        })
+        }
     }
 
     pub fn authenticated() -> Result<Self> {
-        let mut client = Self::new()?;
+        let mut client = Self::new();
         let creds = credentials::load()?.context("Not authenticated. Run: anvil auth login")?;
         client.token = Some(creds.token);
         Ok(client)
     }
 
     pub fn with_admin_key() -> Result<Self> {
-        let mut client = Self::new()?;
+        let mut client = Self::new();
         let key =
             std::env::var("ADMIN_KEY").context("ADMIN_KEY environment variable is required")?;
         client.token = Some(key);

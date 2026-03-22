@@ -11,23 +11,24 @@ pub struct Credentials {
     pub expires_at: Option<String>,
 }
 
-pub fn credentials_dir() -> Result<PathBuf> {
-    let config_home = std::env::var("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| {
+pub fn credentials_dir() -> PathBuf {
+    let config_home = std::env::var("XDG_CONFIG_HOME").map_or_else(
+        |_| {
             dirs::home_dir()
                 .unwrap_or_else(|| PathBuf::from("."))
                 .join(".config")
-        });
-    Ok(config_home.join("anvil"))
+        },
+        PathBuf::from,
+    );
+    config_home.join("anvil")
 }
 
-pub fn credentials_path() -> Result<PathBuf> {
-    Ok(credentials_dir()?.join("credentials.json"))
+pub fn credentials_path() -> PathBuf {
+    credentials_dir().join("credentials.json")
 }
 
 pub fn load() -> Result<Option<Credentials>> {
-    let path = credentials_path()?;
+    let path = credentials_path();
     if !path.exists() {
         return Ok(None);
     }
@@ -39,7 +40,7 @@ pub fn load() -> Result<Option<Credentials>> {
 }
 
 pub fn save(creds: &Credentials) -> Result<()> {
-    let dir = credentials_dir()?;
+    let dir = credentials_dir();
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
 
     let path = dir.join("credentials.json");
@@ -62,7 +63,7 @@ pub fn save(creds: &Credentials) -> Result<()> {
 }
 
 pub fn clear() -> Result<()> {
-    let path = credentials_path()?;
+    let path = credentials_path();
     if path.exists() {
         std::fs::remove_file(&path).with_context(|| format!("removing {}", path.display()))?;
     }
@@ -77,9 +78,8 @@ pub fn is_expired(creds: &Credentials) -> bool {
                 return false;
             }
 
-            let expires_ts = match expires_str.parse::<u64>() {
-                Ok(ts) => ts,
-                Err(_) => return false,
+            let Ok(expires_ts) = expires_str.parse::<u64>() else {
+                return false;
             };
 
             let now_secs = std::time::SystemTime::now()

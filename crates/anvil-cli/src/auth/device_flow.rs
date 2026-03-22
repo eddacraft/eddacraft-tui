@@ -139,9 +139,8 @@ pub async fn login_device_flow() -> Result<()> {
 
                 eprintln!();
                 eprintln!("\u{2713} Authenticated as {email}");
-                if let Ok(path) = credentials::credentials_path() {
-                    eprintln!("  Credentials saved to {}", path.display());
-                }
+                let path = credentials::credentials_path();
+                eprintln!("  Credentials saved to {}", path.display());
                 return Ok(());
             }
             "expired" => bail!("Device code has expired. Please try again."),
@@ -212,9 +211,8 @@ pub async fn login_otp_flow() -> Result<()> {
 
                     eprintln!();
                     eprintln!("\u{2713} Authenticated as {email}");
-                    if let Ok(path) = credentials::credentials_path() {
-                        eprintln!("  Credentials saved to {}", path.display());
-                    }
+                    let path = credentials::credentials_path();
+                    eprintln!("  Credentials saved to {}", path.display());
                     return Ok(());
                 }
                 Err(e) => {
