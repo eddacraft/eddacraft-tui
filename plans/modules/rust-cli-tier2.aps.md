@@ -82,8 +82,9 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 1 — Check & Validate
+## Tasks
 
+#### Phase 1 — Check & Validate
 ### RCLI2-001: check command
 
 - **Status:** Proposed
