@@ -21,6 +21,9 @@ enum PolicyCommand {
         /// Show only enabled policies
         #[arg(long)]
         enabled: bool,
+        /// Also scan .anvil/policies/ for .rego files
+        #[arg(long, default_value_t = true)]
+        discover: bool,
     },
     /// Explain a specific policy
     Explain {
@@ -34,9 +37,9 @@ enum PolicyCommand {
         /// Head policy file
         head: String,
     },
-    /// Validate policy configuration
+    /// Validate policy configuration or Rego syntax
     Validate {
-        /// Policy file to validate
+        /// Policy file to validate (.yaml config or .rego policy)
         file: Option<String>,
     },
     /// Run policy tests
@@ -47,6 +50,18 @@ enum PolicyCommand {
         #[arg(long, short)]
         verbose: bool,
     },
+}
+
+#[derive(Debug, Serialize)]
+struct PolicyInfo {
+    id: String,
+    name: String,
+    category: String,
+    enabled: bool,
+    description: String,
+    severity: String,
+    source: String,
+    has_tests: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -76,28 +91,81 @@ struct TestCase {
     message: String,
 }
 
-fn run_list(category: Option<&String>, enabled: bool, global: &GlobalArgs) -> Result<()> {
-    let mut policies = anvil_policy::library::builtin_policies();
+fn run_list(
+    category: Option<&String>,
+    enabled: bool,
+    discover: bool,
+    global: &GlobalArgs,
+) -> Result<()> {
+    let mut infos: Vec<PolicyInfo> = anvil_policy::library::builtin_policies()
+        .into_iter()
+        .map(|p| PolicyInfo {
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            enabled: p.enabled,
+            description: p.description,
+            severity: p.severity,
+            source: "builtin".to_string(),
+            has_tests: false,
+        })
+        .collect();
+
+    if discover {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let loader = anvil_policy::loader::PolicyLoader::new();
+        if let Ok(policies) = loader.load_policies(&cwd, None) {
+            for p in policies {
+                infos.push(PolicyInfo {
+                    id: p.package.clone(),
+                    name: p.name,
+                    category: "rego".to_string(),
+                    enabled: true,
+                    description: format!("Rego policy ({})", p.path.display()),
+                    severity: "varies".to_string(),
+                    source: if p.generated {
+                        "generated".to_string()
+                    } else {
+                        "local".to_string()
+                    },
+                    has_tests: p.has_tests,
+                });
+            }
+        }
+    }
+
     if let Some(cat) = category {
-        policies.retain(|p| p.category == cat.as_str());
+        infos.retain(|p| p.category == cat.as_str());
     }
     if enabled {
-        policies.retain(|p| p.enabled);
+        infos.retain(|p| p.enabled);
     }
 
     if global.json {
-        crate::output::json::print(&policies)?;
+        crate::output::json::print(&infos)?;
     } else {
         println!();
         println!("Policies");
-        println!("{}", "\u{2500}".repeat(40));
-        for p in &policies {
+        println!("{}", "\u{2500}".repeat(50));
+        for p in &infos {
             let status = if p.enabled { "\u{2713}" } else { "\u{25cb}" };
-            println!("  {status} {id:<10} {name}", id = p.id, name = p.name);
-            println!("    {}", p.description);
+            let test_icon = if p.has_tests { " \u{1f9ea}" } else { "" };
+            let source_tag = match p.source.as_str() {
+                "local" => " [local]",
+                "generated" => " [gen]",
+                _ => "",
+            };
+            println!(
+                "  {status} {id:<28} {name}{source_tag}{test_icon}",
+                id = p.id,
+                name = p.name
+            );
+            if !global.no_tui {
+                println!("    {}", p.description);
+            }
         }
         println!();
-        println!("{} policy(ies)", policies.len());
+        println!("{} policy(ies)", infos.len());
     }
     Ok(())
 }
@@ -182,7 +250,31 @@ fn run_validate(file: Option<&String>, global: &GlobalArgs) -> Result<()> {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
 
-    if std::path::Path::new(path).exists() {
+    if std::path::Path::new(path)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("rego"))
+    {
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("reading {path}"))?;
+        let opa = anvil_policy::opa::OpaExecutor::new(None, None);
+
+        if opa.is_available() {
+            match opa.validate_syntax(&content) {
+                Ok(result) if result.valid => {
+                    // valid — no errors
+                }
+                Ok(result) => {
+                    errors.extend(result.errors);
+                }
+                Err(e) => {
+                    errors.push(format!("OPA validation error: {e}"));
+                }
+            }
+        } else {
+            warnings.push("OPA binary not found — skipping Rego syntax validation".to_string());
+            warnings.push("Install OPA: https://www.openpolicyagent.org/docs/latest/#running-opa".to_string());
+        }
+    } else if std::path::Path::new(path).exists() {
         match anvil_policy::config::load_config(path) {
             Ok(config) => {
                 if config.policies.is_empty() {
@@ -229,31 +321,70 @@ fn run_validate(file: Option<&String>, global: &GlobalArgs) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_lines)]
 fn run_test(path: Option<&String>, verbose: bool, global: &GlobalArgs) -> Result<()> {
-    let test_path = path.map_or("tests/policy", String::as_str);
-    let mut test_cases = Vec::new();
+    let test_path = path.map_or(".anvil/policies", String::as_str);
+    let test_dir = std::path::Path::new(test_path);
 
-    if std::path::Path::new(test_path).exists() {
-        for entry in walkdir::WalkDir::new(test_path)
-            .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.file_type().is_file())
-        {
-            let name = entry
-                .path()
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .to_string();
-            test_cases.push(TestCase {
-                name,
-                passed: true,
-                message: "Policy test placeholder".to_string(),
-            });
+    let opa = anvil_policy::opa::OpaExecutor::new(None, None);
+
+    if opa.is_available() && test_dir.exists() {
+        let result = opa
+            .run_tests(test_dir, verbose)
+            .with_context(|| "running OPA tests")?;
+
+        let test_cases: Vec<TestCase> = result
+            .details
+            .iter()
+            .map(|d| TestCase {
+                name: d.name.clone(),
+                passed: d.passed,
+                message: d.message.clone().unwrap_or_default(),
+            })
+            .collect();
+
+        if global.json {
+            let output = TestResult {
+                passed: result.passed,
+                failed: result.failed,
+                tests: test_cases.clone(),
+            };
+            crate::output::json::print(&output)?;
+        } else {
+            println!();
+            println!("Policy Tests (OPA)");
+            println!("{}", "\u{2500}".repeat(40));
+            for tc in &test_cases {
+                let icon = if tc.passed { "\u{2713}" } else { "\u{2717}" };
+                println!("  {icon} {}", tc.name);
+                if (verbose || !tc.passed) && !tc.message.is_empty() {
+                    println!("    {}", tc.message);
+                }
+            }
+            for err in &result.errors {
+                println!("  \u{2717} {err}");
+            }
+            println!();
+            if result.failed == 0 {
+                println!("\u{2713} All {} tests passed", result.passed);
+            } else {
+                println!(
+                    "\u{2717} {} test(s) failed, {} passed",
+                    result.failed, result.passed
+                );
+            }
         }
-    }
 
-    if test_cases.is_empty() {
+        if result.failed > 0 {
+            std::process::exit(1);
+        }
+    } else {
+        let mut test_cases = Vec::new();
+
+        if !opa.is_available() {
+            eprintln!("\u{26a0} OPA not found — running builtin policy validation only");
+        }
+
         for policy in anvil_policy::library::builtin_policies()
             .iter()
             .filter(|p| p.enabled)
@@ -264,48 +395,52 @@ fn run_test(path: Option<&String>, verbose: bool, global: &GlobalArgs) -> Result
                 message: format!("Policy {} is enabled and valid", policy.id),
             });
         }
-    }
 
-    #[allow(clippy::cast_possible_truncation)]
-    let passed = test_cases.iter().filter(|t| t.passed).count() as u32;
-    #[allow(clippy::cast_possible_truncation)]
-    let failed = test_cases.iter().filter(|t| !t.passed).count() as u32;
+        #[allow(clippy::cast_possible_truncation)]
+        let passed = test_cases.iter().filter(|t| t.passed).count() as u32;
+        #[allow(clippy::cast_possible_truncation)]
+        let failed = test_cases.iter().filter(|t| !t.passed).count() as u32;
 
-    if global.json {
-        let result = TestResult {
-            passed,
-            failed,
-            tests: test_cases.clone(),
-        };
-        crate::output::json::print(&result)?;
-    } else {
-        println!();
-        println!("Policy Tests");
-        println!("{}", "\u{2500}".repeat(40));
-        for tc in &test_cases {
-            let icon = if tc.passed { "\u{2713}" } else { "\u{2717}" };
-            println!("  {icon} {}", tc.name);
-            if verbose || !tc.passed {
-                println!("    {}", tc.message);
+        if global.json {
+            let result = TestResult {
+                passed,
+                failed,
+                tests: test_cases.clone(),
+            };
+            crate::output::json::print(&result)?;
+        } else {
+            println!();
+            println!("Policy Tests");
+            println!("{}", "\u{2500}".repeat(40));
+            for tc in &test_cases {
+                let icon = if tc.passed { "\u{2713}" } else { "\u{2717}" };
+                println!("  {icon} {}", tc.name);
+                if verbose || !tc.passed {
+                    println!("    {}", tc.message);
+                }
+            }
+            println!();
+            if failed == 0 {
+                println!("\u{2713} All {passed} tests passed");
+            } else {
+                println!("\u{2717} {failed} test(s) failed, {passed} passed");
             }
         }
-        println!();
-        if failed == 0 {
-            println!("\u{2713} All {passed} tests passed");
-        } else {
-            println!("\u{2717} {failed} test(s) failed, {passed} passed");
-        }
-    }
 
-    if failed > 0 {
-        std::process::exit(1);
+        if failed > 0 {
+            std::process::exit(1);
+        }
     }
     Ok(())
 }
 
 pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
-        PolicyCommand::List { category, enabled } => run_list(category.as_ref(), *enabled, global),
+        PolicyCommand::List {
+            category,
+            enabled,
+            discover,
+        } => run_list(category.as_ref(), *enabled, *discover, global),
         PolicyCommand::Explain { policy_id } => run_explain(policy_id, global),
         PolicyCommand::Diff { base, head } => run_diff(base, head, global),
         PolicyCommand::Validate { file } => run_validate(file.as_ref(), global),
