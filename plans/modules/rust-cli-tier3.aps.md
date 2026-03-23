@@ -101,8 +101,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 - **Status:** Proposed
 - **Intent:** Port `anvil edda list`. Query active, superseded, and retired
   memories with multi-criteria filtering: `--type` (observation, decision,
-  convention, constraint), `--status` (active, superseded, retired), `--min-
-  confidence` (high, medium, low), `--since <duration>` (e.g., 7d, 2w),
+  convention, constraint), `--status` (active, superseded, retired),
+  `--min-confidence` (high, medium, low), `--since <duration>` (e.g., 7d, 2w),
   `--limit`, `--json`. Reads from `.anvil/edda/` YAML store
 - **Expected Outcome:** `anvil edda list --status active --min-confidence
   medium` shows filtered memories with ID, type, confidence, age, and
@@ -249,8 +249,8 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 - **Status:** Proposed
 - **Intent:** Port `anvil plan load` (filter plans by scope, module, task,
-  owner, tag, priority, confidence; three output modes: JSON, text, files-
-  only) and `anvil plan status` (show task states: open, locked, completed,
+  owner, tag, priority, confidence; three output modes: JSON, text,
+  files-only) and `anvil plan status` (show task states: open, locked, completed,
   cancelled with grouping and filtering)
 - **Expected Outcome:** `anvil plan load --scope RCLI --priority high` filters
   and displays matching work items. `anvil plan status --task RCLI-001` shows
