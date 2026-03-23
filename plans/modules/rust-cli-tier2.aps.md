@@ -122,7 +122,7 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 2 — Drift & Gate Config
+#### Phase 2 — Drift & Gate Config
 
 ### RCLI2-003: drift command
 
@@ -162,7 +162,7 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 3 — Policy Utilities
+#### Phase 3 — Policy Utilities
 
 ### RCLI2-005: policy-debug command ‡
 
@@ -199,7 +199,7 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 4 — CI Integration
+#### Phase 4 — CI Integration
 
 ### RCLI2-007: pr-comment command ‡
 

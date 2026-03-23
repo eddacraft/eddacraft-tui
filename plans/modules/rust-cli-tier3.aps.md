@@ -89,7 +89,9 @@ Change status to **Ready** when:
 
 ---
 
-## Phase 1 — Edda & Ember (Core Domain)
+## Tasks
+
+#### Phase 1 — Edda & Ember (Core Domain)
 
 The highest-priority commands. These are the most-used subsystem commands and
 the primary blocker for replacing the Node.js CLI in daily workflows.
@@ -224,7 +226,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ---
 
-## Phase 2 — Plan & Stack (Workflow)
+#### Phase 2 — Plan & Stack (Workflow)
 
 ### RCLI3-008: plan validate command
 
@@ -295,7 +297,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ---
 
-## Phase 3 — Agent & Authorship (Operational)
+#### Phase 3 — Agent & Authorship (Operational)
 
 ### RCLI3-012: agent status and list commands
 
@@ -353,7 +355,7 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 
 ---
 
-## Phase 4 — Utility Commands
+#### Phase 4 — Utility Commands
 
 ### RCLI3-015: explain command
 
