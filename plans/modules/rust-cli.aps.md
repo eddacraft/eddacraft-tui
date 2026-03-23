@@ -41,8 +41,8 @@ and two runtimes. A Rust CLI eliminates this overhead and provides same-process
 
 ## Out of Scope
 
-- Tier 2 commands (utilities — separate module)
-- Tier 3 commands (subsystems — separate module)
+- Tier 2 commands (utilities — see [rust-cli-tier2.aps.md](rust-cli-tier2.aps.md), module RCLI2)
+- Tier 3 commands (subsystems — see [rust-cli-tier3.aps.md](rust-cli-tier3.aps.md), module RCLI3)
 - MCP server migration (stays Node.js)
 - Website/dashboard changes
 - Windows support (Linux + macOS only)
