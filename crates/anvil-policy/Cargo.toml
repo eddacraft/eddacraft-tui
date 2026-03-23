@@ -10,8 +10,11 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 thiserror = { workspace = true }
-
-[dev-dependencies]
+walkdir = { workspace = true }
+regex = { workspace = true }
+sha2 = "0.10"
+hex = "0.4"
+which = "7"
 tempfile = "3"
 
 [lints]
