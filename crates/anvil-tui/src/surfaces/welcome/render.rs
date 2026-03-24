@@ -1,6 +1,6 @@
 use eddacraft_tui::prelude::*;
 use ratatui::Frame;
-use ratatui::layout::{Alignment, Constraint, Layout, Rect};
+use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
@@ -19,15 +19,12 @@ const LOGO_LINES: &[&str] = &[
 
 const TAGLINE: &str = "Structural governance for AI-assisted development";
 
-const WATERMARK: &str = "[ \u{25a0} ] e d d a c r a f t";
-
 pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
     let chunks = Layout::vertical([
         Constraint::Length(9), // Logo
         Constraint::Length(2), // Tagline
         Constraint::Length(1), // Spacer
         Constraint::Min(6),    // Menu
-        Constraint::Length(1), // Watermark
     ])
     .split(area);
 
@@ -55,15 +52,6 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     // Tagline
     let tagline = Paragraph::new(TAGLINE).style(Style::default().fg(theme.muted()));
     frame.render_widget(tagline, chunks[1]);
-
-    // Watermark
-    let version = env!("CARGO_PKG_VERSION");
-    let watermark = Paragraph::new(Line::from(vec![
-        Span::styled(WATERMARK, Style::default().fg(theme.muted())),
-        Span::styled(format!("  v{version}"), Style::default().fg(theme.border())),
-    ]))
-    .alignment(Alignment::Right);
-    frame.render_widget(watermark, chunks[4]);
 
     // Menu
     let menu_block = Block::default()

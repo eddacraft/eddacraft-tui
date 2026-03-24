@@ -37,11 +37,17 @@ pub fn render_shell(
     ]));
     frame.render_widget(header, chunks[0]);
 
-    // Footer: help text
-    let footer = Paragraph::new(Line::from(Span::styled(
-        help_text,
-        Style::default().fg(theme.muted()),
-    )));
+    // Footer: help text (left) + watermark (right)
+    let version = env!("CARGO_PKG_VERSION");
+    let watermark = format!("[ \u{25a0} ] e d d a c r a f t  v{version}");
+    #[allow(clippy::cast_possible_truncation)]
+    let text_len = (help_text.len() + watermark.len()) as u16;
+    let padding = chunks[2].width.saturating_sub(text_len);
+    let footer = Paragraph::new(Line::from(vec![
+        Span::styled(help_text, Style::default().fg(theme.muted())),
+        Span::raw(" ".repeat(padding as usize)),
+        Span::styled(watermark, Style::default().fg(theme.border())),
+    ]));
     frame.render_widget(footer, chunks[2]);
 
     chunks[1]
