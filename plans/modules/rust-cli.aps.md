@@ -288,7 +288,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-013: gate command
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Port `anvil gate <plan>`. Runs gate checks via kernel, displays
   results in Gate surface. Exit code 2 on failure for CI integration
 - **Expected Outcome:** `anvil gate plan.aps.md` runs checks and shows
@@ -298,12 +298,16 @@ Commands that launch TUI surfaces without kernel integration.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** RCLI-003, KERN (gate execution)
+- **Rework:** 3/7 checks work (lint, test, secret). Coverage, dependency,
+  architecture, and policy checks are hard-coded to fail with "not yet
+  implemented". Plan-scoped gating (`plan` positional arg) is parsed but not
+  wired (`#[allow(dead_code)]`). `--no-cache` is dead code. See RCLI-013a
 
 ---
 
 ### RCLI-014: watch command
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Port `anvil watch`. Spawns kernel watcher on background thread,
   feeds `EngineEvent`s to TUI via `mpsc`. Uses `run_watch` runner with event
   draining loop (50ms poll)
@@ -315,6 +319,11 @@ Commands that launch TUI surfaces without kernel integration.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** RCLI-003, KERN (watcher + event emission)
+- **Rework:** Kernel integration and TUI work (`--source`, `--plans`, `--all`,
+  `--debounce`). However `--file`, `--action`, `--patterns`, `--exclude` are
+  parsed but stored in underscore-prefixed variables and never used. File-scoped
+  watch and action dispatch (e.g. `watch --action gate`) are scaffold-only.
+  See RCLI-014a
 
 ---
 
@@ -322,7 +331,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-015: auth commands
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Port `anvil auth login`, `anvil auth logout`, `anvil auth whoami`.
   Device code flow and OTP flow via reqwest + rustls-tls. Credentials stored at
   `$XDG_CONFIG_HOME/anvil/credentials.json`
@@ -335,6 +344,13 @@ Commands that launch TUI surfaces without kernel integration.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** RCLI-004
+- **Rework:** Device code and OTP flows work. Credential storage works with
+  correct permissions. Three issues remain: (1) only reads
+  `~/.config/anvil/credentials.json`, not `~/.anvil/auth.json` or
+  `~/.anvil/license` or `ANVIL_LICENSE` env var — existing users appear logged
+  out after switchover; (2) no pre-action licence verification hook — commands
+  execute unconditionally even without auth; (3) `EXIT_AUTH_REQUIRED = 3` is
+  defined but never triggered. See RCLI-015a, RCLI-015b
 
 ---
 
@@ -417,7 +433,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-021: hooks and export commands
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Port `anvil hooks install/status` and `anvil export`. Filesystem
   operations for hook installation, constraint export in multiple formats
 - **Expected Outcome:** Hook installation and constraint export work identically
@@ -428,6 +444,14 @@ Commands that launch TUI surfaces without kernel integration.
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** RCLI-004
+- **Rework — hooks:** Generated hook scripts only run `anvil doctor --no-tui`.
+  Node.js hooks enforce plan validation (pre-commit) and quality gates
+  (pre-push). This is an enforcement regression — teams can pass hooks while
+  shipping invalid plans or failing gates. See RCLI-021a
+- **Rework — export:** Plan conversion works for YAML/JSON only. Markdown/APS
+  files are explicitly rejected (`bail!`). All three constraint formatters
+  (llms.txt, mcp-resource, prompt-fragment) unconditionally bail. Blocks APS
+  workflows and downstream artefact generation. See RCLI-021b, RCLI-021c
 
 ---
 
@@ -483,6 +507,203 @@ Commands that launch TUI surfaces without kernel integration.
 
 ---
 
+## Phase 7 — Parity Rework
+
+Fix-up items identified by the 2026-03-24 Rust CLI parity audit. These must be
+resolved before RCLI-023 (cutover) can proceed.
+
+### RCLI-013a: wire remaining gate checks
+
+- **Status:** Proposed
+- **Intent:** Implement the 4 stubbed gate checks: coverage (invoke coverage
+  tool, parse lcov/cobertura), dependency (scan lockfiles for known
+  vulnerabilities or outdated deps), architecture (call into
+  `anvil-architecture` crate validation), policy (call into `anvil-policy`
+  crate evaluator). Also wire the `plan` positional arg for plan-scoped gating
+  and the `--no-cache` flag
+- **Expected Outcome:** `anvil gate` runs all 7 checks with real logic; plan
+  arg scopes checks to plan-referenced files
+- **Validation:** Gate results match Node.js CLI for same project; CI exit code
+  2 on check failure
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`
+- **Confidence:** medium (architecture and policy checks depend on RCLI-019 and
+  RCLI-017 crate maturity)
+- **Priority:** High
+- **Dependencies:** RCLI-017 (policy crate), RCLI-019 (architecture crate)
+
+---
+
+### RCLI-014a: wire watch action dispatch and file scoping
+
+- **Status:** Proposed
+- **Intent:** Wire the `--file`, `--action`, `--patterns`, and `--exclude` args
+  that are currently parsed but ignored (underscore-prefixed dead code). Action
+  dispatch should support at minimum `gate` (re-run gate on change) and `check`
+  (re-run check on change). File scoping should filter the kernel watcher to
+  specified paths. Pattern/exclude should configure the watcher glob filters
+- **Expected Outcome:** `anvil watch --action gate --file src/` watches only
+  `src/` and re-runs gate on changes; `--patterns "*.rs" --exclude "target/"`
+  filters by glob
+- **Validation:** File-scoped watch only triggers on matching paths; action
+  dispatch runs correct command
+- **Files:** `crates/anvil-cli/src/commands/watch.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** RCLI-013a (gate must work for action dispatch)
+
+---
+
+### RCLI-015a: auth credential path migration
+
+- **Status:** Proposed
+- **Intent:** Add fallback credential loading from Node.js CLI paths:
+  `~/.anvil/auth.json`, `~/.anvil/license`, and `ANVIL_LICENSE` env var.
+  Credential loader should check XDG path first, then fall back to legacy
+  paths. On first successful load from legacy path, optionally migrate to XDG
+  location with a notice. Ensures existing users are not logged out after
+  switchover
+- **Expected Outcome:** Users with existing `~/.anvil/auth.json` credentials
+  are recognised without re-authenticating
+- **Validation:** Load credentials from each legacy path; verify migration
+  writes to XDG path; verify `ANVIL_LICENSE` env var is honoured
+- **Files:** `crates/anvil-cli/src/auth/credentials.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** None
+
+---
+
+### RCLI-015b: pre-action auth enforcement
+
+- **Status:** Proposed
+- **Intent:** Add pre-action middleware in `main.rs` that checks for valid
+  credentials before dispatching commands that require auth (gate, watch,
+  status, admin, export). Returns `EXIT_AUTH_REQUIRED = 3` when credentials
+  are missing or expired. Matches the Node.js CLI's `preAction` licence
+  verification hook. Commands that don't require auth (doctor, tutorial,
+  init, hooks, version) should bypass the check
+- **Expected Outcome:** Running `anvil gate` without credentials returns exit
+  code 3 with a helpful message; `anvil doctor` works without auth
+- **Validation:** Exit code 3 for unauthenticated gated commands; ungated
+  commands pass through; expired token triggers re-auth prompt
+- **Files:** `crates/anvil-cli/src/main.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** RCLI-015a
+
+---
+
+### RCLI-020a: uncomment architecture commands in main.rs
+
+- **Status:** Proposed
+- **Intent:** Uncomment the `Architecture` variant in the `Commands` enum in
+  `main.rs` and wire it to the dispatch match. The architecture command module
+  (`commands/architecture.rs`) exists but is not registered. Depends on the
+  `anvil-architecture` crate having sufficient implementation for `validate`
+  subcommand
+- **Expected Outcome:** `anvil architecture validate` is a recognised command
+- **Validation:** `anvil architecture --help` shows subcommands; `anvil
+  architecture validate` runs (even if results are partial)
+- **Files:** `crates/anvil-cli/src/main.rs`,
+  `crates/anvil-cli/src/commands/mod.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** RCLI-019 (anvil-architecture crate)
+
+---
+
+### RCLI-018a: uncomment policy commands in main.rs
+
+- **Status:** Proposed
+- **Intent:** Uncomment the `Policy` variant in the `Commands` enum in
+  `main.rs` and wire it to the dispatch match. The policy command module
+  (`commands/policy.rs`) exists but is not registered. Depends on the
+  `anvil-policy` crate having sufficient implementation for `list` and
+  `explain` subcommands
+- **Expected Outcome:** `anvil policy list` and `anvil policy explain` are
+  recognised commands
+- **Validation:** `anvil policy --help` shows subcommands
+- **Files:** `crates/anvil-cli/src/main.rs`,
+  `crates/anvil-cli/src/commands/mod.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** RCLI-017 (anvil-policy crate)
+
+---
+
+### RCLI-015c: top-level login/logout/whoami aliases
+
+- **Status:** Proposed
+- **Intent:** Add `anvil login`, `anvil logout`, and `anvil whoami` as
+  top-level command aliases that delegate to `anvil auth login/logout/whoami`.
+  The Node.js CLI exposes these as top-level commands for convenience
+- **Expected Outcome:** `anvil login` works identically to `anvil auth login`
+- **Validation:** All three aliases dispatch correctly; `--help` text mentions
+  they are aliases for `anvil auth` subcommands
+- **Files:** `crates/anvil-cli/src/main.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Dependencies:** RCLI-015
+
+---
+
+### RCLI-021a: upgrade hook enforcement
+
+- **Status:** Proposed
+- **Intent:** Upgrade generated git hook scripts from diagnostic-only (`anvil
+  doctor --no-tui`) to enforcement: pre-commit should run `anvil validate`
+  (plan validation), pre-push should run `anvil gate --profile ci --no-tui`
+  (quality gate). Matches Node.js CLI hook behaviour. Keep `anvil doctor` as
+  a prerequisite check before the enforcement step
+- **Expected Outcome:** `anvil hooks install` generates hooks that enforce plan
+  validity on commit and gate pass on push
+- **Validation:** Committing an invalid plan fails pre-commit; pushing with
+  gate failures is blocked pre-push
+- **Files:** `crates/anvil-cli/src/commands/hooks.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Dependencies:** RCLI-013a (gate must work), RCLI2-002 (validate command)
+
+---
+
+### RCLI-021b: export APS markdown support
+
+- **Status:** Proposed
+- **Intent:** Remove the explicit `.md` file rejection in `export_plan()` and
+  implement APS markdown parsing for plan export. At minimum, parse the APS
+  markdown structure (frontmatter, phases, work items) into the same
+  intermediate representation used by YAML/JSON export, then serialise to the
+  target format
+- **Expected Outcome:** `anvil export plans/modules/rust-cli.aps.md --to json`
+  produces valid JSON plan output
+- **Validation:** Exported JSON matches Node.js CLI output for same APS file;
+  round-trip fidelity for all APS fields
+- **Files:** `crates/anvil-cli/src/commands/export.rs`
+- **Confidence:** medium (requires APS markdown parser in Rust)
+- **Priority:** High
+- **Dependencies:** RCLI3-008 (shared APS parser logic)
+
+---
+
+### RCLI-021c: implement constraint export formatters
+
+- **Status:** Proposed
+- **Intent:** Implement the three constraint export formatters that currently
+  bail unconditionally: `llms.txt` (LLM-friendly text), `mcp-resource` (MCP
+  server resource format), `prompt-fragment` (embeddable prompt snippet).
+  Port logic from `packages/anvil/runtime/src/export/` TypeScript formatters
+- **Expected Outcome:** `anvil export --format llms.txt` produces valid
+  constraint output matching the Node.js CLI
+- **Validation:** Output format and content match Node.js CLI for same project
+  state
+- **Files:** `crates/anvil-cli/src/commands/export.rs`
+- **Confidence:** medium
+- **Priority:** High
+- **Dependencies:** None (constraint collection logic may need kernel
+  integration)
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -492,6 +713,9 @@ Commands that launch TUI surfaces without kernel integration.
 | Auth flow edge cases (token refresh, network errors) | Low | Medium | Test against staging API; graceful error messages |
 | Binary size (Rust + reqwest + ratatui) | Low | Low | Release builds with LTO; strip symbols |
 | Missing Node.js command parity | Medium | High | Full tier classification in spec; explicit "not ported" list |
+| Falsely-complete items delay cutover | High | High | Phase 7 rework items address all gaps found in 2026-03-24 audit |
+| Auth migration breaks existing users | Medium | High | RCLI-015a adds fallback loading from legacy paths before cutover |
+| Hook enforcement regression | Medium | Medium | RCLI-021a upgrades hooks before cutover; gated on RCLI-013a |
 
 ## Stats
 
@@ -499,8 +723,9 @@ Commands that launch TUI surfaces without kernel integration.
 | ----- | ----- | ------ |
 | 1 — Foundation | 4 | Complete |
 | 2 — Static Surface Commands | 8 | Complete |
-| 3 — Kernel-Integrated Commands | 2 | Complete |
-| 4 — Auth & API | 2 | Complete |
-| 5 — Policy & Architecture | 4 | Complete |
+| 3 — Kernel-Integrated Commands | 2 | In Progress (rework) |
+| 4 — Auth & API | 2 | In Progress (rework) |
+| 5 — Policy & Architecture | 4 | Complete (modules exist, not wired — see Phase 7) |
 | 6 — Utilities & Cutover | 4 | In Progress |
-| **Total** | **24** | — |
+| 7 — Parity Rework | 11 | Proposed |
+| **Total** | **35** | — |

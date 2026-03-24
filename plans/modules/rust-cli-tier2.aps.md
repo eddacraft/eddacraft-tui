@@ -76,7 +76,10 @@ the Node.js CLI for common tasks, defeating the single-binary goal.
 Change status to **Ready** when:
 
 - [x] RCLI Tier 1 foundation complete (Phases 1–4)
-- [ ] RCLI-017 (anvil-policy crate) has evaluator implemented
+- [ ] RCLI Phase 7 rework items resolved (gate checks, auth migration,
+  command registration) — rework items identified by 2026-03-24 audit
+- [ ] RCLI-017 (anvil-policy crate) has evaluator implemented (PR #640
+  in progress)
 - [ ] RCLI-019 (anvil-architecture crate) has validation logic implemented
 - [ ] OPAE status reviewed — identify which Tier 2 commands can proceed
 
