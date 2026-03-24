@@ -21,9 +21,9 @@ enum PolicyCommand {
         /// Show only enabled policies
         #[arg(long)]
         enabled: bool,
-        /// Also scan .anvil/policies/ for .rego files
-        #[arg(long, default_value_t = true)]
-        discover: bool,
+        /// Skip scanning .anvil/policies/ for .rego files
+        #[arg(long)]
+        no_discover: bool,
     },
     /// Explain a specific policy
     Explain {
@@ -91,6 +91,19 @@ struct TestCase {
     message: String,
 }
 
+fn workspace_root() -> std::path::PathBuf {
+    if let Some(toplevel) = std::process::Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+    {
+        std::path::PathBuf::from(toplevel.trim())
+    } else {
+        std::env::current_dir().unwrap_or_default()
+    }
+}
+
 fn run_list(
     category: Option<&String>,
     enabled: bool,
@@ -112,9 +125,9 @@ fn run_list(
         .collect();
 
     if discover {
-        let cwd = std::env::current_dir().unwrap_or_default();
+        let workspace_root = workspace_root();
         let loader = anvil_policy::loader::PolicyLoader::new();
-        if let Ok(policies) = loader.load_policies(&cwd, None) {
+        if let Ok(policies) = loader.load_policies(&workspace_root, None) {
             for p in policies {
                 infos.push(PolicyInfo {
                     id: p.package.clone(),
@@ -254,8 +267,24 @@ fn run_validate(file: Option<&String>, global: &GlobalArgs) -> Result<()> {
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("rego"))
     {
-        let content = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {path}"))?;
+        if !std::path::Path::new(path).exists() {
+            errors.push(format!("Policy file not found: {path}"));
+            let result = ValidationResult {
+                valid: false,
+                errors,
+                warnings,
+            };
+            if global.json {
+                crate::output::json::print(&result)?;
+            } else {
+                println!("\n\u{2717} Policy configuration has errors");
+                for err in &result.errors {
+                    println!("  \u{2717} {err}");
+                }
+            }
+            std::process::exit(1);
+        }
+        let content = std::fs::read_to_string(path).with_context(|| format!("reading {path}"))?;
         let opa = anvil_policy::opa::OpaExecutor::new(None, None);
 
         if opa.is_available() {
@@ -272,7 +301,9 @@ fn run_validate(file: Option<&String>, global: &GlobalArgs) -> Result<()> {
             }
         } else {
             warnings.push("OPA binary not found — skipping Rego syntax validation".to_string());
-            warnings.push("Install OPA: https://www.openpolicyagent.org/docs/latest/#running-opa".to_string());
+            warnings.push(
+                "Install OPA: https://www.openpolicyagent.org/docs/latest/#running-opa".to_string(),
+            );
         }
     } else if std::path::Path::new(path).exists() {
         match anvil_policy::config::load_config(path) {
@@ -439,8 +470,8 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
         PolicyCommand::List {
             category,
             enabled,
-            discover,
-        } => run_list(category.as_ref(), *enabled, *discover, global),
+            no_discover,
+        } => run_list(category.as_ref(), *enabled, !*no_discover, global),
         PolicyCommand::Explain { policy_id } => run_explain(policy_id, global),
         PolicyCommand::Diff { base, head } => run_diff(base, head, global),
         PolicyCommand::Validate { file } => run_validate(file.as_ref(), global),

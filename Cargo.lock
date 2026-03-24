@@ -159,11 +159,17 @@ dependencies = [
 name = "anvil-policy"
 version = "0.1.0"
 dependencies = [
+ "hex",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",
+ "sha2",
  "tempfile",
  "thiserror 2.0.18",
+ "wait-timeout",
+ "walkdir",
+ "which",
 ]
 
 [[package]]
@@ -737,6 +743,12 @@ name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
+
+[[package]]
+name = "env_home"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7f84e12ccf0a7ddc17a6c41c93326024c42920d7ee630d04950e6926645c0fe"
 
 [[package]]
 name = "equivalent"
@@ -3041,6 +3053,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "wait-timeout"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09ac3b126d3914f9849036f826e054cbabdc8519970b8998ddaf3b5bd3c65f11"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3275,6 +3296,18 @@ dependencies = [
  "lazy_static",
  "serde",
  "wezterm-dynamic",
+]
+
+[[package]]
+name = "which"
+version = "7.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24d643ce3fd3e5b54854602a080f34fb10ab75e0b813ee32d00ca2b44fa74762"
+dependencies = [
+ "either",
+ "env_home",
+ "rustix",
+ "winsafe",
 ]
 
 [[package]]
@@ -3606,6 +3639,12 @@ checksum = "df79d97927682d2fd8adb29682d1140b343be4ac0f08fd68b7765d9c059d3945"
 dependencies = [
  "memchr",
 ]
+
+[[package]]
+name = "winsafe"
+version = "0.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d135d17ab770252ad95e9a872d365cf3090e3be864a34ab46f48555993efc904"
 
 [[package]]
 name = "wit-bindgen"

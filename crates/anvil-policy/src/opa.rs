@@ -2,6 +2,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
+use wait_timeout::ChildExt;
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -90,10 +92,10 @@ impl OpaExecutor {
     }
 
     pub fn is_available(&self) -> bool {
-        Command::new(&self.binary_path)
-            .arg("version")
-            .output()
-            .is_ok()
+        match Command::new(&self.binary_path).arg("version").output() {
+            Ok(output) => output.status.success(),
+            Err(_) => false,
+        }
     }
 
     pub fn version(&self) -> Option<String> {
@@ -113,27 +115,28 @@ impl OpaExecutor {
         input: &serde_json::Value,
     ) -> Result<OpaResult, OpaError> {
         let start = Instant::now();
-        let tmp = tempfile::TempDir::new()?;
+        let policy_dir = tempfile::TempDir::new()?;
+        let input_dir = tempfile::TempDir::new()?;
 
         for policy in policies {
-            let dest = tmp.path().join(format!("{}.rego", policy.name));
+            let dest = policy_dir.path().join(format!("{}.rego", policy.name));
             std::fs::write(&dest, &policy.content)?;
         }
 
-        let input_path = tmp.path().join("input.json");
+        let input_path = input_dir.path().join("input.json");
         let input_str = serde_json::to_string_pretty(input)?;
         std::fs::write(&input_path, &input_str)?;
 
-        let output = Command::new(&self.binary_path)
+        let mut child = Command::new(&self.binary_path)
             .arg("eval")
             .arg("--data")
-            .arg(tmp.path())
+            .arg(policy_dir.path())
             .arg("--input")
             .arg(&input_path)
             .arg("--format")
             .arg("json")
             .arg(&self.query)
-            .output()
+            .spawn()
             .map_err(|e| {
                 if e.kind() == std::io::ErrorKind::NotFound {
                     OpaError::BinaryNotFound(self.binary_path.clone())
@@ -142,12 +145,16 @@ impl OpaExecutor {
                 }
             })?;
 
-        #[allow(clippy::cast_possible_truncation)]
-        let elapsed = start.elapsed().as_millis() as u64;
-
-        if elapsed > self.timeout_ms {
+        let timeout = std::time::Duration::from_millis(self.timeout_ms);
+        if child.wait_timeout(timeout)?.is_none() {
+            let _ = child.kill();
+            let _ = child.wait();
             return Err(OpaError::Timeout(self.timeout_ms));
         }
+        let output = child.wait_with_output()?;
+
+        #[allow(clippy::cast_possible_truncation)]
+        let elapsed = start.elapsed().as_millis() as u64;
 
         let opa_version = self.version();
 
@@ -216,11 +223,7 @@ impl OpaExecutor {
         }
     }
 
-    pub fn run_tests(
-        &self,
-        policy_dir: &Path,
-        verbose: bool,
-    ) -> Result<TestResult, OpaError> {
+    pub fn run_tests(&self, policy_dir: &Path, verbose: bool) -> Result<TestResult, OpaError> {
         let mut args = vec!["test", "--format", "json"];
         if verbose {
             args.push("-v");
@@ -244,17 +247,28 @@ impl OpaExecutor {
         let mut details = Vec::new();
         let mut errors = Vec::new();
 
-        if let Ok(results) = serde_json::from_str::<Vec<OpaTestEntry>>(&stdout) {
-            for entry in &results {
-                details.push(TestDetail {
-                    name: entry.name.clone(),
-                    passed: entry.fail.is_none() || !entry.fail.unwrap_or(false),
-                    message: entry.output.clone(),
-                });
-            }
-        } else if !output.status.success() {
+        if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            errors.push(stderr.to_string());
+            if !stderr.is_empty() {
+                errors.push(stderr.to_string());
+            }
+        }
+
+        match serde_json::from_str::<Vec<OpaTestEntry>>(&stdout) {
+            Ok(results) => {
+                for entry in &results {
+                    details.push(TestDetail {
+                        name: entry.name.clone(),
+                        passed: entry.fail.is_none() || !entry.fail.unwrap_or(false),
+                        message: entry.output.clone(),
+                    });
+                }
+            }
+            Err(e) => {
+                if !stdout.trim().is_empty() {
+                    errors.push(format!("Failed to parse OPA test output: {e}"));
+                }
+            }
         }
 
         #[allow(clippy::cast_possible_truncation)]
@@ -337,7 +351,7 @@ fn parse_violation_item(
     match item {
         serde_json::Value::String(msg) => {
             let category = infer_category(policy_name);
-            let fingerprint = compute_fingerprint(policy_name, "", None, msg);
+            let fingerprint = compute_fingerprint(policy_name, policy_name, None, msg);
             PolicyViolation {
                 rule: policy_name.to_string(),
                 severity: default_severity.to_string(),
@@ -369,8 +383,7 @@ fn parse_violation_item(
                 .get("category")
                 .and_then(|v| v.as_str())
                 .map_or_else(|| infer_category(policy_name), String::from);
-            let fingerprint =
-                compute_fingerprint(&rule, policy_name, path.as_deref(), &message);
+            let fingerprint = compute_fingerprint(&rule, policy_name, path.as_deref(), &message);
 
             PolicyViolation {
                 rule,
@@ -407,7 +420,9 @@ fn infer_category(name: &str) -> String {
     let lower = name.to_lowercase();
     if lower.contains("security") || lower.contains("secret") || lower.contains("auth") {
         "security".to_string()
-    } else if lower.contains("architecture") || lower.contains("layer") || lower.contains("boundary")
+    } else if lower.contains("architecture")
+        || lower.contains("layer")
+        || lower.contains("boundary")
     {
         "architecture".to_string()
     } else if lower.contains("coverage") || lower.contains("test") {
@@ -416,8 +431,7 @@ fn infer_category(name: &str) -> String {
         "scope".to_string()
     } else if lower.contains("lint") || lower.contains("quality") || lower.contains("style") {
         "quality".to_string()
-    } else if lower.contains("compliance") || lower.contains("license") || lower.contains("audit")
-    {
+    } else if lower.contains("compliance") || lower.contains("license") || lower.contains("audit") {
         "compliance".to_string()
     } else {
         "custom".to_string()

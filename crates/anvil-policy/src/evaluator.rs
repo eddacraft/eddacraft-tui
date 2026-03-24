@@ -75,11 +75,14 @@ impl Evaluator {
             .evaluate(&enabled, input)
             .map_err(|e| EvalError::Internal(e.to_string()))?;
 
-        let violations: Vec<Violation> = result
-            .violations
-            .into_iter()
-            .map(into_violation)
-            .collect();
+        if !result.success
+            && let Some(err) = &result.error
+        {
+            return Err(EvalError::Internal(format!("OPA evaluation failed: {err}")));
+        }
+
+        let violations: Vec<Violation> =
+            result.violations.into_iter().map(into_violation).collect();
 
         Ok(EvaluationResult {
             passed: violations.is_empty(),
@@ -101,8 +104,11 @@ fn into_violation(v: PolicyViolation) -> Violation {
     }
 }
 
-/// Legacy compatibility — calls the new evaluator.
-/// Returns `EvalError::OpaNotAvailable` if OPA is not installed.
+/// Legacy compatibility stub — does NOT call the new evaluator.
+///
+/// This exists to preserve the old function signature for callers that
+/// haven't migrated to `Evaluator::evaluate()`. It always returns
+/// `OpaNotAvailable` to signal that callers should migrate.
 pub fn evaluate(
     _policies: &[super::config::PolicyEntry],
     _files: &[String],
