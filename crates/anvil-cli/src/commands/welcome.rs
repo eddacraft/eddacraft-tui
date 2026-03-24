@@ -70,7 +70,23 @@ fn launch_chosen_action(chosen: Option<QuickStartOption>) -> anyhow::Result<()> 
         // Some(QuickStartOption::RunGate) => &["gate"],
         // Some(QuickStartOption::StartWatch) => &["watch"],
         Some(QuickStartOption::ViewDocs) => {
-            println!("Visit: https://docs.eddacraft.ai");
+            let url = "https://docs.eddacraft.ai";
+            let opened = if cfg!(target_os = "macos") {
+                std::process::Command::new("open").arg(url).status().ok()
+            } else {
+                std::process::Command::new("xdg-open")
+                    .arg(url)
+                    .status()
+                    .ok()
+            };
+            match opened {
+                Some(s) if s.success() => {
+                    println!("Opened {url} in your browser");
+                }
+                _ => {
+                    println!("Visit: {url}");
+                }
+            }
             return Ok(());
         }
         None => return Ok(()),
