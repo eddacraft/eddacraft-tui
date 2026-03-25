@@ -113,8 +113,8 @@ fn render_project_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme
 
 fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
     let focused = state.focused_panel == AuditPanel::Issues;
-    let title = if state.data.issues.is_empty() {
-        "Current Issues".to_string()
+    let title = if !focused || state.data.issues.is_empty() {
+        format!("Current Issues ({})", state.data.issues.len())
     } else {
         format!(
             "Current Issues ({}/{})",
