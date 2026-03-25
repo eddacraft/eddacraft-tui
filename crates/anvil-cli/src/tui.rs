@@ -11,7 +11,7 @@ use crossterm::event::{self, Event};
 use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use eddacraft_tui::keyboard::KeyHandler;
-use eddacraft_tui::theme::EddaCraftTheme;
+use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
@@ -61,6 +61,25 @@ pub fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<io::Stdout>>
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     Ok(Terminal::new(backend)?)
+}
+
+/// Draw a loading frame with a message inside the shell chrome.
+pub fn draw_loading(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    surface_name: &str,
+    message: &str,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    terminal.draw(|frame| {
+        let area = frame.area();
+        let content = render_shell(frame, area, surface_name, "", theme);
+        let loading = ratatui::widgets::Paragraph::new(ratatui::text::Line::styled(
+            format!("  {message}"),
+            ratatui::style::Style::default().fg(theme.muted()),
+        ));
+        frame.render_widget(loading, content);
+    })?;
+    Ok(())
 }
 
 /// Tear down a TUI terminal session.
