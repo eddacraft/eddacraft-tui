@@ -31,10 +31,24 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let mut terminal = crate::tui::setup_terminal()?;
     let theme = EddaCraftTheme;
 
+    let result = run_welcome_hub(&mut terminal, &theme);
+
+    // Always teardown terminal, even on error
+    crate::tui::teardown_terminal(&mut terminal)?;
+    result?;
+    create_first_run_marker(&marker_path)?;
+
+    Ok(())
+}
+
+fn run_welcome_hub(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
     let mut welcome = WelcomeState::new();
 
     loop {
-        let exit = crate::tui::run_surface_in(&mut terminal, &mut welcome, &theme)?;
+        let exit = crate::tui::run_surface_in(terminal, &mut welcome, theme)?;
 
         if exit == SurfaceExit::Quit && welcome.chosen.is_none() {
             break;
@@ -46,10 +60,10 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 welcome.should_quit = false;
             }
             Some(QuickStartOption::RunAudit) => {
-                crate::tui::draw_loading(&mut terminal, "Audit", "Scanning project...", &theme)?;
+                crate::tui::draw_loading(terminal, "Audit", "Scanning project...", theme)?;
                 let data = crate::commands::audit::collect_audit_data();
                 let mut audit_state = anvil_tui::surfaces::audit::AuditState::new(data);
-                let sub_exit = crate::tui::run_surface_in(&mut terminal, &mut audit_state, &theme)?;
+                let sub_exit = crate::tui::run_surface_in(terminal, &mut audit_state, theme)?;
                 if sub_exit == SurfaceExit::Quit {
                     break;
                 }
@@ -57,16 +71,10 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 welcome.chosen = None;
             }
             Some(QuickStartOption::RunDoctor) => {
-                crate::tui::draw_loading(
-                    &mut terminal,
-                    "Doctor",
-                    "Running diagnostics...",
-                    &theme,
-                )?;
+                crate::tui::draw_loading(terminal, "Doctor", "Running diagnostics...", theme)?;
                 let checks = crate::commands::doctor::collect_checks();
                 let mut doctor_state = anvil_tui::surfaces::doctor::DoctorState::new(checks);
-                let sub_exit =
-                    crate::tui::run_surface_in(&mut terminal, &mut doctor_state, &theme)?;
+                let sub_exit = crate::tui::run_surface_in(terminal, &mut doctor_state, theme)?;
                 if sub_exit == SurfaceExit::Quit {
                     break;
                 }
@@ -75,8 +83,7 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
             }
             Some(QuickStartOption::RunTutorial) => {
                 let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
-                let sub_exit =
-                    crate::tui::run_surface_in(&mut terminal, &mut tutorial_state, &theme)?;
+                let sub_exit = crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
                 if sub_exit == SurfaceExit::Quit {
                     break;
                 }
@@ -89,24 +96,30 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
         }
     }
 
-    crate::tui::teardown_terminal(&mut terminal)?;
-    create_first_run_marker(&marker_path)?;
-
     Ok(())
 }
 
 fn open_docs_message() -> String {
     let url = "https://docs.eddacraft.ai";
-    let cmd = if cfg!(target_os = "macos") {
-        "open"
+    let result = if cfg!(target_os = "macos") {
+        std::process::Command::new("open")
+            .arg(url)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output()
+    } else if cfg!(target_os = "windows") {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", url])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output()
     } else {
-        "xdg-open"
+        std::process::Command::new("xdg-open")
+            .arg(url)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .output()
     };
-    let result = std::process::Command::new(cmd)
-        .arg(url)
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
-        .output();
     match result {
         Ok(output) if output.status.success() => format!("Opened {url} in your browser"),
         Ok(output) => {

@@ -159,7 +159,7 @@ impl TutorialState {
 
     fn handle_complete(&mut self, action: Action) {
         match action {
-            Action::Select => {
+            Action::Select | Action::Back => {
                 self.phase = TutorialPhase::PathSelect;
                 self.steps.clear();
                 self.current_step = 0;
