@@ -84,7 +84,7 @@ impl WelcomeState {
             Action::Select => {
                 self.chosen = Some(QuickStartOption::ALL[self.selected]);
             }
-            Action::Quit => {
+            Action::Back | Action::Quit => {
                 self.should_quit = true;
             }
             _ => {}

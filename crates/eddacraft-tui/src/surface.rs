@@ -13,8 +13,14 @@ pub trait Surface {
     fn help_text(&self) -> &'static str;
     /// Process a mapped keyboard action.
     fn handle_key(&mut self, action: Action);
-    /// Whether the surface wants to exit.
+    /// Whether the surface wants to exit the program.
     fn should_quit(&self) -> bool;
+    /// Whether the surface wants to go back to the previous screen.
+    fn should_back(&self) -> bool {
+        false
+    }
+    /// Reset the surface for re-entry (e.g. after returning from a sub-surface).
+    fn reset(&mut self) {}
     /// Render the surface content into the given area.
     fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
 }

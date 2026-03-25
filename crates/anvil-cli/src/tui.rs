@@ -15,6 +15,15 @@ use eddacraft_tui::theme::EddaCraftTheme;
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
+/// How a surface exited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SurfaceExit {
+    /// User wants to quit the program.
+    Quit,
+    /// User wants to go back to the previous screen.
+    Back,
+}
+
 /// Run an interactive TUI surface inside the branded shell chrome.
 /// Returns the state after the surface exits, so callers can inspect
 /// final state (e.g. which menu option was chosen).
@@ -31,14 +40,43 @@ pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<S> {
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
-    result.map(|()| state)
+    result.map(|_| state)
+}
+
+/// Run a surface within an already-initialised terminal session.
+/// Used by the welcome hub to launch sub-surfaces without teardown.
+pub fn run_surface_in<S: Surface>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut S,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<SurfaceExit> {
+    surface_loop(terminal, state, theme)
+}
+
+/// Set up a TUI terminal session and return the terminal for caller-managed
+/// surface switching. Caller must call `teardown_terminal` when done.
+pub fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<io::Stdout>>> {
+    terminal::enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    Ok(Terminal::new(backend)?)
+}
+
+/// Tear down a TUI terminal session.
+pub fn teardown_terminal(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+) -> anyhow::Result<()> {
+    terminal::disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    Ok(())
 }
 
 fn surface_loop<S: Surface>(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut S,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<SurfaceExit> {
     loop {
         terminal.draw(|frame| {
             let area = frame.area();
@@ -54,11 +92,12 @@ fn surface_loop<S: Surface>(
         }
 
         if state.should_quit() {
-            break;
+            return Ok(SurfaceExit::Quit);
+        }
+        if state.should_back() {
+            return Ok(SurfaceExit::Back);
         }
     }
-
-    Ok(())
 }
 
 /// Run the watch dashboard, draining kernel events from the given channel.
