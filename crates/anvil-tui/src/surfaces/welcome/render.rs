@@ -85,7 +85,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         })
         .collect();
 
-    let menu = Paragraph::new(Text::from(items));
+    // Append status message below menu items if present
+    let mut all_lines = items;
+    if let Some(ref msg) = state.status_message {
+        all_lines.push(Line::raw(""));
+        all_lines.push(Line::styled(
+            format!("  {msg}"),
+            Style::default().fg(theme.muted()),
+        ));
+    }
+
+    let menu = Paragraph::new(Text::from(all_lines));
     frame.render_widget(menu, menu_area);
 }
 

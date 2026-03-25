@@ -42,10 +42,7 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
         match welcome.chosen.take() {
             Some(QuickStartOption::ViewDocs) => {
-                // Teardown terminal temporarily to open browser
-                crate::tui::teardown_terminal(&mut terminal)?;
-                open_docs();
-                terminal = crate::tui::setup_terminal()?;
+                welcome.status_message = Some(open_docs_message());
                 welcome.should_quit = false;
             }
             Some(QuickStartOption::RunAudit) => {
@@ -91,23 +88,26 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn open_docs() {
+fn open_docs_message() -> String {
     let url = "https://docs.eddacraft.ai";
-    let opened = if cfg!(target_os = "macos") {
-        std::process::Command::new("open").arg(url).status().ok()
+    let cmd = if cfg!(target_os = "macos") {
+        "open"
     } else {
-        std::process::Command::new("xdg-open")
-            .arg(url)
-            .status()
-            .ok()
+        "xdg-open"
     };
-    match opened {
-        Some(s) if s.success() => {
-            println!("Opened {url} in your browser");
+    let result = std::process::Command::new(cmd)
+        .arg(url)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .output();
+    match result {
+        Ok(output) if output.status.success() => format!("Opened {url} in your browser"),
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let reason = stderr.lines().next().unwrap_or("unknown error");
+            format!("Could not open browser: {reason}  |  Visit: {url}")
         }
-        _ => {
-            println!("Visit: {url}");
-        }
+        Err(e) => format!("Could not open browser: {e}  |  Visit: {url}"),
     }
 }
 
@@ -176,9 +176,9 @@ mod tests {
     }
 
     #[test]
-    fn open_docs_does_not_panic() {
-        // open_docs attempts xdg-open/open but gracefully falls back to print.
-        open_docs();
+    fn open_docs_message_does_not_panic() {
+        let msg = open_docs_message();
+        assert!(!msg.is_empty());
     }
 
     #[test]

@@ -50,6 +50,8 @@ pub struct WelcomeState {
     pub selected: usize,
     pub should_quit: bool,
     pub chosen: Option<QuickStartOption>,
+    /// Transient status message shown below the menu.
+    pub status_message: Option<String>,
 }
 
 impl WelcomeState {
@@ -58,6 +60,7 @@ impl WelcomeState {
             selected: 0,
             should_quit: false,
             chosen: None,
+            status_message: None,
         }
     }
 
