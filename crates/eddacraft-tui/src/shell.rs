@@ -4,6 +4,8 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+use unicode_width::UnicodeWidthStr;
+
 use crate::theme::{EddaCraftTheme, Theme};
 
 /// Render branded shell chrome around a surface content area.
@@ -41,12 +43,12 @@ pub fn render_shell(
     let version = env!("CARGO_PKG_VERSION");
     let watermark = format!("[ \u{25a0} ] e d d a c r a f t  v{version}");
     #[allow(clippy::cast_possible_truncation)]
-    let text_len = (help_text.len() + watermark.len()) as u16;
-    let padding = chunks[2].width.saturating_sub(text_len);
+    let display_len = (help_text.width() + watermark.width()) as u16;
+    let padding = chunks[2].width.saturating_sub(display_len);
     let footer = Paragraph::new(Line::from(vec![
         Span::styled(help_text, Style::default().fg(theme.muted())),
         Span::raw(" ".repeat(padding as usize)),
-        Span::styled(watermark, Style::default().fg(theme.border())),
+        Span::styled(watermark, Style::default().fg(theme.muted())),
     ]));
     frame.render_widget(footer, chunks[2]);
 

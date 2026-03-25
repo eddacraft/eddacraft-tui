@@ -73,6 +73,11 @@ fn launch_chosen_action(chosen: Option<QuickStartOption>) -> anyhow::Result<()> 
             let url = "https://docs.eddacraft.ai";
             let opened = if cfg!(target_os = "macos") {
                 std::process::Command::new("open").arg(url).status().ok()
+            } else if cfg!(target_os = "windows") {
+                std::process::Command::new("cmd")
+                    .args(["/C", "start", url])
+                    .status()
+                    .ok()
             } else {
                 std::process::Command::new("xdg-open")
                     .arg(url)

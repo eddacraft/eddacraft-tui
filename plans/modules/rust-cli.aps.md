@@ -711,7 +711,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-025: welcome screen brand logo
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Replace the generic figlet ASCII art in the welcome surface with
   the official Anvil block logo from the design system
   (`docs/specs/anvil_tui_context.md` §5). Render the block logo in EMBER
@@ -793,7 +793,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-029: fix "View Documentation" crash
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** The "View Documentation" option on the welcome menu crashes.
   Diagnose and fix — likely a missing surface implementation or an unhandled
   `open` command failure. Should either open docs in the default browser via
