@@ -35,7 +35,7 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     // Centre vertically
     #[allow(clippy::cast_possible_truncation)]
     let content_h = content_height as u16;
-    let top_pad = area.height.saturating_sub(content_h) / 2;
+    let top_pad = (area.height.saturating_sub(content_h) / 2).max(1);
     #[allow(clippy::cast_possible_truncation)]
     let menu_h = menu_height as u16;
     #[allow(clippy::cast_possible_truncation)]
