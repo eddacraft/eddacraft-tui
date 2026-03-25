@@ -1,9 +1,9 @@
 use eddacraft_tui::theme::{EddaCraftTheme, Theme};
+use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, Paragraph};
-use ratatui::Frame;
 
 use super::{TutorialPhase, TutorialState};
 
@@ -189,8 +189,8 @@ use super::TutorialPath;
 mod tests {
     use super::*;
     use crate::surface::Surface;
-    use ratatui::backend::TestBackend;
     use ratatui::Terminal;
+    use ratatui::backend::TestBackend;
 
     #[test]
     fn renders_without_panic_path_select() {
