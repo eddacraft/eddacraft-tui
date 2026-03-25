@@ -84,12 +84,11 @@ impl TutorialState {
         "t u t o r i a l"
     }
 
+    /// Returns help text for the current phase.
+    ///
+    /// Delegates to the Surface trait implementation to ensure a single source of truth.
     pub fn help_text(&self) -> &'static str {
-        match self.phase {
-            TutorialPhase::PathSelect => "j/k navigate  enter select  q quit",
-            TutorialPhase::Running => "enter/space next step  esc back  q quit",
-            TutorialPhase::Complete => "enter choose another  q quit",
-        }
+        <Self as crate::surface::Surface>::help_text(self)
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {

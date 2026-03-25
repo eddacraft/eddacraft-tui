@@ -7,8 +7,8 @@ use anyhow::Context;
 use eddacraft_tui::theme::EddaCraftTheme;
 use serde::{Deserialize, Serialize};
 
-use crate::GlobalArgs;
 use crate::tui::SurfaceExit;
+use crate::GlobalArgs;
 
 #[derive(Debug, clap::Args)]
 pub struct WelcomeArgs {}
@@ -34,8 +34,14 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
     let result = run_welcome_hub(&mut terminal, &theme);
 
     // Always teardown terminal, even on error
-    crate::tui::teardown_terminal(&mut terminal)?;
-    result?;
+    // Preserve hub error if both hub and teardown fail
+    let teardown_result = crate::tui::teardown_terminal(&mut terminal);
+
+    if let Err(err) = result {
+        return Err(err);
+    }
+
+    teardown_result?;
     create_first_run_marker(&marker_path)?;
 
     Ok(())
@@ -101,6 +107,12 @@ fn run_welcome_hub(
 
 fn open_docs_message() -> String {
     let url = "https://docs.eddacraft.ai";
+
+    // Skip spawning external processes during tests
+    if cfg!(test) {
+        return format!("Visit: {url}");
+    }
+
     let result = if cfg!(target_os = "macos") {
         std::process::Command::new("open")
             .arg(url)
