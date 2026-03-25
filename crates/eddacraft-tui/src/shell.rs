@@ -4,6 +4,8 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+use unicode_width::UnicodeWidthStr;
+
 use crate::theme::{EddaCraftTheme, Theme};
 
 /// Render branded shell chrome around a surface content area.
@@ -37,16 +39,34 @@ pub fn render_shell(
     ]));
     frame.render_widget(header, chunks[0]);
 
-    // Footer: help text (left) + watermark (right)
+    // Footer: help text (left) + watermark (right).
+    // Watermark is prioritised — help text is truncated if needed.
     let version = env!("CARGO_PKG_VERSION");
     let watermark = format!("[ \u{25a0} ] e d d a c r a f t  v{version}");
-    #[allow(clippy::cast_possible_truncation)]
-    let text_len = (help_text.len() + watermark.len()) as u16;
-    let padding = chunks[2].width.saturating_sub(text_len);
+    let wm_width = watermark.width();
+    let available = chunks[2].width as usize;
+    let min_gap = 2;
+    let max_help = available.saturating_sub(wm_width + min_gap);
+    let help_display: String = if help_text.width() > max_help {
+        let mut truncated = String::new();
+        let mut w = 0;
+        for ch in help_text.chars() {
+            let cw = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+            if w + cw > max_help {
+                break;
+            }
+            truncated.push(ch);
+            w += cw;
+        }
+        truncated
+    } else {
+        help_text.to_string()
+    };
+    let padding = available.saturating_sub(help_display.width() + wm_width);
     let footer = Paragraph::new(Line::from(vec![
-        Span::styled(help_text, Style::default().fg(theme.muted())),
-        Span::raw(" ".repeat(padding as usize)),
-        Span::styled(watermark, Style::default().fg(theme.border())),
+        Span::styled(help_display, Style::default().fg(theme.muted())),
+        Span::raw(" ".repeat(padding)),
+        Span::styled(watermark, Style::default().fg(theme.muted())),
     ]));
     frame.render_widget(footer, chunks[2]);
 
