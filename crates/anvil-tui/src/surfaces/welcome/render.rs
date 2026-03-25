@@ -32,10 +32,9 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let logo_lines: Vec<Line> = LOGO_LINES
         .iter()
         .map(|line| {
-            if line.contains("a n v i l") {
-                let parts: Vec<&str> = line.splitn(2, "a n v i l").collect();
+            if let Some((before, _)) = line.split_once("a n v i l") {
                 Line::from(vec![
-                    Span::styled(parts[0], Style::default().fg(theme.accent())),
+                    Span::styled(before, Style::default().fg(theme.accent())),
                     Span::styled(
                         "a n v i l",
                         Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),

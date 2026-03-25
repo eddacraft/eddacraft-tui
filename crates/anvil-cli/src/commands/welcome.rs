@@ -75,7 +75,7 @@ fn launch_chosen_action(chosen: Option<QuickStartOption>) -> anyhow::Result<()> 
                 std::process::Command::new("open").arg(url).status().ok()
             } else if cfg!(target_os = "windows") {
                 std::process::Command::new("cmd")
-                    .args(["/C", "start", url])
+                    .args(["/C", "start", "", url])
                     .status()
                     .ok()
             } else {

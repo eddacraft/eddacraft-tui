@@ -890,5 +890,5 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 | 5 — Policy & Architecture | 4 | Complete (modules exist, not wired — see Phase 7) |
 | 6 — Utilities & Cutover | 4 | In Progress |
 | 7 — Parity Rework | 11 | Proposed |
-| 8 — TUI UX Polish | 8 | Proposed |
+| 8 — TUI UX Polish | 8 | In Progress (2 complete) |
 | **Total** | **43** | — |
