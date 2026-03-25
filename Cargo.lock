@@ -730,6 +730,7 @@ dependencies = [
  "crossterm",
  "insta",
  "ratatui",
+ "unicode-width",
 ]
 
 [[package]]
