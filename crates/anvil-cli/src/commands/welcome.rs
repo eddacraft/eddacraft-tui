@@ -46,6 +46,7 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 welcome.should_quit = false;
             }
             Some(QuickStartOption::RunAudit) => {
+                welcome.status_message = None;
                 crate::tui::draw_loading(&mut terminal, "Audit", "Scanning project...", &theme)?;
                 let data = crate::commands::audit::collect_audit_data();
                 let mut audit_state = anvil_tui::surfaces::audit::AuditState::new(data);
@@ -57,6 +58,7 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 welcome.chosen = None;
             }
             Some(QuickStartOption::RunDoctor) => {
+                welcome.status_message = None;
                 crate::tui::draw_loading(
                     &mut terminal,
                     "Doctor",
@@ -74,6 +76,7 @@ pub fn run(_args: &WelcomeArgs, global: &GlobalArgs) -> anyhow::Result<()> {
                 welcome.chosen = None;
             }
             Some(QuickStartOption::RunTutorial) => {
+                welcome.status_message = None;
                 let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
                 let sub_exit =
                     crate::tui::run_surface_in(&mut terminal, &mut tutorial_state, &theme)?;
