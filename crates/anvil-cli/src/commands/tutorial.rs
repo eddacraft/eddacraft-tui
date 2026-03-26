@@ -122,7 +122,8 @@ mod tests {
 
     #[test]
     fn load_missing_progress_returns_default() {
-        let path = PathBuf::from("/tmp/nonexistent-anvil-test/progress.json");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("progress.json");
         let progress = load_progress(&path);
         assert!(progress.completed_paths.is_empty());
     }
@@ -161,7 +162,8 @@ mod tests {
 
     #[test]
     fn reset_nonexistent_file_succeeds() {
-        let path = PathBuf::from("/tmp/nonexistent-anvil-test/progress.json");
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("progress.json");
         reset_progress(&path).unwrap();
     }
 

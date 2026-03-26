@@ -328,8 +328,10 @@ layers:
 
     #[test]
     fn nonexistent_root_returns_error() {
+        let tmp = TempDir::new().unwrap();
+        let nonexistent = tmp.path().join("missing-root");
         let config = EmbeddedConfig {
-            root: PathBuf::from("/nonexistent/path/xyz"),
+            root: nonexistent,
             architecture_config: None,
             filter: None,
         };
@@ -342,9 +344,10 @@ layers:
     #[test]
     fn nonexistent_architecture_config_returns_error() {
         let tmp = TempDir::new().unwrap();
+        let nonexistent_config = tmp.path().join("missing-arch.yml");
         let config = EmbeddedConfig {
             root: tmp.path().to_path_buf(),
-            architecture_config: Some(PathBuf::from("/nonexistent/arch.yml")),
+            architecture_config: Some(nonexistent_config),
             filter: None,
         };
 

@@ -250,13 +250,14 @@ mod tests {
     #[test]
     fn generate_output_handles_dotted_stems() {
         let result = generate_default_output("plans/my.plan.md", "json");
-        assert_eq!(result, "plans/my.aps.json");
+        // Normalise path separators for cross-platform comparison
+        assert_eq!(result.replace('\\', "/"), "plans/my.aps.json");
     }
 
     #[test]
     fn generate_output_handles_bare_filename() {
         let result = generate_default_output("plan.md", "yaml");
-        assert_eq!(result, "./plan.aps.yaml");
+        assert_eq!(result.replace('\\', "/"), "./plan.aps.yaml");
     }
 
     #[test]

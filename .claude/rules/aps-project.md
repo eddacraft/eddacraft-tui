@@ -35,7 +35,7 @@
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
 - RENG: rust-core-engine (4/6) — In Progress
-- KERN: rust-kernel (20/25) — In Progress
+- KERN: rust-kernel (22/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
 - RATS: ratatui-tui (7/7) — Complete
 - PORT: ink-to-ratatui-port (15/15) — Complete

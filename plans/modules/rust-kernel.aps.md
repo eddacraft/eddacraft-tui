@@ -453,16 +453,17 @@ Change status to **Ready** when:
 
 ### KERN-044: Cross-compilation for Linux, macOS, Windows
 
-- **Status:** In Progress _(4/6 platforms — Linux x86_64/aarch64 + macOS x86_64/aarch64 done, Windows pending)_
+- **Status:** Done _(6/6 platforms — Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64/aarch64)_
 - **Intent:** Ensure the `anvil` binary cross-compiles for all target platforms
-  (Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64) and passes
+  (Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64/aarch64) and passes
   platform-specific smoke tests
 - **Expected Outcome:** CI produces release binaries for all targets; smoke tests
   confirm binary runs on each platform
 - **Validation:** CI matrix builds for all targets succeed, smoke test verifies
   binary startup and basic check on each
-- **Files:** `.github/workflows/`, `Cargo.toml`, `Cross.toml` or equivalent
-- **Confidence:** medium (cross-compilation toolchain setup can be fiddly)
+- **Files:** `.github/workflows/rust.yml`, `crates/anvil-kernel/src/embedded.rs`,
+  `crates/anvil-cli/src/commands/tutorial.rs`
+- **Confidence:** high
 - **Priority:** High
 - **Dependencies:** KERN-040
 
@@ -544,6 +545,6 @@ Change status to **Ready** when:
 | 1 — Watcher + Parser | 4 | Done |
 | 2 — Semantic Graph | 4 | Done |
 | 3 — Policy Engine + Events | 4 | Done |
-| 4 — Integration & Validation | 5 | In Progress (4/5, KERN-044 In Progress) |
+| 4 — Integration & Validation | 5 | Done |
 | 5 — Daemon Mode (Deferred) | 3 | Draft |
-| **Total** | **25** | **20/25 done** |
+| **Total** | **25** | **22/25 done** |
