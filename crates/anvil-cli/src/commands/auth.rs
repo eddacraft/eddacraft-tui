@@ -185,4 +185,46 @@ mod tests {
         let w = Wrapper::try_parse_from(["test", "whoami"]).unwrap();
         let _ = format!("{:?}", w.inner);
     }
+
+    // --- Top-level alias tests ---
+
+    #[derive(Parser)]
+    struct LoginWrapper {
+        #[command(flatten)]
+        inner: LoginArgs,
+    }
+
+    #[derive(Parser)]
+    struct LogoutWrapper {
+        #[command(flatten)]
+        inner: LogoutArgs,
+    }
+
+    #[derive(Parser)]
+    struct WhoamiWrapper {
+        #[command(flatten)]
+        inner: WhoamiArgs,
+    }
+
+    #[test]
+    fn alias_login_parses() {
+        let w = LoginWrapper::try_parse_from(["test"]).unwrap();
+        assert!(!w.inner.otp);
+    }
+
+    #[test]
+    fn alias_login_otp_parses() {
+        let w = LoginWrapper::try_parse_from(["test", "--otp"]).unwrap();
+        assert!(w.inner.otp);
+    }
+
+    #[test]
+    fn alias_logout_parses() {
+        let _ = LogoutWrapper::try_parse_from(["test"]).unwrap();
+    }
+
+    #[test]
+    fn alias_whoami_parses() {
+        let _ = WhoamiWrapper::try_parse_from(["test"]).unwrap();
+    }
 }
