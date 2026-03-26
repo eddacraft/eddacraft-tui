@@ -47,7 +47,7 @@ pnpm install
 
 ### Node Version Error
 
-Anvil requires Node.js 20+.
+Anvil requires Node.js >= 20.19.0.
 
 **Solution:**
 
