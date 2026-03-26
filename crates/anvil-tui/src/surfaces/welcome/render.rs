@@ -32,9 +32,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let logo_lines: Vec<Line> = LOGO_LINES
         .iter()
         .map(|line| {
-            if let Some((before, _)) = line.split_once("a n v i l") {
+            if line.contains("a n v i l") {
+                let parts: Vec<&str> = line.splitn(2, "a n v i l").collect();
                 Line::from(vec![
-                    Span::styled(before, Style::default().fg(theme.accent())),
+                    Span::styled(parts[0], Style::default().fg(theme.accent())),
                     Span::styled(
                         "a n v i l",
                         Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
@@ -84,7 +85,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         })
         .collect();
 
-    let menu = Paragraph::new(Text::from(items));
+    // Append status message below menu items if present
+    let mut all_lines = items;
+    if let Some(ref msg) = state.status_message {
+        all_lines.push(Line::raw(""));
+        all_lines.push(Line::styled(
+            format!("  {msg}"),
+            Style::default().fg(theme.muted()),
+        ));
+    }
+
+    let menu = Paragraph::new(Text::from(all_lines));
     frame.render_widget(menu, menu_area);
 }
 

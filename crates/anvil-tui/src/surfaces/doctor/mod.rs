@@ -70,6 +70,7 @@ pub struct DoctorState {
     pub selected: usize,
     pub expanded: bool,
     pub should_quit: bool,
+    pub wants_back: bool,
 }
 
 impl DoctorState {
@@ -79,6 +80,7 @@ impl DoctorState {
             selected: 0,
             expanded: false,
             should_quit: false,
+            wants_back: false,
         }
     }
 
@@ -103,6 +105,9 @@ impl DoctorState {
             Action::Select => {
                 self.expanded = !self.expanded;
             }
+            Action::Back => {
+                self.wants_back = true;
+            }
             Action::Quit => {
                 self.should_quit = true;
             }
@@ -117,7 +122,7 @@ impl crate::surface::Surface for DoctorState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  enter expand  q quit"
+        "j/k navigate  enter expand  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
@@ -126,6 +131,15 @@ impl crate::surface::Surface for DoctorState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
     }
 
     fn render(

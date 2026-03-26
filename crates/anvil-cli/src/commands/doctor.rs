@@ -40,6 +40,11 @@ pub fn run(args: &DoctorArgs, global: &GlobalArgs) -> anyhow::Result<()> {
 
 // --- Check runners ---
 
+/// Collect diagnostic checks (convenience for sub-surface use).
+pub fn collect_checks() -> Vec<DiagnosticCheck> {
+    run_all_checks()
+}
+
 fn run_all_checks() -> Vec<DiagnosticCheck> {
     vec![
         check_git_available(),
