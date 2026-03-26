@@ -48,6 +48,33 @@ pub enum WatcherError {
     Recv(#[from] mpsc::RecvTimeoutError),
 }
 
+/// Walk directories under `root`, adding a non-recursive watch for each
+/// directory that isn't in the filter's ignore list. This avoids registering
+/// inotify watches on `node_modules`, `.git`, `target`, etc.
+fn watch_directories(
+    watcher: &mut RecommendedWatcher,
+    root: &std::path::Path,
+    filter: &FileFilter,
+) -> Result<(), WatcherError> {
+    watcher.watch(root, RecursiveMode::NonRecursive)?;
+
+    let walker = walkdir::WalkDir::new(root)
+        .min_depth(1)
+        .into_iter()
+        .filter_entry(|e| {
+            if !e.file_type().is_dir() {
+                return false;
+            }
+            !filter.should_ignore(e.path())
+        });
+
+    for entry in walker.flatten() {
+        watcher.watch(entry.path(), RecursiveMode::NonRecursive)?;
+    }
+
+    Ok(())
+}
+
 /// Starts watching the given directory and sends `ChangeBatch` events
 /// to the returned receiver. Runs until the watcher handle is dropped.
 pub fn start_watcher(
@@ -63,7 +90,10 @@ pub fn start_watcher(
         notify::Config::default(),
     )?;
 
-    watcher.watch(&config.root, RecursiveMode::Recursive)?;
+    // Watch directories selectively — skip ignored dirs (node_modules, .git,
+    // target, etc.) at the OS level to avoid exhausting inotify limits.
+    let watch_filter = config.filter.clone().unwrap_or_default();
+    watch_directories(&mut watcher, &config.root, &watch_filter)?;
 
     let debounce_window = config.debounce_window;
     let max_pending = config.max_pending;
