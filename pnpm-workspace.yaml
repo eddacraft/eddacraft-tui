@@ -10,6 +10,7 @@ packages:
   - packages/aps
   - packages/edda-stack
   - packages/eslint-plugin-anvil
+  - packages/json-render
   - packages/kindling-integration
   - packages/mcp-server
   - packages/vscode-extension
