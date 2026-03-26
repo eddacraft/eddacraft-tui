@@ -143,7 +143,16 @@ fn initial_scan(
 ) {
     let mut scanned_files: Vec<PathBuf> = Vec::new();
 
-    for result in WalkDir::new(root) {
+    let walker = WalkDir::new(root).into_iter().filter_entry(|e| {
+        // Prune ignored directories at the walk level so we never descend
+        // into coverage/, node_modules/, .git, target, etc.
+        if e.file_type().is_dir() {
+            return !filter.should_ignore(e.path());
+        }
+        true
+    });
+
+    for result in walker {
         if stop.load(Ordering::Relaxed) {
             return;
         }
