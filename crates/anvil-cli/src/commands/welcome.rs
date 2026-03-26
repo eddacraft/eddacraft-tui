@@ -83,7 +83,25 @@ fn run_welcome_hub(
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }
+            Some(QuickStartOption::RunGate) => {
+                // Teardown terminal, run gate as a subprocess (it manages its own TUI)
+                crate::tui::teardown_terminal(terminal)?;
+                let exe = std::env::current_exe().context("resolving executable")?;
+                let _ = std::process::Command::new(&exe).arg("gate").status();
+                *terminal = crate::tui::setup_terminal()?;
+                welcome.should_quit = false;
+                welcome.chosen = None;
+            }
+            Some(QuickStartOption::StartWatch) => {
+                crate::tui::teardown_terminal(terminal)?;
+                let exe = std::env::current_exe().context("resolving executable")?;
+                let _ = std::process::Command::new(&exe).arg("watch").status();
+                *terminal = crate::tui::setup_terminal()?;
+                welcome.should_quit = false;
+                welcome.chosen = None;
+            }
             Some(QuickStartOption::RunTutorial) => {
+                welcome.status_message = None;
                 let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
                 let sub_exit = crate::tui::run_surface_in(terminal, &mut tutorial_state, theme)?;
                 if sub_exit == SurfaceExit::Quit {
