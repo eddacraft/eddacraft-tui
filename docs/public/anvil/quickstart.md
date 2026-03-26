@@ -12,7 +12,7 @@ minutes.
 
 ## Prerequisites
 
-- **Node.js** 20.0.0 or later
+- **Node.js** >= 20.19.0
 - A package manager: **pnpm**, **npm**, **yarn**, or **bun**
 - A TypeScript or JavaScript project
 

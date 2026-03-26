@@ -11,7 +11,7 @@ Get Kindling running on your system.
 
 ## Requirements
 
-- **Node.js** 20.0.0 or later
+- **Node.js** >= 20.19.0
 - A package manager: **pnpm**, **npm**, **yarn**, or **bun**
 
 ## Installation
