@@ -117,7 +117,7 @@ fn open_docs_message() -> String {
             .output()
     } else if cfg!(target_os = "windows") {
         std::process::Command::new("cmd")
-            .args(["/C", "start", url])
+            .args(["/C", "start", "", url])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .output()

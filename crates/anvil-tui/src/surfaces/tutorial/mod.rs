@@ -199,6 +199,7 @@ impl crate::surface::Surface for TutorialState {
         self.should_quit = false;
         self.wants_back = false;
         self.phase = TutorialPhase::PathSelect;
+        self.path_selected = 0;
         self.steps.clear();
         self.current_step = 0;
         self.chosen_path = None;
