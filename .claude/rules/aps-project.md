@@ -8,7 +8,7 @@
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
 - CRB: code-review-backlog (29/29) — Complete
-- MAINT: codebase-maintenance (8/10) — In Progress
+- MAINT: codebase-maintenance (6/10) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
@@ -35,7 +35,7 @@
 - KERN: rust-kernel (4/25) — In Progress
 - BAUTH: beta-auth-streamline (0/20) — Ready
 - RATS: ratatui-tui (1/7) — In Progress
-- PORT: ink-to-ratatui-port (0/15) — Proposed
+- PORT: ink-to-ratatui-port (2/15) — In Progress
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft

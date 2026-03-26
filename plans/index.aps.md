@@ -132,7 +132,7 @@ release must deliver both the core value AND a friction-free first experience.
 | Tutorial Path Continuation | Continue with another tutorial from completion screen     | Complete    | —        |
 | Post-Beta Launch Uplift    | Address 57 findings from v0.1.2-beta post-release review | Complete    | 57/57    |
 | Code Review Backlog        | 29 architectural recommendations from code review        | Complete    | 29/29    |
-| Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 3/8      |
+| Codebase Maintenance       | Pattern extraction, shared utilities, generators         | In Progress | 6/10     |
 | Security Review Backlog    | Cross-package security findings from adversarial review  | Complete    | 8/8      |
 | .anvil File Format         | Replace hardcoded anti-pattern catalogue with file-based | In Progress | Phase 1 patterns authored, compiler not started |
 | BMAD v4 Backward Compat    | v4 folder/agent/workflow format backward compatibility   | Proposed    | 0/8      |
@@ -183,8 +183,8 @@ modules.
 | Kindling Integration   | Observation layer — session and gate hooks      | Complete    |
 | Ember                  | Interpretive layer — candidate memory proposals | Complete    |
 | Edda                   | Canonical memory — git-backed, provenance-tracked | Complete  |
-| Edda Stack Integration | Shared schemas, event bus, layer ports          | In Progress |
-| Edda-Ember Review      | Non-critical improvements from consolidated review | In Progress |
+| Edda Stack Integration | Shared schemas, event bus, layer ports          | Complete    |
+| Edda-Ember Review      | Non-critical improvements from consolidated review | Complete  |
 
 ### Future — Rust Kernel (KERN, In Progress)
 
@@ -222,7 +222,7 @@ modules.
 **Module:** [RENG — Rust Engine Ports](./modules/rust-core-engine.aps.md)
 **Depends on:** KERN (uses kernel's tree-sitter/graph infrastructure)
 
-### Future — Ratatui TUI (RATS, Proposed)
+### Future — Ratatui TUI (RATS, In Progress)
 
 | Task | Description                                                   | Status   |
 | ---- | ------------------------------------------------------------- | -------- |
@@ -408,7 +408,7 @@ Task-level detail for all completed work is archived in
 | [website-migration](./archive/modules/website-migration.aps.md) | WEB | 0.1.0 |
 | [monorepo-migration](./archive/modules/monorepo-migration.aps.md) | MONO | 0.1.0 |
 | [test-quality](./archive/modules/test-quality.aps.md) | TEST | — |
-| [pulumi-iac](./modules/pulumi-iac.aps.md) | IAC | 0.1.0 |
+| [pulumi-iac](./archive/modules/pulumi-iac.aps.md) | IAC | 0.1.0 |
 | [beta-launch-checklist](./archive/modules/beta-launch-checklist.aps.md) | — | 0.1.2-beta |
 | [beta-testing-improvements](./archive/modules/beta-testing-improvements.aps.md) | — | 0.1.2-beta |
 | [post-beta-launch-uplift](./archive/modules/post-beta-launch-uplift.aps.md) | PBLU | 0.1.x |
@@ -418,19 +418,19 @@ Task-level detail for all completed work is archived in
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [cli-hardening](./modules/cli-hardening.aps.md) | CLIH | Complete | — | — |
-| [coaching-nudges](./modules/coaching-nudges.aps.md) | NUDGE | Complete | — | antipattern-library |
-| [mcp-server-hardening](./modules/mcp-server-hardening.aps.md) | MCPH | Complete | — | — |
-| [nx-task-migration](./modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 | — |
-| [security-ci-pipeline](./modules/security-ci-pipeline.aps.md) | SEC | Complete | — | — |
-| [cli-esbuild-bundling](./modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 | — |
-| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | 5/5 | — |
-| [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | 5/5 | forge-hook-agent |
-| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
-| [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
-| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 | — |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 8/10 | — |
+| [cli-hardening](./archive/modules/cli-hardening.aps.md) | CLIH | Complete | — | — |
+| [coaching-nudges](./archive/modules/coaching-nudges.aps.md) | NUDGE | Complete | — | antipattern-library |
+| [mcp-server-hardening](./archive/modules/mcp-server-hardening.aps.md) | MCPH | Complete | — | — |
+| [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 | — |
+| [security-ci-pipeline](./archive/modules/security-ci-pipeline.aps.md) | SEC | Complete | — | — |
+| [cli-esbuild-bundling](./archive/modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 | — |
+| [01-forge-hook-agent](./archive/modules/01-forge-hook-agent.aps.md) | FORGE | Complete | 5/5 | — |
+| [02-forge-negotiation](./archive/modules/02-forge-negotiation.aps.md) | FNEG | Complete | 5/5 | forge-hook-agent |
+| [03-deferred-finding-filing](./archive/modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 | forge-negotiation |
+| [04-temper-workflow](./archive/modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 | deferred-finding-filing |
+| [05-forge-temper-config](./archive/modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 | forge-hook-agent, forge-negotiation, deferred-finding-filing, temper-workflow |
+| [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 | — |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 6/10 | — |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending | — |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 | — |
 
@@ -478,10 +478,10 @@ waves; 39 tasks total.
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [kindling-integration](./archive/modules/kindling-integration.aps.md) | KINDLING | Complete | 19/19 | save-time-trust, drift-reporting |
-| [ember](./modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
-| [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
-| [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
+| [ember](./archive/modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
+| [edda](./archive/modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
+| [edda-stack-integration](./archive/modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
+| [edda-ember-review](./archive/modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
 
 ### Future (Post-1.0.0)
 
@@ -490,7 +490,7 @@ waves; 39 tasks total.
 | [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 4/25 | — |
 | [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | In Progress | 1/7 | KERN Phase 3 |
-| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Proposed | 0/15 | RATS-001 (complete) |
+| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | In Progress | 2/15 | RATS-001 (complete) |
 | [lang-python](./modules/lang-python.aps.md) | PYLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-rust](./modules/lang-rust.aps.md) | RSTLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
 | [lang-dotnet](./modules/lang-dotnet.aps.md) | DNLAN | Placeholder | — | html-css-support (HTMLCSS-001) |
@@ -498,7 +498,7 @@ waves; 39 tasks total.
 | [real-time-validation-simplified](./modules/real-time-validation-simplified.aps.md) | RTVS | Draft | — | save-time-trust |
 | [real-time-validation-full](./modules/real-time-validation-full.aps.md) | RTVF | Draft | — | save-time-trust, ide-integration |
 | [pocketflow-gateway](./modules/pocketflow-gateway.aps.md) | PFGW | Draft | 0/7 | edda-stack-integration, opa-agent-orchestration, Kindling (external) |
-| ~~[tui-enhancement](./modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI, then ADR-011: Ratatui replaces Ink |
+| ~~[tui-enhancement](./archive/modules/tui-enhancement.aps.md)~~ | TUIENH | Superseded | — | see D-005: Ink over OpenTUI, then ADR-011: Ratatui replaces Ink |
 
 ### Task Status — 0.1.0 (Core Engine)
 
@@ -1223,8 +1223,8 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-003 | maint  | Workspace root resolution patterns                  | Complete | Low      |
 | MAINT-004 | maint  | Git operation wrappers                              | Complete | Medium   |
 | MAINT-005 | maint  | JSON output formatting                              | Complete | Low      |
-| MAINT-006 | maint  | Nx generator for CLI commands                       | Complete | Low      |
-| MAINT-007 | maint  | Nx generator for gate checks                        | Complete | Low      |
+| MAINT-006 | maint  | Nx generator for CLI commands                       | In Progress | Low      |
+| MAINT-007 | maint  | Nx generator for gate checks                        | In Progress | Low      |
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
 | MAINT-009 | maint  | Edda list filters parity with release claims        | Ready    | Medium   |
 | MAINT-010 | maint  | Authenticated release smoke harness                 | Ready    | Medium   |
@@ -1341,6 +1341,14 @@ Tasks will be defined when each module moves from Placeholder to Ready status.
 - **D-007:** Pulumi for IaC — open-source Pulumi with TypeScript over Terraform
   for consistency with the monorepo's TypeScript-first toolchain
   ([ADR](./decisions/007-pulumi-iac.md))
+- **D-008:** Ink vs Ratatui Assessment — assessment of Ink vs Ratatui for Anvil
+  TUI ([ADR](./decisions/008-ink-vs-ratatui-assessment.md)) — **Superseded**
+- **D-009:** Watch Mode Performance Analysis — Ink vs Ratatui watch mode
+  performance comparison
+  ([ADR](./decisions/009-ink-vs-ratatui-watch-mode-performance.md)) —
+  **Superseded**
+- **D-010:** Pulumi TypeScript IaC — Pulumi with TypeScript-first infrastructure
+  as code ([ADR](./decisions/010-pulumi-typescript-iac.md))
 - **D-011:** Rust Core Engine — Rust for performance-critical subsystems (engine,
   watcher, storage, TUI) while TypeScript CLI stays; gated on Phase 0 spike
   ([ADR](./decisions/011-rust-core-engine.md)) — **Proposed**
