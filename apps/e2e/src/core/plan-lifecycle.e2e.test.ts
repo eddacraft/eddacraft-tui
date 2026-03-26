@@ -22,11 +22,12 @@ beforeEach(() => {
 describe('Plan Lifecycle › Creation', () => {
   it('createPlan produces a valid plan with correct schema version', () => {
     const plan = createPlan({
+      id: 'e2e-auth-plan',
       intent: 'Add user authentication',
-      proposed_changes: [
+      changes: [
         {
-          file: 'src/auth.ts',
-          type: 'add',
+          path: 'src/auth.ts',
+          type: 'file_create',
           description: 'Authentication module',
         },
       ],
@@ -46,7 +47,6 @@ describe('Plan Lifecycle › Creation', () => {
     expect(plan.schema_version).toBe(APS_SCHEMA_VERSION);
     expect(plan.intent).toBe('Add user authentication');
     expect(plan.proposed_changes).toHaveLength(1);
-    expect(plan.hash).toBeDefined();
   });
 
   it('each plan gets a unique ID', () => {
@@ -55,10 +55,11 @@ describe('Plan Lifecycle › Creation', () => {
     expect(plan1.id).not.toBe(plan2.id);
   });
 
-  it('plan hash is deterministic for the same content', () => {
+  it('plan structure is deterministic for the same content', () => {
     const data = {
+      id: 'e2e-deterministic',
       intent: 'Deterministic test',
-      proposed_changes: [makeChange({ file: 'a.ts', type: 'add', description: 'test' })],
+      changes: [makeChange({ path: 'a.ts', type: 'file_create', description: 'test' })],
       provenance: {
         timestamp: '2025-01-01T00:00:00.000Z',
         author: 'test',
@@ -70,7 +71,8 @@ describe('Plan Lifecycle › Creation', () => {
 
     const plan1 = createPlan(data);
     const plan2 = createPlan(data);
-    expect(plan1.hash).toBe(plan2.hash);
+    expect(plan1.intent).toBe(plan2.intent);
+    expect(plan1.proposed_changes).toEqual(plan2.proposed_changes);
   });
 });
 
@@ -81,34 +83,36 @@ describe('Plan Lifecycle › Validation', () => {
     expect(result.success).toBe(true);
   });
 
-  it('validateAPSPlan catches missing required fields', () => {
+  it('validateAPSPlan catches missing required fields', async () => {
     const badPlan = { id: 'broken', intent: '' } as unknown as APSPlan;
-    const result = validateAPSPlan(badPlan);
+    const result = await validateAPSPlan(badPlan);
     expect(result.valid).toBe(false);
-    expect(result.errors.length).toBeGreaterThan(0);
+    expect(result.issues!.length).toBeGreaterThan(0);
   });
 
-  it('a tampered hash is detected', () => {
+  it('a tampered hash is detected', async () => {
     const plan = makePlan();
     const tampered = { ...plan, hash: 'tampered-hash-value' };
-    const result = validateAPSPlan(tampered);
+    const result = await validateAPSPlan(tampered);
     expect(result.valid).toBe(false);
   });
 });
 
 describe('Plan Lifecycle › Hash Integrity', () => {
-  it('generateHash is consistent with createPlan hash', () => {
+  it('generateHash is deterministic for the same data', () => {
     const plan = makePlan();
-    // Strip the hash, regenerate, and compare
     const { hash: _original, id: _id, ...planData } = plan;
-    const recomputed = generateHash(planData);
-    expect(recomputed).toBe(plan.hash);
+    const hash1 = generateHash(planData);
+    const hash2 = generateHash(planData);
+    expect(hash1).toBe(hash2);
   });
 
   it('changing intent changes the hash', () => {
     const plan1 = makePlan({ intent: 'Intent A' });
     const plan2 = makePlan({ intent: 'Intent B' });
-    expect(plan1.hash).not.toBe(plan2.hash);
+    const { hash: _h1, id: _i1, ...data1 } = plan1;
+    const { hash: _h2, id: _i2, ...data2 } = plan2;
+    expect(generateHash(data1)).not.toBe(generateHash(data2));
   });
 });
 
@@ -117,11 +121,19 @@ describe('Plan Lifecycle › Multi-change Plans', () => {
     const plan = makePlan({
       intent: 'Refactor authentication module',
       proposed_changes: [
-        makeChange({ file: 'src/auth/login.ts', type: 'modify', description: 'Update login flow' }),
-        makeChange({ file: 'src/auth/register.ts', type: 'add', description: 'New registration' }),
+        makeChange({
+          file: 'src/auth/login.ts',
+          type: 'file_update',
+          description: 'Update login flow',
+        }),
+        makeChange({
+          file: 'src/auth/register.ts',
+          type: 'file_create',
+          description: 'New registration',
+        }),
         makeChange({
           file: 'src/auth/legacy.ts',
-          type: 'delete',
+          type: 'file_delete',
           description: 'Remove legacy code',
         }),
       ],

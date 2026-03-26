@@ -34,8 +34,9 @@ describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {
 
   it('APSPlanSchema parses the same data in both packages', () => {
     const plan = createPlan({
+      id: 'e2e-schema-compat',
       intent: 'Schema compat test',
-      proposed_changes: [{ file: 'a.ts', type: 'add', description: 'test' }],
+      changes: [{ path: 'a.ts', type: 'file_create', description: 'test' }],
       provenance: {
         timestamp: new Date().toISOString(),
         author: 'test',
@@ -45,8 +46,10 @@ describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {
       validations: { required_checks: ['lint'], skip_checks: [] },
     });
 
-    const contractsResult = APSPlanSchema.safeParse(plan);
-    const coreResult = CorePlanSchema.safeParse(plan);
+    // createPlan returns Omit<APSPlan, 'hash'>, add a hash for schema parsing
+    const planWithHash = { ...plan, hash: 'test-hash' };
+    const contractsResult = APSPlanSchema.safeParse(planWithHash);
+    const coreResult = CorePlanSchema.safeParse(planWithHash);
 
     expect(contractsResult.success).toBe(true);
     expect(coreResult.success).toBe(true);
@@ -54,8 +57,9 @@ describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {
 
   it('createPlan from contracts and core produce the same structure', () => {
     const input = {
+      id: 'e2e-identity-test',
       intent: 'Identity test',
-      proposed_changes: [{ file: 'b.ts', type: 'modify' as const, description: 'update' }],
+      changes: [{ path: 'b.ts', type: 'file_update' as const, description: 'update' }],
       provenance: {
         timestamp: '2025-01-01T00:00:00.000Z',
         author: 'test',
@@ -68,16 +72,25 @@ describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {
     const fromContracts = createPlan(input);
     const fromCore = coreCreatePlan(input);
 
-    // Same structure, different IDs (generated)
+    // Same structure, same IDs (deterministic)
     expect(fromContracts.schema_version).toBe(fromCore.schema_version);
     expect(fromContracts.intent).toBe(fromCore.intent);
-    expect(fromContracts.hash).toBe(fromCore.hash);
+    expect(fromContracts.proposed_changes).toEqual(fromCore.proposed_changes);
   });
 });
 
 describe('Schema Compatibility › Zod schemas parse valid data', () => {
   it('ChangeTypeSchema accepts all valid change types', () => {
-    for (const type of ['add', 'modify', 'delete', 'rename', 'move']) {
+    for (const type of [
+      'file_create',
+      'file_update',
+      'file_delete',
+      'config_update',
+      'dependency_add',
+      'dependency_remove',
+      'dependency_update',
+      'script_execute',
+    ]) {
       const result = ChangeTypeSchema.safeParse(type);
       expect(result.success, `Expected "${type}" to be valid`).toBe(true);
     }
@@ -85,8 +98,8 @@ describe('Schema Compatibility › Zod schemas parse valid data', () => {
 
   it('ChangeSchema validates a well-formed change', () => {
     const result = ChangeSchema.safeParse({
-      file: 'src/index.ts',
-      type: 'modify',
+      path: 'src/index.ts',
+      type: 'file_update',
       description: 'Update exports',
     });
     expect(result.success).toBe(true);

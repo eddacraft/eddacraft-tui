@@ -30,7 +30,7 @@ vi.mock('../../../anvil-api/src/lib/token.js', async (importOriginal) => {
 });
 
 // Import after mocks
-const { auth } = await import('@eddacraft/anvil-api/routes/auth.js');
+const { auth } = await import('../../../anvil-api/src/routes/auth.js');
 const { findTokenByHash } = await import('../../../anvil-api/src/db/queries.js');
 
 const app = new Hono();
