@@ -189,6 +189,7 @@ Full-width flow diagram. Horizontal pipeline with 5 stages.
 ### Visual Elements
 
 - **Horizontal pipeline diagram**:
+
   ```
   [File Save] --> [Parse] --> [Attribute] --> [Evaluate] --> [Govern]
   ```
@@ -197,6 +198,7 @@ Full-width flow diagram. Horizontal pipeline with 5 stages.
   - Active node highlight: `--anvil` border on left edge of each box
   - Arrows: `--text-muted` thin lines with `--anvil` arrowheads
   - Stage descriptions below each node in `--text-muted`
+
 - Below the pipeline, three example outputs:
   ```
   PASS   Policy met. Architecture stable.        (--edda)
@@ -328,6 +330,7 @@ Two zones: left (adoption funnel), right (pricing tiers).
 ### Visual Elements
 
 - **Horizontal funnel** (not vertical):
+
   ```
   [CLI Install] --> [Team Adoption] --> [Enterprise Policy] --> [Compliance Packs]
   ```
@@ -335,6 +338,7 @@ Two zones: left (adoption funnel), right (pricing tiers).
   - Each stage wider (in revenue, not narrower)
   - Stages coloured from `--text-muted` (left) through `--anvil` to `--edda`
     (right)
+
 - **Tier cards** (right side):
   - Community (open source): `--structure` border
   - Team: `--anvil` border
