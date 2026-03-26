@@ -1,6 +1,8 @@
 pub mod event_adapter;
 pub mod render;
 
+use std::collections::VecDeque;
+
 use eddacraft_tui::keyboard::Action;
 
 /// Current watch mode status.
@@ -63,7 +65,7 @@ pub struct WatchStats {
 #[derive(Debug, Clone)]
 pub struct WatchData {
     pub status: WatchStatus,
-    pub queue: Vec<QueuedChange>,
+    pub queue: VecDeque<QueuedChange>,
     pub history: Vec<RunHistory>,
     pub stats: WatchStats,
 }
@@ -241,7 +243,7 @@ mod tests {
     fn sample_data() -> WatchData {
         WatchData {
             status: WatchStatus::Passing,
-            queue: vec![
+            queue: VecDeque::from([
                 QueuedChange {
                     file: "src/main.rs".to_string(),
                     kind: "modified".to_string(),
@@ -252,7 +254,7 @@ mod tests {
                     kind: "created".to_string(),
                     timestamp: "10:30:02".to_string(),
                 },
-            ],
+            ]),
             history: vec![
                 RunHistory {
                     passed: true,

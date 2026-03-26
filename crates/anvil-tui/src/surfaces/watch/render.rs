@@ -245,7 +245,7 @@ mod tests {
 
         WatchState::new(WatchData {
             status: WatchStatus::Passing,
-            queue: vec![
+            queue: std::collections::VecDeque::from([
                 QueuedChange {
                     file: "src/main.rs".to_string(),
                     kind: "modified".to_string(),
@@ -256,7 +256,7 @@ mod tests {
                     kind: "created".to_string(),
                     timestamp: "10:30:02".to_string(),
                 },
-            ],
+            ]),
             history: vec![
                 RunHistory {
                     passed: true,
@@ -335,7 +335,7 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         let state = WatchState::new(super::super::WatchData {
             status: WatchStatus::Idle,
-            queue: Vec::new(),
+            queue: std::collections::VecDeque::new(),
             history: Vec::new(),
             stats: super::super::WatchStats {
                 total_runs: 0,
