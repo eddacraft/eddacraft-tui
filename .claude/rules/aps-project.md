@@ -15,6 +15,7 @@
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
 - RCLI: rust-cli (20/43) — In Progress (Phase 7 rework + Phase 8 TUI UX added
   2026-03-24)
+- TUTOR: interactive-tutorial (0/10) — Draft
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
