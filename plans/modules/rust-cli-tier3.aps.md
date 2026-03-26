@@ -82,7 +82,7 @@ all three tiers reach parity.
 
 Change status to **Ready** when:
 
-- [ ] RCLI Tier 1 Phases 1–6 complete (all 24 items)
+- [ ] RCLI Tier 1 Phases 1–7 complete (including parity rework items)
 - [ ] RCLI2 Tier 2 Phases 1–2 complete (non-OPAE items)
 - [ ] Edda YAML schema documented (or inferable from edda-stack contracts)
 - [ ] Ember SQLite schema documented (or inferable from ProposalStore)
@@ -449,17 +449,21 @@ the primary blocker for replacing the Node.js CLI in daily workflows.
 ## Sequencing Note
 
 RCLI-023 (Node.js archival) and RCLI-024 (distribution) are blocked on all
-three tiers reaching parity. The recommended sequencing:
+three tiers reaching parity. The recommended sequencing (updated 2026-03-24
+after parity audit):
 
-1. RCLI Tier 1 Phase 5–6 (complete policy/architecture stubs, output formatters)
-2. RCLI2 Tier 2 Phases 1–2 (check, validate, drift, gate-config)
-3. RCLI3 Tier 3 Phase 1 (Edda & Ember — highest user impact)
-4. RCLI3 Tier 3 Phase 2 (Plan & Stack — workflow)
-5. RCLI-023 cutover checkpoint — evaluate whether Phase 3–4 commands can be
+1. **RCLI Phase 7 rework** — fix gate checks, watch args, auth migration,
+   command registration, hook enforcement, export formatters. These are
+   switchover blockers in supposedly-complete phases
+2. RCLI Tier 1 Phase 6 remainder (output formatters, archival prep)
+3. RCLI2 Tier 2 Phases 1–2 (check, validate, drift, gate-config)
+4. RCLI3 Tier 3 Phase 1 (Edda & Ember — highest user impact)
+5. RCLI3 Tier 3 Phase 2 (Plan & Stack — workflow)
+6. RCLI-023 cutover checkpoint — evaluate whether Phase 3–4 commands can be
    deferred post-archival (users rarely use agent/authorship/release via CLI)
-6. RCLI3 Tier 3 Phases 3–4 (Agent, Authorship, Utilities)
-7. RCLI2 Tier 2 Phases 3–4 (OPAE-dependent commands, when OPAE lands)
-8. RCLI-024 distribution pipeline
+7. RCLI3 Tier 3 Phases 3–4 (Agent, Authorship, Utilities)
+8. RCLI2 Tier 2 Phases 3–4 (OPAE-dependent commands, when OPAE lands)
+9. RCLI-024 distribution pipeline
 
 ## Stats
 

@@ -128,7 +128,7 @@ Change status to **Ready** when:
 
 ### RENG-004: Validate architecture check parity with kernel invariants
 
-- **Status:** Draft
+- **Status:** In Progress
 - **Intent:** Validate that the kernel's policy engine (KERN-032 invariants)
   produces equivalent architecture violation results to the current JS
   architecture check. RENG-004 owns the parity validation and gap analysis —
@@ -202,7 +202,7 @@ Change status to **Ready** when:
 | RENG-001 Secret scan | Done |
 | RENG-002 Anti-pattern detection | Done |
 | RENG-003 Command safety | Done |
-| RENG-004 Architecture check merge | Draft (blocked on KERN-032, now done) |
+| RENG-004 Architecture check merge | In Progress (invariants done, parity validation pending) |
 | RENG-005 Benchmarks | Done |
 | RENG-006 Feature flag + dual-run | Draft (blocked on KERN-042, now done) |
 | **Total** | **6 items (4/6 done)** |

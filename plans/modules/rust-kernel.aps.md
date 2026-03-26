@@ -163,7 +163,7 @@ Change status to **Ready** when:
 
 ### KERN-005: Rust CI pipeline (cargo test, clippy, fmt)
 
-- **Status:** In Progress _(validated externally; rust.yml synced to monorepo, pending full CI integration)_
+- **Status:** Done
 - **Intent:** Establish a Rust CI pipeline in GitHub Actions that runs `cargo
   test`, `cargo clippy`, and `cargo fmt --check` on every PR alongside the
   existing pnpm pipeline
@@ -453,7 +453,7 @@ Change status to **Ready** when:
 
 ### KERN-044: Cross-compilation for Linux, macOS, Windows
 
-- **Status:** Draft
+- **Status:** In Progress _(4/6 platforms — Linux x86_64/aarch64 + macOS x86_64/aarch64 done, Windows pending)_
 - **Intent:** Ensure the `anvil` binary cross-compiles for all target platforms
   (Linux x86_64/aarch64, macOS x86_64/aarch64, Windows x86_64) and passes
   platform-specific smoke tests
@@ -540,10 +540,10 @@ Change status to **Ready** when:
 
 | Phase | Items | Status |
 | ----- | ----- | ------ |
-| 0 — Spike | 5 | Done (4/5, KERN-005 In Progress) |
+| 0 — Spike | 5 | Done |
 | 1 — Watcher + Parser | 4 | Done |
 | 2 — Semantic Graph | 4 | Done |
 | 3 — Policy Engine + Events | 4 | Done |
-| 4 — Integration & Validation | 5 | In Progress (4/5, KERN-044 Draft) |
+| 4 — Integration & Validation | 5 | In Progress (4/5, KERN-044 In Progress) |
 | 5 — Daemon Mode (Deferred) | 3 | Draft |
 | **Total** | **25** | **20/25 done** |

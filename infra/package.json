@@ -5,13 +5,13 @@
   "type": "module",
   "main": "index.ts",
   "dependencies": {
-    "@azure/identity": "^4.5.0",
+    "@azure/identity": "^4.13.1",
     "@azure/keyvault-secrets": "^4.9.0",
-    "@pulumi/pulumi": "^3.226.0",
-    "@pulumi/azure-native": "^3.15.0",
+    "@pulumi/pulumi": "^3.228.0",
+    "@pulumi/azure-native": "^3.16.0",
     "@pulumiverse/vercel": "^4.6.1"
   },
   "devDependencies": {
-    "typescript": "~5.9.3"
+    "typescript": "~6.0.0"
   }
 }

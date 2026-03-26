@@ -13,7 +13,8 @@
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
-- RCLI: rust-cli (0/24) — Proposed
+- RCLI: rust-cli (20/43) — In Progress (Phase 7 rework + Phase 8 TUI UX added
+  2026-03-24)
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
@@ -33,8 +34,8 @@
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (6/6) — Complete
-- KERN: rust-kernel (22/25) — In Progress (Phase 5 deferred)
+- RENG: rust-core-engine (4/6) — In Progress
+- KERN: rust-kernel (20/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
 - RATS: ratatui-tui (7/7) — Complete
 - PORT: ink-to-ratatui-port (15/15) — Complete
@@ -43,6 +44,7 @@
 - RTVF: real-time-validation-full — Draft
 - AGOV: agent-governance-patterns (0/7) — Draft
 - BENCH: kernel-benchmarking (6/16) — In Progress
+- TUIDASH: tui-dashboard-render (0/12) — Draft
 - CPACKS: compliance-policy-packs (0/28) — Draft
 
 ## Conventions
@@ -213,7 +215,7 @@ core/src/gate/__fixtures__/library/scope/: OPAE-009
 core/src/gate/__fixtures__/library/security/: OPAE-007
 core/src/diagnostics/diagnostic-schema.ts: AIGUARD-002
 core/src/diagnostics/diagnostic-schema.test.ts: AIGUARD-002
-# RENG: Rust Engine Ports (6 items, all complete)
+# RENG: Rust Engine Ports (6 items, 4 done)
 crates/anvil-checks/src/secret/: RENG-001
 crates/anvil-checks/src/antipattern/: RENG-002
 crates/anvil-checks/src/command_safety/: RENG-003
@@ -425,6 +427,36 @@ crates/anvil-bench/src/scenarios/cold_start_scaling.rs: BENCH-017
 README.md: BENCH-006
 .github/workflows/: BENCH-020, BENCH-021
 docs/architecture/kernel-benchmarking-spec.md: BENCH
+# TUIDASH: TUI Dashboard Render
+crates/anvil-tui-render/src/lib.rs: TUIDASH-001
+crates/anvil-tui-render/src/spec.rs: TUIDASH-001
+crates/anvil-tui-render/src/registry.rs: TUIDASH-002
+crates/anvil-tui-render/src/component.rs: TUIDASH-002
+crates/anvil-tui-render/src/renderer.rs: TUIDASH-003
+crates/anvil-tui-render/src/components/grid_layout.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/section.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/tab_group.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/metric_card.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/data_table.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/status_badge.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/code_block.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/line_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/bar_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/sparkline_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/gate_result.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/warning_list.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/drift_indicator.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/plan_card.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/suppression.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/evidence_entry.rs: TUIDASH-007
+crates/anvil-tui-render/src/binding.rs: TUIDASH-008
+crates/anvil-tui-render/src/context.rs: TUIDASH-008
+crates/anvil-tui/src/surfaces/dashboard/mod.rs: TUIDASH-009
+crates/anvil-tui/src/surfaces/dashboard/render.rs: TUIDASH-009
+crates/anvil-tui-render/src/catalog_sync.rs: TUIDASH-010
+crates/anvil-tui-render/tests/catalog_parity.rs: TUIDASH-010
+crates/anvil-tui-render/src/responsive.rs: TUIDASH-011
+crates/anvil-tui/src/surfaces/dashboard/list.rs: TUIDASH-012
 # CPACKS: Compliance Policy Packs
 core/src/gate/policy/compliance-manifest.ts: CPACKS-002
 core/src/gate/policy/compliance-manifest.test.ts: CPACKS-002

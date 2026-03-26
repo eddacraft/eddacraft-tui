@@ -100,6 +100,7 @@ pub struct AuditState {
     pub selected_item: usize,
     pub expanded: bool,
     pub should_quit: bool,
+    pub wants_back: bool,
 }
 
 impl AuditState {
@@ -110,6 +111,7 @@ impl AuditState {
             selected_item: 0,
             expanded: false,
             should_quit: false,
+            wants_back: false,
         }
     }
 
@@ -152,6 +154,9 @@ impl AuditState {
                     self.expanded = !self.expanded;
                 }
             }
+            Action::Back => {
+                self.wants_back = true;
+            }
             Action::Quit => {
                 self.should_quit = true;
             }
@@ -166,7 +171,7 @@ impl crate::surface::Surface for AuditState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  enter expand  q quit"
+        "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
@@ -175,6 +180,15 @@ impl crate::surface::Surface for AuditState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
     }
 
     fn render(

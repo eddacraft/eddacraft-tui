@@ -50,6 +50,8 @@ pub struct WelcomeState {
     pub selected: usize,
     pub should_quit: bool,
     pub chosen: Option<QuickStartOption>,
+    /// Transient status message shown below the menu.
+    pub status_message: Option<String>,
 }
 
 impl WelcomeState {
@@ -58,6 +60,7 @@ impl WelcomeState {
             selected: 0,
             should_quit: false,
             chosen: None,
+            status_message: None,
         }
     }
 
@@ -66,7 +69,7 @@ impl WelcomeState {
     }
 
     pub fn help_text(&self) -> &'static str {
-        "j/k navigate  enter select  q quit"
+        "j/k navigate  enter select  esc/q quit"
     }
 
     pub fn handle_key(&mut self, action: Action) {
@@ -84,7 +87,7 @@ impl WelcomeState {
             Action::Select => {
                 self.chosen = Some(QuickStartOption::ALL[self.selected]);
             }
-            Action::Quit => {
+            Action::Back | Action::Quit => {
                 self.should_quit = true;
             }
             _ => {}
@@ -98,7 +101,7 @@ impl crate::surface::Surface for WelcomeState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  enter select  q quit"
+        "j/k navigate  enter select  esc/q quit"
     }
 
     fn handle_key(&mut self, action: Action) {

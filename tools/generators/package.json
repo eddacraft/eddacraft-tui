@@ -8,11 +8,11 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@nx/devkit": "^22.6.0"
+    "@nx/devkit": "^22.6.1"
   },
   "devDependencies": {
     "@types/node": "^25.5.0",
-    "typescript": "^5.9.3"
+    "typescript": "~6.0.0"
   },
   "keywords": [
     "anvil",
