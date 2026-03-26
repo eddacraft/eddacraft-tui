@@ -29,8 +29,8 @@ export function resetFixtures(): void {
 }
 
 /**
- * Create a minimal valid APS plan via the real createPlan() helper
- * from @eddacraft/anvil-contracts so the hash is always correct.
+ * Create a minimal valid APS plan via createPlan() from @eddacraft/anvil-core.
+ * Hash is computed from the final plan (after overrides) via generateHash().
  */
 export function makePlan(overrides: Partial<APSPlan> = {}): APSPlan {
   planCounter++;
@@ -50,12 +50,10 @@ export function makePlan(overrides: Partial<APSPlan> = {}): APSPlan {
       skip_checks: [],
     },
   });
-  const hash = overrides.hash ?? generateHash(plan);
-  return {
-    ...plan,
-    hash,
-    ...overrides,
-  } as APSPlan;
+  const { hash: _overrideHash, ...nonHashOverrides } = overrides;
+  const merged = { ...plan, ...nonHashOverrides };
+  const hash = overrides.hash ?? generateHash(merged);
+  return { ...merged, hash } as APSPlan;
 }
 
 /**

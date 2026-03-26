@@ -96,7 +96,7 @@ describe('Plan Lifecycle › Validation', () => {
     const tamperedFirstChar = originalHash[0] === 'a' ? 'b' : 'a';
     const tamperedHash = tamperedFirstChar + originalHash.slice(1);
     const tampered = { ...plan, hash: tamperedHash };
-    const result = await validateAPSPlan(tampered);
+    const result = await validateAPSPlan(tampered, { validateHash: true });
     expect(result.valid).toBe(false);
   });
 });
