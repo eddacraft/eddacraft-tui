@@ -338,7 +338,7 @@ impl crate::surface::Surface for InitState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.confirmed
     }
 
     fn should_back(&self) -> bool {
@@ -348,6 +348,7 @@ impl crate::surface::Surface for InitState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.confirmed = false;
     }
 
     fn render(

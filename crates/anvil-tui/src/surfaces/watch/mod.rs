@@ -525,4 +525,25 @@ mod tests {
         state.mark_dirty();
         assert!(state.dirty);
     }
+
+    #[test]
+    fn back_sets_wants_back() {
+        let mut state = WatchState::new(sample_data());
+        state.handle_key(Action::Back);
+        assert!(state.wants_back);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn reset_clears_back_and_quit() {
+        use crate::surface::Surface;
+        let mut state = WatchState::new(sample_data());
+        state.should_quit = true;
+        state.wants_back = true;
+        state.dirty = false;
+        state.reset();
+        assert!(!state.should_quit);
+        assert!(!state.wants_back);
+        assert!(state.dirty); // reset restores dirty for re-entry
+    }
 }
