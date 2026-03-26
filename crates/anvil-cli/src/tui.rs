@@ -152,7 +152,13 @@ fn watch_loop(
             state.mark_dirty();
         }
 
-        if event::poll(Duration::from_millis(50))? {
+        // Skip the poll wait when already dirty — render immediately.
+        let poll_timeout = if state.is_dirty() {
+            Duration::ZERO
+        } else {
+            Duration::from_millis(50)
+        };
+        if event::poll(poll_timeout)? {
             match event::read()? {
                 Event::Key(key) => {
                     let action = KeyHandler::map(key);

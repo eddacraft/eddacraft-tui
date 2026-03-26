@@ -115,7 +115,7 @@ pub struct WatchState {
     pub focused_panel: WatchPanel,
     pub selected_item: usize,
     pub should_quit: bool,
-    /// Set when state changes and cleared after a render cycle.
+    /// Set when state changes; consumed by `take_dirty()` before redraw.
     /// Use `mark_dirty()` / `take_dirty()` — field is crate-visible for tests.
     pub(crate) dirty: bool,
 }
@@ -144,7 +144,13 @@ impl WatchState {
         self.dirty = true;
     }
 
+    /// Whether a redraw is pending.
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
     /// Consume the dirty flag, returning whether a redraw is needed.
+    /// Clears the flag immediately — call this right before rendering.
     pub fn take_dirty(&mut self) -> bool {
         std::mem::replace(&mut self.dirty, false)
     }
