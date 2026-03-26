@@ -13,7 +13,10 @@ pub trait Surface {
     fn help_text(&self) -> &'static str;
     /// Process a mapped keyboard action.
     fn handle_key(&mut self, action: Action);
-    /// Whether the surface wants to exit the program.
+    /// Whether the surface wants to exit the current surface.
+    ///
+    /// For the root surface this exits the program; for sub-surfaces it returns
+    /// to the parent surface. Use `should_back()` for explicit navigation.
     fn should_quit(&self) -> bool;
     /// Whether the surface wants to go back to the previous screen.
     fn should_back(&self) -> bool {

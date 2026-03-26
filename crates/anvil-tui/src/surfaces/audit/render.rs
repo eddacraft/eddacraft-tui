@@ -7,6 +7,18 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 
 use super::{AuditPanel, AuditState, IssueSeverity};
 
+/// Compute scroll offset to keep `selected` visible within `visible_rows`.
+fn viewport_scroll(selected: usize, total: usize, visible_rows: usize) -> usize {
+    if total <= visible_rows || visible_rows == 0 {
+        return 0;
+    }
+    if selected < visible_rows {
+        0
+    } else {
+        selected - visible_rows + 1
+    }
+}
+
 pub fn render(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
     let chunks = Layout::vertical([
         Constraint::Ratio(1, 4), // Project panel
@@ -101,9 +113,25 @@ fn render_project_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme
 
 fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme: &EddaCraftTheme) {
     let focused = state.focused_panel == AuditPanel::Issues;
-    let block = panel_block("Current Issues", focused, theme);
+    let title = if !focused || state.data.issues.is_empty() {
+        format!("Current Issues ({})", state.data.issues.len())
+    } else {
+        format!(
+            "Current Issues ({}/{})",
+            state.selected_item + 1,
+            state.data.issues.len()
+        )
+    };
+    let block = panel_block(&title, focused, theme);
     let inner = block.inner(area);
     frame.render_widget(block, area);
+
+    let visible_rows = inner.height as usize;
+    let scroll_offset = if focused {
+        viewport_scroll(state.selected_item, state.data.issues.len(), visible_rows)
+    } else {
+        0
+    };
 
     let mut lines: Vec<Line> = state
         .data
@@ -155,7 +183,9 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
         }
     }
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    #[allow(clippy::cast_possible_truncation)]
+    let para = Paragraph::new(Text::from(lines)).scroll((scroll_offset as u16, 0));
+    frame.render_widget(para, inner);
 }
 
 fn render_historical_panel(
@@ -168,6 +198,17 @@ fn render_historical_panel(
     let block = panel_block("Historical", focused, theme);
     let inner = block.inner(area);
     frame.render_widget(block, area);
+
+    let visible_rows = inner.height as usize;
+    let scroll_offset = if focused {
+        viewport_scroll(
+            state.selected_item,
+            state.data.historical_scores.len(),
+            visible_rows,
+        )
+    } else {
+        0
+    };
 
     let lines: Vec<Line> = state
         .data
@@ -206,7 +247,9 @@ fn render_historical_panel(
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    #[allow(clippy::cast_possible_truncation)]
+    let para = Paragraph::new(Text::from(lines)).scroll((scroll_offset as u16, 0));
+    frame.render_widget(para, inner);
 }
 
 fn render_next_steps_panel(
@@ -219,6 +262,17 @@ fn render_next_steps_panel(
     let block = panel_block("Next Steps", focused, theme);
     let inner = block.inner(area);
     frame.render_widget(block, area);
+
+    let visible_rows = inner.height as usize;
+    let scroll_offset = if focused {
+        viewport_scroll(
+            state.selected_item,
+            state.data.next_steps.len(),
+            visible_rows,
+        )
+    } else {
+        0
+    };
 
     let lines: Vec<Line> = state
         .data
@@ -242,7 +296,9 @@ fn render_next_steps_panel(
         })
         .collect();
 
-    frame.render_widget(Paragraph::new(Text::from(lines)), inner);
+    #[allow(clippy::cast_possible_truncation)]
+    let para = Paragraph::new(Text::from(lines)).scroll((scroll_offset as u16, 0));
+    frame.render_widget(para, inner);
 }
 
 #[cfg(test)]
