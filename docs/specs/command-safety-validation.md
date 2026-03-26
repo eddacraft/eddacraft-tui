@@ -1350,7 +1350,7 @@ See [Configuration System](#configuration-system) section.
 ### Appendix C: Related Documentation
 
 - [claude-code-safety-net Review](./claude-code-safety-net-review.md)
-- [Gate System Architecture](../ARCHITECTURE.md#gate-layer)
+- [Gate System Architecture](../architecture/overview.md#gate-layer)
 - [APS Specification](../../core/src/schema/aps.schema.ts)
 
 ---

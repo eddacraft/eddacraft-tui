@@ -1,0 +1,12 @@
+[package]
+name = "anvil-architecture"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Anvil architecture enforcement — boundary definitions, import rules, drift detection"
+
+[dependencies]
+# Dependencies will be added when implementation begins.
+
+[lints]
+workspace = true

@@ -1,5 +1,4 @@
 import js from '@eslint/js';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import eslintReact from '@eslint-react/eslint-plugin';
 import nxPlugin from '@nx/eslint-plugin';
 import globals from 'globals';
@@ -17,7 +16,6 @@ import unicornPlugin from 'eslint-plugin-unicorn';
 export default typescriptEslint.config(
   js.configs.recommended,
   ...typescriptEslint.configs.recommended,
-  eslintPluginPrettierRecommended,
   {
     ignores: [
       '**/dist/',

@@ -1,0 +1,101 @@
+<!--
+APS Module: Release Management
+====================================
+Release cadence, changelog, and publish strategy.
+See: plans/aps-rules.md
+-->
+
+# Release Management
+
+| ID      | Owner | Status    |
+| ------- | ----- | --------- |
+| RELMGMT | —     | Draft |
+
+## Purpose
+
+Establish release management practices for the growing set of packages: npm
+packages (TypeScript), Rust crates, and the CLI. Covers release cadence,
+changelog governance, semver policy, and version coordination across
+monorepo packages.
+
+**Problem:** The project has npm packages, Rust crates, a CLI, a website,
+and a docs site — but no release management module. Releases happen ad-hoc
+via `release.ts`. There's no changelog governance, semver policy, or
+coordination between TypeScript and Rust release cycles.
+
+## In Scope
+
+- **Release cadence:** How often to release, what triggers a release
+- **Changelog governance:** Format (Keep a Changelog), automation, review
+- **Semver policy:** What constitutes major/minor/patch across packages
+- **Version coordination:** npm packages vs Rust crates — coupled or independent?
+- **Publish pipeline:** npm publish, cargo publish, Vercel deploy
+- **Pre-release strategy:** Alpha/beta/rc channels
+- **Release notes:** Auto-generated vs manual, communication strategy
+- **Breaking change process:** Migration guides, deprecation period
+
+## Out of Scope
+
+- CI/CD pipeline implementation (covered by CI modules)
+- Feature flags (separate concern)
+
+## Interfaces
+
+**Depends on:**
+
+- CI pipeline — automated release checks
+- All packages — version data
+
+**Exposes:**
+
+- Release policy document
+- Changelog format specification
+- Semver decision matrix
+
+## Estimated Scope
+
+- **Effort:** 1 week
+
+## Tasks
+
+### RELMGMT-001: Release cadence policy and triggers
+
+- **Status:** Draft
+- **Intent:** Define what triggers a release (feature-complete, schedule, hotfix)
+- **Expected Outcome:** Documented release cadence policy in docs/guides/
+- **Validation:** `cat docs/guides/release-policy.md | grep -q "cadence"`
+
+### RELMGMT-002: Changelog format specification and automation
+
+- **Status:** Draft
+- **Intent:** Standardise changelog format (Keep a Changelog) with automation
+- **Expected Outcome:** Auto-generated changelog entries from conventional commits
+- **Validation:** `pnpm changelog:generate` produces valid changelog
+
+### RELMGMT-003: Semver policy across npm + Rust packages
+
+- **Status:** Draft
+- **Intent:** Define what constitutes major/minor/patch for each package type
+- **Expected Outcome:** Semver decision matrix in docs/guides/
+- **Validation:** `cat docs/guides/semver-policy.md | grep -q "major"`
+
+### RELMGMT-004: Publish pipeline documentation
+
+- **Status:** Draft
+- **Intent:** Document the npm publish and cargo publish workflow
+- **Expected Outcome:** Step-by-step publish guide in release runbook
+- **Validation:** `grep -q "cargo publish" docs/guides/release-runbook.md`
+
+### RELMGMT-005: Pre-release channel strategy (alpha/beta/rc)
+
+- **Status:** Draft
+- **Intent:** Define alpha/beta/rc channels and when to promote between them
+- **Expected Outcome:** Channel strategy documented with promotion criteria
+- **Validation:** `cat docs/guides/release-policy.md | grep -q "alpha"`
+
+### RELMGMT-006: Breaking change process and migration guide template
+
+- **Status:** Draft
+- **Intent:** Standardise how breaking changes are communicated and migrated
+- **Expected Outcome:** Migration guide template and breaking change checklist
+- **Validation:** `ls docs/guides/migration-template.md`

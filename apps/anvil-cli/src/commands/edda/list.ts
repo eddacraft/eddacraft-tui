@@ -6,8 +6,10 @@ import {
   MemoryStore,
   MemoryStatusSchema,
   MemoryTypeSchema,
+  EddaConfidenceLevelSchema,
   type MemoryStatus,
   type MemoryType,
+  type EddaConfidenceLevel,
 } from '@eddacraft/anvil-edda-stack';
 import { createSpinner } from '../../utils/spinner.js';
 import { CliError, CliExit } from '../../utils/cli-error.js';
@@ -20,6 +22,8 @@ interface EddaListOptions {
   json?: boolean;
   type?: string;
   status?: string;
+  confidence?: string;
+  since?: string;
   limit: number;
 }
 
@@ -32,12 +36,22 @@ export function createEddaListCommand(): Command {
     .option('--json', 'Output as JSON')
     .option('--type <type>', 'Filter by memory type (comma-separated for multiple)')
     .option('--status <status>', 'Filter by memory status', 'active')
+    .option(
+      '--confidence <level>',
+      'Filter by confidence level(s) (low, medium, high; comma-separated for multiple)'
+    )
+    .option(
+      '--since <duration>',
+      'Filter by age; supports m (minutes), h (hours), d (days) (e.g. 30m, 24h, 7d, 30d)'
+    )
     .option('--limit <n>', 'Maximum memories to display', parseLimit, 20)
     .action(async (options: EddaListOptions) => {
       const workspaceRoot = getWorkspaceRoot();
       const storagePath = resolve(workspaceRoot, '.anvil', 'edda');
       const parsedTypes = parseTypes(options.type);
       const parsedStatus = parseStatus(options.status ?? 'active');
+      const parsedConfidence = parseConfidence(options.confidence);
+      const createdAfter = parseSince(options.since);
 
       if (!existsSync(storagePath)) {
         const message = `No Edda storage found at ${storagePath}`;
@@ -52,6 +66,8 @@ export function createEddaListCommand(): Command {
             filters: {
               status: parsedStatus,
               type: parsedTypes.length > 0 ? parsedTypes : null,
+              confidence: parsedConfidence.length > 0 ? parsedConfidence : null,
+              since: options.since ?? null,
             },
             memories: [],
           });
@@ -72,6 +88,8 @@ export function createEddaListCommand(): Command {
           const result = await store.queryMemories({
             types: parsedTypes.length > 0 ? parsedTypes : undefined,
             statuses: [parsedStatus],
+            confidence_levels: parsedConfidence.length > 0 ? parsedConfidence : undefined,
+            created_after: createdAfter,
             include_superseded: parsedStatus === 'superseded',
             limit: options.limit,
             offset: 0,
@@ -88,6 +106,8 @@ export function createEddaListCommand(): Command {
             filters: {
               status: parsedStatus,
               type: parsedTypes.length > 0 ? parsedTypes : null,
+              confidence: parsedConfidence.length > 0 ? parsedConfidence : null,
+              since: options.since ?? null,
             },
             memories: result.memories,
           });
@@ -106,6 +126,8 @@ export function createEddaListCommand(): Command {
         const result = await store.queryMemories({
           types: parsedTypes.length > 0 ? parsedTypes : undefined,
           statuses: [parsedStatus],
+          confidence_levels: parsedConfidence.length > 0 ? parsedConfidence : undefined,
+          created_after: createdAfter,
           include_superseded: parsedStatus === 'superseded',
           limit: options.limit,
           offset: 0,
@@ -115,11 +137,14 @@ export function createEddaListCommand(): Command {
 
         spinner.stop();
         print(chalk.bold('\nEdda Memories'));
-        print(
-          chalk.gray(
-            `${result.total} found  |  status: ${parsedStatus}  |  type: ${parsedTypes.length > 0 ? parsedTypes.join(', ') : 'all'}`
-          )
-        );
+        const filterParts = [
+          `status: ${parsedStatus}`,
+          `type: ${parsedTypes.length > 0 ? parsedTypes.join(', ') : 'all'}`,
+        ];
+        if (parsedConfidence.length > 0)
+          filterParts.push(`confidence: ${parsedConfidence.join(', ')}`);
+        if (options.since) filterParts.push(`since: ${options.since}`);
+        print(chalk.gray(`${result.total} found  |  ${filterParts.join('  |  ')}`));
         print(chalk.gray('─'.repeat(118)));
         print(
           chalk.cyan(
@@ -177,6 +202,33 @@ function parseStatus(value: string): MemoryStatus {
     throw new CliError(`Invalid memory status: ${value}`);
   }
   return parsed.data;
+}
+
+/** @internal Exported for testing. */
+export function parseConfidence(value?: string): EddaConfidenceLevel[] {
+  if (!value) return [];
+  return value.split(',').map((v) => {
+    const trimmed = v.trim();
+    const parsed = EddaConfidenceLevelSchema.safeParse(trimmed);
+    if (!parsed.success) {
+      throw new CliError(`Invalid confidence level: ${trimmed}. Valid values: low, medium, high`);
+    }
+    return parsed.data;
+  });
+}
+
+/** @internal Exported for testing. */
+export function parseSince(value?: string): string | undefined {
+  if (!value) return undefined;
+  const match = value.match(/^(\d+)([dhm])$/);
+  if (!match) {
+    throw new CliError(`Invalid --since format: ${value}. Use e.g. 7d, 24h, 30m`);
+  }
+  const amount = Number(match[1]);
+  const unit = match[2];
+  const now = Date.now();
+  const ms = unit === 'd' ? amount * 86400000 : unit === 'h' ? amount * 3600000 : amount * 60000;
+  return new Date(now - ms).toISOString();
 }
 
 function truncate(value: string, width: number): string {

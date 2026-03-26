@@ -38,7 +38,7 @@
     "@eddacraft/anvil-core": "workspace:*",
     "@eddacraft/anvil-policy": "workspace:*",
     "chokidar": "^5.0.0",
-    "eslint": "^10.0.3",
+    "eslint": "^10.1.0",
     "glob": "^13.0.0",
     "minimatch": "^10.2.3",
     "shell-quote": "^1.8.3",
@@ -46,7 +46,7 @@
   },
   "devDependencies": {
     "@types/shell-quote": "^1.7.5",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.1"
   },
   "files": [
     "dist",

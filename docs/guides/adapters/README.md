@@ -84,7 +84,7 @@ Step-by-step process for building a new adapter.
 ### BMAD Adapter (Planned)
 
 **Status:** Planning phase **PRD:** In development **Templates:**
-[BMAD Templates](../../formats/bmad-templates.md)
+[BMAD Templates](../../archive/bmad-adapter-spec.md)
 
 ## Key Concepts
 
@@ -311,4 +311,4 @@ const change = {
 - [Back to Guides](../README.md)
 - [Adapter Workflow Guide](workflow-guide.md)
 - [Package Documentation](../../../packages/adapters/README.md)
-- [Documentation Index](../../INDEX.md)
+- [Documentation Index](../README.md)

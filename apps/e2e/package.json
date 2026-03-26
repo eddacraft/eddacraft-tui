@@ -22,12 +22,12 @@
     "@eddacraft/anvil-adapters": "workspace:*",
     "@eddacraft/anvil-mcp-server": "workspace:*",
     "@eddacraft/anvil-edda-stack": "workspace:*",
-    "hono": "^4.12.7",
+    "hono": "^4.12.9",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.4.0",
-    "vitest": "^4.0.18",
-    "typescript": "~5.9.3"
+    "@types/node": "^25.5.0",
+    "vitest": "^4.1.1",
+    "typescript": "~6.0.0"
   }
 }

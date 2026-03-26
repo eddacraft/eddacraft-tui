@@ -65,6 +65,30 @@ export async function adminRevoke(email: string): Promise<RevokeResponse> {
   return RevokeResponseSchema.parse(raw);
 }
 
+const ApproveResponseSchema = z.object({
+  approved: z.array(
+    z.object({
+      email: z.string(),
+      expiresAt: z.string(),
+    })
+  ),
+});
+
+export type ApproveResponse = z.infer<typeof ApproveResponseSchema>;
+
+export async function adminApprove(
+  params: { email: string } | { batch: number }
+): Promise<ApproveResponse> {
+  const raw = await apiRequest<unknown>({
+    method: 'POST',
+    path: '/api/v1/admin/approve',
+    body: params,
+    token: getAdminKey(),
+    operationName: 'Admin approve',
+  });
+  return ApproveResponseSchema.parse(raw);
+}
+
 export async function adminGetUser(email: string): Promise<UserResponse> {
   const raw = await apiRequest<unknown>({
     method: 'GET',

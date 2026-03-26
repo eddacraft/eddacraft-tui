@@ -1,0 +1,715 @@
+use std::io::IsTerminal;
+use std::path::Path;
+
+use anvil_tui::surfaces::status::{
+    GateRunResult, HookStatus, ProfileInfo, StatusData, StatusState,
+};
+use clap::Args;
+use serde::Serialize;
+
+use crate::GlobalArgs;
+
+#[derive(Debug, Args)]
+pub struct StatusArgs {}
+
+pub fn run(_args: &StatusArgs, global: &GlobalArgs) -> anyhow::Result<()> {
+    let data = gather_status_data(".");
+
+    if global.json {
+        print_json(&data)?;
+    } else if !global.no_tui && std::io::stdout().is_terminal() {
+        let state = StatusState::new(data);
+        crate::tui::run_surface(state)?;
+    } else {
+        print_plain(&data);
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Data gathering
+// ---------------------------------------------------------------------------
+
+fn gather_status_data(root: &str) -> StatusData {
+    let root = Path::new(root);
+    StatusData {
+        hooks: gather_hooks(root),
+        profile: gather_profile(root),
+        recent_runs: gather_recent_runs(root),
+    }
+}
+
+/// Check well-known hook locations and report whether each is active.
+fn gather_hooks(root: &Path) -> Vec<HookStatus> {
+    let candidates = [
+        ("pre-commit", ".husky/pre-commit"),
+        ("pre-push", ".husky/pre-push"),
+        ("post-merge", ".husky/post-merge"),
+    ];
+
+    let mut hooks: Vec<HookStatus> = candidates
+        .iter()
+        .map(|(name, rel)| {
+            let full = root.join(rel);
+            let active = is_executable(&full);
+            HookStatus {
+                name: (*name).to_string(),
+                active,
+                path: if full.exists() {
+                    rel.to_string()
+                } else {
+                    String::new()
+                },
+            }
+        })
+        .collect();
+
+    // Fallback: bare git hook if no husky pre-commit was found.
+    // Resolve worktree `.git` files (pointer to real git dir) so hooks are
+    // found regardless of checkout type.
+    let has_husky_precommit = hooks.iter().any(|h| h.name == "pre-commit" && h.active);
+
+    if !has_husky_precommit {
+        let git_dir = resolve_git_dir(root);
+        let git_hook = git_dir.join("hooks/pre-commit");
+        if git_hook.exists() {
+            let rel = match git_hook.strip_prefix(root) {
+                Ok(p) => p.to_string_lossy().into_owned(),
+                Err(_) => git_hook.to_string_lossy().into_owned(),
+            };
+            let active = is_executable(&git_hook);
+            hooks.push(HookStatus {
+                name: "pre-commit".to_string(),
+                active,
+                path: rel,
+            });
+        }
+    }
+
+    hooks
+}
+
+/// Read `.anvilrc` for profile configuration.
+fn gather_profile(root: &Path) -> ProfileInfo {
+    let rc_path = root.join(".anvilrc");
+
+    let Ok(contents) = std::fs::read_to_string(&rc_path) else {
+        return ProfileInfo {
+            name: "(no config)".to_string(),
+            checks: vec![],
+            path: ".anvilrc".to_string(),
+        };
+    };
+
+    // Try JSON first, then fall back to simple YAML/TOML key extraction
+    // (init can generate any of the three formats).
+    let checks = if let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) {
+        value
+            .get("checks")
+            .and_then(serde_json::Value::as_array)
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(serde_json::Value::as_str)
+                    .map(String::from)
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else if contents.contains("schemaVersion:") || contents.contains("schema_version =") {
+        // Recognised YAML or TOML format — extract checks.
+        parse_checks_from_text(&contents)
+    } else {
+        return ProfileInfo {
+            name: "(invalid config)".to_string(),
+            checks: vec![],
+            path: ".anvilrc".to_string(),
+        };
+    };
+
+    ProfileInfo {
+        name: "default".to_string(),
+        checks,
+        path: ".anvilrc".to_string(),
+    }
+}
+
+/// Read the most recent gate runs from the cache index.
+fn gather_recent_runs(root: &Path) -> Vec<GateRunResult> {
+    let index_path = root.join(".anvil/cache/index.json");
+    let cache_dir = root.join(".anvil/cache");
+
+    let Ok(contents) = std::fs::read_to_string(&index_path) else {
+        return vec![];
+    };
+
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(&contents) else {
+        return vec![];
+    };
+
+    let Some(entries) = value.get("entries").and_then(serde_json::Value::as_object) else {
+        return vec![];
+    };
+
+    let mut runs: Vec<GateRunResult> = entries
+        .iter()
+        .filter_map(|(key, val)| {
+            // Try loading the actual entry file for full gate results.
+            // The index entry only has metadata (file, created_at, expires_at, size_bytes).
+            if let Some(file) = val.get("file").and_then(serde_json::Value::as_str)
+                && !file.contains('/')
+                && !file.contains('\\')
+                && file != ".."
+                && file != "."
+            {
+                // Try entries/ subdirectory (workspace FileCacheProvider format)
+                // then cache root (standalone format).
+                let entry_path = cache_dir.join("entries").join(file);
+                let entry_path = if entry_path.exists() {
+                    entry_path
+                } else {
+                    cache_dir.join(file)
+                };
+                if let Ok(entry_contents) = std::fs::read_to_string(entry_path) {
+                    // Workspace FileCacheProvider writes entries as
+                    // <64-hex-hmac>\n<json>. Skip the HMAC prefix.
+                    let json_str = if entry_contents.len() > 65
+                        && entry_contents.as_bytes()[64] == b'\n'
+                        && entry_contents[..64].chars().all(|c| c.is_ascii_hexdigit())
+                    {
+                        &entry_contents[65..]
+                    } else {
+                        &entry_contents
+                    };
+                    if let Ok(entry_val) = serde_json::from_str::<serde_json::Value>(json_str) {
+                        let gate_val = entry_val.get("value").unwrap_or(&entry_val);
+                        return parse_gate_entry(key, gate_val);
+                    }
+                }
+            }
+            // Fall back to parsing the index entry directly.
+            parse_gate_entry(key, val)
+        })
+        .collect();
+
+    // Sort by timestamp descending, take 5 most recent.
+    runs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    runs.truncate(5);
+    runs
+}
+
+fn parse_gate_entry(key: &str, val: &serde_json::Value) -> Option<GateRunResult> {
+    // Try timestamp from the last colon-separated segment of the key.
+    // Falls back to `created_at` field in the entry metadata (used by the
+    // runtime file-cache provider whose keys are `gate:check:<name>:<hash>`).
+    let ts: i64 = key
+        .rsplit(':')
+        .next()
+        .and_then(|s| s.parse().ok())
+        .or_else(|| {
+            // Runtime file-cache writes created_at as Date.now() (milliseconds).
+            val.get("created_at")
+                .and_then(serde_json::Value::as_i64)
+                .map(|ms| ms / 1000)
+        })?;
+
+    let timestamp = format_unix_timestamp(ts);
+
+    let passed = val
+        .get("passed")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    let score = val
+        .get("score")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0);
+    #[allow(clippy::cast_possible_truncation)]
+    let checks_run = val
+        .get("checksRun")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0) as usize;
+    #[allow(clippy::cast_possible_truncation)]
+    let checks_passed = val
+        .get("checksPassed")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0) as usize;
+    let duration_ms = val
+        .get("durationMs")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+
+    Some(GateRunResult {
+        timestamp,
+        passed,
+        score,
+        checks_run,
+        checks_passed,
+        duration_ms,
+    })
+}
+
+/// Format a Unix timestamp as `YYYY-MM-DD HH:MM` (UTC, no external crate).
+fn format_unix_timestamp(secs: i64) -> String {
+    // Days from epoch algorithm (civil from days).
+    let days_since_epoch = secs.div_euclid(86400);
+    let time_of_day = secs.rem_euclid(86400);
+
+    let hours = time_of_day / 3600;
+    let minutes = (time_of_day % 3600) / 60;
+
+    // Algorithm from Howard Hinnant's date library (public domain).
+    let z = days_since_epoch + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+
+    format!("{y:04}-{m:02}-{d:02} {hours:02}:{minutes:02}")
+}
+
+// ---------------------------------------------------------------------------
+// Config parsing helpers
+// ---------------------------------------------------------------------------
+
+/// Extract check names from YAML or TOML config text.
+fn parse_checks_from_text(text: &str) -> Vec<String> {
+    let mut checks = Vec::new();
+    let mut in_checks = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("checks") {
+            in_checks = true;
+            // TOML inline: checks = ["a", "b"]
+            if let Some(bracket) = trimmed.find('[') {
+                for item in trimmed[bracket..].split('"') {
+                    let item = item
+                        .trim()
+                        .trim_matches(|c| c == '[' || c == ']' || c == ',');
+                    if !item.is_empty()
+                        && item != ","
+                        && !item.starts_with('[')
+                        && !item.starts_with(']')
+                    {
+                        checks.push(item.to_string());
+                    }
+                }
+                in_checks = false;
+            }
+            continue;
+        }
+        if in_checks {
+            // YAML list item: `  - "name"` or `  - name`
+            if let Some(rest) = trimmed.strip_prefix("- ") {
+                let name = rest.trim().trim_matches('"');
+                if !name.is_empty() {
+                    checks.push(name.to_string());
+                }
+            } else if !trimmed.starts_with('-') && !trimmed.is_empty() {
+                in_checks = false;
+            }
+        }
+    }
+    checks
+}
+
+// ---------------------------------------------------------------------------
+// Git helpers
+// ---------------------------------------------------------------------------
+
+/// Resolve the actual git directory. In worktrees, `.git` is a file containing
+/// `gitdir: <path>` rather than a directory.
+fn resolve_git_dir(root: &Path) -> std::path::PathBuf {
+    let dot_git = root.join(".git");
+    if dot_git.is_file()
+        && let Ok(content) = std::fs::read_to_string(&dot_git)
+        && let Some(path) = content.strip_prefix("gitdir: ")
+    {
+        let path = path.trim();
+        return if Path::new(path).is_absolute() {
+            std::path::PathBuf::from(path)
+        } else {
+            root.join(path)
+        };
+    }
+    dot_git
+}
+
+// ---------------------------------------------------------------------------
+// Platform helpers
+// ---------------------------------------------------------------------------
+
+#[cfg(unix)]
+fn is_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    path.metadata()
+        .map(|m| m.permissions().mode() & 0o111 != 0)
+        .unwrap_or(false)
+}
+
+#[cfg(not(unix))]
+fn is_executable(path: &Path) -> bool {
+    path.exists()
+}
+
+// ---------------------------------------------------------------------------
+// Output: plain text
+// ---------------------------------------------------------------------------
+
+fn print_plain(data: &StatusData) {
+    println!("ANVIL STATUS\n");
+
+    println!("HOOKS");
+    for hook in &data.hooks {
+        let (icon, label) = if hook.active {
+            ("\u{2713}", "active")
+        } else if hook.path.is_empty() {
+            ("\u{25cb}", "missing")
+        } else {
+            ("\u{2717}", "inactive")
+        };
+
+        if hook.path.is_empty() {
+            println!("  {icon} {:<14} {label}", hook.name);
+        } else {
+            println!("  {icon} {:<14} {:<10} {}", hook.name, label, hook.path);
+        }
+    }
+
+    println!();
+    println!("PROFILE: {}", data.profile.name);
+    if data.profile.checks.is_empty() {
+        println!("  Checks: (none)");
+    } else {
+        println!("  Checks: {}", data.profile.checks.join(", "));
+    }
+    println!("  Config: {}", data.profile.path);
+
+    println!();
+    println!("RECENT RUNS");
+    if data.recent_runs.is_empty() {
+        println!("  (no recent runs)");
+    } else {
+        for run in &data.recent_runs {
+            let icon = if run.passed { "\u{2713}" } else { "\u{2717}" };
+            println!(
+                "  {icon} {}  {}/{} checks  {:.2}  {}ms",
+                run.timestamp, run.checks_passed, run.checks_run, run.score, run.duration_ms,
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Output: JSON
+// ---------------------------------------------------------------------------
+
+#[derive(Serialize)]
+struct StatusOutput {
+    hooks: Vec<HookOutput>,
+    profile: ProfileOutput,
+    recent_runs: Vec<RunOutput>,
+}
+
+#[derive(Serialize)]
+struct HookOutput {
+    name: String,
+    active: bool,
+    path: String,
+}
+
+#[derive(Serialize)]
+struct ProfileOutput {
+    name: String,
+    checks: Vec<String>,
+    path: String,
+}
+
+#[derive(Serialize)]
+struct RunOutput {
+    timestamp: String,
+    passed: bool,
+    score: f64,
+    checks_run: usize,
+    checks_passed: usize,
+    duration_ms: u64,
+}
+
+fn print_json(data: &StatusData) -> anyhow::Result<()> {
+    let output = StatusOutput {
+        hooks: data
+            .hooks
+            .iter()
+            .map(|h| HookOutput {
+                name: h.name.clone(),
+                active: h.active,
+                path: h.path.clone(),
+            })
+            .collect(),
+        profile: ProfileOutput {
+            name: data.profile.name.clone(),
+            checks: data.profile.checks.clone(),
+            path: data.profile.path.clone(),
+        },
+        recent_runs: data
+            .recent_runs
+            .iter()
+            .map(|r| RunOutput {
+                timestamp: r.timestamp.clone(),
+                passed: r.passed,
+                score: r.score,
+                checks_run: r.checks_run,
+                checks_passed: r.checks_passed,
+                duration_ms: r.duration_ms,
+            })
+            .collect(),
+    };
+
+    let json = serde_json::to_string_pretty(&output)?;
+    println!("{json}");
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+
+    fn make_temp_dir() -> std::path::PathBuf {
+        let id = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir =
+            std::env::temp_dir().join(format!("anvil-status-test-{}-{id}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        dir
+    }
+
+    fn cleanup(dir: &Path) {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn gather_empty_directory() {
+        let dir = make_temp_dir();
+        let data = gather_status_data(dir.to_str().unwrap());
+        // All hooks should be inactive/missing.
+        assert!(data.hooks.iter().all(|h| !h.active));
+        // Profile should show no config.
+        assert_eq!(data.profile.name, "(no config)");
+        assert!(data.profile.checks.is_empty());
+        // No recent runs.
+        assert!(data.recent_runs.is_empty());
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn gather_with_anvilrc() {
+        let dir = make_temp_dir();
+        std::fs::write(
+            dir.join(".anvilrc"),
+            r#"{"checks": ["secret-detection", "import-boundaries"], "format": "yaml"}"#,
+        )
+        .unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.profile.name, "default");
+        assert_eq!(data.profile.checks.len(), 2);
+        assert_eq!(data.profile.checks[0], "secret-detection");
+        assert_eq!(data.profile.checks[1], "import-boundaries");
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn gather_with_invalid_anvilrc() {
+        let dir = make_temp_dir();
+        std::fs::write(dir.join(".anvilrc"), "not json at all").unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.profile.name, "(invalid config)");
+        assert!(data.profile.checks.is_empty());
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn gather_with_cache_index() {
+        let dir = make_temp_dir();
+        let cache_dir = dir.join(".anvil/cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        std::fs::write(
+            cache_dir.join("index.json"),
+            r#"{
+                "entries": {
+                    "gate:plan.md:1710000000": {
+                        "passed": true,
+                        "score": 0.95,
+                        "checksRun": 8,
+                        "checksPassed": 8,
+                        "durationMs": 1850
+                    },
+                    "gate:plan.md:1709990000": {
+                        "passed": false,
+                        "score": 0.75,
+                        "checksRun": 8,
+                        "checksPassed": 6,
+                        "durationMs": 2100
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.recent_runs.len(), 2);
+        // Most recent first.
+        assert!(data.recent_runs[0].passed);
+        assert!(!data.recent_runs[1].passed);
+        assert_eq!(data.recent_runs[0].checks_passed, 8);
+        assert_eq!(data.recent_runs[1].checks_passed, 6);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn gather_with_file_cache_entries_subdir() {
+        let dir = make_temp_dir();
+        let cache_dir = dir.join(".anvil/cache");
+        let entries_dir = cache_dir.join("entries");
+        std::fs::create_dir_all(&entries_dir).unwrap();
+        std::fs::write(
+            cache_dir.join("index.json"),
+            r#"{
+                "entries": {
+                    "gate:plan.md:1710000000": {
+                        "file": "abc123.json",
+                        "created_at": 1710000000000,
+                        "size_bytes": 128
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            entries_dir.join("abc123.json"),
+            format!(
+                "{}\n{}",
+                "a".repeat(64),
+                r#"{"value":{"passed":true,"score":0.9,"checksRun":3,"checksPassed":3,"durationMs":1200}}"#
+            ),
+        )
+        .unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.recent_runs.len(), 1);
+        assert!(data.recent_runs[0].passed);
+        assert_eq!(data.recent_runs[0].checks_run, 3);
+        assert_eq!(data.recent_runs[0].checks_passed, 3);
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn gather_with_file_cache_entries_root() {
+        let dir = make_temp_dir();
+        let cache_dir = dir.join(".anvil/cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+        std::fs::write(
+            cache_dir.join("index.json"),
+            r#"{
+                "entries": {
+                    "gate:plan.md:1710001000": {
+                        "file": "root-entry.json",
+                        "created_at": 1710001000000,
+                        "size_bytes": 128
+                    }
+                }
+            }"#,
+        )
+        .unwrap();
+        std::fs::write(
+            cache_dir.join("root-entry.json"),
+            format!(
+                "{}\n{}",
+                "b".repeat(64),
+                r#"{"value":{"passed":false,"score":0.5,"checksRun":4,"checksPassed":2,"durationMs":900}}"#
+            ),
+        )
+        .unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.recent_runs.len(), 1);
+        assert!(!data.recent_runs[0].passed);
+        assert_eq!(data.recent_runs[0].checks_run, 4);
+        assert_eq!(data.recent_runs[0].checks_passed, 2);
+
+        cleanup(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn gather_hooks_with_executable() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = make_temp_dir();
+        let husky_dir = dir.join(".husky");
+        std::fs::create_dir_all(&husky_dir).unwrap();
+
+        let hook_path = husky_dir.join("pre-commit");
+        std::fs::write(&hook_path, "#!/bin/sh\nexit 0").unwrap();
+        std::fs::set_permissions(&hook_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let hooks = gather_hooks(&dir);
+        let pre_commit = hooks.iter().find(|h| h.name == "pre-commit").unwrap();
+        assert!(pre_commit.active);
+        assert_eq!(pre_commit.path, ".husky/pre-commit");
+
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn format_timestamp_known_value() {
+        // 2024-03-10 00:00:00 UTC = 1710028800
+        let formatted = format_unix_timestamp(1_710_028_800);
+        assert_eq!(formatted, "2024-03-10 00:00");
+    }
+
+    #[test]
+    fn truncates_to_five_runs() {
+        use std::fmt::Write;
+
+        let dir = make_temp_dir();
+        let cache_dir = dir.join(".anvil/cache");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let mut entries = String::from("{\"entries\":{");
+        for i in 0..8 {
+            if i > 0 {
+                entries.push(',');
+            }
+            let ts = 1_710_000_000 + i * 1000;
+            let _ = write!(
+                entries,
+                "\"gate:f.md:{ts}\":{{\"passed\":true,\"score\":0.9,\"checksRun\":1,\"checksPassed\":1,\"durationMs\":100}}"
+            );
+        }
+        entries.push_str("}}");
+        std::fs::write(cache_dir.join("index.json"), &entries).unwrap();
+
+        let data = gather_status_data(dir.to_str().unwrap());
+        assert_eq!(data.recent_runs.len(), 5);
+
+        cleanup(&dir);
+    }
+}

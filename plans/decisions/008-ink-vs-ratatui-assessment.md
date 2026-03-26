@@ -6,7 +6,7 @@
 > the "two languages" argument against Ratatui dissolves. The Ratatui TUI is now
 > planned as [RATS — Ratatui TUI](../modules/ratatui-tui.aps.md). The analysis
 > below remains valuable reference material. See also
-> [ADR-011](./011-rust-core-engine.md) (itself superseded).
+> [ADR-011a](./011a-rust-core-engine.md) (itself superseded).
 
 ## Executive Summary
 

@@ -4,15 +4,13 @@
  */
 
 import js from '@eslint/js';
-import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 
 /**
- * Base configuration with JavaScript and Prettier rules
+ * Base configuration with JavaScript rules
  */
 export const baseConfig = [
   js.configs.recommended,
-  eslintPluginPrettierRecommended,
   {
     ignores: [
       '**/dist/',

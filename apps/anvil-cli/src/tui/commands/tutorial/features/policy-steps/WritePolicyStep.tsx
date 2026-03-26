@@ -56,10 +56,10 @@ export function WritePolicyStep(): React.ReactElement {
       }
 
       writeFileSync(policyPath, POLICY_REGO, 'utf-8');
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      // eslint-disable-next-line @eslint-react/set-state-in-effect
       setWritten(true);
     } catch {
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      // eslint-disable-next-line @eslint-react/set-state-in-effect
       setWritten(true);
     }
   }, []);

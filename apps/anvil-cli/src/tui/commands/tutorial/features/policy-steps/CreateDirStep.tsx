@@ -15,15 +15,15 @@ export function CreateDirStep(): React.ReactElement {
       const policyDir = join(workspaceRoot, '.anvil', 'policies');
 
       if (existsSync(policyDir)) {
-        // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+        // eslint-disable-next-line @eslint-react/set-state-in-effect
         setAlreadyExisted(true);
       } else {
         mkdirSync(policyDir, { recursive: true });
       }
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      // eslint-disable-next-line @eslint-react/set-state-in-effect
       setCreated(true);
     } catch {
-      // eslint-disable-next-line @eslint-react/hooks-extra/no-direct-set-state-in-use-effect
+      // eslint-disable-next-line @eslint-react/set-state-in-effect
       setCreated(true);
     }
   }, []);

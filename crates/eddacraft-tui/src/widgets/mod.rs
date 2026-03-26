@@ -5,8 +5,6 @@ pub mod header;
 pub mod log_panel;
 pub mod parallel_progress;
 pub mod progress_bar;
-pub mod quick_wins_panel;
-pub mod results_dashboard;
 pub mod select;
 pub mod spinner;
 pub mod status_badge;
