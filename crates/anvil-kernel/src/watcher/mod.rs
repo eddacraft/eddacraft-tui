@@ -78,14 +78,15 @@ fn watch_directories(
     Ok(())
 }
 
-/// Starts watching the given directory and sends `ChangeBatch` events
-/// to the returned receiver. Runs until the watcher handle is dropped.
-/// Handle returned by `start_watcher` — keeps the OS watcher alive.
-/// Drop to stop watching.
+/// Handle returned by [`start_watcher`] — keeps the OS watcher alive.
+/// The `Arc<Mutex>` is shared with the event-processing thread so it can
+/// register newly created directories at runtime. Drop to stop watching.
 pub struct WatcherHandle {
     _watcher: Arc<Mutex<RecommendedWatcher>>,
 }
 
+/// Starts watching the given directory and sends [`ChangeBatch`] events
+/// to the returned receiver. Runs until the [`WatcherHandle`] is dropped.
 pub fn start_watcher(
     config: &WatcherConfig,
 ) -> Result<(WatcherHandle, mpsc::Receiver<ChangeBatch>), WatcherError> {
@@ -129,12 +130,18 @@ pub fn start_watcher(
                         };
 
                         // Register newly created directories for watching so
-                        // files created inside them are picked up.
+                        // files created inside them are picked up. Uses
+                        // symlink_metadata to avoid following symlinks that
+                        // could point outside the project root.
                         if kind == ChangeKind::Created
-                            && path.is_dir()
+                            && path.symlink_metadata().is_ok_and(|m| m.is_dir())
                             && !thread_filter.should_ignore(&path)
                             && let Ok(mut w) = watcher_for_thread.lock()
                         {
+                            // Silently discard watch errors — the directory may
+                            // have been deleted between the Create event and now
+                            // (race with rapid create/delete cycles). This is
+                            // benign; the next create will retry.
                             let _ = w.watch(&path, RecursiveMode::NonRecursive);
                         }
 
