@@ -26,7 +26,7 @@ const TAGLINE: &str = "Structural governance for AI-assisted development";
 const PAD: &str = "    ";
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
-    // Fixed content height: logo(7) + blank(1) + tagline(1) + spacer(2) + menu items(2*N-1) + status(2)
+    // Fixed content height: logo(7) + blank(1) + tagline(1) + spacer(2) + menu items(3*N-1) + status(2)
     let menu_item_count = QuickStartOption::ALL.len();
     let menu_height = menu_item_count * 3 - 1; // 2 lines per item + 1 blank between
     let status_height: usize = if state.status_message.is_some() { 2 } else { 0 };
