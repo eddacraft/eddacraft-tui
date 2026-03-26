@@ -72,8 +72,8 @@ jobs:
     # Only run cross-compilation on PRs targeting main or pushes to main.
     # Feature branch PRs get check + test + clippy + format only.
     if: >-
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' && github.base_ref == 'main')
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name ==
+      'pull_request' && github.base_ref == 'main')
     runs-on: ${{ matrix.os }}
     needs: check
     strategy:

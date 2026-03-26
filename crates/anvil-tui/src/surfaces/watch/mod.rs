@@ -1,6 +1,8 @@
 pub mod event_adapter;
 pub mod render;
 
+use std::collections::VecDeque;
+
 use eddacraft_tui::keyboard::Action;
 
 /// Current watch mode status.
@@ -63,7 +65,7 @@ pub struct WatchStats {
 #[derive(Debug, Clone)]
 pub struct WatchData {
     pub status: WatchStatus,
-    pub queue: Vec<QueuedChange>,
+    pub queue: VecDeque<QueuedChange>,
     pub history: Vec<RunHistory>,
     pub stats: WatchStats,
 }
@@ -115,6 +117,10 @@ pub struct WatchState {
     pub focused_panel: WatchPanel,
     pub selected_item: usize,
     pub should_quit: bool,
+    pub wants_back: bool,
+    /// Set when state changes; consumed by `take_dirty()` before redraw.
+    /// Use `mark_dirty()` / `take_dirty()` — field is crate-visible for tests.
+    pub(crate) dirty: bool,
 }
 
 impl WatchState {
@@ -123,7 +129,7 @@ impl WatchState {
     }
 
     pub fn help_text(&self) -> &'static str {
-        "h/l j/k panels  q quit"
+        "h/l j/k panels  esc back  q quit"
     }
 
     pub fn new(data: WatchData) -> Self {
@@ -132,7 +138,25 @@ impl WatchState {
             focused_panel: WatchPanel::Status,
             selected_item: 0,
             should_quit: false,
+            wants_back: false,
+            dirty: true, // render immediately on first frame
         }
+    }
+
+    /// Mark state as needing a redraw.
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
+
+    /// Whether a redraw is pending.
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    /// Consume the dirty flag, returning whether a redraw is needed.
+    /// Clears the flag immediately — call this right before rendering.
+    pub fn take_dirty(&mut self) -> bool {
+        std::mem::replace(&mut self.dirty, false)
     }
 
     fn max_items_in_panel(&self) -> usize {
@@ -148,32 +172,43 @@ impl WatchState {
             Action::Up => {
                 if self.selected_item > 0 {
                     self.selected_item -= 1;
+                    self.mark_dirty();
                 }
             }
             Action::Down => {
                 let max = self.max_items_in_panel().saturating_sub(1);
                 if self.selected_item < max {
                     self.selected_item += 1;
+                    self.mark_dirty();
                 }
             }
             Action::Right => {
                 self.focused_panel = self.focused_panel.right();
                 self.selected_item = 0;
+                self.mark_dirty();
             }
             Action::Left => {
                 self.focused_panel = self.focused_panel.left();
                 self.selected_item = 0;
+                self.mark_dirty();
             }
             Action::PageDown => {
                 self.focused_panel = self.focused_panel.down();
                 self.selected_item = 0;
+                self.mark_dirty();
             }
             Action::PageUp => {
                 self.focused_panel = self.focused_panel.up();
                 self.selected_item = 0;
+                self.mark_dirty();
+            }
+            Action::Back => {
+                self.wants_back = true;
+                self.mark_dirty();
             }
             Action::Quit => {
                 self.should_quit = true;
+                self.mark_dirty();
             }
             _ => {}
         }
@@ -186,7 +221,7 @@ impl crate::surface::Surface for WatchState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  PgUp/PgDn row  q quit"
+        "j/k navigate  h/l switch panel  PgUp/PgDn row  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: eddacraft_tui::keyboard::Action) {
@@ -195,6 +230,16 @@ impl crate::surface::Surface for WatchState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
+        self.dirty = true; // ensure first frame renders on re-entry
     }
 
     fn render(
@@ -214,7 +259,7 @@ mod tests {
     fn sample_data() -> WatchData {
         WatchData {
             status: WatchStatus::Passing,
-            queue: vec![
+            queue: VecDeque::from([
                 QueuedChange {
                     file: "src/main.rs".to_string(),
                     kind: "modified".to_string(),
@@ -225,7 +270,7 @@ mod tests {
                     kind: "created".to_string(),
                     timestamp: "10:30:02".to_string(),
                 },
-            ],
+            ]),
             history: vec![
                 RunHistory {
                     passed: true,
@@ -378,5 +423,127 @@ mod tests {
         let mut state = WatchState::new(sample_data());
         state.handle_key(Action::Quit);
         assert!(state.should_quit);
+    }
+
+    #[test]
+    fn quit_sets_dirty_for_final_frame() {
+        let mut state = WatchState::new(sample_data());
+        state.dirty = false;
+        state.handle_key(Action::Quit);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn new_state_is_dirty() {
+        let state = WatchState::new(sample_data());
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn take_dirty_clears_flag() {
+        let mut state = WatchState::new(sample_data());
+        assert!(state.take_dirty());
+        assert!(!state.dirty);
+        assert!(!state.take_dirty());
+    }
+
+    #[test]
+    fn key_navigation_sets_dirty() {
+        let mut state = WatchState::new(sample_data());
+        state.dirty = false;
+
+        state.handle_key(Action::Right);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::Left);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::PageDown);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::PageUp);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn item_scroll_sets_dirty() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.dirty = false;
+
+        state.handle_key(Action::Down);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::Up);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn noop_scroll_stays_clean_queue() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.selected_item = 0;
+        state.dirty = false;
+
+        // Up at top — no change
+        state.handle_key(Action::Up);
+        assert!(!state.dirty);
+
+        // Down to max
+        state.selected_item = state.data.queue.len() - 1;
+        state.dirty = false;
+        state.handle_key(Action::Down);
+        assert!(!state.dirty);
+    }
+
+    #[test]
+    fn noop_scroll_stays_clean_history() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::History;
+        state.selected_item = 0;
+        state.dirty = false;
+
+        // Up at top — no change
+        state.handle_key(Action::Up);
+        assert!(!state.dirty);
+
+        // Down to max
+        state.selected_item = state.data.history.len() - 1;
+        state.dirty = false;
+        state.handle_key(Action::Down);
+        assert!(!state.dirty);
+    }
+
+    #[test]
+    fn mark_dirty_sets_flag() {
+        let mut state = WatchState::new(sample_data());
+        state.dirty = false;
+        state.mark_dirty();
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn back_sets_wants_back() {
+        let mut state = WatchState::new(sample_data());
+        state.handle_key(Action::Back);
+        assert!(state.wants_back);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn reset_clears_back_and_quit() {
+        use crate::surface::Surface;
+        let mut state = WatchState::new(sample_data());
+        state.should_quit = true;
+        state.wants_back = true;
+        state.dirty = false;
+        state.reset();
+        assert!(!state.should_quit);
+        assert!(!state.wants_back);
+        assert!(state.dirty); // reset restores dirty for re-entry
     }
 }

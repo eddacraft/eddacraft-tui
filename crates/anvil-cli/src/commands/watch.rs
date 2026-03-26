@@ -172,7 +172,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         let state =
             anvil_tui::surfaces::watch::WatchState::new(anvil_tui::surfaces::watch::WatchData {
                 status: anvil_tui::surfaces::watch::WatchStatus::Idle,
-                queue: Vec::new(),
+                queue: std::collections::VecDeque::new(),
                 history: Vec::new(),
                 stats: anvil_tui::surfaces::watch::WatchStats {
                     total_runs: 0,

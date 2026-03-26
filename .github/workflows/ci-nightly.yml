@@ -22,7 +22,7 @@ permissions:
 jobs:
   # ── Cross-platform smoke tests ─────────────────────────────────
   test-cross-platform:
-    name: Unit Tests (Node 20.x, ${{ matrix.os }})
+    name: Unit Tests (Node 22.x, ${{ matrix.os }})
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -40,7 +40,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
-      - name: Setup Node.js 20.x
+      - name: Setup Node.js 22.x
         uses: actions/setup-node@v4
         with:
           node-version: 22.x

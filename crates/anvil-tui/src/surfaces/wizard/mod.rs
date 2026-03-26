@@ -79,6 +79,7 @@ pub struct WizardState {
     pub config_selected: usize,
     pub text_input: TextInputState,
     pub should_quit: bool,
+    pub wants_back: bool,
     pub confirmed: bool,
 }
 
@@ -89,7 +90,7 @@ impl WizardState {
 
     pub fn help_text(&self) -> &'static str {
         match self.step {
-            WizardStep::TemplateSelect => "j/k navigate  enter select  q quit",
+            WizardStep::TemplateSelect => "j/k navigate  enter select  esc back  q quit",
             WizardStep::ProjectName => "type name  enter next  esc back  q quit",
             WizardStep::Configure => "j/k navigate  space toggle  enter next  esc back  q quit",
             WizardStep::Summary => "enter confirm  esc back  q quit",
@@ -105,6 +106,7 @@ impl WizardState {
             config_selected: 0,
             text_input: TextInputState::default(),
             should_quit: false,
+            wants_back: false,
             confirmed: false,
         }
     }
@@ -136,6 +138,7 @@ impl WizardState {
                     self.step = WizardStep::ProjectName;
                 }
             }
+            Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -219,7 +222,7 @@ impl crate::surface::Surface for WizardState {
 
     fn help_text(&self) -> &'static str {
         match self.step {
-            WizardStep::TemplateSelect => "j/k navigate  enter select  q quit",
+            WizardStep::TemplateSelect => "j/k navigate  enter select  esc back  q quit",
             WizardStep::ProjectName => "type name  enter confirm  esc back  q quit",
             WizardStep::Configure => "j/k navigate  space toggle  l/enter next  esc back  q quit",
             WizardStep::Summary => "enter confirm  esc back  q quit",
@@ -232,6 +235,16 @@ impl crate::surface::Surface for WizardState {
 
     fn should_quit(&self) -> bool {
         self.should_quit || self.confirmed
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
+        self.confirmed = false;
     }
 
     fn render(

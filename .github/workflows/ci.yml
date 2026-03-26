@@ -5,10 +5,20 @@ on:
     branches:
       - main
       - dev
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'plans/**'
+      - 'LICENSE'
   pull_request:
     branches:
       - main
       - dev
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'plans/**'
+      - 'LICENSE'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -353,6 +363,13 @@ jobs:
 
       - name: Build all packages
         run: pnpm run build
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: playwright-${{ runner.os }}-
 
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps

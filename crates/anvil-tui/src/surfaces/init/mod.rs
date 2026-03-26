@@ -143,6 +143,7 @@ pub struct InitState {
     pub check_toggles: Vec<AvailableCheck>,
     pub check_selected: usize,
     pub should_quit: bool,
+    pub wants_back: bool,
     pub confirmed: bool,
 }
 
@@ -170,6 +171,7 @@ impl InitState {
             check_toggles: available_checks,
             check_selected: 0,
             should_quit: false,
+            wants_back: false,
             confirmed: false,
         }
     }
@@ -200,6 +202,7 @@ impl InitState {
                 self.config.mode = InitMode::ALL[self.mode_selected];
                 self.step = InitStep::Format;
             }
+            Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -323,8 +326,7 @@ impl crate::surface::Surface for InitState {
 
     fn help_text(&self) -> &'static str {
         match self.step {
-            InitStep::Mode => "j/k navigate  enter select  q quit",
-            InitStep::Format => "j/k navigate  enter select  esc back  q quit",
+            InitStep::Mode | InitStep::Format => "j/k navigate  enter select  esc back  q quit",
             InitStep::Directory => "type path  enter confirm  esc back  q quit",
             InitStep::Checks => "j/k navigate  space toggle  enter confirm  esc back  q quit",
             InitStep::Summary => "enter confirm  esc back  q quit",
@@ -336,7 +338,17 @@ impl crate::surface::Surface for InitState {
     }
 
     fn should_quit(&self) -> bool {
-        self.should_quit
+        self.should_quit || self.confirmed
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
+        self.confirmed = false;
     }
 
     fn render(
@@ -475,10 +487,11 @@ mod tests {
     }
 
     #[test]
-    fn back_from_first_step_stays() {
+    fn back_from_first_step_exits_surface() {
         let mut state = InitState::new(sample_checks());
-        state.handle_key(Action::Back); // no-op, already at Mode (handled as _ => {})
-        assert_eq!(state.step, InitStep::Mode);
+        state.handle_key(Action::Back);
+        assert_eq!(state.step, InitStep::Mode); // step unchanged
+        assert!(state.wants_back); // signals exit to parent
     }
 
     #[test]

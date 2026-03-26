@@ -2,6 +2,11 @@ use anvil_kernel_types::{EngineEvent, EventPayload};
 
 use super::{QueuedChange, RunHistory, WatchData, WatchStatus};
 
+/// Maximum number of entries retained in the change queue.
+const MAX_QUEUE_LEN: usize = 200;
+/// Maximum number of run history entries retained.
+const MAX_HISTORY_LEN: usize = 100;
+
 /// Converts `EngineEvent` stream into `WatchData` updates for the watch
 /// dashboard. Bridges kernel events to TUI state.
 #[allow(clippy::struct_field_names)]
@@ -21,6 +26,12 @@ impl WatchEventAdapter {
     }
 
     /// Process an engine event and update the watch data accordingly.
+    ///
+    /// **Kernel contract**: every completed Progress sequence is followed by
+    /// a Snapshot event that serves as the authoritative end-of-cycle marker.
+    /// If a Snapshot never arrives (kernel crash, channel disconnect), the
+    /// cycle's history entry is lost. This is acceptable because the watch
+    /// session is already terminated in that scenario.
     pub fn handle_event(&mut self, event: &EngineEvent, data: &mut WatchData) {
         match &event.payload {
             EventPayload::Progress {
@@ -51,7 +62,7 @@ impl WatchEventAdapter {
         }
     }
 
-    fn handle_progress(&mut self, phase: &str, current: u64, total: u64, data: &mut WatchData) {
+    fn handle_progress(&mut self, _phase: &str, current: u64, total: u64, data: &mut WatchData) {
         if current == 0 {
             self.violation_count = 0;
             self.error_count = 0;
@@ -65,27 +76,15 @@ impl WatchEventAdapter {
             {
                 self.check_count = total as usize;
             }
+            // Update status but don't record a history entry — the
+            // subsequent Snapshot event is the authoritative end-of-cycle
+            // marker and records the run to avoid double-counting.
             let passed = self.violation_count == 0 && self.error_count == 0;
             data.status = if passed {
                 WatchStatus::Passing
             } else {
                 WatchStatus::Failing
             };
-
-            let checks_passed = self.check_count.saturating_sub(self.violation_count);
-            data.history.insert(
-                0,
-                RunHistory {
-                    passed,
-                    checks_run: self.check_count,
-                    checks_passed,
-                    duration_ms: 0,
-                    timestamp: format!("{phase} complete"),
-                },
-            );
-
-            data.stats.total_runs += 1;
-            Self::update_pass_rate(data);
         }
     }
 
@@ -117,6 +116,7 @@ impl WatchEventAdapter {
                 timestamp: "snapshot complete".to_string(),
             },
         );
+        data.history.truncate(MAX_HISTORY_LEN);
         Self::update_pass_rate(data);
 
         // Reset for next watch cycle
@@ -135,30 +135,38 @@ impl WatchEventAdapter {
         self.violation_count += 1;
         data.status = WatchStatus::Failing;
 
-        data.queue.push(QueuedChange {
-            file: file.to_string(),
-            kind: message.to_string(),
-            timestamp: timestamp.to_string(),
-        });
+        Self::push_queue(data, file, message, timestamp);
     }
 
     fn handle_error(&mut self, message: &str, timestamp: &str, data: &mut WatchData) {
         self.error_count += 1;
         data.status = WatchStatus::Failing;
-        data.queue.push(QueuedChange {
-            file: "(error)".to_string(),
-            kind: message.to_string(),
+        Self::push_queue(data, "(error)", message, timestamp);
+    }
+
+    /// Push an entry to the change queue, dropping the oldest if at capacity.
+    fn push_queue(data: &mut WatchData, file: &str, kind: &str, timestamp: &str) {
+        if data.queue.len() >= MAX_QUEUE_LEN {
+            data.queue.pop_front();
+        }
+        data.queue.push_back(QueuedChange {
+            file: file.to_string(),
+            kind: kind.to_string(),
             timestamp: timestamp.to_string(),
         });
     }
 
+    /// Recompute pass rate as a rolling window over retained history.
+    /// Uses `history.len()` as the denominator (not `total_runs`) because
+    /// history is capped at `MAX_HISTORY_LEN` — dividing by the uncapped
+    /// lifetime count would cause the rate to converge toward zero.
     #[allow(clippy::cast_precision_loss)]
     fn update_pass_rate(data: &mut WatchData) {
-        if data.stats.total_runs == 0 {
+        if data.history.is_empty() {
             data.stats.pass_rate = 0.0;
         } else {
             let passing = data.history.iter().filter(|h| h.passed).count();
-            data.stats.pass_rate = passing as f64 / data.stats.total_runs as f64;
+            data.stats.pass_rate = passing as f64 / data.history.len() as f64;
         }
     }
 }
@@ -179,7 +187,7 @@ mod tests {
     fn empty_data() -> WatchData {
         WatchData {
             status: WatchStatus::Idle,
-            queue: Vec::new(),
+            queue: std::collections::VecDeque::new(),
             history: Vec::new(),
             stats: WatchStats {
                 total_runs: 0,
@@ -259,7 +267,7 @@ mod tests {
     }
 
     #[test]
-    fn progress_completion_sets_passing() {
+    fn progress_completion_sets_passing_status() {
         let mut adapter = WatchEventAdapter::new();
         let mut data = empty_data();
 
@@ -267,9 +275,10 @@ mod tests {
         adapter.handle_event(&progress_event("scan", 5, 5), &mut data);
 
         assert_eq!(data.status, WatchStatus::Passing);
-        assert_eq!(data.history.len(), 1);
-        assert!(data.history[0].passed);
-        assert_eq!(data.stats.total_runs, 1);
+        // Progress completion updates status but does not record history
+        // — the subsequent Snapshot is the authoritative end-of-cycle marker.
+        assert_eq!(data.history.len(), 0);
+        assert_eq!(data.stats.total_runs, 0);
     }
 
     #[test]
@@ -387,6 +396,86 @@ mod tests {
         assert_eq!(data.stats.total_runs, 2);
     }
 
+    // --- RCLI-034: no double-counting ---
+
+    #[test]
+    fn progress_complete_then_snapshot_counts_one_run() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        adapter.handle_event(&progress_event("scan", 0, 5), &mut data);
+        adapter.handle_event(&progress_event("scan", 5, 5), &mut data);
+        adapter.handle_event(&snapshot_event(10), &mut data);
+
+        assert_eq!(data.stats.total_runs, 1);
+        assert_eq!(data.history.len(), 1);
+    }
+
+    #[test]
+    fn two_full_cycles_count_two_runs() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        // Cycle 1
+        adapter.handle_event(&progress_event("scan", 0, 3), &mut data);
+        adapter.handle_event(&progress_event("scan", 3, 3), &mut data);
+        adapter.handle_event(&snapshot_event(10), &mut data);
+
+        // Cycle 2
+        adapter.handle_event(&progress_event("scan", 0, 3), &mut data);
+        adapter.handle_event(&progress_event("scan", 3, 3), &mut data);
+        adapter.handle_event(&snapshot_event(10), &mut data);
+
+        assert_eq!(data.stats.total_runs, 2);
+        assert_eq!(data.history.len(), 2);
+    }
+
+    // --- RCLI-033: bounded collections ---
+
+    #[test]
+    fn queue_capped_at_max_len() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        for i in 0..(MAX_QUEUE_LEN + 50) {
+            adapter.handle_event(
+                &violation_event(&format!("file_{i}.ts"), "violation"),
+                &mut data,
+            );
+        }
+
+        assert_eq!(data.queue.len(), MAX_QUEUE_LEN);
+        // Oldest entries were dropped — first entry should be file_50
+        assert_eq!(data.queue[0].file, "file_50.ts");
+    }
+
+    #[test]
+    fn history_capped_at_max_len() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        for _ in 0..(MAX_HISTORY_LEN + 20) {
+            adapter.handle_event(&snapshot_event(10), &mut data);
+        }
+
+        assert_eq!(data.history.len(), MAX_HISTORY_LEN);
+        assert_eq!(data.stats.total_runs, MAX_HISTORY_LEN + 20);
+    }
+
+    #[test]
+    fn pass_rate_correct_after_history_capped() {
+        let mut adapter = WatchEventAdapter::new();
+        let mut data = empty_data();
+
+        // All passing — fill beyond the cap
+        for _ in 0..(MAX_HISTORY_LEN + 50) {
+            adapter.handle_event(&snapshot_event(10), &mut data);
+        }
+
+        // pass_rate is a rolling window over retained history, not lifetime
+        assert!((data.stats.pass_rate - 1.0).abs() < f64::EPSILON);
+    }
+
     #[test]
     fn run_with_violations_produces_failing_history() {
         let mut adapter = WatchEventAdapter::new();
@@ -395,9 +484,11 @@ mod tests {
         adapter.handle_event(&progress_event("scan", 0, 3), &mut data);
         adapter.handle_event(&violation_event("src/bad.ts", "violation"), &mut data);
         adapter.handle_event(&progress_event("scan", 3, 3), &mut data);
+        adapter.handle_event(&snapshot_event(10), &mut data);
 
         assert_eq!(data.status, WatchStatus::Failing);
         assert_eq!(data.history.len(), 1);
         assert!(!data.history[0].passed);
+        assert_eq!(data.stats.total_runs, 1);
     }
 }

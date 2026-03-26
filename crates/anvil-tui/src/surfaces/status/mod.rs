@@ -71,6 +71,7 @@ pub struct StatusState {
     pub focused_panel: StatusPanel,
     pub selected_item: usize,
     pub should_quit: bool,
+    pub wants_back: bool,
 }
 
 impl StatusState {
@@ -79,7 +80,7 @@ impl StatusState {
     }
 
     pub fn help_text(&self) -> &'static str {
-        "h/l panels  j/k navigate  q quit"
+        "h/l panels  j/k navigate  esc back  q quit"
     }
 
     pub fn new(data: StatusData) -> Self {
@@ -88,6 +89,7 @@ impl StatusState {
             focused_panel: StatusPanel::Hooks,
             selected_item: 0,
             should_quit: false,
+            wants_back: false,
         }
     }
 
@@ -120,6 +122,9 @@ impl StatusState {
                 self.focused_panel = self.focused_panel.prev();
                 self.selected_item = 0;
             }
+            Action::Back => {
+                self.wants_back = true;
+            }
             Action::Quit => {
                 self.should_quit = true;
             }
@@ -134,7 +139,7 @@ impl crate::surface::Surface for StatusState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  q quit"
+        "j/k navigate  h/l switch panel  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: Action) {
@@ -143,6 +148,15 @@ impl crate::surface::Surface for StatusState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
     }
 
     fn render(

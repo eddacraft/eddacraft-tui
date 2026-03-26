@@ -56,7 +56,7 @@ impl TuiApp {
 
         let data = WatchData {
             status: WatchStatus::Idle,
-            queue: Vec::new(),
+            queue: std::collections::VecDeque::new(),
             history: Vec::new(),
             stats: WatchStats {
                 total_runs: 0,
