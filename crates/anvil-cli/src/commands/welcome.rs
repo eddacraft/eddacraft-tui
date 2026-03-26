@@ -84,12 +84,12 @@ fn run_welcome_hub(
                 welcome.chosen = None;
             }
             Some(QuickStartOption::RunGate) => {
-                welcome.status_message = run_subprocess(terminal, "gate");
+                welcome.status_message = run_subprocess(terminal, "gate")?;
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }
             Some(QuickStartOption::StartWatch) => {
-                welcome.status_message = run_subprocess(terminal, "watch");
+                welcome.status_message = run_subprocess(terminal, "watch")?;
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }
@@ -113,13 +113,15 @@ fn run_welcome_hub(
 }
 
 /// Teardown the terminal, run a subprocess command, and re-initialise.
-/// Returns an optional status message for errors; None on success.
+/// Returns `Ok(Some(msg))` for subprocess errors (displayed as status),
+/// `Ok(None)` on success, or `Err` if the terminal cannot be restored
+/// (caller must abort the hub loop).
 fn run_subprocess(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     subcommand: &str,
-) -> Option<String> {
+) -> anyhow::Result<Option<String>> {
     if let Err(e) = crate::tui::teardown_terminal(terminal) {
-        return Some(format!("Failed to release terminal: {e}"));
+        return Ok(Some(format!("Failed to release terminal: {e}")));
     }
 
     let message = match std::env::current_exe() {
@@ -134,14 +136,11 @@ fn run_subprocess(
         Err(e) => Some(format!("Failed to resolve executable: {e}")),
     };
 
-    // Re-initialise terminal — if this fails, we can't continue the hub
-    // so we overwrite the message with the setup error.
-    match crate::tui::setup_terminal() {
-        Ok(new_terminal) => *terminal = new_terminal,
-        Err(e) => return Some(format!("Failed to restore terminal: {e}")),
-    }
+    // Re-initialise terminal — if this fails, the hub loop cannot continue.
+    *terminal =
+        crate::tui::setup_terminal().context("failed to restore terminal after subprocess")?;
 
-    message
+    Ok(message)
 }
 
 fn open_docs_message() -> String {
