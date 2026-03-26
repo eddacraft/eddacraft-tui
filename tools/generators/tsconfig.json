@@ -4,9 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
-    "module": "commonjs",
-    "moduleResolution": "node",
-    "ignoreDeprecations": "6.0"
+    "module": "nodenext",
+    "moduleResolution": "nodenext"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
