@@ -127,11 +127,13 @@ Can be pulled earlier if the spec format stabilises sooner.
   - `crates/anvil-tui-render/src/lib.rs`
   - `crates/anvil-tui-render/src/spec.rs`
   - `crates/anvil-tui-render/Cargo.toml`
-- **Validation:** Parse sample dashboard JSON specs from
-  `apps/website/data/dashboard-templates/` and verify round-trip fidelity
+- **Validation:** Once `apps/website/data/dashboard-templates/` exists, parse
+  sample dashboard JSON specs from that directory and verify round-trip
+  fidelity
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** None (json-render spec format is documented)
+- **Dependencies:** Work item that introduces
+  `apps/website/data/dashboard-templates/` sample dashboard JSON specs
 
 ### TUIDASH-002: Component registry trait and infrastructure
 
