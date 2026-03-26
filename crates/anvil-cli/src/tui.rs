@@ -179,7 +179,7 @@ fn watch_loop(
             })?;
         }
 
-        if state.should_quit {
+        if state.should_quit || state.wants_back {
             break;
         }
     }

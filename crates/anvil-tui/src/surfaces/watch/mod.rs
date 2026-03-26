@@ -117,6 +117,7 @@ pub struct WatchState {
     pub focused_panel: WatchPanel,
     pub selected_item: usize,
     pub should_quit: bool,
+    pub wants_back: bool,
     /// Set when state changes; consumed by `take_dirty()` before redraw.
     /// Use `mark_dirty()` / `take_dirty()` — field is crate-visible for tests.
     pub(crate) dirty: bool,
@@ -128,7 +129,7 @@ impl WatchState {
     }
 
     pub fn help_text(&self) -> &'static str {
-        "h/l j/k panels  q quit"
+        "h/l j/k panels  esc back  q quit"
     }
 
     pub fn new(data: WatchData) -> Self {
@@ -137,6 +138,7 @@ impl WatchState {
             focused_panel: WatchPanel::Status,
             selected_item: 0,
             should_quit: false,
+            wants_back: false,
             dirty: true, // render immediately on first frame
         }
     }
@@ -200,6 +202,10 @@ impl WatchState {
                 self.selected_item = 0;
                 self.mark_dirty();
             }
+            Action::Back => {
+                self.wants_back = true;
+                self.mark_dirty();
+            }
             Action::Quit => {
                 self.should_quit = true;
                 self.mark_dirty();
@@ -215,7 +221,7 @@ impl crate::surface::Surface for WatchState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  PgUp/PgDn row  q quit"
+        "j/k navigate  h/l switch panel  PgUp/PgDn row  esc back  q quit"
     }
 
     fn handle_key(&mut self, action: eddacraft_tui::keyboard::Action) {
@@ -224,6 +230,15 @@ impl crate::surface::Surface for WatchState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
     }
 
     fn render(

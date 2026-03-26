@@ -97,6 +97,7 @@ pub struct GateState {
     pub search_term: String,
     pub search_mode: bool,
     pub should_quit: bool,
+    pub wants_back: bool,
 }
 
 impl GateState {
@@ -108,7 +109,7 @@ impl GateState {
         if self.search_mode {
             "type to search  esc cancel  enter confirm"
         } else {
-            "j/k navigate  enter expand  / search  n/N failures  a/f/p/s/w filter  q quit"
+            "j/k navigate  enter expand  / search  n/N failures  a/f/p/s/w filter  esc back  q quit"
         }
     }
 
@@ -121,6 +122,7 @@ impl GateState {
             search_term: String::new(),
             search_mode: false,
             should_quit: false,
+            wants_back: false,
         }
     }
 
@@ -242,6 +244,9 @@ impl GateState {
             Action::Character('/') => {
                 self.search_mode = true;
             }
+            Action::Back => {
+                self.wants_back = true;
+            }
             Action::Quit => {
                 self.should_quit = true;
             }
@@ -317,7 +322,7 @@ impl crate::surface::Surface for GateState {
         if self.search_mode {
             "type to search  enter confirm  esc cancel"
         } else {
-            "j/k navigate  enter expand  n/N next/prev fail  /search  a/p/f/w/s filter  q quit"
+            "j/k navigate  enter expand  n/N next/prev fail  /search  a/p/f/w/s filter  esc back  q quit"
         }
     }
 
@@ -327,6 +332,15 @@ impl crate::surface::Surface for GateState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
     }
 
     fn render(

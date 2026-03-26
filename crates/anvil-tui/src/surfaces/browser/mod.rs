@@ -69,6 +69,7 @@ pub struct BrowserState {
     pub search_term: String,
     pub search_mode: bool,
     pub should_quit: bool,
+    pub wants_back: bool,
     pub chosen: Option<String>,
 }
 
@@ -100,6 +101,7 @@ impl BrowserState {
             search_term: String::new(),
             search_mode: false,
             should_quit: false,
+            wants_back: false,
             chosen: None,
         }
     }
@@ -187,6 +189,7 @@ impl BrowserState {
                     self.search_term.clear();
                 }
             }
+            Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -261,7 +264,7 @@ impl crate::surface::Surface for BrowserState {
             "type to search  enter confirm  esc cancel"
         } else {
             match self.view {
-                BrowserView::Categories => "j/k navigate  enter/l drill in  q quit",
+                BrowserView::Categories => "j/k navigate  enter/l drill in  esc back  q quit",
                 BrowserView::Templates => {
                     "j/k navigate  enter/l detail  esc/h back  /search  q quit"
                 }
@@ -276,6 +279,15 @@ impl crate::surface::Surface for BrowserState {
 
     fn should_quit(&self) -> bool {
         self.should_quit || self.chosen.is_some()
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
     }
 
     fn render(
