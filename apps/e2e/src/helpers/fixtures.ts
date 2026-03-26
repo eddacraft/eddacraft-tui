@@ -13,6 +13,7 @@ import {
   type GateCheck,
   APS_SCHEMA_VERSION,
   createPlan,
+  generateHash,
 } from '@eddacraft/anvil-core';
 
 // ─── Plan Factories ─────────────────────────────────────────────
@@ -33,8 +34,9 @@ export function resetFixtures(): void {
  */
 export function makePlan(overrides: Partial<APSPlan> = {}): APSPlan {
   planCounter++;
+  const hexCounter = planCounter.toString(16).padStart(8, '0');
   const plan = createPlan({
-    id: overrides.id ?? `e2e-plan-${planCounter}`,
+    id: overrides.id ?? `aps-${hexCounter}`,
     intent: overrides.intent ?? `E2E test plan #${planCounter}`,
     provenance: overrides.provenance ?? {
       timestamp: new Date().toISOString(),
@@ -48,9 +50,10 @@ export function makePlan(overrides: Partial<APSPlan> = {}): APSPlan {
       skip_checks: [],
     },
   });
+  const hash = overrides.hash ?? generateHash(plan);
   return {
     ...plan,
-    hash: overrides.hash ?? 'e2e-fixture-hash',
+    hash,
     ...overrides,
   } as APSPlan;
 }

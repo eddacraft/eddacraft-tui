@@ -22,7 +22,7 @@ beforeEach(() => {
 describe('Plan Lifecycle › Creation', () => {
   it('createPlan produces a valid plan with correct schema version', () => {
     const plan = createPlan({
-      id: 'e2e-auth-plan',
+      id: 'aps-e2e00010',
       intent: 'Add user authentication',
       changes: [
         {
@@ -57,7 +57,7 @@ describe('Plan Lifecycle › Creation', () => {
 
   it('plan structure is deterministic for the same content', () => {
     const data = {
-      id: 'e2e-deterministic',
+      id: 'aps-e2e00020',
       intent: 'Deterministic test',
       changes: [makeChange({ path: 'a.ts', type: 'file_create', description: 'test' })],
       provenance: {
