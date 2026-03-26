@@ -116,7 +116,8 @@ pub struct WatchState {
     pub selected_item: usize,
     pub should_quit: bool,
     /// Set when state changes and cleared after a render cycle.
-    pub dirty: bool,
+    /// Use `mark_dirty()` / `take_dirty()` — field is crate-visible for tests.
+    pub(crate) dirty: bool,
 }
 
 impl WatchState {
@@ -161,39 +162,39 @@ impl WatchState {
             Action::Up => {
                 if self.selected_item > 0 {
                     self.selected_item -= 1;
-                    self.dirty = true;
+                    self.mark_dirty();
                 }
             }
             Action::Down => {
                 let max = self.max_items_in_panel().saturating_sub(1);
                 if self.selected_item < max {
                     self.selected_item += 1;
-                    self.dirty = true;
+                    self.mark_dirty();
                 }
             }
             Action::Right => {
                 self.focused_panel = self.focused_panel.right();
                 self.selected_item = 0;
-                self.dirty = true;
+                self.mark_dirty();
             }
             Action::Left => {
                 self.focused_panel = self.focused_panel.left();
                 self.selected_item = 0;
-                self.dirty = true;
+                self.mark_dirty();
             }
             Action::PageDown => {
                 self.focused_panel = self.focused_panel.down();
                 self.selected_item = 0;
-                self.dirty = true;
+                self.mark_dirty();
             }
             Action::PageUp => {
                 self.focused_panel = self.focused_panel.up();
                 self.selected_item = 0;
-                self.dirty = true;
+                self.mark_dirty();
             }
             Action::Quit => {
                 self.should_quit = true;
-                self.dirty = true;
+                self.mark_dirty();
             }
             _ => {}
         }
@@ -458,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    fn noop_scroll_stays_clean() {
+    fn noop_scroll_stays_clean_queue() {
         let mut state = WatchState::new(sample_data());
         state.focused_panel = WatchPanel::Queue;
         state.selected_item = 0;
@@ -470,6 +471,24 @@ mod tests {
 
         // Down to max
         state.selected_item = state.data.queue.len() - 1;
+        state.dirty = false;
+        state.handle_key(Action::Down);
+        assert!(!state.dirty);
+    }
+
+    #[test]
+    fn noop_scroll_stays_clean_history() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::History;
+        state.selected_item = 0;
+        state.dirty = false;
+
+        // Up at top — no change
+        state.handle_key(Action::Up);
+        assert!(!state.dirty);
+
+        // Down to max
+        state.selected_item = state.data.history.len() - 1;
         state.dirty = false;
         state.handle_key(Action::Down);
         assert!(!state.dirty);
