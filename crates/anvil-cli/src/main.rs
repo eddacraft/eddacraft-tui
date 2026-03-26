@@ -70,12 +70,21 @@ enum Commands {
     Export(commands::export::ExportArgs),
     /// Install and manage git hooks.
     Hooks(commands::hooks::HooksArgs),
-    // /// Manage architecture boundary definitions.
-    // Architecture(commands::architecture::ArchitectureArgs),
+    /// Manage architecture boundary definitions.
+    Architecture(commands::architecture::ArchitectureArgs),
     /// Authenticate with the Anvil service.
     Auth(commands::auth::AuthArgs),
-    // /// Manage and evaluate policies.
-    // Policy(commands::policy::PolicyArgs),
+    /// Manage and evaluate policies.
+    Policy(commands::policy::PolicyArgs),
+    /// Log in to Anvil (alias for `auth login`).
+    #[command(hide = true)]
+    Login(commands::auth::LoginArgs),
+    /// Log out of Anvil (alias for `auth logout`).
+    #[command(hide = true)]
+    Logout(commands::auth::LogoutArgs),
+    /// Show current identity (alias for `auth whoami`).
+    #[command(hide = true)]
+    Whoami(commands::auth::WhoamiArgs),
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -113,6 +122,11 @@ fn main() -> ExitCode {
         Commands::Watch(args) => commands::watch::run(args, &cli.global),
         Commands::Export(args) => commands::export::run(args, &cli.global),
         Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
+        Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
+        Commands::Policy(args) => commands::policy::run(args, &cli.global),
+        Commands::Login(args) => commands::auth::run_login(args, &cli.global),
+        Commands::Logout(args) => commands::auth::run_logout(args, &cli.global),
+        Commands::Whoami(args) => commands::auth::run_whoami(args, &cli.global),
     };
 
     match result {
