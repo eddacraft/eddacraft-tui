@@ -12,6 +12,6 @@
     "@pulumiverse/vercel": "^4.6.1"
   },
   "devDependencies": {
-    "typescript": "~6.0.2"
+    "typescript": "~5.9.3"
   }
 }
