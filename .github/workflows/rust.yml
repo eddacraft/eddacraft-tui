@@ -82,7 +82,7 @@ jobs:
             os: ubuntu-latest
             can_test: false
           - target: x86_64-apple-darwin
-            os: macos-latest
+            os: macos-13
             can_test: true
           - target: aarch64-apple-darwin
             os: macos-latest

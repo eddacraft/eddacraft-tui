@@ -328,7 +328,8 @@ layers:
 
     #[test]
     fn nonexistent_root_returns_error() {
-        let nonexistent = std::env::temp_dir().join("anvil-nonexistent-path-xyz");
+        let tmp = TempDir::new().unwrap();
+        let nonexistent = tmp.path().join("missing-root");
         let config = EmbeddedConfig {
             root: nonexistent,
             architecture_config: None,
@@ -343,7 +344,7 @@ layers:
     #[test]
     fn nonexistent_architecture_config_returns_error() {
         let tmp = TempDir::new().unwrap();
-        let nonexistent_config = std::env::temp_dir().join("anvil-nonexistent-arch.yml");
+        let nonexistent_config = tmp.path().join("missing-arch.yml");
         let config = EmbeddedConfig {
             root: tmp.path().to_path_buf(),
             architecture_config: Some(nonexistent_config),
