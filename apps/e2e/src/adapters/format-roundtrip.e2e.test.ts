@@ -48,14 +48,14 @@ describe('Adapter Registry', () => {
 describe('APS Markdown Adapter', () => {
   it('detects APS markdown format', () => {
     const content = makeAPSMarkdown('Detection test');
-    const detected = registry.detectAdapter(content);
+    const detected = registry.detectAdapterWithPath(content, { filePath: 'docs/plan.md' });
     expect(detected).toBeDefined();
     expect(detected?.adapter.metadata.name.toLowerCase()).toContain('aps');
   });
 
   it('parses APS markdown into a plan structure', async () => {
     const content = makeAPSMarkdown('Parse test');
-    const match = registry.detectAdapter(content);
+    const match = registry.detectAdapterWithPath(content, { filePath: 'docs/plan.md' });
     expect(match).toBeDefined();
     if (match) {
       const result = await match.adapter.parse(content);
@@ -68,7 +68,7 @@ describe('APS Markdown Adapter', () => {
 describe('SpecKit Adapter', () => {
   it('detects SpecKit format', () => {
     const content = makeSpecKitDoc('SpecKit detection');
-    const detected = registry.detectAdapter(content);
+    const detected = registry.detectAdapterWithPath(content, { filePath: 'docs/spec.md' });
     expect(detected).toBeDefined();
   });
 });

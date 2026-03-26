@@ -34,7 +34,7 @@ describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {
 
   it('APSPlanSchema parses the same data in both packages', () => {
     const plan = createPlan({
-      id: 'e2e-schema-compat',
+      id: 'aps-e2e00001',
       intent: 'Schema compat test',
       changes: [{ path: 'a.ts', type: 'file_create', description: 'test' }],
       provenance: {
@@ -46,8 +46,8 @@ describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {
       validations: { required_checks: ['lint'], skip_checks: [] },
     });
 
-    // createPlan returns Omit<APSPlan, 'hash'>, add a hash for schema parsing
-    const planWithHash = { ...plan, hash: 'test-hash' };
+    // createPlan returns Omit<APSPlan, 'hash'>, add a valid SHA-256 hash for schema parsing
+    const planWithHash = { ...plan, hash: 'a'.repeat(64) };
     const contractsResult = APSPlanSchema.safeParse(planWithHash);
     const coreResult = CorePlanSchema.safeParse(planWithHash);
 
@@ -57,7 +57,7 @@ describe('Schema Compatibility › Contracts ↔ Core re-exports', () => {
 
   it('createPlan from contracts and core produce the same structure', () => {
     const input = {
-      id: 'e2e-identity-test',
+      id: 'aps-e2e00002',
       intent: 'Identity test',
       changes: [{ path: 'b.ts', type: 'file_update' as const, description: 'update' }],
       provenance: {
