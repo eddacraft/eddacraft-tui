@@ -3,7 +3,7 @@ use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::widgets::Paragraph;
 
 use super::{QuickStartOption, WelcomeState};
 
@@ -22,12 +22,29 @@ const LOGO_LINES: &[&str] = &[
 
 const TAGLINE: &str = "Structural governance for AI-assisted development";
 
+/// Left padding for content within the welcome screen.
+const PAD: &str = "    ";
+
 pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
+    // Content heights: logo(7) + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
+    let menu_item_count = QuickStartOption::ALL.len();
+    let menu_height = menu_item_count * 3 - 1; // 2 lines per item + 1 blank between
+    let content_height = 7 + 1 + 1 + 2 + menu_height;
+
+    // Centre vertically — at least 1 row gap from header
+    #[allow(clippy::cast_possible_truncation)]
+    let content_h = content_height as u16;
+    let top_pad = (area.height.saturating_sub(content_h) / 2).max(1);
+    #[allow(clippy::cast_possible_truncation)]
+    let menu_h = menu_height as u16;
+
     let chunks = Layout::vertical([
-        Constraint::Length(9), // Logo
-        Constraint::Length(2), // Tagline
-        Constraint::Length(1), // Spacer
-        Constraint::Min(6),    // Menu
+        Constraint::Length(top_pad), // Top padding
+        Constraint::Length(7),       // Logo
+        Constraint::Length(1),       // Blank
+        Constraint::Length(1),       // Tagline
+        Constraint::Length(2),       // Spacer
+        Constraint::Min(menu_h),     // Menu items (flexible — absorbs overflow)
     ])
     .split(area);
 
@@ -35,71 +52,73 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let logo_lines: Vec<Line> = LOGO_LINES
         .iter()
         .map(|line| {
-            if line.contains("a n v i l") {
-                let parts: Vec<&str> = line.splitn(2, "a n v i l").collect();
+            if let Some((before, _)) = line.split_once("a n v i l") {
                 Line::from(vec![
-                    Span::styled(parts[0], Style::default().fg(theme.accent())),
+                    Span::styled(PAD, Style::default()),
+                    Span::styled(before, Style::default().fg(theme.accent())),
                     Span::styled(
                         "a n v i l",
                         Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
                     ),
                 ])
             } else {
-                Line::styled(*line, Style::default().fg(theme.accent()))
+                Line::from(vec![
+                    Span::styled(PAD, Style::default()),
+                    Span::styled(*line, Style::default().fg(theme.accent())),
+                ])
             }
         })
         .collect();
     let logo = Paragraph::new(Text::from(logo_lines));
-    frame.render_widget(logo, chunks[0]);
+    frame.render_widget(logo, chunks[1]);
 
     // Tagline
-    let tagline = Paragraph::new(TAGLINE).style(Style::default().fg(theme.muted()));
-    frame.render_widget(tagline, chunks[1]);
+    let tagline = Paragraph::new(Line::from(vec![
+        Span::styled(PAD, Style::default()),
+        Span::styled(TAGLINE, Style::default().fg(theme.muted())),
+    ]));
+    frame.render_widget(tagline, chunks[3]);
 
-    // Menu
-    let menu_block = Block::default()
-        .borders(Borders::ALL)
-        .border_style(Style::default().fg(theme.muted()))
-        .title(" Quick Start ");
+    // Menu items — spaced with blank lines between
+    let mut menu_lines: Vec<Line> = Vec::new();
+    for (i, opt) in QuickStartOption::ALL.iter().enumerate() {
+        if i > 0 {
+            menu_lines.push(Line::raw(""));
+        }
+        let selected = i == state.selected;
+        let indicator = if selected { " \u{25b8} " } else { "   " };
+        let label_style = if selected {
+            Style::default()
+                .fg(theme.accent())
+                .add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.fg())
+        };
+        let desc_style = Style::default().fg(theme.muted());
 
-    let menu_area = menu_block.inner(chunks[3]);
-    frame.render_widget(menu_block, chunks[3]);
-
-    let items: Vec<Line> = QuickStartOption::ALL
-        .iter()
-        .enumerate()
-        .map(|(i, opt)| {
-            let indicator = if i == state.selected { ">> " } else { "  " };
-            let label_style = if i == state.selected {
-                Style::default()
-                    .fg(theme.accent())
-                    .add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(theme.fg())
-            };
-            let desc_style = Style::default().fg(theme.muted());
-
-            Line::from(vec![
-                Span::styled(indicator, label_style),
-                Span::styled(opt.label(), label_style),
-                Span::styled("  ", Style::default()),
-                Span::styled(opt.description(), desc_style),
-            ])
-        })
-        .collect();
-
-    // Append status message below menu items if present
-    let mut all_lines = items;
-    if let Some(ref msg) = state.status_message {
-        all_lines.push(Line::raw(""));
-        all_lines.push(Line::styled(
-            format!("  {msg}"),
-            Style::default().fg(theme.muted()),
-        ));
+        menu_lines.push(Line::from(vec![
+            Span::styled(PAD, Style::default()),
+            Span::styled(indicator, label_style),
+            Span::styled(opt.label(), label_style),
+        ]));
+        menu_lines.push(Line::from(vec![
+            Span::styled(PAD, Style::default()),
+            Span::styled("      ", Style::default()),
+            Span::styled(opt.description(), desc_style),
+        ]));
     }
 
-    let menu = Paragraph::new(Text::from(all_lines));
-    frame.render_widget(menu, menu_area);
+    // Append status message below menu items if present
+    if let Some(ref msg) = state.status_message {
+        menu_lines.push(Line::raw(""));
+        menu_lines.push(Line::from(vec![
+            Span::styled(PAD, Style::default()),
+            Span::styled(format!("   {msg}"), Style::default().fg(theme.muted())),
+        ]));
+    }
+
+    let menu = Paragraph::new(Text::from(menu_lines));
+    frame.render_widget(menu, chunks[5]);
 }
 
 #[cfg(test)]
@@ -132,8 +151,8 @@ mod tests {
                 let content = crate::shell::render_shell(
                     frame,
                     frame.area(),
-                    "Welcome",
-                    "j/k navigate  enter select  q quit",
+                    crate::surface::Surface::surface_name(&state),
+                    crate::surface::Surface::help_text(&state),
                     &theme,
                 );
                 render(frame, content, &state, &theme);
@@ -157,8 +176,8 @@ mod tests {
                 let content = crate::shell::render_shell(
                     frame,
                     frame.area(),
-                    "Welcome",
-                    "j/k navigate  enter select  q quit",
+                    crate::surface::Surface::surface_name(&state),
+                    crate::surface::Surface::help_text(&state),
                     &theme,
                 );
                 render(frame, content, &state, &theme);
@@ -171,7 +190,7 @@ mod tests {
 
     #[test]
     fn renders_in_small_area() {
-        let backend = TestBackend::new(40, 16);
+        let backend = TestBackend::new(40, 12);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = WelcomeState::new();
         let theme = EddaCraftTheme;
