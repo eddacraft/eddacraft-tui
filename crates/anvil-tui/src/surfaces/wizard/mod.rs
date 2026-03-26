@@ -244,6 +244,7 @@ impl crate::surface::Surface for WizardState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.confirmed = false;
     }
 
     fn render(

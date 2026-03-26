@@ -288,6 +288,7 @@ impl crate::surface::Surface for BrowserState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.chosen = None;
     }
 
     fn render(
@@ -391,10 +392,11 @@ mod tests {
     }
 
     #[test]
-    fn back_from_categories_stays() {
+    fn back_from_categories_exits_surface() {
         let mut state = BrowserState::new(sample_categories(), sample_templates());
-        state.handle_key(Action::Back); // no-op at categories
-        assert_eq!(state.view, BrowserView::Categories);
+        state.handle_key(Action::Back);
+        assert_eq!(state.view, BrowserView::Categories); // view unchanged
+        assert!(state.wants_back); // signals exit to parent
     }
 
     #[test]

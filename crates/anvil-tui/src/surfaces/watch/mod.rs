@@ -239,6 +239,7 @@ impl crate::surface::Surface for WatchState {
     fn reset(&mut self) {
         self.should_quit = false;
         self.wants_back = false;
+        self.dirty = true; // ensure first frame renders on re-entry
     }
 
     fn render(

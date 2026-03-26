@@ -488,10 +488,11 @@ mod tests {
     }
 
     #[test]
-    fn back_from_first_step_stays() {
+    fn back_from_first_step_exits_surface() {
         let mut state = InitState::new(sample_checks());
-        state.handle_key(Action::Back); // no-op, already at Mode (handled as _ => {})
-        assert_eq!(state.step, InitStep::Mode);
+        state.handle_key(Action::Back);
+        assert_eq!(state.step, InitStep::Mode); // step unchanged
+        assert!(state.wants_back); // signals exit to parent
     }
 
     #[test]
