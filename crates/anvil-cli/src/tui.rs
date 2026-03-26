@@ -11,9 +11,18 @@ use crossterm::event::{self, Event};
 use crossterm::execute;
 use crossterm::terminal::{self, EnterAlternateScreen, LeaveAlternateScreen};
 use eddacraft_tui::keyboard::KeyHandler;
-use eddacraft_tui::theme::EddaCraftTheme;
+use eddacraft_tui::theme::{EddaCraftTheme, Theme};
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
+
+/// How a surface exited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SurfaceExit {
+    /// User wants to quit the program.
+    Quit,
+    /// User wants to go back to the previous screen.
+    Back,
+}
 
 /// Run an interactive TUI surface inside the branded shell chrome.
 /// Returns the state after the surface exits, so callers can inspect
@@ -31,14 +40,62 @@ pub fn run_surface<S: Surface>(mut state: S) -> anyhow::Result<S> {
     terminal::disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
-    result.map(|()| state)
+    result.map(|_| state)
+}
+
+/// Run a surface within an already-initialised terminal session.
+/// Used by the welcome hub to launch sub-surfaces without teardown.
+pub fn run_surface_in<S: Surface>(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    state: &mut S,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<SurfaceExit> {
+    surface_loop(terminal, state, theme)
+}
+
+/// Set up a TUI terminal session and return the terminal for caller-managed
+/// surface switching. Caller must call `teardown_terminal` when done.
+pub fn setup_terminal() -> anyhow::Result<Terminal<CrosstermBackend<io::Stdout>>> {
+    terminal::enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    Ok(Terminal::new(backend)?)
+}
+
+/// Draw a loading frame with a message inside the shell chrome.
+pub fn draw_loading(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+    surface_name: &str,
+    message: &str,
+    theme: &EddaCraftTheme,
+) -> anyhow::Result<()> {
+    terminal.draw(|frame| {
+        let area = frame.area();
+        let content = render_shell(frame, area, surface_name, "", theme);
+        let loading = ratatui::widgets::Paragraph::new(ratatui::text::Line::styled(
+            format!("  {message}"),
+            ratatui::style::Style::default().fg(theme.muted()),
+        ));
+        frame.render_widget(loading, content);
+    })?;
+    Ok(())
+}
+
+/// Tear down a TUI terminal session.
+pub fn teardown_terminal(
+    terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
+) -> anyhow::Result<()> {
+    terminal::disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+    Ok(())
 }
 
 fn surface_loop<S: Surface>(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     state: &mut S,
     theme: &EddaCraftTheme,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<SurfaceExit> {
     loop {
         terminal.draw(|frame| {
             let area = frame.area();
@@ -54,11 +111,12 @@ fn surface_loop<S: Surface>(
         }
 
         if state.should_quit() {
-            break;
+            return Ok(SurfaceExit::Quit);
+        }
+        if state.should_back() {
+            return Ok(SurfaceExit::Back);
         }
     }
-
-    Ok(())
 }
 
 /// Run the watch dashboard, draining kernel events from the given channel.

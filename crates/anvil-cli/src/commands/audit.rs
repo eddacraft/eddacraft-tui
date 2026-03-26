@@ -40,6 +40,11 @@ const SOURCE_EXTS: &[&str] = &["ts", "js", "rs", "py"];
 /// Maximum line count before a file is flagged.
 const MAX_FILE_LINES: usize = 500;
 
+/// Collect audit data for the current directory (convenience for sub-surface use).
+pub fn collect_audit_data() -> AuditData {
+    run_audit(Path::new("."))
+}
+
 /// Scan the repository at `root` and return audit data.
 pub fn run_audit(root: &Path) -> AuditData {
     let project_name = root

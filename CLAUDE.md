@@ -4,6 +4,8 @@ Enhanced Claude Code environment with custom agents, hooks, skills, and agent
 communication. This is a config-only repo — it provides `.claude/` configuration
 that can be copied into other projects via `./setup-claude-config.sh`.
 
+**For project-specific instructions (build commands, code style, conventions), see `@AGENTS.md`.**
+
 ## Commands
 
 ```bash

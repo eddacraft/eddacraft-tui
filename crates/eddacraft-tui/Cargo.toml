@@ -8,6 +8,7 @@ description = "Shared Ratatui component library for the EddaCraft product family
 [dependencies]
 ratatui = { workspace = true }
 crossterm = { workspace = true }
+unicode-width = "0.2"
 
 [dev-dependencies]
 insta = { workspace = true }

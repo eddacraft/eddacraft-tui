@@ -58,6 +58,7 @@ pub struct TutorialState {
     pub steps: Vec<TutorialStep>,
     pub current_step: usize,
     pub should_quit: bool,
+    pub wants_back: bool,
 }
 
 impl TutorialState {
@@ -75,6 +76,7 @@ impl TutorialState {
             steps: Vec::new(),
             current_step: 0,
             should_quit: false,
+            wants_back: false,
         }
     }
 
@@ -82,12 +84,11 @@ impl TutorialState {
         "t u t o r i a l"
     }
 
+    /// Returns help text for the current phase.
+    ///
+    /// Delegates to the Surface trait implementation to ensure a single source of truth.
     pub fn help_text(&self) -> &'static str {
-        match self.phase {
-            TutorialPhase::PathSelect => "j/k navigate  enter select  q quit",
-            TutorialPhase::Running => "enter/space next step  esc back  q quit",
-            TutorialPhase::Complete => "enter choose another  q quit",
-        }
+        <Self as crate::surface::Surface>::help_text(self)
     }
 
     pub fn load_steps(&mut self, path: TutorialPath) {
@@ -126,6 +127,7 @@ impl TutorialState {
                 let path = self.paths[self.path_selected];
                 self.load_steps(path);
             }
+            Action::Back => self.wants_back = true,
             Action::Quit => self.should_quit = true,
             _ => {}
         }
@@ -156,7 +158,7 @@ impl TutorialState {
 
     fn handle_complete(&mut self, action: Action) {
         match action {
-            Action::Select => {
+            Action::Select | Action::Back => {
                 self.phase = TutorialPhase::PathSelect;
                 self.steps.clear();
                 self.current_step = 0;
@@ -175,9 +177,9 @@ impl crate::surface::Surface for TutorialState {
 
     fn help_text(&self) -> &'static str {
         match self.phase {
-            TutorialPhase::PathSelect => "j/k navigate  enter select  q quit",
+            TutorialPhase::PathSelect => "j/k navigate  enter select  esc back  q quit",
             TutorialPhase::Running => "enter/space next step  esc back  q quit",
-            TutorialPhase::Complete => "enter choose another  q quit",
+            TutorialPhase::Complete => "enter choose another  esc back  q quit",
         }
     }
 
@@ -187,6 +189,19 @@ impl crate::surface::Surface for TutorialState {
 
     fn should_quit(&self) -> bool {
         self.should_quit
+    }
+
+    fn should_back(&self) -> bool {
+        self.wants_back
+    }
+
+    fn reset(&mut self) {
+        self.should_quit = false;
+        self.wants_back = false;
+        self.phase = TutorialPhase::PathSelect;
+        self.steps.clear();
+        self.current_step = 0;
+        self.chosen_path = None;
     }
 
     fn render(

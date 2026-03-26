@@ -7,28 +7,49 @@ use ratatui::widgets::{Block, Borders, Paragraph};
 
 use super::{QuickStartOption, WelcomeState};
 
-const LOGO: &str = r"
-   _____              .__.__
-  /  _  \   _______  _|__|  |
- /  /_\  \ /    \  \/ /  |  |
-/    |    \   |  \   /|  |  |__
-\____|__  /___|  /\_/ |__|____/
-        \/     \/
-";
+// Anvil brandmark — faithful to logos/svg/anvil-brandmark-white.svg
+// Two L-shaped corner brackets framing a central anvil body
+// (two horizontal bars connected by a short vertical column).
+const LOGO_LINES: &[&str] = &[
+    "████         ████",
+    "██             ██",
+    "██  █████████  ██",
+    "██     ███     ██   a n v i l",
+    "██  █████████  ██",
+    "██             ██",
+    "████         ████",
+];
 
 const TAGLINE: &str = "Structural governance for AI-assisted development";
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
     let chunks = Layout::vertical([
-        Constraint::Length(8), // Logo
+        Constraint::Length(9), // Logo
         Constraint::Length(2), // Tagline
         Constraint::Length(1), // Spacer
         Constraint::Min(6),    // Menu
     ])
     .split(area);
 
-    // Logo
-    let logo = Paragraph::new(Text::raw(LOGO)).style(Style::default().fg(theme.accent()));
+    // Logo — block art in EMBER, "a n v i l" text in FG
+    let logo_lines: Vec<Line> = LOGO_LINES
+        .iter()
+        .map(|line| {
+            if line.contains("a n v i l") {
+                let parts: Vec<&str> = line.splitn(2, "a n v i l").collect();
+                Line::from(vec![
+                    Span::styled(parts[0], Style::default().fg(theme.accent())),
+                    Span::styled(
+                        "a n v i l",
+                        Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
+                    ),
+                ])
+            } else {
+                Line::styled(*line, Style::default().fg(theme.accent()))
+            }
+        })
+        .collect();
+    let logo = Paragraph::new(Text::from(logo_lines));
     frame.render_widget(logo, chunks[0]);
 
     // Tagline
@@ -67,7 +88,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         })
         .collect();
 
-    let menu = Paragraph::new(Text::from(items));
+    // Append status message below menu items if present
+    let mut all_lines = items;
+    if let Some(ref msg) = state.status_message {
+        all_lines.push(Line::raw(""));
+        all_lines.push(Line::styled(
+            format!("  {msg}"),
+            Style::default().fg(theme.muted()),
+        ));
+    }
+
+    let menu = Paragraph::new(Text::from(all_lines));
     frame.render_widget(menu, menu_area);
 }
 
