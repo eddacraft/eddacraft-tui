@@ -286,6 +286,76 @@ Change status to **Ready** when:
 
 ---
 
+## Phase 5 — Executable Tutorial Steps
+
+Upgrade the existing 4-path tutorial (Policy, Architecture, Drift, CI)
+so instruction steps are actionable — press Enter to execute the suggested
+command, and the tutorial verifies the result before advancing.
+
+### TUTOR-011: executable instruction steps
+
+- **Status:** Draft
+- **Intent:** When a tutorial step has an instruction like "Run: mkdir -p
+  .anvil/policies" or "Create .anvil/policies/no-todos.yaml", add an
+  "Execute" action (Enter key) that runs the command or creates the file.
+  Show the command output inline. If the command succeeds, mark the step
+  complete and advance. If it fails, show the error and let the user
+  retry or skip. Steps without executable instructions (informational
+  text) behave as before — Enter advances
+- **Expected Outcome:** Tutorial step says "Run: anvil gate" → user
+  presses Enter → command runs → output shown → step advances on success
+- **Validation:** Each executable step runs its command; output is
+  captured and displayed; failure shows error with retry/skip options
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/mod.rs`,
+  `crates/anvil-tui/src/surfaces/tutorial/paths.rs`,
+  `crates/anvil-tui/src/surfaces/tutorial/executor.rs`
+- **Confidence:** medium (needs TUI ↔ subprocess integration with
+  output capture)
+- **Priority:** High
+- **Dependencies:** None (works against existing tutorial surface)
+
+---
+
+### TUTOR-012: step verification after execution
+
+- **Status:** Draft
+- **Intent:** After executing a step's command, verify the expected
+  outcome. For example: after "Create .anvil/policies/no-todos.yaml",
+  check the file exists. After "Run: anvil gate", check exit code.
+  Show a green tick or red cross next to the step based on verification.
+  If verification fails, offer: retry, show hint, or skip
+- **Expected Outcome:** Each executable step has a verification check
+  that confirms the action was performed correctly
+- **Validation:** Create correct file → green tick; create wrong file →
+  red cross with hint; skip → step marked skipped
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/verify.rs`
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** TUTOR-011
+
+---
+
+### TUTOR-013: live file watching during tutorial steps
+
+- **Status:** Draft
+- **Intent:** For steps that ask the user to edit a file (e.g. "Add a
+  policy rule to no-todos.yaml"), start a file watcher on the target
+  path. When the file changes, re-run verification. This gives immediate
+  feedback as the user edits — no need to press Enter to trigger
+  verification. Combine with TUTOR-012 for a smooth edit → verify →
+  advance cycle
+- **Expected Outcome:** User edits the target file in their editor →
+  tutorial detects the change → re-verifies → advances automatically
+  when verification passes
+- **Validation:** File change detected within 1 second; verification
+  runs automatically; step advances on success
+- **Files:** `crates/anvil-tui/src/surfaces/tutorial/executor.rs`
+- **Confidence:** low (needs watcher integration in tutorial surface)
+- **Priority:** Low
+- **Dependencies:** TUTOR-012, KERN (watcher)
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -318,4 +388,5 @@ Recommended order:
 | 2 — Live Project Scanning | 2 | Draft |
 | 3 — Watch Mode Demo | 2 | Draft |
 | 4 — Completion & Persistence | 3 | Draft |
-| **Total** | **10** | — |
+| 5 — Executable Tutorial Steps | 3 | Draft |
+| **Total** | **13** | — |

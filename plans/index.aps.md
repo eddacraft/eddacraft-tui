@@ -92,7 +92,7 @@ ports (RENG). RATS (Ratatui TUI) and PORT (Ink-to-Ratatui port) are complete.
 | [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Done | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Done | 15/15 | RATS-001 (complete) |
-| [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/10 | RCLI, KERN, RATS |
+| [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
 
 The TypeScript CLI stays — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
