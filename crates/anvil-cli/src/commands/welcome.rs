@@ -84,19 +84,12 @@ fn run_welcome_hub(
                 welcome.chosen = None;
             }
             Some(QuickStartOption::RunGate) => {
-                // Teardown terminal, run gate as a subprocess (it manages its own TUI)
-                crate::tui::teardown_terminal(terminal)?;
-                let exe = std::env::current_exe().context("resolving executable")?;
-                let _ = std::process::Command::new(&exe).arg("gate").status();
-                *terminal = crate::tui::setup_terminal()?;
+                welcome.status_message = run_subprocess(terminal, "gate");
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }
             Some(QuickStartOption::StartWatch) => {
-                crate::tui::teardown_terminal(terminal)?;
-                let exe = std::env::current_exe().context("resolving executable")?;
-                let _ = std::process::Command::new(&exe).arg("watch").status();
-                *terminal = crate::tui::setup_terminal()?;
+                welcome.status_message = run_subprocess(terminal, "watch");
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }
@@ -117,6 +110,38 @@ fn run_welcome_hub(
     }
 
     Ok(())
+}
+
+/// Teardown the terminal, run a subprocess command, and re-initialise.
+/// Returns an optional status message for errors; None on success.
+fn run_subprocess(
+    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
+    subcommand: &str,
+) -> Option<String> {
+    if let Err(e) = crate::tui::teardown_terminal(terminal) {
+        return Some(format!("Failed to release terminal: {e}"));
+    }
+
+    let message = match std::env::current_exe() {
+        Ok(exe) => match std::process::Command::new(&exe).arg(subcommand).status() {
+            Ok(s) if s.success() => None,
+            Ok(s) => Some(format!(
+                "{subcommand} exited with {}",
+                s.code().map_or("signal".to_string(), |c| c.to_string())
+            )),
+            Err(e) => Some(format!("Failed to launch {subcommand}: {e}")),
+        },
+        Err(e) => Some(format!("Failed to resolve executable: {e}")),
+    };
+
+    // Re-initialise terminal — if this fails, we can't continue the hub
+    // so we overwrite the message with the setup error.
+    match crate::tui::setup_terminal() {
+        Ok(new_terminal) => *terminal = new_terminal,
+        Err(e) => return Some(format!("Failed to restore terminal: {e}")),
+    }
+
+    message
 }
 
 fn open_docs_message() -> String {
