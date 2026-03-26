@@ -113,11 +113,11 @@ Can be pulled earlier if the spec format stabilises sooner.
 
 ---
 
-## Phase 1 — Spec Parser & Registry
+## Tasks
+
+**Phase 1 — Spec Parser & Registry**
 
 ### TUIDASH-001: JSON spec parser crate
-
-- **Status:** Todo
 - **Intent:** Deserialise json-render's flat element format into typed Rust
   structures using serde
 - **Expected Outcome:** `RenderSpec`, `Element`, `PropValue` types that
