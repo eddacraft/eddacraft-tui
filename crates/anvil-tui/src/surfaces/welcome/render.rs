@@ -158,7 +158,7 @@ mod tests {
                     frame,
                     frame.area(),
                     "Welcome",
-                    "j/k navigate  enter select  q quit",
+                    crate::surface::Surface::help_text(&state),
                     &theme,
                 );
                 render(frame, content, &state, &theme);
@@ -183,7 +183,7 @@ mod tests {
                     frame,
                     frame.area(),
                     "Welcome",
-                    "j/k navigate  enter select  q quit",
+                    crate::surface::Surface::help_text(&state),
                     &theme,
                 );
                 render(frame, content, &state, &theme);
