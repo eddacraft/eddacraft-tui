@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 9/10 |
+| MAINT | @team | In Progress | 9/11 |
 
 ## Purpose
 
@@ -263,3 +263,36 @@ When working on any task across the codebase, note repeated patterns:
 - **Origin:** v0.2.1-beta release validation (2026-03-15)
 - **Deferred:** PR #628 closed; harness tested a CLI about to be replaced.
   Rebuild against the new CLI when it lands.
+
+---
+
+### MAINT-011: Migrate to TypeScript 6.0
+
+- **Intent:** Upgrade from TypeScript 5.9 to 6.0 — the last JS-based compiler
+  release before the Go rewrite (TS 7.0). Remove deprecated options now so TS 7.0
+  adoption is frictionless
+- **Expected Outcome:** All packages compile, build, test, and lint cleanly on
+  TypeScript 6.0. Deprecated `baseUrl` removed from all tsconfigs. Redundant
+  `esModuleInterop: true` removed (now always-on). Target/lib bumped to es2024
+- **Validation:**
+  - `nx run-many -t typecheck` passes with zero errors
+  - `nx run-many -t build` succeeds across all packages
+  - `nx run-many -t test` passes with no regressions
+  - `grep -r '"baseUrl"' --include='tsconfig*.json'` returns 0 matches
+  - `grep -r '"esModuleInterop"' --include='tsconfig*.json'` returns 0 matches
+- **Files:**
+  - `package.json` (version bump)
+  - `tsconfig.base.json` (remove baseUrl, bump target/lib)
+  - `packages/adapters/tsconfig.lib.json` (remove baseUrl)
+  - `packages/aps/tsconfig.lib.json` (remove baseUrl)
+  - `packages/mcp-server/tsconfig.lib.json` (remove baseUrl)
+  - `apps/anvil-cli/tsconfig.json` (remove baseUrl, esModuleInterop)
+  - `apps/docs-site/tsconfig.json` (remove baseUrl)
+  - `apps/website/tsconfig.json` (remove esModuleInterop)
+  - `apps/anvil-api/tsconfig.json` (remove esModuleInterop)
+  - `packages/eslint-plugin-anvil/tsconfig.json` (remove esModuleInterop)
+  - `packages/vscode-extension/tsconfig.json` (remove esModuleInterop)
+- **Confidence:** high
+- **Priority:** High
+- **Status:** In Progress
+- **Origin:** TypeScript 6.0 release (2026-03-17), TS 7.0 Go rewrite on horizon

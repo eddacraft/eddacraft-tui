@@ -30,17 +30,17 @@ afterAll(() => ws.cleanup());
 
 describe('Adapter Registry', () => {
   it('has at least 3 registered adapters', () => {
-    const adapters = registry.getAll();
+    const adapters = registry.listAdapters();
     // APS Markdown, BMAD, SpecKit, and Generic at minimum
     expect(adapters.length).toBeGreaterThanOrEqual(3);
   });
 
   it('each adapter exposes a name and supported extensions', () => {
-    const adapters = registry.getAll();
+    const adapters = registry.listAdapters();
     for (const adapter of adapters) {
-      expect(adapter.name).toBeDefined();
-      expect(typeof adapter.name).toBe('string');
-      expect(adapter.name.length).toBeGreaterThan(0);
+      expect(adapter.metadata.name).toBeDefined();
+      expect(typeof adapter.metadata.name).toBe('string');
+      expect(adapter.metadata.name.length).toBeGreaterThan(0);
     }
   });
 });
@@ -48,19 +48,19 @@ describe('Adapter Registry', () => {
 describe('APS Markdown Adapter', () => {
   it('detects APS markdown format', () => {
     const content = makeAPSMarkdown('Detection test');
-    const detected = registry.detect(content, 'plan.md');
+    const detected = registry.detectAdapterWithPath(content, { filePath: 'docs/plan.md' }, 20);
     expect(detected).toBeDefined();
-    expect(detected?.name.toLowerCase()).toContain('aps');
+    expect(detected?.adapter.metadata.name.toLowerCase()).toContain('aps');
   });
 
-  it('parses APS markdown into a plan structure', () => {
+  it('parses APS markdown into a plan structure', async () => {
     const content = makeAPSMarkdown('Parse test');
-    const adapter = registry.detect(content, 'plan.md');
-    expect(adapter).toBeDefined();
-    if (adapter) {
-      const result = adapter.parse(content);
+    const match = registry.detectAdapterWithPath(content, { filePath: 'docs/plan.md' }, 20);
+    expect(match).toBeDefined();
+    if (match) {
+      const result = await match.adapter.parse(content);
       expect(result).toBeDefined();
-      expect(result.intent).toContain('Parse test');
+      expect(result.data?.intent).toContain('Parse test');
     }
   });
 });
@@ -68,20 +68,19 @@ describe('APS Markdown Adapter', () => {
 describe('SpecKit Adapter', () => {
   it('detects SpecKit format', () => {
     const content = makeSpecKitDoc('SpecKit detection');
-    const detected = registry.detect(content, 'spec.md');
+    const detected = registry.detectAdapterWithPath(content, { filePath: 'docs/spec.md' }, 20);
     expect(detected).toBeDefined();
   });
 });
 
 describe('Format Detection Edge Cases', () => {
-  it('returns null for unrecognised content', () => {
-    const result = registry.detect('just some random text', 'notes.txt');
+  it('does not throw for unrecognised content', () => {
     // Generic adapter may catch this as a fallback — that's acceptable
     // The important thing is it doesn't throw
-    expect(result).toBeDefined();
+    expect(() => registry.detectAdapter('just some random text')).not.toThrow();
   });
 
   it('handles empty content without throwing', () => {
-    expect(() => registry.detect('', 'empty.md')).not.toThrow();
+    expect(() => registry.detectAdapter('')).not.toThrow();
   });
 });

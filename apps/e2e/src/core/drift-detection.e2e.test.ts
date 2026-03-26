@@ -44,23 +44,29 @@ describe('Anti-pattern Scanning', () => {
     expect(patterns.length).toBeGreaterThan(0);
   });
 
-  it('scanFile detects secrets in dirty source', async () => {
+  it('scanFile detects secrets in dirty source', () => {
     const filePath = join(ws.root, 'src/dirty.ts');
-    const result: ScanResult = await scanFile(filePath);
+    const result: ScanResult = scanFile(filePath, makeSourceWithSecret());
     // Should find at least one warning about the hardcoded secret
     expect(result.warnings.length).toBeGreaterThan(0);
   });
 
-  it('scanFile produces no warnings for clean source', async () => {
+  it('scanFile produces no warnings for clean source', () => {
     const filePath = join(ws.root, 'src/clean.ts');
-    const result: ScanResult = await scanFile(filePath);
+    const result: ScanResult = scanFile(filePath, 'export const x = 1;\n');
     expect(result.warnings).toHaveLength(0);
   });
 
-  it('scanFiles aggregates results across multiple files', async () => {
-    const results = await scanFiles([join(ws.root, 'src/clean.ts'), join(ws.root, 'src/dirty.ts')]);
+  it('scanFiles aggregates results across multiple files', () => {
+    const results = scanFiles([
+      { path: join(ws.root, 'src/clean.ts'), content: 'export const x = 1;\n' },
+      { path: join(ws.root, 'src/dirty.ts'), content: makeSourceWithSecret() },
+    ]);
     expect(results.length).toBe(2);
-    const totalWarnings = results.reduce((sum, r) => sum + r.warnings.length, 0);
+    const totalWarnings = results.reduce(
+      (sum: number, r: ScanResult) => sum + r.warnings.length,
+      0
+    );
     expect(totalWarnings).toBeGreaterThan(0);
   });
 });
@@ -86,14 +92,14 @@ describe('Drift Snapshots', () => {
       ...createEmptySnapshot(),
       metrics: {
         ...createEmptySnapshot().metrics,
-        total_violations: 5,
-        total_anti_patterns: 3,
+        boundary_violations: 5,
+        antipattern_count: 3,
       },
     };
 
     const comparison = compareSnapshots(baseline, current);
     expect(comparison).toBeDefined();
     // There should be metric differences
-    expect(comparison.metrics_comparison).toBeDefined();
+    expect(comparison.metrics).toBeDefined();
   });
 });
