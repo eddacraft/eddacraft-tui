@@ -74,11 +74,10 @@ describe('SpecKit Adapter', () => {
 });
 
 describe('Format Detection Edge Cases', () => {
-  it('returns undefined for unrecognised content', () => {
-    const result = registry.detectAdapter('just some random text');
+  it('does not throw for unrecognised content', () => {
     // Generic adapter may catch this as a fallback — that's acceptable
     // The important thing is it doesn't throw
-    expect(result === undefined || result !== undefined).toBe(true);
+    expect(() => registry.detectAdapter('just some random text')).not.toThrow();
   });
 
   it('handles empty content without throwing', () => {
