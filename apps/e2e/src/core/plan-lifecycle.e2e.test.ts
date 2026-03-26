@@ -92,7 +92,10 @@ describe('Plan Lifecycle › Validation', () => {
 
   it('a tampered hash is detected', async () => {
     const plan = makePlan();
-    const tampered = { ...plan, hash: 'tampered-hash-value' };
+    const originalHash = plan.hash;
+    const tamperedFirstChar = originalHash[0] === 'a' ? 'b' : 'a';
+    const tamperedHash = tamperedFirstChar + originalHash.slice(1);
+    const tampered = { ...plan, hash: tamperedHash };
     const result = await validateAPSPlan(tampered);
     expect(result.valid).toBe(false);
   });
