@@ -5,20 +5,10 @@ on:
     branches:
       - main
       - dev
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'plans/**'
-      - 'LICENSE'
   pull_request:
     branches:
       - main
       - dev
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'plans/**'
-      - 'LICENSE'
   schedule:
     # OSSF Scorecard: weekly on Monday at 06:00 UTC
     - cron: '0 6 * * 1'
