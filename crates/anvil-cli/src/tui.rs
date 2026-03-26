@@ -149,18 +149,34 @@ fn watch_loop(
         // Drain all pending engine events.
         while let Ok(engine_event) = event_rx.try_recv() {
             adapter.handle_event(&engine_event, &mut state.data);
+            state.mark_dirty();
         }
 
-        terminal.draw(|frame| {
-            let area = frame.area();
-            anvil_tui::surfaces::watch::render::render(frame, area, state, theme);
-        })?;
+        // Skip the poll wait when already dirty — render immediately.
+        let poll_timeout = if state.is_dirty() {
+            Duration::ZERO
+        } else {
+            Duration::from_millis(50)
+        };
+        if event::poll(poll_timeout)? {
+            match event::read()? {
+                Event::Key(key) => {
+                    let action = KeyHandler::map(key);
+                    state.handle_key(action);
+                }
+                Event::Resize(_, _) => {
+                    state.mark_dirty();
+                }
+                _ => {}
+            }
+        }
 
-        if event::poll(Duration::from_millis(50))?
-            && let Event::Key(key) = event::read()?
-        {
-            let action = KeyHandler::map(key);
-            state.handle_key(action);
+        // Only redraw when state has actually changed.
+        if state.take_dirty() {
+            terminal.draw(|frame| {
+                let area = frame.area();
+                anvil_tui::surfaces::watch::render::render(frame, area, state, theme);
+            })?;
         }
 
         if state.should_quit {

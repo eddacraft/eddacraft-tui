@@ -865,6 +865,81 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ---
 
+### RCLI-033: watch event adapter unbounded queue/history growth
+
+- **Status:** Proposed
+- **Intent:** `WatchData.queue` and `WatchData.history` grow without bound.
+  Under sustained file churn a long-running watch session accumulates entries
+  indefinitely, causing allocation pressure and render lag. Add a max-depth
+  cap or ring buffer to both collections
+- **Expected Outcome:** Queue and history collections stay bounded regardless
+  of session length
+- **Validation:** `cargo test -p anvil-tui` with tests asserting cap behaviour
+  after inserting more entries than the limit
+- **Files:** `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`,
+  `crates/anvil-tui/src/surfaces/watch/mod.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Dependencies:** None
+
+---
+
+### RCLI-034: watch event adapter progress/snapshot double-counting
+
+- **Status:** Proposed
+- **Intent:** `handle_snapshot` and `handle_progress` (on completion) both
+  record a `RunHistory` entry and increment `total_runs` for the same gate
+  cycle. A single run is counted twice. Deduplicate so each gate cycle
+  produces exactly one history entry
+- **Expected Outcome:** `total_runs` matches the actual number of gate cycles
+- **Validation:** `cargo test -p anvil-tui` with a test sending both
+  `Progress(complete)` and `Snapshot` in sequence, asserting `total_runs == 1`
+- **Files:** `crates/anvil-tui/src/surfaces/watch/event_adapter.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Dependencies:** None
+
+---
+
+### RCLI-035: lift dirty flag to Surface trait
+
+- **Status:** Proposed
+- **Intent:** `surface_loop` redraws unconditionally every 100ms while
+  `watch_loop` uses a dirty flag. Add `is_dirty()`/`take_dirty()` with a
+  default `true` implementation to the `Surface` trait so all surfaces can
+  opt into dirty-flag rendering, eliminating the divergence between the two
+  loops
+- **Expected Outcome:** `surface_loop` gates render on `take_dirty()`;
+  surfaces that don't override it behave identically to before
+- **Validation:** `cargo test -p anvil-tui` existing surface tests pass
+  unchanged; `cargo test -p anvil-cli` compiles
+- **Files:** `crates/anvil-tui/src/surface.rs`,
+  `crates/anvil-cli/src/tui.rs`,
+  `crates/anvil-tui/src/surfaces/watch/mod.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Dependencies:** RCLI-031
+
+---
+
+### RCLI-036: watch loop single-read resize deferral
+
+- **Status:** Proposed
+- **Intent:** The watch loop reads one crossterm event per iteration. If key
+  events queue ahead of a resize event, the resize is deferred until the key
+  queue drains. Drain all pending terminal events per iteration so resize is
+  never delayed behind a key burst
+- **Expected Outcome:** Terminal resize takes effect within one loop iteration
+  regardless of pending key events
+- **Validation:** Manual: resize terminal during rapid typing; layout adapts
+  immediately
+- **Files:** `crates/anvil-cli/src/tui.rs`
+- **Confidence:** medium
+- **Priority:** Low
+- **Dependencies:** RCLI-031
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -890,5 +965,5 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 | 5 — Policy & Architecture | 4 | Complete (modules exist, not wired — see Phase 7) |
 | 6 — Utilities & Cutover | 4 | In Progress |
 | 7 — Parity Rework | 11 | Proposed |
-| 8 — TUI UX Polish | 8 | In Progress (2 complete) |
-| **Total** | **43** | — |
+| 8 — TUI UX Polish | 12 | In Progress (2 complete) |
+| **Total** | **47** | — |
