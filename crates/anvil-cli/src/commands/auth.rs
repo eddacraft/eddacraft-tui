@@ -113,6 +113,44 @@ fn is_network_error(err: &anyhow::Error) -> bool {
     false
 }
 
+// -------------------------------------------------------------------------
+// Top-level aliases (anvil login, anvil logout, anvil whoami)
+// -------------------------------------------------------------------------
+
+#[derive(Debug, Args)]
+pub struct LoginArgs {
+    /// Use email OTP instead of device code flow
+    #[arg(long)]
+    otp: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct LogoutArgs {}
+
+#[derive(Debug, Args)]
+pub struct WhoamiArgs {}
+
+pub fn run_login(args: &LoginArgs, global: &GlobalArgs) -> Result<()> {
+    let auth_args = AuthArgs {
+        command: AuthCommand::Login { otp: args.otp },
+    };
+    run(&auth_args, global)
+}
+
+pub fn run_logout(_args: &LogoutArgs, global: &GlobalArgs) -> Result<()> {
+    let auth_args = AuthArgs {
+        command: AuthCommand::Logout,
+    };
+    run(&auth_args, global)
+}
+
+pub fn run_whoami(_args: &WhoamiArgs, global: &GlobalArgs) -> Result<()> {
+    let auth_args = AuthArgs {
+        command: AuthCommand::Whoami,
+    };
+    run(&auth_args, global)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
