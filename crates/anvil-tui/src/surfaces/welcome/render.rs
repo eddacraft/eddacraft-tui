@@ -7,7 +7,7 @@ use ratatui::widgets::Paragraph;
 
 use super::{QuickStartOption, WelcomeState};
 
-// Anvil brandmark — faithful to apps/website/public/images/anvil-brandmark-ember.svg
+// Anvil brandmark — faithful to logos/svg/anvil-brandmark-white.svg
 // Two L-shaped corner brackets framing a central anvil body
 // (two horizontal bars connected by a short vertical column).
 const LOGO_LINES: &[&str] = &[
@@ -26,30 +26,25 @@ const TAGLINE: &str = "Structural governance for AI-assisted development";
 const PAD: &str = "    ";
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
-    // Fixed content height: logo(7) + blank(1) + tagline(1) + spacer(2) + menu items(3*N-1) + status(2)
+    // Content heights: logo(7) + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
     let menu_item_count = QuickStartOption::ALL.len();
     let menu_height = menu_item_count * 3 - 1; // 2 lines per item + 1 blank between
-    let status_height: usize = if state.status_message.is_some() { 2 } else { 0 };
-    let content_height = 7 + 1 + 1 + 2 + menu_height + status_height;
+    let content_height = 7 + 1 + 1 + 2 + menu_height;
 
-    // Centre vertically
+    // Centre vertically — at least 1 row gap from header
     #[allow(clippy::cast_possible_truncation)]
     let content_h = content_height as u16;
-    let top_pad = area.height.saturating_sub(content_h) / 2;
+    let top_pad = (area.height.saturating_sub(content_h) / 2).max(1);
     #[allow(clippy::cast_possible_truncation)]
     let menu_h = menu_height as u16;
-    #[allow(clippy::cast_possible_truncation)]
-    let status_h = status_height as u16;
 
     let chunks = Layout::vertical([
-        Constraint::Length(top_pad),  // Top padding
-        Constraint::Length(7),        // Logo
-        Constraint::Length(1),        // Blank
-        Constraint::Length(1),        // Tagline
-        Constraint::Length(2),        // Spacer
-        Constraint::Length(menu_h),   // Menu items
-        Constraint::Length(status_h), // Status message
-        Constraint::Min(0),           // Bottom fill
+        Constraint::Length(top_pad), // Top padding
+        Constraint::Length(7),       // Logo
+        Constraint::Length(1),       // Blank
+        Constraint::Length(1),       // Tagline
+        Constraint::Length(2),       // Spacer
+        Constraint::Min(menu_h),     // Menu items (flexible — absorbs overflow)
     ])
     .split(area);
 
@@ -57,11 +52,10 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let logo_lines: Vec<Line> = LOGO_LINES
         .iter()
         .map(|line| {
-            if line.contains("a n v i l") {
-                let parts: Vec<&str> = line.splitn(2, "a n v i l").collect();
+            if let Some((before, _)) = line.split_once("a n v i l") {
                 Line::from(vec![
                     Span::styled(PAD, Style::default()),
-                    Span::styled(parts[0], Style::default().fg(theme.accent())),
+                    Span::styled(before, Style::default().fg(theme.accent())),
                     Span::styled(
                         "a n v i l",
                         Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD),
@@ -114,17 +108,17 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         ]));
     }
 
-    let menu = Paragraph::new(Text::from(menu_lines));
-    frame.render_widget(menu, chunks[5]);
-
-    // Status message
+    // Append status message below menu items if present
     if let Some(ref msg) = state.status_message {
-        let status = Paragraph::new(Line::from(vec![
+        menu_lines.push(Line::raw(""));
+        menu_lines.push(Line::from(vec![
             Span::styled(PAD, Style::default()),
             Span::styled(format!("   {msg}"), Style::default().fg(theme.muted())),
         ]));
-        frame.render_widget(status, chunks[6]);
     }
+
+    let menu = Paragraph::new(Text::from(menu_lines));
+    frame.render_widget(menu, chunks[5]);
 }
 
 #[cfg(test)]
@@ -157,7 +151,7 @@ mod tests {
                 let content = crate::shell::render_shell(
                     frame,
                     frame.area(),
-                    "Welcome",
+                    crate::surface::Surface::surface_name(&state),
                     crate::surface::Surface::help_text(&state),
                     &theme,
                 );
@@ -182,7 +176,7 @@ mod tests {
                 let content = crate::shell::render_shell(
                     frame,
                     frame.area(),
-                    "Welcome",
+                    crate::surface::Surface::surface_name(&state),
                     crate::surface::Surface::help_text(&state),
                     &theme,
                 );
@@ -196,7 +190,7 @@ mod tests {
 
     #[test]
     fn renders_in_small_area() {
-        let backend = TestBackend::new(40, 16);
+        let backend = TestBackend::new(40, 12);
         let mut terminal = Terminal::new(backend).unwrap();
         let state = WelcomeState::new();
         let theme = EddaCraftTheme;

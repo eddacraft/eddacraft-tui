@@ -44,6 +44,7 @@
 - RTVF: real-time-validation-full — Draft
 - AGOV: agent-governance-patterns (0/7) — Draft
 - BENCH: kernel-benchmarking (6/16) — In Progress
+- TUIDASH: tui-dashboard-render (0/12) — Draft
 - CPACKS: compliance-policy-packs (0/28) — Draft
 
 ## Conventions
@@ -426,6 +427,36 @@ crates/anvil-bench/src/scenarios/cold_start_scaling.rs: BENCH-017
 README.md: BENCH-006
 .github/workflows/: BENCH-020, BENCH-021
 docs/architecture/kernel-benchmarking-spec.md: BENCH
+# TUIDASH: TUI Dashboard Render
+crates/anvil-tui-render/src/lib.rs: TUIDASH-001
+crates/anvil-tui-render/src/spec.rs: TUIDASH-001
+crates/anvil-tui-render/src/registry.rs: TUIDASH-002
+crates/anvil-tui-render/src/component.rs: TUIDASH-002
+crates/anvil-tui-render/src/renderer.rs: TUIDASH-003
+crates/anvil-tui-render/src/components/grid_layout.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/section.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/tab_group.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/metric_card.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/data_table.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/status_badge.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/code_block.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/line_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/bar_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/sparkline_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/gate_result.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/warning_list.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/drift_indicator.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/plan_card.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/suppression.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/evidence_entry.rs: TUIDASH-007
+crates/anvil-tui-render/src/binding.rs: TUIDASH-008
+crates/anvil-tui-render/src/context.rs: TUIDASH-008
+crates/anvil-tui/src/surfaces/dashboard/mod.rs: TUIDASH-009
+crates/anvil-tui/src/surfaces/dashboard/render.rs: TUIDASH-009
+crates/anvil-tui-render/src/catalog_sync.rs: TUIDASH-010
+crates/anvil-tui-render/tests/catalog_parity.rs: TUIDASH-010
+crates/anvil-tui-render/src/responsive.rs: TUIDASH-011
+crates/anvil-tui/src/surfaces/dashboard/list.rs: TUIDASH-012
 # CPACKS: Compliance Policy Packs
 core/src/gate/policy/compliance-manifest.ts: CPACKS-002
 core/src/gate/policy/compliance-manifest.test.ts: CPACKS-002
