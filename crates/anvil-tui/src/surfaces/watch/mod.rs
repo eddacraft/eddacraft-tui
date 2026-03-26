@@ -115,6 +115,8 @@ pub struct WatchState {
     pub focused_panel: WatchPanel,
     pub selected_item: usize,
     pub should_quit: bool,
+    /// Set when state changes and cleared after a render cycle.
+    pub dirty: bool,
 }
 
 impl WatchState {
@@ -132,7 +134,18 @@ impl WatchState {
             focused_panel: WatchPanel::Status,
             selected_item: 0,
             should_quit: false,
+            dirty: true, // render immediately on first frame
         }
+    }
+
+    /// Mark state as needing a redraw.
+    pub fn mark_dirty(&mut self) {
+        self.dirty = true;
+    }
+
+    /// Consume the dirty flag, returning whether a redraw is needed.
+    pub fn take_dirty(&mut self) -> bool {
+        std::mem::replace(&mut self.dirty, false)
     }
 
     fn max_items_in_panel(&self) -> usize {
@@ -148,32 +161,39 @@ impl WatchState {
             Action::Up => {
                 if self.selected_item > 0 {
                     self.selected_item -= 1;
+                    self.dirty = true;
                 }
             }
             Action::Down => {
                 let max = self.max_items_in_panel().saturating_sub(1);
                 if self.selected_item < max {
                     self.selected_item += 1;
+                    self.dirty = true;
                 }
             }
             Action::Right => {
                 self.focused_panel = self.focused_panel.right();
                 self.selected_item = 0;
+                self.dirty = true;
             }
             Action::Left => {
                 self.focused_panel = self.focused_panel.left();
                 self.selected_item = 0;
+                self.dirty = true;
             }
             Action::PageDown => {
                 self.focused_panel = self.focused_panel.down();
                 self.selected_item = 0;
+                self.dirty = true;
             }
             Action::PageUp => {
                 self.focused_panel = self.focused_panel.up();
                 self.selected_item = 0;
+                self.dirty = true;
             }
             Action::Quit => {
                 self.should_quit = true;
+                self.dirty = true;
             }
             _ => {}
         }
@@ -378,5 +398,88 @@ mod tests {
         let mut state = WatchState::new(sample_data());
         state.handle_key(Action::Quit);
         assert!(state.should_quit);
+    }
+
+    #[test]
+    fn quit_sets_dirty_for_final_frame() {
+        let mut state = WatchState::new(sample_data());
+        state.dirty = false;
+        state.handle_key(Action::Quit);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn new_state_is_dirty() {
+        let state = WatchState::new(sample_data());
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn take_dirty_clears_flag() {
+        let mut state = WatchState::new(sample_data());
+        assert!(state.take_dirty());
+        assert!(!state.dirty);
+        assert!(!state.take_dirty());
+    }
+
+    #[test]
+    fn key_navigation_sets_dirty() {
+        let mut state = WatchState::new(sample_data());
+        state.dirty = false;
+
+        state.handle_key(Action::Right);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::Left);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::PageDown);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::PageUp);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn item_scroll_sets_dirty() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.dirty = false;
+
+        state.handle_key(Action::Down);
+        assert!(state.dirty);
+
+        state.dirty = false;
+        state.handle_key(Action::Up);
+        assert!(state.dirty);
+    }
+
+    #[test]
+    fn noop_scroll_stays_clean() {
+        let mut state = WatchState::new(sample_data());
+        state.focused_panel = WatchPanel::Queue;
+        state.selected_item = 0;
+        state.dirty = false;
+
+        // Up at top — no change
+        state.handle_key(Action::Up);
+        assert!(!state.dirty);
+
+        // Down to max
+        state.selected_item = state.data.queue.len() - 1;
+        state.dirty = false;
+        state.handle_key(Action::Down);
+        assert!(!state.dirty);
+    }
+
+    #[test]
+    fn mark_dirty_sets_flag() {
+        let mut state = WatchState::new(sample_data());
+        state.dirty = false;
+        state.mark_dirty();
+        assert!(state.dirty);
     }
 }
