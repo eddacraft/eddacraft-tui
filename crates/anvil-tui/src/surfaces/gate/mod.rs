@@ -89,6 +89,7 @@ impl FilterStatus {
 }
 
 /// State for the gate explorer surface.
+#[allow(clippy::struct_excessive_bools)]
 pub struct GateState {
     pub result: GateResult,
     pub selected: usize,

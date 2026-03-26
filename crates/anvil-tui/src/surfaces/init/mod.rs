@@ -154,8 +154,7 @@ impl InitState {
 
     pub fn help_text(&self) -> &'static str {
         match self.step {
-            InitStep::Mode => "j/k navigate  enter select  esc back  q quit",
-            InitStep::Format => "j/k navigate  enter select  esc back  q quit",
+            InitStep::Mode | InitStep::Format => "j/k navigate  enter select  esc back  q quit",
             InitStep::Directory => "type directory  enter next  esc back  q quit",
             InitStep::Checks => "j/k navigate  space toggle  enter next  esc back  q quit",
             InitStep::Summary => "enter confirm  esc back  q quit",
@@ -327,8 +326,7 @@ impl crate::surface::Surface for InitState {
 
     fn help_text(&self) -> &'static str {
         match self.step {
-            InitStep::Mode => "j/k navigate  enter select  esc back  q quit",
-            InitStep::Format => "j/k navigate  enter select  esc back  q quit",
+            InitStep::Mode | InitStep::Format => "j/k navigate  enter select  esc back  q quit",
             InitStep::Directory => "type path  enter confirm  esc back  q quit",
             InitStep::Checks => "j/k navigate  space toggle  enter confirm  esc back  q quit",
             InitStep::Summary => "enter confirm  esc back  q quit",
