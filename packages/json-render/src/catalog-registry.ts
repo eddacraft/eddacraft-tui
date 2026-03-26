@@ -1,3 +1,4 @@
+import { createElement } from 'react';
 import { schema } from '@json-render/react';
 import { defineRegistry } from '@json-render/react';
 import { shadcnComponentDefinitions } from '@json-render/shadcn/catalog';
@@ -29,8 +30,8 @@ export const catalog = schema.createCatalog({
       props: z.object({
         label: z.string(),
         value: z.string(),
-        trend: z.enum(['up', 'down', 'flat']).nullable(),
-        format: z.enum(['number', 'percent', 'duration']).nullable(),
+        trend: z.enum(['up', 'down', 'flat']).nullable().optional(),
+        format: z.enum(['number', 'percent', 'duration']).nullable().optional(),
       }),
       description: 'Single metric value with optional trend indicator',
       example: { label: 'Gate Pass Rate', value: '94%', trend: 'up', format: 'percent' },
@@ -54,7 +55,7 @@ export const catalog = schema.createCatalog({
  * to fit the combined catalog's ComponentFn type. The prop shapes are
  * identical — the cast is purely a TypeScript generic mismatch.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- shadcn registry types don't align with combined catalog generics; cast is safe because prop shapes are identical
 const components: any = {
   // shadcn built-ins
   Card: shadcnComponents.Card,
@@ -68,9 +69,9 @@ const components: any = {
   Alert: shadcnComponents.Alert,
   Progress: shadcnComponents.Progress,
 
-  // Custom Anvil components
-  MetricCard: ({ props }: { props: MetricCardProps }) => MetricCard(props),
-  StatusBadge: ({ props }: { props: StatusBadgeProps }) => StatusBadge(props),
+  // Custom Anvil components — use createElement since this is a .ts file
+  MetricCard: ({ props }: { props: MetricCardProps }) => createElement(MetricCard, props),
+  StatusBadge: ({ props }: { props: StatusBadgeProps }) => createElement(StatusBadge, props),
 };
 
 export const { registry } = defineRegistry(catalog, { components });

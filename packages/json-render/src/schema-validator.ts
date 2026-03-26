@@ -21,7 +21,7 @@ export function validateSpec(spec: unknown): ValidationResult {
   }
 
   const errors = result.error
-    ? result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+    ? result.error.issues.map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
     : ['Invalid spec'];
 
   return { valid: false, errors };

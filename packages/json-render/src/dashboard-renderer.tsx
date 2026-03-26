@@ -29,6 +29,12 @@ class RenderErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
     return { error };
   }
 
+  override componentDidUpdate(prevProps: ErrorBoundaryProps): void {
+    if (prevProps.children !== this.props.children && this.state.error) {
+      this.setState({ error: null });
+    }
+  }
+
   override componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error('[DashboardRenderer] render error:', error, info);
   }
@@ -89,7 +95,8 @@ function ValidationErrors({ errors }: { errors: string[] }): ReactNode {
 // ---------------------------------------------------------------------------
 
 export interface DashboardRendererProps {
-  spec: Spec;
+  /** Accepts typed Spec or raw parsed JSON (validated at runtime). */
+  spec: Spec | unknown;
   className?: string;
 }
 
