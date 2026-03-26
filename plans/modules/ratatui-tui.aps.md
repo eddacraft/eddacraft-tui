@@ -11,7 +11,7 @@ Scopes: RATS (main)
 
 | ID   | Owner | Status      |
 | ---- | ----- | ----------- |
-| RATS | —     | Done |
+| RATS | —     | Complete (7/7) |
 
 ## Purpose
 
@@ -66,11 +66,11 @@ navigation, interactive widgets) that Ink cannot match.
 
 Change status to **Ready** when:
 
-- [ ] KERN module Phase 3 (event emission) is complete
+- [x] KERN module Phase 3 (event emission) is complete
 - [x] Ratatui component library sufficiency validated (from KERN spike or
       separate prototype)
 - [x] EddaCraft theme and keyboard conventions documented
-- [ ] Watch dashboard wireframe approved
+- [x] Watch dashboard wireframe approved
 
 ---
 

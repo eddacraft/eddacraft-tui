@@ -34,8 +34,8 @@
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (6/6) — Complete
-- KERN: rust-kernel (22/25) — In Progress (Phase 5 deferred)
+- RENG: rust-core-engine (4/6) — In Progress
+- KERN: rust-kernel (20/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
 - RATS: ratatui-tui (7/7) — Complete
 - PORT: ink-to-ratatui-port (15/15) — Complete
@@ -215,7 +215,7 @@ core/src/gate/__fixtures__/library/scope/: OPAE-009
 core/src/gate/__fixtures__/library/security/: OPAE-007
 core/src/diagnostics/diagnostic-schema.ts: AIGUARD-002
 core/src/diagnostics/diagnostic-schema.test.ts: AIGUARD-002
-# RENG: Rust Engine Ports (6 items, all complete)
+# RENG: Rust Engine Ports (6 items, 4 done)
 crates/anvil-checks/src/secret/: RENG-001
 crates/anvil-checks/src/antipattern/: RENG-002
 crates/anvil-checks/src/command_safety/: RENG-003
