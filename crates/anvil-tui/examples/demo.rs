@@ -334,7 +334,7 @@ fn mock_gate_result() -> GateResult {
 fn mock_watch_data() -> WatchData {
     WatchData {
         status: WatchStatus::Passing,
-        queue: vec![
+        queue: std::collections::VecDeque::from([
             QueuedChange {
                 file: "src/lib.rs".into(),
                 kind: "modified".into(),
@@ -350,7 +350,7 @@ fn mock_watch_data() -> WatchData {
                 kind: "created".into(),
                 timestamp: "09:14:38".into(),
             },
-        ],
+        ]),
         history: vec![
             RunHistory {
                 passed: true,
