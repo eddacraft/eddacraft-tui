@@ -9,6 +9,14 @@ sidebar_position: 1
 
 All notable changes to Anvil are documented here.
 
+## [0.2.1-beta] - 2026-03-26
+
+### Added
+
+- **Project memory** — Anvil now tracks patterns and decisions in your codebase. New commands: `anvil edda`, `anvil ember`, `anvil stack`.
+- **Security hardening** — input validation and subprocess execution improvements across the platform.
+- **Dependency patches** — minimatch, axios, svgo, tar, and others.
+
 ## [0.2.0-beta] - 2026-03-14
 
 ### Added

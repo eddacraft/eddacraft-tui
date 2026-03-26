@@ -5,10 +5,20 @@ on:
     branches:
       - main
       - dev
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'plans/**'
+      - 'LICENSE'
   pull_request:
     branches:
       - main
       - dev
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'plans/**'
+      - 'LICENSE'
   schedule:
     # OSSF Scorecard: weekly on Monday at 06:00 UTC
     - cron: '0 6 * * 1'
@@ -123,7 +133,7 @@ jobs:
           fetch-depth: 0
 
       - name: Run TruffleHog
-        uses: trufflesecurity/trufflehog@v3.88.0
+        uses: trufflesecurity/trufflehog@v4
         with:
           extra_args: --only-verified
 

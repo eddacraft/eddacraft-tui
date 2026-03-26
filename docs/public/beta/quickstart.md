@@ -13,7 +13,7 @@ all in about 10 minutes.
 
 :::info Beta release
 
-This is **pre-release software** (0.1.2-beta). APIs and behaviour may change
+This is **pre-release software** (0.2.1-beta). APIs and behaviour may change
 between releases. Your feedback directly shapes the product before public
 launch.
 
@@ -21,7 +21,7 @@ launch.
 
 ## Prerequisites
 
-- **Node.js** 20.0.0 or later
+- **Node.js** >= 20.19.0
 - A package manager: **pnpm**, **npm**, **yarn**, or **bun**
 - A TypeScript or JavaScript project to test with
 
