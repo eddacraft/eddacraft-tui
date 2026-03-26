@@ -111,6 +111,37 @@ mod tests {
     }
 
     #[test]
+    fn ignores_coverage_directories() {
+        let filter = FileFilter::default();
+        // Relative paths
+        assert!(filter.should_ignore(Path::new("coverage/foo.js")));
+        assert!(filter.should_ignore(Path::new("apps/anvil-api/coverage/block-navigation.js")));
+        // Absolute paths (as notify delivers them)
+        assert!(filter.should_ignore(Path::new(
+            "/home/user/project/apps/anvil-api/coverage/block-navigation.js"
+        )));
+        // Directory path itself (as walkdir delivers it)
+        assert!(filter.should_ignore(Path::new("apps/anvil-api/coverage")));
+        assert!(filter.should_ignore(Path::new(
+            "/home/user/project/apps/anvil-api/coverage"
+        )));
+        // With trailing separator
+        assert!(filter.should_ignore(Path::new("apps/anvil-api/coverage/")));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn ignores_coverage_windows_paths() {
+        let filter = FileFilter::default();
+        assert!(filter.should_ignore(Path::new(
+            r"C:\Users\dev\project\apps\anvil-api\coverage\block-navigation.js"
+        )));
+        assert!(filter.should_ignore(Path::new(
+            r"apps\anvil-api\coverage\block-navigation.js"
+        )));
+    }
+
+    #[test]
     fn custom_patterns() {
         let filter = FileFilter::new(vec!["vendor".to_string(), "tmp".to_string()]);
         assert!(filter.should_ignore(Path::new("vendor/lib.ts")));

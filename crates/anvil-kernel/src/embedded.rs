@@ -215,7 +215,15 @@ fn evaluate_files(
 
 fn collect_files(root: &Path, filter: &FileFilter) -> Result<Vec<PathBuf>, EmbeddedError> {
     let mut files = Vec::new();
-    for entry in WalkDir::new(root) {
+    let walker = WalkDir::new(root).into_iter().filter_entry(|e| {
+        // Prune ignored directories so we never traverse coverage/,
+        // node_modules/, .git, target, etc.
+        if e.file_type().is_dir() {
+            return !filter.should_ignore(e.path());
+        }
+        true
+    });
+    for entry in walker {
         let entry = entry?;
         if entry.file_type().is_file() && filter.should_process(entry.path()) {
             files.push(entry.into_path());
