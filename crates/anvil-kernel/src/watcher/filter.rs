@@ -122,9 +122,7 @@ mod tests {
         )));
         // Directory path itself (as walkdir delivers it)
         assert!(filter.should_ignore(Path::new("apps/anvil-api/coverage")));
-        assert!(filter.should_ignore(Path::new(
-            "/home/user/project/apps/anvil-api/coverage"
-        )));
+        assert!(filter.should_ignore(Path::new("/home/user/project/apps/anvil-api/coverage")));
         // With trailing separator
         assert!(filter.should_ignore(Path::new("apps/anvil-api/coverage/")));
     }
@@ -136,9 +134,7 @@ mod tests {
         assert!(filter.should_ignore(Path::new(
             r"C:\Users\dev\project\apps\anvil-api\coverage\block-navigation.js"
         )));
-        assert!(filter.should_ignore(Path::new(
-            r"apps\anvil-api\coverage\block-navigation.js"
-        )));
+        assert!(filter.should_ignore(Path::new(r"apps\anvil-api\coverage\block-navigation.js")));
     }
 
     #[test]
