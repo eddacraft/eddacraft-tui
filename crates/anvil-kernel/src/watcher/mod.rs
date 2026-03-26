@@ -3,7 +3,7 @@ pub mod events;
 pub mod filter;
 
 use std::path::PathBuf;
-use std::sync::mpsc;
+use std::sync::{Arc, Mutex, mpsc};
 use std::time::Duration;
 
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -69,6 +69,9 @@ fn watch_directories(
         });
 
     for entry in walker.flatten() {
+        // flatten() skips permission errors, broken symlinks, etc.
+        // The filter already excludes node_modules/target/.git so most
+        // walk errors are from edge cases that don't affect monitoring.
         watcher.watch(entry.path(), RecursiveMode::NonRecursive)?;
     }
 
@@ -77,9 +80,15 @@ fn watch_directories(
 
 /// Starts watching the given directory and sends `ChangeBatch` events
 /// to the returned receiver. Runs until the watcher handle is dropped.
+/// Handle returned by `start_watcher` — keeps the OS watcher alive.
+/// Drop to stop watching.
+pub struct WatcherHandle {
+    _watcher: Arc<Mutex<RecommendedWatcher>>,
+}
+
 pub fn start_watcher(
     config: &WatcherConfig,
-) -> Result<(RecommendedWatcher, mpsc::Receiver<ChangeBatch>), WatcherError> {
+) -> Result<(WatcherHandle, mpsc::Receiver<ChangeBatch>), WatcherError> {
     let (raw_tx, raw_rx) = mpsc::channel::<notify::Result<Event>>();
     let (batch_tx, batch_rx) = mpsc::channel::<ChangeBatch>();
 
@@ -90,15 +99,20 @@ pub fn start_watcher(
         notify::Config::default(),
     )?;
 
-    // Watch directories selectively — skip ignored dirs (node_modules, .git,
-    // target, etc.) at the OS level to avoid exhausting inotify limits.
-    let watch_filter = config.filter.clone().unwrap_or_default();
-    watch_directories(&mut watcher, &config.root, &watch_filter)?;
+    // Watch directories selectively — skip ignored dirs (`node_modules`,
+    // `.git`, `target`, etc.) at the OS level to avoid exhausting inotify
+    // limits.
+    let filter = config.filter.clone().unwrap_or_default();
+    watch_directories(&mut watcher, &config.root, &filter)?;
+
+    // Wrap watcher so the processing thread can register new directories.
+    let watcher_arc = Arc::new(Mutex::new(watcher));
+    let watcher_for_thread = Arc::clone(&watcher_arc);
 
     let debounce_window = config.debounce_window;
     let max_pending = config.max_pending;
     let tick_interval = config.tick_interval;
-    let filter = config.filter.clone().unwrap_or_default();
+    let thread_filter = filter.clone();
 
     std::thread::spawn(move || {
         let mut debouncer = Debouncer::new(debounce_window, max_pending);
@@ -107,17 +121,29 @@ pub fn start_watcher(
             match raw_rx.recv_timeout(tick_interval) {
                 Ok(Ok(event)) => {
                     for path in event.paths {
-                        // Skip files that don't pass the filter
-                        // (Removed files always pass — we need to track deletions)
                         let kind = match event.kind {
                             EventKind::Create(_) => ChangeKind::Created,
                             EventKind::Modify(_) => ChangeKind::Modified,
                             EventKind::Remove(_) => ChangeKind::Removed,
                             _ => continue,
                         };
-                        if kind != ChangeKind::Removed && !filter.should_process(&path) {
+
+                        // Register newly created directories for watching so
+                        // files created inside them are picked up.
+                        if kind == ChangeKind::Created
+                            && path.is_dir()
+                            && !thread_filter.should_ignore(&path)
+                            && let Ok(mut w) = watcher_for_thread.lock()
+                        {
+                            let _ = w.watch(&path, RecursiveMode::NonRecursive);
+                        }
+
+                        // Skip files that don't pass the filter.
+                        // Removed files always pass — we need to track deletions.
+                        if kind != ChangeKind::Removed && !thread_filter.should_process(&path) {
                             continue;
                         }
+
                         if let Some(batch) = debouncer.record(FileChange { path, kind })
                             && batch_tx.send(batch).is_err()
                         {
@@ -140,5 +166,9 @@ pub fn start_watcher(
         }
     });
 
-    Ok((watcher, batch_rx))
+    let handle = WatcherHandle {
+        _watcher: watcher_arc,
+    };
+
+    Ok((handle, batch_rx))
 }

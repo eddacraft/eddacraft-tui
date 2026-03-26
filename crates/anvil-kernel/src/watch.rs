@@ -47,7 +47,7 @@ pub struct WatchConfig {
 pub struct WatchHandle {
     stop: Arc<AtomicBool>,
     thread: Option<thread::JoinHandle<()>>,
-    _watcher: notify::RecommendedWatcher,
+    _watcher: crate::watcher::WatcherHandle,
 }
 
 impl WatchHandle {
