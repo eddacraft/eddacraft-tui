@@ -116,7 +116,7 @@ export function DashboardRenderer({ spec, className }: DashboardRendererProps): 
   return (
     <RenderErrorBoundary>
       <div className={className}>
-        <Renderer spec={spec} registry={registry} />
+        <Renderer spec={spec as Spec} registry={registry} />
       </div>
     </RenderErrorBoundary>
   );
