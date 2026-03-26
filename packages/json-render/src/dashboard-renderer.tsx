@@ -13,6 +13,8 @@ import { validateSpec } from './schema-validator.js';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  /** Stable key used to reset error state when the spec changes. */
+  resetKey: string;
 }
 
 interface ErrorBoundaryState {
@@ -30,7 +32,7 @@ class RenderErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 
   override componentDidUpdate(prevProps: ErrorBoundaryProps): void {
-    if (prevProps.children !== this.props.children && this.state.error) {
+    if (prevProps.resetKey !== this.props.resetKey && this.state.error) {
       this.setState({ error: null });
     }
   }
@@ -95,8 +97,8 @@ function ValidationErrors({ errors }: { errors: string[] }): ReactNode {
 // ---------------------------------------------------------------------------
 
 export interface DashboardRendererProps {
-  /** Accepts typed Spec or raw parsed JSON (validated at runtime). */
-  spec: Spec | unknown;
+  /** Accepts raw parsed JSON — validated at runtime before rendering. */
+  spec: unknown;
   className?: string;
 }
 
@@ -113,8 +115,12 @@ export function DashboardRenderer({ spec, className }: DashboardRendererProps): 
     return <ValidationErrors errors={validation.errors} />;
   }
 
+  // Stable key derived from spec content so the error boundary resets only
+  // when the spec actually changes, not on every parent rerender.
+  const resetKey = JSON.stringify(spec);
+
   return (
-    <RenderErrorBoundary>
+    <RenderErrorBoundary resetKey={resetKey}>
       <div className={className}>
         <Renderer spec={spec as Spec} registry={registry} />
       </div>

@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 export interface MetricCardProps {
   label: string;
   value: string;
-  trend: 'up' | 'down' | 'flat' | null;
-  format: 'number' | 'percent' | 'duration' | null;
+  trend?: 'up' | 'down' | 'flat' | null;
+  format?: 'number' | 'percent' | 'duration' | null;
 }
 
 const trendIndicators: Record<string, string> = {
