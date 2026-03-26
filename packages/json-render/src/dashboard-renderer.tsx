@@ -117,7 +117,12 @@ export function DashboardRenderer({ spec, className }: DashboardRendererProps): 
 
   // Stable key derived from spec content so the error boundary resets only
   // when the spec actually changes, not on every parent rerender.
-  const resetKey = JSON.stringify(spec);
+  let resetKey: string;
+  try {
+    resetKey = JSON.stringify(spec);
+  } catch {
+    resetKey = String(Date.now());
+  }
 
   return (
     <RenderErrorBoundary resetKey={resetKey}>

@@ -19,9 +19,26 @@ const trendColours: Record<string, string> = {
   flat: 'var(--text-muted)',
 };
 
-export function MetricCard({ label, value, trend, format: _format }: MetricCardProps): ReactNode {
+function formatValue(raw: string, format?: MetricCardProps['format']): string {
+  if (!format) return raw;
+  const num = Number(raw);
+  if (Number.isNaN(num)) return raw;
+  switch (format) {
+    case 'percent':
+      return `${num}%`;
+    case 'duration':
+      return num >= 60 ? `${Math.floor(num / 60)}m ${Math.round(num % 60)}s` : `${num}s`;
+    case 'number':
+      return num.toLocaleString('en-GB');
+    default:
+      return raw;
+  }
+}
+
+export function MetricCard({ label, value, trend, format }: MetricCardProps): ReactNode {
   const indicator = trend ? trendIndicators[trend] : null;
   const colour = trend ? trendColours[trend] : undefined;
+  const displayed = formatValue(value, format);
 
   return (
     <div
@@ -37,7 +54,7 @@ export function MetricCard({ label, value, trend, format: _format }: MetricCardP
         {label}
       </div>
       <div style={{ color: 'var(--text-primary)', fontSize: '1.5rem', fontWeight: 700 }}>
-        {value}
+        {displayed}
         {indicator && (
           <span style={{ color: colour, marginLeft: '0.5rem', fontSize: '1rem' }}>{indicator}</span>
         )}

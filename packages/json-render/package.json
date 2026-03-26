@@ -16,7 +16,9 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.lib.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@json-render/core": "^0.15.0",
