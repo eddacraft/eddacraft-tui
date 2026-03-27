@@ -129,7 +129,9 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
           RETURNING *`,
     ]);
     const revokedRows = (txResult as unknown[][])[0] ?? [];
-    removeFromBetaAudience(normalizedEmail);
+    removeFromBetaAudience(normalizedEmail).catch((err) => {
+      console.error('Failed to remove from audience (non-fatal):', err);
+    });
     return c.json({ revoked: revokedRows.length });
   }
 
@@ -183,8 +185,9 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     tokenExpiry.setDate(tokenExpiry.getDate() + 90);
 
     // Generate device code for invite email (48-hour expiry)
-    const userCode = 'ANVIL-' + randomBytes(2).toString('hex').toUpperCase();
+    const userCode = 'ANVIL-' + randomBytes(8).toString('hex').toUpperCase();
     const pollToken = randomBytes(32).toString('hex');
+    const pollTokenHash = hashToken(pollToken);
     const deviceExpiry = new Date();
     deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
 
@@ -203,7 +206,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
           VALUES (
             (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${userCode}, ${pollToken}, ${deviceExpiry.toISOString()}
+            ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
           )
           RETURNING *`,
       sql`INSERT INTO audit_log (action, actor, metadata)

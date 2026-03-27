@@ -14,6 +14,147 @@ work without disclosing exploit mechanics.
 
 ## [Unreleased]
 
+Product changelog: Rust CLI, beta auth, Ratatui TUI, Rust kernel, json-render
+package, kernel benchmarks, TypeScript 6.0 migration.
+
+### Features
+
+- **Rust CLI rewrite** — full port of all 16 CLI subcommands from Node.js
+  Commander.js to Rust clap, with JSON output mode, structured error handling,
+  and stdin TTY detection (`RCLI-005..034`)
+- **Rust kernel engine** — file watcher with debounce/backpressure, tree-sitter
+  parser with AST cache, petgraph symbol graph, trust annotation, incremental
+  graph updates, architecture config loader, invariant evaluation (cross-layer,
+  new-dep, public API, privilege), event emitter, watch mode, embedded mode,
+  dual-run harness, engine mode selection (`KERN-010..044`)
+- **Ratatui TUI surfaces** — all Ink surfaces ported to native Ratatui: welcome,
+  status, doctor, audit, init, browser, gate, watch, tutorial (`PORT-010..044`).
+  Shared component library extracted into `eddacraft-tui` crate
+  (`RATS-001..007`)
+- **Rust engine checks** — secret detection, anti-pattern detection, command
+  safety validation ported to Rust with architecture check parity tests and
+  engine mode flag (`RENG-001..006`)
+- **Beta authentication** — device-code and OTP passwordless auth, session
+  refresh with theft detection, admin approval workflow, invite emails, expired
+  code cleanup cron, CLI auth commands, website confirmation page
+  (`BAUTH-001..020`)
+- **Kernel benchmarks** — criterion micro-benchmarks for watcher, parser,
+  graph-query, policy-scaling, and cold-start paths (`BENCH-001..006`)
+- **@eddacraft/json-render** — JSON-driven dashboard rendering package with
+  schema validation and error boundary (`json-render`)
+- **Rust policy crate** — `anvil-policy` scaffold with PolicyLoader and
+  OpaExecutor, wired to CLI policy and architecture commands
+- **TUI branding** — brand block logo, watermark in shell chrome footer,
+  surface-specific help text, Esc/back navigation from all surfaces
+- **CLI filters** — `--confidence` and `--since` for `edda list`, login aliases
+  for auth commands
+
+### Bug Fixes
+
+- Terminal restore after subprocess failures aborts hub loop cleanly
+- Docs errors shown inline instead of flashing to console
+- Empty `.anvilrc` rejected in doctor check
+- Clap parse failures handled in JSON error path
+- Windows path separators normalised in export tests
+- Relative imports resolved correctly in kernel graph
+- Side-effect module imports handled in parser
+- `PrivilegeExpansion` suppressed for already-privileged symbols
+- Baseline policy evaluation runs before first watch snapshot
+- External trust level preserved in `annotate_trust`
+- Watch collections capped to prevent unbounded memory growth
+- Pass rate calculation corrected (no double-counting)
+- File walker prunes ignored directories during traversal
+- Graph uses deterministic import resolution ordering
+- Kernel excludes ignored directories from OS-level file watches
+- TUI welcome layout adapts to 24-row terminals with centred layout
+- TUI position indicator only shown when Issues panel is focused
+- TUI audit list viewport scrolling fixed
+- TUI watch flicker reduced with dirty-flag rendering
+- Loading frame shown during surface transitions
+- Select widget highlight extends across full row
+- API returns 500 on refresh signing errors instead of `valid:false`
+- Licence signing guards against NaN TTL values
+- API rejects unparsable `tokenExpiresAt` instead of falling back to max TTL
+- API catches `signLicence` errors in auth handlers
+- Redundant `.catch()` removed; explicit Buffer encoding added
+- `init` surface `should_quit` includes confirmed state
+
+### Refactoring
+
+- Shared TUI components extracted into `eddacraft-tui` crate (select widget,
+  theme, keyboard handling)
+- `run_subprocess` helper extracted for gate/watch menu options
+- Surface trait methods used in `watch_loop` exit check
+- Dynamic directory registration and `WatcherHandle` pattern in kernel
+
+### Dependencies
+
+- TypeScript upgraded to 6.0 across all workspace packages (`MAINT-011`) with
+  `ignoreDeprecations` for backward compatibility
+- Node engine floor raised to >= 22 (>= 22.13.0 in install script)
+- Rust toolchain bumped from 1.88.0 to 1.94.0
+- fast-xml-parser >= 5.5.6 (`CVE-2026-33036`)
+- picomatch and smol-toml overrides for CVE fixes
+- undici and yauzl security patches
+- flatted and socket.io-parser overrides
+- rustls-webpki bumped from 0.103.9 to 0.103.10
+- 21 dev dependency updates, 11 production dependency updates (Dependabot)
+- eslint-react v2 rule renamed to v3 equivalent
+- Incompatible eslint-react v3 and vite v8 bumps reverted
+
+### Infrastructure
+
+- **oxlint + oxfmt** — adopted as first-pass linter and formatter, replacing
+  prettier
+- Windows and macOS cross-compilation in Rust CI (`KERN-044`)
+- Cross-compilation skipped on feature branch PRs
+- macOS runner updated to `macos-latest` for x86_64 targets
+- Native `aarch64` cross-compilation replaces `cross` tool
+- Security scanning CI: trufflehog pinned to v3.94.1 (v4 does not exist)
+- Transactional package build step added before unit tests
+- `.claude/` excluded from formatting, linting, and CI triggers
+
+### Testing
+
+- Render snapshot tests for all TUI surfaces
+- Unit tests for previously untested CLI commands
+- Integration test suite for Rust engine checks
+- Kernel type validation tests
+- Architecture check parity tests (`RENG-004`)
+- Dual-run harness for comparing Rust and legacy engines (`KERN-042`)
+- Welcome snapshot tests regenerated with help text updates
+
+### Documentation
+
+- Unified UI context spec covering all customer-facing surfaces
+- Dependabot alert remediation skill design spec
+- Kernel benchmarking spec
+- Rust CLI replacement design spec and APS module
+- APS planning overhaul — themed releases, completed index, gap modules
+- TUTOR module for interactive tutorial
+- TUIDASH module for Ratatui json-render spec interpreter
+- AGOV agent governance patterns module
+- CPACKS compliance policy packs module (28 work items)
+- RCLI Tiers 2 and 3 APS modules
+- LAC module and TS-vs-Rust ADR
+- Beta auth, observability, and IaC themed releases
+- WELCOME module for restore-welcome-screen plan
+- Intent ledger governance module
+- Anvil product marketing/information sheet
+- Pitch deck pipeline with orchestrator agent
+- Install script, beta testing guide, and release polish docs
+- Release runbook updated with dev-to-main promotion flow
+- Docs structure reorganised with cross-reference fixes
+
+### Plans
+
+- BAUTH module marked complete (20/20)
+- RATS module marked complete (7/7)
+- PORT module marked complete (15/15)
+- KERN, PORT, RATS, RENG modules reconciled with implemented code
+- MAINT-006 and MAINT-007 marked complete
+- Completed wave plans moved to `plans/completed/`
+
 ## [0.2.1-beta] — Edda Stack
 
 Product changelog: Edda canonical memories, Ember candidate proposals, Stack

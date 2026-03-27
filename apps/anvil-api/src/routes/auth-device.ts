@@ -15,9 +15,12 @@ function rows(result: unknown): Record<string, unknown>[] {
 const debug = createDebugger('auth-device');
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 90;
+const POLL_INTERVAL_S = 5;
+
+const MAX_USER_CODE_RETRIES = 3;
 
 function generateUserCode(): string {
-  return 'ANVIL-' + randomBytes(2).toString('hex').toUpperCase();
+  return 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
 }
 
 function generatePollToken(): string {
@@ -56,18 +59,37 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
   const user = await findUserByEmail(sql, normalised);
   const isValid = user && user.status === 'active';
 
-  const userCode = generateUserCode();
   const pollToken = generatePollToken();
+  const pollTokenHash = hashToken(pollToken);
   const expiresAt = new Date(Date.now() + 900_000); // 15 minutes
 
-  if (isValid) {
-    await sql`
-      INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-      VALUES (${user.id}, ${userCode}, ${pollToken}, ${expiresAt.toISOString()})
-    `;
-    debug('device code created', { userCode });
-  } else {
-    debug('anti-enumeration response for unknown/inactive email');
+  let userCode = '';
+  for (let attempt = 0; attempt < MAX_USER_CODE_RETRIES; attempt++) {
+    userCode = generateUserCode();
+    try {
+      if (isValid) {
+        await sql`
+          INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+          VALUES (${user.id}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
+        `;
+        debug('device code created', { userCode });
+      } else {
+        // F-C-003: insert a dummy row so /confirm has identical DB-query timing
+        // for non-existent users. The null user_id ensures the JOIN in /confirm
+        // never matches, and the row expires normally via cron cleanup.
+        await sql`
+          INSERT INTO device_codes (user_code, poll_token, expires_at)
+          VALUES (${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
+        `;
+        debug('anti-enumeration dummy device code created');
+      }
+      break;
+    } catch (err: unknown) {
+      const isUniqueViolation =
+        err instanceof Error && 'code' in err && (err as { code: string }).code === '23505';
+      if (!isUniqueViolation || attempt === MAX_USER_CODE_RETRIES - 1) throw err;
+      debug('user_code collision, retrying', { attempt });
+    }
   }
 
   const verificationUrl = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
@@ -77,7 +99,7 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
     verificationUrl,
     pollToken,
     expiresIn: 900,
-    interval: 5,
+    interval: POLL_INTERVAL_S,
   });
 });
 
@@ -117,36 +139,57 @@ authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
 });
 
 /**
- * POST /device/poll
+ * POST /auth/device/poll
  *
  * Polls for the status of a device code flow. The CLI calls this repeatedly
  * until the user confirms the code on the web or the code expires.
  *
- * Rate limiting: relies on the global rate limiter. Per-token slow_down
- * enforcement is not implemented in this beta — the 5-second interval is
- * advisory (communicated via the `interval` field in /start response).
+ * Rate limiting: per-token cooldown enforced via `last_polled_at` column.
+ * Returns 429 with `slow_down` error if polled within the 5-second interval.
  */
 authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   debug('POST /auth/device/poll');
   const { pollToken } = c.req.valid('json');
   const sql = getClient();
+  const pollTokenHash = hashToken(pollToken);
 
-  // Non-destructive read to check pending/expired status
-  const r = rows(
+  // F-C-006: atomic per-token rate limiting — single UPDATE-with-WHERE
+  // eliminates TOCTOU race between reading and stamping last_polled_at
+  const updated = rows(
     await sql`
-    SELECT * FROM device_codes
-    WHERE poll_token = ${pollToken}
-    LIMIT 1
+    UPDATE device_codes
+    SET last_polled_at = now()
+    WHERE poll_token = ${pollTokenHash}
+      AND expires_at > now()
+      AND (last_polled_at IS NULL OR last_polled_at <= now() - make_interval(secs => ${POLL_INTERVAL_S}))
+    RETURNING *
   `
   );
 
-  const deviceCode = r[0];
+  const deviceCode = updated[0];
 
   if (!deviceCode) {
+    // Either the token doesn't exist or the cooldown hasn't elapsed.
+    // Distinguish "not found" from "rate limited" with a read-only check.
+    const existing = rows(
+      await sql`
+      SELECT id FROM device_codes
+      WHERE poll_token = ${pollTokenHash}
+        AND expires_at > now()
+      LIMIT 1
+    `
+    );
+
+    if (existing[0]) {
+      debug('poll rate limited (too frequent)');
+      return c.json({ error: 'slow_down', retryAfter: POLL_INTERVAL_S }, 429);
+    }
+
     debug('device code not found (treating as expired)');
     return c.json({ status: 'expired' });
   }
 
+  // Check expiry BEFORE any further side-effects (session minting)
   const expiresAt = new Date(deviceCode['expires_at'] as string);
   if (expiresAt.getTime() < Date.now()) {
     debug('device code expired');
@@ -163,7 +206,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   const consumed = rows(
     await sql`
     DELETE FROM device_codes
-    WHERE poll_token = ${pollToken}
+    WHERE poll_token = ${pollTokenHash}
       AND confirmed_at IS NOT NULL
     RETURNING user_id
   `

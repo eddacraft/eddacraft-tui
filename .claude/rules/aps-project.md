@@ -15,6 +15,7 @@
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
 - RCLI: rust-cli (20/56) — In Progress (Phase 9 council findings added
   2026-03-27; APS statuses need reconciliation with git history)
+- TUTOR: interactive-tutorial (0/13) — Draft
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
@@ -46,6 +47,7 @@
 - BENCH: kernel-benchmarking (6/16) — In Progress
 - TUIDASH: tui-dashboard-render (0/12) — Draft
 - CPACKS: compliance-policy-packs (0/28) — Draft
+- DOCSYNC: documentation-sync (6/14) — In Progress
 
 ## Conventions
 
@@ -495,4 +497,15 @@ docs/guides/compliance-packs-iso-27001.md: CPACKS-071
 docs/guides/compliance-packs-gdpr.md: CPACKS-071
 docs/guides/compliance-packs-nist-ai-rmf.md: CPACKS-071
 docs/guides/compliance-packs-eu-ai-act.md: CPACKS-071
+# DOCSYNC: Documentation Sync
+docs/public/anvil/releases/rust-rewrite.md: DOCSYNC-008
+docs/public/anvil/beta-testing-guide.md: DOCSYNC-007, DOCSYNC-010
+docs/public/anvil/quickstart.md: DOCSYNC-007, DOCSYNC-009
+docs/public/anvil/first-project.md: DOCSYNC-007, DOCSYNC-009
+docs/public/anvil/operations/troubleshooting.md: DOCSYNC-007, DOCSYNC-009
+docs/public/anvil/overview.md: DOCSYNC-009
+docs/public/anvil/tutorials/ci.md: DOCSYNC-009
+docs/public/anvil/integrations/github.md: DOCSYNC-009
+docs/public/anvil/guides/team-flow.md: DOCSYNC-009
+crates/*/README.md: DOCSYNC-006
 ```

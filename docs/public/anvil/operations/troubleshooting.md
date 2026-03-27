@@ -13,48 +13,36 @@ Common issues and solutions for Anvil.
 
 ### "Command not found: anvil"
 
-The CLI isn't in your PATH.
-
-**Solution (global install):**
-
-```bash
-pnpm add -g @eddacraft/anvil-cli
-# or
-npm install -g @eddacraft/anvil-cli
-# or
-yarn global add @eddacraft/anvil-cli
-# or
-bun add -g @eddacraft/anvil-cli
-```
-
-**Solution (local install):**
-
-```bash
-pnpm anvil check --all
-# or
-npx anvil check --all
-```
-
-### "Cannot find module '@eddacraft/anvil-cli'"
-
-Dependencies not installed.
+The `anvil` binary isn't in your PATH.
 
 **Solution:**
 
 ```bash
-pnpm install
+# Re-run the installer
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Or add the install directory to your PATH manually
+export PATH="$HOME/.eddacraft/bin:$PATH"
 ```
 
-### Node Version Error
+If you installed via Homebrew, run `brew link eddacraft/tap/anvil`.
 
-Anvil requires Node.js >= 20.19.0.
+### Migrating from the Node.js package
 
-**Solution:**
+If you previously used `@eddacraft/anvil-cli` via npm/pnpm, remove it and
+install the native binary:
 
 ```bash
-node --version  # Check version
-nvm use 20      # Switch to Node 20
+# Remove the old package
+pnpm remove @eddacraft/anvil-cli
+# or: npm uninstall @eddacraft/anvil-cli
+
+# Install the native binary
+curl -fsSL https://install.eddacraft.ai | sh
 ```
+
+See [The Switch to Rust](/anvil/releases/rust-rewrite) for full migration
+details.
 
 ## Configuration Issues
 
@@ -305,8 +293,7 @@ anvil check --all --verbose 2>&1 | tee anvil.log
 Include:
 
 - Anvil version: `anvil --version`
-- Node version: `node --version`
-- OS and version
+- OS, version, and architecture: `uname -a` (or equivalent)
 - Config file (sanitised)
 - Error message and stack trace
 - Steps to reproduce

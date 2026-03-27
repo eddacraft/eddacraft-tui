@@ -429,7 +429,7 @@ Change status to **Ready** when:
   enabling parity validation before cutover
 - **Validation:** Run on test fixture repo, verify harness catches intentionally
   introduced discrepancies
-- **Files:** `crates/anvil-kernel/tests/dual_run/`
+- **Files:** `crates/anvil-kernel/tests/dual_run.rs`
 - **Confidence:** medium (normalisation logic may be complex)
 - **Priority:** High
 - **Dependencies:** KERN-040

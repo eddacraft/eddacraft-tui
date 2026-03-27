@@ -88,7 +88,7 @@ Change status to **Ready** when:
   implementation on the full test fixture set
 - **Validation:** Run both implementations on test fixtures, diff results.
   ~40x speedup expected.
-- **Files:** `crates/anvil-kernel/src/checks/secret.rs`
+- **Files:** `crates/anvil-checks/src/secret/`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** None (self-contained, can start before KERN)
@@ -104,7 +104,7 @@ Change status to **Ready** when:
 - **Expected Outcome:** Same warnings produced as JS anti-pattern scanner
 - **Validation:** Run both implementations on test fixtures, diff results.
   ~25x speedup expected.
-- **Files:** `crates/anvil-kernel/src/checks/antipattern.rs`
+- **Files:** `crates/anvil-checks/src/antipattern/`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** KERN-011 (tree-sitter parsing)
@@ -119,7 +119,7 @@ Change status to **Ready** when:
 - **Expected Outcome:** Same safety verdicts as JS implementation
 - **Validation:** Run both implementations on test fixtures, diff results.
   ~25x speedup expected.
-- **Files:** `crates/anvil-kernel/src/checks/command_safety.rs`
+- **Files:** `crates/anvil-checks/src/command_safety/`
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** None (self-contained, can start before KERN)
@@ -153,7 +153,7 @@ Change status to **Ready** when:
 - **Expected Outcome:** Benchmark report showing actual speedup factors for each
   check type
 - **Validation:** Side-by-side benchmarks on 100+ representative files
-- **Files:** `crates/anvil-kernel/benches/checks.rs`
+- **Files:** `crates/anvil-checks/benches/checks.rs`
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** RENG-001, RENG-002, RENG-003
@@ -204,5 +204,5 @@ Change status to **Ready** when:
 | RENG-003 Command safety | Done |
 | RENG-004 Architecture check merge | In Progress (invariants done, parity validation pending) |
 | RENG-005 Benchmarks | Done |
-| RENG-006 Feature flag + dual-run | Draft (blocked on KERN-042, now done) |
+| RENG-006 Feature flag + dual-run | Draft (KERN-042 unblocked) |
 | **Total** | **6 items (4/6 done)** |

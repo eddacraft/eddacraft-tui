@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use anvil_kernel_types::{EngineEvent, EventPayload};
 
 use super::{QueuedChange, RunHistory, WatchData, WatchStatus};
@@ -14,6 +16,7 @@ pub struct WatchEventAdapter {
     violation_count: usize,
     error_count: usize,
     check_count: usize,
+    cycle_start: Option<Instant>,
 }
 
 impl WatchEventAdapter {
@@ -22,6 +25,7 @@ impl WatchEventAdapter {
             violation_count: 0,
             error_count: 0,
             check_count: 0,
+            cycle_start: None,
         }
     }
 
@@ -33,6 +37,17 @@ impl WatchEventAdapter {
     /// cycle's history entry is lost. This is acceptable because the watch
     /// session is already terminated in that scenario.
     pub fn handle_event(&mut self, event: &EngineEvent, data: &mut WatchData) {
+        // Start the cycle timer on the first non-Snapshot event. Snapshot is
+        // the end-of-cycle marker and resets cycle_start via .take(), so any
+        // event arriving after that is the start of a new cycle. This works
+        // whether the kernel emits Progress events or not.
+        if self.cycle_start.is_none() && !matches!(&event.payload, EventPayload::Snapshot { .. }) {
+            self.violation_count = 0;
+            self.error_count = 0;
+            self.check_count = 0;
+            self.cycle_start = Some(Instant::now());
+        }
+
         match &event.payload {
             EventPayload::Progress {
                 phase,
@@ -63,12 +78,6 @@ impl WatchEventAdapter {
     }
 
     fn handle_progress(&mut self, _phase: &str, current: u64, total: u64, data: &mut WatchData) {
-        if current == 0 {
-            self.violation_count = 0;
-            self.error_count = 0;
-            self.check_count = 0;
-        }
-
         data.status = WatchStatus::Running;
 
         if current >= total && total > 0 {
@@ -99,6 +108,11 @@ impl WatchEventAdapter {
         let passed = self.violation_count == 0 && self.error_count == 0;
         let checks_passed = self.check_count.saturating_sub(self.violation_count);
 
+        let duration_ms = self.cycle_start.take().map_or(0, |s| {
+            let ms = s.elapsed().as_millis();
+            u64::try_from(ms).unwrap_or(u64::MAX)
+        });
+
         data.stats.total_runs += 1;
         data.status = if passed {
             WatchStatus::Passing
@@ -112,12 +126,13 @@ impl WatchEventAdapter {
                 passed,
                 checks_run: self.check_count,
                 checks_passed,
-                duration_ms: 0,
+                duration_ms,
                 timestamp: "snapshot complete".to_string(),
             },
         );
         data.history.truncate(MAX_HISTORY_LEN);
         Self::update_pass_rate(data);
+        Self::update_avg_duration(data);
 
         // Reset for next watch cycle
         self.violation_count = 0;
@@ -167,6 +182,17 @@ impl WatchEventAdapter {
         } else {
             let passing = data.history.iter().filter(|h| h.passed).count();
             data.stats.pass_rate = passing as f64 / data.history.len() as f64;
+        }
+    }
+
+    /// Recompute average duration over retained history entries.
+    #[allow(clippy::cast_possible_truncation)]
+    fn update_avg_duration(data: &mut WatchData) {
+        if data.history.is_empty() {
+            data.stats.avg_duration_ms = 0;
+        } else {
+            let total: u64 = data.history.iter().map(|h| h.duration_ms).sum();
+            data.stats.avg_duration_ms = total / data.history.len() as u64;
         }
     }
 }

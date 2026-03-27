@@ -18,18 +18,5 @@
       }
     }
   ],
-  "ignorePatterns": [
-    "/dist",
-    "**/coverage",
-    "/.nx/cache",
-    "/.nx/workspace-data",
-    "/plans",
-    "pnpm-lock.yaml",
-    "**/next-env.d.ts",
-    "/apps/docs-site/build/",
-    "/apps/docs-site/.docusaurus/",
-    ".github/workflows/temper.yml",
-    ".github/workflows/claude-code-review.yml",
-    ".semgrep/"
-  ]
+  "_note": "oxfmt uses .prettierignore for file exclusion, not this field"
 }

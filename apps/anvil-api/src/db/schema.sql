@@ -48,11 +48,12 @@ CREATE TABLE waitlist (
 -- Device code flow state (BAUTH-001)
 CREATE TABLE device_codes (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id       uuid NOT NULL REFERENCES beta_users(id) ON DELETE CASCADE,
+  user_id       uuid REFERENCES beta_users(id) ON DELETE CASCADE,
   user_code     text UNIQUE NOT NULL,
   poll_token    text UNIQUE NOT NULL,
   confirmed_at  timestamptz,
   expires_at    timestamptz NOT NULL,
+  last_polled_at timestamptz,
   created_at    timestamptz NOT NULL DEFAULT now()
 );
 

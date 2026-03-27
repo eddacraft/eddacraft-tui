@@ -5,11 +5,11 @@ use eddacraft_tui::prelude::*;
 /// Quick-start options shown on the welcome screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuickStartOption {
+    RunAudit,
+    RunDoctor,
     RunGate,
     StartWatch,
     RunTutorial,
-    RunAudit,
-    RunDoctor,
     ViewDocs,
 }
 
@@ -27,9 +27,9 @@ impl QuickStartOption {
         match self {
             Self::RunGate => "Run quality gate",
             Self::StartWatch => "Start watch mode",
-            Self::RunTutorial => "Run interactive tutorial",
             Self::RunAudit => "Run project audit",
             Self::RunDoctor => "Run diagnostics",
+            Self::RunTutorial => "Interactive tutorial",
             Self::ViewDocs => "View documentation",
         }
     }
@@ -38,9 +38,9 @@ impl QuickStartOption {
         match self {
             Self::RunGate => "Check code against all quality checks",
             Self::StartWatch => "Monitor files for changes in real time",
-            Self::RunTutorial => "Learn Anvil with a guided walkthrough",
             Self::RunAudit => "Scan your project for security issues and anti-patterns",
             Self::RunDoctor => "Check your environment and fix common issues",
+            Self::RunTutorial => "Learn Anvil with a guided walkthrough",
             Self::ViewDocs => "Open the Anvil documentation in your browser",
         }
     }

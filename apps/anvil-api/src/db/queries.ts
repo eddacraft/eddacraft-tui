@@ -194,11 +194,12 @@ export async function insertAuditLog(
 
 const DeviceCodeSchema = z.object({
   id: IdSchema,
-  user_id: IdSchema,
+  user_id: z.union([IdSchema, z.null()]),
   user_code: z.string(),
   poll_token: z.string(),
   confirmed_at: z.union([DateStringSchema, z.null()]),
   expires_at: DateStringSchema,
+  last_polled_at: z.union([DateStringSchema, z.null()]),
   created_at: DateStringSchema,
 });
 
@@ -208,13 +209,13 @@ export async function insertDeviceCode(
   sql: NeonClient,
   userId: string,
   userCode: string,
-  pollToken: string,
+  pollTokenHash: string,
   expiresAt: Date
 ): Promise<DeviceCode> {
   const r = rows(
     await sql`
     INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-    VALUES (${userId}, ${userCode}, ${pollToken}, ${expiresAt.toISOString()})
+    VALUES (${userId}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
     RETURNING *
   `
   );
@@ -236,11 +237,11 @@ export async function findDeviceCodeByUserCode(
 
 export async function findDeviceCodeByPollToken(
   sql: NeonClient,
-  pollToken: string
+  pollTokenHash: string
 ): Promise<DeviceCode | null> {
   const r = rows(
     await sql`
-    SELECT * FROM device_codes WHERE poll_token = ${pollToken} LIMIT 1
+    SELECT * FROM device_codes WHERE poll_token = ${pollTokenHash} LIMIT 1
   `
   );
   if (!r[0]) return null;
