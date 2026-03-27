@@ -63,7 +63,7 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred) |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 
@@ -78,7 +78,7 @@ backlog (complete) as tracked sub-modules.
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
 | [continuous-improvement](./modules/continuous-improvement.aps.md) | CI | Draft | 0/10 |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred) |
 | [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 ### Rust Engine (In Progress)
@@ -89,10 +89,12 @@ TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard re
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 20/25 | — |
+| [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
 | [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
 | [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Done | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Done | 15/15 | RATS-001 (complete) |
+| [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 20/47 | KERN, RATS, PORT |
+| [kernel-benchmarking](./modules/kernel-benchmarking.aps.md) | BENCH | In Progress | 6/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
 | [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
 
@@ -291,7 +293,7 @@ Active module themes:
 | ----- | ----------- |
 | Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
 | Continuous Improvement | [continuous-improvement](./modules/continuous-improvement.aps.md), [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./modules/code-review-backlog.aps.md) |
-| Rust Engine | [rust-kernel](./modules/rust-kernel.aps.md), [rust-core-engine](./modules/rust-core-engine.aps.md), [ratatui-tui](./modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
+| Rust Engine | [rust-kernel](./modules/rust-kernel.aps.md), [rust-core-engine](./modules/rust-core-engine.aps.md), [ratatui-tui](./modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md), [rust-cli](./modules/rust-cli.aps.md), [kernel-benchmarking](./modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
 | Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |

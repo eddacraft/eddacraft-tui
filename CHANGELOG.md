@@ -8,6 +8,109 @@ engineering maintenance are recorded in the
 
 ## [Unreleased]
 
+### Added
+
+- **Rust CLI** — full native rewrite of the CLI in Rust using clap, replacing
+  the Node.js/Commander.js implementation (`RCLI`)
+  - 16 subcommands ported: check, watch, gate, init, wizard, new, status,
+    doctor, tutorial, welcome, audit, hooks, export, auth, admin, policy
+  - `anvil policy evaluate` and `anvil architecture validate` wired to real
+    OPA executor and config loader
+  - `anvil auth login` — device-code authentication flow
+  - `anvil admin approve` — approve beta access requests
+  - `anvil new` — template browser for project scaffolding
+  - `anvil wizard` — interactive setup with template scaffolding
+  - `anvil audit` — repository scanning for security findings
+  - `--json` output mode across all commands with structured error reporting
+  - `--confidence` and `--since` filters for `anvil edda list`
+- **Beta authentication system** — passwordless device-code and OTP
+  authentication for beta users (`BAUTH`)
+  - Device code start, confirm, and poll endpoints
+  - OTP request and verify endpoints
+  - Session refresh with theft detection
+  - Admin approve endpoint with invite email
+  - Expired code cleanup cron job
+  - Auth auto-refresh in CLI
+  - Device code confirmation page on website
+  - Beta invite and OTP code email templates
+- **Ratatui TUI surfaces** — native terminal UI replacing Ink/React (`RATS`,
+  `PORT`)
+  - Welcome screen with brand block logo and watermark
+  - Gate and watch accessible from welcome menu
+  - Status dashboard, doctor diagnostics, audit results
+  - Init wizard, template browser, gate explorer
+  - Tutorial orchestrator with policy, architecture, drift, and CI paths
+  - Watch dashboard with dirty-flag rendering to reduce flicker
+  - Shell chrome with surface-specific help text and footer
+  - Esc/back navigation from all surfaces
+  - Loading frame during surface transitions
+- **Rust kernel** — native core engine with file watching, parsing, and graph
+  analysis (`KERN`)
+  - File watcher with debounce and backpressure
+  - Tree-sitter parser with AST cache and symbol extraction
+  - Petgraph symbol graph with module-level dependency tracking and cycle
+    detection
+  - Trust level annotation for graph nodes
+  - Incremental graph updates with GraphDelta
+  - Architecture config loading from YAML
+  - Invariant evaluation framework — cross-layer, new dependency, public API,
+    and privilege escalation checks
+  - Event emitter with EngineEvent protocol
+  - Foreground watch mode with event streaming
+  - Embedded mode for one-shot checks
+  - Dual-run harness for engine comparison
+  - Engine mode flag for Rust/Legacy/Dual selection
+- **Kernel benchmarks** — criterion micro-benchmarks for critical paths
+  (`BENCH`)
+- **@eddacraft/json-render** — JSON-driven dashboard rendering package for
+  declarative UI specs
+- **Rust engine checks** — native secret detection, anti-pattern detection, and
+  command safety validation ported to Rust (`RENG`)
+
+### Improved
+
+- TUI welcome screen layout adapts to small terminals (24-row minimum)
+- TUI position indicator only shown when Issues panel is focused
+- TUI audit list viewport scrolling
+- Watch mode excludes ignored directories from OS-level file watches
+- Watch collections capped to prevent unbounded memory growth
+- Pass rate calculation corrected (no double-counting)
+- File walker prunes ignored directories during traversal
+- Graph uses deterministic ordering for import resolution
+- External trust level preserved correctly in trust annotation
+
+### Fixed
+
+- Terminal restore after subprocess failures now aborts hub loop cleanly
+- Docs errors shown inline instead of flashing to console
+- Empty `.anvilrc` rejected by doctor check
+- Clap parse failures handled in JSON error path
+- Windows path separators normalised in export tests
+- Relative imports resolved correctly in kernel graph
+- Side-effect module imports handled properly
+- `PrivilegeExpansion` suppressed for already-privileged symbols
+- Baseline policy evaluation runs before first watch snapshot
+
+### Security
+
+- Device-code and OTP authentication hardened with theft detection on session
+  refresh
+- Licence signing guards against NaN TTL values
+- API returns 500 on refresh signing errors instead of `valid:false`
+- Dependency patches:
+  - fast-xml-parser >= 5.5.6 (`CVE-2026-33036`)
+  - picomatch and smol-toml overrides for CVE fixes
+  - undici and yauzl security patches
+  - flatted and socket.io-parser overrides
+
+### Developer
+
+- TypeScript upgraded to 6.0 across all workspace packages (`MAINT-011`)
+- Node engine floor raised to >= 22
+- Rust toolchain bumped to 1.94.0 with Windows and macOS cross-compilation
+- oxlint adopted as first-pass linter, oxfmt replaces prettier
+- Criterion benchmarks added for kernel critical paths
+
 ## [0.2.1-beta] — Edda Stack
 
 Anvil gains a memory system. Edda Stack introduces three layers — observation,
