@@ -152,7 +152,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   `
   );
 
-  let deviceCode = updated[0];
+  const deviceCode = updated[0];
 
   if (!deviceCode) {
     // Either the token doesn't exist or the cooldown hasn't elapsed.

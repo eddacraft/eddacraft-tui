@@ -104,13 +104,10 @@ impl WatchEventAdapter {
         let passed = self.violation_count == 0 && self.error_count == 0;
         let checks_passed = self.check_count.saturating_sub(self.violation_count);
 
-        let duration_ms = self
-            .cycle_start
-            .take()
-            .map_or(0, |s| {
-                let ms = s.elapsed().as_millis();
-                u64::try_from(ms).unwrap_or(u64::MAX)
-            });
+        let duration_ms = self.cycle_start.take().map_or(0, |s| {
+            let ms = s.elapsed().as_millis();
+            u64::try_from(ms).unwrap_or(u64::MAX)
+        });
 
         data.stats.total_runs += 1;
         data.status = if passed {
