@@ -36,6 +36,7 @@ export const api = new VercelApp('anvil-api', {
     RESEND_WAITLIST_AUDIENCE_ID: getSecret('resend-waitlist-audience-id'),
     RESEND_BETA_AUDIENCE_ID: getSecret('resend-beta-audience-id'),
     ACTIVATE_URL: 'https://eddacraft.ai/auth/activate',
+    CRON_SECRET: getSecret('cron-secret'),
   },
 });
 

@@ -129,7 +129,9 @@ admin.post('/revoke', zValidator('json', revokeSchema), async (c) => {
           RETURNING *`,
     ]);
     const revokedRows = (txResult as unknown[][])[0] ?? [];
-    removeFromBetaAudience(normalizedEmail);
+    removeFromBetaAudience(normalizedEmail).catch((err) => {
+      console.error('Failed to remove from audience (non-fatal):', err);
+    });
     return c.json({ revoked: revokedRows.length });
   }
 

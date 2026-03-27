@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use anvil_kernel_types::{EngineEvent, EventPayload};
 
 use super::{QueuedChange, RunHistory, WatchData, WatchStatus};
@@ -14,6 +16,7 @@ pub struct WatchEventAdapter {
     violation_count: usize,
     error_count: usize,
     check_count: usize,
+    cycle_start: Option<Instant>,
 }
 
 impl WatchEventAdapter {
@@ -22,6 +25,7 @@ impl WatchEventAdapter {
             violation_count: 0,
             error_count: 0,
             check_count: 0,
+            cycle_start: None,
         }
     }
 
@@ -67,6 +71,7 @@ impl WatchEventAdapter {
             self.violation_count = 0;
             self.error_count = 0;
             self.check_count = 0;
+            self.cycle_start = Some(Instant::now());
         }
 
         data.status = WatchStatus::Running;
@@ -99,6 +104,12 @@ impl WatchEventAdapter {
         let passed = self.violation_count == 0 && self.error_count == 0;
         let checks_passed = self.check_count.saturating_sub(self.violation_count);
 
+        let duration_ms = self
+            .cycle_start
+            .take()
+            .map(|s| s.elapsed().as_millis() as u64)
+            .unwrap_or(0);
+
         data.stats.total_runs += 1;
         data.status = if passed {
             WatchStatus::Passing
@@ -112,12 +123,13 @@ impl WatchEventAdapter {
                 passed,
                 checks_run: self.check_count,
                 checks_passed,
-                duration_ms: 0,
+                duration_ms,
                 timestamp: "snapshot complete".to_string(),
             },
         );
         data.history.truncate(MAX_HISTORY_LEN);
         Self::update_pass_rate(data);
+        Self::update_avg_duration(data);
 
         // Reset for next watch cycle
         self.violation_count = 0;
@@ -167,6 +179,17 @@ impl WatchEventAdapter {
         } else {
             let passing = data.history.iter().filter(|h| h.passed).count();
             data.stats.pass_rate = passing as f64 / data.history.len() as f64;
+        }
+    }
+
+    /// Recompute average duration over retained history entries.
+    #[allow(clippy::cast_possible_truncation)]
+    fn update_avg_duration(data: &mut WatchData) {
+        if data.history.is_empty() {
+            data.stats.avg_duration_ms = 0;
+        } else {
+            let total: u64 = data.history.iter().map(|h| h.duration_ms).sum();
+            data.stats.avg_duration_ms = total / data.history.len() as u64;
         }
     }
 }

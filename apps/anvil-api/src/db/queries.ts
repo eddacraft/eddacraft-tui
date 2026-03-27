@@ -194,11 +194,12 @@ export async function insertAuditLog(
 
 const DeviceCodeSchema = z.object({
   id: IdSchema,
-  user_id: IdSchema,
+  user_id: z.union([IdSchema, z.null()]),
   user_code: z.string(),
   poll_token: z.string(),
   confirmed_at: z.union([DateStringSchema, z.null()]),
   expires_at: DateStringSchema,
+  last_polled_at: z.union([DateStringSchema, z.null()]),
   created_at: DateStringSchema,
 });
 

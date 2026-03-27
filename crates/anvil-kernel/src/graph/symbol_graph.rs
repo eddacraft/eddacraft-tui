@@ -77,16 +77,28 @@ impl SymbolGraph {
 
     pub fn remove_file(&mut self, file: &str) -> Vec<u64> {
         let ids = self.files.remove(file).unwrap_or_default();
-        for &id in &ids {
-            if let Some(idx) = self.index.remove(&id) {
-                self.graph.remove_node(idx);
-                // petgraph swaps the last node into the removed slot,
-                // so we need to update the index for the swapped node
-                if let Some(swapped) = self.graph.node_weight(idx) {
-                    self.index.insert(swapped.id, idx);
-                }
+
+        // Collect all NodeIndex values up-front before any removal.
+        let mut indices: Vec<(u64, NodeIndex)> = ids
+            .iter()
+            .filter_map(|&id| self.index.remove(&id).map(|idx| (id, idx)))
+            .collect();
+
+        // Sort by descending raw index so we always remove from the end first.
+        // This guarantees swap-remove never displaces a node we still need to
+        // process, because the swapped-in node always has a lower index than
+        // the one being removed.
+        indices.sort_by(|a, b| b.1.index().cmp(&a.1.index()));
+
+        for (_, idx) in &indices {
+            self.graph.remove_node(*idx);
+            // petgraph swaps the last node into the removed slot,
+            // so we need to update the index for the swapped node
+            if let Some(swapped) = self.graph.node_weight(*idx) {
+                self.index.insert(swapped.id, *idx);
             }
         }
+
         ids
     }
 

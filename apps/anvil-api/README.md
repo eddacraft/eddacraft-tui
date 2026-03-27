@@ -39,6 +39,7 @@ REST API for Anvil beta access management. Hono on Vercel with Neon Postgres.
 | `TOKEN_PEPPER`                | No       | Extra secret mixed into token hashing                                        |
 | `RESEND_WAITLIST_AUDIENCE_ID` | No       | Resend audience ID for waitlist                                              |
 | `RESEND_BETA_AUDIENCE_ID`     | No       | Resend audience ID for beta users                                            |
+| `CRON_SECRET`                 | Yes      | Bearer token for cron endpoint authentication                                |
 | `ACTIVATE_URL`                | No       | Device code confirmation URL (default: `https://eddacraft.ai/auth/activate`) |
 
 ## Development
