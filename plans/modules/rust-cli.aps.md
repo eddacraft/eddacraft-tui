@@ -940,6 +940,157 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ---
 
+## Phase 9 — Council Review Findings (2026-03-27)
+
+Deferred items from the RCLI cutover council review. All minor.
+
+### RCLI-037: deduplicate credential file-write logic
+
+- **Status:** Proposed
+- **Intent:** `migrate_to_xdg` and `save` both use `atomic_write` but have
+  slightly different setup logic. Extract a shared `write_credentials(path, creds)`
+  that handles dir creation, serialisation, and atomic write in one place
+- **Expected Outcome:** Single write path for credentials; no duplicated logic
+- **Validation:** Existing credential tests pass unchanged
+- **Files:** `crates/anvil-cli/src/auth/credentials.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review D-001, D-002
+
+---
+
+### RCLI-038: fix `create_first_run_marker` parameter type and path
+
+- **Status:** Proposed
+- **Intent:** `create_first_run_marker` takes `&PathBuf` (should be `&Path`) and
+  resolves the marker path relative to CWD rather than project root
+- **Expected Outcome:** Function takes `&Path`, marker path is relative to the
+  project `.anvil/` directory
+- **Validation:** First-run marker created in correct location regardless of CWD
+- **Files:** `crates/anvil-cli/src/commands/welcome.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review D-003, D-009
+
+---
+
+### RCLI-039: cache workspace_root() in gate run
+
+- **Status:** Proposed
+- **Intent:** `workspace_root()` is called multiple times per gate run (once per
+  check). Cache the result at the start of `gate::run()` and pass it to each
+  check function
+- **Expected Outcome:** Single `workspace_root()` call per gate invocation
+- **Validation:** Gate tests pass unchanged
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review D-004
+
+---
+
+### RCLI-040: improve secret scan robustness
+
+- **Status:** Proposed
+- **Intent:** Three issues with the secret scan check: (1) only 3 regex
+  patterns — expand to cover common secret formats (generic high-entropy strings,
+  private keys, JWT tokens); (2) walkdir has no depth limit — add a max depth
+  cap (e.g. 20); (3) reads entire files into memory with no size cap — skip
+  files larger than 1MB
+- **Expected Outcome:** Secret scan covers more patterns, doesn't OOM on large
+  files, and doesn't recurse infinitely
+- **Validation:** Existing secret scan tests pass; new tests for depth limit
+  and file size cap
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`
+- **Confidence:** medium
+- **Priority:** Medium
+- **Origin:** Council review D-006, D-007, D-013
+
+---
+
+### RCLI-041: preserve underlying error in evaluate_auth
+
+- **Status:** Proposed
+- **Intent:** `evaluate_auth` maps `Err(_)` to a generic "authentication
+  required" message, swallowing the underlying error (could be IO, JSON parse,
+  permission denied). Log the error at verbose level before returning the user
+  message
+- **Expected Outcome:** `anvil --verbose gate` shows the underlying auth error
+- **Validation:** Test that verbose mode logs the error detail
+- **Files:** `crates/anvil-cli/src/main.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review D-008
+
+---
+
+### RCLI-042: document exit codes for CI consumers
+
+- **Status:** Proposed
+- **Intent:** Exit codes (0=ok, 1=error, 2=gate fail, 3=auth required,
+  4=config error) are defined in code but not documented externally. Add a
+  section to the CLI `--help` output and to the docs
+- **Expected Outcome:** `anvil --help` shows exit code table; docs page
+  exists
+- **Validation:** Help text includes exit codes
+- **Files:** `crates/anvil-cli/src/main.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review D-011
+
+---
+
+### RCLI-043: add deprecation notice for old credential files
+
+- **Status:** Proposed
+- **Intent:** After migrating credentials from `~/.anvil/auth.json` to XDG,
+  the old file remains. Print a one-time notice suggesting removal:
+  "Legacy credentials at ~/.anvil/auth.json can now be removed."
+- **Expected Outcome:** Users know to clean up old credential files
+- **Validation:** Notice appears once after migration
+- **Files:** `crates/anvil-cli/src/auth/credentials.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review D-010
+
+---
+
+### RCLI-044: restrict credential permissions on non-Unix platforms
+
+- **Status:** Proposed
+- **Intent:** On non-Unix (Windows), credential files are written without
+  permission restrictions. Use platform-appropriate ACL restriction via
+  `std::fs::Permissions` or Windows-specific APIs to limit access to the
+  current user
+- **Expected Outcome:** Credential files on Windows are not world-readable
+- **Validation:** Windows CI test verifying file ACLs (deferred until Windows
+  support is in scope)
+- **Files:** `crates/anvil-cli/src/auth/credentials.rs`
+- **Confidence:** low
+- **Priority:** Low
+- **Origin:** Council review D-012
+- **Dependencies:** Windows support (currently out of scope)
+
+---
+
+### RCLI-045: architecture gate check should run kernel validation
+
+- **Status:** Proposed
+- **Intent:** The architecture gate check currently only validates that
+  `.anvil/architecture.yaml` is parseable YAML. It should delegate to the
+  kernel's boundary analysis for actual import-edge violation detection
+- **Expected Outcome:** `anvil gate` detects cross-layer architecture
+  violations, not just config syntax errors
+- **Validation:** Gate results match kernel invariant output on fixture repos
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-architecture/src/lib.rs`
+- **Confidence:** medium
+- **Priority:** Medium
+- **Dependencies:** KERN Phase 3 (policy engine)
+- **Origin:** Council review D-005
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
