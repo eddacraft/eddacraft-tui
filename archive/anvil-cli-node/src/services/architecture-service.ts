@@ -37,7 +37,7 @@ function collectSourceFiles(
   patterns: string[] = ['**/*.ts', '**/*.js']
 ): string[] {
   const files: string[] = [];
-  const excludeDirs = ['node_modules', 'dist', 'build', '.git', '.anvil', 'coverage'];
+  const excludeDirs = new Set(['node_modules', 'dist', 'build', '.git', '.anvil', 'coverage']);
 
   try {
     const entries = readdirSync(dir, { withFileTypes: true });
@@ -46,7 +46,7 @@ function collectSourceFiles(
       const fullPath = join(dir, entry.name);
 
       if (entry.isDirectory()) {
-        if (!excludeDirs.includes(entry.name)) {
+        if (!excludeDirs.has(entry.name)) {
           files.push(...collectSourceFiles(fullPath, baseDir, patterns));
         }
       } else if (entry.isFile()) {

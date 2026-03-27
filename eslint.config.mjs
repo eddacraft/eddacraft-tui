@@ -159,7 +159,7 @@ export default typescriptEslint.config(
         },
       ]),
   {
-    files: ['apps/anvil-cli/**/*.ts', 'cli/**/*.ts'],
+    files: ['cli/**/*.ts'],
     rules: {
       'no-console': 'off',
     },

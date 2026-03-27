@@ -73,7 +73,7 @@ export function GateExplorer({ result, onQuit, onExport }: GateExplorerProps): R
 
   const jumpToPrevFailure = () => {
     if (failedIndices.length === 0) return;
-    const prevIdx = [...failedIndices].reverse().find((i) => i < state.selectedIndex);
+    const prevIdx = [...failedIndices].toReversed().find((i) => i < state.selectedIndex);
     setState((prev) => ({
       ...prev,
       selectedIndex: prevIdx ?? failedIndices[failedIndices.length - 1],
