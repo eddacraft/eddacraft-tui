@@ -685,12 +685,16 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     Ok(checks)
 }
 
-pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
+/// Run gate checks and return whether all gates passed.
+///
+/// Returns `Ok(true)` when every check passes and `Ok(false)` when at
+/// least one check fails (caller maps this to `EXIT_GATE_FAIL`).
+pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<bool> {
     use crate::output::OutputMode;
 
     if args.list_profiles {
         list_profiles();
-        return Ok(());
+        return Ok(true);
     }
 
     let mode = OutputMode::from_global(global);
@@ -755,11 +759,7 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
         }
     }
 
-    if !overall {
-        std::process::exit(i32::from(crate::EXIT_GATE_FAIL));
-    }
-
-    Ok(())
+    Ok(overall)
 }
 
 #[cfg(test)]

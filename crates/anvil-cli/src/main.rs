@@ -179,6 +179,22 @@ fn main() -> ExitCode {
         }
     }
 
+    // Gate returns Result<bool> (false = gate failed); all others return Result<()>.
+    if let Commands::Gate(args) = &cli.command {
+        return match commands::gate::run(args, &cli.global) {
+            Ok(true) => ExitCode::from(EXIT_OK),
+            Ok(false) => ExitCode::from(EXIT_GATE_FAIL),
+            Err(err) => {
+                if cli.global.json {
+                    eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
+                } else {
+                    eprintln!("Error: {err:#}");
+                }
+                ExitCode::from(EXIT_ERROR)
+            }
+        };
+    }
+
     let result = match &cli.command {
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
@@ -190,7 +206,7 @@ fn main() -> ExitCode {
         Commands::Wizard(args) => commands::wizard::run(args, &cli.global),
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
         Commands::Auth(args) => commands::auth::run(args, &cli.global),
-        Commands::Gate(args) => commands::gate::run(args, &cli.global),
+        Commands::Gate(_) => unreachable!("handled above"),
         Commands::Watch(args) => commands::watch::run(args, &cli.global),
         Commands::Export(args) => commands::export::run(args, &cli.global),
         Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
