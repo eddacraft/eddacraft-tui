@@ -140,37 +140,41 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   const sql = getClient();
   const pollTokenHash = hashToken(pollToken);
 
-  // Non-destructive read to check pending/expired status
-  const r = rows(
+  // F-C-006: atomic per-token rate limiting — single UPDATE-with-WHERE
+  // eliminates TOCTOU race between reading and stamping last_polled_at
+  const updated = rows(
     await sql`
-    SELECT * FROM device_codes
+    UPDATE device_codes
+    SET last_polled_at = now()
     WHERE poll_token = ${pollTokenHash}
-    LIMIT 1
+      AND (last_polled_at IS NULL OR last_polled_at < now() - interval '5 seconds')
+    RETURNING *
   `
   );
 
-  const deviceCode = r[0];
+  let deviceCode = updated[0];
 
   if (!deviceCode) {
+    // Either the token doesn't exist or the cooldown hasn't elapsed.
+    // Distinguish "not found" from "rate limited" with a read-only check.
+    const existing = rows(
+      await sql`
+      SELECT id FROM device_codes
+      WHERE poll_token = ${pollTokenHash}
+      LIMIT 1
+    `
+    );
+
+    if (existing[0]) {
+      debug('poll rate limited (too frequent)');
+      return c.json({ error: 'slow_down', retryAfter: 5 }, 429);
+    }
+
     debug('device code not found (treating as expired)');
     return c.json({ status: 'expired' });
   }
 
-  // F-C-006: per-token rate limiting — reject if polled within cooldown
-  const lastPolledAt = deviceCode['last_polled_at']
-    ? new Date(deviceCode['last_polled_at'] as string).getTime()
-    : 0;
-  if (Date.now() - lastPolledAt < POLL_COOLDOWN_MS) {
-    debug('poll rate limited (too frequent)');
-    return c.json({ error: 'slow_down', retryAfter: 5 }, 429);
-  }
-
-  // Update last_polled_at timestamp
-  await sql`
-    UPDATE device_codes SET last_polled_at = now()
-    WHERE id = ${deviceCode['id']}
-  `;
-
+  // Check expiry BEFORE any further side-effects (session minting)
   const expiresAt = new Date(deviceCode['expires_at'] as string);
   if (expiresAt.getTime() < Date.now()) {
     debug('device code expired');

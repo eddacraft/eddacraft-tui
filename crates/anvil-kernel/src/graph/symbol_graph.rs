@@ -256,6 +256,49 @@ mod tests {
     }
 
     #[test]
+    fn remove_file_with_interleaved_indices_preserves_other_files() {
+        let mut g = SymbolGraph::new();
+
+        // Interleave symbols from two files so their NodeIndex values alternate:
+        // a.ts gets indices 0, 2 and b.ts gets indices 1, 3
+        g.add_symbol(make_symbol(1, "a_first", "a.ts", SymbolKind::Function))
+            .unwrap();
+        g.add_symbol(make_symbol(2, "b_first", "b.ts", SymbolKind::Function))
+            .unwrap();
+        g.add_symbol(make_symbol(3, "a_second", "a.ts", SymbolKind::Class))
+            .unwrap();
+        g.add_symbol(make_symbol(4, "b_second", "b.ts", SymbolKind::Class))
+            .unwrap();
+
+        assert_eq!(g.node_count(), 4);
+
+        // Remove the file whose symbols are interleaved with b.ts.
+        // Without descending-order removal, petgraph's swap-remove would
+        // corrupt the index mapping for b.ts symbols.
+        let removed = g.remove_file("a.ts");
+        assert_eq!(removed.len(), 2);
+        assert!(removed.contains(&1));
+        assert!(removed.contains(&3));
+
+        // a.ts symbols must be gone
+        assert!(g.get_symbol(1).is_none());
+        assert!(g.get_symbol(3).is_none());
+        assert!(g.symbols_in_file("a.ts").is_empty());
+
+        // b.ts symbols must survive with correct data
+        let b1 = g.get_symbol(2).expect("b_first should still exist");
+        assert_eq!(b1.name, "b_first");
+        assert_eq!(b1.file, "b.ts");
+
+        let b2 = g.get_symbol(4).expect("b_second should still exist");
+        assert_eq!(b2.name, "b_second");
+        assert_eq!(b2.file, "b.ts");
+
+        assert_eq!(g.node_count(), 2);
+        assert_eq!(g.symbols_in_file("b.ts").len(), 2);
+    }
+
+    #[test]
     fn stats() {
         let mut g = SymbolGraph::new();
         g.add_symbol(make_symbol(1, "foo", "a.ts", SymbolKind::Function))
