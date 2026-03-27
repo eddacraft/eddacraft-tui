@@ -164,11 +164,11 @@ Add Anvil to your CI pipeline:
   run: curl -fsSL https://install.eddacraft.ai | sh
 
 - name: Run Anvil
-  run: anvil check --all --ci
+  run: anvil gate --profile ci
 ```
 
-The `--ci` flag produces machine-readable output and sets appropriate exit
-codes.
+The `ci` profile runs all checks and produces machine-readable output with
+appropriate exit codes.
 
 ## What You've Achieved
 

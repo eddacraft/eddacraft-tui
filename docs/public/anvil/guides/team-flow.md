@@ -48,7 +48,7 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run Anvil
-        run: anvil gate --ci
+        run: anvil gate --profile ci
         env:
           ANVIL_CI: true
 ```
@@ -88,7 +88,7 @@ Anvil can post results as PR comments:
 
 ```yaml
 - name: Run Anvil
-  run: anvil gate --json > anvil-results.json
+  run: anvil gate --profile ci --json > anvil-results.json
 
 - name: Comment on PR
   if: github.event_name == 'pull_request'
@@ -215,7 +215,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-audit
-          path: audit.json
+          path: audit/
 ```
 
 ## Rollout Strategy
@@ -226,7 +226,7 @@ Run Anvil in CI without blocking:
 
 ```yaml
 - name: Run Anvil (Shadow)
-  run: anvil gate --ci || true
+  run: anvil gate --profile ci || true
   continue-on-error: true
 ```
 

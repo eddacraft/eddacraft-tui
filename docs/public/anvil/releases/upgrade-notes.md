@@ -20,9 +20,10 @@ Guides for upgrading between Anvil versions.
 # Install the native binary
 curl -fsSL https://install.eddacraft.ai | sh
 
-# Remove the old Node.js package
-pnpm remove @eddacraft/anvil-cli
-# or: npm uninstall @eddacraft/anvil-cli
+# Remove the old Node.js package (global)
+npm uninstall -g @eddacraft/anvil-cli
+# or if installed as a project dependency:
+# pnpm remove @eddacraft/anvil-cli
 ```
 
 Your `.anvilrc` and `.anvil/` directory work without changes. Authentication

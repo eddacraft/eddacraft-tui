@@ -99,7 +99,7 @@ identical — run all quality gates against the current project.
   run: curl -fsSL https://install.eddacraft.ai | sh
 
 - name: Run Anvil
-  run: anvil gate --ci
+  run: anvil gate --profile ci
 ```
 
 The Anvil binary itself requires no Node.js runtime. However, some gate checks
@@ -144,6 +144,10 @@ anvil --version
 ### Step 3: Remove the Node.js package
 
 ```bash
+# If installed globally
+npm uninstall -g @eddacraft/anvil-cli
+
+# If installed as a project dependency
 pnpm remove @eddacraft/anvil-cli
 # or: npm uninstall @eddacraft/anvil-cli
 ```
@@ -156,7 +160,7 @@ Remove the Node.js install step if Anvil was the only reason it was there.
 ### Step 5: Test
 
 ```bash
-anvil check --all
+anvil gate
 ```
 
 Your `.anvilrc` and `.anvil/` directory work without changes.

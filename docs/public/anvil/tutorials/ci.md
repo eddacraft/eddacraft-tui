@@ -36,7 +36,7 @@ Add a pre-commit hook that checks staged files:
 
 ```bash
 # .husky/pre-commit (or .git/hooks/pre-commit)
-anvil gate --staged
+anvil gate
 ```
 
 This blocks commits that introduce violations. Only staged files are checked, so
@@ -67,7 +67,7 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run Anvil
-        run: anvil gate --ci
+        run: anvil gate --profile ci
 ```
 
 ### GitLab CI
@@ -79,7 +79,7 @@ anvil:
   before_script:
     - curl -fsSL https://install.eddacraft.ai | sh
   script:
-    - anvil gate --ci
+    - anvil gate --profile ci
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
