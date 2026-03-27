@@ -15,7 +15,7 @@ function rows(result: unknown): Record<string, unknown>[] {
 const debug = createDebugger('auth-device');
 
 const REFRESH_TOKEN_EXPIRY_DAYS = 90;
-const POLL_COOLDOWN_MS = 5_000;
+const POLL_INTERVAL_S = 5;
 
 function generateUserCode(): string {
   return 'ANVIL-' + randomBytes(2).toString('hex').toUpperCase();
@@ -86,7 +86,7 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
     verificationUrl,
     pollToken,
     expiresIn: 900,
-    interval: 5,
+    interval: POLL_INTERVAL_S,
   });
 });
 
@@ -147,7 +147,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
     UPDATE device_codes
     SET last_polled_at = now()
     WHERE poll_token = ${pollTokenHash}
-      AND (last_polled_at IS NULL OR last_polled_at < now() - interval '5 seconds')
+      AND (last_polled_at IS NULL OR last_polled_at < now() - make_interval(secs => ${POLL_INTERVAL_S}))
     RETURNING *
   `
   );
@@ -167,7 +167,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
 
     if (existing[0]) {
       debug('poll rate limited (too frequent)');
-      return c.json({ error: 'slow_down', retryAfter: 5 }, 429);
+      return c.json({ error: 'slow_down', retryAfter: POLL_INTERVAL_S }, 429);
     }
 
     debug('device code not found (treating as expired)');

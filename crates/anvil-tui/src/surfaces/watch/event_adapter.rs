@@ -107,7 +107,10 @@ impl WatchEventAdapter {
         let duration_ms = self
             .cycle_start
             .take()
-            .map(|s| s.elapsed().as_millis() as u64)
+            .map(|s| {
+                let ms = s.elapsed().as_millis();
+                u64::try_from(ms).unwrap_or(u64::MAX)
+            })
             .unwrap_or(0);
 
         data.stats.total_runs += 1;

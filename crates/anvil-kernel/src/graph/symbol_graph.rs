@@ -84,10 +84,11 @@ impl SymbolGraph {
             .filter_map(|&id| self.index.remove(&id).map(|idx| (id, idx)))
             .collect();
 
-        // Sort by descending raw index so we always remove from the end first.
-        // This guarantees swap-remove never displaces a node we still need to
-        // process, because the swapped-in node always has a lower index than
-        // the one being removed.
+        // Sort by descending raw index so we always remove higher indices first.
+        // petgraph::Graph::remove_node swap-moves the last node into the removed
+        // slot. By processing nodes from highest index to lowest, we ensure that
+        // any node that gets swap-moved will not later be removed again by its
+        // original index, because that original index has already been handled.
         indices.sort_by(|a, b| b.1.index().cmp(&a.1.index()));
 
         for (_, idx) in &indices {
