@@ -6,6 +6,9 @@ license.workspace = true
 description = "Anvil CLI — structural governance for AI-assisted development"
 repository.workspace = true
 
+[package.metadata.dist]
+dist = true
+
 [[bin]]
 name = "anvil"
 path = "src/main.rs"

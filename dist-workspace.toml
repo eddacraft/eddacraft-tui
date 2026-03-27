@@ -17,3 +17,7 @@ install-path = "CARGO_HOME"
 hosting = "github"
 # Whether to install an updater program
 install-updater = false
+# PR dry-run mode (plan only, no builds)
+pr-run-mode = "plan"
+# Allow manual edits to generated CI (path filters, permissions)
+allow-dirty = ["ci"]
