@@ -54,13 +54,27 @@ docs/analysis/claude-code-safety-net-review.md
 .anvil/cache/
 .anvil/logs/
 
-# Claude (local)
-.claude/worktrees/
+# Claude Code — ignore local executable tooling, keep declarative config
+# Committed: agents/*.md, skills/, rules/*.md, commands/ (web tools need these)
+# Ignored: hooks, council scripts, agent-bus, settings, mcp, sessions
+.claude/hooks/
+.claude/council/
+.claude/agent-bus/
+.claude/settings.json
 .claude/settings.local.json
+.claude/mcp.json
+.claude/prompts
+.claude/worktrees/
 .claude/.setup-meta
+.claude/.gitignore
 .claude/logs/
+.claude/scheduled_tasks.lock
 .claude/memory.json
 .claude/autonomous-state.json
+.claude/skills
+.claude/VERSION
+.claude/README.md
+.claude/CHANGELOG.md
 apps/anvil-api/.claude/settings.local.json
 
 .gemini/
