@@ -173,8 +173,7 @@ fn main() -> ExitCode {
     if requires_auth(&cli.command) {
         if let Err(code) = check_auth() {
             if cli.global.json {
-                let msg = serde_json::json!({"error": "authentication_required"});
-                eprintln!("{}", serde_json::to_string_pretty(&msg).unwrap());
+                eprintln!("{}", serde_json::json!({"error": "authentication_required"}));
             }
             return ExitCode::from(code);
         }
