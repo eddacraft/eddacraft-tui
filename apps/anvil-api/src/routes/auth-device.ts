@@ -48,7 +48,7 @@ const authDevice = new Hono();
  */
 authDevice.post('/start', zValidator('json', startSchema), async (c) => {
   const { email } = c.req.valid('json');
-  debug('POST /device/start', { email });
+  debug('POST /device/start', { hasEmail: Boolean(email) });
 
   const normalised = email.toLowerCase().trim();
   const sql = getClient();

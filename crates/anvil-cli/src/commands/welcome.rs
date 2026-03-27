@@ -156,7 +156,7 @@ fn create_first_run_marker(path: &PathBuf) -> anyhow::Result<()> {
                 .unwrap_or_default()
                 .as_secs()
         ),
-        version: "0.1.0".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
     };
 
     let json = serde_json::to_string_pretty(&marker)?;
@@ -199,7 +199,7 @@ mod tests {
 
         let content = std::fs::read_to_string(&path).unwrap();
         let marker: FirstRunMarker = serde_json::from_str(&content).unwrap();
-        assert_eq!(marker.version, "0.1.0");
+        assert_eq!(marker.version, env!("CARGO_PKG_VERSION"));
         assert!(!marker.created_at.is_empty());
     }
 

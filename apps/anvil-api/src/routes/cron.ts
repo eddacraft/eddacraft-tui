@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { Hono } from 'hono';
 import { getClient } from '../db/client.js';
 import { createDebugger } from '../lib/debug.js';
@@ -22,8 +23,11 @@ cron.get('/cleanup', async (c) => {
     return c.json({ error: 'CRON_SECRET not configured' }, 503);
   }
 
-  const authHeader = c.req.header('authorization');
-  if (authHeader !== `Bearer ${cronSecret}`) {
+  const authHeader = c.req.header('authorization') ?? '';
+  const expected = `Bearer ${cronSecret}`;
+  const a = Buffer.from(authHeader);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
 

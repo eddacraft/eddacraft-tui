@@ -1,11 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import { randomBytes, createHash, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { getClient } from '../db/client.js';
 import { findUserByEmail } from '../db/queries.js';
 import { sendOtpCode } from '../lib/email.js';
 import { signLicence } from '../lib/licence.js';
+import { hashToken } from '../lib/token.js';
 import { createDebugger } from '../lib/debug.js';
 import type { LicenceClaims } from '../lib/licence.js';
 
@@ -21,12 +22,8 @@ function generateOtpCode(): string {
   return num.toString();
 }
 
-function hashOtp(code: string): string {
-  const pepper = process.env['TOKEN_PEPPER'] ?? '';
-  return createHash('sha256')
-    .update(pepper + code)
-    .digest('hex');
-}
+/** Hash an OTP code using the shared token hashing strategy. */
+const hashOtp = hashToken;
 
 const requestSchema = z.object({
   email: z.string().email().max(254),
@@ -163,9 +160,7 @@ authOtp.post('/verify', zValidator('json', verifySchema), async (c) => {
 
   // Generate refresh token
   const rawRefreshToken = randomBytes(32).toString('hex');
-  const refreshHash = createHash('sha256')
-    .update((process.env['TOKEN_PEPPER'] ?? '') + rawRefreshToken)
-    .digest('hex');
+  const refreshHash = hashToken(rawRefreshToken);
   const familyId = randomUUID();
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000);
 

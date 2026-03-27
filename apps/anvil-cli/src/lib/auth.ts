@@ -55,7 +55,7 @@ export async function getValidLicence(apiUrl: string): Promise<string | null> {
   }
 
   try {
-    const res = await fetch(`${apiUrl}/auth/session/refresh`, {
+    const res = await fetch(`${apiUrl}/api/v1/auth/session/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refreshToken: creds.refreshToken }),
