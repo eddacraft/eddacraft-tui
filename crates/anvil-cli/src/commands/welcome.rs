@@ -120,36 +120,6 @@ fn run_welcome_hub(
     Ok(())
 }
 
-/// Teardown the terminal, run a subprocess command, and re-initialise.
-/// Returns `Ok(Some(msg))` for subprocess errors (displayed as status),
-/// `Ok(None)` on success, or `Err` if the terminal cannot be restored
-/// (caller must abort the hub loop).
-fn run_subprocess(
-    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
-    subcommand: &str,
-) -> anyhow::Result<Option<String>> {
-    crate::tui::teardown_terminal(terminal)
-        .context("Failed to release terminal before subprocess")?;
-
-    let message = match std::env::current_exe() {
-        Ok(exe) => match std::process::Command::new(&exe).arg(subcommand).status() {
-            Ok(s) if s.success() => None,
-            Ok(s) => Some(format!(
-                "{subcommand} exited with {}",
-                s.code().map_or("signal".to_string(), |c| c.to_string())
-            )),
-            Err(e) => Some(format!("Failed to launch {subcommand}: {e}")),
-        },
-        Err(e) => Some(format!("Failed to resolve executable: {e}")),
-    };
-
-    // Re-initialise terminal — if this fails, the hub loop cannot continue.
-    *terminal =
-        crate::tui::setup_terminal().context("failed to restore terminal after subprocess")?;
-
-    Ok(message)
-}
-
 fn open_docs_message() -> String {
     let url = "https://docs.eddacraft.ai";
 
