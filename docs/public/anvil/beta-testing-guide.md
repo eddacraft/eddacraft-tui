@@ -241,9 +241,9 @@ After initial setup, scanning works entirely offline.
 **Can I use this on private or proprietary code?** Yes. Anvil runs locally on
 your machine. No source code is sent to external services.
 
-**Do I need Node.js?** No. As of 0.3.0-beta, Anvil is a standalone native
-binary with no runtime dependencies. If you previously used the npm package,
-see [The Switch to Rust](./releases/rust-rewrite.md) for migration steps.
+**Do I need Node.js?** No. As of 0.3.0-beta, Anvil is a standalone native binary
+with no runtime dependencies. If you previously used the npm package, see
+[The Switch to Rust](./releases/rust-rewrite.md) for migration steps.
 
 **How do I reset my project configuration?** Run `anvil init --force` to
 regenerate your configuration from scratch.

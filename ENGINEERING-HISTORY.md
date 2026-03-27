@@ -27,16 +27,17 @@ package, kernel benchmarks, TypeScript 6.0 migration.
   graph updates, architecture config loader, invariant evaluation (cross-layer,
   new-dep, public API, privilege), event emitter, watch mode, embedded mode,
   dual-run harness, engine mode selection (`KERN-010..044`)
-- **Ratatui TUI surfaces** — all Ink surfaces ported to native Ratatui:
-  welcome, status, doctor, audit, init, browser, gate, watch, tutorial
-  (`PORT-010..044`). Shared component library extracted into `eddacraft-tui`
-  crate (`RATS-001..007`)
+- **Ratatui TUI surfaces** — all Ink surfaces ported to native Ratatui: welcome,
+  status, doctor, audit, init, browser, gate, watch, tutorial (`PORT-010..044`).
+  Shared component library extracted into `eddacraft-tui` crate
+  (`RATS-001..007`)
 - **Rust engine checks** — secret detection, anti-pattern detection, command
   safety validation ported to Rust with architecture check parity tests and
   engine mode flag (`RENG-001..006`)
 - **Beta authentication** — device-code and OTP passwordless auth, session
   refresh with theft detection, admin approval workflow, invite emails, expired
-  code cleanup cron, CLI auth commands, website confirmation page (`BAUTH-001..020`)
+  code cleanup cron, CLI auth commands, website confirmation page
+  (`BAUTH-001..020`)
 - **Kernel benchmarks** — criterion micro-benchmarks for watcher, parser,
   graph-query, policy-scaling, and cold-start paths (`BENCH-001..006`)
 - **@eddacraft/json-render** — JSON-driven dashboard rendering package with

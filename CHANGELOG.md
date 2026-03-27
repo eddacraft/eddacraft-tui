@@ -14,8 +14,8 @@ engineering maintenance are recorded in the
   the Node.js/Commander.js implementation (`RCLI`)
   - 16 subcommands ported: check, watch, gate, init, wizard, new, status,
     doctor, tutorial, welcome, audit, hooks, export, auth, admin, policy
-  - `anvil policy evaluate` and `anvil architecture validate` wired to real
-    OPA executor and config loader
+  - `anvil policy evaluate` and `anvil architecture validate` wired to real OPA
+    executor and config loader
   - `anvil auth login` — device-code authentication flow
   - `anvil admin approve` — approve beta access requests
   - `anvil new` — template browser for project scaffolding

@@ -24,17 +24,17 @@ The Node.js implementation was good enough for small projects, but it hit walls:
 
 - **Cold start** — Node.js takes 200-400ms just to load the runtime and parse
   the dependency tree. The Rust binary starts in under 10ms.
-- **Memory** — A 5,000-file monorepo consumed 400MB+ of RSS in watch mode.
-  The Rust watcher sits at 30-50MB for the same project.
+- **Memory** — A 5,000-file monorepo consumed 400MB+ of RSS in watch mode. The
+  Rust watcher sits at 30-50MB for the same project.
 - **Parse throughput** — Tree-sitter bindings in Rust parse TypeScript at
   ~15,000 files/second. The Node.js equivalent managed ~2,000 files/second with
   the same grammar.
 - **Concurrency** — File watching, parsing, graph updates, and policy evaluation
   now run on separate threads with zero-copy message passing. Node.js required
   worker threads with serialisation overhead.
-- **Distribution** — A single static binary with no runtime dependencies.
-  No more "which Node.js version?", no more `node_modules`, no more npm
-  registry authentication for private packages.
+- **Distribution** — A single static binary with no runtime dependencies. No
+  more "which Node.js version?", no more `node_modules`, no more npm registry
+  authentication for private packages.
 
 The result: Anvil is 5-10x faster on typical projects and uses 80% less memory
 in watch mode.
@@ -78,7 +78,6 @@ everything works identically from a user's perspective.
 identical — run all quality gates against the current project.
 
 :::
-
 
 ### Configuration
 

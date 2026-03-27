@@ -44,8 +44,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
 
 ### Breaking Changes
 
-- **Installation method** — `npm i -g @eddacraft/anvil-cli` no longer works.
-  Use the install script or Homebrew.
+- **Installation method** — `npm i -g @eddacraft/anvil-cli` no longer works. Use
+  the install script or Homebrew.
 - **CI workflows** — replace `pnpm anvil` / `npx anvil` with direct `anvil`
   calls. Remove Node.js setup steps if Anvil was the only reason they existed.
 

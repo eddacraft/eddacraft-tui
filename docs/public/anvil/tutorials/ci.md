@@ -92,8 +92,8 @@ anvil:
 | `0`  | All gates passed                                    |
 | `1`  | General error                                       |
 | `2`  | One or more gate failures                           |
-| `3`  | Authentication required (reserved, not yet emitted)  |
-| `4`  | Configuration error (reserved, not yet emitted)      |
+| `3`  | Authentication required (reserved, not yet emitted) |
+| `4`  | Configuration error (reserved, not yet emitted)     |
 
 CI runners use these exit codes to pass or fail the pipeline step.
 
