@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Result, bail};
 use clap::Args;
@@ -244,16 +244,284 @@ fn run_check_secret(name: &str) -> CheckResult {
     }
 }
 
+const DEFAULT_COVERAGE_THRESHOLD: f64 = 80.0;
+
+fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
+    let lcov_path = project_root.join("coverage/lcov.info");
+    let cobertura_path = project_root.join("coverage/cobertura.xml");
+
+    if lcov_path.exists() {
+        match std::fs::read_to_string(&lcov_path) {
+            Ok(content) => {
+                let mut total_lines: u64 = 0;
+                let mut hit_lines: u64 = 0;
+                for line in content.lines() {
+                    if let Some(val) = line.strip_prefix("LF:") {
+                        if let Ok(n) = val.trim().parse::<u64>() {
+                            total_lines += n;
+                        }
+                    } else if let Some(val) = line.strip_prefix("LH:") {
+                        if let Ok(n) = val.trim().parse::<u64>() {
+                            hit_lines += n;
+                        }
+                    }
+                }
+                if total_lines == 0 {
+                    return CheckResult {
+                        name: "coverage".to_string(),
+                        passed: true,
+                        score: 100.0,
+                        message: "Coverage report empty (no lines tracked). Skipping.".to_string(),
+                    };
+                }
+                #[allow(clippy::cast_precision_loss)]
+                let pct = (hit_lines as f64 / total_lines as f64) * 100.0;
+                let passed = pct >= threshold;
+                CheckResult {
+                    name: "coverage".to_string(),
+                    passed,
+                    score: pct,
+                    message: format!(
+                        "Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"
+                    ),
+                }
+            }
+            Err(e) => CheckResult {
+                name: "coverage".to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Failed to read lcov.info: {e}"),
+            },
+        }
+    } else if cobertura_path.exists() {
+        match std::fs::read_to_string(&cobertura_path) {
+            Ok(content) => {
+                // Extract line-rate="X.XX" attribute from cobertura XML
+                let rate = Regex::new(r#"line-rate="([0-9.]+)""#)
+                    .ok()
+                    .and_then(|re| re.captures(&content))
+                    .and_then(|cap| cap.get(1))
+                    .and_then(|m| m.as_str().parse::<f64>().ok());
+                match rate {
+                    Some(r) => {
+                        let pct = r * 100.0;
+                        let passed = pct >= threshold;
+                        CheckResult {
+                            name: "coverage".to_string(),
+                            passed,
+                            score: pct,
+                            message: format!(
+                                "Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"
+                            ),
+                        }
+                    }
+                    None => CheckResult {
+                        name: "coverage".to_string(),
+                        passed: false,
+                        score: 0.0,
+                        message: "Failed to parse line-rate from cobertura.xml".to_string(),
+                    },
+                }
+            }
+            Err(e) => CheckResult {
+                name: "coverage".to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Failed to read cobertura.xml: {e}"),
+            },
+        }
+    } else {
+        CheckResult {
+            name: "coverage".to_string(),
+            passed: true,
+            score: 100.0,
+            message: "No coverage report found (coverage/lcov.info or coverage/cobertura.xml). Skipping.".to_string(),
+        }
+    }
+}
+
+const BLOCKED_NPM_PACKAGES: &[&str] = &[
+    "event-stream",
+    "flatmap-stream",
+    "ua-parser-js",
+    "colors",
+    "faker",
+    "node-ipc",
+];
+
+fn run_check_dependency(project_root: &Path) -> CheckResult {
+    let npm_lock = project_root.join("package-lock.json");
+    let cargo_lock = project_root.join("Cargo.lock");
+
+    let has_npm = npm_lock.exists();
+    let has_cargo = cargo_lock.exists();
+
+    if !has_npm && !has_cargo {
+        return CheckResult {
+            name: "dependency".to_string(),
+            passed: true,
+            score: 100.0,
+            message: "No lockfile found (package-lock.json or Cargo.lock). Skipping.".to_string(),
+        };
+    }
+
+    let mut blocked_found: Vec<String> = Vec::new();
+
+    if has_npm {
+        if let Ok(content) = std::fs::read_to_string(&npm_lock) {
+            for pkg in BLOCKED_NPM_PACKAGES {
+                // Look for "node_modules/<pkg>" key pattern in the lockfile
+                let pattern = format!("\"node_modules/{pkg}\"");
+                if content.contains(&pattern) {
+                    blocked_found.push((*pkg).to_string());
+                }
+            }
+        }
+    }
+
+    // Cargo.lock scanning can be extended later; for now only npm is checked.
+
+    if blocked_found.is_empty() {
+        CheckResult {
+            name: "dependency".to_string(),
+            passed: true,
+            score: 100.0,
+            message: "No blocked dependencies found".to_string(),
+        }
+    } else {
+        CheckResult {
+            name: "dependency".to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!(
+                "Blocked dependencies found: {}",
+                blocked_found.join(", ")
+            ),
+        }
+    }
+}
+
+fn run_check_architecture(project_root: &Path) -> CheckResult {
+    let config_path = project_root.join(".anvil/architecture.yaml");
+
+    if !config_path.exists() {
+        return CheckResult {
+            name: "architecture".to_string(),
+            passed: true,
+            score: 100.0,
+            message: "No architecture config found (.anvil/architecture.yaml). Skipping."
+                .to_string(),
+        };
+    }
+
+    match anvil_architecture::validate(project_root) {
+        Ok(result) => {
+            if result.valid {
+                CheckResult {
+                    name: "architecture".to_string(),
+                    passed: true,
+                    score: 100.0,
+                    message: "Architecture config is valid".to_string(),
+                }
+            } else {
+                let msgs: Vec<String> = result
+                    .violations
+                    .iter()
+                    .map(|v| format!("{}: {} ({})", v.rule, v.message, v.file))
+                    .collect();
+                CheckResult {
+                    name: "architecture".to_string(),
+                    passed: false,
+                    score: 0.0,
+                    message: format!(
+                        "{} violation(s):\n{}",
+                        result.violations.len(),
+                        msgs.join("\n")
+                    ),
+                }
+            }
+        }
+        Err(e) => CheckResult {
+            name: "architecture".to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Architecture validation failed: {e}"),
+        },
+    }
+}
+
+fn run_check_policy(project_root: &Path) -> CheckResult {
+    let policy_dir = project_root.join(".anvil/policies");
+
+    if !policy_dir.exists() || !policy_dir.is_dir() {
+        return CheckResult {
+            name: "policy".to_string(),
+            passed: true,
+            score: 100.0,
+            message: "No policy bundle found (.anvil/policies/). Skipping.".to_string(),
+        };
+    }
+
+    let evaluator = anvil_policy::evaluator::Evaluator::new(None);
+    let input = serde_json::json!({});
+
+    match evaluator.evaluate(project_root, &input, None) {
+        Ok(result) => {
+            if result.passed {
+                CheckResult {
+                    name: "policy".to_string(),
+                    passed: true,
+                    score: 100.0,
+                    message: format!("{} policies evaluated, no violations", result.checks_run),
+                }
+            } else {
+                let msgs: Vec<String> = result
+                    .violations
+                    .iter()
+                    .map(|v| format!("[{}] {}: {}", v.severity, v.policy_id, v.message))
+                    .collect();
+                CheckResult {
+                    name: "policy".to_string(),
+                    passed: false,
+                    score: 0.0,
+                    message: format!(
+                        "{} violation(s):\n{}",
+                        result.violations.len(),
+                        msgs.join("\n")
+                    ),
+                }
+            }
+        }
+        Err(anvil_policy::evaluator::EvalError::OpaNotAvailable) => CheckResult {
+            name: "policy".to_string(),
+            passed: true,
+            score: 100.0,
+            message: "OPA not installed. Skipping policy evaluation.".to_string(),
+        },
+        Err(e) => CheckResult {
+            name: "policy".to_string(),
+            passed: false,
+            score: 0.0,
+            message: format!("Policy evaluation failed: {e}"),
+        },
+    }
+}
+
 fn run_single_check(name: &str) -> CheckResult {
+    let root = workspace_root();
     match name {
         "lint" => run_check_lint(name),
         "test" => run_check_test(name),
         "secret" => run_check_secret(name),
+        "coverage" => run_check_coverage(&root, DEFAULT_COVERAGE_THRESHOLD),
+        "dependency" => run_check_dependency(&root),
+        "architecture" => run_check_architecture(&root),
+        "policy" => run_check_policy(&root),
         _ => CheckResult {
             name: name.to_string(),
             passed: false,
             score: 0.0,
-            message: "Check not yet implemented in Rust CLI".to_string(),
+            message: format!("Unknown check: {name}"),
         },
     }
 }
@@ -361,10 +629,14 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
 }
 
 pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
+    use crate::output::OutputMode;
+
     if args.list_profiles {
         list_profiles();
         return Ok(());
     }
+
+    let mode = OutputMode::from_global(global);
 
     let start = std::time::Instant::now();
     let checks = run_checks(args)?;
@@ -389,33 +661,40 @@ pub fn run(args: &GateArgs, global: &GlobalArgs) -> Result<()> {
         duration_ms: u64::try_from(elapsed).unwrap_or(u64::MAX),
     };
 
-    if global.json {
-        crate::output::json::print(&result)?;
-    } else {
-        println!();
-        println!("Gate Results");
-        println!("{}", "\u{2500}".repeat(40));
-        for check in &result.checks {
-            let icon = if check.passed { "\u{2713}" } else { "\u{2717}" };
-            let status = if check.passed { "PASS" } else { "FAIL" };
-            println!("  {icon} {name:<20} {status}", name = check.name);
-            if !check.message.is_empty() && (global.verbose || !check.passed) {
-                for line in check.message.lines() {
-                    println!("    {line}");
+    match mode {
+        OutputMode::Json => {
+            crate::output::json::print(&result)?;
+        }
+        OutputMode::Plain | OutputMode::Tui => {
+            // TUI surface for gate is not yet implemented; fall back to plain.
+            use crate::output::plain;
+
+            plain::header("Gate Results");
+            plain::section("Checks");
+            for check in &result.checks {
+                if check.passed {
+                    plain::success(&format!("{:<20} PASS", check.name));
+                } else {
+                    plain::error(&format!("{:<20} FAIL", check.name));
+                }
+                if !check.message.is_empty() && (global.verbose || !check.passed) {
+                    for line in check.message.lines() {
+                        plain::dim(&format!("  {line}"));
+                    }
                 }
             }
-        }
-        println!();
-        if overall {
-            println!(
-                "\u{2713} All quality gates passed! (score: {:.0}%)",
-                result.score
-            );
-        } else {
-            println!(
-                "\u{2717} Quality gates failed ({passed_count}/{total} passed, score: {:.0}%)",
-                result.score
-            );
+            plain::blank();
+            if overall {
+                plain::success(&format!(
+                    "All quality gates passed! (score: {:.0}%)",
+                    result.score,
+                ));
+            } else {
+                plain::error(&format!(
+                    "Quality gates failed ({passed_count}/{total} passed, score: {:.0}%)",
+                    result.score,
+                ));
+            }
         }
     }
 
@@ -479,10 +758,153 @@ mod tests {
         assert!(skips.is_empty());
     }
 
+    // ── Coverage check tests ──────────────────────────────────────────
+
     #[test]
-    fn unimplemented_check_reports_failure() {
-        let result = run_single_check("coverage");
+    fn coverage_no_report_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
+        assert!(result.passed);
+        assert!(result.message.contains("Skipping"));
+    }
+
+    #[test]
+    fn coverage_lcov_above_threshold() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cov_dir = tmp.path().join("coverage");
+        std::fs::create_dir_all(&cov_dir).unwrap();
+        std::fs::write(
+            cov_dir.join("lcov.info"),
+            "SF:src/main.rs\nLF:100\nLH:90\nend_of_record\n",
+        )
+        .unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
+        assert!(result.passed);
+        assert!(result.message.contains("90.0%"));
+    }
+
+    #[test]
+    fn coverage_lcov_below_threshold() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cov_dir = tmp.path().join("coverage");
+        std::fs::create_dir_all(&cov_dir).unwrap();
+        std::fs::write(
+            cov_dir.join("lcov.info"),
+            "SF:src/main.rs\nLF:100\nLH:50\nend_of_record\n",
+        )
+        .unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
         assert!(!result.passed);
-        assert!(result.message.contains("not yet implemented"));
+        assert!(result.message.contains("50.0%"));
+    }
+
+    #[test]
+    fn coverage_cobertura_above_threshold() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cov_dir = tmp.path().join("coverage");
+        std::fs::create_dir_all(&cov_dir).unwrap();
+        std::fs::write(
+            cov_dir.join("cobertura.xml"),
+            r#"<?xml version="1.0"?><coverage line-rate="0.95"></coverage>"#,
+        )
+        .unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
+        assert!(result.passed);
+        assert!(result.message.contains("95.0%"));
+    }
+
+    // ── Dependency check tests ──────────────────────────────────────
+
+    #[test]
+    fn dependency_no_lockfile_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = run_check_dependency(tmp.path());
+        assert!(result.passed);
+        assert!(result.message.contains("Skipping"));
+    }
+
+    #[test]
+    fn dependency_clean_lockfile_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("package-lock.json"),
+            r#"{"lockfileVersion":3,"packages":{"node_modules/express":{}}}"#,
+        )
+        .unwrap();
+        let result = run_check_dependency(tmp.path());
+        assert!(result.passed);
+        assert_eq!(result.score, 100.0);
+    }
+
+    #[test]
+    fn dependency_blocked_package_fails() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(
+            tmp.path().join("package-lock.json"),
+            r#"{"lockfileVersion":3,"packages":{"node_modules/event-stream":{"version":"4.0.1"}}}"#,
+        )
+        .unwrap();
+        let result = run_check_dependency(tmp.path());
+        assert!(!result.passed);
+        assert!(result.message.contains("event-stream"));
+    }
+
+    // ── Architecture check tests ────────────────────────────────────
+
+    #[test]
+    fn architecture_no_config_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = run_check_architecture(tmp.path());
+        assert!(result.passed);
+        assert!(result.message.contains("Skipping"));
+    }
+
+    #[test]
+    fn architecture_valid_config_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            "boundaries:\n  - name: core\n    path: src/core\n",
+        )
+        .unwrap();
+        let result = run_check_architecture(tmp.path());
+        assert!(result.passed);
+    }
+
+    #[test]
+    fn architecture_invalid_yaml_fails() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+        std::fs::write(anvil_dir.join("architecture.yaml"), "bad: [unclosed").unwrap();
+        let result = run_check_architecture(tmp.path());
+        assert!(!result.passed);
+    }
+
+    // ── Policy check tests ──────────────────────────────────────────
+
+    #[test]
+    fn policy_no_bundle_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let result = run_check_policy(tmp.path());
+        assert!(result.passed);
+        assert!(result.message.contains("Skipping"));
+    }
+
+    #[test]
+    fn policy_with_bundle_but_no_opa_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let policy_dir = tmp.path().join(".anvil/policies");
+        std::fs::create_dir_all(&policy_dir).unwrap();
+        std::fs::write(policy_dir.join("test.rego"), "package test\n").unwrap();
+        let result = run_check_policy(tmp.path());
+        // OPA is not installed in test environment, so it should skip gracefully
+        assert!(result.passed);
+        assert!(
+            result.message.contains("OPA not installed")
+                || result.message.contains("policies evaluated")
+        );
     }
 }

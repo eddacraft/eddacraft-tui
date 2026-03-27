@@ -85,6 +85,11 @@ dependencies = [
 [[package]]
 name = "anvil-architecture"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "serde_yaml",
+ "tempfile",
+]
 
 [[package]]
 name = "anvil-checks"
