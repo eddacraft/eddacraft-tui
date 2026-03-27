@@ -78,8 +78,8 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
         // for non-existent users. The null user_id ensures the JOIN in /confirm
         // never matches, and the row expires normally via cron cleanup.
         await sql`
-          INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-          VALUES (${null}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
+          INSERT INTO device_codes (user_code, poll_token, expires_at)
+          VALUES (${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
         `;
         debug('anti-enumeration dummy device code created');
       }

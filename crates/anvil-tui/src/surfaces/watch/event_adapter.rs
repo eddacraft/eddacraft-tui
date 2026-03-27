@@ -37,6 +37,17 @@ impl WatchEventAdapter {
     /// cycle's history entry is lost. This is acceptable because the watch
     /// session is already terminated in that scenario.
     pub fn handle_event(&mut self, event: &EngineEvent, data: &mut WatchData) {
+        // Start the cycle timer on the first non-Snapshot event. Snapshot is
+        // the end-of-cycle marker and resets cycle_start via .take(), so any
+        // event arriving after that is the start of a new cycle. This works
+        // whether the kernel emits Progress events or not.
+        if self.cycle_start.is_none() && !matches!(&event.payload, EventPayload::Snapshot { .. }) {
+            self.violation_count = 0;
+            self.error_count = 0;
+            self.check_count = 0;
+            self.cycle_start = Some(Instant::now());
+        }
+
         match &event.payload {
             EventPayload::Progress {
                 phase,
@@ -67,12 +78,6 @@ impl WatchEventAdapter {
     }
 
     fn handle_progress(&mut self, _phase: &str, current: u64, total: u64, data: &mut WatchData) {
-        if self.cycle_start.is_none() {
-            self.violation_count = 0;
-            self.error_count = 0;
-            self.check_count = 0;
-            self.cycle_start = Some(Instant::now());
-        }
 
         data.status = WatchStatus::Running;
 
