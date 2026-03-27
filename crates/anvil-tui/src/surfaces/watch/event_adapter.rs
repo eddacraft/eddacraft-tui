@@ -78,7 +78,6 @@ impl WatchEventAdapter {
     }
 
     fn handle_progress(&mut self, _phase: &str, current: u64, total: u64, data: &mut WatchData) {
-
         data.status = WatchStatus::Running;
 
         if current >= total && total > 0 {
