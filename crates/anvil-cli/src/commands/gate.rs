@@ -367,14 +367,23 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
 
     let mut blocked_found: Vec<String> = Vec::new();
 
-    if has_npm
-        && let Ok(content) = std::fs::read_to_string(&npm_lock)
-    {
-        for pkg in BLOCKED_NPM_PACKAGES {
-            // Look for "node_modules/<pkg>" key pattern in the lockfile
-            let pattern = format!("\"node_modules/{pkg}\"");
-            if content.contains(&pattern) {
-                blocked_found.push((*pkg).to_string());
+    if has_npm {
+        match std::fs::read_to_string(&npm_lock) {
+            Ok(content) => {
+                for pkg in BLOCKED_NPM_PACKAGES {
+                    let pattern = format!("\"node_modules/{pkg}\"");
+                    if content.contains(&pattern) {
+                        blocked_found.push((*pkg).to_string());
+                    }
+                }
+            }
+            Err(e) => {
+                return CheckResult {
+                    name: "dependency".to_string(),
+                    passed: false,
+                    score: 0.0,
+                    message: format!("Failed to read {}: {e}", npm_lock.display()),
+                };
             }
         }
     }

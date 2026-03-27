@@ -156,6 +156,14 @@ fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
             .with_context(|| format!("writing {}", tmp_path.display()))?;
     }
 
+    // On Windows, fs::rename does not replace an existing destination.
+    // Remove it first so subsequent saves/migrations succeed.
+    #[cfg(not(unix))]
+    if path.exists() {
+        std::fs::remove_file(path)
+            .with_context(|| format!("removing {}", path.display()))?;
+    }
+
     std::fs::rename(&tmp_path, path)
         .with_context(|| format!("renaming {} -> {}", tmp_path.display(), path.display()))?;
 
