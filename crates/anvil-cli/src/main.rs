@@ -122,18 +122,16 @@ fn requires_auth(cmd: &Commands) -> bool {
 /// Evaluate a credential-load result and return the appropriate exit code.
 ///
 /// Separated from I/O so tests can call it with synthetic inputs.
-fn evaluate_auth(loaded: anyhow::Result<Option<auth::credentials::Credentials>>) -> Result<(), u8> {
+fn evaluate_auth(
+    loaded: &anyhow::Result<Option<auth::credentials::Credentials>>,
+) -> Result<(), u8> {
     match loaded {
-        Ok(Some(ref creds)) if auth::credentials::is_expired(creds) => {
+        Ok(Some(creds)) if auth::credentials::is_expired(creds) => {
             eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
             Err(EXIT_AUTH_REQUIRED)
         }
         Ok(Some(_)) => Ok(()),
-        Ok(None) => {
-            eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
-            Err(EXIT_AUTH_REQUIRED)
-        }
-        Err(_) => {
+        Ok(None) | Err(_) => {
             eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
             Err(EXIT_AUTH_REQUIRED)
         }
@@ -145,7 +143,7 @@ fn evaluate_auth(loaded: anyhow::Result<Option<auth::credentials::Credentials>>)
 /// Returns `Ok(())` when valid credentials are found, or `Err(exit_code)`
 /// with `EXIT_AUTH_REQUIRED` when credentials are missing or expired.
 fn check_auth() -> Result<(), u8> {
-    evaluate_auth(auth::credentials::load())
+    evaluate_auth(&auth::credentials::load())
 }
 
 /// Check whether `--json` appears in raw args before clap parses them.
@@ -386,13 +384,13 @@ mod tests {
 
     #[test]
     fn evaluate_auth_returns_err_when_no_credentials() {
-        assert_eq!(evaluate_auth(Ok(None)), Err(EXIT_AUTH_REQUIRED));
+        assert_eq!(evaluate_auth(&Ok(None)), Err(EXIT_AUTH_REQUIRED));
     }
 
     #[test]
     fn evaluate_auth_returns_err_when_expired() {
         assert_eq!(
-            evaluate_auth(Ok(Some(expired_creds()))),
+            evaluate_auth(&Ok(Some(expired_creds()))),
             Err(EXIT_AUTH_REQUIRED),
         );
     }
@@ -400,18 +398,18 @@ mod tests {
     #[test]
     fn evaluate_auth_returns_err_on_load_error() {
         assert_eq!(
-            evaluate_auth(Err(anyhow::anyhow!("disk failure"))),
+            evaluate_auth(&Err(anyhow::anyhow!("disk failure"))),
             Err(EXIT_AUTH_REQUIRED),
         );
     }
 
     #[test]
     fn evaluate_auth_returns_ok_when_valid() {
-        assert!(evaluate_auth(Ok(Some(valid_creds()))).is_ok());
+        assert!(evaluate_auth(&Ok(Some(valid_creds()))).is_ok());
     }
 
     #[test]
     fn evaluate_auth_returns_ok_when_no_expiry() {
-        assert!(evaluate_auth(Ok(Some(no_expiry_creds()))).is_ok());
+        assert!(evaluate_auth(&Ok(Some(no_expiry_creds()))).is_ok());
     }
 }

@@ -896,7 +896,7 @@ mod tests {
         .unwrap();
         let result = run_check_dependency(tmp.path());
         assert!(result.passed);
-        assert_eq!(result.score, 100.0);
+        assert!((result.score - 100.0).abs() < f64::EPSILON);
     }
 
     #[test]
