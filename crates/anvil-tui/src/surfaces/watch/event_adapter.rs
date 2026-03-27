@@ -67,7 +67,7 @@ impl WatchEventAdapter {
     }
 
     fn handle_progress(&mut self, _phase: &str, current: u64, total: u64, data: &mut WatchData) {
-        if current == 0 {
+        if self.cycle_start.is_none() {
             self.violation_count = 0;
             self.error_count = 0;
             self.check_count = 0;

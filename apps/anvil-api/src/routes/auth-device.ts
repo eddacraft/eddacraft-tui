@@ -17,8 +17,10 @@ const debug = createDebugger('auth-device');
 const REFRESH_TOKEN_EXPIRY_DAYS = 90;
 const POLL_INTERVAL_S = 5;
 
+const MAX_USER_CODE_RETRIES = 3;
+
 function generateUserCode(): string {
-  return 'ANVIL-' + randomBytes(2).toString('hex').toUpperCase();
+  return 'ANVIL-' + randomBytes(4).toString('hex').toUpperCase();
 }
 
 function generatePollToken(): string {
@@ -57,26 +59,37 @@ authDevice.post('/start', zValidator('json', startSchema), async (c) => {
   const user = await findUserByEmail(sql, normalised);
   const isValid = user && user.status === 'active';
 
-  const userCode = generateUserCode();
   const pollToken = generatePollToken();
   const pollTokenHash = hashToken(pollToken);
   const expiresAt = new Date(Date.now() + 900_000); // 15 minutes
 
-  if (isValid) {
-    await sql`
-      INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-      VALUES (${user.id}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
-    `;
-    debug('device code created', { userCode });
-  } else {
-    // F-C-003: insert a dummy row so /confirm has identical DB-query timing
-    // for non-existent users. The null user_id ensures the JOIN in /confirm
-    // never matches, and the row expires normally via cron cleanup.
-    await sql`
-      INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
-      VALUES (${null}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
-    `;
-    debug('anti-enumeration dummy device code created');
+  let userCode = '';
+  for (let attempt = 0; attempt < MAX_USER_CODE_RETRIES; attempt++) {
+    userCode = generateUserCode();
+    try {
+      if (isValid) {
+        await sql`
+          INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+          VALUES (${user.id}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
+        `;
+        debug('device code created', { userCode });
+      } else {
+        // F-C-003: insert a dummy row so /confirm has identical DB-query timing
+        // for non-existent users. The null user_id ensures the JOIN in /confirm
+        // never matches, and the row expires normally via cron cleanup.
+        await sql`
+          INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+          VALUES (${null}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
+        `;
+        debug('anti-enumeration dummy device code created');
+      }
+      break;
+    } catch (err: unknown) {
+      const isUniqueViolation =
+        err instanceof Error && 'code' in err && (err as { code: string }).code === '23505';
+      if (!isUniqueViolation || attempt === MAX_USER_CODE_RETRIES - 1) throw err;
+      debug('user_code collision, retrying', { attempt });
+    }
   }
 
   const verificationUrl = process.env.ACTIVATE_URL ?? 'https://eddacraft.ai/auth/activate';
@@ -126,7 +139,7 @@ authDevice.post('/confirm', zValidator('json', confirmSchema), async (c) => {
 });
 
 /**
- * POST /device/poll
+ * POST /auth/device/poll
  *
  * Polls for the status of a device code flow. The CLI calls this repeatedly
  * until the user confirms the code on the web or the code expires.
@@ -147,7 +160,8 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
     UPDATE device_codes
     SET last_polled_at = now()
     WHERE poll_token = ${pollTokenHash}
-      AND (last_polled_at IS NULL OR last_polled_at < now() - make_interval(secs => ${POLL_INTERVAL_S}))
+      AND expires_at > now()
+      AND (last_polled_at IS NULL OR last_polled_at <= now() - make_interval(secs => ${POLL_INTERVAL_S}))
     RETURNING *
   `
   );
@@ -161,6 +175,7 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
       await sql`
       SELECT id FROM device_codes
       WHERE poll_token = ${pollTokenHash}
+        AND expires_at > now()
       LIMIT 1
     `
     );

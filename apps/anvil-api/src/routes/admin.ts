@@ -187,6 +187,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     // Generate device code for invite email (48-hour expiry)
     const userCode = 'ANVIL-' + randomBytes(2).toString('hex').toUpperCase();
     const pollToken = randomBytes(32).toString('hex');
+    const pollTokenHash = hashToken(pollToken);
     const deviceExpiry = new Date();
     deviceExpiry.setTime(deviceExpiry.getTime() + 48 * 60 * 60 * 1000);
 
@@ -205,7 +206,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
       sql`INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
           VALUES (
             (SELECT id FROM beta_users WHERE email = ${normalizedEmail}),
-            ${userCode}, ${pollToken}, ${deviceExpiry.toISOString()}
+            ${userCode}, ${pollTokenHash}, ${deviceExpiry.toISOString()}
           )
           RETURNING *`,
       sql`INSERT INTO audit_log (action, actor, metadata)
