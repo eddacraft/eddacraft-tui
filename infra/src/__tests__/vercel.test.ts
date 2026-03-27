@@ -10,6 +10,7 @@ vi.mock('../../src/keyvault.js', () => ({
       'waitlist-resend-admin-token': 'mock-waitlist-token',
       'resend-waitlist-audience-id': 'mock-waitlist-audience-id',
       'resend-beta-audience-id': 'mock-beta-audience-id',
+      'cron-secret': 'mock-cron-secret',
     };
     const value = secrets[name];
     if (value === undefined) {
