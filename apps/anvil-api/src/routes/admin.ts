@@ -185,7 +185,7 @@ admin.post('/approve', zValidator('json', approveSchema), async (c) => {
     tokenExpiry.setDate(tokenExpiry.getDate() + 90);
 
     // Generate device code for invite email (48-hour expiry)
-    const userCode = 'ANVIL-' + randomBytes(2).toString('hex').toUpperCase();
+    const userCode = 'ANVIL-' + randomBytes(8).toString('hex').toUpperCase();
     const pollToken = randomBytes(32).toString('hex');
     const pollTokenHash = hashToken(pollToken);
     const deviceExpiry = new Date();
