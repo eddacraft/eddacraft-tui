@@ -35,7 +35,11 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     #[allow(clippy::cast_possible_truncation)]
     let compact = (full_content_height as u16) > area.height;
 
-    let menu_height = if compact { menu_item_count } else { full_menu_height };
+    let menu_height = if compact {
+        menu_item_count
+    } else {
+        full_menu_height
+    };
 
     // In compact mode: logo(7) + blank(1) + menu(N)
     // In full mode: logo(7) + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
