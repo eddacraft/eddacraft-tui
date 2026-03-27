@@ -94,6 +94,7 @@ TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard re
 | [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Done | 7/7 | KERN Phase 3 |
 | [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Done | 15/15 | RATS-001 (complete) |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
+| [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
 
 The TypeScript CLI stays — the Rust kernel adds structural graph analysis as a
 new capability (KERN), existing checks port to Rust for speed (RENG), TUI
