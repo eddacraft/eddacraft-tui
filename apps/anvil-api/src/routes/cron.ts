@@ -23,10 +23,10 @@ cron.get('/cleanup', async (c) => {
     return c.json({ error: 'CRON_SECRET not configured' }, 503);
   }
 
-  const authHeader = c.req.header('authorization') ?? '';
+  const authHeader = c.req.header('Authorization') ?? '';
   const expected = `Bearer ${cronSecret}`;
-  const a = Buffer.from(authHeader);
-  const b = Buffer.from(expected);
+  const a = Buffer.from(authHeader, 'utf-8');
+  const b = Buffer.from(expected, 'utf-8');
   if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return c.json({ error: 'Unauthorized' }, 401);
   }
