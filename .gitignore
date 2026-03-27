@@ -96,3 +96,25 @@ infra/import.json
 # Rust / Cargo
 target/
 **/*.rs.bk
+
+# Local settings (contains secrets)
+settings.local.json
+
+# Session logs
+logs/
+
+# Memory file (can contain sensitive context)
+memory.json
+
+# Autonomous state files
+autonomous-state.json
+
+# Setup metadata
+.setup-meta
+
+# Temporary files
+*.tmp
+*.bak
+
+# Autonomous state files
+autonomous-state.json
