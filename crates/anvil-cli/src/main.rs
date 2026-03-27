@@ -170,13 +170,13 @@ fn main() -> ExitCode {
         }
     };
 
-    if requires_auth(&cli.command) {
-        if let Err(code) = check_auth() {
-            if cli.global.json {
-                eprintln!("{}", serde_json::json!({"error": "authentication_required"}));
-            }
-            return ExitCode::from(code);
+    if requires_auth(&cli.command)
+        && let Err(code) = check_auth()
+    {
+        if cli.global.json {
+            eprintln!("{}", serde_json::json!({"error": "authentication_required"}));
         }
+        return ExitCode::from(code);
     }
 
     // Gate returns Result<bool> (false = gate failed); all others return Result<()>.

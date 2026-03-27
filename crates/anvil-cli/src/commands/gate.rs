@@ -260,10 +260,10 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                         if let Ok(n) = val.trim().parse::<u64>() {
                             total_lines += n;
                         }
-                    } else if let Some(val) = line.strip_prefix("LH:") {
-                        if let Ok(n) = val.trim().parse::<u64>() {
-                            hit_lines += n;
-                        }
+                    } else if let Some(val) = line.strip_prefix("LH:")
+                        && let Ok(n) = val.trim().parse::<u64>()
+                    {
+                        hit_lines += n;
                     }
                 }
                 if total_lines == 0 {
@@ -367,14 +367,14 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
 
     let mut blocked_found: Vec<String> = Vec::new();
 
-    if has_npm {
-        if let Ok(content) = std::fs::read_to_string(&npm_lock) {
-            for pkg in BLOCKED_NPM_PACKAGES {
-                // Look for "node_modules/<pkg>" key pattern in the lockfile
-                let pattern = format!("\"node_modules/{pkg}\"");
-                if content.contains(&pattern) {
-                    blocked_found.push((*pkg).to_string());
-                }
+    if has_npm
+        && let Ok(content) = std::fs::read_to_string(&npm_lock)
+    {
+        for pkg in BLOCKED_NPM_PACKAGES {
+            // Look for "node_modules/<pkg>" key pattern in the lockfile
+            let pattern = format!("\"node_modules/{pkg}\"");
+            if content.contains(&pattern) {
+                blocked_found.push((*pkg).to_string());
             }
         }
     }

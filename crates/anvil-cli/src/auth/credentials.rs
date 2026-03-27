@@ -79,33 +79,33 @@ fn resolve_credentials(
     }
 
     // 2. Legacy ~/.anvil/auth.json
-    if let Some(path) = legacy_auth {
-        if path.exists() {
-            let content = std::fs::read_to_string(path)
-                .with_context(|| format!("reading {}", path.display()))?;
-            let creds: Credentials = serde_json::from_str(&content)
-                .with_context(|| format!("parsing {}", path.display()))?;
-            migrate_to_xdg(xdg_path, &creds)?;
-            return Ok(Some(creds));
-        }
+    if let Some(path) = legacy_auth
+        && path.exists()
+    {
+        let content = std::fs::read_to_string(path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let creds: Credentials = serde_json::from_str(&content)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        migrate_to_xdg(xdg_path, &creds)?;
+        return Ok(Some(creds));
     }
 
     // 3. Legacy ~/.anvil/license (plain-text token)
-    if let Some(path) = legacy_license {
-        if path.exists() {
-            let token = std::fs::read_to_string(path)
-                .with_context(|| format!("reading {}", path.display()))?;
-            let token = token.trim();
-            if !token.is_empty() {
-                let creds = Credentials {
-                    license: token.to_string(),
-                    refresh_token: None,
-                    email: None,
-                    expires_at: None,
-                };
-                migrate_to_xdg(xdg_path, &creds)?;
-                return Ok(Some(creds));
-            }
+    if let Some(path) = legacy_license
+        && path.exists()
+    {
+        let token = std::fs::read_to_string(path)
+            .with_context(|| format!("reading {}", path.display()))?;
+        let token = token.trim();
+        if !token.is_empty() {
+            let creds = Credentials {
+                license: token.to_string(),
+                refresh_token: None,
+                email: None,
+                expires_at: None,
+            };
+            migrate_to_xdg(xdg_path, &creds)?;
+            return Ok(Some(creds));
         }
     }
 
