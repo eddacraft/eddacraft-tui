@@ -41,8 +41,9 @@ pub fn credentials_path() -> Result<PathBuf> {
 /// 3. `~/.anvil/license` (legacy plain-text token)
 /// 4. `ANVIL_LICENSE` env var (plain-text token)
 ///
-/// When credentials are found at a legacy path (2--4), they are
-/// automatically migrated to the XDG location.
+/// When credentials are found at a legacy path (2--3), they are
+/// automatically migrated to the XDG location. Env var credentials
+/// (4) are returned directly and never persisted to disk.
 pub fn load() -> Result<Option<Credentials>> {
     let xdg_path = credentials_path()?;
     let home = dirs::home_dir();
@@ -108,7 +109,7 @@ fn resolve_credentials(
         }
     }
 
-    // 4. ANVIL_LICENSE env var
+    // 4. ANVIL_LICENSE env var — returned directly, never persisted to disk
     if let Some(token) = env_token {
         let token = token.trim();
         if !token.is_empty() {
@@ -118,7 +119,6 @@ fn resolve_credentials(
                 email: None,
                 expires_at: None,
             };
-            migrate_to_xdg(xdg_path, &creds)?;
             return Ok(Some(creds));
         }
     }
@@ -345,16 +345,14 @@ mod tests {
     }
 
     #[test]
-    fn env_token_migrates_to_xdg() {
+    fn env_token_does_not_persist_to_disk() {
         let tmp = tempfile::tempdir().unwrap();
         let xdg = tmp.path().join("config/anvil/credentials.json");
 
-        resolve_credentials(&xdg, None, None, Some("env-migrate-token")).unwrap();
-
-        assert!(xdg.exists(), "env credentials should be migrated to XDG");
-        let migrated: Credentials =
-            serde_json::from_str(&std::fs::read_to_string(&xdg).unwrap()).unwrap();
-        assert_eq!(migrated.license, "env-migrate-token");
+        let result =
+            resolve_credentials(&xdg, None, None, Some("env-only-token")).unwrap();
+        assert_eq!(result.unwrap().license, "env-only-token");
+        assert!(!xdg.exists(), "env var credentials must not be written to disk");
     }
 
     // ── Priority order ───────────────────────────────────────────
