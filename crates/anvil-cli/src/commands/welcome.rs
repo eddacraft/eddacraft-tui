@@ -120,9 +120,8 @@ fn run_subprocess(
     terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
     subcommand: &str,
 ) -> anyhow::Result<Option<String>> {
-    if let Err(e) = crate::tui::teardown_terminal(terminal) {
-        return Ok(Some(format!("Failed to release terminal: {e}")));
-    }
+    crate::tui::teardown_terminal(terminal)
+        .context("Failed to release terminal before subprocess")?;
 
     let message = match std::env::current_exe() {
         Ok(exe) => match std::process::Command::new(&exe).arg(subcommand).status() {
