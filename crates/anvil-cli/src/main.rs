@@ -87,6 +87,69 @@ enum Commands {
     Whoami(commands::auth::WhoamiArgs),
 }
 
+/// Returns `true` for commands that require a valid auth session.
+fn requires_auth(cmd: &Commands) -> bool {
+    use commands::auth::AuthCommand;
+
+    match cmd {
+        // Auth-gated commands
+        Commands::Audit(_)
+        | Commands::Status(_)
+        | Commands::Admin(_)
+        | Commands::Gate(_)
+        | Commands::Watch(_)
+        | Commands::Export(_)
+        | Commands::Architecture(_)
+        | Commands::Policy(_)
+        | Commands::Whoami(_) => true,
+
+        // Auth subcommands: only whoami needs credentials
+        Commands::Auth(args) => matches!(args.command, AuthCommand::Whoami),
+
+        // Bypass: onboarding, help, and auth flow commands
+        Commands::Doctor(_)
+        | Commands::Tutorial(_)
+        | Commands::Welcome(_)
+        | Commands::Init(_)
+        | Commands::New(_)
+        | Commands::Wizard(_)
+        | Commands::Hooks(_)
+        | Commands::Login(_)
+        | Commands::Logout(_) => false,
+    }
+}
+
+/// Evaluate a credential-load result and return the appropriate exit code.
+///
+/// Separated from I/O so tests can call it with synthetic inputs.
+fn evaluate_auth(
+    loaded: anyhow::Result<Option<auth::credentials::Credentials>>,
+) -> Result<(), u8> {
+    match loaded {
+        Ok(Some(ref creds)) if auth::credentials::is_expired(creds) => {
+            eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
+            Err(EXIT_AUTH_REQUIRED)
+        }
+        Ok(Some(_)) => Ok(()),
+        Ok(None) => {
+            eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+            Err(EXIT_AUTH_REQUIRED)
+        }
+        Err(_) => {
+            eprintln!("Authentication required. Run `anvil auth login` to authenticate.");
+            Err(EXIT_AUTH_REQUIRED)
+        }
+    }
+}
+
+/// Validate that usable credentials exist.
+///
+/// Returns `Ok(())` when valid credentials are found, or `Err(exit_code)`
+/// with `EXIT_AUTH_REQUIRED` when credentials are missing or expired.
+fn check_auth() -> Result<(), u8> {
+    evaluate_auth(auth::credentials::load())
+}
+
 /// Check whether `--json` appears in raw args before clap parses them.
 /// This lets us emit JSON errors even when clap rejects the input.
 fn wants_json() -> bool {
@@ -106,6 +169,16 @@ fn main() -> ExitCode {
             return ExitCode::from(u8::try_from(code).unwrap_or(EXIT_ERROR));
         }
     };
+
+    if requires_auth(&cli.command) {
+        if let Err(code) = check_auth() {
+            if cli.global.json {
+                let msg = serde_json::json!({"error": "authentication_required"});
+                eprintln!("{}", serde_json::to_string_pretty(&msg).unwrap());
+            }
+            return ExitCode::from(code);
+        }
+    }
 
     let result = match &cli.command {
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
@@ -139,5 +212,188 @@ fn main() -> ExitCode {
             }
             ExitCode::from(EXIT_ERROR)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Parse a `Commands` variant from CLI-style tokens.
+    fn parse_command(args: &[&str]) -> Commands {
+        let mut tokens = vec!["anvil"];
+        tokens.extend_from_slice(args);
+        Cli::try_parse_from(tokens).unwrap().command
+    }
+
+    // ── requires_auth: commands that MUST require auth ──────────────
+
+    #[test]
+    fn requires_auth_gate() {
+        assert!(requires_auth(&parse_command(&["gate"])));
+    }
+
+    #[test]
+    fn requires_auth_watch() {
+        assert!(requires_auth(&parse_command(&["watch"])));
+    }
+
+    #[test]
+    fn requires_auth_status() {
+        assert!(requires_auth(&parse_command(&["status"])));
+    }
+
+    #[test]
+    fn requires_auth_admin() {
+        assert!(requires_auth(&parse_command(&["admin", "approve", "--batch", "1"])));
+    }
+
+    #[test]
+    fn requires_auth_export() {
+        assert!(requires_auth(&parse_command(&["export"])));
+    }
+
+    #[test]
+    fn requires_auth_audit() {
+        assert!(requires_auth(&parse_command(&["audit"])));
+    }
+
+    #[test]
+    fn requires_auth_architecture() {
+        assert!(requires_auth(&parse_command(&["architecture", "validate"])));
+    }
+
+    #[test]
+    fn requires_auth_policy() {
+        assert!(requires_auth(&parse_command(&["policy", "list"])));
+    }
+
+    #[test]
+    fn requires_auth_whoami_alias() {
+        assert!(requires_auth(&parse_command(&["whoami"])));
+    }
+
+    #[test]
+    fn requires_auth_auth_whoami() {
+        assert!(requires_auth(&parse_command(&["auth", "whoami"])));
+    }
+
+    // ── requires_auth: commands that bypass auth ────────────────────
+
+    #[test]
+    fn bypass_auth_doctor() {
+        assert!(!requires_auth(&parse_command(&["doctor"])));
+    }
+
+    #[test]
+    fn bypass_auth_tutorial() {
+        assert!(!requires_auth(&parse_command(&["tutorial"])));
+    }
+
+    #[test]
+    fn bypass_auth_welcome() {
+        assert!(!requires_auth(&parse_command(&["welcome"])));
+    }
+
+    #[test]
+    fn bypass_auth_init() {
+        assert!(!requires_auth(&parse_command(&["init"])));
+    }
+
+    #[test]
+    fn bypass_auth_new() {
+        assert!(!requires_auth(&parse_command(&["new"])));
+    }
+
+    #[test]
+    fn bypass_auth_wizard() {
+        assert!(!requires_auth(&parse_command(&["wizard"])));
+    }
+
+    #[test]
+    fn bypass_auth_hooks() {
+        assert!(!requires_auth(&parse_command(&["hooks", "install"])));
+    }
+
+    #[test]
+    fn bypass_auth_login_alias() {
+        assert!(!requires_auth(&parse_command(&["login"])));
+    }
+
+    #[test]
+    fn bypass_auth_logout_alias() {
+        assert!(!requires_auth(&parse_command(&["logout"])));
+    }
+
+    #[test]
+    fn bypass_auth_auth_login() {
+        assert!(!requires_auth(&parse_command(&["auth", "login"])));
+    }
+
+    #[test]
+    fn bypass_auth_auth_logout() {
+        assert!(!requires_auth(&parse_command(&["auth", "logout"])));
+    }
+
+    // ── evaluate_auth ────────────────────────────────────────────
+
+    use crate::auth::credentials::Credentials;
+
+    fn valid_creds() -> Credentials {
+        Credentials {
+            license: "tok".into(),
+            refresh_token: None,
+            email: None,
+            expires_at: Some("2099-01-01T00:00:00Z".into()),
+        }
+    }
+
+    fn expired_creds() -> Credentials {
+        Credentials {
+            license: "tok".into(),
+            refresh_token: None,
+            email: None,
+            expires_at: Some("2000-01-01T00:00:00Z".into()),
+        }
+    }
+
+    fn no_expiry_creds() -> Credentials {
+        Credentials {
+            license: "tok".into(),
+            refresh_token: None,
+            email: None,
+            expires_at: None,
+        }
+    }
+
+    #[test]
+    fn evaluate_auth_returns_err_when_no_credentials() {
+        assert_eq!(evaluate_auth(Ok(None)), Err(EXIT_AUTH_REQUIRED));
+    }
+
+    #[test]
+    fn evaluate_auth_returns_err_when_expired() {
+        assert_eq!(
+            evaluate_auth(Ok(Some(expired_creds()))),
+            Err(EXIT_AUTH_REQUIRED),
+        );
+    }
+
+    #[test]
+    fn evaluate_auth_returns_err_on_load_error() {
+        assert_eq!(
+            evaluate_auth(Err(anyhow::anyhow!("disk failure"))),
+            Err(EXIT_AUTH_REQUIRED),
+        );
+    }
+
+    #[test]
+    fn evaluate_auth_returns_ok_when_valid() {
+        assert!(evaluate_auth(Ok(Some(valid_creds()))).is_ok());
+    }
+
+    #[test]
+    fn evaluate_auth_returns_ok_when_no_expiry() {
+        assert!(evaluate_auth(Ok(Some(no_expiry_creds()))).is_ok());
     }
 }

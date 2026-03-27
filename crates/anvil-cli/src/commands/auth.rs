@@ -8,11 +8,11 @@ use crate::auth::{credentials, device_flow};
 #[derive(Debug, Args)]
 pub struct AuthArgs {
     #[command(subcommand)]
-    command: AuthCommand,
+    pub command: AuthCommand,
 }
 
 #[derive(Debug, Subcommand)]
-enum AuthCommand {
+pub enum AuthCommand {
     /// Authenticate with the Anvil service
     Login {
         /// Use email OTP instead of device code flow
