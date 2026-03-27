@@ -7,24 +7,25 @@ See: plans/aps-rules.md
 
 # Documentation Sync
 
-| ID      | Owner | Status    |
-| ------- | ----- | --------- |
-| DOCSYNC | —     | Draft |
+| ID      | Owner | Status      |
+| ------- | ----- | ----------- |
+| DOCSYNC | —     | In Progress |
 
 ## Purpose
 
-Keep the docs-site (Docusaurus) in sync with feature development: Rust engine
-migration, web dashboard rollout, policy governance, and new language support.
-Also covers ADR maintenance, architecture diagram updates, and API reference
-generation.
+Keep the docs-site (Docusaurus, sourced from `docs/public/anvil/`) in sync with
+feature development: Rust CLI migration, web dashboard rollout, policy
+governance, and new language support. Also covers ADR maintenance, architecture
+diagram updates, and API reference generation.
 
 **Problem:** Documentation was polished for 0.1.0 but has no forward plan.
-The Rust engine changes the architecture story significantly, the dashboard
-adds a new surface, and policy governance changes the governance model —
-all need documentation updates that aren't tracked.
+The Rust CLI replaces the Node.js package entirely, the dashboard adds a new
+surface, and policy governance changes the governance model — all need
+documentation updates that aren't tracked.
 
 ## In Scope
 
+- **Rust migration docs:** Install, CI, troubleshooting updated for native binary
 - **Docs-site sync:** Keep docs in sync with feature releases
 - **ADR maintenance:** Ensure new decisions get ADRs, superseded ones are marked
 - **Architecture diagrams:** Keep mermaid diagrams current with code changes
@@ -43,7 +44,8 @@ all need documentation updates that aren't tracked.
 
 **Depends on:**
 
-- `apps/docs-site` — Docusaurus instance
+- `docs/public/anvil/` — Docusaurus content source
+- `apps/docs-site` — Docusaurus instance (reads from `docs/public/anvil/`)
 - Feature modules — source of documentation truth
 - API governance — OpenAPI spec for API reference
 
@@ -55,9 +57,11 @@ all need documentation updates that aren't tracked.
 
 ## Estimated Scope
 
-- **Effort:** 1 week
+- **Effort:** 2 weeks
 
 ## Tasks
+
+### Rust CLI Migration (0.3.0-beta)
 
 - DOCSYNC-001: Documentation sync checklist per release
 - DOCSYNC-002: ADR process documentation and template
@@ -65,3 +69,41 @@ all need documentation updates that aren't tracked.
 - DOCSYNC-004: Tutorial update for Ratatui migration
 - DOCSYNC-005: API reference generation pipeline
 - DOCSYNC-006: Rust engine architecture documentation
+- DOCSYNC-007: Update install, CI, and troubleshooting for native binary
+- DOCSYNC-008: Rust migration guide (releases/rust-rewrite.md)
+- DOCSYNC-009: Remove Node.js/npm references from all public docs
+- DOCSYNC-010: Update beta-testing-guide for 0.3.0-beta
+
+### Future
+
+- DOCSYNC-011: Dashboard feature documentation
+- DOCSYNC-012: Policy governance documentation updates
+- DOCSYNC-013: Multi-language support documentation
+- DOCSYNC-014: Docs contribution guide
+
+## Stats
+
+| Phase                  | Total | Done | In Progress | Draft |
+| ---------------------- | ----- | ---- | ----------- | ----- |
+| Rust CLI Migration     |    10 |    8 |           0 |     2 |
+| Future                 |     4 |    0 |           0 |     4 |
+| **Total**              |    14 |    8 |           0 |     6 |
+
+### Item Detail
+
+| ID          | Status | Notes                                         |
+| ----------- | ------ | --------------------------------------------- |
+| DOCSYNC-001 | Draft  |                                               |
+| DOCSYNC-002 | Draft  |                                               |
+| DOCSYNC-003 | Draft  |                                               |
+| DOCSYNC-004 | Done   | TUI references updated in beta guide, quickstart |
+| DOCSYNC-005 | Draft  |                                               |
+| DOCSYNC-006 | Done   | Crate READMEs + rust-rewrite.md               |
+| DOCSYNC-007 | Done   | Install, CI, troubleshooting updated across all public docs |
+| DOCSYNC-008 | Done   | docs/public/anvil/releases/rust-rewrite.md    |
+| DOCSYNC-009 | Done   | All `pnpm anvil`/`npx anvil` refs replaced in public docs |
+| DOCSYNC-010 | Done   | Beta guide updated for 0.3.0-beta, Node.js dep removed |
+| DOCSYNC-011 | Draft  |                                               |
+| DOCSYNC-012 | Draft  |                                               |
+| DOCSYNC-013 | Draft  |                                               |
+| DOCSYNC-014 | Draft  |                                               |

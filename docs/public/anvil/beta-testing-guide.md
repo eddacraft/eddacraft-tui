@@ -12,11 +12,20 @@ sidebar_position: 2
 Welcome to the Anvil closed beta. Thank you for helping us shape the tool — your
 feedback directly influences what we build next.
 
-**Current version:** 0.2.1-beta
+**Current version:** 0.3.0-beta
 
 Anvil is a developer tool that analyses your codebase for architectural drift,
 anti-patterns, and convention violations, then helps you maintain consistency as
 your project evolves.
+
+:::info Native binary
+
+As of 0.3.0-beta, Anvil is a native Rust binary. The Node.js package
+(`@eddacraft/anvil-cli`) is deprecated. See
+[The Switch to Rust](./releases/rust-rewrite.md) for details and migration
+instructions.
+
+:::
 
 ## Getting Started
 
@@ -25,14 +34,23 @@ your project evolves.
 **macOS / Linux:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-001/main/install.sh | sh
+curl -fsSL https://install.eddacraft.ai | sh
 ```
 
-**Windows (via npm):**
+**Windows:**
+
+```powershell
+irm https://install.eddacraft.ai/windows | iex
+```
+
+**Homebrew (macOS / Linux):**
 
 ```bash
-npm i -g @eddacraft/anvil-cli
+brew install eddacraft/tap/anvil
 ```
+
+No Node.js or npm required. The installer downloads a single static binary for
+your platform.
 
 ### Authenticate
 
@@ -47,15 +65,21 @@ cd your-project
 anvil init
 ```
 
-The init wizard will detect your project type, package manager, and suggest a
-default configuration.
+The init wizard will detect your project type and suggest a default
+configuration.
 
 For a full walkthrough, see the [Quickstart](./quickstart.md).
 
 ## How to Upgrade
 
 ```bash
-npm i -g @eddacraft/anvil-cli@latest
+curl -fsSL https://install.eddacraft.ai | sh
+```
+
+Or via Homebrew:
+
+```bash
+brew upgrade eddacraft/tap/anvil
 ```
 
 Verify your version:
@@ -187,8 +211,7 @@ Please report issues on GitHub:
 ### What to include
 
 - Anvil version (`anvil --version`)
-- Operating system and version
-- Node.js version (`node --version`)
+- Operating system, version, and architecture (`uname -a` or equivalent)
 - Steps to reproduce the issue
 - Expected behaviour vs actual behaviour
 - Any relevant output or error messages
@@ -205,7 +228,6 @@ Please report issues on GitHub:
 
 - **TypeScript and JavaScript projects only** — support for other languages is
   planned but not yet available.
-- **Requires Node.js >= 20.19.0** — earlier versions are not supported.
 - **False positives on unconventional structures** — some anti-pattern detectors
   may flag valid code in projects with non-standard layouts.
 - **Memory system is new** — pattern detection accuracy improves over time as
@@ -218,6 +240,10 @@ After initial setup, scanning works entirely offline.
 
 **Can I use this on private or proprietary code?** Yes. Anvil runs locally on
 your machine. No source code is sent to external services.
+
+**Do I need Node.js?** No. As of 0.3.0-beta, Anvil is a standalone native
+binary with no runtime dependencies. If you previously used the npm package,
+see [The Switch to Rust](./releases/rust-rewrite.md) for migration steps.
 
 **How do I reset my project configuration?** Run `anvil init --force` to
 regenerate your configuration from scratch.

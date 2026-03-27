@@ -44,19 +44,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - run: pnpm install
+      - name: Install Anvil
+        run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run Anvil
-        run: pnpm anvil check --all --ci
+        run: anvil check --all --ci
         env:
           ANVIL_CI: true
 ```
@@ -96,7 +88,7 @@ Anvil can post results as PR comments:
 
 ```yaml
 - name: Run Anvil
-  run: pnpm anvil check --all --json > anvil-results.json
+  run: anvil check --all --json > anvil-results.json
 
 - name: Comment on PR
   if: github.event_name == 'pull_request'
@@ -214,7 +206,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: pnpm anvil evidence export --since 7d --output audit.json
+      - name: Install Anvil
+        run: curl -fsSL https://install.eddacraft.ai | sh
+
+      - run: anvil evidence export --since 7d --output audit.json
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-audit
@@ -229,7 +224,7 @@ Run Anvil in CI without blocking:
 
 ```yaml
 - name: Run Anvil (Shadow)
-  run: pnpm anvil check --all --ci || true
+  run: anvil check --all --ci || true
   continue-on-error: true
 ```
 

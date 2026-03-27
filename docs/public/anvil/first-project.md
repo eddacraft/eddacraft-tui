@@ -35,10 +35,10 @@ You want to enforce these boundaries:
 ## Step 1: Install and Initialise
 
 ```bash
-pnpm add -D @eddacraft/anvil-cli
-# or: npm install -D @eddacraft/anvil-cli
-# or: yarn add -D @eddacraft/anvil-cli
-# or: bun add -D @eddacraft/anvil-cli
+# Install the native binary (if not already installed)
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Initialise in your project
 anvil init
 ```
 
@@ -160,8 +160,11 @@ Add Anvil to your CI pipeline:
 
 ```yaml
 # .github/workflows/ci.yml
+- name: Install Anvil
+  run: curl -fsSL https://install.eddacraft.ai | sh
+
 - name: Run Anvil
-  run: pnpm anvil check --all --ci
+  run: anvil check --all --ci
 ```
 
 The `--ci` flag produces machine-readable output and sets appropriate exit

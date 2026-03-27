@@ -1,0 +1,167 @@
+---
+id: rust-rewrite
+title: The Switch to Rust
+description:
+  Why we rewrote the Anvil CLI in Rust, what changed, and how to migrate from
+  the Node.js package.
+sidebar_position: 10
+---
+
+# The Switch to Rust
+
+Starting with 0.3.0-beta, the Anvil CLI is a native binary written in Rust. The
+Node.js package (`@eddacraft/anvil-cli`) is deprecated and will not receive
+further updates.
+
+## Why Rust
+
+Anvil watches your codebase and validates changes at save-time. That means the
+CLI sits in a hot loop: parse files, walk dependency graphs, evaluate policies,
+and render results — all within the time it takes you to glance at the terminal
+after pressing save.
+
+The Node.js implementation was good enough for small projects, but it hit walls:
+
+- **Cold start** — Node.js takes 200-400ms just to load the runtime and parse
+  the dependency tree. The Rust binary starts in under 10ms.
+- **Memory** — A 5,000-file monorepo consumed 400MB+ of RSS in watch mode.
+  The Rust watcher sits at 30-50MB for the same project.
+- **Parse throughput** — Tree-sitter bindings in Rust parse TypeScript at
+  ~15,000 files/second. The Node.js equivalent managed ~2,000 files/second with
+  the same grammar.
+- **Concurrency** — File watching, parsing, graph updates, and policy evaluation
+  now run on separate threads with zero-copy message passing. Node.js required
+  worker threads with serialisation overhead.
+- **Distribution** — A single static binary with no runtime dependencies.
+  No more "which Node.js version?", no more `node_modules`, no more npm
+  registry authentication for private packages.
+
+The result: Anvil is 5-10x faster on typical projects and uses 80% less memory
+in watch mode.
+
+## What Changed
+
+### Installation
+
+**Before (Node.js):**
+
+```bash
+pnpm add -D @eddacraft/anvil-cli
+# or: npm install -D @eddacraft/anvil-cli
+```
+
+**Now (native binary):**
+
+```bash
+# macOS / Linux
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Windows
+irm https://install.eddacraft.ai/windows | iex
+
+# Or via Homebrew (macOS/Linux)
+brew install eddacraft/tap/anvil
+```
+
+The install script detects your platform and architecture (x86_64, aarch64) and
+drops the `anvil` binary into `~/.eddacraft/bin/`. Add it to your PATH if the
+installer doesn't do so automatically.
+
+### Commands
+
+All commands remain the same. `anvil check`, `anvil watch`, `anvil init`,
+`anvil tutorial` — everything works identically from a user's perspective.
+
+### Configuration
+
+`.anvilrc` files are fully compatible. No configuration changes are needed.
+
+### CI Integration
+
+**Before:**
+
+```yaml
+- run: pnpm install
+- run: pnpm anvil check --all --ci
+```
+
+**Now:**
+
+```yaml
+- name: Install Anvil
+  run: curl -fsSL https://install.eddacraft.ai | sh
+
+- name: Run Anvil
+  run: anvil check --all --ci
+```
+
+No Node.js setup step required. The binary runs on any Linux, macOS, or Windows
+runner.
+
+### Terminal UI
+
+The interactive surfaces (tutorial, watch, wizard, status) have been rebuilt
+using Ratatui with the EddaCraft Terminal Standard design system. The experience
+is smoother, more responsive, and consistent across all terminal emulators.
+
+### What's New in Rust
+
+Features that were not feasible in the Node.js version:
+
+- **Kernel engine** — a persistent daemon mode with incremental parsing and a
+  semantic dependency graph that updates in real-time as files change
+- **Native policy evaluation** — policies evaluate in-process without shelling
+  out to OPA
+- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail),
+  `3` (auth required), `4` (config error) for precise CI integration
+- **Cross-platform auth** — device-flow authentication with secure credential
+  storage via the OS keychain
+
+## Migration Guide
+
+### Step 1: Install the native binary
+
+```bash
+curl -fsSL https://install.eddacraft.ai | sh
+```
+
+### Step 2: Verify
+
+```bash
+anvil --version
+# anvil 0.3.0-beta
+```
+
+### Step 3: Remove the Node.js package
+
+```bash
+pnpm remove @eddacraft/anvil-cli
+# or: npm uninstall @eddacraft/anvil-cli
+```
+
+### Step 4: Update CI
+
+Replace any `pnpm anvil` or `npx anvil` invocations with direct `anvil` calls.
+Remove the Node.js install step if Anvil was the only reason it was there.
+
+### Step 5: Test
+
+```bash
+anvil check --all
+```
+
+Your `.anvilrc` and `.anvil/` directory work without changes.
+
+## Reporting Issues
+
+The Rust CLI is in beta. If you find something that worked in the Node.js
+version but doesn't in Rust, please
+[open an issue](https://github.com/EddaCraft/anvil-001/issues) with the
+`rust-migration` label.
+
+### What to include
+
+- Anvil version (`anvil --version`)
+- Operating system and architecture (`uname -a` or equivalent)
+- Steps to reproduce
+- Expected vs actual behaviour

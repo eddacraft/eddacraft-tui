@@ -194,7 +194,7 @@ when specific work is identified.
 | [security](./modules/security.aps.md) | SEC | 6 | CI pipeline, dependency check |
 | [testing-strategy](./modules/testing-strategy.aps.md) | TEST | 6 | eslint-plugin-anvil, e2e |
 | [release-management](./modules/release-management.aps.md) | RELMGMT | 6 | CI pipeline, all packages |
-| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 6 | docs-site, feature modules |
+| [documentation-sync](./modules/documentation-sync.aps.md) | DOCSYNC | 14 (8 done) | docs-site, feature modules — **In Progress** |
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7 | eddacraft-tui, RATS (done) |
 
