@@ -5,42 +5,43 @@ use eddacraft_tui::prelude::*;
 /// Quick-start options shown on the welcome screen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum QuickStartOption {
-    RunTutorial,
     RunAudit,
     RunDoctor,
+    RunGate,
+    StartWatch,
+    RunTutorial,
     ViewDocs,
-    // Not yet implemented — uncomment as each command ships:
-    // RunGate,
-    // StartWatch,
 }
 
 impl QuickStartOption {
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 6] = [
         Self::RunAudit,
         Self::RunDoctor,
+        Self::RunGate,
+        Self::StartWatch,
         Self::RunTutorial,
         Self::ViewDocs,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
-            Self::RunTutorial => "Run interactive tutorial",
             Self::RunAudit => "Run project audit",
             Self::RunDoctor => "Run diagnostics",
+            Self::RunGate => "Run gate checks",
+            Self::StartWatch => "Start watch mode",
+            Self::RunTutorial => "Interactive tutorial",
             Self::ViewDocs => "View documentation",
-            // Self::RunGate => "Run gate checks",
-            // Self::StartWatch => "Start watch mode",
         }
     }
 
     pub fn description(self) -> &'static str {
         match self {
-            Self::RunTutorial => "Learn Anvil with a guided walkthrough",
             Self::RunAudit => "Scan your project for security issues and anti-patterns",
             Self::RunDoctor => "Check your environment and fix common issues",
+            Self::RunGate => "Run quality gates against the current project",
+            Self::StartWatch => "Monitor files and run checks on every save",
+            Self::RunTutorial => "Learn Anvil with a guided walkthrough",
             Self::ViewDocs => "Open the Anvil documentation in your browser",
-            // Self::RunGate => "Check your project against configured quality gates",
-            // Self::StartWatch => "Monitor files and run checks on every save",
         }
     }
 }

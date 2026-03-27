@@ -1,1 +1,0 @@
-/home/aneki/Projects/src/code-env/.claude/hooks/tdd-guard.sh

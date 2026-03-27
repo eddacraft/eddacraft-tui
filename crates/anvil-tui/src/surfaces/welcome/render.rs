@@ -26,10 +26,28 @@ const TAGLINE: &str = "Structural governance for AI-assisted development";
 const PAD: &str = "    ";
 
 pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaCraftTheme) {
-    // Content heights: logo(7) + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
     let menu_item_count = QuickStartOption::ALL.len();
-    let menu_height = menu_item_count * 3 - 1; // 2 lines per item + 1 blank between
-    let content_height = 7 + 1 + 1 + 2 + menu_height;
+
+    // Full mode: 2 lines per item + 1 blank between = 3*N-1
+    // Compact mode: 1 line per item (no descriptions, no blanks)
+    let full_menu_height = menu_item_count * 3 - 1;
+    let full_content_height = 7 + 1 + 1 + 2 + full_menu_height;
+    #[allow(clippy::cast_possible_truncation)]
+    let compact = (full_content_height as u16) > area.height;
+
+    let menu_height = if compact {
+        menu_item_count
+    } else {
+        full_menu_height
+    };
+
+    // In compact mode: logo(7) + blank(1) + menu(N)
+    // In full mode: logo(7) + blank(1) + tagline(1) + spacer(2) + menu(3*N-1)
+    let content_height = if compact {
+        7 + 1 + menu_height
+    } else {
+        7 + 1 + 1 + 2 + menu_height
+    };
 
     // Centre vertically — at least 1 row gap from header
     #[allow(clippy::cast_possible_truncation)]
@@ -38,15 +56,25 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     #[allow(clippy::cast_possible_truncation)]
     let menu_h = menu_height as u16;
 
-    let chunks = Layout::vertical([
-        Constraint::Length(top_pad), // Top padding
-        Constraint::Length(7),       // Logo
-        Constraint::Length(1),       // Blank
-        Constraint::Length(1),       // Tagline
-        Constraint::Length(2),       // Spacer
-        Constraint::Min(menu_h),     // Menu items (flexible — absorbs overflow)
-    ])
-    .split(area);
+    let chunks = if compact {
+        Layout::vertical([
+            Constraint::Length(top_pad), // Top padding
+            Constraint::Length(7),       // Logo
+            Constraint::Length(1),       // Blank
+            Constraint::Min(menu_h),     // Menu items (compact)
+        ])
+        .split(area)
+    } else {
+        Layout::vertical([
+            Constraint::Length(top_pad), // Top padding
+            Constraint::Length(7),       // Logo
+            Constraint::Length(1),       // Blank
+            Constraint::Length(1),       // Tagline
+            Constraint::Length(2),       // Spacer
+            Constraint::Min(menu_h),     // Menu items (flexible — absorbs overflow)
+        ])
+        .split(area)
+    };
 
     // Logo — block art in EMBER, "a n v i l" text in FG
     let logo_lines: Vec<Line> = LOGO_LINES
@@ -72,18 +100,32 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
     let logo = Paragraph::new(Text::from(logo_lines));
     frame.render_widget(logo, chunks[1]);
 
-    // Tagline
-    let tagline = Paragraph::new(Line::from(vec![
-        Span::styled(PAD, Style::default()),
-        Span::styled(TAGLINE, Style::default().fg(theme.muted())),
-    ]));
-    frame.render_widget(tagline, chunks[3]);
+    // Tagline (hidden in compact mode)
+    let menu_chunk_idx = if compact {
+        3
+    } else {
+        let tagline = Paragraph::new(Line::from(vec![
+            Span::styled(PAD, Style::default()),
+            Span::styled(TAGLINE, Style::default().fg(theme.muted())),
+        ]));
+        frame.render_widget(tagline, chunks[3]);
+        5
+    };
 
-    // Menu items — spaced with blank lines between
-    let mut menu_lines: Vec<Line> = Vec::new();
+    let menu_lines = build_menu_lines(state, theme, compact);
+    let menu = Paragraph::new(Text::from(menu_lines));
+    frame.render_widget(menu, chunks[menu_chunk_idx]);
+}
+
+fn build_menu_lines<'a>(
+    state: &'a WelcomeState,
+    theme: &'a EddaCraftTheme,
+    compact: bool,
+) -> Vec<Line<'a>> {
+    let mut lines: Vec<Line> = Vec::new();
     for (i, opt) in QuickStartOption::ALL.iter().enumerate() {
-        if i > 0 {
-            menu_lines.push(Line::raw(""));
+        if !compact && i > 0 {
+            lines.push(Line::raw(""));
         }
         let selected = i == state.selected;
         let indicator = if selected { " \u{25b8} " } else { "   " };
@@ -94,31 +136,32 @@ pub fn render(frame: &mut Frame, area: Rect, state: &WelcomeState, theme: &EddaC
         } else {
             Style::default().fg(theme.fg())
         };
-        let desc_style = Style::default().fg(theme.muted());
 
-        menu_lines.push(Line::from(vec![
+        lines.push(Line::from(vec![
             Span::styled(PAD, Style::default()),
             Span::styled(indicator, label_style),
             Span::styled(opt.label(), label_style),
         ]));
-        menu_lines.push(Line::from(vec![
-            Span::styled(PAD, Style::default()),
-            Span::styled("      ", Style::default()),
-            Span::styled(opt.description(), desc_style),
-        ]));
+
+        if !compact {
+            let desc_style = Style::default().fg(theme.muted());
+            lines.push(Line::from(vec![
+                Span::styled(PAD, Style::default()),
+                Span::styled("      ", Style::default()),
+                Span::styled(opt.description(), desc_style),
+            ]));
+        }
     }
 
-    // Append status message below menu items if present
     if let Some(ref msg) = state.status_message {
-        menu_lines.push(Line::raw(""));
-        menu_lines.push(Line::from(vec![
+        lines.push(Line::raw(""));
+        lines.push(Line::from(vec![
             Span::styled(PAD, Style::default()),
             Span::styled(format!("   {msg}"), Style::default().fg(theme.muted())),
         ]));
     }
 
-    let menu = Paragraph::new(Text::from(menu_lines));
-    frame.render_widget(menu, chunks[5]);
+    lines
 }
 
 #[cfg(test)]
