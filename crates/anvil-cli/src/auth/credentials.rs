@@ -82,8 +82,8 @@ fn resolve_credentials(
     if let Some(path) = legacy_auth
         && path.exists()
     {
-        let content = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let content =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         let creds: Credentials = serde_json::from_str(&content)
             .with_context(|| format!("parsing {}", path.display()))?;
         migrate_to_xdg(xdg_path, &creds)?;
@@ -94,8 +94,8 @@ fn resolve_credentials(
     if let Some(path) = legacy_license
         && path.exists()
     {
-        let token = std::fs::read_to_string(path)
-            .with_context(|| format!("reading {}", path.display()))?;
+        let token =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
         let token = token.trim();
         if !token.is_empty() {
             let creds = Credentials {
@@ -160,8 +160,7 @@ fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
     // Remove it first so subsequent saves/migrations succeed.
     #[cfg(not(unix))]
     if path.exists() {
-        std::fs::remove_file(path)
-            .with_context(|| format!("removing {}", path.display()))?;
+        std::fs::remove_file(path).with_context(|| format!("removing {}", path.display()))?;
     }
 
     std::fs::rename(&tmp_path, path)
@@ -173,17 +172,13 @@ fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
 /// Copy credentials to the XDG location and print a migration notice.
 fn migrate_to_xdg(xdg_path: &std::path::Path, creds: &Credentials) -> Result<()> {
     if let Some(dir) = xdg_path.parent() {
-        std::fs::create_dir_all(dir)
-            .with_context(|| format!("creating {}", dir.display()))?;
+        std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
     }
 
     let content = serde_json::to_string_pretty(creds)?;
     atomic_write(xdg_path, content.as_bytes())?;
 
-    eprintln!(
-        "Migrated credentials \u{2192} {}",
-        xdg_path.display()
-    );
+    eprintln!("Migrated credentials \u{2192} {}", xdg_path.display());
     Ok(())
 }
 
@@ -324,8 +319,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let xdg = tmp.path().join("config/anvil/credentials.json");
 
-        let result =
-            resolve_credentials(&xdg, None, None, Some("env-token-123")).unwrap();
+        let result = resolve_credentials(&xdg, None, None, Some("env-token-123")).unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().license, "env-token-123");
     }
@@ -344,10 +338,12 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let xdg = tmp.path().join("config/anvil/credentials.json");
 
-        let result =
-            resolve_credentials(&xdg, None, None, Some("env-only-token")).unwrap();
+        let result = resolve_credentials(&xdg, None, None, Some("env-only-token")).unwrap();
         assert_eq!(result.unwrap().license, "env-only-token");
-        assert!(!xdg.exists(), "env var credentials must not be written to disk");
+        assert!(
+            !xdg.exists(),
+            "env var credentials must not be written to disk"
+        );
     }
 
     // ── Priority order ───────────────────────────────────────────
@@ -375,7 +371,11 @@ mod tests {
         };
 
         std::fs::write(&xdg, serde_json::to_string_pretty(&xdg_creds).unwrap()).unwrap();
-        std::fs::write(&legacy, serde_json::to_string_pretty(&legacy_creds).unwrap()).unwrap();
+        std::fs::write(
+            &legacy,
+            serde_json::to_string_pretty(&legacy_creds).unwrap(),
+        )
+        .unwrap();
 
         let result = resolve_credentials(&xdg, Some(&legacy), None, None).unwrap();
         assert_eq!(result.unwrap().license, "xdg-token");
@@ -422,13 +422,8 @@ mod tests {
         std::fs::create_dir_all(legacy_license.parent().unwrap()).unwrap();
         std::fs::write(&legacy_license, "file-token").unwrap();
 
-        let result = resolve_credentials(
-            &xdg,
-            None,
-            Some(&legacy_license),
-            Some("env-token"),
-        )
-        .unwrap();
+        let result =
+            resolve_credentials(&xdg, None, Some(&legacy_license), Some("env-token")).unwrap();
         assert_eq!(result.unwrap().license, "file-token");
     }
 

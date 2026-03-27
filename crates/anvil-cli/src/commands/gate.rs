@@ -281,9 +281,7 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
                     name: "coverage".to_string(),
                     passed,
                     score: pct,
-                    message: format!(
-                        "Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"
-                    ),
+                    message: format!("Line coverage: {pct:.1}% (threshold: {threshold:.0}%)"),
                 }
             }
             Err(e) => CheckResult {
@@ -335,7 +333,9 @@ fn run_check_coverage(project_root: &Path, threshold: f64) -> CheckResult {
             name: "coverage".to_string(),
             passed: true,
             score: 100.0,
-            message: "No coverage report found (coverage/lcov.info or coverage/cobertura.xml). Skipping.".to_string(),
+            message:
+                "No coverage report found (coverage/lcov.info or coverage/cobertura.xml). Skipping."
+                    .to_string(),
         }
     }
 }
@@ -402,10 +402,7 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
             name: "dependency".to_string(),
             passed: false,
             score: 0.0,
-            message: format!(
-                "Blocked dependencies found: {}",
-                blocked_found.join(", ")
-            ),
+            message: format!("Blocked dependencies found: {}", blocked_found.join(", ")),
         }
     }
 }

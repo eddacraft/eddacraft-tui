@@ -58,12 +58,7 @@ fn run_welcome_hub(
 
         match welcome.chosen.take() {
             Some(QuickStartOption::RunGate) => {
-                crate::tui::draw_loading(
-                    terminal,
-                    "Gate",
-                    "Running quality checks...",
-                    theme,
-                )?;
+                crate::tui::draw_loading(terminal, "Gate", "Running quality checks...", theme)?;
                 let data = crate::commands::gate::collect_gate_data();
                 let mut gate_state = anvil_tui::surfaces::gate::GateState::new(data);
                 let sub_exit = crate::tui::run_surface_in(terminal, &mut gate_state, theme)?;
@@ -103,16 +98,6 @@ fn run_welcome_hub(
                 if sub_exit == SurfaceExit::Quit {
                     break;
                 }
-                welcome.should_quit = false;
-                welcome.chosen = None;
-            }
-            Some(QuickStartOption::RunGate) => {
-                welcome.status_message = run_subprocess(terminal, "gate")?;
-                welcome.should_quit = false;
-                welcome.chosen = None;
-            }
-            Some(QuickStartOption::StartWatch) => {
-                welcome.status_message = run_subprocess(terminal, "watch")?;
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }

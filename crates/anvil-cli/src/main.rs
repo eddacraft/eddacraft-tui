@@ -122,9 +122,7 @@ fn requires_auth(cmd: &Commands) -> bool {
 /// Evaluate a credential-load result and return the appropriate exit code.
 ///
 /// Separated from I/O so tests can call it with synthetic inputs.
-fn evaluate_auth(
-    loaded: anyhow::Result<Option<auth::credentials::Credentials>>,
-) -> Result<(), u8> {
+fn evaluate_auth(loaded: anyhow::Result<Option<auth::credentials::Credentials>>) -> Result<(), u8> {
     match loaded {
         Ok(Some(ref creds)) if auth::credentials::is_expired(creds) => {
             eprintln!("Session expired. Run `anvil auth login` to re-authenticate.");
@@ -174,7 +172,10 @@ fn main() -> ExitCode {
         && let Err(code) = check_auth()
     {
         if cli.global.json {
-            eprintln!("{}", serde_json::json!({"error": "authentication_required"}));
+            eprintln!(
+                "{}",
+                serde_json::json!({"error": "authentication_required"})
+            );
         }
         return ExitCode::from(code);
     }
@@ -260,7 +261,9 @@ mod tests {
 
     #[test]
     fn requires_auth_admin() {
-        assert!(requires_auth(&parse_command(&["admin", "approve", "--batch", "1"])));
+        assert!(requires_auth(&parse_command(&[
+            "admin", "approve", "--batch", "1"
+        ])));
     }
 
     #[test]

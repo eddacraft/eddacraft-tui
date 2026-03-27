@@ -77,7 +77,11 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let anvil_dir = tmp.path().join(".anvil");
         std::fs::create_dir_all(&anvil_dir).unwrap();
-        std::fs::write(anvil_dir.join("architecture.yaml"), ":\n  :\n  - :\n  bad: [").unwrap();
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            ":\n  :\n  - :\n  bad: [",
+        )
+        .unwrap();
         let result = validate(tmp.path());
         assert!(result.is_err());
     }
