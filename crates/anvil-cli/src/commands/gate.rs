@@ -573,6 +573,63 @@ fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
     Ok(())
 }
 
+/// Run all gate checks with default settings and return TUI-ready data.
+pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
+    let start = std::time::Instant::now();
+    let default_args = GateArgs {
+        plan: None,
+        profile: None,
+        skip_checks: None,
+        only_checks: None,
+        fail_fast: false,
+        progress: false,
+        list_profiles: false,
+        no_cache: false,
+    };
+    let checks = run_checks(&default_args).unwrap_or_default();
+
+    let passed_count = checks.iter().filter(|c| c.passed).count();
+    let total = checks.len();
+    let overall = checks.iter().all(|c| c.passed);
+    #[allow(clippy::cast_precision_loss)]
+    let score = if total > 0 {
+        passed_count as f64 / total as f64
+    } else {
+        1.0
+    };
+    let elapsed = start.elapsed().as_millis();
+
+    let tui_checks: Vec<anvil_tui::surfaces::gate::GateCheck> = checks
+        .into_iter()
+        .map(|c| {
+            let status = if c.passed {
+                anvil_tui::surfaces::gate::GateCheckStatus::Passed
+            } else {
+                anvil_tui::surfaces::gate::GateCheckStatus::Failed
+            };
+            anvil_tui::surfaces::gate::GateCheck {
+                id: c.name.clone(),
+                name: c.name,
+                status,
+                score: c.score / 100.0,
+                message: c.message,
+                details: None,
+                file: None,
+                line: None,
+            }
+        })
+        .collect();
+
+    anvil_tui::surfaces::gate::GateResult {
+        plan_id: "default".to_string(),
+        overall_passed: overall,
+        score,
+        checks: tui_checks,
+        duration_ms: u64::try_from(elapsed).unwrap_or(u64::MAX),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+    }
+}
+
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     let profile_skips = resolve_profile_skips(args.profile.as_deref())?;
 

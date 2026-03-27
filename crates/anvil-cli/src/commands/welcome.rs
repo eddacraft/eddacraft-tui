@@ -57,6 +57,29 @@ fn run_welcome_hub(
         }
 
         match welcome.chosen.take() {
+            Some(QuickStartOption::RunGate) => {
+                crate::tui::draw_loading(
+                    terminal,
+                    "Gate",
+                    "Running quality checks...",
+                    theme,
+                )?;
+                let data = crate::commands::gate::collect_gate_data();
+                let mut gate_state = anvil_tui::surfaces::gate::GateState::new(data);
+                let sub_exit = crate::tui::run_surface_in(terminal, &mut gate_state, theme)?;
+                if sub_exit == SurfaceExit::Quit {
+                    break;
+                }
+                welcome.should_quit = false;
+                welcome.chosen = None;
+            }
+            Some(QuickStartOption::StartWatch) => {
+                welcome.status_message = Some(
+                    "Watch mode requires a kernel watcher channel. Run \u{2018}anvil watch\u{2019} from the command line."
+                        .to_string(),
+                );
+                welcome.should_quit = false;
+            }
             Some(QuickStartOption::ViewDocs) => {
                 welcome.status_message = Some(open_docs_message());
                 welcome.should_quit = false;
