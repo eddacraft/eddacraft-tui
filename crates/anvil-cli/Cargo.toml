@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Anvil CLI — structural governance for AI-assisted development"
+repository.workspace = true
 
 [[bin]]
 name = "anvil"
