@@ -47,7 +47,7 @@
 - BENCH: kernel-benchmarking (6/16) — In Progress
 - TUIDASH: tui-dashboard-render (0/12) — Draft
 - CPACKS: compliance-policy-packs (0/28) — Draft
-- DOCSYNC: documentation-sync (8/14) — In Progress
+- DOCSYNC: documentation-sync (6/14) — In Progress
 
 ## Conventions
 

@@ -38,8 +38,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
   semantic graph updates.
 - **Ratatui TUI** — rebuilt interactive surfaces with the EddaCraft Terminal
   Standard design system.
-- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail),
-  `3` (auth required), `4` (config error).
+- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail). Codes
+  `3` (auth required) and `4` (config error) are reserved for future use.
 - **Cross-platform auth** — device-flow authentication with OS keychain storage.
 
 ### Breaking Changes

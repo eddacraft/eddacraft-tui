@@ -48,7 +48,7 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run Anvil
-        run: anvil check --all --ci
+        run: anvil gate --ci
         env:
           ANVIL_CI: true
 ```
@@ -88,7 +88,7 @@ Anvil can post results as PR comments:
 
 ```yaml
 - name: Run Anvil
-  run: anvil check --all --json > anvil-results.json
+  run: anvil gate --json > anvil-results.json
 
 - name: Comment on PR
   if: github.event_name == 'pull_request'
@@ -209,7 +209,9 @@ jobs:
       - name: Install Anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
 
-      - run: anvil evidence export --since 7d --output audit.json
+      # Evidence export is planned for a future release.
+      # For now, copy the evidence directory directly.
+      - run: cp -r .anvil/evidence/ audit/
       - uses: actions/upload-artifact@v4
         with:
           name: weekly-audit
@@ -224,7 +226,7 @@ Run Anvil in CI without blocking:
 
 ```yaml
 - name: Run Anvil (Shadow)
-  run: anvil check --all --ci || true
+  run: anvil gate --ci || true
   continue-on-error: true
 ```
 

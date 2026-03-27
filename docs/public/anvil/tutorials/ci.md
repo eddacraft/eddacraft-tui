@@ -36,7 +36,7 @@ Add a pre-commit hook that checks staged files:
 
 ```bash
 # .husky/pre-commit (or .git/hooks/pre-commit)
-anvil check --staged
+anvil gate --staged
 ```
 
 This blocks commits that introduce violations. Only staged files are checked, so
@@ -67,7 +67,7 @@ jobs:
         run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run Anvil
-        run: anvil check --all --ci
+        run: anvil gate --ci
 ```
 
 ### GitLab CI
@@ -79,7 +79,7 @@ anvil:
   before_script:
     - curl -fsSL https://install.eddacraft.ai | sh
   script:
-    - anvil check --all --ci
+    - anvil gate --ci
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -92,8 +92,8 @@ anvil:
 | `0`  | All gates passed                                    |
 | `1`  | General error                                       |
 | `2`  | One or more gate failures                           |
-| `3`  | Authentication required                             |
-| `4`  | Configuration error (missing config, invalid rules) |
+| `3`  | Authentication required (reserved, not yet emitted)  |
+| `4`  | Configuration error (reserved, not yet emitted)      |
 
 CI runners use these exit codes to pass or fail the pipeline step.
 

@@ -35,7 +35,9 @@ irm https://install.eddacraft.ai/windows | iex
 brew install eddacraft/tap/anvil
 ```
 
-Anvil is a single native binary — no Node.js or package manager required.
+Anvil is a single native binary. Your project still needs Node.js and a package
+manager for lint and test gate checks, but Anvil itself has no runtime
+dependencies.
 
 ## Authenticate
 

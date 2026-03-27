@@ -85,9 +85,9 @@ documentation updates that aren't tracked.
 
 | Phase                  | Total | Done | In Progress | Draft |
 | ---------------------- | ----- | ---- | ----------- | ----- |
-| Rust CLI Migration     |    10 |    8 |           0 |     2 |
+| Rust CLI Migration     |    10 |    6 |           0 |     4 |
 | Future                 |     4 |    0 |           0 |     4 |
-| **Total**              |    14 |    8 |           0 |     6 |
+| **Total**              |    14 |    6 |           0 |     8 |
 
 ### Item Detail
 

@@ -69,8 +69,16 @@ installer doesn't do so automatically.
 
 ### Commands
 
-All commands remain the same. `anvil check`, `anvil watch`, `anvil init`,
-`anvil tutorial` — everything works identically from a user's perspective.
+Most commands remain the same. `anvil watch`, `anvil init`, `anvil tutorial` —
+everything works identically from a user's perspective.
+
+:::note Command rename
+
+`anvil check` has been renamed to `anvil gate` in the Rust CLI. The behaviour is
+identical — run all quality gates against the current project.
+
+:::
+
 
 ### Configuration
 
@@ -92,11 +100,12 @@ All commands remain the same. `anvil check`, `anvil watch`, `anvil init`,
   run: curl -fsSL https://install.eddacraft.ai | sh
 
 - name: Run Anvil
-  run: anvil check --all --ci
+  run: anvil gate --ci
 ```
 
-No Node.js setup step required. The binary runs on any Linux, macOS, or Windows
-runner.
+The Anvil binary itself requires no Node.js runtime. However, some gate checks
+(lint, test) shell out to your project's package manager, so your CI workflow
+should still install project dependencies if those checks are enabled.
 
 ### Terminal UI
 
@@ -110,10 +119,11 @@ Features that were not feasible in the Node.js version:
 
 - **Kernel engine** — a persistent daemon mode with incremental parsing and a
   semantic dependency graph that updates in real-time as files change
-- **Native policy evaluation** — policies evaluate in-process without shelling
-  out to OPA
-- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail),
-  `3` (auth required), `4` (config error) for precise CI integration
+- **Policy evaluation** — policy configuration and rule loading are handled
+  natively; OPA is still required for Rego evaluation
+- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail) for
+  precise CI integration. Codes `3` (auth required) and `4` (config error) are
+  reserved for future use
 - **Cross-platform auth** — device-flow authentication with secure credential
   storage via the OS keychain
 
