@@ -126,14 +126,12 @@ fn resolve_credentials(
     Ok(None)
 }
 
-/// Copy credentials to the XDG location and print a migration notice.
-fn migrate_to_xdg(xdg_path: &std::path::Path, creds: &Credentials) -> Result<()> {
-    if let Some(dir) = xdg_path.parent() {
-        std::fs::create_dir_all(dir)
-            .with_context(|| format!("creating {}", dir.display()))?;
-    }
-
-    let content = serde_json::to_string_pretty(creds)?;
+/// Atomically write `content` to `path` via a temporary file + rename.
+///
+/// On Unix the temp file is created with mode 0o600 before being renamed
+/// into place, so the final path is never left in a half-written state.
+fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
+    let tmp_path = path.with_extension("tmp");
 
     #[cfg(unix)]
     {
@@ -146,17 +144,33 @@ fn migrate_to_xdg(xdg_path: &std::path::Path, creds: &Credentials) -> Result<()>
             .truncate(true)
             .write(true)
             .mode(0o600)
-            .open(xdg_path)
-            .with_context(|| format!("opening {}", xdg_path.display()))?;
-        file.write_all(content.as_bytes())
-            .with_context(|| format!("writing {}", xdg_path.display()))?;
+            .open(&tmp_path)
+            .with_context(|| format!("opening {}", tmp_path.display()))?;
+        file.write_all(content)
+            .with_context(|| format!("writing {}", tmp_path.display()))?;
     }
 
     #[cfg(not(unix))]
     {
-        std::fs::write(xdg_path, &content)
-            .with_context(|| format!("writing {}", xdg_path.display()))?;
+        std::fs::write(&tmp_path, content)
+            .with_context(|| format!("writing {}", tmp_path.display()))?;
     }
+
+    std::fs::rename(&tmp_path, path)
+        .with_context(|| format!("renaming {} -> {}", tmp_path.display(), path.display()))?;
+
+    Ok(())
+}
+
+/// Copy credentials to the XDG location and print a migration notice.
+fn migrate_to_xdg(xdg_path: &std::path::Path, creds: &Credentials) -> Result<()> {
+    if let Some(dir) = xdg_path.parent() {
+        std::fs::create_dir_all(dir)
+            .with_context(|| format!("creating {}", dir.display()))?;
+    }
+
+    let content = serde_json::to_string_pretty(creds)?;
+    atomic_write(xdg_path, content.as_bytes())?;
 
     eprintln!(
         "Migrated credentials \u{2192} {}",
@@ -171,34 +185,7 @@ pub fn save(creds: &Credentials) -> Result<()> {
 
     let path = dir.join("credentials.json");
     let content = serde_json::to_string_pretty(creds)?;
-
-    #[cfg(unix)]
-    {
-        use std::fs::OpenOptions;
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-        use std::os::unix::fs::PermissionsExt;
-
-        let mut file = OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .mode(0o600)
-            .open(&path)
-            .with_context(|| format!("opening {}", path.display()))?;
-        file.write_all(content.as_bytes())
-            .with_context(|| format!("writing {}", path.display()))?;
-
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600))
-            .with_context(|| format!("setting permissions on {}", path.display()))?;
-    }
-
-    #[cfg(not(unix))]
-    {
-        std::fs::write(&path, &content).with_context(|| format!("writing {}", path.display()))?;
-    }
-
-    Ok(())
+    atomic_write(&path, content.as_bytes())
 }
 
 pub fn clear() -> Result<()> {
