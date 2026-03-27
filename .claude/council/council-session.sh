@@ -1,1 +1,1 @@
-/home/aneki/Projects/src/code-env/.claude/council/council-session.sh
+../../../code-env/.claude/council/council-session.sh
