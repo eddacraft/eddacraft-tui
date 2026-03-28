@@ -66,13 +66,11 @@ affected by the changes shipping in this release.
 
 Only update packages that changed in this release.
 
-- [ ] `packages/anvil/core/README.md` — API changes
-- [ ] `packages/anvil/runtime/README.md` — runtime changes
+- [ ] `packages/anvil/README.md` — core/runtime API changes
 - [ ] `packages/edda-stack/README.md` — Edda/Ember contract changes
 - [ ] `packages/aps/README.md` — APS format changes
-- [ ] `packages/mcp-server/README.md` — MCP tool changes
 - [ ] `packages/platform/README.md` — platform config changes
-- [ ] `apps/anvil-cli/README.md` — CLI usage changes
+- [ ] `packages/vscode-extension/README.md` — extension changes
 - [ ] `apps/anvil-api/README.md` — API route changes
 
 ### Pre-release: CI and deployment
@@ -98,12 +96,14 @@ Only update packages that changed in this release.
 - [ ] `CHANGELOG.md` — add Rust-specific entries
 - [ ] `Cargo.toml` (workspace root) — workspace version bump if applicable
 - [ ] `crates/anvil-kernel/Cargo.toml` — crate version
-- [ ] `crates/anvil-checks/Cargo.toml` — crate version
-- [ ] `crates/anvil-tui/Cargo.toml` — crate version
-- [ ] `crates/anvil-tui-render/Cargo.toml` — crate version
-- [ ] `crates/anvil-bench/Cargo.toml` — crate version
 - [ ] `crates/anvil-kernel-types/Cargo.toml` — crate version
+- [ ] `crates/anvil-checks/Cargo.toml` — crate version
+- [ ] `crates/anvil-architecture/Cargo.toml` — crate version
+- [ ] `crates/anvil-cli/Cargo.toml` — crate version
+- [ ] `crates/anvil-policy/Cargo.toml` — crate version
+- [ ] `crates/anvil-tui/Cargo.toml` — crate version
 - [ ] `crates/eddacraft-tui/Cargo.toml` — crate version
+- [ ] `crates/spike/Cargo.toml` — crate version (if applicable)
 
 ### Pre-release: public docs sync
 
@@ -126,10 +126,12 @@ Only update packages that changed in this release.
 ### Pre-release: crate READMEs
 
 - [ ] `crates/anvil-kernel/README.md`
-- [ ] `crates/anvil-checks/README.md`
-- [ ] `crates/anvil-tui/README.md`
-- [ ] `crates/anvil-tui-render/README.md`
 - [ ] `crates/anvil-kernel-types/README.md`
+- [ ] `crates/anvil-checks/README.md`
+- [ ] `crates/anvil-architecture/README.md`
+- [ ] `crates/anvil-cli/README.md`
+- [ ] `crates/anvil-policy/README.md`
+- [ ] `crates/anvil-tui/README.md`
 - [ ] `crates/eddacraft-tui/README.md`
 
 ### Pre-release: CI and deployment
