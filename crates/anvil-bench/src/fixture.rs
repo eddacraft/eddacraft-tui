@@ -3,7 +3,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use rand::Rng;
-use rand::distr::Alphanumeric;
+use rand::SeedableRng;
+use rand::distributions::Alphanumeric;
+use rand::rngs::StdRng;
 
 /// Language distribution weights for synthetic repo generation.
 #[derive(Debug, Clone)]
@@ -55,6 +57,8 @@ pub struct RepoSpec {
     pub max_depth: usize,
     pub lines_per_file: usize,
     pub language_mix: LanguageMix,
+    /// Seed for deterministic repo generation. Defaults to 42.
+    pub seed: u64,
 }
 
 impl Default for RepoSpec {
@@ -64,6 +68,7 @@ impl Default for RepoSpec {
             max_depth: 4,
             lines_per_file: 50,
             language_mix: LanguageMix::default(),
+            seed: 42,
         }
     }
 }
@@ -147,20 +152,20 @@ impl Drop for SyntheticRepo {
 
 /// Generate a synthetic repository matching the given spec.
 ///
-/// Files are distributed across a directory tree with deterministic-ish
-/// structure, using the language mix to determine file extensions.
+/// Files are distributed across a directory tree with deterministic structure
+/// seeded by `spec.seed`, using the language mix to determine file extensions.
 pub fn generate_repo(spec: &RepoSpec, base_dir: &Path) -> std::io::Result<SyntheticRepo> {
     let root = base_dir.join("synthetic-repo");
     fs::create_dir_all(&root)?;
 
-    let mut rng = rand::rng();
+    let mut rng = StdRng::seed_from_u64(spec.seed);
     let total_weight = spec.language_mix.total_weight();
 
     for i in 0..spec.file_count {
         let depth = if spec.max_depth == 0 {
             0
         } else {
-            rng.random_range(0..=spec.max_depth)
+            rng.gen_range(0..=spec.max_depth)
         };
 
         let mut dir = root.clone();
@@ -170,7 +175,7 @@ pub fn generate_repo(spec: &RepoSpec, base_dir: &Path) -> std::io::Result<Synthe
         }
         fs::create_dir_all(&dir)?;
 
-        let roll = rng.random_range(0..total_weight);
+        let roll = rng.gen_range(0..total_weight);
         let ext = spec.language_mix.extension_for(roll);
 
         let name_suffix: String = (0..6)

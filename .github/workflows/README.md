@@ -6,6 +6,12 @@ This directory contains GitHub Actions workflows for CI/CD automation.
 
 ## Workflows
 
+### `bench.yml` - Benchmarks
+
+Runs Rust stress-test scenarios (graph memory, watcher saturation, incremental
+throughput) on push to main/dev and on PRs that touch `crates/anvil-bench/**` or
+related kernel crates. Also available via `workflow_dispatch`.
+
 ### `ci.yml` - Continuous Integration
 
 **Optimisations:**

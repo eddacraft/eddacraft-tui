@@ -43,6 +43,7 @@ fn apply_incremental_update(
     graph: &mut Graph<SymbolNode, SymbolEdge>,
     target: NodeIndex,
     node_count: usize,
+    edges_per_node: usize,
 ) {
     // Remove all outgoing edges from target
     let edges_to_remove: Vec<_> = graph
@@ -63,7 +64,7 @@ fn apply_incremental_update(
         EdgeType::Imports,
     ];
 
-    for e in 0..3 {
+    for e in 0..edges_per_node {
         let dest = (target_idx + e + 2) % node_count;
         graph.add_edge(
             target,
@@ -124,6 +125,15 @@ fn build_initial_graph(
 /// Run the incremental throughput scenario.
 #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
 pub fn run(config: &IncrementalThroughputConfig) -> ScenarioResult {
+    if config.initial_nodes == 0 {
+        let mut result = ScenarioResult::new("incremental_throughput");
+        result.set_duration(Duration::ZERO);
+        result.add_metric("initial_nodes", 0.0, "count");
+        result.add_metric("total_updates", 0.0, "count");
+        result.add_metric("updates_per_sec", 0.0, "ops/s");
+        return result;
+    }
+
     let mem = MemoryGuard::start();
     let (mut graph, indices) =
         build_initial_graph(config.initial_nodes, config.edges_per_node);
@@ -139,7 +149,7 @@ pub fn run(config: &IncrementalThroughputConfig) -> ScenarioResult {
         let offset = (batch_count as usize * batch_size) % config.initial_nodes;
         for i in 0..batch_size {
             let node_idx = (offset + i) % indices.len();
-            apply_incremental_update(&mut graph, indices[node_idx], config.initial_nodes);
+            apply_incremental_update(&mut graph, indices[node_idx], config.initial_nodes, config.edges_per_node);
             total_updates += 1;
         }
         batch_count += 1;
@@ -184,7 +194,7 @@ mod tests {
     fn incremental_update_preserves_node_count() {
         let (mut graph, indices) = build_initial_graph(50, 2);
         let initial_nodes = graph.node_count();
-        apply_incremental_update(&mut graph, indices[0], 50);
+        apply_incremental_update(&mut graph, indices[0], 50, 2);
         assert_eq!(graph.node_count(), initial_nodes);
     }
 

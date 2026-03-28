@@ -75,10 +75,16 @@ pub fn run_write_flood(
 
     let writes = config.write_count as u64;
 
+    let avg_write_latency = if writes == 0 {
+        Duration::ZERO
+    } else {
+        write_duration / u32::try_from(writes).unwrap_or(u32::MAX)
+    };
+
     SaturationMetrics {
         writes_performed: writes,
         total_write_duration: write_duration,
-        avg_write_latency: write_duration / u32::try_from(writes).unwrap_or(1),
+        avg_write_latency,
     }
 }
 
@@ -93,7 +99,7 @@ pub fn run(config: &WatcherSaturationConfig) -> ScenarioResult {
     // Measure raw write throughput — both paths target the same repo tree
     let write_timing = time_iterations("file_writes", config.write_count as u64, || {
         let path = root.join("__bench_churn.ts");
-        fs::write(&path, "const churn = true;\n").ok();
+        fs::write(&path, "const churn = true;\n").expect("failed to write churn file");
     });
 
     // Run the flood with a simulated counter (not wired to a real watcher)

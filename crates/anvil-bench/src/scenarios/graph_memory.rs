@@ -35,6 +35,7 @@ pub struct GraphStepMeasurement {
     pub node_count: usize,
     pub edge_count: usize,
     pub rss_kib: u64,
+    pub rss_delta_kib: u64,
     pub build_duration_ms: f64,
 }
 
@@ -44,6 +45,10 @@ fn build_graph(
     edges_per_node: usize,
 ) -> Graph<SymbolNode, SymbolEdge> {
     let mut graph = Graph::new();
+
+    if node_count == 0 {
+        return graph;
+    }
 
     let edge_types = [
         EdgeType::Contains,
@@ -107,16 +112,18 @@ pub fn run(config: &GraphMemoryConfig) -> ScenarioResult {
         let build_ms = start.elapsed().as_secs_f64() * 1000.0;
         let after = MemorySnapshot::now();
 
+        let delta_kib = after.rss_kib.saturating_sub(before.rss_kib);
+
         measurements.push(GraphStepMeasurement {
             node_count,
             edge_count: graph.edge_count(),
             rss_kib: after.rss_kib,
+            rss_delta_kib: delta_kib,
             build_duration_ms: build_ms,
         });
 
         // Keep graph alive through measurement, then drop
         drop(graph);
-        let _ = before;
     }
 
     let mem_delta = mem.finish();
@@ -131,6 +138,7 @@ pub fn run(config: &GraphMemoryConfig) -> ScenarioResult {
         result.add_metric(&format!("{prefix}_nodes"), m.node_count as f64, "count");
         result.add_metric(&format!("{prefix}_edges"), m.edge_count as f64, "count");
         result.add_metric(&format!("{prefix}_rss_kib"), m.rss_kib as f64, "KiB");
+        result.add_metric(&format!("{prefix}_rss_delta_kib"), m.rss_delta_kib as f64, "KiB");
         result.add_metric(&format!("{prefix}_build_ms"), m.build_duration_ms, "ms");
     }
 
@@ -167,7 +175,7 @@ mod tests {
 
         let result = run(&config);
         assert_eq!(result.scenario, "graph_memory");
-        assert!(result.metrics.len() >= 12); // 4 metrics per step
+        assert!(result.metrics.len() >= 15); // 5 metrics per step
     }
 
     #[test]
