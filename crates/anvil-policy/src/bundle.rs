@@ -69,34 +69,47 @@ pub fn load_bundle(path: &Path) -> Result<Bundle, BundleError> {
 
     validate_no_duplicate_ids(&manifest)?;
 
-    let canonical_root = path
-        .canonicalize()
-        .map_err(|_| BundleError::ManifestNotFound(path.to_path_buf()))?;
+    let canonical_root = path.canonicalize()?;
 
     let mut resolved_files = Vec::new();
     let mut missing_files = Vec::new();
 
     for policy_ref in &manifest.policies {
-        // Reject absolute paths and path traversal components.
-        if policy_ref.file.contains("..") || std::path::Path::new(&policy_ref.file).is_absolute() {
+        // Reject absolute paths and traversal components by inspecting parsed
+        // path components — avoids false positives on names like `foo..bar.rego`.
+        let ref_path = std::path::Path::new(&policy_ref.file);
+        if ref_path.is_absolute()
+            || ref_path.components().any(|c| {
+                matches!(
+                    c,
+                    std::path::Component::ParentDir
+                        | std::path::Component::RootDir
+                        | std::path::Component::Prefix(_)
+                )
+            })
+        {
             return Err(BundleError::Validation(format!(
                 "policy {} has unsafe file path: {}",
                 policy_ref.id, policy_ref.file
             )));
         }
+
         let file_path = path.join(&policy_ref.file);
-        // Verify the resolved path stays within the bundle directory.
-        if let Ok(canonical) = file_path.canonicalize() {
-            if !canonical.starts_with(&canonical_root) {
-                return Err(BundleError::Validation(format!(
-                    "policy {} file escapes bundle directory: {}",
-                    policy_ref.id, policy_ref.file
-                )));
-            }
-            resolved_files.push(canonical);
-        } else {
+
+        // If the file does not exist at all, record it as missing.
+        if !file_path.exists() {
             missing_files.push(policy_ref.id.clone());
+            continue;
         }
+        // Verify the resolved path stays within the bundle directory.
+        let canonical = file_path.canonicalize()?;
+        if !canonical.starts_with(&canonical_root) {
+            return Err(BundleError::Validation(format!(
+                "policy {} file escapes bundle directory: {}",
+                policy_ref.id, policy_ref.file
+            )));
+        }
+        resolved_files.push(canonical);
     }
 
     Ok(Bundle {
@@ -355,5 +368,77 @@ mod tests {
         let bundle = load_bundle(&bundle_dir).unwrap();
         let issues = validate_bundle(&bundle);
         assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn load_bundle_rejects_parent_dir_traversal() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bundle_dir = tmp.path().join("my-bundle");
+        fs::create_dir_all(&bundle_dir).unwrap();
+
+        let manifest = BundleManifest {
+            name: "evil".into(),
+            version: "1.0.0".into(),
+            description: "traversal test".into(),
+            policies: vec![BundlePolicyRef {
+                id: "EVIL-001".into(),
+                file: "../../etc/passwd".into(),
+                enabled: Some(true),
+            }],
+        };
+        write_manifest(&bundle_dir, &manifest);
+
+        let result = load_bundle(&bundle_dir);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("unsafe file path"), "got: {msg}");
+    }
+
+    #[test]
+    fn load_bundle_rejects_absolute_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bundle_dir = tmp.path().join("my-bundle");
+        fs::create_dir_all(&bundle_dir).unwrap();
+
+        let manifest = BundleManifest {
+            name: "evil".into(),
+            version: "1.0.0".into(),
+            description: "absolute path test".into(),
+            policies: vec![BundlePolicyRef {
+                id: "EVIL-002".into(),
+                file: "/etc/passwd".into(),
+                enabled: Some(true),
+            }],
+        };
+        write_manifest(&bundle_dir, &manifest);
+
+        let result = load_bundle(&bundle_dir);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("unsafe file path"), "got: {msg}");
+    }
+
+    #[test]
+    fn load_bundle_allows_double_dot_in_filename() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let bundle_dir = tmp.path().join("my-bundle");
+        fs::create_dir_all(&bundle_dir).unwrap();
+
+        let manifest = BundleManifest {
+            name: "dotdot".into(),
+            version: "1.0.0".into(),
+            description: "legitimate double dot".into(),
+            policies: vec![BundlePolicyRef {
+                id: "DD-001".into(),
+                file: "policy..v2.rego".into(),
+                enabled: Some(true),
+            }],
+        };
+        write_manifest(&bundle_dir, &manifest);
+        fs::write(bundle_dir.join("policy..v2.rego"), "package p\n").unwrap();
+
+        let bundle = load_bundle(&bundle_dir).unwrap();
+        assert!(bundle.missing_files.is_empty());
+        assert_eq!(bundle.resolved_files.len(), 1);
     }
 }

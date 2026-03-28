@@ -234,10 +234,13 @@ pub fn create_violation_id(from_file: &str, to_file: &str, line: u32) -> String 
     use sha2::{Digest, Sha256};
 
     let mut hasher = Sha256::new();
-    hasher.update(from_file.len().to_le_bytes());
-    hasher.update(from_file.as_bytes());
-    hasher.update(to_file.len().to_le_bytes());
-    hasher.update(to_file.as_bytes());
+    #[allow(clippy::cast_possible_truncation)]
+    {
+        hasher.update((from_file.len() as u64).to_le_bytes());
+        hasher.update(from_file.as_bytes());
+        hasher.update((to_file.len() as u64).to_le_bytes());
+        hasher.update(to_file.as_bytes());
+    }
     hasher.update(line.to_le_bytes());
     let hash = hasher.finalize();
     hex::encode(&hash[..8])
