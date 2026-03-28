@@ -68,21 +68,29 @@ pub fn parse_architecture_definition(
         return Err(YamlParseError::NotFound(yaml_str));
     }
 
-    let metadata = std::fs::metadata(&yaml_path).map_err(|e| YamlParseError::Io {
-        path: yaml_str.clone(),
-        source: e,
-    })?;
-    if metadata.len() > MAX_YAML_SIZE {
-        return Err(YamlParseError::InvalidYaml(format!(
-            "architecture.yaml exceeds {MAX_YAML_SIZE} byte limit ({} bytes)",
-            metadata.len()
-        )));
-    }
-
-    let content = std::fs::read_to_string(&yaml_path).map_err(|e| YamlParseError::Io {
-        path: yaml_str.clone(),
-        source: e,
-    })?;
+    // Read with a hard size cap to guard against symlinks to special files
+    // (e.g. /dev/zero) where metadata.len() can be misleading.
+    let content = {
+        use std::io::Read;
+        let file = std::fs::File::open(&yaml_path).map_err(|e| YamlParseError::Io {
+            path: yaml_str.clone(),
+            source: e,
+        })?;
+        let mut buf = String::new();
+        let bytes_read = file
+            .take(MAX_YAML_SIZE + 1)
+            .read_to_string(&mut buf)
+            .map_err(|e| YamlParseError::Io {
+                path: yaml_str.clone(),
+                source: e,
+            })?;
+        if bytes_read as u64 > MAX_YAML_SIZE {
+            return Err(YamlParseError::InvalidYaml(format!(
+                "architecture.yaml exceeds {MAX_YAML_SIZE} byte limit"
+            )));
+        }
+        buf
+    };
 
     let definition: ArchitectureDefinition =
         serde_yaml::from_str(&content).map_err(|e| YamlParseError::InvalidYaml(e.to_string()))?;

@@ -156,7 +156,8 @@ fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
 
     tmp.write_all(content)
         .with_context(|| format!("writing temp file for {}", path.display()))?;
-    tmp.flush()?;
+    tmp.flush()
+        .with_context(|| format!("flushing temp file for {}", path.display()))?;
 
     let tmp_path = tmp.into_temp_path();
     let tmp_display = tmp_path.display().to_string();

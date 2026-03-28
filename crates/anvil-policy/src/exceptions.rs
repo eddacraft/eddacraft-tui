@@ -158,9 +158,13 @@ fn glob_matches(pattern: &str, path: &str) -> bool {
         require_literal_leading_dot: false,
     };
 
-    glob::Pattern::new(&pattern)
-        .map(|p| p.matches_with(&path, opts))
-        .unwrap_or(false)
+    match glob::Pattern::new(&pattern) {
+        Ok(p) => p.matches_with(&path, opts),
+        Err(e) => {
+            eprintln!("warning: invalid exception glob pattern '{pattern}': {e}");
+            false
+        }
+    }
 }
 
 #[cfg(test)]

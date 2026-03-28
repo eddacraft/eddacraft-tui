@@ -226,10 +226,12 @@ pub struct BoundaryViolation {
 // Utility functions
 // =============================================================================
 
-/// Create a collision-resistant violation ID from edge details.
+/// Create a deterministic violation ID from edge details.
 ///
-/// Uses SHA-256 truncated to 16 hex chars. Each field is length-prefixed
-/// so `("a:b", "c")` and `("a", "b:c")` produce distinct hashes.
+/// Uses SHA-256 truncated to 64 bits (16 hex chars) for compact, low-collision
+/// IDs. Each field is length-prefixed so `("a:b", "c")` and `("a", "b:c")`
+/// produce distinct values. Not cryptographically collision-resistant at this
+/// truncation — sufficient for baseline deduplication at typical project scale.
 pub fn create_violation_id(from_file: &str, to_file: &str, line: u32) -> String {
     use sha2::{Digest, Sha256};
 

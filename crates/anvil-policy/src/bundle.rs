@@ -75,6 +75,14 @@ pub fn load_bundle(path: &Path) -> Result<Bundle, BundleError> {
     let mut missing_files = Vec::new();
 
     for policy_ref in &manifest.policies {
+        // Reject empty, current-dir, or directory-only references.
+        if policy_ref.file.is_empty() || policy_ref.file == "." {
+            return Err(BundleError::Validation(format!(
+                "policy {} has empty or invalid file path",
+                policy_ref.id
+            )));
+        }
+
         // Reject absolute paths and traversal components by inspecting parsed
         // path components — avoids false positives on names like `foo..bar.rego`.
         let ref_path = std::path::Path::new(&policy_ref.file);
@@ -96,8 +104,8 @@ pub fn load_bundle(path: &Path) -> Result<Bundle, BundleError> {
 
         let file_path = path.join(&policy_ref.file);
 
-        // If the file does not exist at all, record it as missing.
-        if !file_path.exists() {
+        // If the path does not exist or is a directory, record as missing.
+        if !file_path.exists() || file_path.is_dir() {
             missing_files.push(policy_ref.id.clone());
             continue;
         }

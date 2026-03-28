@@ -34,6 +34,10 @@ pub struct ValidationResult {
     pub violations: Vec<BoundaryViolation>,
     /// Validation statistics.
     pub stats: ValidationStats,
+    /// Whether boundary checking was active during this run.
+    /// When `false`, `violations` will always be empty and `valid` always `true`
+    /// regardless of the actual dependency structure (RCLI-013a).
+    pub boundary_checking_active: bool,
 }
 
 /// Errors during validation.
@@ -59,13 +63,6 @@ pub fn validate(
     let assigned_count = assignments.iter().filter(|a| a.layer.is_some()).count();
     let orphan_count = assignments.len() - assigned_count;
 
-    if !boundary_checking_active() {
-        eprintln!(
-            "warning: boundary checking is not yet active (RCLI-013a). \
-             Layer assignments are validated but cross-layer violations are not detected."
-        );
-    }
-
     // Build boundary rules from layer definitions.
     let boundaries = create_default_boundaries(&definition.layers);
     let violations = check_boundaries(&assignments, &boundaries);
@@ -87,6 +84,7 @@ pub fn validate(
             orphan_count,
             violation_count,
         },
+        boundary_checking_active: boundary_checking_active(),
     })
 }
 
