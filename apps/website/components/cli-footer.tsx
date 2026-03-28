@@ -178,6 +178,7 @@ export function CLIFooter() {
     setIsSubmitting(false);
     setSubmitError(null);
     setSubmitWarning(null);
+    setEmailFailed(false);
     setDisplayedLines([]);
     setCurrentLineIndex(0);
     setCurrentCharIndex(0);
