@@ -11,7 +11,8 @@ const cron = new Hono();
  * GET /cron/cleanup
  *
  * Purge expired device codes and OTP codes.
- * Intended to be called by Vercel Cron (sends GET with Authorization header).
+ * Retains codes for 1 hour after expiry to allow for clock skew and
+ * debugging before cleanup. Runs hourly via Vercel Cron.
  * Protected by CRON_SECRET for Vercel Cron compatibility.
  *
  * Vercel Cron config (vercel.json):

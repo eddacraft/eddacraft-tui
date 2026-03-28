@@ -185,8 +185,10 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
       return c.json({ error: 'slow_down', retryAfter: POLL_INTERVAL_S }, 429);
     }
 
-    debug('device code not found (treating as expired)');
-    return c.json({ status: 'expired' });
+    // Anti-enumeration: return 'pending' for unknown tokens so attackers
+    // cannot distinguish valid-but-unconfirmed from non-existent tokens.
+    debug('device code not found (treating as pending for anti-enumeration)');
+    return c.json({ status: 'pending' });
   }
 
   // Check expiry BEFORE any further side-effects (session minting)
@@ -223,8 +225,8 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
   const userRows = rows(await sql`SELECT * FROM beta_users WHERE id = ${userId} LIMIT 1`);
   const user = userRows[0];
 
-  if (!user) {
-    debug('user not found for confirmed device code');
+  if (!user || user['status'] !== 'active') {
+    debug('user not found or not active for confirmed device code');
     return c.json({ status: 'expired' });
   }
 

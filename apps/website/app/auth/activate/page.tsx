@@ -111,7 +111,7 @@ function ActivateForm() {
             </div>
 
             {/* Error */}
-            {status === 'error' && <p className="text-xs text-anvil">{errorMessage}</p>}
+            {status === 'error' && <p className="text-xs text-anvil" role="alert">{errorMessage}</p>}
 
             {/* Submit */}
             <button
