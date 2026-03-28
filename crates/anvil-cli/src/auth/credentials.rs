@@ -142,16 +142,17 @@ fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
 
     std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
 
-    let mut tmp = tempfile::NamedTempFile::new_in(dir)
-        .with_context(|| format!("creating temp file in {}", dir.display()))?;
+    let mut builder = tempfile::Builder::new();
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        tmp.as_file()
-            .set_permissions(std::fs::Permissions::from_mode(0o600))
-            .with_context(|| "setting temp file permissions")?;
+        builder.permissions(std::fs::Permissions::from_mode(0o600));
     }
+
+    let mut tmp = builder
+        .tempfile_in(dir)
+        .with_context(|| format!("creating temp file in {}", dir.display()))?;
 
     tmp.write_all(content)
         .with_context(|| format!("writing temp file for {}", path.display()))?;
