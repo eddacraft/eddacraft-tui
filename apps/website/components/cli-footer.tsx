@@ -67,6 +67,7 @@ export function CLIFooter() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitWarning, setSubmitWarning] = useState<string | null>(null);
+  const [emailFailed, setEmailFailed] = useState(false);
   const [displayedLines, setDisplayedLines] = useState<{ text: string; colorClass: string }[]>([]);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [currentCharIndex, setCurrentCharIndex] = useState(0);
@@ -74,18 +75,28 @@ export function CLIFooter() {
   const [showPreReleaseModal, setShowPreReleaseModal] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const getResponseLines = (userEmail: string): ResponseLine[] => [
-    { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
-    { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
-    {
-      text:
-        submitWarning && submitWarning.includes('WARN')
-          ? `Welcome aboard. Access is queued for ${userEmail}`
-          : `Welcome aboard. We'll be in touch at ${userEmail}`,
-      colorClass: 'text-text-muted',
-      delay: 0,
-    },
-  ];
+  const getResponseLines = (userEmail: string): ResponseLine[] => {
+    const lines: ResponseLine[] = [
+      { text: 'Verifying...', colorClass: 'text-text-muted', delay: 600 },
+      { text: '[ OK ] Access request received', colorClass: 'text-edda', delay: 400 },
+      {
+        text:
+          submitWarning && submitWarning.includes('WARN')
+            ? `Welcome aboard. Access is queued for ${userEmail}`
+            : `Welcome aboard. We'll be in touch at ${userEmail}`,
+        colorClass: 'text-text-muted',
+        delay: 0,
+      },
+    ];
+    if (emailFailed) {
+      lines.push({
+        text: '[ WARN ] Confirmation email could not be sent — you are still on the list',
+        colorClass: 'text-amber-400',
+        delay: 300,
+      });
+    }
+    return lines;
+  };
 
   // Typewriter effect
   useEffect(() => {
@@ -124,7 +135,7 @@ export function CLIFooter() {
       }, currentLine.delay);
       return () => clearTimeout(timeout);
     }
-  }, [submitted, currentLineIndex, currentCharIndex, email, submitWarning]);
+  }, [submitted, currentLineIndex, currentCharIndex, email, submitWarning, emailFailed]);
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault();
@@ -140,6 +151,7 @@ export function CLIFooter() {
 
     if (result.success) {
       setSubmitWarning(result.warning || null);
+      setEmailFailed(result.emailSent === false && result.isNewSignup === true);
       setSubmitted(true);
     } else {
       setSubmitError(result.error || 'Something went wrong');
@@ -166,6 +178,7 @@ export function CLIFooter() {
     setIsSubmitting(false);
     setSubmitError(null);
     setSubmitWarning(null);
+    setEmailFailed(false);
     setDisplayedLines([]);
     setCurrentLineIndex(0);
     setCurrentCharIndex(0);
