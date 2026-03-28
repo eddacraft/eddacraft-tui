@@ -13,7 +13,7 @@ tick items as they are completed.
 ### Pre-release: changelog and version files
 
 - [ ] `CHANGELOG.md` — add release entry following keep-a-changelog format
-- [ ] `apps/anvil-cli/package.json` — bump `version` field
+- [ ] `package.json` (workspace root) — bump `version` field
 - [ ] `docs/public/anvil/releases/changelog.md` — mirror notable changes for
       public site
 - [ ] `docs/public/anvil/releases/upgrade-notes.md` — add migration section if
