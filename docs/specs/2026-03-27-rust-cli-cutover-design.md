@@ -1,8 +1,7 @@
 # Rust CLI Cutover Design
 
-**Date:** 2026-03-27
-**Status:** Draft
-**Scope:** RCLI module — cutover, archival, distribution
+**Date:** 2026-03-27 **Status:** Draft **Scope:** RCLI module — cutover,
+archival, distribution
 
 ## Summary
 
@@ -40,13 +39,14 @@ Migrated credentials from ~/.anvil/auth.json → ~/.config/anvil/credentials.jso
 
 ### 2. Pre-Action Auth Enforcement (RCLI-015b)
 
-**Problem:** Commands execute unconditionally even without auth. `EXIT_AUTH_REQUIRED = 3`
-is defined but never triggered.
+**Problem:** Commands execute unconditionally even without auth.
+`EXIT_AUTH_REQUIRED = 3` is defined but never triggered.
 
 **Solution:** Add pre-dispatch middleware in `main.rs`:
 
 - **Require auth:** gate, watch, status, admin, export
-- **Bypass auth:** doctor, tutorial, init, hooks, new, wizard, `--version`, `--help`
+- **Bypass auth:** doctor, tutorial, init, hooks, new, wizard, `--version`,
+  `--help`
 
 When credentials are missing or expired, return exit code 3 with message:
 
@@ -62,8 +62,8 @@ Authentication required. Run `anvil auth login` to authenticate.
 dependency, architecture, policy. Plan-scoped gating and `--no-cache` are dead
 code.
 
-**Solution:** Implement the 4 checks at a functional level (not full parity
-with Node.js — those crates are still maturing):
+**Solution:** Implement the 4 checks at a functional level (not full parity with
+Node.js — those crates are still maturing):
 
 - **Coverage:** look for `coverage/lcov.info` or `coverage/cobertura.xml` in
   project root. If present, parse total line coverage and compare against
@@ -74,8 +74,8 @@ with Node.js — those crates are still maturing):
   release). Not a full advisory database — a curated blocklist for beta
 - **Architecture:** load `.anvil/architecture.yaml`, parse layer definitions,
   check import edges against layer boundaries using the kernel's dependency
-  graph. Delegates to `anvil-architecture` crate's `validate()` function
-  (exists but needs wiring)
+  graph. Delegates to `anvil-architecture` crate's `validate()` function (exists
+  but needs wiring)
 - **Policy:** load policy bundle from `.anvil/policies/`, evaluate against
   current file set using `anvil-policy` crate's `evaluate()` function (exists
   but needs wiring). If no policy bundle configured, skip with notice
@@ -83,8 +83,8 @@ with Node.js — those crates are still maturing):
 Wire `plan` positional arg for plan-scoped gating (filter checked files to those
 referenced in the plan). Wire `--no-cache` to skip result cache.
 
-**Files:** `crates/anvil-cli/src/commands/gate.rs`
-**Dependencies:** `crates/anvil-policy/`, `crates/anvil-architecture/`
+**Files:** `crates/anvil-cli/src/commands/gate.rs` **Dependencies:**
+`crates/anvil-policy/`, `crates/anvil-architecture/`
 
 **Note:** The `anvil-policy` and `anvil-architecture` crates (RCLI-017,
 RCLI-019) are currently scaffolds. This work item includes adding enough
@@ -104,8 +104,8 @@ need machine-readable output.
 - **JSON:** serialise the same data structures surfaces consume. Used when
   `--json` is set
 
-All commands route through a shared `Output` trait that dispatches to TUI, plain,
-or JSON based on flags + TTY detection.
+All commands route through a shared `Output` trait that dispatches to TUI,
+plain, or JSON based on flags + TTY detection.
 
 **Files:** `crates/anvil-cli/src/output/`
 
@@ -114,8 +114,8 @@ or JSON based on flags + TTY detection.
 **Problem:** Welcome menu lacks gate/watch launch options that the Ink CLI had.
 
 **Solution:** Add gate and watch as menu items in the welcome surface. Selecting
-them launches the respective surface as a sub-surface. Esc returns to the welcome
-menu (RCLI-026 already implemented this navigation pattern).
+them launches the respective surface as a sub-surface. Esc returns to the
+welcome menu (RCLI-026 already implemented this navigation pattern).
 
 **Files:** `crates/anvil-tui/src/surfaces/welcome/mod.rs`,
 `crates/anvil-cli/src/commands/welcome.rs`
@@ -133,7 +133,8 @@ menu (RCLI-026 already implemented this navigation pattern).
 2. `git mv apps/anvil-cli/src/tui/ archive/anvil-tui-ink/`
 3. Remove `apps/anvil-cli` from pnpm workspace (`pnpm-workspace.yaml`)
 4. Remove Nx project config for `@eddacraft/anvil-cli`
-5. Remove any `@eddacraft/anvil-cli` references from other packages' dependencies
+5. Remove any `@eddacraft/anvil-cli` references from other packages'
+   dependencies
 6. Update root `package.json` scripts if they reference the Node.js CLI
 7. Clean up `tsconfig` references pointing at the archived package
 
@@ -168,8 +169,8 @@ cross-compiles, then pushes release assets to the public repo.
    - `aarch64-apple-darwin`
 3. Modify the generated workflow to push assets to `EddaCraft/anvil-releases`
    instead of the private repo's releases
-4. Host install script at `install.eddacraft.ai` (static page, can be Vercel
-   or a raw GitHub URL from the public repo)
+4. Host install script at `install.eddacraft.ai` (static page, can be Vercel or
+   a raw GitHub URL from the public repo)
 
 ### Release Profile
 
@@ -207,15 +208,15 @@ anvil auth login
 These are documented in release notes. Users see clear "not yet implemented"
 messages, not silent failures.
 
-| Gap | Impact | Tracking |
-|-----|--------|----------|
-| `watch --file/--action/--patterns/--exclude` parsed but not wired | Power users only | RCLI-014a |
-| Hooks generate `doctor --no-tui` only, no enforcement | Teams miss plan/gate checks | RCLI-021a |
-| Export: APS markdown rejected, constraint formatters bail | APS workflow users | RCLI-021b, RCLI-021c |
-| Policy/architecture subcommands shallow | Advanced users | RCLI-018a, RCLI-020a |
-| Audit viewport doesn't scroll for large lists | Many-issue projects | RCLI-027 |
-| `login`/`logout`/`whoami` top-level aliases missing | Convenience only | RCLI-015c |
-| Doctor `--fix` doesn't execute fixes | Manual fix needed | RCLI-028 |
+| Gap                                                               | Impact                      | Tracking             |
+| ----------------------------------------------------------------- | --------------------------- | -------------------- |
+| `watch --file/--action/--patterns/--exclude` parsed but not wired | Power users only            | RCLI-014a            |
+| Hooks generate `doctor --no-tui` only, no enforcement             | Teams miss plan/gate checks | RCLI-021a            |
+| Export: APS markdown rejected, constraint formatters bail         | APS workflow users          | RCLI-021b, RCLI-021c |
+| Policy/architecture subcommands shallow                           | Advanced users              | RCLI-018a, RCLI-020a |
+| Audit viewport doesn't scroll for large lists                     | Many-issue projects         | RCLI-027             |
+| `login`/`logout`/`whoami` top-level aliases missing               | Convenience only            | RCLI-015c            |
+| Doctor `--fix` doesn't execute fixes                              | Manual fix needed           | RCLI-028             |
 
 ## Release Sequence
 
