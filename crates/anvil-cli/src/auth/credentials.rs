@@ -18,15 +18,9 @@ pub struct Credentials {
 }
 
 pub fn credentials_dir() -> Result<PathBuf> {
-    let config_home = std::env::var("XDG_CONFIG_HOME").map_or_else(
-        |_| {
-            dirs::home_dir()
-                .map(|h| h.join(".config"))
-                .ok_or_else(|| anyhow::anyhow!("Cannot determine home directory"))
-        },
-        |v| Ok(PathBuf::from(v)),
-    )?;
-    Ok(config_home.join("anvil"))
+    dirs::config_dir()
+        .map(|d| d.join("anvil"))
+        .ok_or_else(|| anyhow::anyhow!("Cannot determine config directory"))
 }
 
 pub fn credentials_path() -> Result<PathBuf> {
@@ -45,6 +39,15 @@ pub fn credentials_path() -> Result<PathBuf> {
 /// automatically migrated to the XDG location. Env var credentials
 /// (4) are returned directly and never persisted to disk.
 pub fn load() -> Result<Option<Credentials>> {
+    load_with_fallback()
+}
+
+/// Try each credential source in priority order, returning the first hit.
+///
+/// This is the public entry point that `load()` delegates to. Separated so
+/// callers that need the explicit name (e.g. for documentation or wiring)
+/// can reference it directly.
+pub fn load_with_fallback() -> Result<Option<Credentials>> {
     let xdg_path = credentials_path()?;
     let home = dirs::home_dir();
     let legacy_auth = home.as_ref().map(|h| h.join(".anvil/auth.json"));
@@ -492,5 +495,24 @@ mod tests {
         let json = r#"{"token": "aliased-value"}"#;
         let creds: Credentials = serde_json::from_str(json).unwrap();
         assert_eq!(creds.license, "aliased-value");
+    }
+
+    // ── credentials_dir uses dirs::config_dir ───────────────────
+
+    #[test]
+    fn credentials_dir_matches_platform_config_dir() {
+        if let Some(expected) = dirs::config_dir() {
+            let dir = credentials_dir().unwrap();
+            assert_eq!(dir, expected.join("anvil"));
+        }
+    }
+
+    // ── load_with_fallback is equivalent to load ────────────────
+
+    #[test]
+    fn load_with_fallback_delegates_correctly() {
+        let r1 = load();
+        let r2 = load_with_fallback();
+        assert_eq!(r1.is_ok(), r2.is_ok());
     }
 }
