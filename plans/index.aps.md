@@ -79,7 +79,7 @@ backlog (complete) as tracked sub-modules.
 | ------ | ----- | ------ | -------- |
 | [continuous-improvement](./modules/continuous-improvement.aps.md) | CI | Draft | 0/10 |
 | [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred) |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
+| [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 ### Rust Engine (In Progress)
 

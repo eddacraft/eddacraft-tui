@@ -126,12 +126,12 @@ release must deliver both the core value AND a friction-free first experience.
 ### Future — Ratatui TUI (RATS, Done)
 
 7/7 tasks complete. Full task table in [completed-index.aps.md](./completed-index.aps.md).
-**Module:** [RATS — Ratatui TUI](./modules/ratatui-tui.aps.md)
+**Module:** [RATS — Ratatui TUI](./archive/modules/ratatui-tui.aps.md)
 
 ### Future — Ink-to-Ratatui Port (PORT, Done)
 
 15/15 tasks complete. Full task table in [completed-index.aps.md](./completed-index.aps.md).
-**Module:** [PORT — Ink-to-Ratatui Port](./modules/ink-to-ratatui-port.aps.md)
+**Module:** [PORT — Ink-to-Ratatui Port](./archive/modules/ink-to-ratatui-port.aps.md)
 
 ## Milestones
 
@@ -164,7 +164,7 @@ release must deliver both the core value AND a friction-free first experience.
 ### Completed (0.1.0)
 
 Task-level detail for all completed work is archived in
-[completed.aps.md](./modules/completed.aps.md).
+[completed.aps.md](./completed.aps.md).
 
 | Module | Scope | Release |
 | ------ | ----- | ------- |
@@ -207,22 +207,22 @@ Task-level detail for all completed work is archived in
 | [nx-task-migration](./archive/modules/nx-task-migration.aps.md) | NXTASK | Complete | 6/6 |
 | [security-ci-pipeline](./archive/modules/security-ci-pipeline.aps.md) | SEC | Complete | — |
 | [cli-esbuild-bundling](./archive/modules/cli-esbuild-bundling.aps.md) | BUNDLE | Complete | 3/3 |
-| [01-forge-hook-agent](./modules/01-forge-hook-agent.aps.md) | FORGE | Complete | 5/5 |
-| [02-forge-negotiation](./modules/02-forge-negotiation.aps.md) | FNEG | Complete | 5/5 |
-| [03-deferred-finding-filing](./modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 |
-| [04-temper-workflow](./modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 |
-| [05-forge-temper-config](./modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 |
-| [code-review-backlog](./modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
+| [01-forge-hook-agent](./archive/modules/01-forge-hook-agent.aps.md) | FORGE | Complete | 5/5 |
+| [02-forge-negotiation](./archive/modules/02-forge-negotiation.aps.md) | FNEG | Complete | 5/5 |
+| [03-deferred-finding-filing](./archive/modules/03-deferred-finding-filing.aps.md) | DEFER | Complete | 5/5 |
+| [04-temper-workflow](./archive/modules/04-temper-workflow.aps.md) | TEMPER | Complete | 6/6 |
+| [05-forge-temper-config](./archive/modules/05-forge-temper-config.aps.md) | FTCFG | Complete | 6/6 |
+| [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 ### Completed (0.4.0 — Edda Stack)
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [kindling-integration](./archive/modules/kindling-integration.aps.md) | KINDLING | Complete | 19/19 | save-time-trust, drift-reporting |
-| [ember](./modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
-| [edda](./modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
-| [edda-stack-integration](./modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
-| [edda-ember-review](./modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
+| [ember](./archive/modules/ember.aps.md) | EMBER | Complete | 14/14 | kindling-integration |
+| [edda](./archive/modules/edda.aps.md) | EDDA | Complete | 19/19 | ember |
+| [edda-stack-integration](./archive/modules/edda-stack-integration.aps.md) | STACK | Complete | 19/19 | kindling-integration, ember, edda |
+| [edda-ember-review](./archive/modules/edda-ember-review.aps.md) | EERB | Complete | 16/16 | ember, edda |
 
 ### Task Status — 0.1.0 (Core Engine)
 

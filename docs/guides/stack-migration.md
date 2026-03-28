@@ -376,4 +376,4 @@ describe('migration integration', () => {
 ## Related Documentation
 
 - [Edda Stack Architecture](../architecture/edda-stack.md)
-- [Stack Integration Plan](../../plans/modules/edda-stack-integration.aps.md)
+- [Stack Integration Plan](../../plans/archive/modules/edda-stack-integration.aps.md)

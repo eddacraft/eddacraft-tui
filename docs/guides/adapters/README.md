@@ -56,7 +56,7 @@ Step-by-step process for building a new adapter.
 ### Package Documentation
 
 - [Adapters Package README](../../../packages/adapters/README.md)
-- [Adapter Workflow Guide](../../../packages/adapters/ADAPTER_WORKFLOW_GUIDE.md)
+- Adapter Workflow Guide (removed — see [workflow-guide.md](workflow-guide.md))
 
 ## Reference Implementations
 
@@ -303,7 +303,7 @@ const change = {
 1. Review [Adapter Workflow Guide](workflow-guide.md)
 2. Study
    [SpecKit adapter implementation](../../../packages/adapters/src/speckit/)
-3. Check [Format templates](../../formats/)
+3. Check format templates in the adapters package
 4. Start building your adapter!
 
 ## Navigation

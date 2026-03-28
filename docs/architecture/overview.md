@@ -390,7 +390,7 @@ Inline annotations and the suppressions store both follow the same schema
 
 The Edda Stack is a three-layer architecture governing how activity becomes
 institutional memory. Planned for delivery in v0.4.0. (See
-[edda-stack-integration.aps.md](../plans/modules/edda-stack-integration.aps.md))
+[edda-stack-integration.aps.md](../plans/archive/modules/edda-stack-integration.aps.md))
 
 ### Three Layers
 
@@ -452,8 +452,8 @@ graph TD
 ## Forge and Temper Pipeline
 
 Autonomous code review pipeline with two complementary phases. (See
-[forge-hook-agent.aps.md](../plans/modules/01-forge-hook-agent.aps.md) through
-[temper-workflow.aps.md](../plans/modules/04-temper-workflow.aps.md))
+[forge-hook-agent.aps.md](../plans/archive/modules/01-forge-hook-agent.aps.md) through
+[temper-workflow.aps.md](../plans/archive/modules/04-temper-workflow.aps.md))
 
 ### Forge (Pre-commit, Local)
 

@@ -403,7 +403,7 @@ If you can't explain why something is in Edda, it doesn't belong.
 
 ## Related Documentation
 
-- [Kindling Integration](../../plans/modules/kindling-integration.aps.md)
-- [Ember System](../../plans/modules/ember.aps.md)
-- [Edda System](../../plans/modules/edda.aps.md)
-- [Stack Integration](../../plans/modules/edda-stack-integration.aps.md)
+- [Kindling Integration](../../plans/archive/modules/kindling-integration.aps.md)
+- [Ember System](../../plans/archive/modules/ember.aps.md)
+- [Edda System](../../plans/archive/modules/edda.aps.md)
+- [Stack Integration](../../plans/archive/modules/edda-stack-integration.aps.md)
