@@ -488,10 +488,6 @@ jobs:
       - name: Build CLI
         run: pnpm build
 
-      # continue-on-error: this is a PoC integration of tuistory;
-      # failures should not block CI until the tests are stabilised.
-      - name: Run TUI E2E tests
-        run: |
-          pnpm vitest run "apps/anvil-cli/src/__tests__/e2e/**/*.tuistory.e2e.test.ts"
+      - name: Run TUI E2E tests (Rust)
+        run: cargo test -p anvil-tui -p anvil-cli --quiet
         timeout-minutes: 10
-        continue-on-error: true
