@@ -61,5 +61,5 @@ function debugLog(namespace: DebugNamespace, message: string, data?: unknown): v
 export function createDebugger(
   _namespace: DebugNamespace
 ): (message: string, data?: unknown) => void {
-  return (message: string, data?: unknown) => debugLog('api', message, data);
+  return (message: string, data?: unknown) => debugLog(_namespace, message, data);
 }

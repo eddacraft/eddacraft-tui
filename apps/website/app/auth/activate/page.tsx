@@ -8,7 +8,7 @@ type Status = 'idle' | 'loading' | 'success' | 'error';
 
 export default function ActivatePage() {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <ActivateForm />
     </Suspense>
   );

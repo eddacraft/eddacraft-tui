@@ -125,17 +125,17 @@ describe('Plan Lifecycle › Multi-change Plans', () => {
       intent: 'Refactor authentication module',
       proposed_changes: [
         makeChange({
-          file: 'src/auth/login.ts',
+          path: 'src/auth/login.ts',
           type: 'file_update',
           description: 'Update login flow',
         }),
         makeChange({
-          file: 'src/auth/register.ts',
+          path: 'src/auth/register.ts',
           type: 'file_create',
           description: 'New registration',
         }),
         makeChange({
-          file: 'src/auth/legacy.ts',
+          path: 'src/auth/legacy.ts',
           type: 'file_delete',
           description: 'Remove legacy code',
         }),
