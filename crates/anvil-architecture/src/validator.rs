@@ -59,6 +59,13 @@ pub fn validate(
     let assigned_count = assignments.iter().filter(|a| a.layer.is_some()).count();
     let orphan_count = assignments.len() - assigned_count;
 
+    if !boundary_checking_active() {
+        eprintln!(
+            "warning: boundary checking is not yet active (RCLI-013a). \
+             Layer assignments are validated but cross-layer violations are not detected."
+        );
+    }
+
     // Build boundary rules from layer definitions.
     let boundaries = create_default_boundaries(&definition.layers);
     let violations = check_boundaries(&assignments, &boundaries);
@@ -127,18 +134,23 @@ fn matches_layer(file: &str, layer: &Layer) -> Option<String> {
 
 /// Check for boundary violations among assigned files.
 ///
-/// This is a simplified check: it looks for files that are assigned to
-/// layers with forbidden dependencies. Full import-graph analysis is
-/// deferred to a later phase; this checks that no file's assigned layer
-/// would inherently violate boundaries given the layer structure.
+/// **STUB (RCLI-013a):** Full import-edge extraction requires AST parsing
+/// which is deferred to the kernel integration phase. This always returns
+/// an empty list. The `validate()` caller emits a warning so users are
+/// not misled by a clean result.
 fn check_boundaries(
     _assignments: &[LayerAssignment],
     _boundaries: &[Boundary],
 ) -> Vec<BoundaryViolation> {
-    // Full import-edge extraction requires AST parsing (deferred to kernel).
-    // For now, return an empty list — the validator confirms layer assignment
-    // and boundary rules are structurally sound.
     Vec::new()
+}
+
+/// Whether boundary checking is currently active.
+///
+/// Returns `false` until the kernel AST parser is integrated (RCLI-013a).
+#[must_use]
+pub const fn boundary_checking_active() -> bool {
+    false
 }
 
 /// Collect source files from the workspace, respecting exclude patterns.

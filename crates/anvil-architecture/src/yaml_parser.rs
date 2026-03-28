@@ -62,6 +62,19 @@ pub fn parse_architecture_definition(
         return Err(YamlParseError::NotFound(yaml_str));
     }
 
+    // Guard against billion-laughs YAML expansion — reject files over 1 MiB.
+    const MAX_YAML_SIZE: u64 = 1024 * 1024;
+    let metadata = std::fs::metadata(&yaml_path).map_err(|e| YamlParseError::Io {
+        path: yaml_str.clone(),
+        source: e,
+    })?;
+    if metadata.len() > MAX_YAML_SIZE {
+        return Err(YamlParseError::InvalidYaml(format!(
+            "architecture.yaml exceeds {MAX_YAML_SIZE} byte limit ({} bytes)",
+            metadata.len()
+        )));
+    }
+
     let content = std::fs::read_to_string(&yaml_path).map_err(|e| YamlParseError::Io {
         path: yaml_str.clone(),
         source: e,

@@ -226,21 +226,21 @@ pub struct BoundaryViolation {
 // Utility functions
 // =============================================================================
 
-/// Create a violation ID from edge details.
+/// Create a collision-resistant violation ID from edge details.
 ///
-/// Produces a deterministic ID by replacing non-alphanumeric characters
-/// (except `:`) with underscores.
+/// Uses SHA-256 truncated to 16 hex chars. Each field is length-prefixed
+/// so `("a:b", "c")` and `("a", "b:c")` produce distinct hashes.
 pub fn create_violation_id(from_file: &str, to_file: &str, line: u32) -> String {
-    let raw = format!("{from_file}:{to_file}:{line}");
-    raw.chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == ':' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect()
+    use sha2::{Digest, Sha256};
+
+    let mut hasher = Sha256::new();
+    hasher.update(from_file.len().to_le_bytes());
+    hasher.update(from_file.as_bytes());
+    hasher.update(to_file.len().to_le_bytes());
+    hasher.update(to_file.as_bytes());
+    hasher.update(line.to_le_bytes());
+    let hash = hasher.finalize();
+    hex::encode(&hash[..8])
 }
 
 /// Check if a violation exists in the baseline.
@@ -380,15 +380,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn create_violation_id_replaces_special_chars() {
-        let id = create_violation_id("src/foo/bar.ts", "src/baz/qux.ts", 42);
-        assert_eq!(id, "src_foo_bar_ts:src_baz_qux_ts:42");
+    fn create_violation_id_is_deterministic() {
+        let a = create_violation_id("src/foo/bar.ts", "src/baz/qux.ts", 42);
+        let b = create_violation_id("src/foo/bar.ts", "src/baz/qux.ts", 42);
+        assert_eq!(a, b);
+        assert_eq!(a.len(), 16); // 8 bytes hex-encoded
     }
 
     #[test]
-    fn create_violation_id_preserves_colons() {
-        let id = create_violation_id("a:b", "c:d", 1);
-        assert_eq!(id, "a:b:c:d:1");
+    fn create_violation_id_no_collision_on_colon_fields() {
+        let a = create_violation_id("a:b", "c", 1);
+        let b = create_violation_id("a", "b:c", 1);
+        assert_ne!(a, b, "length-prefixed hashing must prevent field boundary collisions");
     }
 
     #[test]

@@ -45,6 +45,8 @@ pub enum BundleError {
     Parse(String),
     #[error("duplicate policy ID {id} in bundle {bundle}")]
     DuplicatePolicy { id: String, bundle: String },
+    #[error("bundle validation error: {0}")]
+    Validation(String),
 }
 
 const MANIFEST_NAME: &str = "manifest.json";
@@ -67,13 +69,31 @@ pub fn load_bundle(path: &Path) -> Result<Bundle, BundleError> {
 
     validate_no_duplicate_ids(&manifest)?;
 
+    let canonical_root = path
+        .canonicalize()
+        .map_err(|_| BundleError::ManifestNotFound(path.to_path_buf()))?;
+
     let mut resolved_files = Vec::new();
     let mut missing_files = Vec::new();
 
     for policy_ref in &manifest.policies {
+        // Reject absolute paths and path traversal components.
+        if policy_ref.file.contains("..") || std::path::Path::new(&policy_ref.file).is_absolute() {
+            return Err(BundleError::Validation(format!(
+                "policy {} has unsafe file path: {}",
+                policy_ref.id, policy_ref.file
+            )));
+        }
         let file_path = path.join(&policy_ref.file);
-        if file_path.exists() {
-            resolved_files.push(file_path);
+        // Verify the resolved path stays within the bundle directory.
+        if let Ok(canonical) = file_path.canonicalize() {
+            if !canonical.starts_with(&canonical_root) {
+                return Err(BundleError::Validation(format!(
+                    "policy {} file escapes bundle directory: {}",
+                    policy_ref.id, policy_ref.file
+                )));
+            }
+            resolved_files.push(canonical);
         } else {
             missing_files.push(policy_ref.id.clone());
         }
@@ -109,7 +129,12 @@ pub fn list_bundles(workspace_root: &Path) -> Result<Vec<Bundle>, BundleError> {
         if entry_path.join(MANIFEST_NAME).exists() {
             match load_bundle(&entry_path) {
                 Ok(bundle) => bundles.push(bundle),
-                Err(BundleError::Parse(_)) => {},
+                Err(BundleError::Parse(ref msg)) => {
+                    eprintln!(
+                        "warning: skipping bundle {}: {msg}",
+                        entry_path.display()
+                    );
+                }
                 Err(e) => return Err(e),
             }
         }
