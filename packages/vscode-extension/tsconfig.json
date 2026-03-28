@@ -5,8 +5,10 @@
     "rootDir": "./src",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "target": "es2025",
-    "lib": ["es2025"],
+    // es2022 (not monorepo-default es2025): VS Code extension runs on
+    // Electron 27 / Node 18 — higher targets risk unavailable built-ins.
+    "target": "es2022",
+    "lib": ["es2022"],
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
