@@ -82,15 +82,18 @@ export async function sendWaitlistAdminNotification(
   if (!resend || !adminEmail) return;
 
   try {
-    const status = emailSent ? 'confirmation sent' : 'confirmation FAILED';
+    const status = !isNewSignup ? 'skipped (returning signup)' : emailSent ? 'sent' : 'FAILED';
     const label = isNewSignup ? 'New signup' : 'Returning signup';
-    await resend.emails.send({
+    const { error } = await resend.emails.send({
       from: FROM_ADDRESS,
       to: adminEmail,
       subject: `[Anvil Waitlist] ${label}: ${signupEmail}`,
       text: `${label} on the Anvil waitlist.\n\nEmail: ${signupEmail}\nConfirmation: ${status}\nTime: ${new Date().toISOString()}`,
       tags: [{ name: 'category', value: 'waitlist-admin-notification' }],
     });
+    if (error) {
+      console.error('Failed to send admin notification:', error.message);
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error('Failed to send admin notification:', message);

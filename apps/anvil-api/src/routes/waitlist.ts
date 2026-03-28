@@ -70,7 +70,14 @@ waitlist.post('/', async (c) => {
       emailStatus = delivery.sent ? 'sent' : (delivery.code ?? 'failed');
     }
 
-    void sendWaitlistAdminNotification(result[0].email, isNewSignup, emailSent);
+    const adminNotification = sendWaitlistAdminNotification(
+      result[0].email,
+      isNewSignup,
+      emailSent
+    );
+    if (c.executionCtx?.waitUntil) {
+      c.executionCtx.waitUntil(adminNotification);
+    }
 
     return c.json({
       success: true,
