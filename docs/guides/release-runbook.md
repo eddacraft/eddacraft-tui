@@ -6,8 +6,7 @@ Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
 
 - **Distribution:** pre-built binaries via GitHub Releases on
   `EddaCraft/anvil-releases` (public).
-- **Install method:** shell installer script
-  (`curl ... | sh`).
+- **Install method:** shell installer script (`curl ... | sh`).
 - **Targets:** x86_64 + aarch64 for Linux and macOS.
 - **Workflow source of truth:** `.github/workflows/release.yml` (auto-generated
   by cargo-dist).
@@ -71,8 +70,8 @@ git switch main && git pull
 
 2. Bump version in `crates/anvil-cli/Cargo.toml`.
 3. Update `CHANGELOG.md`.
-4. Update `docs/public/anvil/beta-testing-guide.md` -- bump "Current version" and
-   add any new feature areas to "What to Test".
+4. Update `docs/public/anvil/beta-testing-guide.md` -- bump "Current version"
+   and add any new feature areas to "What to Test".
 5. Update `docs/public/anvil/releases/upgrade-notes.md` -- add a new section.
 6. Commit and tag:
 
