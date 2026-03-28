@@ -57,6 +57,10 @@ pub fn architecture_yaml_exists(workspace_root: &Path) -> bool {
 pub fn parse_architecture_definition(
     workspace_root: &Path,
 ) -> Result<ArchitectureDefinition, YamlParseError> {
+    /// Maximum architecture YAML file size (1 MiB) — guards against
+    /// billion-laughs YAML expansion attacks.
+    const MAX_YAML_SIZE: u64 = 1024 * 1024;
+
     let yaml_path = get_architecture_yaml_path(workspace_root);
     let yaml_str = yaml_path.display().to_string();
 
@@ -64,8 +68,6 @@ pub fn parse_architecture_definition(
         return Err(YamlParseError::NotFound(yaml_str));
     }
 
-    // Guard against billion-laughs YAML expansion — reject files over 1 MiB.
-    const MAX_YAML_SIZE: u64 = 1024 * 1024;
     let metadata = std::fs::metadata(&yaml_path).map_err(|e| YamlParseError::Io {
         path: yaml_str.clone(),
         source: e,
