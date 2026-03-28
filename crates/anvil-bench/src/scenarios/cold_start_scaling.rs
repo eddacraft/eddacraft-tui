@@ -135,10 +135,10 @@ pub fn run(config: &ColdStartConfig) -> ScenarioResult {
             "count",
         );
 
-        if metrics.files_found > 0 {
+        if verified_count > 0 {
             result.add_metric(
                 &format!("{prefix}_ms_per_file"),
-                metrics.discovery_ms / metrics.files_found as f64,
+                metrics.discovery_ms / verified_count as f64,
                 "ms",
             );
         }

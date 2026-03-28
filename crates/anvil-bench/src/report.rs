@@ -17,18 +17,17 @@ pub struct Metric {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScenarioResult {
     pub scenario: String,
-    pub timestamp: String,
+    pub generated_at_epoch: u64,
     pub duration_secs: f64,
     pub metrics: Vec<Metric>,
 }
 
 impl ScenarioResult {
-    /// Create a new result with the current UTC timestamp.
     #[must_use]
     pub fn new(scenario: &str) -> Self {
         Self {
             scenario: scenario.to_string(),
-            timestamp: utc_now_iso8601(),
+            generated_at_epoch: epoch_secs(),
             duration_secs: 0.0,
             metrics: Vec::new(),
         }
@@ -89,7 +88,7 @@ impl ScenarioResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BenchReport {
     pub suite: String,
-    pub generated_at: String,
+    pub generated_at_epoch: u64,
     pub results: Vec<ScenarioResult>,
 }
 
@@ -98,7 +97,7 @@ impl BenchReport {
     pub fn new(suite: &str) -> Self {
         Self {
             suite: suite.to_string(),
-            generated_at: utc_now_iso8601(),
+            generated_at_epoch: epoch_secs(),
             results: Vec::new(),
         }
     }
@@ -121,12 +120,11 @@ impl BenchReport {
     }
 }
 
-fn utc_now_iso8601() -> String {
-    // Avoid pulling in chrono; use a simple epoch-seconds format.
-    let d = std::time::SystemTime::now()
+fn epoch_secs() -> u64 {
+    std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default();
-    format!("{}s-since-epoch", d.as_secs())
+        .unwrap_or_default()
+        .as_secs()
 }
 
 #[cfg(test)]

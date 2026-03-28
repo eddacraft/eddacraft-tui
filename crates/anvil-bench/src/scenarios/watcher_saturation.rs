@@ -1,11 +1,12 @@
 //! BENCH-013: Watcher saturation scenario.
 //!
-//! Floods a directory with rapid file changes and measures how many events
-//! are received versus expected, plus event delivery latency.
+//! Floods a directory with rapid file writes and measures write throughput.
+//! Note: watcher_integration=false — the event counter is not wired to a
+//! real watcher here; integration tests in anvil-kernel should wire it.
 
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -41,24 +42,19 @@ impl Default for WatcherSaturationConfig {
 #[derive(Debug, Clone)]
 pub struct SaturationMetrics {
     pub writes_performed: u64,
-    pub events_received: u64,
-    pub event_loss_pct: f64,
     pub total_write_duration: Duration,
     pub avg_write_latency: Duration,
 }
 
-/// Perform rapid file mutations and count how many would be visible to a
-/// watcher. Since we cannot depend on the kernel watcher directly here
-/// (that lives in `anvil-kernel`), this measures the write throughput and
-/// simulates event counting via an atomic counter that a real watcher
-/// callback would increment.
+/// Perform rapid file mutations and measure write throughput.
 ///
-/// The event counter is returned so that integration tests in anvil-kernel
-/// can wire it to a real `notify` watcher.
+/// The `event_counter` is exposed so that integration tests in anvil-kernel
+/// can wire it to a real `notify` watcher. This scenario does not wire it
+/// itself (watcher_integration=false).
 pub fn run_write_flood(
     config: &WatcherSaturationConfig,
     dir: &Path,
-    event_counter: &Arc<AtomicU64>,
+    _event_counter: &Arc<AtomicU64>,
 ) -> SaturationMetrics {
     let target_file = dir.join("__bench_target.ts");
     fs::write(&target_file, "// initial\n").expect("failed to write seed file");
@@ -77,18 +73,10 @@ pub fn run_write_flood(
     // Allow watcher to settle
     std::thread::sleep(config.settle_time);
 
-    let events = event_counter.load(Ordering::SeqCst);
     let writes = config.write_count as u64;
-    let loss_pct = if writes > 0 {
-        (1.0 - (events as f64 / writes as f64)) * 100.0
-    } else {
-        0.0
-    };
 
     SaturationMetrics {
         writes_performed: writes,
-        events_received: events,
-        event_loss_pct: loss_pct,
         total_write_duration: write_duration,
         avg_write_latency: write_duration / u32::try_from(writes).unwrap_or(1),
     }
@@ -97,27 +85,26 @@ pub fn run_write_flood(
 /// Run the full saturation scenario and produce a report result.
 pub fn run(config: &WatcherSaturationConfig) -> ScenarioResult {
     let dir = tempfile::tempdir().expect("failed to create temp dir");
-    let _repo = generate_repo(&config.repo_spec, dir.path()).expect("failed to generate repo");
+    let repo = generate_repo(&config.repo_spec, dir.path()).expect("failed to generate repo");
+    let root = repo.root().to_path_buf();
 
     let mem = MemoryGuard::start();
 
-    // Measure raw write throughput without a watcher
+    // Measure raw write throughput — both paths target the same repo tree
     let write_timing = time_iterations("file_writes", config.write_count as u64, || {
-        let path = dir.path().join("synthetic-repo/__bench_churn.ts");
+        let path = root.join("__bench_churn.ts");
         fs::write(&path, "const churn = true;\n").ok();
     });
 
-    // Run the flood with a simulated counter
+    // Run the flood with a simulated counter (not wired to a real watcher)
     let counter = Arc::new(AtomicU64::new(0));
-    let metrics = run_write_flood(config, dir.path(), &counter);
+    let metrics = run_write_flood(config, &root, &counter);
 
     let mem_delta = mem.finish();
 
     let mut result = ScenarioResult::new("watcher_saturation");
     result.set_duration(metrics.total_write_duration + config.settle_time);
     result.add_metric("writes_performed", metrics.writes_performed as f64, "count");
-    result.add_metric("events_received", metrics.events_received as f64, "count");
-    result.add_metric("event_loss_pct", metrics.event_loss_pct, "%");
     result.add_metric(
         "avg_write_latency_us",
         metrics.avg_write_latency.as_secs_f64() * 1_000_000.0,

@@ -161,9 +161,14 @@ pub fn run(config: &PolicyScalingConfig) -> ScenarioResult {
         let prefix = format!("rules_{rule_count}");
         result.add_metric(&format!("{prefix}_eval_ms"), elapsed.as_secs_f64() * 1000.0, "ms");
         result.add_metric(&format!("{prefix}_violations"), violations as f64, "count");
+        let evals_per_sec = if elapsed.as_secs_f64() > 0.0 {
+            (rule_count as f64 * config.symbol_count as f64) / elapsed.as_secs_f64()
+        } else {
+            0.0
+        };
         result.add_metric(
             &format!("{prefix}_evals_per_sec"),
-            (rule_count as f64 * config.symbol_count as f64) / elapsed.as_secs_f64(),
+            evals_per_sec,
             "evals/s",
         );
     }
