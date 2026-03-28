@@ -185,10 +185,11 @@ authDevice.post('/poll', zValidator('json', pollSchema), async (c) => {
       return c.json({ error: 'slow_down', retryAfter: POLL_INTERVAL_S }, 429);
     }
 
-    // Anti-enumeration: return 'pending' for unknown tokens so attackers
-    // cannot distinguish valid-but-unconfirmed from non-existent tokens.
-    debug('device code not found (treating as pending for anti-enumeration)');
-    return c.json({ status: 'pending' });
+    // Anti-enumeration is handled upstream: /start inserts dummy rows for
+    // inactive users (F-C-003), so both valid and invalid users get identical
+    // polling behaviour. A token with no row was never issued — return expired.
+    debug('device code not found (no matching row — treating as expired)');
+    return c.json({ status: 'expired' });
   }
 
   // Check expiry BEFORE any further side-effects (session minting)
