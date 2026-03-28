@@ -46,7 +46,7 @@ it stays fast.
 
 The final gate. Runs a full check on every push or pull request.
 
-### GitHub Actions
+### GitHub Actions (Linux)
 
 ```yaml
 # .github/workflows/anvil.yml
@@ -65,6 +65,58 @@ jobs:
 
       - name: Install Anvil
         run: curl -fsSL https://install.eddacraft.ai | sh
+
+      - name: Run Anvil
+        run: anvil gate --profile ci
+```
+
+### GitHub Actions (Windows)
+
+```yaml
+# .github/workflows/anvil.yml
+name: Anvil
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  anvil:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Anvil
+        shell: pwsh
+        run: irm https://install.eddacraft.ai/windows | iex
+
+      - name: Run Anvil
+        run: anvil gate --profile ci
+```
+
+### GitHub Actions (Cross-Platform Matrix)
+
+```yaml
+jobs:
+  anvil:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            install: curl -fsSL https://install.eddacraft.ai | sh
+          - os: windows-latest
+            install: irm https://install.eddacraft.ai/windows | iex
+            shell: pwsh
+          - os: macos-latest
+            install: curl -fsSL https://install.eddacraft.ai | sh
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Anvil
+        shell: ${{ matrix.shell || 'bash' }}
+        run: ${{ matrix.install }}
 
       - name: Run Anvil
         run: anvil gate --profile ci

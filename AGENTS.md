@@ -43,6 +43,14 @@ Types: `feat`, `fix`, `docs`, `style`, `refactor`, `perf`, `test`, `chore`, `ci`
 
 The `Authored-By:` trailer is added automatically — do not add it manually.
 
+## Scope Constraint
+
+All contributions must align with Anvil's role as a real-time control layer for
+safe software creation. Features that do not directly improve prevention,
+validation, or enforcement of unsafe outcomes must not be introduced.
+
+See: @docs/vision/anvil-scope-guard.md
+
 ## Code Quality
 
 - UK English spelling in plan text and documentation

@@ -6,6 +6,7 @@ const waitlistMocks = vi.hoisted(() => ({
   getClient: vi.fn(),
   sql: vi.fn(),
   sendWaitlistConfirmation: vi.fn(),
+  sendWaitlistAdminNotification: vi.fn(),
 }));
 
 vi.mock('../db/client.js', () => ({
@@ -14,6 +15,7 @@ vi.mock('../db/client.js', () => ({
 
 vi.mock('../lib/email.js', () => ({
   sendWaitlistConfirmation: waitlistMocks.sendWaitlistConfirmation,
+  sendWaitlistAdminNotification: waitlistMocks.sendWaitlistAdminNotification,
 }));
 
 afterEach(() => {

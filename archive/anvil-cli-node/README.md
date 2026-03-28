@@ -1,21 +1,41 @@
-# Anvil
+# Anvil (Legacy Node.js Package)
+
+> **Deprecated:** This Node.js package (`@eddacraft/anvil-cli`) is deprecated as
+> of 0.3.0-beta. Install the native Rust binary instead — see below.
 
 Deterministic development automation that makes AI-generated code changes safe
 for production. Validate plans through quality gates before execution, ensuring
 changes meet your team's standards.
 
-## Quick Start
+## Install (Recommended)
+
+Use the native binary for all platforms:
 
 ```bash
-# Try without installing
+# macOS / Linux
+curl -fsSL https://install.eddacraft.ai | sh
+
+# Homebrew (macOS / Linux)
+brew install eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://install.eddacraft.ai/windows | iex
+```
+
+See [The Switch to Rust](../../docs/public/anvil/releases/rust-rewrite.md) for
+migration details.
+
+## Quick Start (Legacy)
+
+```bash
+# Try without installing (legacy npm package)
 npx @eddacraft/anvil-cli login
 npx @eddacraft/anvil-cli tutorial
 
-# Or install globally
+# Or install globally (legacy)
 npm install -g @eddacraft/anvil-cli
-# or: pnpm add -g @eddacraft/anvil-cli
-# or: yarn global add @eddacraft/anvil-cli
-# or: bun add -g @eddacraft/anvil-cli
 anvil login
 anvil tutorial
 ```
@@ -51,6 +71,11 @@ fixing issues.
 | `anvil --help`         | See all commands                |
 
 ## Requirements
+
+For the native binary: no runtime dependencies. Works on macOS, Linux, and
+Windows (x86_64 and aarch64).
+
+For the legacy Node.js package:
 
 - Node.js 20.19.0 or later
 - A package manager: **pnpm**, **npm**, **yarn**, or **bun**

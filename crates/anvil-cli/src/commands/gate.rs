@@ -420,7 +420,19 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
         };
     }
 
-    match anvil_architecture::validate(project_root) {
+    let definition = match anvil_architecture::parse_architecture_definition(project_root) {
+        Ok(def) => def,
+        Err(e) => {
+            return CheckResult {
+                name: "architecture".to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Architecture validation failed: {e}"),
+            };
+        }
+    };
+
+    match anvil_architecture::validate(project_root, &definition) {
         Ok(result) => {
             if result.valid {
                 CheckResult {
@@ -433,7 +445,17 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
                 let msgs: Vec<String> = result
                     .violations
                     .iter()
-                    .map(|v| format!("{}: {} ({})", v.rule, v.message, v.file))
+                    .map(|v| {
+                        let boundary_name = v
+                            .boundary
+                            .as_ref()
+                            .map_or("unknown", |b| b.name.as_str());
+                        let message = v
+                            .boundary
+                            .as_ref()
+                            .map_or("boundary violation", |b| b.message.as_str());
+                        format!("{}: {} ({})", boundary_name, message, v.edge.from)
+                    })
                     .collect();
                 CheckResult {
                     name: "architecture".to_string(),

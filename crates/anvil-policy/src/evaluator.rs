@@ -2,6 +2,7 @@ use std::path::Path;
 
 use serde::Serialize;
 
+use crate::exceptions::{self, PolicyException};
 use crate::loader::PolicyLoader;
 use crate::opa::{OpaExecutor, PolicyViolation};
 
@@ -9,6 +10,7 @@ use crate::opa::{OpaExecutor, PolicyViolation};
 pub struct EvaluationResult {
     pub passed: bool,
     pub violations: Vec<Violation>,
+    pub suppressed_count: usize,
     pub checks_run: usize,
     pub execution_time_ms: u64,
 }
@@ -38,6 +40,7 @@ pub enum EvalError {
 pub struct Evaluator {
     loader: PolicyLoader,
     executor: OpaExecutor,
+    exceptions: Vec<PolicyException>,
 }
 
 impl Evaluator {
@@ -45,7 +48,15 @@ impl Evaluator {
         Self {
             loader: PolicyLoader::new(),
             executor: OpaExecutor::new(opa_path, None),
+            exceptions: Vec::new(),
         }
+    }
+
+    /// Creates an evaluator with exception suppression.
+    #[must_use]
+    pub fn with_exceptions(mut self, exceptions: Vec<PolicyException>) -> Self {
+        self.exceptions = exceptions;
+        self
     }
 
     pub fn evaluate(
@@ -81,12 +92,21 @@ impl Evaluator {
             return Err(EvalError::Internal(format!("OPA evaluation failed: {err}")));
         }
 
-        let violations: Vec<Violation> =
+        let all_violations: Vec<Violation> =
             result.violations.into_iter().map(into_violation).collect();
+
+        let total = all_violations.len();
+        let violations = if self.exceptions.is_empty() {
+            all_violations
+        } else {
+            exceptions::filter_suppressed(all_violations, &self.exceptions)
+        };
+        let suppressed_count = total - violations.len();
 
         Ok(EvaluationResult {
             passed: violations.is_empty(),
             violations,
+            suppressed_count,
             checks_run: enabled.len(),
             execution_time_ms: result.metadata.execution_time_ms,
         })
