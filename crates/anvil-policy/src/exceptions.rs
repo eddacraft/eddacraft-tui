@@ -69,8 +69,8 @@ impl ExceptionStore {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content =
-            serde_json::to_string_pretty(self).map_err(|e| ExceptionError::Serialise(e.to_string()))?;
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| ExceptionError::Serialise(e.to_string()))?;
         std::fs::write(&path, content)?;
         Ok(())
     }
@@ -144,76 +144,27 @@ fn is_expired(exception: &PolicyException, now: DateTime<Utc>) -> bool {
     exception.expires_at.is_some_and(|exp| now > exp)
 }
 
-/// Simple glob matching supporting `*` (any segment) and `**` (any depth).
+/// Glob matching using the `glob` crate's `Pattern` type.
 ///
-/// This is intentionally minimal — covers the most common patterns without
-/// pulling in a full glob crate.
+/// Normalises path separators to `/` before matching so patterns
+/// work consistently across platforms.
 fn glob_matches(pattern: &str, path: &str) -> bool {
-    // Normalise separators
     let pattern = pattern.replace('\\', "/");
     let path = path.replace('\\', "/");
 
-    glob_match_recursive(pattern.as_bytes(), path.as_bytes())
-}
+    let opts = glob::MatchOptions {
+        case_sensitive: true,
+        require_literal_separator: true,
+        require_literal_leading_dot: false,
+    };
 
-fn glob_match_recursive(pattern: &[u8], path: &[u8]) -> bool {
-    if pattern.is_empty() {
-        return path.is_empty();
-    }
-
-    // Handle ** (matches zero or more path segments)
-    if pattern.starts_with(b"**") {
-        let rest = if pattern.len() > 2 && pattern[2] == b'/' {
-            &pattern[3..]
-        } else {
-            &pattern[2..]
-        };
-
-        // ** at end of pattern matches everything
-        if rest.is_empty() {
-            return true;
+    match glob::Pattern::new(&pattern) {
+        Ok(p) => p.matches_with(&path, opts),
+        Err(e) => {
+            eprintln!("warning: invalid exception glob pattern '{pattern}': {e}");
+            false
         }
-
-        // Try matching rest against every suffix of path
-        if glob_match_recursive(rest, path) {
-            return true;
-        }
-        for i in 0..path.len() {
-            if path[i] == b'/' && glob_match_recursive(rest, &path[i + 1..]) {
-                return true;
-            }
-        }
-        return false;
     }
-
-    // Handle * (matches any characters except /)
-    if pattern[0] == b'*' {
-        let rest = &pattern[1..];
-        // Try matching rest starting from current position through to next /
-        for i in 0..=path.len() {
-            if i > 0 && path[i - 1] == b'/' {
-                break;
-            }
-            if glob_match_recursive(rest, &path[i..]) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    // Handle ? (matches any single character except /)
-    if pattern[0] == b'?' {
-        if path.is_empty() || path[0] == b'/' {
-            return false;
-        }
-        return glob_match_recursive(&pattern[1..], &path[1..]);
-    }
-
-    // Literal match
-    if path.is_empty() || pattern[0] != path[0] {
-        return false;
-    }
-    glob_match_recursive(&pattern[1..], &path[1..])
 }
 
 #[cfg(test)]

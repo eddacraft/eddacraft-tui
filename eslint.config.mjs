@@ -29,7 +29,6 @@ export default typescriptEslint.config(
       '**/build/',
       '.claude/',
       'archive/',
-      'eslint.config.mts',
       '**/*.md',
       '**/next-env.d.ts',
       'vitest.config.js',

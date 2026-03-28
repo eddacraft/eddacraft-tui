@@ -446,10 +446,8 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
                     .violations
                     .iter()
                     .map(|v| {
-                        let boundary_name = v
-                            .boundary
-                            .as_ref()
-                            .map_or("unknown", |b| b.name.as_str());
+                        let boundary_name =
+                            v.boundary.as_ref().map_or("unknown", |b| b.name.as_str());
                         let message = v
                             .boundary
                             .as_ref()

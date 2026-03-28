@@ -260,7 +260,10 @@ mod tests {
     #[test]
     fn template_display() {
         assert_eq!(ArchitectureTemplate::Hexagonal.to_string(), "hexagonal");
-        assert_eq!(ArchitectureTemplate::NxWorkspace.to_string(), "nx-workspace");
+        assert_eq!(
+            ArchitectureTemplate::NxWorkspace.to_string(),
+            "nx-workspace"
+        );
     }
 
     #[test]
@@ -347,10 +350,11 @@ mod tests {
         };
 
         let errors = validate_definition(&def).unwrap_err();
-        assert!(errors.iter().any(|e| matches!(
-            e,
-            DefinitionValidationError::UnsupportedVersion { .. }
-        )));
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, DefinitionValidationError::UnsupportedVersion { .. }))
+        );
     }
 
     #[test]

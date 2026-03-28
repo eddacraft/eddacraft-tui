@@ -129,45 +129,54 @@ fn resolve_credentials(
     Ok(None)
 }
 
-/// Atomically write `content` to `path` via a temporary file + rename.
+/// Atomically write `content` to `path` via a random temp file + rename.
 ///
-/// On Unix the temp file is created with mode 0o600 before being renamed
-/// into place, so the final path is never left in a half-written state.
+/// Uses `tempfile` for unpredictable filenames (prevents symlink attacks).
+/// On Unix the temp file is created with mode 0o600.
 fn atomic_write(path: &std::path::Path, content: &[u8]) -> Result<()> {
-    let tmp_path = path.with_extension("tmp");
+    use std::io::Write;
+
+    let dir = path
+        .parent()
+        .ok_or_else(|| anyhow::anyhow!("no parent directory for {}", path.display()))?;
+
+    std::fs::create_dir_all(dir).with_context(|| format!("creating {}", dir.display()))?;
+
+    let mut builder = tempfile::Builder::new();
 
     #[cfg(unix)]
     {
-        use std::fs::OpenOptions;
-        use std::io::Write;
-        use std::os::unix::fs::OpenOptionsExt;
-
-        let mut file = OpenOptions::new()
-            .create(true)
-            .truncate(true)
-            .write(true)
-            .mode(0o600)
-            .open(&tmp_path)
-            .with_context(|| format!("opening {}", tmp_path.display()))?;
-        file.write_all(content)
-            .with_context(|| format!("writing {}", tmp_path.display()))?;
+        use std::os::unix::fs::PermissionsExt;
+        builder.permissions(std::fs::Permissions::from_mode(0o600));
     }
 
-    #[cfg(not(unix))]
+    let mut tmp = builder
+        .tempfile_in(dir)
+        .with_context(|| format!("creating temp file in {}", dir.display()))?;
+
+    tmp.write_all(content)
+        .with_context(|| format!("writing temp file for {}", path.display()))?;
+    tmp.flush()
+        .with_context(|| format!("flushing temp file for {}", path.display()))?;
+
+    let tmp_path = tmp.into_temp_path();
+    let tmp_display = tmp_path.display().to_string();
+
+    // On Windows, TempPath::persist uses std::fs::rename under the hood, which
+    // fails if the destination already exists. Remove the existing file first.
+    #[cfg(windows)]
     {
-        std::fs::write(&tmp_path, content)
-            .with_context(|| format!("writing {}", tmp_path.display()))?;
+        if let Err(err) = std::fs::remove_file(path) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                return Err(err)
+                    .with_context(|| format!("removing existing file {}", path.display()));
+            }
+        }
     }
 
-    // On Windows, fs::rename does not replace an existing destination.
-    // Remove it first so subsequent saves/migrations succeed.
-    #[cfg(not(unix))]
-    if path.exists() {
-        std::fs::remove_file(path).with_context(|| format!("removing {}", path.display()))?;
-    }
-
-    std::fs::rename(&tmp_path, path)
-        .with_context(|| format!("renaming {} -> {}", tmp_path.display(), path.display()))?;
+    tmp_path
+        .persist(path)
+        .with_context(|| format!("persisting {tmp_display} -> {}", path.display()))?;
 
     Ok(())
 }

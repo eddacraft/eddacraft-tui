@@ -8,7 +8,7 @@ type Status = 'idle' | 'loading' | 'success' | 'error';
 
 export default function ActivatePage() {
   return (
-    <Suspense>
+    <Suspense fallback={null}>
       <ActivateForm />
     </Suspense>
   );
@@ -111,7 +111,11 @@ function ActivateForm() {
             </div>
 
             {/* Error */}
-            {status === 'error' && <p className="text-xs text-anvil">{errorMessage}</p>}
+            {status === 'error' && (
+              <p className="text-xs text-anvil" role="alert">
+                {errorMessage}
+              </p>
+            )}
 
             {/* Submit */}
             <button
