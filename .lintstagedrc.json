@@ -3,5 +3,5 @@
   "*.json": ["eslint --fix", "oxfmt --write"],
   "!(pnpm-lock|temper).{yml,yaml}": ["yamllint", "oxfmt --write"],
   "temper.{yml,yaml}": ["oxfmt --write"],
-  "*.md": ["markdownlint --fix"]
+  "*.md": ["markdownlint --fix", "oxfmt --write"]
 }

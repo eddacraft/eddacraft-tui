@@ -6,7 +6,7 @@ on:
       - main
       - dev
     paths-ignore:
-      - '**.md'
+      - '**/*.md'
       - 'docs/**'
       - 'plans/**'
       - '.claude/**'
@@ -16,7 +16,7 @@ on:
       - main
       - dev
     paths-ignore:
-      - '**.md'
+      - '**/*.md'
       - 'docs/**'
       - 'plans/**'
       - '.claude/**'

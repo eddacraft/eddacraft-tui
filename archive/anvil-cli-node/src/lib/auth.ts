@@ -90,13 +90,24 @@ export async function getValidLicence(apiUrl: string): Promise<string | null> {
 }
 
 /**
+ * Error thrown when an authenticated session is required but not present.
+ */
+export class AuthRequiredError extends Error {
+  constructor(message = 'Not authenticated. Run `anvil auth login` to authenticate.') {
+    super(message);
+    this.name = 'AuthRequiredError';
+  }
+}
+
+/**
  * Ensure the user is authenticated, with a helpful error message.
+ *
+ * Throws {@link AuthRequiredError} if no valid licence is available.
  */
 export async function requireAuth(apiUrl: string): Promise<string> {
   const license = await getValidLicence(apiUrl);
   if (!license) {
-    console.error('Not authenticated. Run `anvil auth login` to authenticate.');
-    process.exit(1);
+    throw new AuthRequiredError();
   }
   return license;
 }
