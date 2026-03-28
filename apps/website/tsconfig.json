@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": ["dom", "dom.iterable", "es2025"],
     "allowJs": true,
-    "target": "ES6",
+    "target": "es2025",
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -10,6 +10,7 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "noUncheckedSideEffectImports": false,
     "jsx": "react-jsx",
     "incremental": true,
     "plugins": [

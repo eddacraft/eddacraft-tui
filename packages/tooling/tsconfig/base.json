@@ -6,7 +6,7 @@
     "declarationMap": true,
     "importHelpers": true,
     "isolatedModules": true,
-    "lib": ["es2022"],
+    "lib": ["es2025"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "noEmitOnError": true,
@@ -16,7 +16,7 @@
     "noUnusedLocals": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "es2022",
+    "target": "es2025",
     "types": ["node"]
   },
   "exclude": ["node_modules", "dist", ".nx", "tmp", "coverage", "playwright-report", "test-results"]

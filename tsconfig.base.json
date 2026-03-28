@@ -4,7 +4,7 @@
     "declarationMap": true,
     "importHelpers": true,
     "isolatedModules": true,
-    "lib": ["es2024"],
+    "lib": ["es2025"],
     "types": ["node"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
@@ -15,7 +15,7 @@
     "noUnusedLocals": true,
     "skipLibCheck": true,
     "strict": true,
-    "target": "es2024",
+    "target": "es2025",
     "customConditions": ["@eddacraft/anvil-source"],
     "paths": {
       "@eddacraft/anvil-adapters": ["./packages/adapters/dist/index.d.ts"],

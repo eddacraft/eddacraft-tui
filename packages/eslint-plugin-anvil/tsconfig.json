@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "target": "es2024",
-    "lib": ["es2024"],
+    "target": "es2025",
+    "lib": ["es2025"],
     "outDir": "./dist",
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
-    "module": "node16",
-    "moduleResolution": "node16",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

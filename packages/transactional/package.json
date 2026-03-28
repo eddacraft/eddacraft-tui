@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/react": "^19",
     "react-email": "^5.2.10",
-    "typescript": "~6.0.0"
+    "typescript": "~6.0.2"
   },
   "license": "PROPRIETARY"
 }
