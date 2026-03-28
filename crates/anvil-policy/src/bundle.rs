@@ -143,10 +143,7 @@ pub fn list_bundles(workspace_root: &Path) -> Result<Vec<Bundle>, BundleError> {
             match load_bundle(&entry_path) {
                 Ok(bundle) => bundles.push(bundle),
                 Err(BundleError::Parse(ref msg)) => {
-                    eprintln!(
-                        "warning: skipping bundle {}: {msg}",
-                        entry_path.display()
-                    );
+                    eprintln!("warning: skipping bundle {}: {msg}", entry_path.display());
                 }
                 Err(e) => return Err(e),
             }
@@ -163,7 +160,9 @@ pub fn validate_bundle(bundle: &Bundle) -> Vec<String> {
 
     if !bundle.missing_files.is_empty() {
         for id in &bundle.missing_files {
-            issues.push(format!("policy {id} referenced in manifest but file not found"));
+            issues.push(format!(
+                "policy {id} referenced in manifest but file not found"
+            ));
         }
     }
 
@@ -223,11 +222,7 @@ mod tests {
         write_manifest(&bundle_dir, &manifest);
 
         // Create the referenced policy files
-        fs::write(
-            bundle_dir.join("security.rego"),
-            "package test.security\n",
-        )
-        .unwrap();
+        fs::write(bundle_dir.join("security.rego"), "package test.security\n").unwrap();
         fs::write(bundle_dir.join("quality.rego"), "package test.quality\n").unwrap();
 
         let bundle = load_bundle(&bundle_dir).unwrap();

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use crate::definition::{
-    ArchitectureDefinition, ArchitectureTemplate, ARCHITECTURE_DEFINITION_VERSION,
+    ARCHITECTURE_DEFINITION_VERSION, ArchitectureDefinition, ArchitectureTemplate,
     get_default_options,
 };
 use crate::types::Layer;
@@ -43,7 +43,9 @@ pub enum YamlParseError {
 
 /// Get the full path to the architecture YAML file.
 pub fn get_architecture_yaml_path(workspace_root: &Path) -> std::path::PathBuf {
-    workspace_root.join(ANVIL_DIR).join(ARCHITECTURE_YAML_FILENAME)
+    workspace_root
+        .join(ANVIL_DIR)
+        .join(ARCHITECTURE_YAML_FILENAME)
 }
 
 /// Check whether `architecture.yaml` exists in the workspace.
@@ -102,8 +104,8 @@ pub fn write_architecture_yaml(
         })?;
     }
 
-    let content =
-        serde_yaml::to_string(definition).map_err(|e| YamlParseError::InvalidYaml(e.to_string()))?;
+    let content = serde_yaml::to_string(definition)
+        .map_err(|e| YamlParseError::InvalidYaml(e.to_string()))?;
 
     std::fs::write(&yaml_path, content).map_err(|e| YamlParseError::WriteIo {
         path: yaml_str,
@@ -127,207 +129,325 @@ fn apply_defaults(mut definition: ArchitectureDefinition) -> ArchitectureDefinit
 
 fn layered_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("presentation".into(), Layer {
-        patterns: vec!["src/controllers/**".into(), "src/routes/**".into(), "src/api/**".into()],
-        depends_on: vec!["business".into(), "shared".into()],
-        description: None,
-    });
-    m.insert("business".into(), Layer {
-        patterns: vec!["src/services/**".into(), "src/use-cases/**".into()],
-        depends_on: vec!["data".into(), "shared".into()],
-        description: None,
-    });
-    m.insert("data".into(), Layer {
-        patterns: vec!["src/repositories/**".into(), "src/db/**".into(), "src/data/**".into()],
-        depends_on: vec!["shared".into()],
-        description: None,
-    });
-    m.insert("shared".into(), Layer {
-        patterns: vec!["src/utils/**".into(), "src/lib/**".into(), "src/common/**".into()],
-        depends_on: vec![],
-        description: None,
-    });
+    m.insert(
+        "presentation".into(),
+        Layer {
+            patterns: vec![
+                "src/controllers/**".into(),
+                "src/routes/**".into(),
+                "src/api/**".into(),
+            ],
+            depends_on: vec!["business".into(), "shared".into()],
+            description: None,
+        },
+    );
+    m.insert(
+        "business".into(),
+        Layer {
+            patterns: vec!["src/services/**".into(), "src/use-cases/**".into()],
+            depends_on: vec!["data".into(), "shared".into()],
+            description: None,
+        },
+    );
+    m.insert(
+        "data".into(),
+        Layer {
+            patterns: vec![
+                "src/repositories/**".into(),
+                "src/db/**".into(),
+                "src/data/**".into(),
+            ],
+            depends_on: vec!["shared".into()],
+            description: None,
+        },
+    );
+    m.insert(
+        "shared".into(),
+        Layer {
+            patterns: vec![
+                "src/utils/**".into(),
+                "src/lib/**".into(),
+                "src/common/**".into(),
+            ],
+            depends_on: vec![],
+            description: None,
+        },
+    );
     m
 }
 
 fn hexagonal_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("core".into(), Layer {
-        patterns: vec!["src/domain/**".into(), "src/core/**".into()],
-        depends_on: vec![],
-        description: Some("Domain logic - no external dependencies".into()),
-    });
-    m.insert("ports".into(), Layer {
-        patterns: vec!["src/ports/**".into(), "src/interfaces/**".into()],
-        depends_on: vec!["core".into()],
-        description: Some("Port interfaces".into()),
-    });
-    m.insert("adapters".into(), Layer {
-        patterns: vec!["src/adapters/**".into(), "src/infrastructure/**".into()],
-        depends_on: vec!["ports".into(), "core".into()],
-        description: Some("Adapter implementations".into()),
-    });
-    m.insert("application".into(), Layer {
-        patterns: vec!["src/application/**".into(), "src/services/**".into()],
-        depends_on: vec!["core".into(), "ports".into()],
-        description: Some("Application services".into()),
-    });
+    m.insert(
+        "core".into(),
+        Layer {
+            patterns: vec!["src/domain/**".into(), "src/core/**".into()],
+            depends_on: vec![],
+            description: Some("Domain logic - no external dependencies".into()),
+        },
+    );
+    m.insert(
+        "ports".into(),
+        Layer {
+            patterns: vec!["src/ports/**".into(), "src/interfaces/**".into()],
+            depends_on: vec!["core".into()],
+            description: Some("Port interfaces".into()),
+        },
+    );
+    m.insert(
+        "adapters".into(),
+        Layer {
+            patterns: vec!["src/adapters/**".into(), "src/infrastructure/**".into()],
+            depends_on: vec!["ports".into(), "core".into()],
+            description: Some("Adapter implementations".into()),
+        },
+    );
+    m.insert(
+        "application".into(),
+        Layer {
+            patterns: vec!["src/application/**".into(), "src/services/**".into()],
+            depends_on: vec!["core".into(), "ports".into()],
+            description: Some("Application services".into()),
+        },
+    );
     m
 }
 
 fn clean_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("entities".into(), Layer {
-        patterns: vec!["src/entities/**".into(), "src/domain/entities/**".into()],
-        depends_on: vec![],
-        description: Some("Enterprise business rules".into()),
-    });
-    m.insert("use_cases".into(), Layer {
-        patterns: vec!["src/use-cases/**".into(), "src/application/**".into()],
-        depends_on: vec!["entities".into()],
-        description: Some("Application business rules".into()),
-    });
-    m.insert("interface_adapters".into(), Layer {
-        patterns: vec![
-            "src/adapters/**".into(),
-            "src/controllers/**".into(),
-            "src/presenters/**".into(),
-        ],
-        depends_on: vec!["use_cases".into(), "entities".into()],
-        description: Some("Interface adapters".into()),
-    });
-    m.insert("frameworks".into(), Layer {
-        patterns: vec![
-            "src/frameworks/**".into(),
-            "src/infrastructure/**".into(),
-            "src/db/**".into(),
-        ],
-        depends_on: vec!["interface_adapters".into(), "use_cases".into(), "entities".into()],
-        description: Some("Frameworks and drivers".into()),
-    });
+    m.insert(
+        "entities".into(),
+        Layer {
+            patterns: vec!["src/entities/**".into(), "src/domain/entities/**".into()],
+            depends_on: vec![],
+            description: Some("Enterprise business rules".into()),
+        },
+    );
+    m.insert(
+        "use_cases".into(),
+        Layer {
+            patterns: vec!["src/use-cases/**".into(), "src/application/**".into()],
+            depends_on: vec!["entities".into()],
+            description: Some("Application business rules".into()),
+        },
+    );
+    m.insert(
+        "interface_adapters".into(),
+        Layer {
+            patterns: vec![
+                "src/adapters/**".into(),
+                "src/controllers/**".into(),
+                "src/presenters/**".into(),
+            ],
+            depends_on: vec!["use_cases".into(), "entities".into()],
+            description: Some("Interface adapters".into()),
+        },
+    );
+    m.insert(
+        "frameworks".into(),
+        Layer {
+            patterns: vec![
+                "src/frameworks/**".into(),
+                "src/infrastructure/**".into(),
+                "src/db/**".into(),
+            ],
+            depends_on: vec![
+                "interface_adapters".into(),
+                "use_cases".into(),
+                "entities".into(),
+            ],
+            description: Some("Frameworks and drivers".into()),
+        },
+    );
     m
 }
 
 fn ddd_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("domain".into(), Layer {
-        patterns: vec!["src/domain/**".into()],
-        depends_on: vec![],
-        description: Some("Domain model and logic".into()),
-    });
-    m.insert("application".into(), Layer {
-        patterns: vec!["src/application/**".into()],
-        depends_on: vec!["domain".into()],
-        description: Some("Application services".into()),
-    });
-    m.insert("infrastructure".into(), Layer {
-        patterns: vec!["src/infrastructure/**".into()],
-        depends_on: vec!["domain".into(), "application".into()],
-        description: Some("Infrastructure implementations".into()),
-    });
-    m.insert("interfaces".into(), Layer {
-        patterns: vec!["src/interfaces/**".into(), "src/api/**".into()],
-        depends_on: vec!["application".into(), "domain".into()],
-        description: Some("User interfaces and API".into()),
-    });
+    m.insert(
+        "domain".into(),
+        Layer {
+            patterns: vec!["src/domain/**".into()],
+            depends_on: vec![],
+            description: Some("Domain model and logic".into()),
+        },
+    );
+    m.insert(
+        "application".into(),
+        Layer {
+            patterns: vec!["src/application/**".into()],
+            depends_on: vec!["domain".into()],
+            description: Some("Application services".into()),
+        },
+    );
+    m.insert(
+        "infrastructure".into(),
+        Layer {
+            patterns: vec!["src/infrastructure/**".into()],
+            depends_on: vec!["domain".into(), "application".into()],
+            description: Some("Infrastructure implementations".into()),
+        },
+    );
+    m.insert(
+        "interfaces".into(),
+        Layer {
+            patterns: vec!["src/interfaces/**".into(), "src/api/**".into()],
+            depends_on: vec!["application".into(), "domain".into()],
+            description: Some("User interfaces and API".into()),
+        },
+    );
     m
 }
 
 fn starter_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("components".into(), Layer {
-        patterns: vec!["src/components/**".into(), "src/ui/**".into()],
-        depends_on: vec!["lib".into()],
-        description: Some("UI components and visual elements".into()),
-    });
-    m.insert("lib".into(), Layer {
-        patterns: vec!["src/lib/**".into(), "src/utils/**".into(), "src/helpers/**".into()],
-        depends_on: vec![],
-        description: Some("Shared utilities and helper functions".into()),
-    });
-    m.insert("services".into(), Layer {
-        patterns: vec!["src/services/**".into(), "src/api/**".into()],
-        depends_on: vec!["lib".into()],
-        description: Some("API calls and external service integrations".into()),
-    });
+    m.insert(
+        "components".into(),
+        Layer {
+            patterns: vec!["src/components/**".into(), "src/ui/**".into()],
+            depends_on: vec!["lib".into()],
+            description: Some("UI components and visual elements".into()),
+        },
+    );
+    m.insert(
+        "lib".into(),
+        Layer {
+            patterns: vec![
+                "src/lib/**".into(),
+                "src/utils/**".into(),
+                "src/helpers/**".into(),
+            ],
+            depends_on: vec![],
+            description: Some("Shared utilities and helper functions".into()),
+        },
+    );
+    m.insert(
+        "services".into(),
+        Layer {
+            patterns: vec!["src/services/**".into(), "src/api/**".into()],
+            depends_on: vec!["lib".into()],
+            description: Some("API calls and external service integrations".into()),
+        },
+    );
     m
 }
 
 fn monorepo_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("packages".into(), Layer {
-        patterns: vec![
-            "apps/**".into(),
-            "packages/**".into(),
-            "libs/**".into(),
-            "utils/**".into(),
-        ],
-        depends_on: vec!["shared".into()],
-        description: Some("Application and library packages".into()),
-    });
-    m.insert("shared".into(), Layer {
-        patterns: vec!["shared/**".into()],
-        depends_on: vec![],
-        description: Some("Shared utilities and configurations".into()),
-    });
+    m.insert(
+        "packages".into(),
+        Layer {
+            patterns: vec![
+                "apps/**".into(),
+                "packages/**".into(),
+                "libs/**".into(),
+                "utils/**".into(),
+            ],
+            depends_on: vec!["shared".into()],
+            description: Some("Application and library packages".into()),
+        },
+    );
+    m.insert(
+        "shared".into(),
+        Layer {
+            patterns: vec!["shared/**".into()],
+            depends_on: vec![],
+            description: Some("Shared utilities and configurations".into()),
+        },
+    );
     m
 }
 
 fn serverless_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("functions".into(), Layer {
-        patterns: vec![
-            "src/functions/**".into(),
-            "src/handlers/**".into(),
-            "src/lambdas/**".into(),
-        ],
-        depends_on: vec!["services".into(), "shared".into()],
-        description: Some("Serverless function handlers".into()),
-    });
-    m.insert("services".into(), Layer {
-        patterns: vec!["src/services/**".into(), "src/business/**".into()],
-        depends_on: vec!["shared".into()],
-        description: Some("Business logic shared across functions".into()),
-    });
-    m.insert("shared".into(), Layer {
-        patterns: vec!["src/shared/**".into(), "src/utils/**".into(), "src/lib/**".into()],
-        depends_on: vec![],
-        description: Some("Shared utilities and configurations".into()),
-    });
+    m.insert(
+        "functions".into(),
+        Layer {
+            patterns: vec![
+                "src/functions/**".into(),
+                "src/handlers/**".into(),
+                "src/lambdas/**".into(),
+            ],
+            depends_on: vec!["services".into(), "shared".into()],
+            description: Some("Serverless function handlers".into()),
+        },
+    );
+    m.insert(
+        "services".into(),
+        Layer {
+            patterns: vec!["src/services/**".into(), "src/business/**".into()],
+            depends_on: vec!["shared".into()],
+            description: Some("Business logic shared across functions".into()),
+        },
+    );
+    m.insert(
+        "shared".into(),
+        Layer {
+            patterns: vec![
+                "src/shared/**".into(),
+                "src/utils/**".into(),
+                "src/lib/**".into(),
+            ],
+            depends_on: vec![],
+            description: Some("Shared utilities and configurations".into()),
+        },
+    );
     m
 }
 
 fn nx_workspace_template() -> LayersRecord {
     let mut m = LayersRecord::new();
-    m.insert("apps".into(), Layer {
-        patterns: vec!["apps/**".into()],
-        depends_on: vec!["feature-libs".into(), "shared-libs".into()],
-        description: Some("Deployable applications".into()),
-    });
-    m.insert("feature-libs".into(), Layer {
-        patterns: vec!["libs/feature-*/**".into(), "libs/*/feature-*/**".into()],
-        depends_on: vec!["data-access-libs".into(), "ui-libs".into(), "shared-libs".into()],
-        description: Some("Feature libraries".into()),
-    });
-    m.insert("data-access-libs".into(), Layer {
-        patterns: vec!["libs/data-access-*/**".into(), "libs/*/data-access-*/**".into()],
-        depends_on: vec!["shared-libs".into()],
-        description: Some("Data access libraries".into()),
-    });
-    m.insert("ui-libs".into(), Layer {
-        patterns: vec!["libs/ui-*/**".into(), "libs/*/ui-*/**".into()],
-        depends_on: vec!["shared-libs".into()],
-        description: Some("UI component libraries".into()),
-    });
-    m.insert("shared-libs".into(), Layer {
-        patterns: vec![
-            "libs/shared/**".into(),
-            "libs/util-*/**".into(),
-            "libs/*/util-*/**".into(),
-        ],
-        depends_on: vec![],
-        description: Some("Shared utilities and configurations".into()),
-    });
+    m.insert(
+        "apps".into(),
+        Layer {
+            patterns: vec!["apps/**".into()],
+            depends_on: vec!["feature-libs".into(), "shared-libs".into()],
+            description: Some("Deployable applications".into()),
+        },
+    );
+    m.insert(
+        "feature-libs".into(),
+        Layer {
+            patterns: vec!["libs/feature-*/**".into(), "libs/*/feature-*/**".into()],
+            depends_on: vec![
+                "data-access-libs".into(),
+                "ui-libs".into(),
+                "shared-libs".into(),
+            ],
+            description: Some("Feature libraries".into()),
+        },
+    );
+    m.insert(
+        "data-access-libs".into(),
+        Layer {
+            patterns: vec![
+                "libs/data-access-*/**".into(),
+                "libs/*/data-access-*/**".into(),
+            ],
+            depends_on: vec!["shared-libs".into()],
+            description: Some("Data access libraries".into()),
+        },
+    );
+    m.insert(
+        "ui-libs".into(),
+        Layer {
+            patterns: vec!["libs/ui-*/**".into(), "libs/*/ui-*/**".into()],
+            depends_on: vec!["shared-libs".into()],
+            description: Some("UI component libraries".into()),
+        },
+    );
+    m.insert(
+        "shared-libs".into(),
+        Layer {
+            patterns: vec![
+                "libs/shared/**".into(),
+                "libs/util-*/**".into(),
+                "libs/*/util-*/**".into(),
+            ],
+            depends_on: vec![],
+            description: Some("Shared utilities and configurations".into()),
+        },
+    );
     m
 }
 
@@ -480,11 +600,14 @@ mod tests {
     #[test]
     fn merge_with_template_preserves_user_layers() {
         let mut user_layers = HashMap::new();
-        user_layers.insert("my_layer".into(), Layer {
-            patterns: vec!["src/**".into()],
-            depends_on: vec![],
-            description: None,
-        });
+        user_layers.insert(
+            "my_layer".into(),
+            Layer {
+                patterns: vec!["src/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
 
         let def = ArchitectureDefinition {
             schema_version: ARCHITECTURE_DEFINITION_VERSION.into(),
@@ -514,7 +637,11 @@ mod tests {
         let tmp = tempfile::TempDir::new().unwrap();
         let anvil_dir = tmp.path().join(ANVIL_DIR);
         std::fs::create_dir_all(&anvil_dir).unwrap();
-        std::fs::write(anvil_dir.join(ARCHITECTURE_YAML_FILENAME), ":\n  :\n  bad: [").unwrap();
+        std::fs::write(
+            anvil_dir.join(ARCHITECTURE_YAML_FILENAME),
+            ":\n  :\n  bad: [",
+        )
+        .unwrap();
 
         let result = parse_architecture_definition(tmp.path());
         assert!(matches!(result, Err(YamlParseError::InvalidYaml(_))));

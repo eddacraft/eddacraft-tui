@@ -175,7 +175,10 @@ fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefiniti
             let name = e.file_name().to_string_lossy();
             // Skip hidden dirs and node_modules at the entry level for performance.
             if e.file_type().is_dir() {
-                return name != "node_modules" && name != ".git" && name != "dist" && name != "build";
+                return name != "node_modules"
+                    && name != ".git"
+                    && name != "dist"
+                    && name != "build";
             }
             true
         });
@@ -215,16 +218,22 @@ mod tests {
 
     fn sample_layers() -> Layers {
         let mut layers = HashMap::new();
-        layers.insert("core".into(), Layer {
-            patterns: vec!["src/core/**".into()],
-            depends_on: vec![],
-            description: None,
-        });
-        layers.insert("app".into(), Layer {
-            patterns: vec!["src/app/**".into()],
-            depends_on: vec!["core".into()],
-            description: None,
-        });
+        layers.insert(
+            "core".into(),
+            Layer {
+                patterns: vec!["src/core/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers.insert(
+            "app".into(),
+            Layer {
+                patterns: vec!["src/app/**".into()],
+                depends_on: vec!["core".into()],
+                description: None,
+            },
+        );
         layers
     }
 
@@ -279,11 +288,14 @@ mod tests {
         std::fs::write(src_dir.join("entity.ts"), "export class Foo {}").unwrap();
 
         let mut layers = HashMap::new();
-        layers.insert("core".into(), Layer {
-            patterns: vec!["src/core/**".into()],
-            depends_on: vec![],
-            description: None,
-        });
+        layers.insert(
+            "core".into(),
+            Layer {
+                patterns: vec!["src/core/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
 
         let def = crate::definition::ArchitectureDefinition {
             schema_version: "0.1.0".into(),

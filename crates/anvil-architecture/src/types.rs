@@ -248,7 +248,11 @@ pub fn create_violation_id(from_file: &str, to_file: &str, line: u32) -> String 
 
 /// Check if a violation exists in the baseline.
 pub fn is_existing_violation(violation: &BoundaryViolation, baseline: &BaselineSnapshot) -> bool {
-    let id = create_violation_id(&violation.edge.from, &violation.edge.to, violation.edge.line);
+    let id = create_violation_id(
+        &violation.edge.from,
+        &violation.edge.to,
+        violation.edge.line,
+    );
     baseline.violations.iter().any(|v| v.id == id)
 }
 
@@ -366,9 +370,7 @@ pub fn create_default_boundaries(layers: &Layers) -> Vec<Boundary> {
                     from: (*from_layer).clone(),
                     to: (*to_layer).clone(),
                     severity: BoundarySeverity::Error,
-                    message: format!(
-                        "{from_layer} layer must not directly depend on {to_layer}"
-                    ),
+                    message: format!("{from_layer} layer must not directly depend on {to_layer}"),
                     confidence: Some(DetectionConfidence::High),
                 });
             }
@@ -394,7 +396,10 @@ mod tests {
     fn create_violation_id_no_collision_on_colon_fields() {
         let a = create_violation_id("a:b", "c", 1);
         let b = create_violation_id("a", "b:c", 1);
-        assert_ne!(a, b, "length-prefixed hashing must prevent field boundary collisions");
+        assert_ne!(
+            a, b,
+            "length-prefixed hashing must prevent field boundary collisions"
+        );
     }
 
     #[test]

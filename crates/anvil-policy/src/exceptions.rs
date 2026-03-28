@@ -69,8 +69,8 @@ impl ExceptionStore {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content =
-            serde_json::to_string_pretty(self).map_err(|e| ExceptionError::Serialise(e.to_string()))?;
+        let content = serde_json::to_string_pretty(self)
+            .map_err(|e| ExceptionError::Serialise(e.to_string()))?;
         std::fs::write(&path, content)?;
         Ok(())
     }
