@@ -72,6 +72,31 @@ To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}`,
   }
 }
 
+export async function sendWaitlistAdminNotification(
+  signupEmail: string,
+  isNewSignup: boolean,
+  emailSent: boolean
+): Promise<void> {
+  const resend = getResendClient();
+  const adminEmail = process.env.WAITLIST_ADMIN_EMAIL;
+  if (!resend || !adminEmail) return;
+
+  try {
+    const status = emailSent ? 'confirmation sent' : 'confirmation FAILED';
+    const label = isNewSignup ? 'New signup' : 'Returning signup';
+    await resend.emails.send({
+      from: FROM_ADDRESS,
+      to: adminEmail,
+      subject: `[Anvil Waitlist] ${label}: ${signupEmail}`,
+      text: `${label} on the Anvil waitlist.\n\nEmail: ${signupEmail}\nConfirmation: ${status}\nTime: ${new Date().toISOString()}`,
+      tags: [{ name: 'category', value: 'waitlist-admin-notification' }],
+    });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Failed to send admin notification:', message);
+  }
+}
+
 export async function sendOtpCode(email: string, code: string): Promise<EmailDeliveryResult> {
   const resend = getResendClient();
   if (!resend) {
