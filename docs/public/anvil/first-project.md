@@ -35,10 +35,16 @@ You want to enforce these boundaries:
 ## Step 1: Install and Initialise
 
 ```bash
-# Install the native binary (if not already installed)
+# macOS / Linux
 curl -fsSL https://install.eddacraft.ai | sh
 
-# Initialise in your project
+# Windows (PowerShell)
+irm https://install.eddacraft.ai/windows | iex
+```
+
+Then initialise in your project:
+
+```bash
 anvil init
 ```
 
@@ -159,9 +165,21 @@ Now any new violations will surface immediately when you save.
 Add Anvil to your CI pipeline:
 
 ```yaml
-# .github/workflows/ci.yml
+# .github/workflows/ci.yml (Linux runner)
 - name: Install Anvil
   run: curl -fsSL https://install.eddacraft.ai | sh
+
+- name: Run Anvil
+  run: anvil gate --profile ci
+```
+
+For Windows runners:
+
+```yaml
+# .github/workflows/ci.yml (Windows runner)
+- name: Install Anvil
+  shell: pwsh
+  run: irm https://install.eddacraft.ai/windows | iex
 
 - name: Run Anvil
   run: anvil gate --profile ci

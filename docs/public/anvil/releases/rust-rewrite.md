@@ -64,8 +64,17 @@ brew install eddacraft/tap/anvil
 ```
 
 The install script detects your platform and architecture (x86_64, aarch64) and
-drops the `anvil` binary into `~/.eddacraft/bin/`. Add it to your PATH if the
-installer doesn't do so automatically.
+drops the binary into `~/.eddacraft/bin/` (macOS/Linux) or
+`%USERPROFILE%\.eddacraft\bin\` (Windows). Add it to your PATH if the installer
+doesn't do so automatically.
+
+**Supported platforms:**
+
+| OS      | Architecture          | Binary      |
+| ------- | --------------------- | ----------- |
+| macOS   | x86_64, Apple Silicon | `anvil`     |
+| Linux   | x86_64, aarch64       | `anvil`     |
+| Windows | x86_64, aarch64       | `anvil.exe` |
 
 ### Commands
 
@@ -92,11 +101,22 @@ identical — run all quality gates against the current project.
 - run: pnpm anvil check --all --ci
 ```
 
-**Now:**
+**Now (Linux/macOS):**
 
 ```yaml
 - name: Install Anvil
   run: curl -fsSL https://install.eddacraft.ai | sh
+
+- name: Run Anvil
+  run: anvil gate --profile ci
+```
+
+**Now (Windows):**
+
+```yaml
+- name: Install Anvil
+  shell: pwsh
+  run: irm https://install.eddacraft.ai/windows | iex
 
 - name: Run Anvil
   run: anvil gate --profile ci
@@ -130,8 +150,16 @@ Features that were not feasible in the Node.js version:
 
 ### Step 1: Install the native binary
 
+**macOS / Linux:**
+
 ```bash
 curl -fsSL https://install.eddacraft.ai | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+irm https://install.eddacraft.ai/windows | iex
 ```
 
 ### Step 2: Verify
@@ -175,6 +203,9 @@ version but doesn't in Rust, please
 ### What to include
 
 - Anvil version (`anvil --version`)
-- Operating system and architecture (`uname -a` or equivalent)
+- Operating system and architecture:
+  - macOS / Linux: `uname -a`
+  - Windows (PowerShell): `[System.Environment]::OSVersion` and
+    `$env:PROCESSOR_ARCHITECTURE`
 - Steps to reproduce
 - Expected vs actual behaviour

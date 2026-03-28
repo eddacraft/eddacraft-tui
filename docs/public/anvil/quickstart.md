@@ -35,9 +35,20 @@ irm https://install.eddacraft.ai/windows | iex
 brew install eddacraft/tap/anvil
 ```
 
-Anvil is a single native binary. Your project still needs Node.js and a package
-manager for lint and test gate checks, but Anvil itself has no runtime
-dependencies.
+Anvil is a single native binary available for macOS, Linux, and Windows. Your
+project still needs Node.js and a package manager for lint and test gate checks,
+but Anvil itself has no runtime dependencies.
+
+:::tip Windows users
+
+If the installer doesn't add `anvil` to your PATH automatically, add
+`%USERPROFILE%\.eddacraft\bin` to your system PATH or run:
+
+```powershell
+$env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
+```
+
+:::
 
 ## Authenticate
 

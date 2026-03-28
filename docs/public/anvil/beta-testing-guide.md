@@ -72,11 +72,19 @@ For a full walkthrough, see the [Quickstart](./quickstart.md).
 
 ## How to Upgrade
 
+**macOS / Linux:**
+
 ```bash
 curl -fsSL https://install.eddacraft.ai | sh
 ```
 
-Or via Homebrew:
+**Windows (PowerShell):**
+
+```powershell
+irm https://install.eddacraft.ai/windows | iex
+```
+
+**Homebrew (macOS / Linux):**
 
 ```bash
 brew upgrade eddacraft/tap/anvil
@@ -211,7 +219,10 @@ Please report issues on GitHub:
 ### What to include
 
 - Anvil version (`anvil --version`)
-- Operating system, version, and architecture (`uname -a` or equivalent)
+- Operating system, version, and architecture:
+  - macOS / Linux: `uname -a`
+  - Windows (PowerShell): `[System.Environment]::OSVersion` and
+    `$env:PROCESSOR_ARCHITECTURE`
 - Steps to reproduce the issue
 - Expected behaviour vs actual behaviour
 - Any relevant output or error messages
@@ -232,6 +243,8 @@ Please report issues on GitHub:
   may flag valid code in projects with non-standard layouts.
 - **Memory system is new** — pattern detection accuracy improves over time as
   Anvil observes more of your project. Early results may be noisy.
+- **Windows ARM (aarch64)** — builds are provided but not yet tested on ARM
+  Windows devices. Please report any issues you encounter.
 
 ## FAQ
 

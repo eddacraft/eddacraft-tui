@@ -1,9 +1,15 @@
 #!/bin/sh
-# Anvil CLI installer
+# Anvil CLI installer (legacy — installs Node.js package)
 # https://github.com/EddaCraft/anvil-001
 #
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/EddaCraft/anvil-001/main/install.sh | sh
+# For the native Rust binary, use the cargo-dist installer instead:
+#   curl -fsSL https://install.eddacraft.ai | sh
+#
+# For Windows (PowerShell):
+#   irm https://install.eddacraft.ai/windows | iex
+#
+# This script is a fallback that installs via npm for environments where
+# the native binary is not yet available.
 
 set -e
 
