@@ -15,7 +15,7 @@ Common issues and solutions for Anvil.
 
 The `anvil` binary isn't in your PATH.
 
-**Solution:**
+**macOS / Linux:**
 
 ```bash
 # Re-run the installer
@@ -27,10 +27,25 @@ export PATH="$HOME/.eddacraft/bin:$PATH"
 
 If you installed via Homebrew, run `brew link eddacraft/tap/anvil`.
 
+**Windows (PowerShell):**
+
+```powershell
+# Re-run the installer
+irm https://install.eddacraft.ai/windows | iex
+
+# Or add the install directory to your PATH manually
+$env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
+
+# To persist across sessions, add to your profile:
+Add-Content $PROFILE '$env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"'
+```
+
 ### Migrating from the Node.js package
 
 If you previously used `@eddacraft/anvil-cli` via npm/pnpm, remove it and
 install the native binary:
+
+**macOS / Linux:**
 
 ```bash
 # Remove the old package
@@ -39,6 +54,16 @@ pnpm remove @eddacraft/anvil-cli
 
 # Install the native binary
 curl -fsSL https://install.eddacraft.ai | sh
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Remove the old package
+npm uninstall -g @eddacraft/anvil-cli
+
+# Install the native binary
+irm https://install.eddacraft.ai/windows | iex
 ```
 
 See [The Switch to Rust](/anvil/releases/rust-rewrite) for full migration
@@ -86,7 +111,7 @@ anvil check src/api/users.ts --verbose
 **Common issues:**
 
 - Glob pattern mismatch (`src/api` vs `src/api/**`)
-- Wrong path separator on Windows
+- Wrong path separator on Windows (use `/` in glob patterns, not `\`)
 - Pattern doesn't include file extension
 
 ## Runtime Issues
@@ -116,9 +141,16 @@ Files changing but Anvil not responding.
    ```
 
 4. Check file system events:
+
    ```bash
-   # macOS: fs.inotify limits
    # Linux: /proc/sys/fs/inotify/max_user_watches
+   cat /proc/sys/fs/inotify/max_user_watches
+   # Increase if needed:
+   echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf
+
+   # macOS: generally not an issue (uses FSEvents)
+
+   # Windows: generally not an issue (uses ReadDirectoryChangesW)
    ```
 
 ### High CPU Usage
@@ -270,6 +302,63 @@ Ctrl+Shift+P → "Anvil: Clear Cache"
 
 Or restart VS Code.
 
+## Windows-Specific Issues
+
+### Path Separators in Configuration
+
+Anvil uses forward slashes (`/`) for glob patterns on all platforms. Do not use
+backslashes in `.anvilrc` boundary patterns, even on Windows:
+
+```json
+{
+  "pattern": "src/api/**"
+}
+```
+
+Using `src\\api\\**` will not match.
+
+### Antivirus Interference
+
+Some antivirus software (Windows Defender, Norton, etc.) can slow down watch
+mode by scanning files that Anvil accesses. If watch mode is unusually slow:
+
+1. Add your project directory to the antivirus exclusion list
+2. Add `%USERPROFILE%\.eddacraft\` to the exclusion list
+3. Add `anvil.exe` to the allowed programs list
+
+### PowerShell Execution Policy
+
+If the installer fails with an execution policy error:
+
+```powershell
+# Check current policy
+Get-ExecutionPolicy
+
+# Allow scripts for current user (if needed)
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+### Long Path Support
+
+Anvil can work with long paths (> 260 characters) on Windows as long as Windows
+long-path support is enabled and your tooling supports it. If you encounter
+path-related errors in deeply nested `node_modules`:
+
+1. Enable long paths in Windows (requires admin):
+   ```powershell
+   New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+     -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+   ```
+2. Restart your terminal
+
+### WSL vs Native Windows
+
+Anvil works in both native Windows (PowerShell/cmd) and WSL. If using WSL:
+
+- Use the Linux installer (`curl ... | sh`), not the Windows PowerShell one
+- File watching across the WSL/Windows boundary (e.g. `/mnt/c/`) is slow — keep
+  your project inside the WSL filesystem (`~/projects/`) for best performance
+
 ## Getting Help
 
 ### Debug Mode
@@ -277,7 +366,13 @@ Or restart VS Code.
 Run with debug output:
 
 ```bash
+# macOS / Linux
 DEBUG=anvil:* anvil check --all
+```
+
+```powershell
+# Windows (PowerShell)
+$env:DEBUG="anvil:*"; anvil check --all
 ```
 
 ### Log Collection
@@ -285,7 +380,13 @@ DEBUG=anvil:* anvil check --all
 Collect logs for bug reports:
 
 ```bash
+# macOS / Linux
 anvil check --all --verbose 2>&1 | tee anvil.log
+```
+
+```powershell
+# Windows (PowerShell)
+anvil check --all --verbose 2>&1 | Tee-Object anvil.log
 ```
 
 ### Filing Issues
@@ -293,7 +394,10 @@ anvil check --all --verbose 2>&1 | tee anvil.log
 Include:
 
 - Anvil version: `anvil --version`
-- OS, version, and architecture: `uname -a` (or equivalent)
+- OS, version, and architecture:
+  - macOS / Linux: `uname -a`
+  - Windows: `[System.Environment]::OSVersion` and `$env:PROCESSOR_ARCHITECTURE`
+    in PowerShell
 - Config file (sanitised)
 - Error message and stack trace
 - Steps to reproduce

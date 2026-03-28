@@ -86,14 +86,15 @@ and tooling.
 
 ### Crates (Rust)
 
-| Directory                   | Description                                             |
-| --------------------------- | ------------------------------------------------------- |
-| `crates/anvil-kernel`       | Rust kernel — watcher, parser, semantic graph, policy   |
-| `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust) |
-| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer) |
-| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)  |
-| `crates/eddacraft-tui`      | Shared Ratatui component library                        |
-| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph  |
+| Directory                   | Description                                               |
+| --------------------------- | --------------------------------------------------------- |
+| `crates/anvil-cli`          | Native CLI binary (cross-platform: macOS, Linux, Windows) |
+| `crates/anvil-kernel`       | Rust kernel — watcher, parser, semantic graph, policy     |
+| `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust)   |
+| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer)   |
+| `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)    |
+| `crates/eddacraft-tui`      | Shared Ratatui component library                          |
+| `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph    |
 
 ### Tools
 
@@ -273,12 +274,26 @@ and cold start scaling. See the
 
 ## Deployment
 
-| App         | Platform | Trigger                                               |
-| ----------- | -------- | ----------------------------------------------------- |
-| `anvil-cli` | npm      | Git tag (`v*`) via `publish.yml` GitHub Action        |
-| `docs-site` | Vercel   | Push to `main` (automatic via Vercel Git integration) |
-| `website`   | Vercel   | Push to `main` (automatic via Vercel Git integration) |
-| `anvil-api` | Vercel   | Push to `main` (automatic via Vercel Git integration) |
+| App                  | Platform        | Trigger                                               |
+| -------------------- | --------------- | ----------------------------------------------------- |
+| `anvil` (Rust)       | GitHub Releases | Git tag (`v*`) via `release.yml` (cargo-dist)         |
+| `anvil-cli` (legacy) | npm             | Git tag (`v*`) via `publish.yml` GitHub Action        |
+| `docs-site`          | Vercel          | Push to `main` (automatic via Vercel Git integration) |
+| `website`            | Vercel          | Push to `main` (automatic via Vercel Git integration) |
+| `anvil-api`          | Vercel          | Push to `main` (automatic via Vercel Git integration) |
+
+### Native Binary Targets
+
+The Rust CLI is built for the following platforms via cargo-dist:
+
+| Platform | Architecture            | Binary      |
+| -------- | ----------------------- | ----------- |
+| macOS    | x86_64                  | `anvil`     |
+| macOS    | aarch64 (Apple Silicon) | `anvil`     |
+| Linux    | x86_64                  | `anvil`     |
+| Linux    | aarch64                 | `anvil`     |
+| Windows  | x86_64                  | `anvil.exe` |
+| Windows  | aarch64                 | `anvil.exe` |
 
 ## CI/CD
 
