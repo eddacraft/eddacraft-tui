@@ -15,11 +15,13 @@ Use the native binary for all platforms:
 # macOS / Linux
 curl -fsSL https://install.eddacraft.ai | sh
 
-# Windows (PowerShell)
-irm https://install.eddacraft.ai/windows | iex
-
 # Homebrew (macOS / Linux)
 brew install eddacraft/tap/anvil
+```
+
+```powershell
+# Windows (PowerShell)
+irm https://install.eddacraft.ai/windows | iex
 ```
 
 See [The Switch to Rust](../../docs/public/anvil/releases/rust-rewrite.md) for

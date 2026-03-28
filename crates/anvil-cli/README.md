@@ -32,8 +32,11 @@ covering TUI surfaces, governance gates, policy management, and authentication.
 ## Cross-Platform Notes
 
 - File paths are normalised to forward slashes internally
-- Credential storage uses the OS keychain (Keychain on macOS, Secret Service on
-  Linux, Windows Credential Manager on Windows)
+- Credential storage is persisted as JSON on disk under the user's configuration
+  directory:
+  - macOS: `~/Library/Application Support/anvil/credentials.json`
+  - Linux: `~/.config/anvil/credentials.json`
+  - Windows: `%APPDATA%\anvil\credentials.json`
 - TUI rendering uses crossterm for cross-platform terminal support
 
 ## Part of

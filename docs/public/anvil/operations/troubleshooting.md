@@ -340,8 +340,9 @@ Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 
 ### Long Path Support
 
-Anvil handles long paths (> 260 characters) via the Windows long-path manifest.
-If you encounter path-related errors in deeply nested `node_modules`:
+Anvil can work with long paths (> 260 characters) on Windows as long as Windows
+long-path support is enabled and your tooling supports it. If you encounter
+path-related errors in deeply nested `node_modules`:
 
 1. Enable long paths in Windows (requires admin):
    ```powershell
@@ -367,7 +368,9 @@ Run with debug output:
 ```bash
 # macOS / Linux
 DEBUG=anvil:* anvil check --all
+```
 
+```powershell
 # Windows (PowerShell)
 $env:DEBUG="anvil:*"; anvil check --all
 ```
@@ -379,7 +382,9 @@ Collect logs for bug reports:
 ```bash
 # macOS / Linux
 anvil check --all --verbose 2>&1 | tee anvil.log
+```
 
+```powershell
 # Windows (PowerShell)
 anvil check --all --verbose 2>&1 | Tee-Object anvil.log
 ```

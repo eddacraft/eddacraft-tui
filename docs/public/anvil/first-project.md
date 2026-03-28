@@ -37,7 +37,9 @@ You want to enforce these boundaries:
 ```bash
 # macOS / Linux
 curl -fsSL https://install.eddacraft.ai | sh
+```
 
+```powershell
 # Windows (PowerShell)
 irm https://install.eddacraft.ai/windows | iex
 ```
