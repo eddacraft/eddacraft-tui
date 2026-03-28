@@ -323,7 +323,7 @@ Some antivirus software (Windows Defender, Norton, etc.) can slow down watch
 mode by scanning files that Anvil accesses. If watch mode is unusually slow:
 
 1. Add your project directory to the antivirus exclusion list
-2. Add `~/.eddacraft/` to the exclusion list
+2. Add `%USERPROFILE%\.eddacraft\` to the exclusion list
 3. Add `anvil.exe` to the allowed programs list
 
 ### PowerShell Execution Policy
