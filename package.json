@@ -27,8 +27,6 @@
     "typecheck": "nx run-many -t typecheck --exclude=anvil-vscode",
     "lint:md": "markdownlint --ignore-path .markdownlintignore .",
     "lint:md:fix": "markdownlint --ignore-path .markdownlintignore . --fix",
-    "link:cli": "cd apps/anvil-cli && pnpm build && npm link",
-    "unlink:cli": "cd apps/anvil-cli && npm unlink -g @eddacraft/anvil-cli",
     "codemod:imports": "tsx tools/codemods/src/cli.ts imports",
     "codemod:imports:dry": "tsx tools/codemods/src/cli.ts imports --dry-run",
     "generate:package": "nx g @eddacraft/anvil-generators:package",
@@ -138,7 +136,9 @@
       "flatted@<=3.4.1": ">=3.4.2",
       "socket.io-parser@>=4.0.0 <4.2.6": ">=4.2.6",
       "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
-      "smol-toml@<1.6.1": ">=1.6.1"
+      "smol-toml@<1.6.1": ">=1.6.1",
+      "path-to-regexp@<0.1.13": "0.1.13",
+      "path-to-regexp@>=8.0.0 <8.4.0": ">=8.4.0"
     },
     "onlyBuiltDependencies": [
       "better-sqlite3",

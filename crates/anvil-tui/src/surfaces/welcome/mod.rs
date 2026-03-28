@@ -15,20 +15,20 @@ pub enum QuickStartOption {
 
 impl QuickStartOption {
     pub const ALL: [Self; 6] = [
-        Self::RunAudit,
-        Self::RunDoctor,
         Self::RunGate,
         Self::StartWatch,
+        Self::RunAudit,
+        Self::RunDoctor,
         Self::RunTutorial,
         Self::ViewDocs,
     ];
 
     pub fn label(self) -> &'static str {
         match self {
+            Self::RunGate => "Run quality gate",
+            Self::StartWatch => "Start watch mode",
             Self::RunAudit => "Run project audit",
             Self::RunDoctor => "Run diagnostics",
-            Self::RunGate => "Run gate checks",
-            Self::StartWatch => "Start watch mode",
             Self::RunTutorial => "Interactive tutorial",
             Self::ViewDocs => "View documentation",
         }
@@ -36,10 +36,10 @@ impl QuickStartOption {
 
     pub fn description(self) -> &'static str {
         match self {
+            Self::RunGate => "Check code against all quality checks",
+            Self::StartWatch => "Monitor files for changes in real time",
             Self::RunAudit => "Scan your project for security issues and anti-patterns",
             Self::RunDoctor => "Check your environment and fix common issues",
-            Self::RunGate => "Run quality gates against the current project",
-            Self::StartWatch => "Monitor files and run checks on every save",
             Self::RunTutorial => "Learn Anvil with a guided walkthrough",
             Self::ViewDocs => "Open the Anvil documentation in your browser",
         }
@@ -171,10 +171,10 @@ mod tests {
     #[test]
     fn select_sets_chosen() {
         let mut state = WelcomeState::new();
-        // Default is RunAudit (index 0); Down moves to RunDoctor (index 1)
+        // Default is RunGate (index 0); Down moves to StartWatch (index 1)
         state.handle_key(Action::Down);
         state.handle_key(Action::Select);
-        assert_eq!(state.chosen, Some(QuickStartOption::RunDoctor));
+        assert_eq!(state.chosen, Some(QuickStartOption::StartWatch));
     }
 
     #[test]

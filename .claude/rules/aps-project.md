@@ -13,8 +13,8 @@
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
-- RCLI: rust-cli (20/47) — In Progress (Phase 7 rework + Phase 8 TUI UX added
-  2026-03-24)
+- RCLI: rust-cli (20/57) — In Progress (Phase 9 council + PR review findings
+  added 2026-03-27; APS statuses need reconciliation with git history)
 - TUTOR: interactive-tutorial (0/13) — Draft
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed

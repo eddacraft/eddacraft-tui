@@ -10,7 +10,7 @@ export interface WatchEvent {
 const WATCH_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx']);
 
 /** Directories to ignore (checked as path segments). */
-const IGNORE_DIRS = ['node_modules', 'dist', '.git', '.anvil'];
+const IGNORE_DIRS = new Set(['node_modules', 'dist', '.git', '.anvil']);
 
 export interface TutorialWatcher {
   close: () => void;
@@ -27,7 +27,7 @@ function shouldIgnore(path: string): boolean {
   // Ignore any path containing an ignored directory as a full path segment
   // (including the directory root itself, so chokidar skips traversal).
   const segments = path.split(/[/\\]+/);
-  if (segments.some((segment) => IGNORE_DIRS.includes(segment))) return true;
+  if (segments.some((segment) => IGNORE_DIRS.has(segment))) return true;
 
   // Only accept files with matching extensions. Files without an extension
   // (e.g. Makefile, .eslintrc) are ignored — the original globs only

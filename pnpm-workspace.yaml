@@ -24,6 +24,8 @@ packages:
   - packages/tooling/*
   # Tools
   - tools/*
+  # Exclude archived packages
+  - '!archive/**'
 
 ignoredBuiltDependencies:
   - '@devm33/node-pty'

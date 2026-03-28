@@ -57,6 +57,24 @@ fn run_welcome_hub(
         }
 
         match welcome.chosen.take() {
+            Some(QuickStartOption::RunGate) => {
+                crate::tui::draw_loading(terminal, "Gate", "Running quality checks...", theme)?;
+                let data = crate::commands::gate::collect_gate_data();
+                let mut gate_state = anvil_tui::surfaces::gate::GateState::new(data);
+                let sub_exit = crate::tui::run_surface_in(terminal, &mut gate_state, theme)?;
+                if sub_exit == SurfaceExit::Quit {
+                    break;
+                }
+                welcome.should_quit = false;
+                welcome.chosen = None;
+            }
+            Some(QuickStartOption::StartWatch) => {
+                welcome.status_message = Some(
+                    "Watch mode requires a kernel watcher channel. Run \u{2018}anvil watch\u{2019} from the command line."
+                        .to_string(),
+                );
+                welcome.should_quit = false;
+            }
             Some(QuickStartOption::ViewDocs) => {
                 welcome.status_message = Some(open_docs_message());
                 welcome.should_quit = false;
@@ -83,16 +101,6 @@ fn run_welcome_hub(
                 welcome.should_quit = false;
                 welcome.chosen = None;
             }
-            Some(QuickStartOption::RunGate) => {
-                welcome.status_message = run_subprocess(terminal, "gate")?;
-                welcome.should_quit = false;
-                welcome.chosen = None;
-            }
-            Some(QuickStartOption::StartWatch) => {
-                welcome.status_message = run_subprocess(terminal, "watch")?;
-                welcome.should_quit = false;
-                welcome.chosen = None;
-            }
             Some(QuickStartOption::RunTutorial) => {
                 welcome.status_message = None;
                 let mut tutorial_state = anvil_tui::surfaces::tutorial::TutorialState::new();
@@ -110,36 +118,6 @@ fn run_welcome_hub(
     }
 
     Ok(())
-}
-
-/// Teardown the terminal, run a subprocess command, and re-initialise.
-/// Returns `Ok(Some(msg))` for subprocess errors (displayed as status),
-/// `Ok(None)` on success, or `Err` if the terminal cannot be restored
-/// (caller must abort the hub loop).
-fn run_subprocess(
-    terminal: &mut ratatui::Terminal<ratatui::backend::CrosstermBackend<std::io::Stdout>>,
-    subcommand: &str,
-) -> anyhow::Result<Option<String>> {
-    crate::tui::teardown_terminal(terminal)
-        .context("Failed to release terminal before subprocess")?;
-
-    let message = match std::env::current_exe() {
-        Ok(exe) => match std::process::Command::new(&exe).arg(subcommand).status() {
-            Ok(s) if s.success() => None,
-            Ok(s) => Some(format!(
-                "{subcommand} exited with {}",
-                s.code().map_or("signal".to_string(), |c| c.to_string())
-            )),
-            Err(e) => Some(format!("Failed to launch {subcommand}: {e}")),
-        },
-        Err(e) => Some(format!("Failed to resolve executable: {e}")),
-    };
-
-    // Re-initialise terminal — if this fails, the hub loop cannot continue.
-    *terminal =
-        crate::tui::setup_terminal().context("failed to restore terminal after subprocess")?;
-
-    Ok(message)
 }
 
 fn open_docs_message() -> String {

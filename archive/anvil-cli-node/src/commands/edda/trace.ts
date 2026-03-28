@@ -69,7 +69,7 @@ export function createEddaTraceCommand(): Command {
         if (evolutionChain.length === 0) {
           print(chalk.yellow(`  No evolution chain found for memory: ${id}`));
         } else {
-          const orderedChain = [...evolutionChain].reverse();
+          const orderedChain = [...evolutionChain].toReversed();
           for (const [index, memory] of orderedChain.entries()) {
             print(
               `  [${index + 1}] ${memory.id} (${colourStatus(memory.status)}) - ${formatStatement(memory.statement)}`

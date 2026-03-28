@@ -37,5 +37,14 @@
       "@eddacraft/anvil-shared/*": ["./packages/shared/*/dist/index.d.ts"]
     }
   },
-  "exclude": ["node_modules", "dist", ".nx", "tmp", "coverage", "playwright-report", "test-results"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".nx",
+    "tmp",
+    "coverage",
+    "playwright-report",
+    "test-results",
+    "archive"
+  ]
 }

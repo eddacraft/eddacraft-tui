@@ -28,6 +28,7 @@ export default typescriptEslint.config(
       '**/.docusaurus/',
       '**/build/',
       '.claude/',
+      'archive/',
       'eslint.config.mts',
       '**/*.md',
       '**/next-env.d.ts',
@@ -159,7 +160,7 @@ export default typescriptEslint.config(
         },
       ]),
   {
-    files: ['apps/anvil-cli/**/*.ts', 'cli/**/*.ts'],
+    files: ['cli/**/*.ts'],
     rules: {
       'no-console': 'off',
     },

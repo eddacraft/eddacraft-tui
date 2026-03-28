@@ -65,7 +65,7 @@ export class PolicyDirectoryCheck implements DiagnosticCheck {
     const regoFiles = fs
       .readdirSync(policyDir)
       .filter((f) => f.endsWith('.rego') && !f.endsWith('_test.rego'));
-    const testFiles = fs.readdirSync(policyDir).filter((f) => f.endsWith('_test.rego'));
+    const testFiles = new Set(fs.readdirSync(policyDir).filter((f) => f.endsWith('_test.rego')));
 
     if (regoFiles.length === 0) {
       return {
@@ -80,7 +80,7 @@ export class PolicyDirectoryCheck implements DiagnosticCheck {
 
     const untestedPolicies = regoFiles.filter((f) => {
       const testName = f.replace('.rego', '_test.rego');
-      return !testFiles.includes(testName);
+      return !testFiles.has(testName);
     });
 
     if (untestedPolicies.length > 0) {

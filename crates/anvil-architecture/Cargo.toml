@@ -6,7 +6,11 @@ license.workspace = true
 description = "Anvil architecture enforcement — boundary definitions, import rules, drift detection"
 
 [dependencies]
-# Dependencies will be added when implementation begins.
+serde_yaml = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3"
 
 [lints]
 workspace = true
