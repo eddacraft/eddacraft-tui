@@ -37,6 +37,7 @@ and two runtimes. A Rust CLI eliminates this overhead and provides same-process
 - Auth flows (device code + OTP via reqwest)
 - Three output modes (TUI, plain text, JSON)
 - Tier 1 commands: core workflow, TUI surfaces, architecture, auth, policy
+- Cross-platform support (Linux, macOS, Windows)
 - Archival of Node.js CLI and Ink TUI
 
 ## Out of Scope
@@ -45,7 +46,6 @@ and two runtimes. A Rust CLI eliminates this overhead and provides same-process
 - Tier 3 commands (subsystems — see [rust-cli-tier3.aps.md](rust-cli-tier3.aps.md), module RCLI3)
 - MCP server migration (stays Node.js)
 - Website/dashboard changes
-- Windows support (Linux + macOS only)
 
 ## Interfaces
 
@@ -72,6 +72,11 @@ and two runtimes. A Rust CLI eliminates this overhead and provides same-process
 - TTY detection via `std::io::IsTerminal` (not `atty`)
 - Async only for HTTP (auth commands); TUI and kernel stay synchronous
 - Node.js CLI archived to `archive/`, not deleted
+- Cross-platform paths via `dirs` crate (XDG on Linux, `~/Library/` on macOS,
+  `%APPDATA%` on Windows)
+- Git hook scripts must be portable (shell on Unix, PowerShell/cmd on Windows)
+  or use a cross-platform runner
+- CI matrix must include Windows (GitHub Actions `windows-latest`)
 
 ## Ready Checklist
 
@@ -494,12 +499,13 @@ Commands that launch TUI surfaces without kernel integration.
 
 - **Status:** Proposed
 - **Intent:** Create GitHub Actions release workflow that builds pre-built
-  binaries for x86_64/aarch64 Linux + macOS. Install script at
-  `https://install.eddacraft.ai`. Publish to crates.io as `anvil-cli`
-- **Expected Outcome:** Tagged releases produce downloadable binaries; install
-  script works on supported platforms
+  binaries for x86_64/aarch64 Linux + macOS and x86_64 Windows. Install script
+  at `https://install.eddacraft.ai` (shell for Unix, PowerShell for Windows).
+  Publish to crates.io as `anvil-cli`
+- **Expected Outcome:** Tagged releases produce downloadable binaries for all
+  three platforms; install scripts work on supported platforms
 - **Validation:** Install script downloads and runs `anvil --version`
-  successfully on Linux and macOS
+  successfully on Linux, macOS, and Windows
 - **Files:** `.github/workflows/release.yml`, install script
 - **Confidence:** medium
 - **Priority:** High
@@ -953,6 +959,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 | Auth migration breaks existing users | Medium | High | RCLI-015a adds fallback loading from legacy paths before cutover |
 | Hook enforcement regression | Medium | Medium | RCLI-021a upgrades hooks before cutover; gated on RCLI-013a |
 | Surface lifecycle redesign for back-nav | Medium | Medium | RCLI-026 may require refactoring run_surface into a surface stack |
+| Windows platform edge cases (paths, hooks, terminal) | Medium | Medium | Use `dirs` crate for paths; `open` crate for browser; CI matrix includes `windows-latest` |
 
 ## Stats
 
