@@ -1,0 +1,64 @@
+name: Benchmarks
+
+on:
+  push:
+    branches: [main, dev]
+    paths:
+      - 'crates/anvil-bench/**'
+      - 'crates/anvil-kernel-types/**'
+      - 'crates/anvil-checks/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/bench.yml'
+  pull_request:
+    paths:
+      - 'crates/anvil-bench/**'
+      - 'crates/anvil-kernel-types/**'
+      - 'crates/anvil-checks/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/bench.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  bench-check:
+    name: Bench compile check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo check -p anvil-bench --all-targets
+      - run: cargo test -p anvil-bench
+
+  criterion:
+    name: Criterion benchmarks
+    runs-on: ubuntu-latest
+    needs: bench-check
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - name: Run anvil-checks benchmarks
+        run: cargo bench -p anvil-checks -- --output-format bencher | tee checks-bench.txt
+      - name: Run stress benchmarks (small config)
+        run: cargo bench -p anvil-bench -- --output-format bencher | tee stress-bench.txt
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            checks-bench.txt
+            stress-bench.txt
+            target/criterion/
+          retention-days: 30

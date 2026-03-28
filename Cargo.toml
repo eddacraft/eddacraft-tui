@@ -5,6 +5,7 @@ members = [
     "crates/anvil-kernel-types",
     "crates/eddacraft-tui",
     "crates/anvil-checks",
+    "crates/anvil-bench",
 ]
 
 [workspace.package]
