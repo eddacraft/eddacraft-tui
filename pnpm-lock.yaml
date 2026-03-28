@@ -547,8 +547,8 @@ importers:
         specifier: ^19
         version: 19.2.3(@types/react@19.2.14)
       typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
+        specifier: ~6.0.2
+        version: 6.0.2
 
   packages/kindling-integration:
     dependencies:
