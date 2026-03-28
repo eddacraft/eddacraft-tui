@@ -1,9 +1,16 @@
+pub mod compat;
 pub mod keyboard;
+pub mod shell;
+pub mod surface;
+pub mod test_utils;
 pub mod theme;
 pub mod widgets;
 
 pub mod prelude {
+    pub use crate::compat::{TerminalInfo, detect_terminal, validate_minimum_size};
     pub use crate::keyboard::{Action, KeyHandler};
+    pub use crate::shell::render_shell;
+    pub use crate::surface::Surface;
     pub use crate::theme::{EddaCraftTheme, Theme};
     pub use crate::widgets::confirm::{Confirm, ConfirmState};
     pub use crate::widgets::container::{Container, ContainerVariant};
@@ -15,13 +22,7 @@ pub mod prelude {
         calculate_overall_progress, format_duration,
     };
     pub use crate::widgets::progress_bar::{ProgressBar, ProgressBarState};
-    pub use crate::widgets::quick_wins_panel::{
-        BatchGroup, QuickWinType, QuickWinsAnalysis, QuickWinsPanel, QuickWinsPanelState,
-    };
-    pub use crate::widgets::results_dashboard::{
-        HistoricalAnalysis, InitAnalysisResults, ResultsDashboard, ResultsDashboardState,
-    };
-    pub use crate::widgets::select::{Select, SelectState};
+    pub use crate::widgets::select::{Select, SelectItem, SelectState};
     pub use crate::widgets::spinner::{Spinner, SpinnerState};
     pub use crate::widgets::status_badge::{BadgeStatus, StatusBadge};
     pub use crate::widgets::status_bar::StatusBar;

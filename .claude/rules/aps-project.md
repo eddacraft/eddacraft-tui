@@ -8,11 +8,16 @@
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
 - CRB: code-review-backlog (29/29) — Complete
-- MAINT: codebase-maintenance (8/10) — In Progress
+- MAINT: codebase-maintenance (9/10) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
+- RCLI: rust-cli (20/57) — In Progress (Phase 9 council + PR review findings
+  added 2026-03-27; APS statuses need reconciliation with git history)
+- TUTOR: interactive-tutorial (0/13) — Draft
+- RCLI2: rust-cli-tier2 (0/8) — Proposed
+- RCLI3: rust-cli-tier3 (0/18) — Proposed
 - DASH: dashboard-foundation (0/9) — Ready
 - DASHCORE: dashboard-core-views (0/9) — Ready
 - DASHARCH: dashboard-architecture-views (0/8) — Ready
@@ -31,14 +36,18 @@
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
 - RENG: rust-core-engine (4/6) — In Progress
-  <!-- ADR-011: scope reduced from 24 to 6; RENG-001–003, 005 done in external workspace -->
-- KERN: rust-kernel (4/25) — In Progress
-- BAUTH: beta-auth-streamline (0/20) — Ready
-- RATS: ratatui-tui (1/7) — In Progress
-- PORT: ink-to-ratatui-port (0/15) — Proposed
+- KERN: rust-kernel (22/25) — In Progress
+- BAUTH: beta-auth-streamline (20/20) — Complete
+- RATS: ratatui-tui (7/7) — Complete
+- PORT: ink-to-ratatui-port (15/15) — Complete
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
+- AGOV: agent-governance-patterns (0/7) — Draft
+- BENCH: kernel-benchmarking (6/16) — In Progress
+- TUIDASH: tui-dashboard-render (0/12) — Draft
+- CPACKS: compliance-policy-packs (0/28) — Draft
+- DOCSYNC: documentation-sync (6/14) — In Progress
 
 ## Conventions
 
@@ -208,28 +217,50 @@ core/src/gate/__fixtures__/library/scope/: OPAE-009
 core/src/gate/__fixtures__/library/security/: OPAE-007
 core/src/diagnostics/diagnostic-schema.ts: AIGUARD-002
 core/src/diagnostics/diagnostic-schema.test.ts: AIGUARD-002
-# REVIEW(ADR-011): crates/ entries below reference an older 24-item RENG scope.
-# RENG is now 6 items (RENG-001–006). IDs RENG-007+ are from a prior plan
-# iteration and should be reconciled with KERN/RATS/PORT modules.
-# crates/ paths don't exist in this monorepo — work done in external workspace.
-# TUI crates (anvil-tui, eddacraft-tui) → now covered by RATS module.
-crates/anvil-engine/src/antipattern/: RENG-012   # old scope — reconcile with KERN
-crates/anvil-engine/src/architecture/: RENG-011  # old scope — reconcile with KERN
-crates/anvil-engine/src/lint/: RENG-023          # old scope — reconcile with KERN
-crates/anvil-engine/src/parse/: RENG-010         # old scope — reconcile with KERN
-crates/anvil-engine/src/secret/: RENG-006        # old scope — now RENG-001
-crates/anvil-gate/: RENG-016                     # old scope — reconcile with KERN
-crates/anvil-napi/: RENG-007, RENG-013, RENG-019 # old scope — N-API dropped per ADR-011
-crates/anvil-tui/src/dashboard/: RENG-021        # old scope — now RATS-002
-crates/anvil-tui/src/wizard/: RENG-022           # old scope — now RATS-004
-crates/anvil-watcher/: RENG-014, RENG-024        # old scope — now KERN Phase 1
-crates/anvil-watcher/src/cache.rs: RENG-017      # old scope — now KERN Phase 1
-crates/anvil-watcher/src/git.rs: RENG-015        # old scope — now KERN Phase 1
-crates/bench/: RENG-008                          # old scope — now RENG-005
-crates/eddacraft-kindling/: RENG-018             # old scope — reconcile with KERN
-crates/eddacraft-kindling/src/query.rs: RENG-019 # old scope — reconcile with KERN
-crates/eddacraft-tui/: RENG-020                  # old scope — now RATS-001 (done)
-crates/spike/: RENG-001, RENG-002, RENG-003, RENG-004, RENG-005  # done in external workspace
+# RENG: Rust Engine Ports (6 items, 4 done)
+crates/anvil-checks/src/secret/: RENG-001
+crates/anvil-checks/src/antipattern/: RENG-002
+crates/anvil-checks/src/command_safety/: RENG-003
+crates/anvil-checks/benches/checks.rs: RENG-005
+crates/anvil-kernel/tests/architecture_parity.rs: RENG-004
+crates/anvil-kernel/src/engine_mode.rs: RENG-006
+# KERN: Rust Kernel
+crates/anvil-kernel/src/watcher/: KERN-010, KERN-013
+crates/anvil-kernel/src/parser/: KERN-011, KERN-012
+crates/anvil-kernel/src/graph/symbol_graph.rs: KERN-020
+crates/anvil-kernel/src/graph/dependency.rs: KERN-021
+crates/anvil-kernel/src/graph/trust.rs: KERN-022
+crates/anvil-kernel/src/graph/incremental.rs: KERN-023
+crates/anvil-kernel/src/policy/config.rs: KERN-030
+crates/anvil-kernel/src/policy/engine.rs: KERN-031
+crates/anvil-kernel/src/policy/invariants/: KERN-032
+crates/anvil-kernel/src/protocol/emitter.rs: KERN-033
+crates/anvil-kernel/src/embedded.rs: KERN-040
+crates/anvil-kernel/src/watch.rs: KERN-041
+crates/anvil-kernel/tests/dual_run.rs: KERN-042
+crates/anvil-kernel/benches/kernel.rs: KERN-043
+.github/workflows/rust.yml: KERN-005, KERN-044
+# RATS: Ratatui TUI (7 items, all complete)
+crates/eddacraft-tui/src/widgets/: RATS-001, PORT-001, PORT-002
+crates/eddacraft-tui/src/theme/: RATS-001
+crates/eddacraft-tui/src/keyboard/: RATS-001
+crates/anvil-tui/src/surfaces/watch/event_adapter.rs: RATS-002
+crates/anvil-tui/src/surfaces/gate/event_adapter.rs: RATS-003
+crates/anvil-tui/src/surfaces/wizard/: RATS-004
+crates/anvil-tui/src/migration.rs: RATS-005
+crates/anvil-tui/src/compat.rs: RATS-006
+crates/anvil-tui/src/app.rs: RATS-007
+# PORT: Ink-to-Ratatui Port (15 items, all complete)
+crates/anvil-tui/src/surfaces/welcome/: PORT-010
+crates/anvil-tui/src/surfaces/doctor/: PORT-011
+crates/anvil-tui/src/surfaces/status/: PORT-012
+crates/anvil-tui/src/surfaces/init/: PORT-020
+crates/anvil-tui/src/surfaces/audit/: PORT-021
+crates/anvil-tui/src/surfaces/browser/: PORT-022
+crates/anvil-tui/src/surfaces/gate/: PORT-023
+crates/anvil-tui/src/surfaces/watch/: PORT-030
+crates/anvil-tui/src/surfaces/tutorial/mod.rs: PORT-040
+crates/anvil-tui/src/surfaces/tutorial/paths.rs: PORT-041, PORT-042, PORT-043, PORT-044
 apps/anvil-api/src/routes/auth-device.ts: BAUTH-006, BAUTH-007, BAUTH-008
 apps/anvil-api/src/routes/auth-otp.ts: BAUTH-009, BAUTH-010
 apps/anvil-api/src/routes/auth-session.ts: BAUTH-011
@@ -361,4 +392,120 @@ packages/platform/config/src/loader.test.ts: CRB-017
 packages/platform/README.md: CRB-012
 plans/reviews/cli-beta-review.md: CRB-028
 vitest.config.ts: CRB-006, CRB-013
+# AGOV: Agent Governance Patterns
+packages/edda-stack/src/ember/trust-score.ts: AGOV-001
+packages/edda-stack/src/ember/trust-score.test.ts: AGOV-001
+packages/anvil/runtime/src/gate/trust-context.ts: AGOV-001
+core/src/gate/__fixtures__/library/compliance/hipaa/: AGOV-002
+core/src/gate/__fixtures__/library/compliance/pci-dss/: AGOV-002
+core/src/gate/__fixtures__/library/compliance/gdpr/: AGOV-002
+core/src/gate/__fixtures__/library/compliance/soc2/: AGOV-002
+apps/anvil-cli/src/commands/policy.ts: AGOV-002
+packages/anvil/runtime/src/gate/checks/destructive-pattern.check.ts: AGOV-003
+packages/anvil/runtime/src/gate/checks/destructive-pattern.check.test.ts: AGOV-003
+core/src/gate/__fixtures__/library/security/destructive-patterns.json: AGOV-003
+packages/anvil/runtime/src/gate/checks/change-volume.check.ts: AGOV-004
+packages/anvil/runtime/src/gate/checks/change-volume.check.test.ts: AGOV-004
+packages/anvil/runtime/src/gate/checks/metadata-secret.check.ts: AGOV-005
+packages/anvil/runtime/src/gate/checks/metadata-secret.check.test.ts: AGOV-005
+packages/edda-stack/src/edda/hash-chain.ts: AGOV-006
+packages/edda-stack/src/edda/hash-chain.test.ts: AGOV-006
+apps/anvil-cli/src/commands/audit.ts: AGOV-006
+packages/anvil/runtime/src/gate/checks/capability-declaration.check.ts: AGOV-007
+packages/anvil/runtime/src/gate/checks/capability-declaration.check.test.ts: AGOV-007
+packages/anvil/core/src/config/capability-manifest.ts: AGOV-007
+packages/anvil/core/src/config/capability-manifest.test.ts: AGOV-007
+apps/anvil-cli/src/commands/capability.ts: AGOV-007
+# BENCH: Kernel Benchmarking
+crates/anvil-kernel/benches/kernel.rs: BENCH-001, BENCH-002, BENCH-003, BENCH-004, BENCH-005
+crates/anvil-bench/src/fixture.rs: BENCH-010
+crates/anvil-bench/src/measure.rs: BENCH-011
+crates/anvil-bench/src/report.rs: BENCH-012
+crates/anvil-bench/src/scenarios/watcher_saturation.rs: BENCH-013
+crates/anvil-bench/src/scenarios/graph_memory.rs: BENCH-014
+crates/anvil-bench/src/scenarios/incremental_throughput.rs: BENCH-015
+crates/anvil-bench/src/scenarios/policy_scaling.rs: BENCH-016
+crates/anvil-bench/src/scenarios/cold_start_scaling.rs: BENCH-017
+README.md: BENCH-006
+.github/workflows/: BENCH-020, BENCH-021
+docs/architecture/kernel-benchmarking-spec.md: BENCH
+# TUIDASH: TUI Dashboard Render
+crates/anvil-tui-render/src/lib.rs: TUIDASH-001
+crates/anvil-tui-render/src/spec.rs: TUIDASH-001
+crates/anvil-tui-render/src/registry.rs: TUIDASH-002
+crates/anvil-tui-render/src/component.rs: TUIDASH-002
+crates/anvil-tui-render/src/renderer.rs: TUIDASH-003
+crates/anvil-tui-render/src/components/grid_layout.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/section.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/tab_group.rs: TUIDASH-004
+crates/anvil-tui-render/src/components/metric_card.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/data_table.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/status_badge.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/code_block.rs: TUIDASH-005
+crates/anvil-tui-render/src/components/line_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/bar_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/sparkline_chart.rs: TUIDASH-006
+crates/anvil-tui-render/src/components/gate_result.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/warning_list.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/drift_indicator.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/plan_card.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/suppression.rs: TUIDASH-007
+crates/anvil-tui-render/src/components/evidence_entry.rs: TUIDASH-007
+crates/anvil-tui-render/src/binding.rs: TUIDASH-008
+crates/anvil-tui-render/src/context.rs: TUIDASH-008
+crates/anvil-tui/src/surfaces/dashboard/mod.rs: TUIDASH-009
+crates/anvil-tui/src/surfaces/dashboard/render.rs: TUIDASH-009
+crates/anvil-tui-render/src/catalog_sync.rs: TUIDASH-010
+crates/anvil-tui-render/tests/catalog_parity.rs: TUIDASH-010
+crates/anvil-tui-render/src/responsive.rs: TUIDASH-011
+crates/anvil-tui/src/surfaces/dashboard/list.rs: TUIDASH-012
+# CPACKS: Compliance Policy Packs
+core/src/gate/policy/compliance-manifest.ts: CPACKS-002
+core/src/gate/policy/compliance-manifest.test.ts: CPACKS-002
+core/src/gate/__fixtures__/library/compliance/common/: CPACKS-001
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/manifest.json: CPACKS-010
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/injection.rego: CPACKS-011
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/broken-access-control.rego: CPACKS-012
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/cryptographic-failures.rego: CPACKS-013
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/security-misconfiguration.rego: CPACKS-014
+core/src/gate/__fixtures__/library/compliance/owasp-top-10/vulnerable-components.rego: CPACKS-015
+core/src/gate/__fixtures__/library/compliance/soc2/manifest.json: CPACKS-020
+core/src/gate/__fixtures__/library/compliance/soc2/logical-access.rego: CPACKS-021
+core/src/gate/__fixtures__/library/compliance/soc2/change-management.rego: CPACKS-022
+core/src/gate/__fixtures__/library/compliance/soc2/monitoring-and-risk.rego: CPACKS-023
+core/src/gate/__fixtures__/library/compliance/iso-27001/manifest.json: CPACKS-030
+core/src/gate/__fixtures__/library/compliance/iso-27001/access-and-crypto.rego: CPACKS-031
+core/src/gate/__fixtures__/library/compliance/iso-27001/operations-security.rego: CPACKS-032
+core/src/gate/__fixtures__/library/compliance/iso-27001/secure-development.rego: CPACKS-033
+core/src/gate/__fixtures__/library/compliance/gdpr/manifest.json: CPACKS-040
+core/src/gate/__fixtures__/library/compliance/gdpr/data-protection-by-design.rego: CPACKS-041
+core/src/gate/__fixtures__/library/compliance/gdpr/security-of-processing.rego: CPACKS-042
+core/src/gate/__fixtures__/library/compliance/gdpr/data-rights-and-breach.rego: CPACKS-043
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/manifest.json: CPACKS-050
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/transparency.rego: CPACKS-051
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/robustness.rego: CPACKS-052
+core/src/gate/__fixtures__/library/compliance/nist-ai-rmf/fairness.rego: CPACKS-053
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/manifest.json: CPACKS-060
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/human-oversight.rego: CPACKS-061
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/transparency-logging.rego: CPACKS-062
+core/src/gate/__fixtures__/library/compliance/eu-ai-act/data-governance-robustness.rego: CPACKS-063
+core/src/gate/policy/compliance-packs.integration.test.ts: CPACKS-070
+docs/guides/compliance-packs.md: CPACKS-071
+docs/guides/compliance-packs-owasp.md: CPACKS-071
+docs/guides/compliance-packs-soc2.md: CPACKS-071
+docs/guides/compliance-packs-iso-27001.md: CPACKS-071
+docs/guides/compliance-packs-gdpr.md: CPACKS-071
+docs/guides/compliance-packs-nist-ai-rmf.md: CPACKS-071
+docs/guides/compliance-packs-eu-ai-act.md: CPACKS-071
+# DOCSYNC: Documentation Sync
+docs/public/anvil/releases/rust-rewrite.md: DOCSYNC-008
+docs/public/anvil/beta-testing-guide.md: DOCSYNC-007, DOCSYNC-010
+docs/public/anvil/quickstart.md: DOCSYNC-007, DOCSYNC-009
+docs/public/anvil/first-project.md: DOCSYNC-007, DOCSYNC-009
+docs/public/anvil/operations/troubleshooting.md: DOCSYNC-007, DOCSYNC-009
+docs/public/anvil/overview.md: DOCSYNC-009
+docs/public/anvil/tutorials/ci.md: DOCSYNC-009
+docs/public/anvil/integrations/github.md: DOCSYNC-009
+docs/public/anvil/guides/team-flow.md: DOCSYNC-009
+crates/*/README.md: DOCSYNC-006
 ```

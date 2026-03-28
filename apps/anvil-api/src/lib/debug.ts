@@ -4,7 +4,7 @@
  * Self-contained to avoid dependency on @eddacraft/anvil-core
  */
 
-type DebugNamespace = 'api';
+type DebugNamespace = 'api' | 'auth-device' | 'auth-session';
 
 function isDebugEnabled(): boolean {
   const anvilDebug = process.env.ANVIL_DEBUG;
@@ -59,7 +59,7 @@ function debugLog(namespace: DebugNamespace, message: string, data?: unknown): v
 }
 
 export function createDebugger(
-  _namespace: DebugNamespace
+  namespace: DebugNamespace
 ): (message: string, data?: unknown) => void {
-  return (message: string, data?: unknown) => debugLog('api', message, data);
+  return (message: string, data?: unknown) => debugLog(namespace, message, data);
 }

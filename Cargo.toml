@@ -1,11 +1,16 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/spike",
-    "crates/anvil-kernel-types",
-    "crates/eddacraft-tui",
-    "crates/anvil-checks",
-    "crates/anvil-bench",
+  "crates/spike",
+  "crates/anvil-kernel-types",
+  "crates/anvil-kernel",
+  "crates/eddacraft-tui",
+  "crates/anvil-tui",
+  "crates/anvil-checks",
+  "crates/anvil-bench",
+  "crates/anvil-cli",
+  "crates/anvil-policy",
+  "crates/anvil-architecture",
 ]
 
 [workspace.package]
@@ -29,13 +34,29 @@ petgraph = "0.8"
 # Serialisation
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
+toml = "0.8"
 
 # TUI
 ratatui = "0.30"
 crossterm = "0.29"
 
+# CLI
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+anyhow = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "5"
+
+# Error handling
+thiserror = "2"
+
 # Async
 tokio = { version = "1", features = ["full"] }
+
+# File system
+walkdir = "2"
+regex = "1"
 
 # Testing
 insta = { version = "1", features = ["yaml"] }
@@ -55,4 +76,8 @@ missing_panics_doc = "allow"
 
 [profile.release]
 lto = "thin"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
 strip = true

@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { timingSafeEqual } from 'node:crypto';
 import { getClient } from '../db/client.js';
-import { sendWaitlistConfirmation } from '../lib/email.js';
+import { sendWaitlistConfirmation, sendWaitlistAdminNotification } from '../lib/email.js';
+import { addToWaitlistAudience } from '../lib/audience.js';
 
 export const waitlist = new Hono();
 
@@ -63,9 +64,21 @@ waitlist.post('/', async (c) => {
     let emailStatus = 'skipped';
 
     if (isNewSignup) {
+      void addToWaitlistAudience(result[0].email);
       const delivery = await sendWaitlistConfirmation(result[0].email);
       emailSent = delivery.sent;
       emailStatus = delivery.sent ? 'sent' : (delivery.code ?? 'failed');
+    }
+
+    const adminNotification = sendWaitlistAdminNotification(
+      result[0].email,
+      isNewSignup,
+      emailSent
+    );
+    try {
+      c.executionCtx.waitUntil(adminNotification);
+    } catch {
+      void adminNotification;
     }
 
     return c.json({

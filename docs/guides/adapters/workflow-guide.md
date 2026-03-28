@@ -672,7 +672,7 @@ anvil convert docs/prd.md --to speckit
 cat > docs/prd.md <<EOF
 # Product Requirements Document
 **Version**: 2.0
-**Date**: 2025-10-16
+**Date**: 2026-01-23
 
 ## Goals and Background Context
 ### Goals

@@ -1,1 +1,0 @@
-/home/aneki/Projects/src/code-env/.claude/hooks/post-edit.sh

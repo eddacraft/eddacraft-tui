@@ -187,3 +187,213 @@ export async function insertAuditLog(
   );
   return AuditEntrySchema.parse(r[0]);
 }
+
+// ---------------------------------------------------------------------------
+// Device codes
+// ---------------------------------------------------------------------------
+
+const DeviceCodeSchema = z.object({
+  id: IdSchema,
+  user_id: z.union([IdSchema, z.null()]),
+  user_code: z.string(),
+  poll_token: z.string(),
+  confirmed_at: z.union([DateStringSchema, z.null()]),
+  expires_at: DateStringSchema,
+  last_polled_at: z.union([DateStringSchema, z.null()]),
+  created_at: DateStringSchema,
+});
+
+export type DeviceCode = z.infer<typeof DeviceCodeSchema>;
+
+export async function insertDeviceCode(
+  sql: NeonClient,
+  userId: string,
+  userCode: string,
+  pollTokenHash: string,
+  expiresAt: Date
+): Promise<DeviceCode> {
+  const r = rows(
+    await sql`
+    INSERT INTO device_codes (user_id, user_code, poll_token, expires_at)
+    VALUES (${userId}, ${userCode}, ${pollTokenHash}, ${expiresAt.toISOString()})
+    RETURNING *
+  `
+  );
+  return DeviceCodeSchema.parse(r[0]);
+}
+
+export async function findDeviceCodeByUserCode(
+  sql: NeonClient,
+  userCode: string
+): Promise<DeviceCode | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM device_codes WHERE user_code = ${userCode} LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return DeviceCodeSchema.parse(r[0]);
+}
+
+export async function findDeviceCodeByPollToken(
+  sql: NeonClient,
+  pollTokenHash: string
+): Promise<DeviceCode | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM device_codes WHERE poll_token = ${pollTokenHash} LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return DeviceCodeSchema.parse(r[0]);
+}
+
+export async function confirmDeviceCode(sql: NeonClient, id: string): Promise<boolean> {
+  const r = rows(
+    await sql`
+    UPDATE device_codes SET confirmed_at = now()
+    WHERE id = ${id}
+      AND confirmed_at IS NULL
+    RETURNING id
+  `
+  );
+  return r.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// OTP codes
+// ---------------------------------------------------------------------------
+
+const OtpCodeSchema = z.object({
+  id: IdSchema,
+  user_id: IdSchema,
+  code_hash: z.string(),
+  attempts: z.coerce.number(),
+  expires_at: DateStringSchema,
+  consumed_at: z.union([DateStringSchema, z.null()]),
+  created_at: DateStringSchema,
+});
+
+export type OtpCode = z.infer<typeof OtpCodeSchema>;
+
+export async function insertOtpCode(
+  sql: NeonClient,
+  userId: string,
+  codeHash: string,
+  expiresAt: Date
+): Promise<OtpCode> {
+  const r = rows(
+    await sql`
+    INSERT INTO otp_codes (user_id, code_hash, expires_at)
+    VALUES (${userId}, ${codeHash}, ${expiresAt.toISOString()})
+    RETURNING *
+  `
+  );
+  return OtpCodeSchema.parse(r[0]);
+}
+
+export async function findActiveOtpCodes(sql: NeonClient, userId: string): Promise<OtpCode[]> {
+  const r = rows(
+    await sql`
+    SELECT * FROM otp_codes
+    WHERE user_id = ${userId}
+      AND consumed_at IS NULL
+      AND expires_at > now()
+  `
+  );
+  return z.array(OtpCodeSchema).parse(r);
+}
+
+export async function incrementOtpAttempts(sql: NeonClient, id: string): Promise<number> {
+  const r = rows(
+    await sql`
+    UPDATE otp_codes SET attempts = attempts + 1
+    WHERE id = ${id}
+    RETURNING attempts
+  `
+  );
+  return z.coerce.number().parse(r[0]?.attempts);
+}
+
+export async function consumeOtpCode(sql: NeonClient, id: string): Promise<boolean> {
+  const r = rows(
+    await sql`
+    UPDATE otp_codes SET consumed_at = now()
+    WHERE id = ${id}
+      AND consumed_at IS NULL
+    RETURNING id
+  `
+  );
+  return r.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Refresh tokens
+// ---------------------------------------------------------------------------
+
+const RefreshTokenSchema = z.object({
+  id: IdSchema,
+  user_id: IdSchema,
+  token_hash: z.string(),
+  family_id: z.string(),
+  expires_at: DateStringSchema,
+  revoked_at: z.union([DateStringSchema, z.null()]),
+  consumed_at: z.union([DateStringSchema, z.null()]),
+  created_at: DateStringSchema,
+});
+
+export type RefreshToken = z.infer<typeof RefreshTokenSchema>;
+
+export async function insertRefreshToken(
+  sql: NeonClient,
+  userId: string,
+  tokenHash: string,
+  familyId: string,
+  expiresAt: Date
+): Promise<RefreshToken> {
+  const r = rows(
+    await sql`
+    INSERT INTO refresh_tokens (user_id, token_hash, family_id, expires_at)
+    VALUES (${userId}, ${tokenHash}, ${familyId}, ${expiresAt.toISOString()})
+    RETURNING *
+  `
+  );
+  return RefreshTokenSchema.parse(r[0]);
+}
+
+export async function findRefreshTokenByHash(
+  sql: NeonClient,
+  tokenHash: string
+): Promise<RefreshToken | null> {
+  const r = rows(
+    await sql`
+    SELECT * FROM refresh_tokens WHERE token_hash = ${tokenHash} LIMIT 1
+  `
+  );
+  if (!r[0]) return null;
+  return RefreshTokenSchema.parse(r[0]);
+}
+
+export async function consumeRefreshToken(sql: NeonClient, id: string): Promise<boolean> {
+  const r = rows(
+    await sql`
+    UPDATE refresh_tokens SET consumed_at = now()
+    WHERE id = ${id}
+      AND consumed_at IS NULL
+    RETURNING id
+  `
+  );
+  return r.length > 0;
+}
+
+export async function revokeRefreshTokenFamily(sql: NeonClient, familyId: string): Promise<number> {
+  const r = rows(
+    await sql`
+    UPDATE refresh_tokens SET revoked_at = now()
+    WHERE family_id = ${familyId}
+      AND revoked_at IS NULL
+    RETURNING id
+  `
+  );
+  return r.length;
+}

@@ -457,6 +457,22 @@ describe('FileWatcher', () => {
       expect(ignored('/workspace')).toBe(false);
     });
 
+    it('does not overmatch similarly named directories in exclude patterns', async () => {
+      await watcher.start({
+        patterns: ['**/*.ts'],
+        exclude: ['node_modules/**', 'dist/**'],
+        cwd: '/workspace',
+      });
+
+      const opts = mockChokidar.watch.mock.calls[0][1];
+      const ignored = opts.ignored as (path: string) => boolean;
+
+      expect(ignored('/workspace/node_modules_cache/file.ts')).toBe(false);
+      expect(ignored('/workspace/distillery/file.ts')).toBe(false);
+      expect(ignored('/workspace/node_modules/file.ts')).toBe(true);
+      expect(ignored('/workspace/dist/file.ts')).toBe(true);
+    });
+
     it('only emits events for files matching include patterns', async () => {
       const changeListener = vi.fn();
       watcher.on('change', changeListener);
@@ -476,6 +492,25 @@ describe('FileWatcher', () => {
       // Non-matching path
       addHandler('/workspace/lib/file.js');
       expect(changeListener).toHaveBeenCalledTimes(1); // still 1
+    });
+
+    it('matches explicit root-level include patterns without matching nested files', async () => {
+      const changeListener = vi.fn();
+      watcher.on('change', changeListener);
+
+      await watcher.start({
+        patterns: ['README.md'],
+        exclude: [],
+        cwd: '/workspace',
+      });
+
+      const addHandler = mockChokidarWatcher.on.mock.calls.find((call) => call[0] === 'add')?.[1];
+
+      addHandler('/workspace/README.md');
+      expect(changeListener).toHaveBeenCalledTimes(1);
+
+      addHandler('/workspace/docs/README.md');
+      expect(changeListener).toHaveBeenCalledTimes(1);
     });
   });
 });

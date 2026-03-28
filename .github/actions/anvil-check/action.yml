@@ -174,10 +174,13 @@ runs:
           echo "::notice::Filtered to $COUNT analysable file(s)"
         fi
 
-    # Step 5: Install Anvil CLI
+    # Step 5: Install Anvil CLI (Rust binary via cargo-dist installer)
     - name: Install Anvil CLI
       shell: bash
-      run: npm install -g @eddacraft/anvil-cli
+      run:
+        curl --proto '=https' --tlsv1.2 -LsSf
+        https://github.com/EddaCraft/anvil-releases/releases/latest/download/anvil-cli-installer.sh
+        | sh
 
     # Step 6: Run Anvil check (skip if no files to check)
     - name: Run Anvil check

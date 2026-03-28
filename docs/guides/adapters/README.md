@@ -56,7 +56,7 @@ Step-by-step process for building a new adapter.
 ### Package Documentation
 
 - [Adapters Package README](../../../packages/adapters/README.md)
-- [Adapter Workflow Guide](../../../packages/adapters/ADAPTER_WORKFLOW_GUIDE.md)
+- Adapter Workflow Guide (removed — see [workflow-guide.md](workflow-guide.md))
 
 ## Reference Implementations
 
@@ -84,7 +84,7 @@ Step-by-step process for building a new adapter.
 ### BMAD Adapter (Planned)
 
 **Status:** Planning phase **PRD:** In development **Templates:**
-[BMAD Templates](../../formats/bmad-templates.md)
+[BMAD Templates](../../archive/bmad-adapter-spec.md)
 
 ## Key Concepts
 
@@ -303,7 +303,7 @@ const change = {
 1. Review [Adapter Workflow Guide](workflow-guide.md)
 2. Study
    [SpecKit adapter implementation](../../../packages/adapters/src/speckit/)
-3. Check [Format templates](../../formats/)
+3. Check format templates in the adapters package
 4. Start building your adapter!
 
 ## Navigation
@@ -311,4 +311,4 @@ const change = {
 - [Back to Guides](../README.md)
 - [Adapter Workflow Guide](workflow-guide.md)
 - [Package Documentation](../../../packages/adapters/README.md)
-- [Documentation Index](../../INDEX.md)
+- [Documentation Index](../README.md)

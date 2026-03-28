@@ -1,0 +1,24 @@
+[package]
+name = "anvil-policy"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Anvil policy engine — evaluation, library loading, policy lifecycle"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+walkdir = { workspace = true }
+regex = { workspace = true }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+sha2 = "0.10"
+hex = "0.4"
+wait-timeout = "0.2"
+which = "7"
+tempfile = "3"
+glob = "0.3"
+
+[lints]
+workspace = true

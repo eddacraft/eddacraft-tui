@@ -12,9 +12,8 @@ minutes.
 
 ## Prerequisites
 
-- **Node.js** 20.0.0 or later
-- A package manager: **pnpm**, **npm**, **yarn**, or **bun**
 - A TypeScript or JavaScript project
+- A terminal (macOS, Linux, or Windows)
 
 ## Install
 
@@ -26,21 +25,30 @@ Anvil is currently in closed beta. You need to
 :::
 
 ```bash
-# Using pnpm (recommended)
-pnpm add -D @eddacraft/anvil-cli
+# macOS / Linux
+curl -fsSL https://install.eddacraft.ai | sh
 
-# Using npm
-npm install -D @eddacraft/anvil-cli
+# Windows
+irm https://install.eddacraft.ai/windows | iex
 
-# Using yarn
-yarn add -D @eddacraft/anvil-cli
-
-# Using bun
-bun add -D @eddacraft/anvil-cli
-
-# Or run without installing
-npx @eddacraft/anvil-cli --help
+# Or via Homebrew (macOS / Linux)
+brew install eddacraft/tap/anvil
 ```
+
+Anvil is a single native binary available for macOS, Linux, and Windows. Your
+project still needs Node.js and a package manager for lint and test gate checks,
+but Anvil itself has no runtime dependencies.
+
+:::tip Windows users
+
+If the installer doesn't add `anvil` to your PATH automatically, add
+`%USERPROFILE%\.eddacraft\bin` to your system PATH or run:
+
+```powershell
+$env:Path = "$env:USERPROFILE\.eddacraft\bin;$env:Path"
+```
+
+:::
 
 ## Authenticate
 

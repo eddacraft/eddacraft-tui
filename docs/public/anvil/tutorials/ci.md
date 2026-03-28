@@ -36,7 +36,7 @@ Add a pre-commit hook that checks staged files:
 
 ```bash
 # .husky/pre-commit (or .git/hooks/pre-commit)
-npx anvil check --staged
+anvil gate
 ```
 
 This blocks commits that introduce violations. Only staged files are checked, so
@@ -46,7 +46,7 @@ it stays fast.
 
 The final gate. Runs a full check on every push or pull request.
 
-### GitHub Actions
+### GitHub Actions (Linux)
 
 ```yaml
 # .github/workflows/anvil.yml
@@ -63,15 +63,63 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install Anvil
+        run: curl -fsSL https://install.eddacraft.ai | sh
 
       - name: Run Anvil
-        run: pnpm anvil check --all --ci
+        run: anvil gate --profile ci
+```
+
+### GitHub Actions (Windows)
+
+```yaml
+# .github/workflows/anvil.yml
+name: Anvil
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  anvil:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Anvil
+        shell: pwsh
+        run: irm https://install.eddacraft.ai/windows | iex
+
+      - name: Run Anvil
+        run: anvil gate --profile ci
+```
+
+### GitHub Actions (Cross-Platform Matrix)
+
+```yaml
+jobs:
+  anvil:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            install: curl -fsSL https://install.eddacraft.ai | sh
+          - os: windows-latest
+            install: irm https://install.eddacraft.ai/windows | iex
+            shell: pwsh
+          - os: macos-latest
+            install: curl -fsSL https://install.eddacraft.ai | sh
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Anvil
+        shell: ${{ matrix.shell || 'bash' }}
+        run: ${{ matrix.install }}
+
+      - name: Run Anvil
+        run: anvil gate --profile ci
 ```
 
 ### GitLab CI
@@ -79,11 +127,11 @@ jobs:
 ```yaml
 # .gitlab-ci.yml
 anvil:
-  image: node:20
   stage: test
+  before_script:
+    - curl -fsSL https://install.eddacraft.ai | sh
   script:
-    - pnpm install --frozen-lockfile
-    - pnpm anvil check --all --ci
+    - anvil gate --profile ci
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
@@ -94,8 +142,10 @@ anvil:
 | Code | Meaning                                             |
 | ---- | --------------------------------------------------- |
 | `0`  | All gates passed                                    |
-| `1`  | One or more warnings or failures                    |
-| `2`  | Configuration error (missing config, invalid rules) |
+| `1`  | General error                                       |
+| `2`  | One or more gate failures                           |
+| `3`  | Authentication required (reserved, not yet emitted) |
+| `4`  | Configuration error (reserved, not yet emitted)     |
 
 CI runners use these exit codes to pass or fail the pipeline step.
 

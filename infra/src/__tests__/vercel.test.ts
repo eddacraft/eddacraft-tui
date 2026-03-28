@@ -8,6 +8,9 @@ vi.mock('../../src/keyvault.js', () => ({
       'resend-api-key': 'mock-resend-key',
       'anvil-admin-key': 'mock-admin-key',
       'waitlist-resend-admin-token': 'mock-waitlist-token',
+      'resend-waitlist-audience-id': 'mock-waitlist-audience-id',
+      'resend-beta-audience-id': 'mock-beta-audience-id',
+      'cron-secret': 'mock-cron-secret',
     };
     const value = secrets[name];
     if (value === undefined) {
@@ -61,7 +64,7 @@ describe('Vercel resources', () => {
     expect(domains.length).toBe(3);
   });
 
-  it('creates environment variables for website when secrets are configured', () => {
+  it('creates environment variables for anvil-api when secrets are configured', () => {
     const envVars = resources.filter(
       (r) => r.type === 'vercel:index/projectEnvironmentVariable:ProjectEnvironmentVariable'
     );

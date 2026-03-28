@@ -368,7 +368,7 @@ This is explicitly a surface replacement decision, not required for H1.
 The diagram renderer becomes a TUI widget library that consumes graph
 snapshots/deltas and produces the "how on earth did they do that in a terminal?"
 reaction. See
-[Diagram Rendering for Ratatui](../research/diagram-rendering-for-ratatui.md).
+[Diagram Rendering for Ratatui](../archive/diagram-rendering-for-ratatui.md).
 
 Diagrams remain downstream of the kernel; they are renderers, not analysers.
 

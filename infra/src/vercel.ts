@@ -32,6 +32,12 @@ export const api = new VercelApp('anvil-api', {
     ADMIN_KEY: getSecret('anvil-admin-key'),
     WAITLIST_RESEND_ADMIN_TOKEN: getSecret('waitlist-resend-admin-token'),
     ANVIL_CORS_ORIGINS: 'https://eddacraft.ai,https://*.vercel.app,http://localhost:3000',
+    // BAUTH: audience management + device code flow
+    RESEND_WAITLIST_AUDIENCE_ID: getSecret('resend-waitlist-audience-id'),
+    RESEND_BETA_AUDIENCE_ID: getSecret('resend-beta-audience-id'),
+    ACTIVATE_URL: 'https://eddacraft.ai/auth/activate',
+    WAITLIST_ADMIN_EMAIL: 'josh@eddacraft.ai',
+    CRON_SECRET: getSecret('cron-secret'),
   },
 });
 

@@ -1,0 +1,14 @@
+---
+source: crates/eddacraft-tui/src/shell.rs
+expression: buffer_to_string(&buf)
+---
+A[fg:#CC5500,bold]n[fg:#CC5500,bold]v[fg:#CC5500,bold]i[fg:#CC5500,bold]l[fg:#CC5500,bold] [fg:#85858A]>[fg:#85858A] [fg:#85858A]G[fg:#EBEBEB]a[fg:#EBEBEB]t[fg:#EBEBEB]e[fg:#EBEBEB]                                                
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+                                                            
+j[fg:#85858A]/[fg:#85858A]k[fg:#85858A] [fg:#85858A]n[fg:#85858A]a[fg:#85858A]v[fg:#85858A]i[fg:#85858A]g[fg:#85858A]a[fg:#85858A]t[fg:#85858A]e[fg:#85858A] [fg:#85858A] [fg:#85858A]e[fg:#85858A]n[fg:#85858A]t[fg:#85858A]e[fg:#85858A]r[fg:#85858A] [fg:#85858A]e[fg:#85858A]x[fg:#85858A]p[fg:#85858A]a[fg:#85858A]n[fg:#85858A]d[fg:#85858A] [fg:#85858A]  [[fg:#85858A] [fg:#85858A]■[fg:#85858A] [fg:#85858A]][fg:#85858A] [fg:#85858A]e[fg:#85858A] [fg:#85858A]d[fg:#85858A] [fg:#85858A]d[fg:#85858A] [fg:#85858A]a[fg:#85858A] [fg:#85858A]c[fg:#85858A] [fg:#85858A]r[fg:#85858A] [fg:#85858A]a[fg:#85858A] [fg:#85858A]f[fg:#85858A] [fg:#85858A]t[fg:#85858A] [fg:#85858A] [fg:#85858A]v[fg:#85858A]0[fg:#85858A].[fg:#85858A]1[fg:#85858A].[fg:#85858A]0[fg:#85858A]

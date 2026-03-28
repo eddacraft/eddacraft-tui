@@ -1,12 +1,45 @@
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::Line;
+use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, StatefulWidget, Widget};
 
 use crate::theme::Theme;
 
+#[derive(Debug, Clone)]
+pub struct SelectItem {
+    pub label: String,
+    pub description: Option<String>,
+}
+
+impl From<String> for SelectItem {
+    fn from(label: String) -> Self {
+        Self {
+            label,
+            description: None,
+        }
+    }
+}
+
+impl From<&str> for SelectItem {
+    fn from(label: &str) -> Self {
+        Self {
+            label: label.to_string(),
+            description: None,
+        }
+    }
+}
+
+impl SelectItem {
+    pub fn new(label: impl Into<String>, description: impl Into<String>) -> Self {
+        Self {
+            label: label.into(),
+            description: Some(description.into()),
+        }
+    }
+}
+
 pub struct Select<'a, T: Theme> {
-    items: Vec<String>,
+    items: Vec<SelectItem>,
     theme: &'a T,
     block: Option<Block<'a>>,
 }
@@ -34,9 +67,13 @@ impl SelectState {
 }
 
 impl<'a, T: Theme> Select<'a, T> {
-    pub fn new(items: Vec<String>, theme: &'a T) -> Self {
+    pub fn new<I, S>(items: I, theme: &'a T) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<SelectItem>,
+    {
         Self {
-            items,
+            items: items.into_iter().map(Into::into).collect(),
             theme,
             block: None,
         }
@@ -87,14 +124,39 @@ impl<T: Theme> StatefulWidget for Select<'_, T> {
             let y = inner.y + (i - state.offset) as u16;
             let row_area = Rect::new(inner.x, y, inner.width, 1);
 
-            let style = if i == state.selected {
-                self.theme.highlighted()
+            let prefix = if i == state.selected { "▸ " } else { "  " };
+
+            let has_desc = item.description.as_ref().is_some_and(|d| !d.is_empty());
+
+            let line = if has_desc {
+                let label_style = if i == state.selected {
+                    self.theme.highlighted()
+                } else {
+                    self.theme.base()
+                };
+                let desc_style = label_style.fg(self.theme.muted());
+
+                Line::from(vec![
+                    Span::styled(format!("{prefix}{}", item.label), label_style),
+                    Span::styled(
+                        "  ",
+                        if i == state.selected {
+                            label_style
+                        } else {
+                            self.theme.base()
+                        },
+                    ),
+                    Span::styled(item.description.as_deref().unwrap_or(""), desc_style),
+                ])
             } else {
-                self.theme.base()
+                let style = if i == state.selected {
+                    self.theme.highlighted()
+                } else {
+                    self.theme.base()
+                };
+                Line::styled(format!("{prefix}{}", item.label), style)
             };
 
-            let prefix = if i == state.selected { "▸ " } else { "  " };
-            let line = Line::styled(format!("{prefix}{item}"), style);
             line.render(row_area, buf);
         }
     }
@@ -131,5 +193,26 @@ mod tests {
         assert_eq!(state.selected, 0);
         state.previous(0);
         assert_eq!(state.selected, 0);
+    }
+
+    #[test]
+    fn select_item_from_string() {
+        let item: SelectItem = "hello".to_string().into();
+        assert_eq!(item.label, "hello");
+        assert!(item.description.is_none());
+    }
+
+    #[test]
+    fn select_item_from_str() {
+        let item: SelectItem = "hello".into();
+        assert_eq!(item.label, "hello");
+        assert!(item.description.is_none());
+    }
+
+    #[test]
+    fn select_item_with_description() {
+        let item = SelectItem::new("Run audit", "Scan for issues");
+        assert_eq!(item.label, "Run audit");
+        assert_eq!(item.description, Some("Scan for issues".to_string()));
     }
 }

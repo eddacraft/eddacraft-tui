@@ -15,3 +15,6 @@ pnpm-lock.yaml
 .github/workflows/claude-code-review.yml
 # Semgrep rules use DSL patterns that aren't valid YAML for Prettier
 .semgrep/
+# Claude Code dev tooling — agents, hooks, council sessions, skills
+.claude/
+archive/

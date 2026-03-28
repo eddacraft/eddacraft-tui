@@ -36,17 +36,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-
-      - run: pnpm install
-
       - uses: eddacraft/anvil-action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

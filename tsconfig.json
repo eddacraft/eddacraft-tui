@@ -10,9 +10,6 @@
   ],
   "references": [
     {
-      "path": "./apps/anvil-cli"
-    },
-    {
       "path": "./packages/adapters"
     },
     {
@@ -62,6 +59,12 @@
     },
     {
       "path": "./apps/anvil-api"
+    },
+    {
+      "path": "./packages/transactional"
+    },
+    {
+      "path": "./packages/json-render"
     }
   ]
 }

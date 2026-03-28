@@ -205,5 +205,5 @@ anvil gate plan.md
 ## Related
 
 - [Command Safety Configuration](./command-safety-configuration.md)
-- [Gate Command Reference](../../cli/README.md#anvil-gate-plan)
-- [Quality Gates Overview](../ARCHITECTURE.md#gate-layer)
+- [Gate Command Reference](../architecture/overview.md#check-pipeline)
+- [Quality Gates Overview](../architecture/overview.md#gate-layer)
