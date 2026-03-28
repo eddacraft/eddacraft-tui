@@ -154,7 +154,7 @@ importers:
         specifier: ^2.8.1
         version: 2.8.1
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
       typescript-eslint:
         specifier: ^8.57.2
@@ -194,7 +194,7 @@ importers:
         specifier: ^25.5.0
         version: 25.5.0
       typescript:
-        specifier: ~6.0.0
+        specifier: ^6.0.2
         version: 6.0.2
 
   apps/docs-site:
@@ -228,7 +228,7 @@ importers:
         specifier: 3.9.2
         version: 3.9.2
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
 
   apps/e2e:
@@ -262,7 +262,7 @@ importers:
         specifier: ^25.5.0
         version: 25.5.0
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
       vitest:
         specifier: ^4.1.1
@@ -317,7 +317,7 @@ importers:
         specifier: 1.4.0
         version: 1.4.0
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
 
   infra:
@@ -339,7 +339,7 @@ importers:
         version: 4.6.1(ts-node@10.9.2(@swc/core@1.15.21(@swc/helpers@0.5.19))(@types/node@25.5.0)(typescript@6.0.2))(typescript@6.0.2)
     devDependencies:
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
 
   packages/adapters:
@@ -485,7 +485,7 @@ importers:
         specifier: ^25.5.0
         version: 25.5.0
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
       vitest:
         specifier: ^4.1.1
@@ -510,7 +510,7 @@ importers:
         specifier: ^8.57.2
         version: 8.57.2
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
       vitest:
         specifier: ^4.1.1
@@ -563,7 +563,7 @@ importers:
         specifier: ^25.5.0
         version: 25.5.0
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
       vitest:
         specifier: ^4.1.1
@@ -670,7 +670,7 @@ importers:
         specifier: ^5.2.10
         version: 5.2.10
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
 
   packages/vscode-extension:
@@ -714,7 +714,7 @@ importers:
         specifier: ^4.21.0
         version: 4.21.0
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
 
   tools/generators:
@@ -727,7 +727,7 @@ importers:
         specifier: ^25.5.0
         version: 25.5.0
       typescript:
-        specifier: ~6.0.0
+        specifier: ~6.0.2
         version: 6.0.2
 
 packages:
