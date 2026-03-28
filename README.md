@@ -14,6 +14,24 @@ Current trust/provenance direction includes line-level authorship attribution
 planning (human/AI/mixed/unknown + model metadata + confidence), tracked in APS
 module `LAC` and governed by ADR-014 (TypeScript vs Rust allocation tree).
 
+## Vision
+
+Anvil ensures that AI and humans cannot produce unsafe software.
+
+AI can generate code, infrastructure, and decisions at unprecedented speed.
+Anvil acts as a real-time control layer, intercepting and validating changes as
+they are created.
+
+It prevents:
+
+- Anti-patterns
+- Security risks
+- Policy violations
+
+Before they are ever executed.
+
+Only correct, compliant, and safe outcomes are allowed to proceed.
+
 ## Repository Structure
 
 This is an NX-managed pnpm workspace containing the following apps, packages,
