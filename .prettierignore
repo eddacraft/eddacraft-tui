@@ -17,3 +17,4 @@ pnpm-lock.yaml
 .semgrep/
 # Claude Code dev tooling — agents, hooks, council sessions, skills
 .claude/
+archive/

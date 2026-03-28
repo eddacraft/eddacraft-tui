@@ -28,6 +28,7 @@ export default typescriptEslint.config(
       '**/.docusaurus/',
       '**/build/',
       '.claude/',
+      'archive/',
       'eslint.config.mts',
       '**/*.md',
       '**/next-env.d.ts',
