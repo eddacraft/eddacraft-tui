@@ -36,6 +36,8 @@ How-to guides for developers working on Anvil.
 
 - [CLI Output Streams](cli-output-streams.md) — CLI output and stream handling
 - [Release Runbook](release-runbook.md) — Release process and checklist
+- [Release Doc Checklist](release-doc-checklist.md) — Documentation sync
+  checklist per release
 
 ## Quick Links
 
