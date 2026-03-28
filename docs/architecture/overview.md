@@ -14,7 +14,7 @@ Document
 5. [Hybrid Policy Engine](#hybrid-policy-engine)
 6. [State and Configuration](#state-and-configuration)
 7. [Memory Stack (Edda Stack)](#memory-stack-edda-stack)
-8. [Forge and Temper Pipeline](#forge-and-temper-pipeline)
+8. [Forge Pipeline](#forge-pipeline)
 9. [Technology Stack](#technology-stack)
 10. [Key Architectural Decisions](#key-architectural-decisions)
 
@@ -449,11 +449,10 @@ graph TD
 
 ---
 
-## Forge and Temper Pipeline
+## Forge Pipeline
 
-Autonomous code review pipeline with two complementary phases. (See
-[forge-hook-agent.aps.md](../plans/modules/01-forge-hook-agent.aps.md) through
-[temper-workflow.aps.md](../plans/modules/04-temper-workflow.aps.md))
+Pre-commit code review pipeline. (See
+[forge-hook-agent.aps.md](../plans/modules/01-forge-hook-agent.aps.md))
 
 ### Forge (Pre-commit, Local)
 
@@ -478,28 +477,6 @@ the committing agent.
   auto-deferred.
 - Nits are always auto-deferred without negotiation
   (`CLAUDE_FORGE_AUTO_DEFER_NITS`).
-
-### Temper (Post-push, GitHub Actions)
-
-The `temper.yml` workflow runs after push when the `forge:tempered` label is
-present on the PR. It auto-addresses CI review comments left by reviewers.
-
-- **Cycle 1**: Addresses all fixable findings.
-- **Cycle 2**: Scoped only to lines changed by cycle-1 fixes (prevents infinite
-  loops).
-- **Remaining**: Deferred to GitHub issues.
-
-Manual dispatch via `workflow_dispatch` always works regardless of the
-`CLAUDE_TEMPER_ENABLED` toggle.
-
-### Operating Modes
-
-| Scenario               | Forge | Temper | Behaviour                                       |
-| ---------------------- | ----- | ------ | ----------------------------------------------- |
-| Full autonomous        | on    | on     | Pre-commit review + auto self-healing post-push |
-| Local review only      | on    | off    | Pre-commit review, manual PR handling           |
-| Auto self-healing only | off   | on     | No pre-commit, but PR reviews auto-addressed    |
-| Everything off         | off   | off    | Current manual workflow (unchanged)             |
 
 ### Forge Negotiation Sequence
 
@@ -563,7 +540,7 @@ sequenceDiagram
 | IaC               | Pulumi (TypeScript)     | --       | Vercel, GitHub, Azure DNS management               |
 | Database          | Neon Postgres           | --       | API persistence layer                              |
 | Deployment        | Vercel                  | --       | Website, docs-site, API hosting                    |
-| CI/CD             | GitHub Actions          | --       | Build, test, deploy, Temper workflow               |
+| CI/CD             | GitHub Actions          | --       | Build, test, deploy                                |
 | Memory storage    | SQLite (better-sqlite3) | --       | Kindling operational memory                        |
 
 ---

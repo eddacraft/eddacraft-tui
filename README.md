@@ -312,7 +312,6 @@ The repository has several GitHub Actions workflows:
   review.
 - **claude-address-pr-reviews.yml** — Automated addressing of PR review comments
   via Claude Code.
-- **temper.yml** — Auto-addresses CI review comments post-push (up to 2 cycles).
 - **labeler.yml** — Automatic PR labelling based on changed paths.
 - **infra.yml** — Infrastructure provisioning and validation.
 - **import-state.yml** — Terraform state import utility.
