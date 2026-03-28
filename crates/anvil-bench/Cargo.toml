@@ -1,0 +1,24 @@
+[package]
+name = "anvil-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Stress test harness for anvil-kernel — repo generation, memory measurement, scenario runners"
+
+[dependencies]
+anvil-kernel-types = { path = "../anvil-kernel-types" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+petgraph = { workspace = true }
+tempfile = "3"
+rand = "0.8"
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "stress"
+harness = false
+
+[lints]
+workspace = true

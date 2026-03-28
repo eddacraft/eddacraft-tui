@@ -7,6 +7,7 @@ members = [
   "crates/eddacraft-tui",
   "crates/anvil-tui",
   "crates/anvil-checks",
+  "crates/anvil-bench",
   "crates/anvil-cli",
   "crates/anvil-policy",
   "crates/anvil-architecture",
