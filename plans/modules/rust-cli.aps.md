@@ -1091,6 +1091,28 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ---
 
+### RCLI-046: populate policy gate input with project context
+
+- **Status:** Proposed
+- **Intent:** The policy gate check passes an empty `input = {}` to the OPA
+  evaluator. Any policy that depends on workspace, plan, or file metadata
+  (e.g. `input.workspace`, `input.files`, `input.changed_files`) sees missing
+  fields and silently produces no violations — a false pass. Populate the
+  input object with project context before calling the evaluator: workspace
+  root, list of source files, changed files (from git status), active plan
+  path, and profile name
+- **Expected Outcome:** Policies that reference `input.files` or
+  `input.workspace` evaluate correctly; gate fails when policy constraints
+  are violated
+- **Validation:** Write a test policy that asserts `input.workspace` is set;
+  verify gate fails with empty input and passes with populated input
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Origin:** PR #667 review (codex P1 — populate policy gate input)
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
