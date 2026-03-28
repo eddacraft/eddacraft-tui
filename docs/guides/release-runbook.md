@@ -1,16 +1,17 @@
 # Anvil CLI Release Runbook
 
-Purpose: ship `@eddacraft/anvil-cli` safely and consistently without
-accidentally publishing internal workspace packages.
+Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
 
 ## Release policy (current)
 
-- **Default:** publish **CLI only**.
-- **Beta tags (`v*-beta*`):** forced **CLI only**.
-- **Workspace packages:** publish only via manual workflow dispatch with
-  `publish-workspace=true`.
-
-Workflow source of truth: `.github/workflows/publish.yml`.
+- **Distribution:** pre-built binaries via GitHub Releases on
+  `EddaCraft/anvil-releases` (public).
+- **Install method:** shell installer script
+  (`curl ... | sh`).
+- **Targets:** x86_64 + aarch64 for Linux and macOS.
+- **Workflow source of truth:** `.github/workflows/release.yml` (auto-generated
+  by cargo-dist).
+- **Configuration:** `dist-workspace.toml`.
 
 ---
 
@@ -19,49 +20,37 @@ Workflow source of truth: `.github/workflows/publish.yml`.
 From repo root:
 
 ```bash
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo build --release -p anvil-cli
+./target/release/anvil --help
+./target/release/anvil --version
+```
+
+Verify TS workspace still builds (non-CLI packages):
+
+```bash
 pnpm install --frozen-lockfile
-pnpm run lint:check
-pnpm run typecheck
-pnpm run test -- --run
 pnpm build
-```
-
-Publish dry run (catches missing files, bad metadata):
-
-```bash
-pnpm -F @eddacraft/anvil-cli publish --dry-run --access public --no-git-checks
-```
-
-CLI package smoke checks:
-
-```bash
-# Run from repo root — uses subshell to avoid changing directory
-(
-  cd apps/anvil-cli
-  npm pack --json > /tmp/anvil-pack.json
-  TARBALL=$(node -e "console.log(JSON.parse(require('fs').readFileSync('/tmp/anvil-pack.json','utf8'))[0].filename)")
-  npx -y --package "./$TARBALL" anvil --help
-)
+pnpm nx run-many -t test --skip-nx-cache
 ```
 
 Sanity assertions before release:
 
-- `apps/anvil-cli/package.json` version is correct.
-- No `workspace:*` in published runtime metadata expectations.
+- `crates/anvil-cli/Cargo.toml` version is correct.
 - `CHANGELOG.md` has release notes.
 - `docs/public/anvil/beta-testing-guide.md` version is current.
 - `docs/public/anvil/releases/upgrade-notes.md` has a section for this version.
 
 ---
 
-## 2) Promote dev → main
+## 2) Promote dev to main
 
 All day-to-day work lands on `dev`. Releases are cut from `main` after
 promotion. See `docs/guides/branching-strategy.md` for the full model.
 
 1. Ensure `dev` is green (CI passing, no known blockers).
-2. Open a PR from `dev` → `main`.
-   - This triggers the **release gate** (cross-platform macOS + Windows tests).
+2. Open a PR from `dev` to `main`.
    - Title convention: `release: vX.Y.Z`.
 3. Once the release gate passes, merge the PR.
 
@@ -72,7 +61,7 @@ gh pr create --base main --head dev --title "release: vX.Y.Z" \
 
 ---
 
-## 3) Version, tag + GitHub release
+## 3) Version, tag + GitHub Release
 
 1. Switch to `main` and pull the merge:
 
@@ -80,16 +69,15 @@ gh pr create --base main --head dev --title "release: vX.Y.Z" \
 git switch main && git pull
 ```
 
-2. Bump `apps/anvil-cli/package.json` version.
+2. Bump version in `crates/anvil-cli/Cargo.toml`.
 3. Update `CHANGELOG.md`.
-4. Update `docs/public/anvil/beta-testing-guide.md` — bump "Current version" and
+4. Update `docs/public/anvil/beta-testing-guide.md` -- bump "Current version" and
    add any new feature areas to "What to Test".
-5. Update `docs/public/anvil/releases/upgrade-notes.md` — add a new section for
-   the release version with upgrade instructions and what's new.
+5. Update `docs/public/anvil/releases/upgrade-notes.md` -- add a new section.
 6. Commit and tag:
 
 ```bash
-git add apps/anvil-cli/package.json CHANGELOG.md \
+git add crates/anvil-cli/Cargo.toml CHANGELOG.md \
   docs/public/anvil/beta-testing-guide.md \
   docs/public/anvil/releases/upgrade-notes.md
 git commit -m "chore(release): vX.Y.Z"
@@ -98,14 +86,15 @@ git push origin main
 git push origin vX.Y.Z
 ```
 
-Pushing the tag triggers the publish workflow which also creates a GitHub
-release automatically (pre-release for beta/alpha/rc tags).
+Pushing the tag triggers `release.yml` (cargo-dist) which builds binaries for
+all 4 targets and creates a GitHub Release automatically (pre-release for
+beta/alpha/rc tags).
 
-For beta releases, either format works (both matched by the workflow):
+For beta releases, either format works:
 
 ```bash
-vX.Y.Z-beta      # e.g. v0.1.2-beta
-vX.Y.Z-beta.N    # e.g. v0.1.2-beta.0
+vX.Y.Z-beta      # e.g. v0.3.0-beta
+vX.Y.Z-beta.N    # e.g. v0.3.0-beta.0
 ```
 
 After tagging, merge the version bump back to `dev` via PR:
@@ -118,7 +107,7 @@ gh pr create --base dev --head main \
 
 ---
 
-## 4) Monitor publish workflow
+## 4) Monitor release workflow
 
 Watch run in real time:
 
@@ -135,35 +124,41 @@ gh run view <run-id> --repo EddaCraft/anvil-001 --log-failed
 
 Expected behaviour:
 
-- Validation jobs pass (lint/typecheck/test/build).
-- Publish step includes only `@eddacraft/anvil-cli` unless explicitly running
-  manual workspace publish.
+- `plan` job succeeds and identifies the release.
+- `build-local-artifacts` jobs compile for all 4 targets.
+- `build-global-artifacts` job produces shell installer.
+- `host` job creates the GitHub Release with all artefacts.
+- `announce` job posts release notes.
 
 ---
 
 ## 5) Post-release verification (required)
 
-Verify the specific version landed (replace with your version):
+Install on a clean machine (or container):
 
 ```bash
-npm view @eddacraft/anvil-cli@X.Y.Z version
-npx -y --package @eddacraft/anvil-cli@X.Y.Z anvil --help
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EddaCraft/anvil-releases/releases/latest/download/anvil-cli-installer.sh | sh
+
+anvil --version
+anvil doctor
+anvil auth login
+anvil gate
 ```
 
-Confirm internal packages were **not** published unintentionally:
+Verify all 4 platform binaries are present in the GitHub Release:
 
 ```bash
-for p in \
-  @eddacraft/anvil-core \
-  @eddacraft/anvil-aps \
-  @eddacraft/anvil-policy \
-  @eddacraft/anvil-runtime \
-  @eddacraft/anvil-adapters \
-  @eddacraft/anvil-kindling-integration; do
-  printf "%s: " "$p"
-  npm view --prefer-online "$p" version 2>/dev/null || echo "not found"
-done
+gh release view vX.Y.Z --repo EddaCraft/anvil-releases
 ```
+
+Expected artefacts:
+
+- `anvil-cli-aarch64-apple-darwin.tar.xz`
+- `anvil-cli-x86_64-apple-darwin.tar.xz`
+- `anvil-cli-aarch64-unknown-linux-gnu.tar.xz`
+- `anvil-cli-x86_64-unknown-linux-gnu.tar.xz`
+- `anvil-cli-installer.sh`
 
 ---
 
@@ -178,11 +173,10 @@ done
 export ANVIL_API_URL=https://eddacraft-api.vercel.app
 ```
 
-### If wrong package(s) were published
+### If a binary is broken on one platform
 
-1. Deprecate immediately with warning text.
-2. If within npm window and approved, unpublish (`--force`) intentionally.
-3. Patch workflow/config before next tag.
+1. Check the build log for that target in the release workflow.
+2. Fix and cut a patch release (vX.Y.Z+1).
 
 ### If a bad version needs to be retracted
 
@@ -193,18 +187,26 @@ git tag -d vX.Y.Z
 git push origin :refs/tags/vX.Y.Z
 ```
 
-2. Deprecate or unpublish the npm version (see above).
+2. Delete the GitHub Release:
+
+```bash
+gh release delete vX.Y.Z --repo EddaCraft/anvil-releases --yes
+```
+
 3. Fix the issue, bump to a new version, and re-release.
 
 ---
 
 ## 7) Known gotchas
 
-- **`--provenance` requires `id-token: write`** — The publish workflow uses
-  `--provenance` for npm supply chain attestation. This requires the GitHub
-  Actions `id-token: write` permission (already set in the workflow). If
-  provenance fails, check that the repo/org settings allow OIDC token
-  generation.
+- **cargo-dist PR mode:** PRs only run the `plan` job (no builds). Full builds
+  only fire on version tags. This is configured in `dist-workspace.toml` as
+  `pr-run-mode = "plan"`.
+- **allow-dirty CI:** `dist-workspace.toml` has `allow-dirty = ["ci"]` so manual
+  edits to `release.yml` (e.g. path filters) are preserved across
+  `cargo dist init` re-runs.
+- **Cross-compilation:** aarch64-linux uses cross-compilation in CI. If it
+  fails, check the cross toolchain setup in the workflow.
 
 ---
 
@@ -212,15 +214,14 @@ git push origin :refs/tags/vX.Y.Z
 
 After successful release, send:
 
-- version + npm link
-- one-line install command
-- one-line auth/login command
+- version + install command
+- one-line auth command
 - known temporary workarounds (if any)
 
 Example:
 
 ```text
-Anvil CLI vX.Y.Z is live: https://www.npmjs.com/package/@eddacraft/anvil-cli
-Install: npm i -g @eddacraft/anvil-cli@X.Y.Z
-Login: anvil login --token <token>
+Anvil CLI vX.Y.Z is live.
+Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil-releases/releases/latest/download/anvil-cli-installer.sh | sh
+Login: anvil auth login
 ```
