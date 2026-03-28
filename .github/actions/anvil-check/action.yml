@@ -1,69 +1,66 @@
-name: 'Anvil Check'
-description: 'Run Anvil quality gates on your codebase'
-author: 'Anvil'
+name: "Anvil Check"
+description: "Run Anvil quality gates on your codebase"
+author: "Anvil"
 
 branding:
-  icon: 'shield'
-  color: 'blue'
+  icon: "shield"
+  color: "blue"
 
 inputs:
   node-version:
-    description:
-      'Explicit Node.js version (e.g., 20, 22). If empty, auto-detects from project files.'
+    description: "Explicit Node.js version (e.g., 20, 22). If empty, auto-detects from project files."
     required: false
-    default: ''
+    default: ""
   node-version-file:
-    description:
-      'File to read Node version from. Auto-detects .node-version, .nvmrc, or package.json if empty.'
+    description: "File to read Node version from. Auto-detects .node-version, .nvmrc, or package.json if empty."
     required: false
-    default: ''
+    default: ""
   working-directory:
-    description: 'Directory to run Anvil in (useful for monorepos)'
+    description: "Directory to run Anvil in (useful for monorepos)"
     required: false
-    default: '.'
+    default: "."
   fail-on-warnings:
-    description: 'Fail the check if warnings are found (blocking mode)'
+    description: "Fail the check if warnings are found (blocking mode)"
     required: false
-    default: 'false'
+    default: "false"
   check-type:
     description: 'Type of check to run: "gate" (full gates) or "check" (quick check)'
     required: false
-    default: 'check'
+    default: "check"
   files:
-    description:
-      'Specific files to check (space-separated). If empty, auto-detects changed files in PR.'
+    description: "Specific files to check (space-separated). If empty, auto-detects changed files in PR."
     required: false
-    default: ''
+    default: ""
   auto-detect-files:
-    description: 'Automatically detect changed files in PR/push. Set to false to check all files.'
+    description: "Automatically detect changed files in PR/push. Set to false to check all files."
     required: false
-    default: 'true'
+    default: "true"
   github_token:
     description:
-      'GitHub token for API access. Defaults to the automatic github.token. Use this to provide a
-      custom token with write access (e.g., GH_AUTH_TOKEN).'
+      "GitHub token for API access. Defaults to the automatic github.token. Use this to provide a
+      custom token with write access (e.g., GH_AUTH_TOKEN)."
     required: false
-    default: ''
+    default: ""
 
 outputs:
   warnings-count:
-    description: 'Total number of warnings found'
+    description: "Total number of warnings found"
     value: ${{ steps.anvil.outputs.warnings-count }}
   errors-count:
-    description: 'Total number of errors found'
+    description: "Total number of errors found"
     value: ${{ steps.anvil.outputs.errors-count }}
   result-json:
-    description: 'Full JSON result from Anvil'
+    description: "Full JSON result from Anvil"
     value: ${{ steps.anvil.outputs.result-json }}
   exit-code:
-    description: 'Exit code from Anvil (0=pass, 1=warnings, 2=errors)'
+    description: "Exit code from Anvil (0=pass, 1=warnings, 2=errors)"
     value: ${{ steps.anvil.outputs.exit-code }}
   files-checked:
-    description: 'List of files that were checked'
+    description: "List of files that were checked"
     value: ${{ steps.resolve-files.outputs.files }}
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     # Step 1: Detect Node version file if not explicitly provided
     - name: Detect Node version
@@ -344,8 +341,7 @@ runs:
 
     # Step 9: Create check run with inline annotations
     - name: Create check run with annotations
-      if:
-        always() && steps.anvil.outputs.exit-code != '' && steps.anvil.outputs.warnings-count != '0'
+      if: always() && steps.anvil.outputs.exit-code != '' && steps.anvil.outputs.warnings-count != '0'
       uses: actions/github-script@v7
       with:
         script: |
