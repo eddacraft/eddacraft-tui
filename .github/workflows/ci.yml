@@ -488,6 +488,6 @@ jobs:
       - name: Build CLI
         run: pnpm build
 
-      - name: Run TUI E2E tests (Rust)
-        run: cargo test -p anvil-tui -p anvil-cli --quiet
+      - name: Run Rust tests for TUI and CLI
+        run: cargo test -p anvil-tui -p anvil-cli
         timeout-minutes: 10
