@@ -452,7 +452,7 @@ graph TD
 ## Forge Pipeline
 
 Pre-commit code review pipeline. (See
-[forge-hook-agent.aps.md](../plans/modules/01-forge-hook-agent.aps.md))
+[forge-hook-agent.aps.md](../../plans/archive/modules/01-forge-hook-agent.aps.md))
 
 ### Forge (Pre-commit, Local)
 
