@@ -113,7 +113,7 @@ management. 20 tasks across 7 phases.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
-| [beta-auth-streamline](./modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
+| [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
 
 **Design spec:** `docs/specs/2026-03-15-beta-auth-streamline-design.md`
 
@@ -294,7 +294,7 @@ Active module themes:
 | Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
 | Continuous Improvement | [continuous-improvement](./modules/continuous-improvement.aps.md), [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./modules/code-review-backlog.aps.md) |
 | Rust Engine | [rust-kernel](./modules/rust-kernel.aps.md), [rust-core-engine](./modules/rust-core-engine.aps.md), [ratatui-tui](./modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md), [rust-cli](./modules/rust-cli.aps.md), [kernel-benchmarking](./modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
-| Beta Auth | [beta-auth-streamline](./modules/beta-auth-streamline.aps.md) |
+| Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
 | Infrastructure as Code | [pulumi-iac](./modules/pulumi-iac.aps.md) |
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
