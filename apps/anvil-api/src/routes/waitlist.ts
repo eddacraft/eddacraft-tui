@@ -75,8 +75,10 @@ waitlist.post('/', async (c) => {
       isNewSignup,
       emailSent
     );
-    if (c.executionCtx?.waitUntil) {
+    try {
       c.executionCtx.waitUntil(adminNotification);
+    } catch {
+      void adminNotification;
     }
 
     return c.json({
