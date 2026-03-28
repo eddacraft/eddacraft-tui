@@ -1119,6 +1119,111 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ---
 
+## Phase 10 — Council Review Findings (2026-03-28)
+
+Deferred items from the RCLI-015a/017/019 council review. Criticals and
+majors were fixed in `fix/rcli-council-findings`. Items below are minor
+findings deferred for later.
+
+### RCLI-047: deduplicate ANVIL_DIR constant
+
+- **Status:** Proposed
+- **Intent:** `ANVIL_DIR` is defined independently in both `baseline.rs` and
+  `yaml_parser.rs` within the `anvil-architecture` crate. Extract to a shared
+  constant in `lib.rs` or a `constants` module to prevent divergence
+- **Expected Outcome:** Single `ANVIL_DIR` definition in the crate
+- **Validation:** `cargo check -p anvil-architecture`
+- **Files:** `crates/anvil-architecture/src/lib.rs`,
+  `crates/anvil-architecture/src/baseline.rs`,
+  `crates/anvil-architecture/src/yaml_parser.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review 2026-03-28 (m1)
+
+---
+
+### RCLI-048: atomic writes for exceptions and baseline files
+
+- **Status:** Proposed
+- **Intent:** `ExceptionStore::save`, `save_baseline`, and
+  `write_architecture_yaml` all use `std::fs::write` directly. A crash
+  mid-write corrupts the file. Apply the same write-temp-then-rename
+  pattern used in `credentials.rs`
+- **Expected Outcome:** No file corruption on interrupted writes
+- **Validation:** Existing save/load round-trip tests pass unchanged
+- **Files:** `crates/anvil-policy/src/exceptions.rs`,
+  `crates/anvil-architecture/src/baseline.rs`,
+  `crates/anvil-architecture/src/yaml_parser.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Origin:** Council review 2026-03-28 (m2)
+
+---
+
+### RCLI-049: exclude target/ from architecture file scan
+
+- **Status:** Proposed
+- **Intent:** `collect_source_files` in `validator.rs` walks the entire
+  workspace tree including `target/` and `node_modules/`. Add built-in
+  exclude patterns for common build output directories
+- **Expected Outcome:** Architecture validation is fast on Cargo/Node repos
+- **Validation:** `validate()` on this monorepo completes in < 1s
+- **Files:** `crates/anvil-architecture/src/validator.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Origin:** Council review 2026-03-28 (m4)
+
+---
+
+### RCLI-050: wire definition.rules into validator
+
+- **Status:** Proposed
+- **Intent:** `validate()` ignores `definition.rules` — user-authored
+  explicit allow/deny rules from `architecture.yaml` have zero effect.
+  Merge them with the auto-generated boundaries from layer `depends_on`
+- **Expected Outcome:** Explicit rules in `architecture.yaml` are respected
+  during validation
+- **Validation:** Test with a custom rule that overrides a default boundary
+- **Files:** `crates/anvil-architecture/src/validator.rs`
+- **Confidence:** medium
+- **Priority:** Medium
+- **Origin:** Council review 2026-03-28 (M2)
+- **Dependencies:** RCLI-013a (boundary checking must be active)
+
+---
+
+### RCLI-051: deterministic baseline violation ordering
+
+- **Status:** Proposed
+- **Intent:** `merge_violations` returns violations from HashMap iteration
+  which is non-deterministic. Sort violations before serialising the baseline
+  to produce stable git diffs
+- **Expected Outcome:** Baseline JSON has consistent ordering across runs
+- **Validation:** Two successive `save_baseline` calls produce identical files
+- **Files:** `crates/anvil-architecture/src/baseline.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review 2026-03-28 (nit)
+
+---
+
+### RCLI-052: macOS credential path compatibility
+
+- **Status:** Proposed
+- **Intent:** `dirs::config_dir()` returns `~/Library/Application Support` on
+  macOS, not `~/.config`. Existing macOS beta users with credentials at
+  `~/.config/anvil/credentials.json` will not be found by the fallback chain.
+  Add `~/.config/anvil/credentials.json` as a legacy path on macOS only
+- **Expected Outcome:** macOS users who authenticated before the `dirs` switch
+  are not logged out
+- **Validation:** Test on macOS with credentials at `~/.config/anvil/`
+- **Files:** `crates/anvil-cli/src/auth/credentials.rs`
+- **Confidence:** high
+- **Priority:** High
+- **Origin:** Council review 2026-03-28 (m3)
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |

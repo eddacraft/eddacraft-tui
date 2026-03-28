@@ -15,7 +15,8 @@ pub fn builtin_policies() -> Vec<PolicyEntry> {
             name: "CommonJS require in TypeScript".into(),
             category: "lint".into(),
             enabled: true,
-            description: "Detects require() calls in TypeScript files where ESM imports are preferred".into(),
+            description:
+                "Detects require() calls in TypeScript files where ESM imports are preferred".into(),
             severity: "warning".into(),
         },
         PolicyEntry {
@@ -39,7 +40,8 @@ pub fn builtin_policies() -> Vec<PolicyEntry> {
             name: "TODO/FIXME in production".into(),
             category: "quality".into(),
             enabled: true,
-            description: "Detects TODO and FIXME comments that should be resolved before release".into(),
+            description: "Detects TODO and FIXME comments that should be resolved before release"
+                .into(),
             severity: "info".into(),
         },
         PolicyEntry {
@@ -63,7 +65,8 @@ pub fn builtin_policies() -> Vec<PolicyEntry> {
             name: "Hardcoded secrets".into(),
             category: "security".into(),
             enabled: true,
-            description: "Detects potential hardcoded secrets, API keys, and tokens in source code".into(),
+            description: "Detects potential hardcoded secrets, API keys, and tokens in source code"
+                .into(),
             severity: "error".into(),
         },
         PolicyEntry {
@@ -79,7 +82,8 @@ pub fn builtin_policies() -> Vec<PolicyEntry> {
             name: "Missing error handling in async".into(),
             category: "error-handling".into(),
             enabled: true,
-            description: "Detects async functions and promises without proper error handling".into(),
+            description: "Detects async functions and promises without proper error handling"
+                .into(),
             severity: "warning".into(),
         },
     ]

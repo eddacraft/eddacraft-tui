@@ -34,6 +34,10 @@ pub struct ValidationResult {
     pub violations: Vec<BoundaryViolation>,
     /// Validation statistics.
     pub stats: ValidationStats,
+    /// Whether boundary checking was active during this run.
+    /// When `false`, `violations` will always be empty and `valid` always `true`
+    /// regardless of the actual dependency structure (RCLI-013a).
+    pub boundary_checking_active: bool,
 }
 
 /// Errors during validation.
@@ -80,6 +84,7 @@ pub fn validate(
             orphan_count,
             violation_count,
         },
+        boundary_checking_active: boundary_checking_active(),
     })
 }
 
@@ -127,18 +132,23 @@ fn matches_layer(file: &str, layer: &Layer) -> Option<String> {
 
 /// Check for boundary violations among assigned files.
 ///
-/// This is a simplified check: it looks for files that are assigned to
-/// layers with forbidden dependencies. Full import-graph analysis is
-/// deferred to a later phase; this checks that no file's assigned layer
-/// would inherently violate boundaries given the layer structure.
+/// **STUB (RCLI-013a):** Full import-edge extraction requires AST parsing
+/// which is deferred to the kernel integration phase. This always returns
+/// an empty list. The `validate()` caller emits a warning so users are
+/// not misled by a clean result.
 fn check_boundaries(
     _assignments: &[LayerAssignment],
     _boundaries: &[Boundary],
 ) -> Vec<BoundaryViolation> {
-    // Full import-edge extraction requires AST parsing (deferred to kernel).
-    // For now, return an empty list — the validator confirms layer assignment
-    // and boundary rules are structurally sound.
     Vec::new()
+}
+
+/// Whether boundary checking is currently active.
+///
+/// Returns `false` until the kernel AST parser is integrated (RCLI-013a).
+#[must_use]
+pub const fn boundary_checking_active() -> bool {
+    false
 }
 
 /// Collect source files from the workspace, respecting exclude patterns.
@@ -163,7 +173,10 @@ fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefiniti
             let name = e.file_name().to_string_lossy();
             // Skip hidden dirs and node_modules at the entry level for performance.
             if e.file_type().is_dir() {
-                return name != "node_modules" && name != ".git" && name != "dist" && name != "build";
+                return name != "node_modules"
+                    && name != ".git"
+                    && name != "dist"
+                    && name != "build";
             }
             true
         });
@@ -203,16 +216,22 @@ mod tests {
 
     fn sample_layers() -> Layers {
         let mut layers = HashMap::new();
-        layers.insert("core".into(), Layer {
-            patterns: vec!["src/core/**".into()],
-            depends_on: vec![],
-            description: None,
-        });
-        layers.insert("app".into(), Layer {
-            patterns: vec!["src/app/**".into()],
-            depends_on: vec!["core".into()],
-            description: None,
-        });
+        layers.insert(
+            "core".into(),
+            Layer {
+                patterns: vec!["src/core/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers.insert(
+            "app".into(),
+            Layer {
+                patterns: vec!["src/app/**".into()],
+                depends_on: vec!["core".into()],
+                description: None,
+            },
+        );
         layers
     }
 
@@ -267,11 +286,14 @@ mod tests {
         std::fs::write(src_dir.join("entity.ts"), "export class Foo {}").unwrap();
 
         let mut layers = HashMap::new();
-        layers.insert("core".into(), Layer {
-            patterns: vec!["src/core/**".into()],
-            depends_on: vec![],
-            description: None,
-        });
+        layers.insert(
+            "core".into(),
+            Layer {
+                patterns: vec!["src/core/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
 
         let def = crate::definition::ArchitectureDefinition {
             schema_version: "0.1.0".into(),
