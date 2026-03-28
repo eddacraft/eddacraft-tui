@@ -723,6 +723,7 @@ rules:
 
 ## Next Steps
 
-- [OPA Enhancement Vision](../archive/planning/opa-enhancement-vision.md) — Full roadmap
+- [OPA Enhancement Vision](../archive/planning/opa-enhancement-vision.md) — Full
+  roadmap
 - Policy Library — Pre-built policies (planned)
 - Natural Language Policies — Coming soon

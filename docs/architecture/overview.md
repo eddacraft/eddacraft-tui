@@ -452,7 +452,8 @@ graph TD
 ## Forge and Temper Pipeline
 
 Autonomous code review pipeline with two complementary phases. (See
-[forge-hook-agent.aps.md](../plans/archive/modules/01-forge-hook-agent.aps.md) through
+[forge-hook-agent.aps.md](../plans/archive/modules/01-forge-hook-agent.aps.md)
+through
 [temper-workflow.aps.md](../plans/archive/modules/04-temper-workflow.aps.md))
 
 ### Forge (Pre-commit, Local)
