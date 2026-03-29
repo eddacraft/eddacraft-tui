@@ -97,34 +97,28 @@ fn detect_husky(workspace_root: &Path) -> (bool, Option<PathBuf>) {
     // Check for husky in package.json devDependencies rather than just
     // testing for package.json existence, which would false-positive on
     // any Node project.
-    let has_husky_dep = workspace_root
-        .join("package.json")
-        .exists()
-        .then(|| {
-            std::fs::read_to_string(workspace_root.join("package.json"))
-                .ok()
-                .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
-                .and_then(|pkg| {
-                    let in_dev = pkg
-                        .get("devDependencies")
-                        .and_then(|d| d.get("husky"))
-                        .is_some();
-                    let in_deps = pkg
-                        .get("dependencies")
-                        .and_then(|d| d.get("husky"))
-                        .is_some();
-                    Some(in_dev || in_deps)
-                })
-                .unwrap_or(false)
-        })
-        .unwrap_or(false);
+    let has_husky_dep = if workspace_root.join("package.json").exists() {
+        std::fs::read_to_string(workspace_root.join("package.json"))
+            .ok()
+            .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+            .is_some_and(|pkg| {
+                let in_dev = pkg
+                    .get("devDependencies")
+                    .and_then(|d| d.get("husky"))
+                    .is_some();
+                let in_deps = pkg
+                    .get("dependencies")
+                    .and_then(|d| d.get("husky"))
+                    .is_some();
+                in_dev || in_deps
+            })
+    } else {
+        false
+    };
 
     let detected = has_husky_dir || has_husky_dep;
 
-    (
-        detected,
-        if detected { Some(husky_dir) } else { None },
-    )
+    (detected, if detected { Some(husky_dir) } else { None })
 }
 
 fn is_anvil_managed(path: &Path) -> bool {
@@ -235,6 +229,7 @@ fn find_repo_root() -> Result<PathBuf> {
     ))
 }
 
+#[allow(clippy::too_many_lines)]
 pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = find_repo_root()?;
     let git_dir = resolve_git_dir(&workspace_root)?;
@@ -253,8 +248,7 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
             } else {
                 let (_detected, husky_dir_opt) = detect_husky(&workspace_root);
                 if let Some(dir) = husky_dir_opt {
-                    std::fs::create_dir_all(&dir)
-                        .context("creating detected .husky directory")?;
+                    std::fs::create_dir_all(&dir).context("creating detected .husky directory")?;
                     eprintln!("Husky detected -- installing hooks in .husky directory");
                     dir
                 } else {
@@ -425,12 +419,8 @@ mod tests {
 
     #[test]
     fn args_rejects_conflicting_uninstall_flags() {
-        let result = Wrapper::try_parse_from([
-            "test",
-            "uninstall",
-            "--pre-commit-only",
-            "--pre-push-only",
-        ]);
+        let result =
+            Wrapper::try_parse_from(["test", "uninstall", "--pre-commit-only", "--pre-push-only"]);
         assert!(result.is_err());
     }
 
