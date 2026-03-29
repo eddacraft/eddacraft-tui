@@ -2,9 +2,7 @@ name: CodeQL
 
 on:
   push:
-    branches:
-      - main
-      - dev
+    branches: [main, dev]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -12,9 +10,7 @@ on:
       - '.claude/**'
       - 'LICENSE'
   pull_request:
-    branches:
-      - main
-      - dev
+    branches: [main, dev]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -22,11 +18,11 @@ on:
       - '.claude/**'
       - 'LICENSE'
   schedule:
-    # Weekly scan: Monday 06:30 UTC (offset from scorecard at 06:00)
+    # Weekly full scan: Monday 06:30 UTC (offset from scorecard at 06:00)
     - cron: '30 6 * * 1'
 
 concurrency:
-  group: codeql-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: codeql-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -34,31 +30,86 @@ permissions:
   security-events: write
 
 jobs:
-  analyze:
-    name: Analyze (${{ matrix.language }})
+  # ── Change detection (skipped on schedule → all languages run) ───
+  detect-changes:
+    name: Detect Changes
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        language:
-          - actions
-          - javascript-typescript
-          - rust
-
+    if: github.event_name != 'schedule'
+    outputs:
+      source-changed: ${{ steps.changes.outputs.source-changed }}
+      rust-changed: ${{ steps.changes.outputs.rust-changed }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+      - uses: actions/checkout@v4
         with:
-          languages: ${{ matrix.language }}
+          fetch-depth: 0
+      - id: changes
+        uses: ./.github/actions/detect-changes
+
+  # ── JavaScript / TypeScript ──────────────────────────────────────
+  analyze-js:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    # Run when: schedule (detect-changes skipped) OR TS/JS source changed
+    if: |
+      always() &&
+      (needs.detect-changes.result == 'skipped' ||
+       needs.detect-changes.outputs.source-changed == 'true')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
           queries: +security-and-quality
 
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/autobuild@v3
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v3
         with:
-          category: '/language:${{ matrix.language }}'
+          category: '/language:javascript-typescript'
+
+  # ── Rust ─────────────────────────────────────────────────────────
+  analyze-rust:
+    name: Analyze (rust)
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    # Run when: schedule (detect-changes skipped) OR Rust source changed
+    if: |
+      always() &&
+      (needs.detect-changes.result == 'skipped' ||
+       needs.detect-changes.outputs.rust-changed == 'true')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: rust
+          queries: +security-and-quality
+
+      # Explicit build instead of autobuild for control and caching
+      - name: Build Rust workspace
+        run: cargo build --workspace
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:rust'
+
+  # ── GitHub Actions (schedule only — low-value per-PR) ────────────
+  analyze-actions:
+    name: Analyze (actions)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: actions
+          queries: +security-and-quality
+
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:actions'
