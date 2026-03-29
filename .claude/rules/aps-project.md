@@ -8,13 +8,12 @@
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
 - CRB: code-review-backlog (29/29) — Complete
-- MAINT: codebase-maintenance (9/10) — In Progress
+- MAINT: codebase-maintenance (9/11) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
-- RCLI: rust-cli (20/57) — In Progress (Phase 9 council + PR review findings
-  added 2026-03-27; APS statuses need reconciliation with git history)
+- RCLI: rust-cli (32/62) — In Progress
 - TUTOR: interactive-tutorial (0/13) — Draft
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
@@ -43,6 +42,7 @@
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
+- IAC: pulumi-iac (12/20) — In Progress
 - AGOV: agent-governance-patterns (0/7) — Draft
 - BENCH: kernel-benchmarking (6/16) — In Progress
 - TUIDASH: tui-dashboard-render (0/12) — Draft

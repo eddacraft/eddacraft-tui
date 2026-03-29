@@ -9,9 +9,9 @@ Scopes: RCLI (main)
 
 # Rust CLI
 
-| ID   | Owner | Status     |
-| ---- | ----- | ---------- |
-| RCLI | —     | In Progress |
+| ID   | Owner | Status      | Progress |
+| ---- | ----- | ----------- | -------- |
+| RCLI | —     | In Progress | 32/62    |
 
 ## Purpose
 
@@ -95,7 +95,7 @@ Change status to **Ready** when:
 
 ### RCLI-001: Scaffold crates
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Create `crates/anvil-cli/`, `crates/anvil-policy/`,
   `crates/anvil-architecture/` with Cargo.toml, workspace registration, and
   stub `lib.rs`/`main.rs` files
@@ -112,7 +112,7 @@ Change status to **Ready** when:
 
 ### RCLI-002: Surface trait
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Define the `Surface` trait in `crates/anvil-tui/src/surface.rs`
   and implement it on all 10 existing surface states. The trait formalises
   `surface_name`, `help_text`, `handle_key`, `should_quit`, and `render`
@@ -130,7 +130,7 @@ Change status to **Ready** when:
 
 ### RCLI-003: TUI runners
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Implement `run_surface()` and `run_watch()` in
   `crates/anvil-cli/src/tui.rs`. Extracted from the demo binary event loop.
   Includes crossterm setup/teardown, shell chrome rendering, and keyboard
@@ -149,7 +149,7 @@ Change status to **Ready** when:
 
 ### RCLI-004: clap entry point and global args
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Implement `main.rs` with clap derive API, `Commands` enum,
   `GlobalArgs` struct (`--json`, `--no-tui`, `--verbose`), exit code constants,
   and dispatch skeleton
@@ -170,7 +170,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-005: tutorial command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil tutorial [--reset]`. Manages progress file at
   `~/.anvil/tutorial-progress.json`. Launches Tutorial surface via
   `run_surface`
@@ -187,7 +187,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-006: status command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil status`. Gathers hook status, profile info, recent
   gate runs from `.anvil/` directory. Supports TUI, plain, and JSON output
 - **Expected Outcome:** `anvil status` shows project health in all three modes
@@ -201,7 +201,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-007: doctor command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil doctor [--fix]`. Runs diagnostic checks (Node.js
   version, Rust toolchain, config file, hooks, etc.). Supports auto-fix for
   fixable issues
@@ -217,7 +217,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-008: welcome command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil start`. First-run quick-start menu. Launches Welcome
   surface
 - **Expected Outcome:** `anvil start` shows welcome screen with menu options
@@ -231,7 +231,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-009: audit command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil audit`. Runs repo scanner, displays results. Supports
   TUI, plain, and JSON output
 - **Expected Outcome:** `anvil audit` scans repository and presents findings
@@ -246,7 +246,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-010: init command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil init`. Multi-step wizard for project initialisation.
   Includes mode selection, format, directory, checks, and summary. Supports
   post-init analysis
@@ -263,7 +263,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-011: wizard command
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port APS onboarding wizard. Template selection, project name,
   configuration toggles, scaffold generation
 - **Expected Outcome:** `anvil wizard` walks through APS project setup
@@ -277,7 +277,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-012: new command (template browser)
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil new`. Template catalogue browser with category
   navigation, search, and variable input
 - **Expected Outcome:** `anvil new` shows browsable template catalogue
@@ -336,7 +336,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-015: auth commands
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Port `anvil auth login`, `anvil auth logout`, `anvil auth whoami`.
   Device code flow and OTP flow via reqwest + rustls-tls. Credentials stored at
   `$XDG_CONFIG_HOME/anvil/credentials.json`
@@ -377,7 +377,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-017: anvil-policy crate
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port policy domain logic from Node.js services into
   `crates/anvil-policy/`. Covers config loading, starter profiles, built-in
   catalogue, evaluation engine, bundle management, exceptions
@@ -393,7 +393,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-018: policy commands
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil policy` subcommands: list, explain, diff, validate,
   test. Uses `anvil-policy` crate for domain logic
 - **Expected Outcome:** All policy subcommands work with same output as Node.js
@@ -407,7 +407,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-019: anvil-architecture crate
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port architecture domain logic from Node.js services into
   `crates/anvil-architecture/`. Covers definition schema, module boundaries,
   import rules, file rules, validation, config diagnostics
@@ -422,7 +422,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-020: architecture commands
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Port `anvil architecture validate` and
   `anvil architecture watch`. Uses `anvil-architecture` crate
 - **Expected Outcome:** Architecture validation works with same output
@@ -462,7 +462,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-022: output formatters
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Implement `output::plain` and `output::json` modules. Plain text
   uses indented lists and tables. JSON serialises the same structures surfaces
   consume
@@ -479,7 +479,7 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-023: migration cleanup and archival
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Remove `TuiBackend::Ink`, `migration.rs`, and `app.rs` from
   `anvil-tui`. Archive `apps/anvil-cli/` to `archive/anvil-cli-node/` and
   `apps/anvil-cli/src/tui/` to `archive/anvil-tui-ink/`. Tag repo
@@ -520,7 +520,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-013a: wire remaining gate checks
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Implement the 4 stubbed gate checks: coverage (invoke coverage
   tool, parse lcov/cobertura), dependency (scan lockfiles for known
   vulnerabilities or outdated deps), architecture (call into
@@ -561,7 +561,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-015a: auth credential path migration
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Add fallback credential loading from Node.js CLI paths:
   `~/.anvil/auth.json`, `~/.anvil/license`, and `ANVIL_LICENSE` env var.
   Credential loader should check XDG path first, then fall back to legacy
@@ -581,7 +581,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-015b: pre-action auth enforcement
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Add pre-action middleware in `main.rs` that checks for valid
   credentials before dispatching commands that require auth (gate, watch,
   status, admin, export). Returns `EXIT_AUTH_REQUIRED = 3` when credentials
@@ -601,7 +601,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-020a: uncomment architecture commands in main.rs
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Uncomment the `Architecture` variant in the `Commands` enum in
   `main.rs` and wire it to the dispatch match. The architecture command module
   (`commands/architecture.rs`) exists but is not registered. Depends on the
@@ -620,7 +620,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-018a: uncomment policy commands in main.rs
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Uncomment the `Policy` variant in the `Commands` enum in
   `main.rs` and wire it to the dispatch match. The policy command module
   (`commands/policy.rs`) exists but is not registered. Depends on the
@@ -639,7 +639,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-015c: top-level login/logout/whoami aliases
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Add `anvil login`, `anvil logout`, and `anvil whoami` as
   top-level command aliases that delegate to `anvil auth login/logout/whoami`.
   The Node.js CLI exposes these as top-level commands for convenience
@@ -735,7 +735,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-026: Esc/back navigation from all surfaces
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Add `Esc` key handling to all TUI surfaces so it navigates back
   to the previous screen (welcome menu) or exits if already at the top level.
   Currently only `q` exits and there is no way to return to the welcome menu
@@ -758,7 +758,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-027: audit list viewport scrolling and item expansion
 
-- **Status:** Proposed
+- **Status:** In Progress
 - **Intent:** Fix two issues with the audit surface list: (1) The selection
   index scrolls past the visible area — items move off-screen while the
   viewport stays fixed. Add viewport offset tracking so the list scrolls to
@@ -817,7 +817,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-030: welcome menu parity with Ink CLI
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Audit the Ink CLI welcome screen (`apps/anvil-cli/src/tui/`)
   for menu options not present in the Rust welcome screen. Add missing
   options to reach feature parity. Known missing items need to be enumerated
@@ -835,7 +835,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-031: watch flicker reduction
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** The watch TUI flickers when many file events arrive rapidly.
   Add a dirty flag to `WatchState` so the render loop only redraws when
   state has actually changed, rather than every 50ms poll cycle
@@ -853,7 +853,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-032: watch coverage file filter leak
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Files under `coverage/` directories (e.g.
   `apps/anvil-api/coverage/block-navigation.js`) are appearing in the watch
   event stream despite `coverage` being in the default ignore patterns.
@@ -873,7 +873,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-033: watch event adapter unbounded queue/history growth
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `WatchData.queue` and `WatchData.history` grow without bound.
   Under sustained file churn a long-running watch session accumulates entries
   indefinitely, causing allocation pressure and render lag. Add a max-depth
@@ -892,7 +892,7 @@ that make the Rust TUI feel unfinished compared to the Ink CLI.
 
 ### RCLI-034: watch event adapter progress/snapshot double-counting
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `handle_snapshot` and `handle_progress` (on completion) both
   record a `RunHistory` entry and increment `total_runs` for the same gate
   cycle. A single run is counted twice. Deduplicate so each gate cycle
@@ -1245,10 +1245,12 @@ findings deferred for later.
 | ----- | ----- | ------ |
 | 1 — Foundation | 4 | Complete |
 | 2 — Static Surface Commands | 8 | Complete |
-| 3 — Kernel-Integrated Commands | 2 | In Progress (rework) |
-| 4 — Auth & API | 2 | In Progress (rework) |
-| 5 — Policy & Architecture | 4 | Complete (modules exist, not wired — see Phase 7) |
-| 6 — Utilities & Cutover | 4 | In Progress |
-| 7 — Parity Rework | 11 | Proposed |
-| 8 — TUI UX Polish | 12 | In Progress (2 complete) |
-| **Total** | **47** | — |
+| 3 — Kernel-Integrated Commands | 2 | In Progress (rework items remain) |
+| 4 — Auth & API | 2 | 1 Complete (RCLI-015), 1 Proposed (RCLI-016) |
+| 5 — Policy & Architecture | 4 | Complete |
+| 6 — Utilities & Cutover | 4 | 2 Complete, 2 In Progress (RCLI-021, RCLI-024) |
+| 7 — Parity Rework | 11 | 7 Complete, 1 In Progress, 3 Proposed |
+| 8 — TUI UX Polish | 12 | 7 Complete, 1 In Progress, 4 Proposed |
+| 9 — Council Review | 8 | Proposed |
+| 10 — Council Review | 6 | Proposed |
+| **Total** | **62** | **32 Complete, 5 In Progress, 25 Proposed** |

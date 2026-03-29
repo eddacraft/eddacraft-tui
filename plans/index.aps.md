@@ -63,11 +63,11 @@ Codebase cleanup, .anvil file format, and BMAD v4 compatibility.
 
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred, 1 in progress) |
 | [anvil-file-format](./modules/anvil-file-format.aps.md) | ANVFMT | In Progress | patterns done, compiler pending |
 | [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) | BMAD4 | Proposed | 0/8 |
 
-**Design doc (Forge & Temper):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
+**Design doc (Forge & Temper — archived):** [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
 
 ### Continuous Improvement (Draft)
 
@@ -78,7 +78,7 @@ backlog (complete) as tracked sub-modules.
 | Module | Scope | Status | Progress |
 | ------ | ----- | ------ | -------- |
 | [continuous-improvement](./modules/continuous-improvement.aps.md) | CI | Draft | 0/10 |
-| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred) |
+| [codebase-maintenance](./modules/codebase-maintenance.aps.md) | MAINT | In Progress | 9/11 (1 deferred, 1 in progress) |
 | [code-review-backlog](./archive/modules/code-review-backlog.aps.md) | CRB | Complete | 29/29 |
 
 ### Rust Engine (In Progress)
@@ -91,9 +91,9 @@ TUIDASH adds a Rust-native json-render spec interpreter for Ratatui dashboard re
 | ------ | ----- | ------ | -------- | ------------ |
 | [rust-kernel](./modules/rust-kernel.aps.md) | KERN | In Progress | 22/25 | — |
 | [rust-core-engine](./modules/rust-core-engine.aps.md) | RENG | In Progress | 4/6 | KERN Phase 1, KERN Phase 2 |
-| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Done | 7/7 | KERN Phase 3 |
-| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Done | 15/15 | RATS-001 (complete) |
-| [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 20/47 | KERN, RATS, PORT |
+| [ratatui-tui](./modules/ratatui-tui.aps.md) | RATS | Complete | 7/7 | KERN Phase 3 |
+| [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md) | PORT | Complete | 15/15 | RATS-001 (complete) |
+| [rust-cli](./modules/rust-cli.aps.md) | RCLI | In Progress | 32/62 | KERN, RATS, PORT |
 | [kernel-benchmarking](./modules/kernel-benchmarking.aps.md) | BENCH | In Progress | 6/16 | KERN Phases 1-2 |
 | [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) | TUIDASH | Draft | 0/12 | RATS (complete), DASHAI (draft) |
 | [interactive-tutorial](./modules/interactive-tutorial.aps.md) | TUTOR | Draft | 0/13 | RCLI, KERN, RATS |
@@ -292,7 +292,7 @@ Active module themes:
 | Theme | Module File |
 | ----- | ----------- |
 | Hardening & Maintenance | [codebase-maintenance](./modules/codebase-maintenance.aps.md), [anvil-file-format](./modules/anvil-file-format.aps.md), [bmad-v4-backward-compat](./modules/bmad-v4-backward-compat.aps.md) |
-| Continuous Improvement | [continuous-improvement](./modules/continuous-improvement.aps.md), [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./modules/code-review-backlog.aps.md) |
+| Continuous Improvement | [continuous-improvement](./modules/continuous-improvement.aps.md), [codebase-maintenance](./modules/codebase-maintenance.aps.md), [code-review-backlog](./archive/modules/code-review-backlog.aps.md) |
 | Rust Engine | [rust-kernel](./modules/rust-kernel.aps.md), [rust-core-engine](./modules/rust-core-engine.aps.md), [ratatui-tui](./modules/ratatui-tui.aps.md), [ink-to-ratatui-port](./modules/ink-to-ratatui-port.aps.md), [rust-cli](./modules/rust-cli.aps.md), [kernel-benchmarking](./modules/kernel-benchmarking.aps.md), [tui-dashboard-render](./modules/tui-dashboard-render.aps.md) |
 | Beta Auth | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) |
 | Observability | [observability-foundation](./modules/observability-foundation.aps.md) |
@@ -581,7 +581,7 @@ See [brainstorm](./brainstorms/dashboard-web-ui.md) and
 | IAC-003 | iac    | Manage website Vercel project config     | Complete | high     |
 | IAC-004 | iac    | Manage docs-site Vercel project config   | Complete | high     |
 | IAC-005 | iac    | Create VercelApp ComponentResource       | Complete | medium   |
-| IAC-006 | iac    | Manage GitHub repository configuration   | Deferred | high     |
+| IAC-006 | iac    | Manage GitHub repository configuration   | Complete | high     |
 | IAC-007 | iac    | Manage Azure DNS zones and records       | Complete | high     |
 | IAC-008 | iac    | Add Pulumi CI/CD pipeline integration    | Complete | high     |
 | IAC-009 | iac    | Write unit tests for infrastructure code | Complete | medium   |
@@ -649,8 +649,9 @@ new tasks are added as repeated patterns are found during other work.
 | MAINT-006 | maint  | Nx generator for CLI commands                       | Complete | Low      |
 | MAINT-007 | maint  | Nx generator for gate checks                        | Complete | Low      |
 | MAINT-008 | maint  | Spinner/progress patterns                           | Complete | Low      |
-| MAINT-009 | maint  | Edda list filters parity with release claims        | Ready    | Medium   |
+| MAINT-009 | maint  | Edda list filters parity with release claims        | Complete | Medium   |
 | MAINT-010 | maint  | Authenticated release smoke harness                 | Deferred | Medium   |
+| MAINT-011 | maint  | Migrate to TypeScript 6.0                           | In Progress | Medium |
 
 ### Task Status — Hardening & Maintenance (Nx Task Migration)
 
@@ -666,7 +667,15 @@ Nx-orchestrated per-project targets.
 | NXTASK-005  | nxtask | Migrate root test script to nx run-many               | Ready  | medium   |
 | NXTASK-006  | nxtask | Update CI to use nx affected                          | Ready  | high     |
 
-### Task Status — Hardening & Maintenance (Forge & Temper)
+### Task Status — Hardening & Maintenance (Forge & Temper) — ARCHIVED
+
+<!-- Archived 2026-03-29: Temper workflow removed (temper.yml deleted), Forge hook
+     replaced by Council review system. Infrastructure (forge-reviewer agent,
+     /forge command) still exists but is not wired into hooks. Kept here for
+     reference — may be revisited. -->
+
+<details>
+<summary>Forge & Temper tasks (archived — click to expand)</summary>
 
 Pre-commit review (Forge) and post-push self-healing (Temper) pipeline.
 Design doc: [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plans/2026-02-24-forge-temper-review-pipeline.md)
@@ -723,6 +732,8 @@ Design doc: [docs/plans/2026-02-24-forge-temper-review-pipeline.md](../docs/plan
 | FTCFG-005 | ftcfg  | Document pipeline overview in CLAUDE.md   | Complete    | high     |
 | FTCFG-006 | ftcfg  | Verify toggle combinations                | Ready       | medium   |
 
+</details>
+
 ### Task Status — Multi-Language (Draft)
 
 Tasks will be defined when each module moves from Draft to Ready status.
@@ -742,10 +753,10 @@ Tasks will be defined when each module moves from Draft to Ready status.
 | Developers bypass with `--skip` | medium | medium     | Track skip usage; surface in drift reports               |
 | Legacy drift overwhelms users   | medium | high       | Baseline existing violations; focus warnings on new code |
 | Over-claiming blast radius      | medium | medium     | Careful language; surface confidence levels              |
-| Forge loops slow down commits   | high   | medium     | Hard 3-round cap; auto-defer nits; toggle to disable     |
-| Temper creates bad fixes        | high   | low        | 2-cycle cap; scoped re-review; deferred to issues        |
-| Deferred findings pile up       | medium | medium     | Deduplication; category labels; severity-based triage    |
-| Bot review wars in CI           | medium | low        | No bot mentions; label gating; hard cycle cap            |
+| ~~Forge loops slow down commits~~   | ~~high~~   | ~~medium~~     | ~~Archived — Forge/Temper replaced by Council~~     |
+| ~~Temper creates bad fixes~~        | ~~high~~   | ~~low~~        | ~~Archived — Temper removed~~                       |
+| ~~Deferred findings pile up~~       | ~~medium~~ | ~~medium~~     | ~~Archived — Forge/Temper replaced by Council~~     |
+| ~~Bot review wars in CI~~           | ~~medium~~ | ~~low~~        | ~~Archived — Temper removed~~                       |
 
 ## Decisions
 
