@@ -453,4 +453,21 @@ mod tests {
         assert!(PRE_COMMIT_HOOK.contains("command -v anvil"));
         assert!(PRE_PUSH_HOOK.contains("command -v anvil"));
     }
+
+    #[test]
+    fn force_install_creates_backup_of_existing_hook() {
+        let dir = tempfile::tempdir().unwrap();
+        let original = "#!/bin/sh\necho original";
+        std::fs::write(dir.path().join("pre-commit"), original).unwrap();
+
+        let result = install_hook(dir.path(), "pre-commit", PRE_COMMIT_HOOK, true).unwrap();
+        assert_eq!(result.action, "updated");
+
+        let backup = dir.path().join("pre-commit.bak");
+        assert!(backup.exists(), ".bak file should exist after --force");
+        assert_eq!(std::fs::read_to_string(&backup).unwrap(), original);
+
+        let installed = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        assert!(installed.contains(ANVIL_HOOK_MARKER));
+    }
 }

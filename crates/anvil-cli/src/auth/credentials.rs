@@ -196,17 +196,6 @@ fn migrate_to_xdg(xdg_path: &std::path::Path, creds: &Credentials) -> Result<()>
     Ok(())
 }
 
-/// Load credentials and return an error if none are found or they are expired.
-#[allow(dead_code)]
-pub fn require() -> Result<Credentials> {
-    let creds = load()?
-        .ok_or_else(|| anyhow::anyhow!("Not authenticated. Run `anvil auth login` first."))?;
-    if is_expired(&creds) {
-        anyhow::bail!("Credentials have expired. Run `anvil auth login` to re-authenticate.");
-    }
-    Ok(creds)
-}
-
 pub fn save(creds: &Credentials) -> Result<()> {
     let dir = credentials_dir()?;
     std::fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
