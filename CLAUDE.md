@@ -22,54 +22,14 @@ No build or test commands in this config layer — the monorepo uses `pnpm` and
 
 ## Active Hooks
 
-| Hook                   | Trigger                  | What it does                     | Active?                                     |
-| ---------------------- | ------------------------ | -------------------------------- | ------------------------------------------- |
-| `security-guard.sh`    | PreToolUse (Bash)        | Blocks dangerous shell commands  | Always                                      |
-| `forge.sh`             | PreToolUse (Bash)        | Pre-commit review negotiation    | `CLAUDE_FORGE_ENABLED=true` (on)            |
-| `codex-review.sh`      | PreToolUse (Bash)        | GPT review before commits        | `CLAUDE_CODEX_REVIEW_PRECOMMIT=false` (off) |
-| `post-edit.sh`         | PostToolUse (Write/Edit) | Auto-format and lint after edits | `CLAUDE_POST_EDIT_LINT=false` (off)         |
-| `codex-review-post.sh` | PostToolUse (Bash)       | GPT suggestions after commits    | `CLAUDE_CODEX_REVIEW=true` + async          |
-| `tdd-guard.sh`         | PreToolUse               | Enforces test-first development  | `CLAUDE_TDD_STRICT=false` (off)             |
-| `on-stop.sh`           | Stop                     | Desktop notifications            | Always                                      |
-| `on-agent-stop.sh`     | SubagentStop             | Parses agent trigger lines       | `CLAUDE_AGENT_TRIGGERS=false` (off)         |
-| `session-start.sh`     | SessionStart             | Environment check                | Always                                      |
-| `kindling-capture.sh`  | PostToolUse              | Kindling integration             | Always                                      |
+All hooks are symlinked from `code-env/.claude/hooks/`.
 
-## Environment Variable Toggles
-
-| Variable                        | Current Value | What it controls                           |
-| ------------------------------- | ------------- | ------------------------------------------ |
-| `CLAUDE_CODEX_REVIEW`           | `true`        | Master switch for all GPT code review      |
-| `CLAUDE_CODEX_REVIEW_PRECOMMIT` | `false`       | Block commits on critical GPT findings     |
-| `CLAUDE_CODEX_REVIEW_ASYNC`     | `true`        | Run post-commit review in background       |
-| `CLAUDE_POST_EDIT_LINT`         | `false`       | Auto-lint after file edits                 |
-| `CLAUDE_TDD_STRICT`             | `false`       | Require test file before editing source    |
-| `CLAUDE_TDD_RUN_TESTS`          | `false`       | Run related tests before allowing edits    |
-| `CLAUDE_AUTO_CONSULT`           | `false`       | Architect/planner auto-consult specialists |
-| `CLAUDE_AGENT_TRIGGERS`         | `false`       | Parse TRIGGER: lines from agent output     |
-| `CLAUDE_NOTIFICATION_COOLDOWN`  | `60`          | Seconds between desktop notifications      |
-| `CLAUDE_CODE_MAX_SUBAGENTS`     | `5`           | Max concurrent subagents                   |
-| `CLAUDE_FORGE_ENABLED`          | `true`        | Pre-commit review via forge-reviewer agent |
-| `CLAUDE_FORGE_MAX_ROUNDS`       | `3`           | Max negotiation rounds before auto-defer   |
-| `CLAUDE_FORGE_AUTO_DEFER_NITS`  | `true`        | Auto-defer nit findings without arguing    |
-
-## MCP Servers
-
-- **codex** — GPT delegation via `codex` CLI (model: gpt-5.2-high)
-- **memory** — Persistent context at `.claude/memory.json`
-- **filesystem** — File operations scoped to project dir
-- **Neon** — Neon database MCP
-- brave-search, github, puppeteer — defined in `mcp.json` but disabled
-
-## Agent Messaging
-
-Agents communicate via `.claude/agent-bus/`:
-
-- `send-message.sh --from X --to Y --type finding --payload '{...}'`
-- `receive-messages.sh <agent> --format summary`
-- `check-queue.sh` — manage trigger queue (`--pop`, `--mark-done <id>`)
-- Trigger format in agent output: `TRIGGER:agent-name:context` (disabled by
-  default)
+| Hook                       | Trigger                  | What it does                        | Active?                                          |
+| -------------------------- | ------------------------ | ----------------------------------- | ------------------------------------------------ |
+| `git-safety.sh`            | PreToolUse (Bash)        | Blocks dangerous shell commands     | Always                                           |
+| `council-gate.sh`          | PreToolUse (Bash)        | Checks for Council review on commit | `CLAUDE_COUNCIL_GATE=false` (off)                |
+| `local-review-precommit.sh`| PreToolUse (Bash)        | Reminds to check Council before commit | `CLAUDE_LOCAL_REVIEW_PRECOMMIT=false` (off)   |
+| `kindling-capture.sh`      | PostToolUse              | Kindling integration                | Always                                           |
 
 ## Council Review
 
@@ -79,18 +39,8 @@ operations-reviewer, pragmatic-lead). Findings are deduplicated, sorted by
 severity, and synthesised into a unified verdict. Use for significant changes or
 release prep. For quick reviews, use `/review` instead.
 
-## Forge Pipeline
-
-Pre-commit review via `forge.sh` hook. Intercepts `git commit`, spawns
-`forge-reviewer` for cross-model review via codex MCP (max 3 rounds).
-Critical/major findings must be fixed, minor is author's choice, nits
-auto-deferred. Deferred findings filed as GH issues or APS work items.
-
 ## Gotchas
 
-- `mcp.json` and `settings.json` both define MCP servers — `settings.json` wins
-  and uses a different codex model
-- `--no-verify` on git commit bypasses the forge/codex pre-commit hook
 - This repo uses ESM (`"type": "module"` in package.json)
 - TypeScript is a devDependency but there's no tsconfig or source code to
   compile
