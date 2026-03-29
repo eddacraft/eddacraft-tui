@@ -4,7 +4,7 @@
 [![NX](https://img.shields.io/badge/managed%20with-Nx-143055.svg?style=flat-square)](https://nx.dev/)
 [![pnpm](https://img.shields.io/badge/maintained%20with-pnpm-cc00ff.svg?style=flat-square)](https://pnpm.io/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-6.0-blue.svg?style=flat-square)](https://www.typescriptlang.org/)
-[![Node.js](https://img.shields.io/badge/Node.js->=20.19.0-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js->=24-339933.svg?style=flat-square&logo=node.js&logoColor=white)](https://nodejs.org/)
 
 EddaCraft monorepo. Currently home to **Anvil** — a deterministic development
 automation platform that catches architecture drift and AI anti-patterns at file
@@ -41,7 +41,7 @@ and tooling.
 
 | Directory        | Package                    | Description                              | Deployment          |
 | ---------------- | -------------------------- | ---------------------------------------- | ------------------- |
-| `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js + Ink TUI) | npm (`publish.yml`) |
+| `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
 | `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site            | Vercel              |
 | `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)              | Vercel              |
 | `apps/anvil-api` | —                          | API service                              | Vercel              |
@@ -116,7 +116,7 @@ and tooling.
 
 ### Prerequisites
 
-- **Node.js** >= 20.19.0
+- **Node.js** >= 24
 - **pnpm** >= 10.20.0
 
 ### Setup
@@ -143,8 +143,6 @@ pnpm typecheck
 # Linting
 pnpm lint
 
-# Link Anvil CLI globally
-pnpm link:cli
 ```
 
 NX is used under the hood — you can also use `npx nx` commands directly for
@@ -194,7 +192,7 @@ E2E, TUI E2E) run separately and do not contribute to line coverage.
 | Unit        |   171 | Co-located `*.test.ts` — mocked deps, fast             |
 | Integration |     5 | `*-integration.test.ts` — multi-module, in-process     |
 | CLI E2E     |     5 | `*.e2e.test.ts` — `execFile`/`spawn`-based CLI testing |
-| TUI E2E     |     3 | `*.tuistory.e2e.test.ts` — Ink pseudo-terminal testing |
+| TUI E2E     |     — | Migrated to Ratatui snapshot tests (`crates/anvil-tui/`) |
 
 ### Running coverage
 
@@ -308,13 +306,11 @@ The repository has several GitHub Actions workflows:
   runs the full test suite, and creates a GitHub release.
 - **security.yml** — SAST (Semgrep), dependency audit, secret scan, and licence
   compliance on every PR.
-- **claude.yml** — Claude Code integration for AI-assisted issue triage and PR
-  review.
-- **claude-address-pr-reviews.yml** — Automated addressing of PR review comments
-  via Claude Code.
 - **labeler.yml** — Automatic PR labelling based on changed paths.
 - **infra.yml** — Infrastructure provisioning and validation.
-- **import-state.yml** — Terraform state import utility.
+- **bench.yml** — Rust kernel benchmark runs.
+- **codeql.yml** — GitHub CodeQL static analysis.
+- **rust.yml** — Rust CI (clippy, test, format).
 
 A reusable **Anvil Check** GitHub Action is also provided at
 `.github/actions/anvil-check/` for running Anvil analysis in your own workflows.
