@@ -60,7 +60,7 @@
     "eslint-plugin-anvil": "workspace:*",
     "eslint-plugin-unicorn": "^63.0.0",
     "globals": "^17.4.0",
-    "happy-dom": "^20.8.8",
+    "happy-dom": "^20.8.9",
     "husky": "^9.1.7",
     "jsonc-eslint-parser": "^3.1.0",
     "lint-staged": "^16.4.0",
