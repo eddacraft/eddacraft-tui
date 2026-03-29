@@ -119,9 +119,11 @@ fn detect_husky(workspace_root: &Path) -> (bool, Option<PathBuf>) {
         })
         .unwrap_or(false);
 
+    let detected = has_husky_dir || has_husky_dep;
+
     (
-        has_husky_dir || has_husky_dep,
-        if has_husky_dir { Some(husky_dir) } else { None },
+        detected,
+        if detected { Some(husky_dir) } else { None },
     )
 }
 
@@ -249,16 +251,12 @@ pub fn run(args: &HooksArgs, global: &GlobalArgs) -> Result<()> {
                 std::fs::create_dir_all(&dir).context("creating .husky directory")?;
                 dir
             } else {
-                let (detected, husky_dir_opt) = detect_husky(&workspace_root);
-                if detected {
-                    if let Some(dir) = husky_dir_opt {
-                        eprintln!("Husky detected -- installing hooks in .husky directory");
-                        dir
-                    } else {
-                        let dir = git_dir.join("hooks");
-                        std::fs::create_dir_all(&dir).context("creating hooks directory")?;
-                        dir
-                    }
+                let (_detected, husky_dir_opt) = detect_husky(&workspace_root);
+                if let Some(dir) = husky_dir_opt {
+                    std::fs::create_dir_all(&dir)
+                        .context("creating detected .husky directory")?;
+                    eprintln!("Husky detected -- installing hooks in .husky directory");
+                    dir
                 } else {
                     let dir = git_dir.join("hooks");
                     std::fs::create_dir_all(&dir).context("creating hooks directory")?;
@@ -416,5 +414,53 @@ mod tests {
     fn args_parses_install_force() {
         let w = Wrapper::try_parse_from(["test", "install", "--force"]).unwrap();
         let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_rejects_conflicting_install_flags() {
+        let result =
+            Wrapper::try_parse_from(["test", "install", "--pre-commit-only", "--pre-push-only"]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn args_rejects_conflicting_uninstall_flags() {
+        let result = Wrapper::try_parse_from([
+            "test",
+            "uninstall",
+            "--pre-commit-only",
+            "--pre-push-only",
+        ]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn marker_detection() {
+        let dir = tempfile::tempdir().unwrap();
+        let managed = dir.path().join("managed");
+        std::fs::write(&managed, "#!/bin/sh\n# @anvil-managed\necho hi").unwrap();
+        assert!(is_anvil_managed(&managed));
+
+        let unmanaged = dir.path().join("unmanaged");
+        std::fs::write(&unmanaged, "#!/bin/sh\necho hi").unwrap();
+        assert!(!is_anvil_managed(&unmanaged));
+    }
+
+    #[test]
+    fn hook_scripts_contain_marker() {
+        assert!(PRE_COMMIT_HOOK.contains(ANVIL_HOOK_MARKER));
+        assert!(PRE_PUSH_HOOK.contains(ANVIL_HOOK_MARKER));
+    }
+
+    #[test]
+    fn hook_scripts_contain_skip_check() {
+        assert!(PRE_COMMIT_HOOK.contains("ANVIL_SKIP_HOOKS"));
+        assert!(PRE_PUSH_HOOK.contains("ANVIL_SKIP_HOOKS"));
+    }
+
+    #[test]
+    fn hook_scripts_check_anvil_exists() {
+        assert!(PRE_COMMIT_HOOK.contains("command -v anvil"));
+        assert!(PRE_PUSH_HOOK.contains("command -v anvil"));
     }
 }
