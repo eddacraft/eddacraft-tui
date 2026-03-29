@@ -92,8 +92,8 @@ fn simulate_cold_start(root: &Path) -> ColdStartMetrics {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 struct ColdStartMetrics {
+    #[cfg_attr(not(test), allow(dead_code))]
     files_found: u64,
     total_bytes: u64,
     total_lines: u64,
