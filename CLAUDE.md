@@ -1,11 +1,7 @@
-# Code-Env
+# Anvil
 
-Enhanced Claude Code environment with custom agents, hooks, skills, and agent
-communication. This is a config-only repo — it provides `.claude/` configuration
-that can be copied into other projects via `./setup-claude-config.sh`.
-
-**For project-specific instructions (build commands, code style, conventions),
-see `@AGENTS.md`.**
+**For shared agent conventions (planning, commits, scope, code quality), see
+`@AGENTS.md`.**
 
 ## Commands
 
@@ -13,49 +9,18 @@ see `@AGENTS.md`.**
 npm run kindling:link   # Link @kindling/core, @kindling/cli, @kindling/store-sqlite
 ```
 
-No build or test commands — this project is shell scripts and markdown
-configuration.
+No build or test commands in this config layer — the monorepo uses `pnpm` and
+`nx` for builds/tests, `cargo` for Rust crates.
 
-## Project Structure
+## Key Paths
 
-- `CLAUDE.md` — Claude Code instructions (this file)
-- `README.md` — Human documentation
-- `setup-claude-config.sh` — Sets up .claude/ config in another project (copy,
-  symlink, or update)
-- `check-version.sh` — Version check utility
-- `plans/` — Implementation plans and specs
-- `docs/vision/` — North star documents describing Anvil's long-term direction.
-  Use these to validate whether new features align with the project's vision,
-  but they are not scope documents — do not treat them as committed work items
-- `.claude/` — All Claude Code configuration (agents, hooks, commands, skills,
-  MCP servers)
+- `plans/` — APS implementation plans; check before planning new features
+- `docs/vision/` — North star docs for validating feature alignment (not scope)
+- `.claude/` — Claude Code configuration (agents, hooks, skills, MCP servers)
+- `setup-claude-config.sh` — Copies/symlinks `.claude/` config into other
+  projects (copy, `--symlink`, or `--update` modes)
 
-## Setup Modes
-
-```bash
-./setup-claude-config.sh /path/to/project              # Copy mode (default)
-./setup-claude-config.sh /path/to/project --symlink     # Granular symlink mode
-./setup-claude-config.sh /path/to/project --update      # Re-sync from source
-```
-
-**Copy mode** — copies everything; project is fully independent.
-
-**Symlink mode** — granular per-file symlinks for shared infrastructure (hooks,
-skills, prompts, rules, settings), while copying extensible content (agents,
-commands) so each project can add its own. Plugins writing to `.claude/agents/`
-modify local copies, not the source repo.
-
-**Update mode** — re-syncs shared files from source without touching
-project-specific content. Adds new extensible files, updates unchanged ones,
-skips user-modified files (detected via checksums in `.claude/.setup-meta`).
-Cleans dangling symlinks from removed source files.
-
-Old whole-directory symlinks (pre-granular) are auto-detected and migration is
-offered.
-
-## Active Hook Behavior
-
-These hooks run automatically and affect how Claude operates:
+## Active Hooks
 
 | Hook                   | Trigger                  | What it does                     | Active?                                     |
 | ---------------------- | ------------------------ | -------------------------------- | ------------------------------------------- |
@@ -69,11 +34,6 @@ These hooks run automatically and affect how Claude operates:
 | `on-agent-stop.sh`     | SubagentStop             | Parses agent trigger lines       | `CLAUDE_AGENT_TRIGGERS=false` (off)         |
 | `session-start.sh`     | SessionStart             | Environment check                | Always                                      |
 | `kindling-capture.sh`  | PostToolUse              | Kindling integration             | Always                                      |
-
-Current settings (from `settings.json`): Forge is **on**, pre-commit codex
-review is **off**, post-edit lint is **off**, TDD strict is **off**, agent
-triggers are **off**, auto-consult is **off**. Codex review runs async
-post-commit only.
 
 ## Environment Variable Toggles
 
@@ -95,11 +55,10 @@ post-commit only.
 
 ## MCP Servers
 
-- **codex** — GPT delegation via `codex` CLI (model: gpt-5.2-high in
-  settings.json)
+- **codex** — GPT delegation via `codex` CLI (model: gpt-5.2-high)
 - **memory** — Persistent context at `.claude/memory.json`
 - **filesystem** — File operations scoped to project dir
-- **Neon** — Neon database MCP (in settings.json)
+- **Neon** — Neon database MCP
 - brave-search, github, puppeteer — defined in `mcp.json` but disabled
 
 ## Agent Messaging
@@ -115,27 +74,23 @@ Agents communicate via `.claude/agent-bus/`:
 ## Council Review
 
 Multi-perspective code review via `/council`. Spawns 5 specialist agents in
-parallel — council-reviewer, kernel-maintainer, adversarial-reviewer,
-operations-reviewer, pragmatic-lead — each reviewing through their own lens.
-Findings are deduplicated, sorted by severity, and synthesised into a unified
-verdict (approve/needs-changes/reject). Use for significant changes, pre-merge
-reviews, or release prep. For quick reviews, use `/review` instead.
+parallel (council-reviewer, kernel-maintainer, adversarial-reviewer,
+operations-reviewer, pragmatic-lead). Findings are deduplicated, sorted by
+severity, and synthesised into a unified verdict. Use for significant changes or
+release prep. For quick reviews, use `/review` instead.
 
 ## Forge Pipeline
 
-Pre-commit code review via `forge.sh` hook. Intercepts `git commit`, spawns
-`forge-reviewer` agent for cross-model review via codex MCP, runs structured
-negotiation (max 3 rounds). Findings categorized by severity — critical/major
-must be fixed, minor is author's choice, nits auto-deferred. Deferred findings
-filed as GH issues (`forge:deferred` label) or APS work items.
+Pre-commit review via `forge.sh` hook. Intercepts `git commit`, spawns
+`forge-reviewer` for cross-model review via codex MCP (max 3 rounds).
+Critical/major findings must be fixed, minor is author's choice, nits
+auto-deferred. Deferred findings filed as GH issues or APS work items.
 
 ## Gotchas
 
-- `mcp.json` and `settings.json` both define MCP servers — `settings.json` takes
-  precedence and uses a different codex model
-- The `--no-verify` flag on git commit bypasses the codex pre-commit hook
-- `plans/` directory contains implementation specs — check there before planning
-  new features
+- `mcp.json` and `settings.json` both define MCP servers — `settings.json` wins
+  and uses a different codex model
+- `--no-verify` on git commit bypasses the forge/codex pre-commit hook
 - This repo uses ESM (`"type": "module"` in package.json)
 - TypeScript is a devDependency but there's no tsconfig or source code to
   compile
