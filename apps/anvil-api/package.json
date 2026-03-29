@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "typecheck": "tsc --build --noEmit",
+    "typecheck": "tsc --noEmit",
     "test": "vitest",
     "dev": "npx wrangler dev src/index.ts"
   },
