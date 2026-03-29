@@ -112,6 +112,15 @@ Agents communicate via `.claude/agent-bus/`:
 - Trigger format in agent output: `TRIGGER:agent-name:context` (disabled by
   default)
 
+## Council Review
+
+Multi-perspective code review via `/council`. Spawns 5 specialist agents in
+parallel — council-reviewer, kernel-maintainer, adversarial-reviewer,
+operations-reviewer, pragmatic-lead — each reviewing through their own lens.
+Findings are deduplicated, sorted by severity, and synthesised into a unified
+verdict (approve/needs-changes/reject). Use for significant changes, pre-merge
+reviews, or release prep. For quick reviews, use `/review` instead.
+
 ## Forge Pipeline
 
 Pre-commit code review via `forge.sh` hook. Intercepts `git commit`, spawns
