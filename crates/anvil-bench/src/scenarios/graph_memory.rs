@@ -40,10 +40,7 @@ pub struct GraphStepMeasurement {
 }
 
 /// Build a petgraph graph with the given number of nodes and edges per node.
-fn build_graph(
-    node_count: usize,
-    edges_per_node: usize,
-) -> Graph<SymbolNode, SymbolEdge> {
+fn build_graph(node_count: usize, edges_per_node: usize) -> Graph<SymbolNode, SymbolEdge> {
     let mut graph = Graph::new();
 
     if node_count == 0 {
@@ -130,7 +127,11 @@ pub fn run(config: &GraphMemoryConfig) -> ScenarioResult {
 
     let mut result = ScenarioResult::new("graph_memory");
     result.set_duration(std::time::Duration::from_secs_f64(
-        measurements.iter().map(|m| m.build_duration_ms).sum::<f64>() / 1000.0,
+        measurements
+            .iter()
+            .map(|m| m.build_duration_ms)
+            .sum::<f64>()
+            / 1000.0,
     ));
 
     for m in &measurements {
@@ -138,16 +139,21 @@ pub fn run(config: &GraphMemoryConfig) -> ScenarioResult {
         result.add_metric(&format!("{prefix}_nodes"), m.node_count as f64, "count");
         result.add_metric(&format!("{prefix}_edges"), m.edge_count as f64, "count");
         result.add_metric(&format!("{prefix}_rss_kib"), m.rss_kib as f64, "KiB");
-        result.add_metric(&format!("{prefix}_rss_delta_kib"), m.rss_delta_kib as f64, "KiB");
+        result.add_metric(
+            &format!("{prefix}_rss_delta_kib"),
+            m.rss_delta_kib as f64,
+            "KiB",
+        );
         result.add_metric(&format!("{prefix}_build_ms"), m.build_duration_ms, "ms");
     }
 
-    if let (Some(first), Some(last)) = (measurements.first(), measurements.last()) {
-        if first.node_count > 0 && last.node_count > first.node_count {
-            let rss_per_node = (last.rss_kib as f64 - first.rss_kib as f64)
-                / (last.node_count as f64 - first.node_count as f64);
-            result.add_metric("rss_per_node_bytes", rss_per_node * 1024.0, "bytes");
-        }
+    if let (Some(first), Some(last)) = (measurements.first(), measurements.last())
+        && first.node_count > 0
+        && last.node_count > first.node_count
+    {
+        let rss_per_node = (last.rss_kib as f64 - first.rss_kib as f64)
+            / (last.node_count as f64 - first.node_count as f64);
+        result.add_metric("rss_per_node_bytes", rss_per_node * 1024.0, "bytes");
     }
 
     result.add_memory("graph_total", &mem_delta);

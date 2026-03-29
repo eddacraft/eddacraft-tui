@@ -183,9 +183,6 @@ mod tests {
         assert_eq!(result.metrics.len(), 3);
         assert!(result.metrics.iter().any(|m| m.name == "parse_total_ms"));
         assert!(result.metrics.iter().any(|m| m.name == "parse_iterations"));
-        assert!(result
-            .metrics
-            .iter()
-            .any(|m| m.name == "parse_per_iter_us"));
+        assert!(result.metrics.iter().any(|m| m.name == "parse_per_iter_us"));
     }
 }

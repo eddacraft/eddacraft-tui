@@ -58,8 +58,7 @@ impl MemoryGuard {
     #[must_use]
     pub fn finish(self) -> MemoryDelta {
         let after = MemorySnapshot::now();
-        let delta_rss_kib =
-            i64::try_from(after.rss_kib).unwrap_or(i64::MAX)
+        let delta_rss_kib = i64::try_from(after.rss_kib).unwrap_or(i64::MAX)
             - i64::try_from(self.before.rss_kib).unwrap_or(i64::MAX);
         MemoryDelta {
             before: self.before,

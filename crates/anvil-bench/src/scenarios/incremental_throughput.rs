@@ -46,10 +46,7 @@ fn apply_incremental_update(
     edges_per_node: usize,
 ) {
     // Remove all outgoing edges from target
-    let edges_to_remove: Vec<_> = graph
-        .edges(target)
-        .map(|e| e.id())
-        .collect();
+    let edges_to_remove: Vec<_> = graph.edges(target).map(|e| e.id()).collect();
 
     for edge_id in edges_to_remove {
         graph.remove_edge(edge_id);
@@ -135,8 +132,7 @@ pub fn run(config: &IncrementalThroughputConfig) -> ScenarioResult {
     }
 
     let mem = MemoryGuard::start();
-    let (mut graph, indices) =
-        build_initial_graph(config.initial_nodes, config.edges_per_node);
+    let (mut graph, indices) = build_initial_graph(config.initial_nodes, config.edges_per_node);
 
     let batch_size = ((config.initial_nodes as f64 * config.batch_fraction) as usize).max(1);
 
@@ -149,7 +145,12 @@ pub fn run(config: &IncrementalThroughputConfig) -> ScenarioResult {
         let offset = (batch_count as usize * batch_size) % config.initial_nodes;
         for i in 0..batch_size {
             let node_idx = (offset + i) % indices.len();
-            apply_incremental_update(&mut graph, indices[node_idx], config.initial_nodes, config.edges_per_node);
+            apply_incremental_update(
+                &mut graph,
+                indices[node_idx],
+                config.initial_nodes,
+                config.edges_per_node,
+            );
             total_updates += 1;
         }
         batch_count += 1;
@@ -171,16 +172,8 @@ pub fn run(config: &IncrementalThroughputConfig) -> ScenarioResult {
     result.add_metric("total_updates", total_updates as f64, "count");
     result.add_metric("batch_count", batch_count as f64, "count");
     result.add_metric("updates_per_sec", updates_per_sec, "ops/s");
-    result.add_metric(
-        "final_node_count",
-        graph.node_count() as f64,
-        "count",
-    );
-    result.add_metric(
-        "final_edge_count",
-        graph.edge_count() as f64,
-        "count",
-    );
+    result.add_metric("final_node_count", graph.node_count() as f64, "count");
+    result.add_metric("final_edge_count", graph.edge_count() as f64, "count");
     result.add_memory("incremental", &mem_delta);
 
     result

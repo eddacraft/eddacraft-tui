@@ -1,13 +1,13 @@
 //! BENCH-013: Watcher saturation scenario.
 //!
 //! Floods a directory with rapid file writes and measures write throughput.
-//! Note: watcher_integration=false — the event counter is not wired to a
+//! Note: `watcher_integration=false` — the event counter is not wired to a
 //! real watcher here; integration tests in anvil-kernel should wire it.
 
 use std::fs;
 use std::path::Path;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use std::time::{Duration, Instant};
 
 use crate::fixture::{RepoSpec, generate_repo};
@@ -50,7 +50,7 @@ pub struct SaturationMetrics {
 ///
 /// The `event_counter` is exposed so that integration tests in anvil-kernel
 /// can wire it to a real `notify` watcher. This scenario does not wire it
-/// itself (watcher_integration=false).
+/// itself (`watcher_integration=false`).
 pub fn run_write_flood(
     config: &WatcherSaturationConfig,
     dir: &Path,

@@ -107,25 +107,25 @@ fn generate_symbols(count: usize) -> Vec<SymbolNode> {
 
 /// Evaluate a single rule against a symbol. Returns true if the rule matches.
 fn evaluate_rule(rule: &BenchRule, symbol: &SymbolNode) -> bool {
-    if let Some(kind) = rule.match_kind {
-        if symbol.kind != kind {
-            return false;
-        }
+    if let Some(kind) = rule.match_kind
+        && symbol.kind != kind
+    {
+        return false;
     }
-    if let Some(vis) = rule.match_visibility {
-        if symbol.visibility != vis {
-            return false;
-        }
+    if let Some(vis) = rule.match_visibility
+        && symbol.visibility != vis
+    {
+        return false;
     }
-    if let Some(trust) = rule.match_trust {
-        if symbol.trust_level != trust {
-            return false;
-        }
+    if let Some(trust) = rule.match_trust
+        && symbol.trust_level != trust
+    {
+        return false;
     }
-    if let Some(ref pattern) = rule.file_pattern {
-        if !symbol.file.contains(pattern) {
-            return false;
-        }
+    if let Some(ref pattern) = rule.file_pattern
+        && !symbol.file.contains(pattern)
+    {
+        return false;
     }
     true
 }
@@ -159,18 +159,18 @@ pub fn run(config: &PolicyScalingConfig) -> ScenarioResult {
         let elapsed = start.elapsed();
 
         let prefix = format!("rules_{rule_count}");
-        result.add_metric(&format!("{prefix}_eval_ms"), elapsed.as_secs_f64() * 1000.0, "ms");
+        result.add_metric(
+            &format!("{prefix}_eval_ms"),
+            elapsed.as_secs_f64() * 1000.0,
+            "ms",
+        );
         result.add_metric(&format!("{prefix}_violations"), violations as f64, "count");
         let evals_per_sec = if elapsed.as_secs_f64() > 0.0 {
             (rule_count as f64 * config.symbol_count as f64) / elapsed.as_secs_f64()
         } else {
             0.0
         };
-        result.add_metric(
-            &format!("{prefix}_evals_per_sec"),
-            evals_per_sec,
-            "evals/s",
-        );
+        result.add_metric(&format!("{prefix}_evals_per_sec"), evals_per_sec, "evals/s");
     }
 
     let mem_delta = mem.finish();
@@ -227,7 +227,12 @@ mod tests {
         let result = run(&config);
         assert_eq!(result.scenario, "policy_scaling");
         assert!(result.metrics.iter().any(|m| m.name == "rules_5_eval_ms"));
-        assert!(result.metrics.iter().any(|m| m.name == "rules_20_evals_per_sec"));
+        assert!(
+            result
+                .metrics
+                .iter()
+                .any(|m| m.name == "rules_20_evals_per_sec")
+        );
     }
 
     #[test]

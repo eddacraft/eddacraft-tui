@@ -178,9 +178,7 @@ pub fn generate_repo(spec: &RepoSpec, base_dir: &Path) -> std::io::Result<Synthe
         let roll = rng.gen_range(0..total_weight);
         let ext = spec.language_mix.extension_for(roll);
 
-        let name_suffix: String = (0..6)
-            .map(|_| rng.sample(Alphanumeric) as char)
-            .collect();
+        let name_suffix: String = (0..6).map(|_| rng.sample(Alphanumeric) as char).collect();
         let filename = format!("file_{i}_{name_suffix}{ext}");
 
         let content = generate_file_content(ext, spec.lines_per_file, i);
@@ -213,14 +211,39 @@ fn generate_typescript(buf: &mut String, lines: usize, seed: usize) {
     for i in 1..lines {
         let idx = seed.wrapping_mul(31).wrapping_add(i);
         match i % 8 {
-            0 => { let _ = writeln!(buf, "type T{idx} = {{ id: string; value: number }};"); }
-            1 => { let _ = writeln!(buf, "const c{idx} = {idx};"); }
-            2 => { let _ = writeln!(buf, "function f{idx}(x: number): number {{ return x + {idx}; }}"); }
-            3 => { let _ = writeln!(buf, "export class S{idx} {{ run(): void {{ /* noop */ }} }}"); }
-            4 => { let _ = writeln!(buf, "const route{idx} = `/api/v1/{idx}`;"); }
-            5 => { let _ = writeln!(buf, "if (c{idx}) {{ void readFileSync('package.json'); }}"); }
-            6 => { let _ = writeln!(buf, "export const r{idx} = f{idx}({idx});"); }
-            _ => { let _ = writeln!(buf, "export function compute{idx}(a: number, b: number): number {{ return a + b + {idx}; }}"); }
+            0 => {
+                let _ = writeln!(buf, "type T{idx} = {{ id: string; value: number }};");
+            }
+            1 => {
+                let _ = writeln!(buf, "const c{idx} = {idx};");
+            }
+            2 => {
+                let _ = writeln!(
+                    buf,
+                    "function f{idx}(x: number): number {{ return x + {idx}; }}"
+                );
+            }
+            3 => {
+                let _ = writeln!(
+                    buf,
+                    "export class S{idx} {{ run(): void {{ /* noop */ }} }}"
+                );
+            }
+            4 => {
+                let _ = writeln!(buf, "const route{idx} = `/api/v1/{idx}`;");
+            }
+            5 => {
+                let _ = writeln!(buf, "if (c{idx}) {{ void readFileSync('package.json'); }}");
+            }
+            6 => {
+                let _ = writeln!(buf, "export const r{idx} = f{idx}({idx});");
+            }
+            _ => {
+                let _ = writeln!(
+                    buf,
+                    "export function compute{idx}(a: number, b: number): number {{ return a + b + {idx}; }}"
+                );
+            }
         }
     }
 }
@@ -230,12 +253,27 @@ fn generate_javascript(buf: &mut String, lines: usize, seed: usize) {
     for i in 1..lines {
         let idx = seed.wrapping_mul(17).wrapping_add(i);
         match i % 6 {
-            0 => { let _ = writeln!(buf, "const v{idx} = {idx};"); }
-            1 => { let _ = writeln!(buf, "function f{idx}(x) {{ return x + {idx}; }}"); }
-            2 => { let _ = writeln!(buf, "module.exports.f{idx} = f{idx};"); }
-            3 => { let _ = writeln!(buf, "const arr{idx} = Array({idx} % 100).fill(0);"); }
-            4 => { let _ = writeln!(buf, "class C{idx} {{ constructor() {{ this.id = {idx}; }} }}"); }
-            _ => { let _ = writeln!(buf, "// line {idx}"); }
+            0 => {
+                let _ = writeln!(buf, "const v{idx} = {idx};");
+            }
+            1 => {
+                let _ = writeln!(buf, "function f{idx}(x) {{ return x + {idx}; }}");
+            }
+            2 => {
+                let _ = writeln!(buf, "module.exports.f{idx} = f{idx};");
+            }
+            3 => {
+                let _ = writeln!(buf, "const arr{idx} = Array({idx} % 100).fill(0);");
+            }
+            4 => {
+                let _ = writeln!(
+                    buf,
+                    "class C{idx} {{ constructor() {{ this.id = {idx}; }} }}"
+                );
+            }
+            _ => {
+                let _ = writeln!(buf, "// line {idx}");
+            }
         }
     }
 }
@@ -245,11 +283,24 @@ fn generate_rust_source(buf: &mut String, lines: usize, seed: usize) {
     for i in 1..lines {
         let idx = seed.wrapping_mul(23).wrapping_add(i);
         match i % 5 {
-            0 => { let _ = writeln!(buf, "fn f{idx}(x: u64) -> u64 {{ x + {idx} }}"); }
-            1 => { let _ = writeln!(buf, "struct S{idx} {{ value: u64 }}"); }
-            2 => { let _ = writeln!(buf, "const C{idx}: u64 = {idx};"); }
-            3 => { let _ = writeln!(buf, "impl S{idx} {{ fn new() -> Self {{ Self {{ value: {idx} }} }} }}"); }
-            _ => { let _ = writeln!(buf, "// comment {idx}"); }
+            0 => {
+                let _ = writeln!(buf, "fn f{idx}(x: u64) -> u64 {{ x + {idx} }}");
+            }
+            1 => {
+                let _ = writeln!(buf, "struct S{idx} {{ value: u64 }}");
+            }
+            2 => {
+                let _ = writeln!(buf, "const C{idx}: u64 = {idx};");
+            }
+            3 => {
+                let _ = writeln!(
+                    buf,
+                    "impl S{idx} {{ fn new() -> Self {{ Self {{ value: {idx} }} }} }}"
+                );
+            }
+            _ => {
+                let _ = writeln!(buf, "// comment {idx}");
+            }
         }
     }
 }
@@ -324,14 +375,8 @@ mod tests {
         let repo = generate_repo(&spec, dir.path()).unwrap();
         let extensions = collect_extensions(repo.root());
 
-        assert!(
-            extensions.contains("ts"),
-            "expected at least one .ts file"
-        );
-        assert!(
-            extensions.contains("js"),
-            "expected at least one .js file"
-        );
+        assert!(extensions.contains("ts"), "expected at least one .ts file");
+        assert!(extensions.contains("js"), "expected at least one .js file");
     }
 
     fn collect_extensions(root: &Path) -> std::collections::HashSet<String> {
@@ -369,7 +414,10 @@ mod tests {
             root_path = repo.root().to_path_buf();
             assert!(root_path.exists());
         }
-        assert!(!root_path.exists(), "directory should be cleaned up on drop");
+        assert!(
+            !root_path.exists(),
+            "directory should be cleaned up on drop"
+        );
     }
 
     #[test]

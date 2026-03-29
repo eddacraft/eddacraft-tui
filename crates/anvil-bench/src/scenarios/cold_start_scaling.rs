@@ -92,6 +92,7 @@ fn simulate_cold_start(root: &Path) -> ColdStartMetrics {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ColdStartMetrics {
     files_found: u64,
     total_bytes: u64,
@@ -192,13 +193,17 @@ mod tests {
 
         let result = run(&config);
         assert_eq!(result.scenario, "cold_start_scaling");
-        assert!(result
-            .metrics
-            .iter()
-            .any(|m| m.name == "files_10_discovery_ms"));
-        assert!(result
-            .metrics
-            .iter()
-            .any(|m| m.name == "files_30_discovery_ms"));
+        assert!(
+            result
+                .metrics
+                .iter()
+                .any(|m| m.name == "files_10_discovery_ms")
+        );
+        assert!(
+            result
+                .metrics
+                .iter()
+                .any(|m| m.name == "files_30_discovery_ms")
+        );
     }
 }
