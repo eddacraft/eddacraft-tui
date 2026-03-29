@@ -156,4 +156,12 @@ describe('gate command', () => {
 
     expect(provenanceOpt).toBeDefined();
   });
+
+  it('should have --engine option with legacy default', () => {
+    const command = createGateCommand();
+    const engineOpt = command.options.find((o) => o.long === '--engine');
+
+    expect(engineOpt).toBeDefined();
+    expect(engineOpt?.defaultValue).toBe('legacy');
+  });
 });

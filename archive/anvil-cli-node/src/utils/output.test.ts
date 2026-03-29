@@ -126,6 +126,38 @@ describe('output utilities stream policy', () => {
       expect(parsed.version).toBe('1.0.0');
       expect(parsed.overall).toBe(true);
     });
+
+    it('includes engine metadata when provided', () => {
+      formatGateResultsJSON(MINIMAL_GATE_RESULT_WITH_CACHE, {
+        engine: 'dual',
+        engineFallback: true,
+      });
+
+      const output = stdoutSpy.mock.calls[0][0] as string;
+      const parsed = JSON.parse(output);
+      expect(parsed.engine).toBe('dual');
+      expect(parsed.engineFallback).toBe(true);
+    });
+
+    it('omits engine fields when engineMeta is not provided', () => {
+      formatGateResultsJSON(MINIMAL_GATE_RESULT_WITH_CACHE);
+
+      const output = stdoutSpy.mock.calls[0][0] as string;
+      const parsed = JSON.parse(output);
+      expect(parsed.engine).toBeUndefined();
+      expect(parsed.engineFallback).toBeUndefined();
+    });
+
+    it('omits engineFallback when undefined in engineMeta', () => {
+      formatGateResultsJSON(MINIMAL_GATE_RESULT_WITH_CACHE, {
+        engine: 'legacy',
+      });
+
+      const output = stdoutSpy.mock.calls[0][0] as string;
+      const parsed = JSON.parse(output);
+      expect(parsed.engine).toBe('legacy');
+      expect(parsed.engineFallback).toBeUndefined();
+    });
   });
 
   describe('formatGateResults writes to stderr', () => {

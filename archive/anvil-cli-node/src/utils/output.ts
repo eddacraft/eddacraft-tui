@@ -164,12 +164,17 @@ export interface JSONGateOutput {
     totalMs: number;
     checks: Record<string, number>;
   };
+  engine?: string;
+  engineFallback?: boolean;
 }
 
 /**
  * Format gate results as JSON (for CI/CD integration)
  */
-export function formatGateResultsJSON(results: GateRunResultWithCache): void {
+export function formatGateResultsJSON(
+  results: GateRunResultWithCache,
+  engineMeta?: { engine: string; engineFallback?: boolean }
+): void {
   const output: JSONGateOutput = {
     version: '1.0.0',
     timestamp: new Date().toISOString(),
@@ -188,6 +193,13 @@ export function formatGateResultsJSON(results: GateRunResultWithCache): void {
     cache: results.cacheStats,
     timing: results.timing,
   };
+
+  if (engineMeta) {
+    output.engine = engineMeta.engine;
+    if (engineMeta.engineFallback !== undefined) {
+      output.engineFallback = engineMeta.engineFallback;
+    }
+  }
 
   json(output);
 }

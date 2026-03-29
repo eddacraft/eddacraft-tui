@@ -18,12 +18,13 @@ import { loadPlan, getWorkspaceRoot } from '../utils/file-io.js';
 import { resolvePlanPathOrId } from '../utils/plan-resolution.js';
 import { PlanLoader } from '../services/plan-loader.js';
 import { EvidenceWriter } from '../services/evidence-writer.js';
-import type { GateOptions, GateProfile } from '../types/command-options.js';
+import type { GateOptions, GateProfile, EngineMode } from '../types/command-options.js';
 import {
   success,
   error,
   formatGateResults,
   info,
+  warning,
   formatGateResultsJSON,
   print,
   blank,
@@ -154,13 +155,19 @@ export function createGateCommand(): Command {
     .option('--no-tui', 'Force plain text mode')
     .option('--skip-command-safety', 'Skip command safety validation check')
     .option('--no-provenance', 'Disable provenance recording')
+    .option(
+      '--engine <mode>',
+      'Engine mode: rust, legacy, or dual (default: legacy). Currently all modes run the legacy engine; rust and dual fall back to legacy with a warning.',
+      'legacy'
+    )
     .action(async (planArg: string | undefined, options: GateOptions) => {
       log(`gate command entered`, {
         plan: planArg ?? '(full scan)',
         profile: options.profile ?? 'none',
+        engine: options.engine ?? 'legacy',
       });
 
-      // Handle --list-profiles
+      // Handle --list-profiles (before engine validation so --list-profiles works regardless)
       if (options.listProfiles) {
         print(chalk.bold('\nAvailable Gate Profiles:\n'));
         for (const [name, profile] of Object.entries(GATE_PROFILES)) {
@@ -173,6 +180,14 @@ export function createGateCommand(): Command {
         }
         print(chalk.gray('Usage: anvil gate [plan] --profile=dev'));
         throw new CliExit();
+      }
+
+      // Validate engine mode (RENG-006) — after --list-profiles so listing always works
+      const engineMode: EngineMode = options.engine ?? 'legacy';
+      const validEngineModes: EngineMode[] = ['rust', 'legacy', 'dual'];
+      if (!validEngineModes.includes(engineMode)) {
+        const message = `Invalid engine mode '${engineMode}'. Expected one of: ${validEngineModes.join(', ')}`;
+        throw new CliError(message);
       }
 
       const startTime = Date.now();
@@ -440,7 +455,22 @@ export function createGateCommand(): Command {
           onlyChecks: gateOptions.onlyChecks,
           failFast: gateOptions.failFast,
           fullScan: gateOptions.fullScan,
+          engine: engineMode,
         });
+
+        // Engine mode handling (RENG-006)
+        const engineFallback = engineMode === 'rust' || engineMode === 'dual';
+        if (engineFallback) {
+          // Rust engine is not yet wired up — warn unconditionally so users
+          // know their intent is not being honoured (KERN-040 pending).
+          warning(
+            `Rust engine integration is not yet available (pending KERN-040). Running legacy engine.`
+          );
+          if (options.verbose) {
+            info(`Engine mode: ${engineMode} (falling back to legacy for all checks)`);
+          }
+        }
+
         const results = await gateRunner.runGate(plan, config, workspaceRoot, gateOptions);
 
         // Record gate evaluation in Kindling
@@ -473,9 +503,28 @@ export function createGateCommand(): Command {
 
         // Display results based on output format
         if (options.output === 'json') {
-          formatGateResultsJSON(results);
+          formatGateResultsJSON(results, {
+            engine: engineMode,
+            engineFallback: engineFallback || undefined,
+          });
         } else {
           formatGateResults(results);
+
+          // Dual-run parity report (RENG-006) — after results so "shown above" is accurate
+          if (engineMode === 'dual') {
+            print(chalk.bold('\nDual-run parity report:'));
+            print(
+              chalk.gray(
+                '  Rust kernel integration pending (KERN-040). Legacy engine results shown above.'
+              )
+            );
+            print(
+              chalk.gray(
+                '  When the Rust binary is available, both engines will run and discrepancies will be reported here.'
+              )
+            );
+            blank();
+          }
 
           // Show cache and timing stats in verbose mode
           if (options.verbose && results.cacheStats) {

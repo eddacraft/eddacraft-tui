@@ -11,6 +11,16 @@ import type { AdapterOptions } from '@eddacraft/anvil-adapters';
 export type GateProfile = 'dev' | 'ci' | 'production';
 
 /**
+ * Engine mode for the --engine flag (RENG-006)
+ *
+ * Controls which check engine runs:
+ * - rust: Rust kernel only (planned, currently falls back to legacy with a warning)
+ * - legacy: JS/TS engine only (current default)
+ * - dual: both engines planned to run in parallel and diff results (currently falls back to legacy with a warning)
+ */
+export type EngineMode = 'rust' | 'legacy' | 'dual';
+
+/**
  * Options for the validate command
  */
 export interface ValidateOptions {
@@ -69,6 +79,8 @@ export interface GateOptions {
   skipCommandSafety?: boolean;
   /** Disable provenance recording (Commander.js --no-provenance sets this to false) */
   provenance?: boolean;
+  /** Engine mode: rust, legacy, or dual (RENG-006) */
+  engine?: EngineMode;
 }
 
 /**
