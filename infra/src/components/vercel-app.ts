@@ -28,6 +28,11 @@ export class VercelApp extends pulumi.ComponentResource {
     // Default ignore command: skip build when only unrelated files changed
     // cd to repo root first — Vercel may run this from the rootDirectory
     const prodBranch = args.productionBranch ?? 'main';
+    if (!/^[\w./-]+$/.test(prodBranch)) {
+      throw new Error(
+        `Invalid productionBranch "${prodBranch}" — must contain only word characters, dots, slashes, or hyphens`
+      );
+    }
     const extraArgs = args.extraWatchPaths?.length
       ? ' ' + args.extraWatchPaths.map((p) => `'${p}'`).join(' ')
       : '';
@@ -36,7 +41,7 @@ export class VercelApp extends pulumi.ComponentResource {
     // When skipPreviewDeploys is true, only build on the production branch;
     // all other branches exit 0 (skip). Manual dev deploys via `vercel deploy`.
     const defaultIgnoreCommand = args.skipPreviewDeploys
-      ? `if [ "$VERCEL_GIT_COMMIT_REF" != "${prodBranch}" ]; then echo "Skipping non-production branch"; exit 0; fi && ${fileCheckCommand}`
+      ? `if [ -n "$VERCEL_GIT_COMMIT_REF" ] && [ "$VERCEL_GIT_COMMIT_REF" != "${prodBranch}" ]; then echo "Skipping non-production branch"; exit 0; fi && ${fileCheckCommand}`
       : fileCheckCommand;
 
     const project = new vercel.Project(
