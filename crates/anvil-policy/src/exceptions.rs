@@ -122,6 +122,18 @@ fn atomic_write(path: &Path, content: &[u8]) -> Result<(), ExceptionError> {
     tmp.flush().map_err(ExceptionError::Io)?;
 
     let tmp_path = tmp.into_temp_path();
+
+    // On Windows, TempPath::persist uses std::fs::rename, which fails if the
+    // destination already exists. Remove the existing file first.
+    #[cfg(windows)]
+    {
+        if let Err(e) = std::fs::remove_file(path) {
+            if e.kind() != std::io::ErrorKind::NotFound {
+                return Err(ExceptionError::Io(e));
+            }
+        }
+    }
+
     tmp_path
         .persist(path)
         .map_err(|e| ExceptionError::Io(e.error))?;

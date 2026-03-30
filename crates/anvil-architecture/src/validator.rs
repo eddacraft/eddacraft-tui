@@ -171,7 +171,7 @@ fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefiniti
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
-            // Skip hidden dirs and common build output for performance.
+            // Skip well-known non-source directories for performance.
             if e.file_type().is_dir() {
                 return name != "node_modules"
                     && name != ".git"
