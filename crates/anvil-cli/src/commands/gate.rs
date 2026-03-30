@@ -37,7 +37,7 @@ pub struct GateArgs {
     #[arg(long)]
     list_profiles: bool,
 
-    /// Disable caching (forces fresh evaluation of all checks)
+    /// Disable caching (reserved for future use; currently has no effect)
     #[arg(long)]
     no_cache: bool,
 }
@@ -85,25 +85,49 @@ struct CheckResult {
 /// Extract file paths referenced in a `.aps.md` plan file.
 ///
 /// Parses `- **Files:** ...` lines and returns deduplicated paths.
-/// Returns an empty set if the file cannot be read.
+/// Returns an empty set (and emits a warning) if the file cannot be read.
 fn extract_plan_files(plan_path: &Path) -> std::collections::HashSet<String> {
-    let Ok(content) = std::fs::read_to_string(plan_path) else {
-        return std::collections::HashSet::new();
+    let content = match std::fs::read_to_string(plan_path) {
+        Ok(content) => content,
+        Err(err) => {
+            eprintln!(
+                "Warning: failed to read plan file '{}': {err}. Falling back to full codebase scan.",
+                plan_path.display()
+            );
+            return std::collections::HashSet::new();
+        }
     };
 
     let file_re = Regex::new(r"`([^`]+)`").expect("valid regex");
     let mut files = std::collections::HashSet::new();
 
+    // Track whether we're in a Files: continuation (multi-line entries).
+    let mut in_files_block = false;
+
     for line in content.lines() {
         let trimmed = line.trim_start_matches([' ', '-']);
         if trimmed.starts_with("**Files:**") {
+            in_files_block = true;
             for cap in file_re.captures_iter(trimmed) {
                 let path = cap[1].to_string();
-                // Only include paths that look like file references (contain a dot
-                // or slash), not inline code fragments.
                 if path.contains('/') || path.contains('.') {
                     files.insert(path);
                 }
+            }
+        } else if in_files_block {
+            // Continuation lines: indented lines with backticked paths.
+            let has_backticks = trimmed.contains('`');
+            let is_continuation =
+                has_backticks && !trimmed.starts_with("**") && !trimmed.starts_with('#');
+            if is_continuation {
+                for cap in file_re.captures_iter(trimmed) {
+                    let path = cap[1].to_string();
+                    if path.contains('/') || path.contains('.') {
+                        files.insert(path);
+                    }
+                }
+            } else {
+                in_files_block = false;
             }
         }
     }
@@ -262,7 +286,13 @@ fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) 
                 .unwrap_or(path)
                 .to_string_lossy()
                 .replace('\\', "/");
-            if !plan_files.iter().any(|pf| rel.starts_with(pf.as_str())) {
+            if !plan_files.iter().any(|pf| {
+                if pf.ends_with('/') || root.join(pf).is_dir() {
+                    rel.starts_with(pf.as_str())
+                } else {
+                    rel == pf.as_str()
+                }
+            }) {
                 continue;
             }
         }

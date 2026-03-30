@@ -148,26 +148,33 @@ fn matches_layer(file: &str, layer: &Layer) -> Option<String> {
 }
 
 /// Merge explicit user-authored rules from `architecture.yaml` into the
-/// auto-generated boundary set.
+/// boundary set. "Allow wins" semantics: allow rules always remove matching
+/// boundaries (including earlier explicit ones), deny rules add or override.
 ///
-/// - `allowed: true` rules remove matching auto-generated deny boundaries
+/// - `allowed: true` rules remove any boundary with matching `from`/`to`
+///   (regardless of severity)
 /// - `allowed: false` rules add new deny boundaries (or override severity)
+/// - `RuleSeverity::Ignore` on deny rules skips them; allow rules are
+///   unaffected by severity
 fn merge_rules_into_boundaries(
     mut boundaries: Vec<Boundary>,
     rules: &[ArchitectureRule],
 ) -> Vec<Boundary> {
     for rule in rules {
+        if rule.allowed {
+            // Allow rules always remove matching boundaries regardless of severity.
+            boundaries.retain(|b| !(b.from == rule.from && b.to == rule.to));
+            continue;
+        }
+
         let severity = match rule.severity {
             RuleSeverity::Error => BoundarySeverity::Error,
             RuleSeverity::Warn => BoundarySeverity::Warning,
             RuleSeverity::Info => BoundarySeverity::Info,
-            RuleSeverity::Ignore => continue, // ignore-severity rules have no effect
+            RuleSeverity::Ignore => continue, // ignore-severity deny rules have no effect
         };
 
-        if rule.allowed {
-            // Remove any auto-generated boundary that forbids this edge.
-            boundaries.retain(|b| !(b.from == rule.from && b.to == rule.to));
-        } else {
+        {
             // Check if a boundary already exists for this edge.
             if let Some(existing) = boundaries
                 .iter_mut()
@@ -218,8 +225,8 @@ pub struct ImportEdge {
 ///
 /// For each import edge, looks up the layer of the source and target files.
 /// If the import crosses a boundary that is not allowed, emits a violation.
-/// Target files are matched by exact path or by prefix (to handle extensionless
-/// imports like `../app/service` matching `src/app/service.ts`).
+/// Target files are matched by exact path or by resolving extensionless imports
+/// using known source file extensions (e.g. `../app/service` matching `src/app/service.ts`).
 pub fn check_boundaries(
     assignments: &[LayerAssignment],
     boundaries: &[Boundary],
@@ -537,6 +544,32 @@ mod tests {
     }
 
     #[test]
+    fn merge_rules_allow_ignores_severity() {
+        let boundaries = vec![Boundary {
+            name: "no-x-to-y".into(),
+            from: "x".into(),
+            to: "y".into(),
+            severity: BoundarySeverity::Error,
+            message: "forbidden".into(),
+            confidence: None,
+        }];
+        let rules = vec![crate::definition::ArchitectureRule {
+            name: "allow-with-ignore".into(),
+            from: "x".into(),
+            to: "y".into(),
+            severity: crate::definition::RuleSeverity::Ignore,
+            allowed: true,
+            message: None,
+        }];
+
+        let result = merge_rules_into_boundaries(boundaries, &rules);
+        assert!(
+            result.is_empty(),
+            "allow rule should remove boundary regardless of severity"
+        );
+    }
+
+    #[test]
     fn check_boundaries_detects_violation() {
         let assignments = vec![
             LayerAssignment {
@@ -676,8 +709,8 @@ mod tests {
             options: Some(crate::definition::get_default_options()),
         };
         let _result = validate(tmp.path(), &def_no_rules).unwrap();
-        // Boundary checking is stubbed, so no violations regardless,
-        // but we can verify the boundaries were built correctly via the function.
+        // Boundary checking is inactive here because `validate` passes no edges,
+        // but we can still verify the boundaries were built correctly via the function.
         let boundaries_no_rules =
             merge_rules_into_boundaries(create_default_boundaries(&layers), &[]);
         let has_core_to_app = boundaries_no_rules
