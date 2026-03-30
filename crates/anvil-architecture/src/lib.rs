@@ -3,6 +3,7 @@
 pub mod baseline;
 pub mod definition;
 pub mod types;
+mod util;
 pub mod validator;
 pub mod yaml_parser;
 

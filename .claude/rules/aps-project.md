@@ -42,7 +42,7 @@
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
-- IAC: pulumi-iac (12/20) — In Progress
+- IAC: pulumi-iac (20/20) — Complete
 - AGOV: agent-governance-patterns (0/7) — Draft
 - BENCH: kernel-benchmarking (6/16) — In Progress
 - TUIDASH: tui-dashboard-render (0/12) — Draft

@@ -219,6 +219,9 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::from(EXIT_OK),
         Err(err) => {
+            if err.is::<output::AlreadyReported>() {
+                return ExitCode::from(EXIT_ERROR);
+            }
             if cli.global.json {
                 eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
             } else {

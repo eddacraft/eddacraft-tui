@@ -923,7 +923,7 @@ pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
         .collect();
 
     anvil_tui::surfaces::gate::GateResult {
-        plan_id: "default".to_string(),
+        plan_id: "cli".to_string(),
         overall_passed: overall,
         score,
         checks: tui_checks,

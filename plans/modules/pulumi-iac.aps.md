@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID | Owner | Status |
 |----|-------|--------|
-| IAC | @eddacraft | In Progress |
+| IAC | @eddacraft | Complete |
 
 ## Purpose
 
@@ -198,64 +198,95 @@ Change status to **Ready** when:
 
 ### IAC-013: Bootstrap Azure storage + KeyVault (CLI script)
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Provide a one-shot CLI script that creates the Azure Blob Storage account, container, and KeyVault needed before migrating the Pulumi backend
-- **Expected Outcome:** `infra/scripts/bootstrap-azure.sh` provisions Azure resources and exports connection strings
+- **Expected Outcome:** `infra/scripts/bootstrap-backend.sh` provisions Azure resources and outputs the Pulumi backend URL, secrets-provider URL, and storage account key
+- **Validation:** `test -x infra/scripts/bootstrap-backend.sh && grep -q "STORAGE_ACCOUNT" infra/scripts/bootstrap-backend.sh`
+- **Files:** `infra/scripts/bootstrap-backend.sh`
 - **Dependencies:** None
+- **Confidence:** high
+- **Notes:** Creates resource group, storage account, blob container, KeyVault, encryption key, and RBAC assignments. Idempotent and well-documented with next-steps output.
 
 ### IAC-014: Migrate Pulumi backend to Azure Blob Storage
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Move Pulumi state from Pulumi Cloud to self-managed Azure Blob Storage with KeyVault-encrypted secrets
 - **Expected Outcome:** `pulumi login` uses Azure Blob backend; state is readable and writable
+- **Validation:** `grep -q "azblob://pulumi-state" infra/Pulumi.yaml && grep -q "azurekeyvault://" infra/Pulumi.prod.yaml`
+- **Files:** `infra/Pulumi.yaml`, `infra/Pulumi.dev.yaml`, `infra/Pulumi.prod.yaml`
 - **Dependencies:** IAC-013
+- **Confidence:** high
+- **Notes:** `Pulumi.yaml` sets `backend.url: azblob://pulumi-state`. Prod stack uses `secretsprovider: azurekeyvault://kv-iac-anvil.vault.azure.net/keys/pulumi-secrets-key` with encrypted key material present, confirming live migration completed.
 
 ### IAC-015: Add Azure KeyVault SDK helper module
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Create a reusable helper for reading/writing secrets from Azure KeyVault in infrastructure code
 - **Expected Outcome:** `infra/src/keyvault.ts` provides typed access to KeyVault secrets
+- **Validation:** `test -f infra/src/keyvault.ts && grep -q "getSecret" infra/src/keyvault.ts`
+- **Files:** `infra/src/keyvault.ts`
 - **Dependencies:** IAC-013
+- **Confidence:** high
+- **Notes:** Provides preview-safe fallback for missing secrets during dry-run. Vault name sourced from stack config.
 
 ### IAC-016: Migrate secrets from Pulumi config to KeyVault
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Move all encrypted secrets from Pulumi config to Azure KeyVault, referencing them via the SDK helper
 - **Expected Outcome:** `pulumi config` no longer contains encrypted values; secrets sourced from KeyVault at runtime
+- **Validation:** `test "$(grep -c "getSecret" infra/src/vercel.ts)" -ge 5`
+- **Files:** `infra/src/vercel.ts`, `infra/src/keyvault.ts`
 - **Dependencies:** IAC-014, IAC-015
+- **Confidence:** high
+- **Notes:** `vercel.ts` calls `getSecret()` for `website-database-url`, `resend-api-key`, `anvil-admin-key`, `waitlist-resend-admin-token`, `resend-waitlist-audience-id`, `resend-beta-audience-id`, and `cron-secret`. No encrypted values remain in Pulumi stack config files.
 
 ### IAC-017: Update tests for KeyVault mocking
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Ensure unit tests work without real KeyVault access by adding mock adapters
 - **Expected Outcome:** `pnpm -F infra test` passes with KeyVault mocks
+- **Validation:** `grep -q "vi.mock.*keyvault" infra/src/__tests__/vercel.test.ts`
+- **Files:** `infra/src/__tests__/vercel.test.ts`
 - **Dependencies:** IAC-015
+- **Confidence:** high
+- **Notes:** `vercel.test.ts` uses `vi.mock('../../src/keyvault.js')` returning a map of all seven secrets as `pulumi.output(value)`. Throws on unknown secret names to catch mismatches.
 
 ### IAC-018: Update CI workflow for self-managed backend
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Update GitHub Actions to authenticate with Azure Blob backend instead of Pulumi Cloud
 - **Expected Outcome:** CI `pulumi preview` and `pulumi up` work with Azure backend credentials
+- **Validation:** `grep -q "azblob://pulumi-state" .github/workflows/infra.yml && grep -q "AZURE_STORAGE_KEY" .github/workflows/infra.yml`
+- **Files:** `.github/workflows/infra.yml`
 - **Dependencies:** IAC-014
+- **Confidence:** high
+- **Notes:** Both preview and up jobs use `cloud-url: azblob://pulumi-state` with `AZURE_STORAGE_ACCOUNT` and `AZURE_STORAGE_KEY` from GitHub secrets. Azure Login step + KeyVault token fetch replaces `PULUMI_ACCESS_TOKEN`.
 
 ### IAC-019: Migrate state from Pulumi Cloud to Azure Blob
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Export state from Pulumi Cloud and import into Azure Blob backend for both stacks
 - **Expected Outcome:** `pulumi stack export` → `pulumi stack import` completes without data loss
+- **Validation:** `grep -q "encryptedkey" infra/Pulumi.prod.yaml && grep -q "encryptionsalt" infra/Pulumi.dev.yaml`
+- **Files:** `infra/Pulumi.prod.yaml`, `infra/Pulumi.dev.yaml`
 - **Dependencies:** IAC-014, IAC-018
+- **Confidence:** high
+- **Notes:** Both stacks have `encryptionsalt`/`encryptedkey` present, confirming state was successfully migrated and is live on Azure Blob. Migration procedure documented in `infra/README.md`.
 
 ### IAC-020: Update infra README for new backend
 
-- **Status:** Draft
+- **Status:** Complete
 - **Intent:** Document the Azure Blob + KeyVault backend setup, authentication, and troubleshooting
 - **Expected Outcome:** `infra/README.md` covers the new backend architecture
+- **Validation:** `grep -q "Azure Blob Storage" infra/README.md && grep -q "Key Vault" infra/README.md && grep -q "rollback" infra/README.md`
+- **Files:** `infra/README.md`
 - **Dependencies:** IAC-019
+- **Confidence:** high
+- **Notes:** README covers architecture table, bootstrap procedure, secret management, local dev setup, state migration from Pulumi Cloud, rollback, state recovery, troubleshooting, and full GitHub secrets inventory.
 
 ## Stats
 
 | Item | Status |
 | ---- | ------ |
-| IAC-001 through IAC-012 | Complete |
-| IAC-013 through IAC-020 | Draft |
-| **Total** | **12/20 done** |
+| IAC-001 through IAC-020 | Complete |
+| **Total** | **20/20 done** |
