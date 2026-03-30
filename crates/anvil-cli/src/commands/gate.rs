@@ -246,6 +246,22 @@ fn run_check_test(name: &str) -> CheckResult {
     }
 }
 
+/// Directories to skip when walking the workspace for source files.
+/// Aligned with kernel `FileFilter::default_patterns` in
+/// `crates/anvil-kernel/src/watcher/filter.rs`.
+const WALK_IGNORE_DIRS: &[&str] = &[
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".turbo",
+    ".nx",
+    "coverage",
+    ".anvil",
+];
+
 const SECRET_SCAN_IGNORE: &[&str] = &[
     "node_modules",
     "dist",
@@ -526,11 +542,7 @@ fn extract_import_edges(project_root: &Path) -> Vec<anvil_architecture::ImportEd
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             if e.file_type().is_dir() {
-                return name != "node_modules"
-                    && name != ".git"
-                    && name != "target"
-                    && name != "dist"
-                    && name != "build";
+                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
             }
             true
         });
@@ -718,6 +730,7 @@ fn build_policy_input(
     project_root: &Path,
     profile: Option<&str>,
     plan_path: Option<&str>,
+    plan_files: &std::collections::HashSet<String>,
 ) -> serde_json::Value {
     let source_files: Vec<String> = walkdir::WalkDir::new(project_root)
         .follow_links(false)
@@ -725,11 +738,7 @@ fn build_policy_input(
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             if e.file_type().is_dir() {
-                return name != "node_modules"
-                    && name != ".git"
-                    && name != "target"
-                    && name != "dist"
-                    && name != "build";
+                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
             }
             true
         })
@@ -764,9 +773,27 @@ fn build_policy_input(
 
     let changed_files = git_changed_files(project_root);
 
+    // When plan-scoped, filter files to only those referenced in the plan.
+    let files = if plan_files.is_empty() {
+        source_files
+    } else {
+        source_files
+            .into_iter()
+            .filter(|f| {
+                plan_files.iter().any(|pf| {
+                    if pf.ends_with('/') {
+                        f.starts_with(pf.as_str())
+                    } else {
+                        f == pf.as_str()
+                    }
+                })
+            })
+            .collect()
+    };
+
     let mut input = serde_json::json!({
         "workspace": project_root.to_string_lossy(),
-        "files": source_files,
+        "files": files,
         "changed_files": changed_files,
         "profile": profile.unwrap_or("default"),
     });
@@ -782,6 +809,7 @@ fn run_check_policy(
     project_root: &Path,
     profile: Option<&str>,
     plan_path: Option<&str>,
+    plan_files: &std::collections::HashSet<String>,
 ) -> CheckResult {
     let policy_dir = project_root.join(".anvil/policies");
 
@@ -795,7 +823,7 @@ fn run_check_policy(
     }
 
     let evaluator = anvil_policy::evaluator::Evaluator::new(None);
-    let input = build_policy_input(project_root, profile, plan_path);
+    let input = build_policy_input(project_root, profile, plan_path, plan_files);
 
     match evaluator.evaluate(project_root, &input, None) {
         Ok(result) => {
@@ -848,7 +876,12 @@ fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
         "coverage" => run_check_coverage(&root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(&root),
         "architecture" => run_check_architecture(&root),
-        "policy" => run_check_policy(&root, ctx.profile.as_deref(), ctx.plan_path.as_deref()),
+        "policy" => run_check_policy(
+            &root,
+            ctx.profile.as_deref(),
+            ctx.plan_path.as_deref(),
+            &ctx.plan_files,
+        ),
         _ => CheckResult {
             name: name.to_string(),
             passed: false,
@@ -1314,7 +1347,7 @@ mod tests {
     #[test]
     fn policy_no_bundle_skips() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let result = run_check_policy(tmp.path(), None, None);
+        let result = run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new());
         assert!(result.passed);
         assert!(result.message.contains("Skipping"));
     }
@@ -1325,7 +1358,7 @@ mod tests {
         let policy_dir = tmp.path().join(".anvil/policies");
         std::fs::create_dir_all(&policy_dir).unwrap();
         std::fs::write(policy_dir.join("test.rego"), "package test\n").unwrap();
-        let result = run_check_policy(tmp.path(), None, None);
+        let result = run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new());
         // OPA is not installed in test environment, so it should skip gracefully
         assert!(result.passed);
         assert!(
@@ -1339,7 +1372,12 @@ mod tests {
     #[test]
     fn build_policy_input_populates_workspace() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), Some("ci"), None);
+        let input = build_policy_input(
+            tmp.path(),
+            Some("ci"),
+            None,
+            &std::collections::HashSet::new(),
+        );
         assert_eq!(
             input["workspace"].as_str().unwrap(),
             tmp.path().to_string_lossy()
@@ -1357,7 +1395,7 @@ mod tests {
         std::fs::write(src.join("main.ts"), "export const x = 1;").unwrap();
         std::fs::write(src.join("readme.md"), "# Hi").unwrap();
 
-        let input = build_policy_input(tmp.path(), None, None);
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
         let files: Vec<&str> = input["files"]
             .as_array()
             .unwrap()
@@ -1372,7 +1410,7 @@ mod tests {
     #[test]
     fn build_policy_input_defaults_profile() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), None, None);
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
         assert_eq!(input["profile"].as_str().unwrap(), "default");
     }
 
@@ -1516,14 +1554,19 @@ rules: []
     #[test]
     fn build_policy_input_includes_plan_path() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), None, Some("/plans/test.aps.md"));
+        let input = build_policy_input(
+            tmp.path(),
+            None,
+            Some("/plans/test.aps.md"),
+            &std::collections::HashSet::new(),
+        );
         assert_eq!(input["plan_path"].as_str().unwrap(), "/plans/test.aps.md");
     }
 
     #[test]
     fn build_policy_input_omits_plan_when_none() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let input = build_policy_input(tmp.path(), None, None);
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
         assert!(input.get("plan_path").is_none());
     }
 }

@@ -210,6 +210,16 @@ fn merge_rules_into_boundaries(
 /// Known source file extensions for extensionless import resolution.
 const IMPORT_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "cjs"];
 
+/// ESM `.js` extension mappings — when a `.js` import specifier doesn't match
+/// an actual `.js` file, try these TypeScript equivalents (common in ESM
+/// projects where `import './foo.js'` resolves to `foo.ts` at build time).
+const ESM_EXTENSION_MAP: &[(&str, &[&str])] = &[
+    (".js", &[".ts", ".tsx"]),
+    (".jsx", &[".tsx"]),
+    (".mjs", &[".mts"]),
+    (".cjs", &[".cts"]),
+];
+
 /// An import edge for boundary checking — source file importing a target file.
 #[derive(Debug, Clone)]
 pub struct ImportEdge {
@@ -244,16 +254,26 @@ pub fn check_boundaries(
     for edge in edges {
         let from_layer = file_to_layer.get(edge.from_file.as_str()).copied();
 
-        // Resolve target: try exact match first, then try appending known
-        // extensions for extensionless imports (e.g. "../core/entity" →
-        // "src/core/entity.ts").
+        // Resolve target: try exact match, then extensionless resolution,
+        // then ESM extension swaps (e.g. `./foo.js` → `foo.ts`).
         let to_layer = file_to_layer
             .get(edge.to_file.as_str())
             .copied()
             .or_else(|| {
+                // Extensionless: try appending known extensions.
                 IMPORT_EXTENSIONS.iter().find_map(|ext| {
                     let candidate = format!("{}.{ext}", edge.to_file);
                     file_to_layer.get(candidate.as_str()).copied()
+                })
+            })
+            .or_else(|| {
+                // ESM extension swap: `import './foo.js'` → `foo.ts`.
+                ESM_EXTENSION_MAP.iter().find_map(|(from_ext, to_exts)| {
+                    let stem = edge.to_file.strip_suffix(from_ext)?;
+                    to_exts.iter().find_map(|to_ext| {
+                        let candidate = format!("{stem}{to_ext}");
+                        file_to_layer.get(candidate.as_str()).copied()
+                    })
                 })
             });
 
