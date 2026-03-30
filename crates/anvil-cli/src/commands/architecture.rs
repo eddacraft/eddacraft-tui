@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 use std::path::PathBuf;
 
 use anyhow::{Context, Result, bail};
@@ -17,12 +16,6 @@ pub struct ArchitectureArgs {
 enum ArchitectureCommand {
     /// Validate architecture definition
     Validate {
-        /// Architecture config file
-        #[arg(long, short)]
-        file: Option<String>,
-    },
-    /// Watch for architecture violations
-    Watch {
         /// Architecture config file
         #[arg(long, short)]
         file: Option<String>,
@@ -50,7 +43,7 @@ fn resolve_arch_config(file: Option<&str>) -> Result<PathBuf> {
     let path = workspace.join(".anvil").join(ARCH_CONFIG_FILENAME);
     if !path.exists() {
         bail!(
-            "No architecture.yaml found. Create .anvil/architecture.yaml to define your architecture"
+            "No architecture.yaml found.\n  Create .anvil/architecture.yaml manually or see: anvil architecture --help"
         );
     }
     Ok(path)
@@ -125,7 +118,7 @@ fn parse_architecture(path: &std::path::Path) -> Result<ArchDefinition> {
     let rules_count = value
         .get("rules")
         .and_then(|v| v.as_sequence())
-        .map_or(0, Vec::len);
+        .map_or(0, std::vec::Vec::len);
 
     Ok(ArchDefinition {
         template,
@@ -158,62 +151,6 @@ fn validate_architecture(path: &std::path::Path) -> Result<ValidationResult> {
     })
 }
 
-fn run_watch(file: Option<&str>) -> Result<()> {
-    let path = resolve_arch_config(file)?;
-    let workspace_root = std::env::current_dir().context("getting current directory")?;
-
-    let watcher_config = anvil_kernel::watcher::WatcherConfig {
-        root: workspace_root.clone(),
-        ..Default::default()
-    };
-
-    let watch_config = anvil_kernel::watch::WatchConfig {
-        root: workspace_root,
-        architecture_config: Some(path),
-        watcher: watcher_config,
-    };
-
-    let (event_tx, event_rx) = std::sync::mpsc::channel();
-    let handle = anvil_kernel::watch::run_watch(&watch_config, event_tx)
-        .context("starting architecture watcher")?;
-
-    for event in &event_rx {
-        use anvil_kernel_types::EventPayload;
-        match &event.payload {
-            EventPayload::Violation {
-                policy_id,
-                file,
-                message,
-                ..
-            } => {
-                eprintln!("\u{26a0} [{policy_id}] {file}: {message}");
-            }
-            EventPayload::Snapshot {
-                node_count,
-                edge_count,
-                files_watched,
-            } => {
-                eprintln!(
-                    "\u{1f4f8} {node_count} nodes, {edge_count} edges, {files_watched} files"
-                );
-            }
-            EventPayload::Error(err) => {
-                eprintln!("\u{2717} {}", err.message);
-            }
-            EventPayload::Progress {
-                phase,
-                current,
-                total,
-            } => {
-                eprintln!("\u{25b6} {phase}: {current}/{total}");
-            }
-        }
-    }
-
-    handle.stop().context("stopping watcher")?;
-    Ok(())
-}
-
 pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
     match &args.command {
         ArchitectureCommand::Validate { file } => {
@@ -223,11 +160,11 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
             if global.json {
                 crate::output::json::print(&result)?;
             } else {
-                println!();
+                crate::output::plain::blank();
                 if result.valid {
-                    println!("\u{2713} Architecture configuration is valid");
+                    crate::output::plain::success("Architecture configuration is valid");
                 } else {
-                    println!("\u{2717} Architecture configuration has errors");
+                    crate::output::plain::error("Architecture configuration has errors");
                 }
                 println!("  Template: {}", result.template);
                 println!("  Layers:   {}", result.layers);
@@ -235,7 +172,7 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
                 if !result.issues.is_empty() {
                     println!();
                     for issue in &result.issues {
-                        println!("  \u{26a0} {issue}");
+                        crate::output::plain::warn(issue);
                     }
                 }
             }
@@ -244,9 +181,6 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
                 std::process::exit(1);
             }
         }
-        ArchitectureCommand::Watch { file } => {
-            run_watch(file.as_deref())?;
-        }
         ArchitectureCommand::Show { file } => {
             let path = resolve_arch_config(file.as_deref())?;
             let def = parse_architecture(&path)?;
@@ -254,9 +188,8 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
             if global.json {
                 crate::output::json::print(&def)?;
             } else {
-                println!();
-                println!("Architecture Definition");
-                println!("{}", "\u{2500}".repeat(40));
+                crate::output::plain::blank();
+                crate::output::plain::section("Architecture Definition");
                 println!("  Template: {}", def.template);
                 println!();
                 println!("  Layers");
@@ -295,12 +228,6 @@ mod tests {
     #[test]
     fn args_parses_validate() {
         let w = Wrapper::try_parse_from(["test", "validate"]).unwrap();
-        let _ = format!("{:?}", w.inner);
-    }
-
-    #[test]
-    fn args_parses_watch() {
-        let w = Wrapper::try_parse_from(["test", "watch"]).unwrap();
         let _ = format!("{:?}", w.inner);
     }
 
