@@ -107,22 +107,24 @@ impl ExceptionStore {
 fn atomic_write(path: &Path, content: &[u8]) -> Result<(), ExceptionError> {
     use std::io::Write;
 
-    let dir = path
-        .parent()
-        .ok_or_else(|| ExceptionError::Io(std::io::Error::new(
+    let dir = path.parent().ok_or_else(|| {
+        ExceptionError::Io(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,
             format!("no parent directory for {}", path.display()),
-        )))?;
+        ))
+    })?;
 
     let mut tmp = tempfile::Builder::new()
         .tempfile_in(dir)
-        .map_err(|e| ExceptionError::Io(e))?;
+        .map_err(ExceptionError::Io)?;
 
-    tmp.write_all(content).map_err(|e| ExceptionError::Io(e))?;
-    tmp.flush().map_err(|e| ExceptionError::Io(e))?;
+    tmp.write_all(content).map_err(ExceptionError::Io)?;
+    tmp.flush().map_err(ExceptionError::Io)?;
 
     let tmp_path = tmp.into_temp_path();
-    tmp_path.persist(path).map_err(|e| ExceptionError::Io(e.error))?;
+    tmp_path
+        .persist(path)
+        .map_err(|e| ExceptionError::Io(e.error))?;
 
     Ok(())
 }

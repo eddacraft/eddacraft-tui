@@ -58,7 +58,9 @@ pub fn load_with_fallback() -> Result<Option<Credentials>> {
     // On macOS, `dirs::config_dir()` returns `~/Library/Application Support`
     // but early beta users may have credentials at `~/.config/anvil/`.
     #[cfg(target_os = "macos")]
-    let macos_legacy_config = home.as_ref().map(|h| h.join(".config/anvil/credentials.json"));
+    let macos_legacy_config = home
+        .as_ref()
+        .map(|h| h.join(".config/anvil/credentials.json"));
     #[cfg(not(target_os = "macos"))]
     let macos_legacy_config: Option<std::path::PathBuf> = None;
 
@@ -461,7 +463,8 @@ mod tests {
         std::fs::write(&legacy_license, "file-token").unwrap();
 
         let result =
-            resolve_credentials(&xdg, None, Some(&legacy_license), None, Some("env-token")).unwrap();
+            resolve_credentials(&xdg, None, Some(&legacy_license), None, Some("env-token"))
+                .unwrap();
         assert_eq!(result.unwrap().license, "file-token");
     }
 
@@ -475,8 +478,7 @@ mod tests {
         std::fs::create_dir_all(macos_legacy.parent().unwrap()).unwrap();
         std::fs::write(&macos_legacy, sample_creds_json()).unwrap();
 
-        let result =
-            resolve_credentials(&xdg, None, None, Some(&macos_legacy), None).unwrap();
+        let result = resolve_credentials(&xdg, None, None, Some(&macos_legacy), None).unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().license, "test-token-abc");
     }
@@ -516,14 +518,8 @@ mod tests {
         )
         .unwrap();
 
-        let result = resolve_credentials(
-            &xdg,
-            Some(&legacy_auth),
-            None,
-            Some(&macos_legacy),
-            None,
-        )
-        .unwrap();
+        let result =
+            resolve_credentials(&xdg, Some(&legacy_auth), None, Some(&macos_legacy), None).unwrap();
         assert_eq!(result.unwrap().license, "test-token-abc");
     }
 
