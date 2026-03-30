@@ -112,7 +112,9 @@ fn resolve_credentials(
         }
     }
 
-    // 4. ANVIL_LICENSE env var — returned directly, never persisted to disk
+    // 4. ANVIL_LICENSE env var — returned directly, never persisted to disk.
+    //    These tokens have no local `expires_at`; expiry is enforced
+    //    server-side via the /auth/verify endpoint (see `AnvilClient::whoami`).
     if let Some(token) = env_token {
         let token = token.trim();
         if !token.is_empty() {
@@ -211,7 +213,6 @@ pub fn clear() -> Result<()> {
     Ok(())
 }
 
-#[allow(dead_code)]
 pub fn is_expired(creds: &Credentials) -> bool {
     match &creds.expires_at {
         None => false,
@@ -514,6 +515,52 @@ mod tests {
             let dir = credentials_dir().unwrap();
             assert_eq!(dir, expected.join("anvil"));
         }
+    }
+
+    // ── is_expired ────────────────────────────────────────────────
+
+    #[test]
+    fn is_expired_returns_false_when_no_expiry() {
+        let creds = Credentials {
+            license: "tok".to_string(),
+            refresh_token: None,
+            email: None,
+            expires_at: None,
+        };
+        assert!(!is_expired(&creds));
+    }
+
+    #[test]
+    fn is_expired_returns_false_for_future_expiry() {
+        let creds = Credentials {
+            license: "tok".to_string(),
+            refresh_token: None,
+            email: None,
+            expires_at: Some("2099-01-01T00:00:00Z".to_string()),
+        };
+        assert!(!is_expired(&creds));
+    }
+
+    #[test]
+    fn is_expired_returns_true_for_past_expiry() {
+        let creds = Credentials {
+            license: "tok".to_string(),
+            refresh_token: None,
+            email: None,
+            expires_at: Some("2020-01-01T00:00:00Z".to_string()),
+        };
+        assert!(is_expired(&creds));
+    }
+
+    #[test]
+    fn is_expired_returns_true_for_malformed_expiry() {
+        let creds = Credentials {
+            license: "tok".to_string(),
+            refresh_token: None,
+            email: None,
+            expires_at: Some("not-a-date".to_string()),
+        };
+        assert!(is_expired(&creds));
     }
 
     // ── load_with_fallback is equivalent to load ────────────────
