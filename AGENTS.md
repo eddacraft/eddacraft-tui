@@ -74,6 +74,12 @@ Reference spec: <https://github.com/EddaCraft/anvil-plan-spec>
 - For fresh clones or dependency graph changes, run `pnpm build` before tests if
   cross-package imports need built outputs
 - If you skip validation, say so explicitly in the handoff
+- **Before creating a PR**, you MUST run and pass ALL checks for the languages
+  you touched. Do not create a PR with failing checks:
+  - Rust:
+    `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings`
+  - TypeScript: `pnpm lint:check && pnpm format:check`
+  - Fix any issues before proceeding with the PR
 
 ## Repository Operations - gx
 
