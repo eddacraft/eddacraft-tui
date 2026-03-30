@@ -200,7 +200,7 @@ Change status to **Ready** when:
 
 - **Status:** Complete
 - **Intent:** Provide a one-shot CLI script that creates the Azure Blob Storage account, container, and KeyVault needed before migrating the Pulumi backend
-- **Expected Outcome:** `infra/scripts/bootstrap-backend.sh` provisions Azure resources and exports connection strings
+- **Expected Outcome:** `infra/scripts/bootstrap-backend.sh` provisions Azure resources and outputs the Pulumi backend URL, secrets-provider URL, and storage account key
 - **Validation:** `test -x infra/scripts/bootstrap-backend.sh && grep -q "STORAGE_ACCOUNT" infra/scripts/bootstrap-backend.sh`
 - **Files:** `infra/scripts/bootstrap-backend.sh`
 - **Dependencies:** None
@@ -227,7 +227,7 @@ Change status to **Ready** when:
 - **Files:** `infra/src/keyvault.ts`
 - **Dependencies:** IAC-013
 - **Confidence:** high
-- **Notes:** Uses `@azure/keyvault-secrets` + `DefaultAzureCredential`. Returns `pulumi.Output<string>` wrapped in `pulumi.secret()`. Preview-safe fallback for 404 errors during dry-run. Vault name sourced from `keyvault:vaultName` config.
+- **Notes:** Provides preview-safe fallback for missing secrets during dry-run. Vault name sourced from stack config.
 
 ### IAC-016: Migrate secrets from Pulumi config to KeyVault
 
