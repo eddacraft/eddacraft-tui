@@ -42,6 +42,9 @@ enum PolicyCommand {
     Test {
         /// Test file or directory
         path: Option<String>,
+        /// List discovered test files
+        #[arg(long)]
+        list_files: bool,
     },
 }
 
@@ -89,7 +92,12 @@ struct TestCase {
 struct TestResult {
     passed: u32,
     failed: u32,
+    skipped: u32,
     tests: Vec<TestCase>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    warning: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    files: Option<Vec<String>>,
 }
 
 fn policy_catalogue() -> Vec<PolicyEntry> {
@@ -239,31 +247,17 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
             let mut errors = Vec::new();
             let mut warnings = Vec::new();
 
-            if std::path::Path::new(path)
+            if !std::path::Path::new(path).exists() {
+                errors.push(format!("Policy file not found: {path}"));
+            } else if std::path::Path::new(path)
                 .extension()
                 .is_some_and(|ext| ext.eq_ignore_ascii_case("rego"))
             {
-                let msg = format!(
-                    "Rego file validation requires OPA (not yet supported in Rust CLI). \
+                errors.push(format!(
+                    "Rego file validation requires OPA (not yet supported). \
                      Use 'opa check {path}' directly."
-                );
-                errors.push(msg.clone());
-
-                let result = ValidationResult {
-                    valid: false,
-                    errors,
-                    warnings,
-                };
-
-                if global.json {
-                    crate::output::json::print(&result)?;
-                } else {
-                    crate::output::plain::blank();
-                    crate::output::plain::error(&msg);
-                }
-
-                std::process::exit(1);
-            } else if std::path::Path::new(path).exists() {
+                ));
+            } else {
                 match anvil_policy::config::load_config(path) {
                     Ok(config) => {
                         if config.policies.is_empty() {
@@ -277,8 +271,6 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
                         errors.push(e.to_string());
                     }
                 }
-            } else {
-                errors.push(format!("Policy file not found: {path}"));
             }
 
             let result = ValidationResult {
@@ -305,79 +297,98 @@ pub fn run(args: &PolicyArgs, global: &GlobalArgs) -> Result<()> {
             }
 
             if !result.valid {
-                std::process::exit(1);
+                return Err(crate::output::AlreadyReported.into());
             }
         }
-        PolicyCommand::Test { path } => {
+        PolicyCommand::Test { path, list_files } => {
             let test_path = path.as_deref().unwrap_or(".anvil/policies");
-            let not_implemented = "Policy test execution is not yet implemented in the Rust CLI. \
-                 Use 'opa test' directly for Rego tests.";
 
             if !std::path::Path::new(test_path).exists() {
-                let error_msg = format!("No policy test directory found at '{test_path}'");
                 if global.json {
                     let result = TestResult {
                         passed: 0,
-                        failed: 1,
-                        tests: vec![TestCase {
-                            name: "test-directory-exists".to_string(),
-                            passed: false,
-                            message: error_msg,
-                        }],
+                        failed: 0,
+                        skipped: 0,
+                        tests: vec![],
+                        warning: Some(format!("No policy test directory found at '{test_path}'")),
+                        files: None,
                     };
                     crate::output::json::print(&result)?;
                 } else {
                     crate::output::plain::blank();
-                    crate::output::plain::warn(&error_msg);
-                    crate::output::plain::warn(not_implemented);
+                    crate::output::plain::warn(&format!(
+                        "No policy test directory found at '{test_path}'"
+                    ));
+                    crate::output::plain::warn(
+                        "Policy test execution is not yet implemented. \
+                         Create Rego tests in .anvil/policies/ for future use.",
+                    );
                 }
-                std::process::exit(1);
+                return Ok(());
             }
 
-            let file_count = walkdir::WalkDir::new(test_path)
-                .into_iter()
-                .filter_map(std::result::Result::ok)
-                .filter(|e| e.file_type().is_file())
-                .count();
+            // Only collect file paths when --list-files is requested;
+            // otherwise just count entries to avoid materialising a vec.
+            let (file_count, test_files) = if *list_files {
+                let files: Vec<String> = walkdir::WalkDir::new(test_path)
+                    .into_iter()
+                    .filter_map(std::result::Result::ok)
+                    .filter(|e| e.file_type().is_file())
+                    .map(|e| e.path().to_string_lossy().to_string())
+                    .collect();
+                let count = files.len();
+                (count, Some(files))
+            } else {
+                let count = walkdir::WalkDir::new(test_path)
+                    .into_iter()
+                    .filter_map(std::result::Result::ok)
+                    .filter(|e| e.file_type().is_file())
+                    .count();
+                (count, None)
+            };
 
             if file_count == 0 {
-                let error_msg = format!("No test files found in '{test_path}'");
                 if global.json {
                     let result = TestResult {
                         passed: 0,
-                        failed: 1,
-                        tests: vec![TestCase {
-                            name: "test-files-found".to_string(),
-                            passed: false,
-                            message: error_msg,
-                        }],
+                        failed: 0,
+                        skipped: 0,
+                        tests: vec![],
+                        warning: Some(format!("No test files found in '{test_path}'")),
+                        files: None,
                     };
                     crate::output::json::print(&result)?;
                 } else {
                     crate::output::plain::blank();
-                    crate::output::plain::warn(&error_msg);
+                    crate::output::plain::warn("No test files found");
                 }
-                std::process::exit(1);
+                return Ok(());
             }
 
-            let msg =
-                format!("{not_implemented} Found {file_count} test file(s) in '{test_path}'.");
             if global.json {
                 let result = TestResult {
                     passed: 0,
-                    failed: 1,
-                    tests: vec![TestCase {
-                        name: "test-execution".to_string(),
-                        passed: false,
-                        message: msg.clone(),
-                    }],
+                    failed: 0,
+                    skipped: u32::try_from(file_count).unwrap_or(u32::MAX),
+                    tests: vec![],
+                    warning: Some(format!(
+                        "Found {file_count} test file(s) but policy test execution \
+                         is not yet implemented. Use 'opa test' directly."
+                    )),
+                    files: test_files.clone(),
                 };
                 crate::output::json::print(&result)?;
             } else {
                 crate::output::plain::blank();
-                crate::output::plain::error(&msg);
+                crate::output::plain::warn(&format!(
+                    "Found {file_count} test file(s) in '{test_path}' but policy test execution is not yet implemented",
+                ));
+                if let Some(files) = &test_files {
+                    for f in files {
+                        crate::output::plain::info(f);
+                    }
+                }
             }
-            std::process::exit(1);
         }
     }
 

@@ -178,7 +178,7 @@ pub fn run(args: &ArchitectureArgs, global: &GlobalArgs) -> Result<()> {
             }
 
             if !result.valid {
-                std::process::exit(1);
+                return Err(crate::output::AlreadyReported.into());
             }
         }
         ArchitectureCommand::Show { file } => {
