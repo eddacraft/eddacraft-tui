@@ -19,6 +19,8 @@
       "ul",
       "li",
       "a",
+      "details",
+      "summary",
       "intent",
       "plan",
       "name",
