@@ -79,10 +79,31 @@ pub fn save_baseline(
     let content = serde_json::to_string_pretty(baseline)
         .map_err(|e| BaselineError::InvalidJson(e.to_string()))?;
 
-    std::fs::write(&path, format!("{content}\n")).map_err(|e| BaselineError::Io {
+    atomic_write(&path, format!("{content}\n").as_bytes()).map_err(|e| BaselineError::Io {
         path: path_str,
         source: e,
     })?;
+
+    Ok(())
+}
+
+/// Atomically write `content` to `path` via a temp file + rename.
+fn atomic_write(path: &Path, content: &[u8]) -> Result<(), std::io::Error> {
+    use std::io::Write;
+
+    let dir = path.parent().ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("no parent directory for {}", path.display()),
+        )
+    })?;
+
+    let mut tmp = tempfile::Builder::new().tempfile_in(dir)?;
+    tmp.write_all(content)?;
+    tmp.flush()?;
+
+    let tmp_path = tmp.into_temp_path();
+    tmp_path.persist(path).map_err(|e| e.error)?;
 
     Ok(())
 }

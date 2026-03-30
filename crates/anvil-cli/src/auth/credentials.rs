@@ -30,14 +30,15 @@ pub fn credentials_path() -> Result<PathBuf> {
 /// Load credentials, checking XDG path first then legacy locations.
 ///
 /// Search order:
-/// 1. `$XDG_CONFIG_HOME/anvil/credentials.json`
+/// 1. `$XDG_CONFIG_HOME/anvil/credentials.json` (or platform config dir)
 /// 2. `~/.anvil/auth.json` (legacy JSON)
 /// 3. `~/.anvil/license` (legacy plain-text token)
-/// 4. `ANVIL_LICENSE` env var (plain-text token)
+/// 4. `~/.config/anvil/credentials.json` (macOS only — early beta path)
+/// 5. `ANVIL_LICENSE` env var (plain-text token)
 ///
-/// When credentials are found at a legacy path (2--3), they are
+/// When credentials are found at a legacy path (2--4), they are
 /// automatically migrated to the XDG location. Env var credentials
-/// (4) are returned directly and never persisted to disk.
+/// (5) are returned directly and never persisted to disk.
 pub fn load() -> Result<Option<Credentials>> {
     load_with_fallback()
 }
@@ -54,10 +55,18 @@ pub fn load_with_fallback() -> Result<Option<Credentials>> {
     let legacy_license = home.as_ref().map(|h| h.join(".anvil/license"));
     let env_token = std::env::var("ANVIL_LICENSE").ok();
 
+    // On macOS, `dirs::config_dir()` returns `~/Library/Application Support`
+    // but early beta users may have credentials at `~/.config/anvil/`.
+    #[cfg(target_os = "macos")]
+    let macos_legacy_config = home.as_ref().map(|h| h.join(".config/anvil/credentials.json"));
+    #[cfg(not(target_os = "macos"))]
+    let macos_legacy_config: Option<std::path::PathBuf> = None;
+
     resolve_credentials(
         &xdg_path,
         legacy_auth.as_deref(),
         legacy_license.as_deref(),
+        macos_legacy_config.as_deref(),
         env_token.as_deref(),
     )
 }
@@ -70,6 +79,7 @@ fn resolve_credentials(
     xdg_path: &std::path::Path,
     legacy_auth: Option<&std::path::Path>,
     legacy_license: Option<&std::path::Path>,
+    macos_legacy_config: Option<&std::path::Path>,
     env_token: Option<&str>,
 ) -> Result<Option<Credentials>> {
     // 1. XDG path (canonical)
@@ -112,7 +122,21 @@ fn resolve_credentials(
         }
     }
 
-    // 4. ANVIL_LICENSE env var — returned directly, never persisted to disk.
+    // 4. macOS legacy ~/.config/anvil/credentials.json
+    //    On macOS, dirs::config_dir() returns ~/Library/Application Support,
+    //    but early beta users may have credentials at ~/.config/anvil/.
+    if let Some(path) = macos_legacy_config
+        && path.exists()
+    {
+        let content =
+            std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
+        let creds: Credentials = serde_json::from_str(&content)
+            .with_context(|| format!("parsing {}", path.display()))?;
+        migrate_to_xdg(xdg_path, &creds)?;
+        return Ok(Some(creds));
+    }
+
+    // 5. ANVIL_LICENSE env var — returned directly, never persisted to disk.
     //    These tokens have no local `expires_at`; expiry is enforced
     //    server-side via the /auth/verify endpoint (see `AnvilClient::whoami`).
     if let Some(token) = env_token {
@@ -246,7 +270,7 @@ mod tests {
         std::fs::create_dir_all(xdg.parent().unwrap()).unwrap();
         std::fs::write(&xdg, sample_creds_json()).unwrap();
 
-        let result = resolve_credentials(&xdg, None, None, None).unwrap();
+        let result = resolve_credentials(&xdg, None, None, None, None).unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().license, "test-token-abc");
     }
@@ -261,7 +285,7 @@ mod tests {
         std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
         std::fs::write(&legacy, sample_creds_json()).unwrap();
 
-        let result = resolve_credentials(&xdg, Some(&legacy), None, None).unwrap();
+        let result = resolve_credentials(&xdg, Some(&legacy), None, None, None).unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().license, "test-token-abc");
     }
@@ -274,7 +298,7 @@ mod tests {
         std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
         std::fs::write(&legacy, sample_creds_json()).unwrap();
 
-        resolve_credentials(&xdg, Some(&legacy), None, None).unwrap();
+        resolve_credentials(&xdg, Some(&legacy), None, None, None).unwrap();
         assert!(xdg.exists(), "credentials should be migrated to XDG path");
 
         let migrated: Credentials =
@@ -292,7 +316,7 @@ mod tests {
         std::fs::create_dir_all(license_file.parent().unwrap()).unwrap();
         std::fs::write(&license_file, "plain-text-token\n").unwrap();
 
-        let result = resolve_credentials(&xdg, None, Some(&license_file), None).unwrap();
+        let result = resolve_credentials(&xdg, None, Some(&license_file), None, None).unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().license, "plain-text-token");
     }
@@ -305,7 +329,7 @@ mod tests {
         std::fs::create_dir_all(license_file.parent().unwrap()).unwrap();
         std::fs::write(&license_file, "  token-with-whitespace  \n").unwrap();
 
-        resolve_credentials(&xdg, None, Some(&license_file), None).unwrap();
+        resolve_credentials(&xdg, None, Some(&license_file), None, None).unwrap();
         assert!(xdg.exists());
 
         let migrated: Credentials =
@@ -321,7 +345,7 @@ mod tests {
         std::fs::create_dir_all(license_file.parent().unwrap()).unwrap();
         std::fs::write(&license_file, "  \n").unwrap();
 
-        let result = resolve_credentials(&xdg, None, Some(&license_file), None).unwrap();
+        let result = resolve_credentials(&xdg, None, Some(&license_file), None, None).unwrap();
         assert!(result.is_none());
     }
 
@@ -332,7 +356,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let xdg = tmp.path().join("config/anvil/credentials.json");
 
-        let result = resolve_credentials(&xdg, None, None, Some("env-token-123")).unwrap();
+        let result = resolve_credentials(&xdg, None, None, None, Some("env-token-123")).unwrap();
         assert!(result.is_some());
         assert_eq!(result.unwrap().license, "env-token-123");
     }
@@ -342,7 +366,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let xdg = tmp.path().join("config/anvil/credentials.json");
 
-        let result = resolve_credentials(&xdg, None, None, Some("   ")).unwrap();
+        let result = resolve_credentials(&xdg, None, None, None, Some("   ")).unwrap();
         assert!(result.is_none());
     }
 
@@ -351,7 +375,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let xdg = tmp.path().join("config/anvil/credentials.json");
 
-        let result = resolve_credentials(&xdg, None, None, Some("env-only-token")).unwrap();
+        let result = resolve_credentials(&xdg, None, None, None, Some("env-only-token")).unwrap();
         assert_eq!(result.unwrap().license, "env-only-token");
         assert!(
             !xdg.exists(),
@@ -390,7 +414,7 @@ mod tests {
         )
         .unwrap();
 
-        let result = resolve_credentials(&xdg, Some(&legacy), None, None).unwrap();
+        let result = resolve_credentials(&xdg, Some(&legacy), None, None, None).unwrap();
         assert_eq!(result.unwrap().license, "xdg-token");
     }
 
@@ -420,6 +444,7 @@ mod tests {
             &xdg,
             Some(&legacy_auth),
             Some(&legacy_license),
+            None,
             Some("env-token"),
         )
         .unwrap();
@@ -436,8 +461,70 @@ mod tests {
         std::fs::write(&legacy_license, "file-token").unwrap();
 
         let result =
-            resolve_credentials(&xdg, None, Some(&legacy_license), Some("env-token")).unwrap();
+            resolve_credentials(&xdg, None, Some(&legacy_license), None, Some("env-token")).unwrap();
         assert_eq!(result.unwrap().license, "file-token");
+    }
+
+    // ── macOS legacy ~/.config/anvil/ path (priority 4) ───────────
+
+    #[test]
+    fn load_from_macos_legacy_config_path() {
+        let tmp = tempfile::tempdir().unwrap();
+        let xdg = tmp.path().join("library/anvil/credentials.json");
+        let macos_legacy = tmp.path().join(".config/anvil/credentials.json");
+        std::fs::create_dir_all(macos_legacy.parent().unwrap()).unwrap();
+        std::fs::write(&macos_legacy, sample_creds_json()).unwrap();
+
+        let result =
+            resolve_credentials(&xdg, None, None, Some(&macos_legacy), None).unwrap();
+        assert!(result.is_some());
+        assert_eq!(result.unwrap().license, "test-token-abc");
+    }
+
+    #[test]
+    fn macos_legacy_config_migrates_to_xdg() {
+        let tmp = tempfile::tempdir().unwrap();
+        let xdg = tmp.path().join("library/anvil/credentials.json");
+        let macos_legacy = tmp.path().join(".config/anvil/credentials.json");
+        std::fs::create_dir_all(macos_legacy.parent().unwrap()).unwrap();
+        std::fs::write(&macos_legacy, sample_creds_json()).unwrap();
+
+        resolve_credentials(&xdg, None, None, Some(&macos_legacy), None).unwrap();
+        assert!(xdg.exists(), "credentials should be migrated to XDG path");
+    }
+
+    #[test]
+    fn legacy_auth_json_takes_priority_over_macos_config() {
+        let tmp = tempfile::tempdir().unwrap();
+        let xdg = tmp.path().join("library/anvil/credentials.json");
+        let legacy_auth = tmp.path().join(".anvil/auth.json");
+        let macos_legacy = tmp.path().join(".config/anvil/credentials.json");
+
+        std::fs::create_dir_all(legacy_auth.parent().unwrap()).unwrap();
+        std::fs::create_dir_all(macos_legacy.parent().unwrap()).unwrap();
+
+        std::fs::write(&legacy_auth, sample_creds_json()).unwrap();
+        let macos_creds = Credentials {
+            license: "macos-token".to_string(),
+            refresh_token: None,
+            email: None,
+            expires_at: None,
+        };
+        std::fs::write(
+            &macos_legacy,
+            serde_json::to_string_pretty(&macos_creds).unwrap(),
+        )
+        .unwrap();
+
+        let result = resolve_credentials(
+            &xdg,
+            Some(&legacy_auth),
+            None,
+            Some(&macos_legacy),
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.unwrap().license, "test-token-abc");
     }
 
     // ── No credentials anywhere ──────────────────────────────────
@@ -447,7 +534,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let xdg = tmp.path().join("config/anvil/credentials.json");
 
-        let result = resolve_credentials(&xdg, None, None, None).unwrap();
+        let result = resolve_credentials(&xdg, None, None, None, None).unwrap();
         assert!(result.is_none());
     }
 
@@ -464,7 +551,7 @@ mod tests {
         std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
         std::fs::write(&legacy, sample_creds_json()).unwrap();
 
-        resolve_credentials(&xdg, Some(&legacy), None, None).unwrap();
+        resolve_credentials(&xdg, Some(&legacy), None, None, None).unwrap();
 
         let perms = std::fs::metadata(&xdg).unwrap().permissions();
         assert_eq!(perms.mode() & 0o777, 0o600);
@@ -490,7 +577,7 @@ mod tests {
         std::fs::write(&xdg, serde_json::to_string_pretty(&xdg_creds).unwrap()).unwrap();
         std::fs::write(&legacy, sample_creds_json()).unwrap();
 
-        resolve_credentials(&xdg, Some(&legacy), None, None).unwrap();
+        resolve_credentials(&xdg, Some(&legacy), None, None, None).unwrap();
 
         // XDG file should still have the original token, not the legacy one
         let content: Credentials =

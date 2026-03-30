@@ -64,6 +64,8 @@ impl ExceptionStore {
     }
 
     /// Saves exceptions to `{workspace_root}/.anvil/exceptions.json`.
+    ///
+    /// Uses write-temp-then-rename to avoid corruption on interrupted writes.
     pub fn save(&self, workspace_root: &Path) -> Result<(), ExceptionError> {
         let path = workspace_root.join(EXCEPTIONS_FILE);
         if let Some(parent) = path.parent() {
@@ -71,7 +73,7 @@ impl ExceptionStore {
         }
         let content = serde_json::to_string_pretty(self)
             .map_err(|e| ExceptionError::Serialise(e.to_string()))?;
-        std::fs::write(&path, content)?;
+        atomic_write(&path, content.as_bytes())?;
         Ok(())
     }
 
@@ -99,6 +101,30 @@ impl ExceptionStore {
     pub fn remove_by_policy(&mut self, policy_id: &str) {
         self.exceptions.retain(|e| e.policy_id != policy_id);
     }
+}
+
+/// Atomically write `content` to `path` via a temp file + rename.
+fn atomic_write(path: &Path, content: &[u8]) -> Result<(), ExceptionError> {
+    use std::io::Write;
+
+    let dir = path
+        .parent()
+        .ok_or_else(|| ExceptionError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("no parent directory for {}", path.display()),
+        )))?;
+
+    let mut tmp = tempfile::Builder::new()
+        .tempfile_in(dir)
+        .map_err(|e| ExceptionError::Io(e))?;
+
+    tmp.write_all(content).map_err(|e| ExceptionError::Io(e))?;
+    tmp.flush().map_err(|e| ExceptionError::Io(e))?;
+
+    let tmp_path = tmp.into_temp_path();
+    tmp_path.persist(path).map_err(|e| ExceptionError::Io(e.error))?;
+
+    Ok(())
 }
 
 /// Checks whether a violation is suppressed by any active exception.

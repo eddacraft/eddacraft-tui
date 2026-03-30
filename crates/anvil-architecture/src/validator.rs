@@ -171,12 +171,13 @@ fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefiniti
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
-            // Skip hidden dirs and node_modules at the entry level for performance.
+            // Skip hidden dirs and common build output for performance.
             if e.file_type().is_dir() {
                 return name != "node_modules"
                     && name != ".git"
                     && name != "dist"
-                    && name != "build";
+                    && name != "build"
+                    && name != "target";
             }
             true
         });
@@ -338,5 +339,30 @@ mod tests {
         let files = collect_source_files(tmp.path(), &def);
         assert_eq!(files.len(), 1);
         assert!(files[0].contains("main.ts"));
+    }
+
+    #[test]
+    fn collect_source_files_excludes_target_dir() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let target = tmp.path().join("target").join("debug");
+        std::fs::create_dir_all(&target).unwrap();
+        std::fs::write(target.join("main.rs"), "").unwrap();
+
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("lib.rs"), "").unwrap();
+
+        let def = crate::definition::ArchitectureDefinition {
+            schema_version: "0.1.0".into(),
+            template: crate::definition::ArchitectureTemplate::Custom,
+            layers: HashMap::new(),
+            bounded_contexts: None,
+            rules: vec![],
+            options: Some(crate::definition::get_default_options()),
+        };
+
+        let files = collect_source_files(tmp.path(), &def);
+        assert_eq!(files.len(), 1);
+        assert!(files[0].contains("lib.rs"));
     }
 }
