@@ -13,7 +13,7 @@ See: plans/aps-rules.md
 
 | ID | Owner | Status |
 |----|-------|--------|
-| IAC | @eddacraft | In Progress |
+| IAC | @eddacraft | Complete |
 
 ## Purpose
 
@@ -234,7 +234,7 @@ Change status to **Ready** when:
 - **Status:** Complete
 - **Intent:** Move all encrypted secrets from Pulumi config to Azure KeyVault, referencing them via the SDK helper
 - **Expected Outcome:** `pulumi config` no longer contains encrypted values; secrets sourced from KeyVault at runtime
-- **Validation:** `grep -c "getSecret" infra/src/vercel.ts` (should be >= 5)
+- **Validation:** `test "$(grep -c "getSecret" infra/src/vercel.ts)" -ge 5`
 - **Files:** `infra/src/vercel.ts`, `infra/src/keyvault.ts`
 - **Dependencies:** IAC-014, IAC-015
 - **Confidence:** high
@@ -267,7 +267,7 @@ Change status to **Ready** when:
 - **Status:** Complete
 - **Intent:** Export state from Pulumi Cloud and import into Azure Blob backend for both stacks
 - **Expected Outcome:** `pulumi stack export` → `pulumi stack import` completes without data loss
-- **Validation:** `grep -q "encryptedkey" infra/Pulumi.prod.yaml` (presence of encrypted key confirms state is live)
+- **Validation:** `grep -q "encryptedkey" infra/Pulumi.prod.yaml && grep -q "encryptionsalt" infra/Pulumi.dev.yaml`
 - **Files:** `infra/Pulumi.prod.yaml`, `infra/Pulumi.dev.yaml`
 - **Dependencies:** IAC-014, IAC-018
 - **Confidence:** high
