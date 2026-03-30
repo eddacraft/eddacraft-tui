@@ -187,7 +187,10 @@ fn merge_rules_into_boundaries(
                     to: rule.to.clone(),
                     severity,
                     message: rule.message.clone().unwrap_or_else(|| {
-                        format!("{} must not depend on {} (rule: {})", rule.from, rule.to, rule.name)
+                        format!(
+                            "{} must not depend on {} (rule: {})",
+                            rule.from, rule.to, rule.name
+                        )
                     }),
                     confidence: Some(DetectionConfidence::High),
                 });
@@ -275,7 +278,6 @@ pub fn check_boundaries(
 
     violations
 }
-
 
 /// Collect source files from the workspace, respecting exclude patterns.
 fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefinition) -> Vec<String> {
@@ -635,7 +637,10 @@ mod tests {
         }];
 
         let violations = check_boundaries(&assignments, &boundaries, &edges);
-        assert!(violations.is_empty(), "same-layer imports should be allowed");
+        assert!(
+            violations.is_empty(),
+            "same-layer imports should be allowed"
+        );
     }
 
     #[test]

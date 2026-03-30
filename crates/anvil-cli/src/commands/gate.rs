@@ -134,7 +134,9 @@ fn resolve_plan_path(plan_arg: &str) -> Option<PathBuf> {
     }
 
     // Try with .aps.md extension.
-    let with_ext = root.join("plans/modules").join(format!("{plan_arg}.aps.md"));
+    let with_ext = root
+        .join("plans/modules")
+        .join(format!("{plan_arg}.aps.md"));
     if with_ext.exists() {
         return Some(with_ext);
     }
@@ -230,10 +232,7 @@ const SECRET_SCAN_IGNORE: &[&str] = &[
     "coverage",
 ];
 
-fn run_check_secret(
-    name: &str,
-    plan_files: &std::collections::HashSet<String>,
-) -> CheckResult {
+fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) -> CheckResult {
     let root = workspace_root();
     let mut found = Vec::new();
     let secret_patterns: Vec<Regex> = [
@@ -530,12 +529,8 @@ fn extract_import_edges(project_root: &Path) -> Vec<anvil_architecture::ImportEd
             continue;
         };
 
-        let file_symbols = anvil_kernel::parser::extract::extract_symbols(
-            &parse_result.tree,
-            &content,
-            path,
-            0,
-        );
+        let file_symbols =
+            anvil_kernel::parser::extract::extract_symbols(&parse_result.tree, &content, path, 0);
 
         for import in &file_symbols.imports {
             // Only resolve relative imports (starting with . or ..).
@@ -717,7 +712,14 @@ fn build_policy_input(
                 .is_some_and(|ext| {
                     matches!(
                         ext,
-                        "ts" | "tsx" | "js" | "jsx" | "mjs" | "cjs" | "rs" | "json" | "yaml"
+                        "ts" | "tsx"
+                            | "js"
+                            | "jsx"
+                            | "mjs"
+                            | "cjs"
+                            | "rs"
+                            | "json"
+                            | "yaml"
                             | "yml"
                     )
                 })
@@ -1410,13 +1412,9 @@ rules: []
         std::fs::write(app_dir.join("service.ts"), "export const service = 1;\n").unwrap();
 
         let edges = extract_import_edges(tmp.path());
-        assert!(
-            !edges.is_empty(),
-            "should extract at least one import edge"
-        );
+        assert!(!edges.is_empty(), "should extract at least one import edge");
 
-        let definition =
-            anvil_architecture::parse_architecture_definition(tmp.path()).unwrap();
+        let definition = anvil_architecture::parse_architecture_definition(tmp.path()).unwrap();
         let result =
             anvil_architecture::validate_with_edges(tmp.path(), &definition, &edges).unwrap();
 
@@ -1435,14 +1433,14 @@ rules: []
         let plan = tmp.path().join("test.aps.md");
         std::fs::write(
             &plan,
-            r#"
+            r"
 ### ITEM-001: do something
 
 - **Status:** In Progress
 - **Intent:** Some work
 - **Files:** `src/core/entity.ts`, `src/app/service.ts`
 - **Confidence:** high
-"#,
+",
         )
         .unwrap();
 
@@ -1489,10 +1487,7 @@ rules: []
     fn build_policy_input_includes_plan_path() {
         let tmp = tempfile::TempDir::new().unwrap();
         let input = build_policy_input(tmp.path(), None, Some("/plans/test.aps.md"));
-        assert_eq!(
-            input["plan_path"].as_str().unwrap(),
-            "/plans/test.aps.md"
-        );
+        assert_eq!(input["plan_path"].as_str().unwrap(), "/plans/test.aps.md");
     }
 
     #[test]
