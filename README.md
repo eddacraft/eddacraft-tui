@@ -39,13 +39,13 @@ and tooling.
 
 ### Apps
 
-| Directory        | Package                    | Description                              | Deployment          |
-| ---------------- | -------------------------- | ---------------------------------------- | ------------------- |
+| Directory        | Package                    | Description                                                                   | Deployment          |
+| ---------------- | -------------------------- | ----------------------------------------------------------------------------- | ------------------- |
 | `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
-| `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site            | Vercel              |
-| `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)              | Vercel              |
-| `apps/anvil-api` | —                          | API service                              | Vercel              |
-| `apps/e2e`       | —                          | End-to-end test suites (Playwright)      | —                   |
+| `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site                                                 | Vercel              |
+| `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)                                                   | Vercel              |
+| `apps/anvil-api` | —                          | API service                                                                   | Vercel              |
+| `apps/e2e`       | —                          | End-to-end test suites (Playwright)                                           | —                   |
 
 ### Packages — Anvil Core
 
@@ -187,11 +187,11 @@ E2E, TUI E2E) run separately and do not contribute to line coverage.
 
 ### Test type breakdown
 
-| Type        | Files | Description                                            |
-| ----------- | ----: | ------------------------------------------------------ |
-| Unit        |   171 | Co-located `*.test.ts` — mocked deps, fast             |
-| Integration |     5 | `*-integration.test.ts` — multi-module, in-process     |
-| CLI E2E     |     5 | `*.e2e.test.ts` — `execFile`/`spawn`-based CLI testing |
+| Type        | Files | Description                                              |
+| ----------- | ----: | -------------------------------------------------------- |
+| Unit        |   171 | Co-located `*.test.ts` — mocked deps, fast               |
+| Integration |     5 | `*-integration.test.ts` — multi-module, in-process       |
+| CLI E2E     |     5 | `*.e2e.test.ts` — `execFile`/`spawn`-based CLI testing   |
 | TUI E2E     |     — | Migrated to Ratatui snapshot tests (`crates/anvil-tui/`) |
 
 ### Running coverage

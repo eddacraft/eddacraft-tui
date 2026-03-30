@@ -5,8 +5,8 @@ These conventions apply to all agents working in this project.
 ## Instruction Precedence
 
 - Start with this file for repo-wide rules.
-- If the subtree you are editing has its own `AGENTS.md`, apply the nearest
-  file as a refinement of this one.
+- If the subtree you are editing has its own `AGENTS.md`, apply the nearest file
+  as a refinement of this one.
 - When instructions conflict, the more specific `AGENTS.md` for that subtree
   wins.
 
@@ -41,8 +41,8 @@ Reference spec: <https://github.com/EddaCraft/anvil-plan-spec>
 
 - The JavaScript/TypeScript workspace uses `pnpm` and `Nx`
 - The Rust workspace uses `cargo`
-- Run commands from the repository root unless a more specific `AGENTS.md`
-  says otherwise
+- Run commands from the repository root unless a more specific `AGENTS.md` says
+  otherwise
 - Required toolchains:
   - Node.js `>=22.13.0`
   - `pnpm >=10.20.0`

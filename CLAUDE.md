@@ -24,12 +24,12 @@ No build or test commands in this config layer — the monorepo uses `pnpm` and
 
 All hooks are symlinked from `code-env/.claude/hooks/`.
 
-| Hook                       | Trigger                  | What it does                        | Active?                                          |
-| -------------------------- | ------------------------ | ----------------------------------- | ------------------------------------------------ |
-| `git-safety.sh`            | PreToolUse (Bash)        | Blocks dangerous shell commands     | Always                                           |
-| `council-gate.sh`          | PreToolUse (Bash)        | Checks for Council review on commit | `CLAUDE_COUNCIL_GATE=false` (off)                |
-| `local-review-precommit.sh`| PreToolUse (Bash)        | Reminds to check Council before commit | `CLAUDE_LOCAL_REVIEW_PRECOMMIT=false` (off)   |
-| `kindling-capture.sh`      | PostToolUse              | Kindling integration                | Always                                           |
+| Hook                        | Trigger           | What it does                           | Active?                                     |
+| --------------------------- | ----------------- | -------------------------------------- | ------------------------------------------- |
+| `git-safety.sh`             | PreToolUse (Bash) | Blocks dangerous shell commands        | Always                                      |
+| `council-gate.sh`           | PreToolUse (Bash) | Checks for Council review on commit    | `CLAUDE_COUNCIL_GATE=false` (off)           |
+| `local-review-precommit.sh` | PreToolUse (Bash) | Reminds to check Council before commit | `CLAUDE_LOCAL_REVIEW_PRECOMMIT=false` (off) |
+| `kindling-capture.sh`       | PostToolUse       | Kindling integration                   | Always                                      |
 
 ## Council Review
 
