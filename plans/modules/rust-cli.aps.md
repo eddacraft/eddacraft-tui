@@ -520,7 +520,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-013a: wire remaining gate checks
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Implement the 4 stubbed gate checks: coverage (invoke coverage
   tool, parse lcov/cobertura), dependency (scan lockfiles for known
   vulnerabilities or outdated deps), architecture (call into
@@ -536,6 +536,11 @@ resolved before RCLI-023 (cutover) can proceed.
   RCLI-017 crate maturity)
 - **Priority:** High
 - **Dependencies:** RCLI-017 (policy crate), RCLI-019 (architecture crate)
+- **Completed:** 2026-03-31. All 7 checks wired with real logic. Plan arg
+  parses `.aps.md` files and scopes secret scan + policy input. `--no-cache`
+  flag parsed and available (no caching layer exists yet to bypass).
+  Architecture gate uses kernel tree-sitter parser (RCLI-045). Policy gate
+  populates project context (RCLI-046). Definition rules wired (RCLI-050)
 
 ---
 
@@ -1224,6 +1229,43 @@ findings deferred for later.
 
 ---
 
+### RCLI-053: deduplicate file-tree walks in gate command
+
+- **Status:** Proposed
+- **Intent:** `anvil gate` walks the workspace file tree three times with nearly
+  identical logic: once in `collect_source_files` (validator), once in
+  `extract_import_edges`, and once in `build_policy_input`. On large monorepos
+  this triples I/O and directory-entry allocation per gate invocation
+- **Expected Outcome:** Single shared file-tree walk reused by all three
+  consumers
+- **Validation:** Gate runtime on this monorepo does not regress
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-architecture/src/validator.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review council-bd4d7970 (C-005)
+
+---
+
+### RCLI-054: import edge line numbers from kernel parser
+
+- **Status:** Proposed
+- **Intent:** All `ImportEdge` entries are created with `line: 0` because the
+  kernel's `extract_symbols` returns `ImportEdge { from_file, to_source }`
+  without a line number. Boundary violations therefore cannot point users to the
+  offending import statement
+- **Expected Outcome:** Violations include accurate line numbers; CI tooling can
+  jump to the import
+- **Validation:** Boundary violation output shows non-zero line numbers matching
+  actual import locations
+- **Files:** `crates/anvil-kernel/src/parser/extract.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Origin:** Council review council-bd4d7970 (C-006)
+
+---
+
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
@@ -1253,4 +1295,5 @@ findings deferred for later.
 | 8 — TUI UX Polish | 12 | 7 Complete, 1 In Progress, 4 Proposed |
 | 9 — Council Review | 8 | Proposed |
 | 10 — Council Review | 6 | Proposed |
-| **Total** | **62** | **32 Complete, 5 In Progress, 25 Proposed** |
+| 11 — Council Deferred | 2 | Proposed |
+| **Total** | **64** | **33 Complete, 4 In Progress, 27 Proposed** |

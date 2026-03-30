@@ -4,7 +4,7 @@ use std::path::Path;
 
 use glob::Pattern;
 
-use crate::definition::ArchitectureDefinition;
+use crate::definition::{ArchitectureDefinition, ArchitectureRule, RuleSeverity};
 use crate::types::{
     Boundary, BoundarySeverity, BoundaryViolation, DetectionConfidence, Layer, LayerAssignment,
     Layers, create_default_boundaries,
@@ -52,10 +52,24 @@ pub enum ValidateError {
 /// Validate the architecture of a workspace against a definition.
 ///
 /// Collects source files, assigns each to a layer, and checks for
-/// cross-layer boundary violations.
+/// cross-layer boundary violations. Without import edges, boundary checking
+/// produces no violations. Use [`validate_with_edges`] for full analysis.
 pub fn validate(
     workspace_root: &Path,
     definition: &ArchitectureDefinition,
+) -> Result<ValidationResult, ValidateError> {
+    validate_with_edges(workspace_root, definition, &[])
+}
+
+/// Validate architecture with import edges for full boundary analysis.
+///
+/// Import edges should be extracted via tree-sitter (kernel parser) or
+/// equivalent. Each edge maps a source file to an imported file, both
+/// relative to the workspace root.
+pub fn validate_with_edges(
+    workspace_root: &Path,
+    definition: &ArchitectureDefinition,
+    edges: &[ImportEdge],
 ) -> Result<ValidationResult, ValidateError> {
     let files = collect_source_files(workspace_root, definition);
     let assignments = assign_layers(&files, &definition.layers);
@@ -63,9 +77,12 @@ pub fn validate(
     let assigned_count = assignments.iter().filter(|a| a.layer.is_some()).count();
     let orphan_count = assignments.len() - assigned_count;
 
-    // Build boundary rules from layer definitions.
-    let boundaries = create_default_boundaries(&definition.layers);
-    let violations = check_boundaries(&assignments, &boundaries);
+    // Build boundary rules from layer definitions, then merge explicit rules.
+    let boundaries = merge_rules_into_boundaries(
+        create_default_boundaries(&definition.layers),
+        &definition.rules,
+    );
+    let violations = check_boundaries(&assignments, &boundaries, edges);
     let violation_count = violations.len();
 
     let has_errors = violations.iter().any(|v| {
@@ -84,7 +101,7 @@ pub fn validate(
             orphan_count,
             violation_count,
         },
-        boundary_checking_active: boundary_checking_active(),
+        boundary_checking_active: !edges.is_empty(),
     })
 }
 
@@ -130,26 +147,135 @@ fn matches_layer(file: &str, layer: &Layer) -> Option<String> {
     None
 }
 
-/// Check for boundary violations among assigned files.
+/// Merge explicit user-authored rules from `architecture.yaml` into the
+/// auto-generated boundary set.
 ///
-/// **STUB (RCLI-013a):** Full import-edge extraction requires AST parsing
-/// which is deferred to the kernel integration phase. This always returns
-/// an empty list. The `validate()` caller emits a warning so users are
-/// not misled by a clean result.
-fn check_boundaries(
-    _assignments: &[LayerAssignment],
-    _boundaries: &[Boundary],
-) -> Vec<BoundaryViolation> {
-    Vec::new()
+/// - `allowed: true` rules remove matching auto-generated deny boundaries
+/// - `allowed: false` rules add new deny boundaries (or override severity)
+fn merge_rules_into_boundaries(
+    mut boundaries: Vec<Boundary>,
+    rules: &[ArchitectureRule],
+) -> Vec<Boundary> {
+    for rule in rules {
+        let severity = match rule.severity {
+            RuleSeverity::Error => BoundarySeverity::Error,
+            RuleSeverity::Warn => BoundarySeverity::Warning,
+            RuleSeverity::Info => BoundarySeverity::Info,
+            RuleSeverity::Ignore => continue, // ignore-severity rules have no effect
+        };
+
+        if rule.allowed {
+            // Remove any auto-generated boundary that forbids this edge.
+            boundaries.retain(|b| !(b.from == rule.from && b.to == rule.to));
+        } else {
+            // Check if a boundary already exists for this edge.
+            if let Some(existing) = boundaries
+                .iter_mut()
+                .find(|b| b.from == rule.from && b.to == rule.to)
+            {
+                // Override severity and message from the explicit rule.
+                existing.severity = severity;
+                if let Some(ref msg) = rule.message {
+                    existing.message.clone_from(msg);
+                }
+                existing.name.clone_from(&rule.name);
+            } else {
+                // Add a new deny boundary.
+                boundaries.push(Boundary {
+                    name: rule.name.clone(),
+                    from: rule.from.clone(),
+                    to: rule.to.clone(),
+                    severity,
+                    message: rule.message.clone().unwrap_or_else(|| {
+                        format!("{} must not depend on {} (rule: {})", rule.from, rule.to, rule.name)
+                    }),
+                    confidence: Some(DetectionConfidence::High),
+                });
+            }
+        }
+    }
+    boundaries
 }
 
-/// Whether boundary checking is currently active.
-///
-/// Returns `false` until the kernel AST parser is integrated (RCLI-013a).
-#[must_use]
-pub const fn boundary_checking_active() -> bool {
-    false
+/// Known source file extensions for extensionless import resolution.
+const IMPORT_EXTENSIONS: &[&str] = &["ts", "tsx", "js", "jsx", "mjs", "cjs"];
+
+/// An import edge for boundary checking — source file importing a target file.
+#[derive(Debug, Clone)]
+pub struct ImportEdge {
+    /// File containing the import (relative to workspace root).
+    pub from_file: String,
+    /// Resolved file being imported (relative to workspace root).
+    pub to_file: String,
+    /// Line number of the import statement.
+    pub line: u32,
 }
+
+/// Check for boundary violations among assigned files using import edges.
+///
+/// For each import edge, looks up the layer of the source and target files.
+/// If the import crosses a boundary that is not allowed, emits a violation.
+/// Target files are matched by exact path or by prefix (to handle extensionless
+/// imports like `../app/service` matching `src/app/service.ts`).
+pub fn check_boundaries(
+    assignments: &[LayerAssignment],
+    boundaries: &[Boundary],
+    edges: &[ImportEdge],
+) -> Vec<BoundaryViolation> {
+    use std::collections::HashMap;
+
+    let file_to_layer: HashMap<&str, &str> = assignments
+        .iter()
+        .filter_map(|a| a.layer.as_deref().map(|l| (a.file.as_str(), l)))
+        .collect();
+
+    let mut violations = Vec::new();
+
+    for edge in edges {
+        let from_layer = file_to_layer.get(edge.from_file.as_str()).copied();
+
+        // Resolve target: try exact match first, then try appending known
+        // extensions for extensionless imports (e.g. "../core/entity" →
+        // "src/core/entity.ts").
+        let to_layer = file_to_layer
+            .get(edge.to_file.as_str())
+            .copied()
+            .or_else(|| {
+                IMPORT_EXTENSIONS.iter().find_map(|ext| {
+                    let candidate = format!("{}.{ext}", edge.to_file);
+                    file_to_layer.get(candidate.as_str()).copied()
+                })
+            });
+
+        let (Some(from_l), Some(to_l)) = (from_layer, to_layer) else {
+            continue; // Skip edges involving unassigned files.
+        };
+
+        if from_l == to_l {
+            continue; // Same-layer imports are always allowed.
+        }
+
+        // Check if any boundary forbids this cross-layer import.
+        if let Some(boundary) = boundaries.iter().find(|b| b.from == from_l && b.to == to_l) {
+            violations.push(BoundaryViolation {
+                edge: crate::types::DependencyEdge {
+                    from: edge.from_file.clone(),
+                    to: edge.to_file.clone(),
+                    from_layer: Some(from_l.to_string()),
+                    to_layer: Some(to_l.to_string()),
+                    line: edge.line,
+                    import_type: crate::types::ImportType::Import,
+                },
+                boundary: Some(boundary.clone()),
+                is_new: true,
+                baseline_id: None,
+            });
+        }
+    }
+
+    violations
+}
+
 
 /// Collect source files from the workspace, respecting exclude patterns.
 fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefinition) -> Vec<String> {
@@ -313,6 +439,264 @@ mod tests {
         assert_eq!(result.stats.files_analysed, 1);
         assert_eq!(result.stats.files_assigned, 1);
         assert_eq!(result.stats.orphan_count, 0);
+    }
+
+    #[test]
+    fn merge_rules_allow_removes_boundary() {
+        let boundaries = vec![Boundary {
+            name: "no-app-to-infra".into(),
+            from: "app".into(),
+            to: "infra".into(),
+            severity: BoundarySeverity::Error,
+            message: "forbidden".into(),
+            confidence: None,
+        }];
+        let rules = vec![crate::definition::ArchitectureRule {
+            name: "allow-app-to-infra".into(),
+            from: "app".into(),
+            to: "infra".into(),
+            severity: crate::definition::RuleSeverity::Error,
+            allowed: true,
+            message: None,
+        }];
+
+        let result = merge_rules_into_boundaries(boundaries, &rules);
+        assert!(result.is_empty(), "allow rule should remove the boundary");
+    }
+
+    #[test]
+    fn merge_rules_deny_adds_boundary() {
+        let boundaries = Vec::new();
+        let rules = vec![crate::definition::ArchitectureRule {
+            name: "no-core-to-ui".into(),
+            from: "core".into(),
+            to: "ui".into(),
+            severity: crate::definition::RuleSeverity::Warn,
+            allowed: false,
+            message: Some("core must not touch ui".into()),
+        }];
+
+        let result = merge_rules_into_boundaries(boundaries, &rules);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "no-core-to-ui");
+        assert_eq!(result[0].severity, BoundarySeverity::Warning);
+        assert_eq!(result[0].message, "core must not touch ui");
+    }
+
+    #[test]
+    fn merge_rules_deny_overrides_existing() {
+        let boundaries = vec![Boundary {
+            name: "auto-generated".into(),
+            from: "app".into(),
+            to: "core".into(),
+            severity: BoundarySeverity::Error,
+            message: "auto message".into(),
+            confidence: None,
+        }];
+        let rules = vec![crate::definition::ArchitectureRule {
+            name: "custom-rule".into(),
+            from: "app".into(),
+            to: "core".into(),
+            severity: crate::definition::RuleSeverity::Warn,
+            allowed: false,
+            message: Some("downgraded to warning".into()),
+        }];
+
+        let result = merge_rules_into_boundaries(boundaries, &rules);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].name, "custom-rule");
+        assert_eq!(result[0].severity, BoundarySeverity::Warning);
+        assert_eq!(result[0].message, "downgraded to warning");
+    }
+
+    #[test]
+    fn merge_rules_ignore_severity_skipped() {
+        let boundaries = vec![Boundary {
+            name: "no-x-to-y".into(),
+            from: "x".into(),
+            to: "y".into(),
+            severity: BoundarySeverity::Error,
+            message: "forbidden".into(),
+            confidence: None,
+        }];
+        let rules = vec![crate::definition::ArchitectureRule {
+            name: "ignore-rule".into(),
+            from: "x".into(),
+            to: "y".into(),
+            severity: crate::definition::RuleSeverity::Ignore,
+            allowed: false,
+            message: None,
+        }];
+
+        let result = merge_rules_into_boundaries(boundaries, &rules);
+        assert_eq!(result.len(), 1, "ignore-severity rule should be skipped");
+        assert_eq!(result[0].name, "no-x-to-y");
+    }
+
+    #[test]
+    fn check_boundaries_detects_violation() {
+        let assignments = vec![
+            LayerAssignment {
+                file: "src/core/entity.ts".into(),
+                layer: Some("core".into()),
+                confidence: DetectionConfidence::High,
+                matched_pattern: None,
+            },
+            LayerAssignment {
+                file: "src/app/service.ts".into(),
+                layer: Some("app".into()),
+                confidence: DetectionConfidence::High,
+                matched_pattern: None,
+            },
+        ];
+        let boundaries = vec![Boundary {
+            name: "no-core-to-app".into(),
+            from: "core".into(),
+            to: "app".into(),
+            severity: BoundarySeverity::Error,
+            message: "core must not depend on app".into(),
+            confidence: None,
+        }];
+        let edges = vec![ImportEdge {
+            from_file: "src/core/entity.ts".into(),
+            to_file: "src/app/service.ts".into(),
+            line: 1,
+        }];
+
+        let violations = check_boundaries(&assignments, &boundaries, &edges);
+        assert_eq!(violations.len(), 1);
+        assert_eq!(violations[0].edge.from, "src/core/entity.ts");
+        assert!(violations[0].boundary.is_some());
+    }
+
+    #[test]
+    fn check_boundaries_allows_valid_import() {
+        let assignments = vec![
+            LayerAssignment {
+                file: "src/app/service.ts".into(),
+                layer: Some("app".into()),
+                confidence: DetectionConfidence::High,
+                matched_pattern: None,
+            },
+            LayerAssignment {
+                file: "src/core/entity.ts".into(),
+                layer: Some("core".into()),
+                confidence: DetectionConfidence::High,
+                matched_pattern: None,
+            },
+        ];
+        // Only forbid core→app, not app→core.
+        let boundaries = vec![Boundary {
+            name: "no-core-to-app".into(),
+            from: "core".into(),
+            to: "app".into(),
+            severity: BoundarySeverity::Error,
+            message: "core must not depend on app".into(),
+            confidence: None,
+        }];
+        let edges = vec![ImportEdge {
+            from_file: "src/app/service.ts".into(),
+            to_file: "src/core/entity.ts".into(),
+            line: 1,
+        }];
+
+        let violations = check_boundaries(&assignments, &boundaries, &edges);
+        assert!(violations.is_empty(), "app→core should be allowed");
+    }
+
+    #[test]
+    fn check_boundaries_ignores_same_layer() {
+        let assignments = vec![
+            LayerAssignment {
+                file: "src/core/a.ts".into(),
+                layer: Some("core".into()),
+                confidence: DetectionConfidence::High,
+                matched_pattern: None,
+            },
+            LayerAssignment {
+                file: "src/core/b.ts".into(),
+                layer: Some("core".into()),
+                confidence: DetectionConfidence::High,
+                matched_pattern: None,
+            },
+        ];
+        let boundaries = vec![Boundary {
+            name: "no-core-to-core".into(),
+            from: "core".into(),
+            to: "core".into(),
+            severity: BoundarySeverity::Error,
+            message: "shouldn't trigger".into(),
+            confidence: None,
+        }];
+        let edges = vec![ImportEdge {
+            from_file: "src/core/a.ts".into(),
+            to_file: "src/core/b.ts".into(),
+            line: 1,
+        }];
+
+        let violations = check_boundaries(&assignments, &boundaries, &edges);
+        assert!(violations.is_empty(), "same-layer imports should be allowed");
+    }
+
+    #[test]
+    fn validate_respects_explicit_rules() {
+        let tmp = tempfile::TempDir::new().unwrap();
+
+        let mut layers = HashMap::new();
+        layers.insert(
+            "core".into(),
+            Layer {
+                patterns: vec!["src/core/**".into()],
+                depends_on: vec![],
+                description: None,
+            },
+        );
+        layers.insert(
+            "app".into(),
+            Layer {
+                patterns: vec!["src/app/**".into()],
+                depends_on: vec!["core".into()],
+                description: None,
+            },
+        );
+
+        // Without rules, there's a default boundary forbidding core→app.
+        let def_no_rules = crate::definition::ArchitectureDefinition {
+            schema_version: "0.1.0".into(),
+            template: crate::definition::ArchitectureTemplate::Custom,
+            layers: layers.clone(),
+            bounded_contexts: None,
+            rules: vec![],
+            options: Some(crate::definition::get_default_options()),
+        };
+        let _result = validate(tmp.path(), &def_no_rules).unwrap();
+        // Boundary checking is stubbed, so no violations regardless,
+        // but we can verify the boundaries were built correctly via the function.
+        let boundaries_no_rules =
+            merge_rules_into_boundaries(create_default_boundaries(&layers), &[]);
+        let has_core_to_app = boundaries_no_rules
+            .iter()
+            .any(|b| b.from == "core" && b.to == "app");
+        assert!(has_core_to_app, "should have core→app boundary by default");
+
+        // With an allow rule, that boundary is removed.
+        let rules = vec![crate::definition::ArchitectureRule {
+            name: "allow-core-to-app".into(),
+            from: "core".into(),
+            to: "app".into(),
+            severity: crate::definition::RuleSeverity::Error,
+            allowed: true,
+            message: None,
+        }];
+        let boundaries_with_rules =
+            merge_rules_into_boundaries(create_default_boundaries(&layers), &rules);
+        let has_core_to_app = boundaries_with_rules
+            .iter()
+            .any(|b| b.from == "core" && b.to == "app");
+        assert!(
+            !has_core_to_app,
+            "allow rule should remove core→app boundary"
+        );
     }
 
     #[test]
