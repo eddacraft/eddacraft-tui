@@ -244,7 +244,7 @@ mod tests {
         let file = temp_dir.join("exact.ts");
         // Pad to exactly MAX_FILE_SIZE bytes — should be skipped (>= limit).
         let secret = "api_key='abcdEFGH1234567890'";
-        let target_len = super::MAX_FILE_SIZE as usize;
+        let target_len = usize::try_from(super::MAX_FILE_SIZE).unwrap();
         let padding_len = target_len.saturating_sub(secret.len());
         let content = format!("{secret}{}", "x".repeat(padding_len));
         assert_eq!(content.len(), target_len);
@@ -254,7 +254,10 @@ mod tests {
         let files = [file_string.as_str()];
         let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
 
-        assert!(result.passed, "file at exact size boundary should be skipped");
+        assert!(
+            result.passed,
+            "file at exact size boundary should be skipped"
+        );
         assert_eq!(result.findings.len(), 0);
 
         let _ = fs::remove_dir_all(temp_dir);

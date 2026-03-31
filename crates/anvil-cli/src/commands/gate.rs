@@ -1646,8 +1646,7 @@ rules: []
         let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
         let config = anvil_checks::secret::SecretCheckConfig::default();
         let root_str = tmp.path().to_string_lossy().to_string();
-        let result =
-            anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
 
         // Verify the mapping logic used in run_check_secret produces the
         // expected format with pattern name in brackets.
