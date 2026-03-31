@@ -170,10 +170,7 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
             ]));
             lines.push(Line::from(vec![
                 Span::styled("    Severity: ", Style::default().fg(theme.muted())),
-                Span::styled(
-                    issue.severity.label_full(),
-                    Style::default().fg(sev_colour),
-                ),
+                Span::styled(issue.severity.label_full(), Style::default().fg(sev_colour)),
             ]));
             if issue.fixable {
                 lines.push(Line::from(Span::styled(
@@ -452,6 +449,58 @@ mod tests {
         let mut state = super::super::AuditState::new(sample_data());
         state.focused_panel = AuditPanel::Issues;
         state.selected_item = state.data.issues.len() - 1;
+        state.expanded = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    /// Exercises the scroll-clamping logic with a list taller than the
+    /// viewport and expansion near the end.
+    #[test]
+    fn snapshot_expanded_scroll_many_issues() {
+        let issues: Vec<super::super::AuditIssue> = (0..20)
+            .map(|i| super::super::AuditIssue {
+                severity: if i % 4 == 0 {
+                    IssueSeverity::Critical
+                } else {
+                    IssueSeverity::Low
+                },
+                category: "Test".to_string(),
+                message: format!("Issue {i}"),
+                file: format!("src/file{i}.ts"),
+                line: i + 1,
+                fixable: i % 3 == 0,
+            })
+            .collect();
+
+        let data = super::super::AuditData {
+            project_name: "big-project".to_string(),
+            total_files: 100,
+            issues,
+            historical_scores: vec![],
+            next_steps: vec![],
+        };
+
+        let backend = TestBackend::new(80, 48);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = super::super::AuditState::new(data);
+        state.focused_panel = AuditPanel::Issues;
+        state.selected_item = 18; // near the end
         state.expanded = true;
         let theme = EddaCraftTheme;
 
