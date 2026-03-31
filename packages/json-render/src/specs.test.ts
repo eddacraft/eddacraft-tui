@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,36 +8,37 @@ import { validateSpec, getComponentNames } from './schema-validator.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const specsDir = resolve(__dirname, '..', 'specs');
 
-// Discover spec files inside beforeAll so missing directory produces a
-// structured assertion failure rather than a module-load crash.
+// Discover spec files at module level so describe.each can iterate dynamically.
+// Wrapped in try/catch so a missing directory produces a clear assertion failure
+// in the "discovers at least one spec file" test rather than a module-load crash.
 let specFiles: string[] = [];
+let specDirError: Error | null = null;
 
-beforeAll(() => {
-  expect(existsSync(specsDir)).toBe(true);
+try {
   specFiles = readdirSync(specsDir)
     .filter((f) => f.endsWith('.dashboard.json'))
-    .sort(); // stable ordering
-});
+    .sort();
+} catch (err) {
+  specDirError = err as Error;
+}
 
 const componentNames = getComponentNames();
 
 describe('dashboard spec templates', () => {
   it('discovers at least one spec file', () => {
+    if (specDirError) {
+      throw new Error(
+        `Failed to read dashboard specs from "${specsDir}": ${specDirError.message}`,
+      );
+    }
     expect(specFiles.length).toBeGreaterThan(0);
   });
 
-  // Use a lazy describe so specFiles is populated by the time inner tests run
-  describe.each([
-    'gate-summary.dashboard.json',
-    'watch-session.dashboard.json',
-    'architecture-health.dashboard.json',
-  ])('%s', (file) => {
+  describe.each(specFiles)('%s', (file) => {
     let raw: Record<string, unknown>;
 
     beforeAll(() => {
       const path = resolve(specsDir, file);
-      // Parse in beforeAll so a malformed JSON produces a clean failure message
-      // rather than a TypeError cascade across every test in the suite.
       try {
         raw = JSON.parse(readFileSync(path, 'utf-8')) as Record<string, unknown>;
       } catch (err) {
