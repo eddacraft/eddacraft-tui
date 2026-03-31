@@ -127,6 +127,7 @@ name = "anvil-cli"
 version = "0.1.0"
 dependencies = [
  "anvil-architecture",
+ "anvil-checks",
  "anvil-kernel",
  "anvil-kernel-types",
  "anvil-policy",
