@@ -280,9 +280,13 @@ fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) 
     let root = workspace_root();
     let mut files_to_scan: Vec<String> = Vec::new();
 
-    for entry in walkdir::WalkDir::new(&root)
-        .max_depth(SECRET_SCAN_MAX_DEPTH)
-        .into_iter()
+    let mut walker = walkdir::WalkDir::new(&root);
+    // Only cap depth for full-codebase scans; plan-scoped runs must reach
+    // explicitly referenced files regardless of nesting depth.
+    if plan_files.is_empty() {
+        walker = walker.max_depth(SECRET_SCAN_MAX_DEPTH);
+    }
+    for entry in walker.into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             !SECRET_SCAN_IGNORE.iter().any(|&ig| name == ig)
