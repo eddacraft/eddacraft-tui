@@ -68,7 +68,7 @@
     "metric-duration": {
       "type": "MetricCard",
       "props": {
-        "label": "Gate Duration",
+        "label": "Gate Duration (s)",
         "value": "42",
         "format": "duration"
       },
