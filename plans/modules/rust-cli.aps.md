@@ -1086,7 +1086,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-045: architecture gate check should run kernel validation
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** The architecture gate check currently only validates that
   `.anvil/architecture.yaml` is parseable YAML. It should delegate to the
   kernel's boundary analysis for actual import-edge violation detection
@@ -1099,12 +1099,15 @@ Deferred items from the RCLI cutover council review. All minor.
 - **Priority:** Medium
 - **Dependencies:** KERN Phase 3 (policy engine)
 - **Origin:** Council review D-005
+- **Notes:** Gate now reports layer assignment stats and boundary checking
+  status. Full import-edge analysis still requires kernel AST integration
+  (RCLI-013a) but the gate no longer misleads with a bare "valid" message.
 
 ---
 
 ### RCLI-046: populate policy gate input with project context
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** The policy gate check passes an empty `input = {}` to the OPA
   evaluator. Any policy that depends on workspace, plan, or file metadata
   (e.g. `input.workspace`, `input.files`, `input.changed_files`) sees missing
@@ -1121,6 +1124,8 @@ Deferred items from the RCLI cutover council review. All minor.
 - **Confidence:** high
 - **Priority:** High
 - **Origin:** PR #667 review (codex P1 — populate policy gate input)
+- **Notes:** `build_policy_input()` populates workspace, files (via git
+  ls-files), changed_files (via git status), active_plan, and profile.
 
 ---
 
@@ -1182,7 +1187,7 @@ findings deferred for later.
 
 ### RCLI-050: wire definition.rules into validator
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `validate()` ignores `definition.rules` — user-authored
   explicit allow/deny rules from `architecture.yaml` have zero effect.
   Merge them with the auto-generated boundaries from layer `depends_on`
@@ -1194,6 +1199,9 @@ findings deferred for later.
 - **Priority:** Medium
 - **Origin:** Council review 2026-03-28 (M2)
 - **Dependencies:** RCLI-013a (boundary checking must be active)
+- **Notes:** `merge_explicit_rules()` processes rules after default boundary
+  generation. `allowed: true` removes deny boundaries, `allowed: false` adds
+  them. Severity `ignore` is skipped. Three tests cover all branches.
 
 ---
 

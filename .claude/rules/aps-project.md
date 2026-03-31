@@ -13,7 +13,7 @@
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
-- RCLI: rust-cli (32/62) — In Progress
+- RCLI: rust-cli (35/62) — In Progress
 - TUTOR: interactive-tutorial (0/13) — Draft
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
