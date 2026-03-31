@@ -327,10 +327,10 @@ Change status to **Ready** when:
 - **Intent:** Run Criterion benchmarks on PRs touching kernel, checks, bench, or
   kernel-types crates, or changing `Cargo.toml`/`Cargo.lock`, uploading HTML
   reports as CI artefacts for regression detection
-- **Expected Outcome:** CI workflow includes `cargo bench --bench kernel` step,
-  Criterion HTML report uploaded as artefact
-- **Validation:** Open a PR changing kernel code, verify benchmark artefact
-  appears in CI run
+- **Expected Outcome:** CI workflow runs `cargo bench` for kernel, checks, and
+  stress harnesses, uploading HTML reports as artefacts
+- **Validation:** Open a PR changing kernel or checks code, verify benchmark
+  artefacts appear in CI run for all targeted harnesses
 - **Files:** `.github/workflows/bench.yml`
 - **Confidence:** high
 - **Priority:** High
