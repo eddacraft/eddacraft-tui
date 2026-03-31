@@ -48,7 +48,8 @@
 - BENCH: kernel-benchmarking (14/16) — In Progress
 - TUIDASH: tui-dashboard-render (0/12) — Ready
 - CPACKS: compliance-policy-packs (0/28) — Draft
-- DIST: distribution-pipeline (0/9) — Ready
+- DIST: distribution-pipeline (0/8) — Ready
+- TUIEXTRACT: eddacraft-tui-shared (3/7) — In Progress
 - DOCSYNC: documentation-sync (6/14) — In Progress
 - TFIX: test-infrastructure-fix (0/10) — Ready
 - TCOV: test-coverage-uplift (0/25) — Draft

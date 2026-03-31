@@ -490,19 +490,14 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-024: distribution pipeline
 
-- **Status:** Proposed
+- **Status:** Superseded by DIST module
 - **Intent:** Create GitHub Actions release workflow that builds pre-built
   binaries for x86_64/aarch64 Linux + macOS and x86_64 Windows. Install script
   at `https://install.eddacraft.ai` (shell for Unix, PowerShell for Windows).
   Publish to crates.io as `anvil-cli`
-- **Expected Outcome:** Tagged releases produce downloadable binaries for all
-  three platforms; install scripts work on supported platforms
-- **Validation:** Install script downloads and runs `anvil --version`
-  successfully on Linux, macOS, and Windows
-- **Files:** `.github/workflows/release.yml`, install script
-- **Confidence:** medium
-- **Priority:** High
-- **Dependencies:** RCLI-023
+- **Notes:** Expanded to a full module (`plans/modules/distribution-pipeline.aps.md`)
+  covering public repo creation, DNS, GitHub Pages, install scripts, release
+  workflow, crates.io, and Homebrew tap. See DIST-001 through DIST-009
 
 ---
 
