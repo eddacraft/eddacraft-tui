@@ -233,18 +233,18 @@ natural addition once TUIDASH-006 lands.
 
 ## Findings Summary
 
-| #   | Severity      | File                               | Issue                                                                                                                                 | Status     |
-| --- | ------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
-| 1   | **Important** | gate-summary.dashboard.json        | Check names didn't match `AVAILABLE_CHECKS` from gate.rs (9 invented names vs 7 real ones)                                            | **Fixed**  |
-| 2   | **Important** | gate-summary.dashboard.json        | Anti-pattern warning referenced a check that doesn't exist in the Rust CLI                                                            | **Fixed**  |
-| 3   | **Important** | architecture-health.dashboard.json | Description claimed `architecture validate` results but showed violation data the command doesn't produce                             | **Fixed**  |
-| 4   | Minor         | gate-summary.dashboard.json        | `"warning"` status in checks table, but `CheckResult.passed` is a bool (no tri-state)                                                 | Documented |
-| 5   | Minor         | watch-session.dashboard.json       | Events table shows filesystem events (modified/created/deleted) but `QueuedChange.kind` stores violation messages, not FS event types | Documented |
-| 6   | Minor         | architecture-health.dashboard.json | Violation table From/To columns imply import pairs, but kernel `EventPayload::Violation` has only a single `file` field               | Documented |
-| 7   | Minor         | architecture-health.dashboard.json | Violation severity levels (error/warning/info) not in kernel event model — needs policy metadata derivation                           | Documented |
-| 8   | Minor         | All specs                          | TUIDASH-007 domain components (GateResult, WarningList, etc.) not yet in catalog — specs use generic primitives as fallback           | Documented |
-| 9   | Nit           | gate-summary.dashboard.json        | `metric-duration` value `"42"` with format `"duration"` — units ambiguous (seconds? milliseconds? gate.rs uses `duration_ms: u64`). Value updated from `"4.2"` to `"42"` in a prior fix pass.   | Documented |
-| 10  | Nit           | All specs                          | TUIDASH-006 chart components not exercised — sparklines would enhance watch-session                                                   | Documented |
+| #   | Severity      | File                               | Issue                                                                                                                                                                                         | Status     |
+| --- | ------------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- |
+| 1   | **Important** | gate-summary.dashboard.json        | Check names didn't match `AVAILABLE_CHECKS` from gate.rs (9 invented names vs 7 real ones)                                                                                                    | **Fixed**  |
+| 2   | **Important** | gate-summary.dashboard.json        | Anti-pattern warning referenced a check that doesn't exist in the Rust CLI                                                                                                                    | **Fixed**  |
+| 3   | **Important** | architecture-health.dashboard.json | Description claimed `architecture validate` results but showed violation data the command doesn't produce                                                                                     | **Fixed**  |
+| 4   | Minor         | gate-summary.dashboard.json        | `"warning"` status in checks table, but `CheckResult.passed` is a bool (no tri-state)                                                                                                         | Documented |
+| 5   | Minor         | watch-session.dashboard.json       | Events table shows filesystem events (modified/created/deleted) but `QueuedChange.kind` stores violation messages, not FS event types                                                         | Documented |
+| 6   | Minor         | architecture-health.dashboard.json | Violation table From/To columns imply import pairs, but kernel `EventPayload::Violation` has only a single `file` field                                                                       | Documented |
+| 7   | Minor         | architecture-health.dashboard.json | Violation severity levels (error/warning/info) not in kernel event model — needs policy metadata derivation                                                                                   | Documented |
+| 8   | Minor         | All specs                          | TUIDASH-007 domain components (GateResult, WarningList, etc.) not yet in catalog — specs use generic primitives as fallback                                                                   | Documented |
+| 9   | Nit           | gate-summary.dashboard.json        | `metric-duration` value `"42"` with format `"duration"` — units ambiguous (seconds? milliseconds? gate.rs uses `duration_ms: u64`). Value updated from `"4.2"` to `"42"` in a prior fix pass. | Documented |
+| 10  | Nit           | All specs                          | TUIDASH-006 chart components not exercised — sparklines would enhance watch-session                                                                                                           | Documented |
 
 ---
 
