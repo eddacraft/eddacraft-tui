@@ -6,7 +6,7 @@ license.workspace = true
 description = "Anvil TUI surfaces built on eddacraft-tui — watch dashboard, gate explorer, wizard"
 
 [dependencies]
-eddacraft-tui = { path = "../eddacraft-tui" }
+eddacraft-tui = { workspace = true }
 anvil-kernel-types = { path = "../anvil-kernel-types" }
 ratatui = { workspace = true }
 crossterm = { workspace = true }

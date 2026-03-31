@@ -20,7 +20,7 @@ anvil-kernel-types = { path = "../anvil-kernel-types" }
 anvil-policy = { path = "../anvil-policy" }
 anvil-architecture = { path = "../anvil-architecture" }
 anvil-checks = { path = "../anvil-checks" }
-eddacraft-tui = { path = "../eddacraft-tui" }
+eddacraft-tui = { workspace = true }
 clap = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
