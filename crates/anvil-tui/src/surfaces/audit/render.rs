@@ -127,61 +127,77 @@ fn render_issues_panel(frame: &mut Frame, area: Rect, state: &AuditState, theme:
     frame.render_widget(block, area);
 
     let visible_rows = inner.height as usize;
+    let mut lines: Vec<Line> = Vec::new();
+    let mut selected_line_idx: usize = 0;
+
+    for (i, issue) in state.data.issues.iter().enumerate() {
+        let selected = focused && i == state.selected_item;
+        if selected {
+            selected_line_idx = lines.len();
+        }
+
+        let indicator = if selected { ">> " } else { "  " };
+        let sev_colour = severity_colour(issue.severity, theme);
+        let name_style = if selected {
+            Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
+        } else {
+            Style::default().fg(theme.fg())
+        };
+        let fixable_marker = if issue.fixable { " [fix]" } else { "" };
+
+        lines.push(Line::from(vec![
+            Span::styled(indicator, name_style),
+            Span::styled(
+                format!("{} ", issue.severity.label()),
+                Style::default().fg(sev_colour),
+            ),
+            Span::styled(&issue.message, name_style),
+            Span::styled(fixable_marker, Style::default().fg(theme.accent())),
+            Span::styled(
+                format!("  {}:{}", issue.file, issue.line),
+                Style::default().fg(theme.muted()),
+            ),
+        ]));
+
+        // Inline expanded details right after the selected item.
+        // TODO: when the panel is very short, detail lines may be clipped with
+        // no scroll affordance. A dedicated expansion_scroll offset on
+        // AuditState would fix this but is out of scope for RCLI-027.
+        if state.expanded && selected {
+            lines.push(Line::from(vec![
+                Span::styled("    Category: ", Style::default().fg(theme.muted())),
+                Span::styled(&issue.category, Style::default().fg(theme.fg())),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("    Severity: ", Style::default().fg(theme.muted())),
+                Span::styled(
+                    issue.severity.label_full(),
+                    Style::default().fg(sev_colour),
+                ),
+            ]));
+            if issue.fixable {
+                lines.push(Line::from(Span::styled(
+                    "    Auto-fixable: press 'f' to fix",
+                    Style::default().fg(theme.accent()),
+                )));
+            }
+            lines.push(Line::default());
+        }
+    }
+
+    // When expanded, scroll to place the selected item at the top so detail
+    // lines are visible below it, clamped to max_offset so we never scroll
+    // past the last line. Otherwise use standard viewport scroll.
     let scroll_offset = if focused {
-        viewport_scroll(state.selected_item, state.data.issues.len(), visible_rows)
+        if state.expanded {
+            let max_offset = lines.len().saturating_sub(visible_rows);
+            selected_line_idx.min(max_offset)
+        } else {
+            viewport_scroll(selected_line_idx, lines.len(), visible_rows)
+        }
     } else {
         0
     };
-
-    let mut lines: Vec<Line> = state
-        .data
-        .issues
-        .iter()
-        .enumerate()
-        .map(|(i, issue)| {
-            let selected = focused && i == state.selected_item;
-            let indicator = if selected { ">> " } else { "  " };
-            let sev_colour = severity_colour(issue.severity, theme);
-            let name_style = if selected {
-                Style::default().fg(theme.fg()).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(theme.fg())
-            };
-            let fixable_marker = if issue.fixable { " [fix]" } else { "" };
-
-            Line::from(vec![
-                Span::styled(indicator, name_style),
-                Span::styled(
-                    format!("{} ", issue.severity.label()),
-                    Style::default().fg(sev_colour),
-                ),
-                Span::styled(&issue.message, name_style),
-                Span::styled(fixable_marker, Style::default().fg(theme.accent())),
-                Span::styled(
-                    format!("  {}:{}", issue.file, issue.line),
-                    Style::default().fg(theme.muted()),
-                ),
-            ])
-        })
-        .collect();
-
-    // Show expanded details if applicable
-    if state.expanded
-        && focused
-        && let Some(issue) = state.data.issues.get(state.selected_item)
-    {
-        lines.push(Line::default());
-        lines.push(Line::from(vec![
-            Span::styled("    Category: ", Style::default().fg(theme.muted())),
-            Span::styled(&issue.category, Style::default().fg(theme.fg())),
-        ]));
-        if issue.fixable {
-            lines.push(Line::from(Span::styled(
-                "    Auto-fixable: press 'f' to fix",
-                Style::default().fg(theme.accent()),
-            )));
-        }
-    }
 
     #[allow(clippy::cast_possible_truncation)]
     let para = Paragraph::new(Text::from(lines)).scroll((scroll_offset as u16, 0));
@@ -384,6 +400,59 @@ mod tests {
         let mut terminal = Terminal::new(backend).unwrap();
         let mut state = super::super::AuditState::new(sample_data());
         state.focused_panel = AuditPanel::Issues;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_issues_expanded() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = super::super::AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        state.expanded = true;
+        let theme = EddaCraftTheme;
+
+        terminal
+            .draw(|frame| {
+                let content = crate::shell::render_shell(
+                    frame,
+                    frame.area(),
+                    Surface::surface_name(&state),
+                    Surface::help_text(&state),
+                    &theme,
+                );
+                render(frame, content, &state, &theme);
+            })
+            .unwrap();
+
+        let buf = terminal.backend().buffer().clone();
+        insta::assert_snapshot!(crate::test_utils::snapshot::buffer_to_string(&buf));
+    }
+
+    #[test]
+    fn snapshot_last_item_expanded() {
+        let backend = TestBackend::new(80, 24);
+        let mut terminal = Terminal::new(backend).unwrap();
+        let mut state = super::super::AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        state.selected_item = state.data.issues.len() - 1;
+        state.expanded = true;
         let theme = EddaCraftTheme;
 
         terminal
