@@ -272,19 +272,16 @@ const SECRET_SCAN_IGNORE: &[&str] = &[
     "coverage",
 ];
 
+/// Maximum directory depth for the secret scan walk. Prevents runaway
+/// recursion into deeply nested or symlink-heavy trees.
+const SECRET_SCAN_MAX_DEPTH: usize = 20;
+
 fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) -> CheckResult {
     let root = workspace_root();
-    let mut found = Vec::new();
-    let secret_patterns: Vec<Regex> = [
-        r"AKIA[0-9A-Z]{16}",
-        r"sk-[a-zA-Z0-9]{48}",
-        r"ghp_[a-zA-Z0-9]{36}",
-    ]
-    .iter()
-    .filter_map(|p| Regex::new(p).ok())
-    .collect();
+    let mut files_to_scan: Vec<String> = Vec::new();
 
     for entry in walkdir::WalkDir::new(&root)
+        .max_depth(SECRET_SCAN_MAX_DEPTH)
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
@@ -332,17 +329,15 @@ fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) 
             continue;
         }
 
-        if let Ok(content) = std::fs::read_to_string(path) {
-            for (line_no, line) in content.lines().enumerate() {
-                for re in &secret_patterns {
-                    if re.is_match(line) {
-                        found.push(format!("{}:{}", path.display(), line_no + 1));
-                    }
-                }
-            }
-        }
+        files_to_scan.push(path.to_string_lossy().into_owned());
     }
-    if found.is_empty() {
+
+    let file_refs: Vec<&str> = files_to_scan.iter().map(String::as_str).collect();
+    let config = anvil_checks::secret::SecretCheckConfig::default();
+    let root_str = root.to_string_lossy();
+    let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+
+    if result.passed {
         CheckResult {
             name: name.to_string(),
             passed: true,
@@ -350,14 +345,19 @@ fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) 
             message: "No hardcoded secrets found".to_string(),
         }
     } else {
+        let locations: Vec<String> = result
+            .findings
+            .iter()
+            .map(|f| format!("{}:{} [{}]", f.file, f.line, f.pattern_name))
+            .collect();
         CheckResult {
             name: name.to_string(),
             passed: false,
-            score: 0.0,
+            score: f64::from(result.score),
             message: format!(
                 "Potential secrets found in {} location(s):\n{}",
-                found.len(),
-                found.join("\n")
+                result.findings.len(),
+                locations.join("\n")
             ),
         }
     }
@@ -1569,5 +1569,98 @@ rules: []
         let tmp = tempfile::TempDir::new().unwrap();
         let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
         assert!(input.get("plan_path").is_none());
+    }
+
+    // ── Secret check integration tests ────────────────────────────────
+    //
+    // These exercise the anvil-checks wiring that gate.rs delegates to,
+    // using temp files to avoid coupling to the real workspace.
+
+    #[test]
+    fn secret_check_clean_file_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("clean.ts");
+        std::fs::write(&file, "export const x = 1;\n").unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
+
+        assert!(result.passed);
+        assert_eq!(result.findings.len(), 0);
+    }
+
+    #[test]
+    fn secret_check_detects_aws_secret_key() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("creds.ts");
+        let secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
+        std::fs::write(&file, format!("aws_secret_access_key='{secret}'")).unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
+
+        assert!(!result.passed);
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|f| f.pattern_name == "AWS Secret Key"),
+            "should detect AWS Secret Key pattern"
+        );
+    }
+
+    #[test]
+    fn secret_check_detects_stripe_key_with_pattern_name() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("billing.ts");
+        let stripe = format!("sk_live_{}", "1234567890abcdefghijABCD");
+        std::fs::write(&file, format!("const secret = '{stripe}';")).unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
+
+        assert!(!result.passed);
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|f| f.pattern_name.contains("Stripe")),
+            "should detect Stripe key pattern by name"
+        );
+    }
+
+    #[test]
+    fn secret_check_result_maps_to_check_result_format() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("leak.ts");
+        let secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
+        std::fs::write(&file, format!("aws_secret_access_key='{secret}'")).unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let root_str = tmp.path().to_string_lossy().to_string();
+        let result =
+            anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+
+        // Verify the mapping logic used in run_check_secret produces the
+        // expected format with pattern name in brackets.
+        let locations: Vec<String> = result
+            .findings
+            .iter()
+            .map(|f| format!("{}:{} [{}]", f.file, f.line, f.pattern_name))
+            .collect();
+        assert!(!locations.is_empty());
+        assert!(
+            locations[0].contains("[AWS Secret Key]"),
+            "location should include pattern name in brackets, got: {}",
+            locations[0]
+        );
     }
 }

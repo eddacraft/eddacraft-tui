@@ -5,6 +5,11 @@ use crate::secret::git_scanner::scan_git_history;
 use crate::secret::scanner::scan_content;
 use crate::secret::types::{FindingType, SecretCheckConfig, SecretCheckResult, SecretFinding};
 
+/// Maximum file size to scan (1 MiB). Files of this size or larger are
+/// skipped to avoid excessive memory usage on binaries or generated artefacts.
+pub const MAX_FILE_SIZE: u64 = 1024 * 1024;
+const _: () = assert!(MAX_FILE_SIZE == 1024 * 1024);
+
 pub fn run_secret_check(
     files: &[&str],
     config: &SecretCheckConfig,
@@ -14,6 +19,10 @@ pub fn run_secret_check(
 
     for file in files {
         if should_skip_file(file, config) {
+            continue;
+        }
+
+        if file_exceeds_size_limit(file) {
             continue;
         }
 
@@ -75,6 +84,12 @@ fn should_skip_file(file: &str, config: &SecretCheckConfig) -> bool {
         .skip_extensions
         .iter()
         .any(|extension| file.ends_with(extension))
+}
+
+fn file_exceeds_size_limit(file: &str) -> bool {
+    fs::metadata(file)
+        .map(|m| m.len() >= MAX_FILE_SIZE)
+        .unwrap_or(false)
 }
 
 fn deduplicate_findings(findings: Vec<SecretFinding>) -> Vec<SecretFinding> {
@@ -182,6 +197,64 @@ mod tests {
         let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
 
         assert!(result.passed);
+        assert_eq!(result.findings.len(), 0);
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn skips_files_exceeding_size_limit() {
+        let temp_dir = create_temp_dir("size-limit");
+        let file = temp_dir.join("big.ts");
+        // Create a file just over 1 MiB with a secret on the first line.
+        let secret_line = "api_key='abcdEFGH1234567890'\n";
+        let padding = "a".repeat(1024 * 1024);
+        let content = format!("{secret_line}{padding}");
+        fs::write(&file, &content).unwrap();
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert!(result.passed, "large files should be skipped entirely");
+        assert_eq!(result.findings.len(), 0);
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn scans_files_under_size_limit() {
+        let temp_dir = create_temp_dir("under-limit");
+        let file = temp_dir.join("small.ts");
+        fs::write(&file, "api_key='abcdEFGH1234567890'").unwrap();
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert!(!result.passed, "small files with secrets should be flagged");
+        assert!(!result.findings.is_empty());
+
+        let _ = fs::remove_dir_all(temp_dir);
+    }
+
+    #[test]
+    fn skips_files_at_exact_size_boundary() {
+        let temp_dir = create_temp_dir("boundary");
+        let file = temp_dir.join("exact.ts");
+        // Pad to exactly MAX_FILE_SIZE bytes — should be skipped (>= limit).
+        let secret = "api_key='abcdEFGH1234567890'";
+        let target_len = super::MAX_FILE_SIZE as usize;
+        let padding_len = target_len.saturating_sub(secret.len());
+        let content = format!("{secret}{}", "x".repeat(padding_len));
+        assert_eq!(content.len(), target_len);
+        fs::write(&file, &content).unwrap();
+
+        let file_string = file.to_string_lossy().to_string();
+        let files = [file_string.as_str()];
+        let result = run_secret_check(&files, &SecretCheckConfig::default(), None);
+
+        assert!(result.passed, "file at exact size boundary should be skipped");
         assert_eq!(result.findings.len(), 0);
 
         let _ = fs::remove_dir_all(temp_dir);
