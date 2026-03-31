@@ -589,7 +589,7 @@ fn extract_import_edges(project_root: &Path) -> Vec<anvil_architecture::ImportEd
                 edges.push(anvil_architecture::ImportEdge {
                     from_file: rel_path.clone(),
                     to_file: resolved,
-                    line: 0, // tree-sitter extract doesn't track line numbers yet
+                    line: import.line,
                 });
             }
         }

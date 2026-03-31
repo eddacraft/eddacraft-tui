@@ -15,6 +15,8 @@ pub struct FileSymbols {
 pub struct ImportEdge {
     pub from_file: String,
     pub to_source: String,
+    /// 1-based line number of the import statement (0 = unknown).
+    pub line: u32,
 }
 
 /// Extract symbols from a tree-sitter AST.
@@ -183,6 +185,7 @@ fn extract_export(
         imports.push(ImportEdge {
             from_file: file.to_string(),
             to_source: module_path.to_string(),
+            line: node_line(node),
         });
     }
 
@@ -251,6 +254,7 @@ fn extract_import(
         imports.push(ImportEdge {
             from_file: file.to_string(),
             to_source: module_path.to_string(),
+            line: node_line(node),
         });
     }
 }
@@ -272,6 +276,7 @@ fn extract_require(
             imports.push(ImportEdge {
                 from_file: file.to_string(),
                 to_source: module_path.to_string(),
+                line: node_line(node),
             });
         }
     }
@@ -390,6 +395,13 @@ fn extract_lexical(
     }
 }
 
+/// 1-based line number from a tree-sitter node, or 0 if the row overflows u32.
+fn node_line(node: tree_sitter::Node) -> u32 {
+    u32::try_from(node.start_position().row)
+        .ok()
+        .map_or(0, |r| r.saturating_add(1))
+}
+
 fn node_text(node: tree_sitter::Node, source: &[u8]) -> String {
     node.utf8_text(source).unwrap_or("").to_string()
 }
@@ -483,6 +495,20 @@ import * as fs from 'node:fs';
 
         assert!(import_sources.contains(&"./module"));
         assert!(import_sources.contains(&"node:fs"));
+
+        let module_import = symbols
+            .imports
+            .iter()
+            .find(|i| i.to_source == "./module")
+            .unwrap();
+        assert_eq!(module_import.line, 2, "import on line 2 (1-based)");
+
+        let fs_import = symbols
+            .imports
+            .iter()
+            .find(|i| i.to_source == "node:fs")
+            .unwrap();
+        assert_eq!(fs_import.line, 3, "import on line 3 (1-based)");
     }
 
     #[test]
@@ -687,6 +713,20 @@ module.exports = { foo };
             import_sources.contains(&"path"),
             "require('path') inside const should be captured"
         );
+
+        let fs_req = symbols
+            .imports
+            .iter()
+            .find(|i| i.to_source == "node:fs")
+            .unwrap();
+        assert_eq!(fs_req.line, 1, "first require on line 1");
+
+        let path_req = symbols
+            .imports
+            .iter()
+            .find(|i| i.to_source == "path")
+            .unwrap();
+        assert_eq!(path_req.line, 2, "second require on line 2");
     }
 
     #[test]
@@ -713,5 +753,28 @@ module.exports = foo;
             Visibility::Internal,
             "bar should stay Internal"
         );
+    }
+
+    #[test]
+    fn reexport_captures_line_number() {
+        let source = b"export { foo } from './utils';\nexport { bar } from './helpers';\n";
+        let mut parser = Parser::new();
+        let result = parser.parse_bytes(Path::new("test.ts"), source).unwrap();
+
+        let symbols = extract_symbols(&result.tree, source, Path::new("test.ts"), 0);
+
+        let utils_import = symbols
+            .imports
+            .iter()
+            .find(|i| i.to_source == "./utils")
+            .unwrap();
+        assert_eq!(utils_import.line, 1, "re-export from ./utils on line 1");
+
+        let helpers_import = symbols
+            .imports
+            .iter()
+            .find(|i| i.to_source == "./helpers")
+            .unwrap();
+        assert_eq!(helpers_import.line, 2, "re-export from ./helpers on line 2");
     }
 }
