@@ -198,6 +198,20 @@ when specific work is identified.
 | [schema-contracts](./modules/schema-contracts.aps.md) | SCHEMA | 6 | anvil-core, anvil-kernel-types |
 | [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) | TUIEXTRACT | 7 | eddacraft-tui, RATS (done) |
 
+### Test Quality (Ready/Draft)
+
+CI infrastructure repair, coverage uplift to ≥80% for targeted packages/crates,
+integration boundary testing, and external service contract tests. Implements the
+strategy defined in TEST (Engineering Platform). TFIX is the prerequisite;
+TCOV/TINT/TEXT depend on it.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [test-infrastructure-fix](./modules/test-infrastructure-fix.aps.md) | TFIX | Ready | 0/10 | — |
+| [test-coverage-uplift](./modules/test-coverage-uplift.aps.md) | TCOV | Draft | 0/25 | TFIX |
+| [test-integration-surface](./modules/test-integration-surface.aps.md) | TINT | Draft | 0/15 | TFIX, partial RCLI/KERN |
+| [test-external-services](./modules/test-external-services.aps.md) | TEXT | Draft | 0/10 | TFIX |
+
 ### Multi-Language Support (Draft)
 
 Each language needs: tree-sitter grammar, import extraction, anti-pattern

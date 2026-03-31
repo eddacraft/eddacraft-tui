@@ -323,14 +323,14 @@ Change status to **Ready** when:
 
 ### BENCH-020: Add Criterion benchmarks to Rust CI pipeline
 
-- **Status:** Ready
+- **Status:** Complete
 - **Intent:** Run Criterion benchmarks on every PR touching Rust code, uploading
   HTML reports as CI artefacts for regression detection
 - **Expected Outcome:** CI workflow includes `cargo bench --bench kernel` step,
   Criterion HTML report uploaded as artefact
 - **Validation:** Open a PR changing kernel code, verify benchmark artefact
   appears in CI run
-- **Files:** `.github/workflows/`
+- **Files:** `.github/workflows/bench.yml`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** BENCH-001
