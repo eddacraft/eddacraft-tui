@@ -58,6 +58,11 @@ export function WaitlistConfirmation({
           <Hr style={divider} />
 
           <Section style={footer}>
+            <Text style={footerSignoff}>
+              — Josh
+              <br />
+              <span style={footerRole}>Founder, eddacraft</span>
+            </Text>
             <Text style={footerBrand}>anvil :: eddacraft.ai</Text>
             <Text style={footerUnsub}>
               <Link href={unsubscribeMailto} style={unsubscribeLink}>
@@ -138,13 +143,26 @@ const emailHighlight: React.CSSProperties = {
 };
 
 const muted: React.CSSProperties = {
-  margin: '0 0 8px',
+  margin: '0 0 12px',
   fontSize: '13px',
+  lineHeight: '1.6',
   color: '#a3a3a3',
 };
 
 const footer: React.CSSProperties = {
   paddingTop: '24px',
+};
+
+const footerSignoff: React.CSSProperties = {
+  margin: '0 0 20px',
+  fontSize: '13px',
+  lineHeight: '1.6',
+  color: '#a3a3a3',
+};
+
+const footerRole: React.CSSProperties = {
+  color: '#525252',
+  fontSize: '12px',
 };
 
 const footerBrand: React.CSSProperties = {
