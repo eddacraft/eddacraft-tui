@@ -286,7 +286,8 @@ fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) 
     if plan_files.is_empty() {
         walker = walker.max_depth(SECRET_SCAN_MAX_DEPTH);
     }
-    for entry in walker.into_iter()
+    for entry in walker
+        .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
             !SECRET_SCAN_IGNORE.iter().any(|&ig| name == ig)
