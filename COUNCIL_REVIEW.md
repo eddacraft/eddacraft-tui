@@ -243,7 +243,7 @@ natural addition once TUIDASH-006 lands.
 | 6   | Minor         | architecture-health.dashboard.json | Violation table From/To columns imply import pairs, but kernel `EventPayload::Violation` has only a single `file` field               | Documented |
 | 7   | Minor         | architecture-health.dashboard.json | Violation severity levels (error/warning/info) not in kernel event model — needs policy metadata derivation                           | Documented |
 | 8   | Minor         | All specs                          | TUIDASH-007 domain components (GateResult, WarningList, etc.) not yet in catalog — specs use generic primitives as fallback           | Documented |
-| 9   | Nit           | gate-summary.dashboard.json        | `metric-duration` value `"4.2"` with format `"duration"` — units ambiguous (seconds? milliseconds? gate.rs uses `duration_ms: u64`)   | Documented |
+| 9   | Nit           | gate-summary.dashboard.json        | `metric-duration` value `"42"` with format `"duration"` — units ambiguous (seconds? milliseconds? gate.rs uses `duration_ms: u64`). Value updated from `"4.2"` to `"42"` in a prior fix pass.   | Documented |
 | 10  | Nit           | All specs                          | TUIDASH-006 chart components not exercised — sparklines would enhance watch-session                                                   | Documented |
 
 ---
