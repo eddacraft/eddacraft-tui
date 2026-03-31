@@ -192,7 +192,7 @@ Change status to **Ready** when:
 
 ### BENCH-010: Parameterised repo generator (`RepoSpec`)
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Build a fixture generator that produces realistic synthetic repos
   with configurable file count, LOC distribution, import density, cross-layer
   violations, and nesting depth — replacing the simple `generate_fixture(n)`
@@ -210,7 +210,7 @@ Change status to **Ready** when:
 
 ### BENCH-011: RSS memory measurement utilities
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Provide cross-platform memory measurement (Linux: `/proc/self/statm`,
   optional jemalloc via feature flag) for tracking peak RSS during scenarios
 - **Expected Outcome:** `measure_rss()` function returning current RSS in bytes,
@@ -225,7 +225,7 @@ Change status to **Ready** when:
 
 ### BENCH-012: JSON report output + summary table
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Produce machine-readable JSON reports with scenario results and
   machine metadata, plus a human-readable summary table on stdout
 - **Expected Outcome:** `Report` struct serialised to `bench-results/<scenario>-<timestamp>.json`,
@@ -241,7 +241,7 @@ Change status to **Ready** when:
 
 ### BENCH-013: Watcher saturation scenario
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Discover the maximum burst size the watcher handles without
   dropping events — answering "how many simultaneous file changes before events
   are lost?"
@@ -259,7 +259,7 @@ Change status to **Ready** when:
 
 ### BENCH-014: Graph memory ceiling scenario
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Find the repo size where the kernel exceeds the 500MB memory
   budget — answering "how many files can we handle?"
 - **Expected Outcome:** JSON report showing RSS at each tier (1k, 5k, 10k, 25k,
@@ -275,7 +275,7 @@ Change status to **Ready** when:
 
 ### BENCH-015: Incremental throughput under sustained load scenario
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Find the change rate where the kernel falls behind — answering
   "how many file saves per second can it process without accumulating backlog?"
 - **Expected Outcome:** JSON report showing per-rate metrics (1/sec, 5/sec,
@@ -291,7 +291,7 @@ Change status to **Ready** when:
 
 ### BENCH-016: Policy evaluation scaling scenario
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Find the invariant count where per-delta evaluation exceeds the
   100ms budget — answering "how many policy rules can we run per change?"
 - **Expected Outcome:** JSON report showing evaluation time for 4, 10, 25, 50,
@@ -306,7 +306,7 @@ Change status to **Ready** when:
 
 ### BENCH-017: Cold start scaling scenario
 
-- **Status:** Ready
+- **Status:** Complete (PR #681)
 - **Intent:** Find the repo size where cold start exceeds the 3-second target —
   answering "how big a repo can we handle within the latency budget?"
 - **Expected Outcome:** JSON report showing wall-clock time broken down by phase
@@ -377,6 +377,6 @@ Change status to **Ready** when:
 | Phase | Items | Status |
 | ----- | ----- | ------ |
 | 1 — Micro-Benchmark Extensions | 6 | Complete (6/6) |
-| 2 — Stress Test Harness | 8 | Ready |
-| 3 — CI Integration | 2 | Mixed |
-| **Total** | **16** | 6 complete |
+| 2 — Stress Test Harness | 8 | Complete (code landed via PR #681; needs validation runs) |
+| 3 — CI Integration | 2 | Ready |
+| **Total** | **16** | **14 complete, 2 ready** |

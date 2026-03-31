@@ -8,12 +8,12 @@
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
 - CRB: code-review-backlog (29/29) — Complete
-- MAINT: codebase-maintenance (9/11) — In Progress
+- MAINT: codebase-maintenance (10/11) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
-- RCLI: rust-cli (35/62) — In Progress
+- RCLI: rust-cli (43/64) — In Progress
 - TUTOR: interactive-tutorial (0/13) — Draft
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
@@ -34,7 +34,7 @@
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (4/6) — In Progress
+- RENG: rust-core-engine (5/6) — In Progress
 - KERN: rust-kernel (22/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
 - RATS: ratatui-tui (7/7) — Complete
@@ -43,9 +43,10 @@
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
 - IAC: pulumi-iac (20/20) — Complete
+
 - AGOV: agent-governance-patterns (0/7) — Draft
-- BENCH: kernel-benchmarking (6/16) — In Progress
-- TUIDASH: tui-dashboard-render (0/12) — Draft
+- BENCH: kernel-benchmarking (14/16) — In Progress
+- TUIDASH: tui-dashboard-render (0/12) — Ready
 - CPACKS: compliance-policy-packs (0/28) — Draft
 - DOCSYNC: documentation-sync (6/14) — In Progress
 

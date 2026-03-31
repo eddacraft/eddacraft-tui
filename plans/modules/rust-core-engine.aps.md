@@ -162,18 +162,22 @@ Change status to **Ready** when:
 
 ### RENG-006: Feature flag + dual-run for ported checks
 
-- **Status:** Draft
+- **Status:** Done
 - **Intent:** Add `--engine rust/legacy/dual` flag so ported checks can be
   validated against JS originals before cutover. In dual mode, both engines run
   and results are diffed.
 - **Expected Outcome:** Clean engine selection via CLI flag, dual mode diffs
   output and reports discrepancies
-- **Validation:** All three modes work correctly, dual mode catches intentionally
-  introduced discrepancies
-- **Files:** `apps/anvil-cli/src/` (TS CLI integration for `--engine` flag), integration with KERN-042
+- **Validation:** `engine_mode.rs` provides `EngineMode` enum with `Rust`
+  variant only
+- **Files:** `crates/anvil-kernel/src/engine_mode.rs`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** RENG-005, KERN-042
+- **Completed:** 2026-03-31 (PR #694)
+- **Notes:** Legacy and Dual modes dropped — Node.js CLI is archived, no
+  dual-run comparison needed. The engine mode enum and validation framework
+  remain for future extensibility
 
 ---
 
@@ -204,5 +208,5 @@ Change status to **Ready** when:
 | RENG-003 Command safety | Done |
 | RENG-004 Architecture check merge | In Progress (invariants done, parity validation pending) |
 | RENG-005 Benchmarks | Done |
-| RENG-006 Feature flag + dual-run | Draft (KERN-042 unblocked) |
-| **Total** | **6 items (4/6 done)** |
+| RENG-006 Feature flag + dual-run | Done (Legacy/Dual dropped; Rust-only) |
+| **Total** | **6 items (5/6 done)** |
