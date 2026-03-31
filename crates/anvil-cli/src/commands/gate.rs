@@ -1078,9 +1078,10 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
             eprintln!("  {icon} {check_name}");
         }
 
+        let failed = !result.passed;
         checks.push(result);
 
-        if args.fail_fast && !checks.last().unwrap().passed {
+        if args.fail_fast && failed {
             break;
         }
     }

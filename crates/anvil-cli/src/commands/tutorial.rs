@@ -1,5 +1,5 @@
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anvil_tui::surfaces::tutorial::{TutorialPath, TutorialPhase, TutorialState};
 use anyhow::Context;
@@ -62,7 +62,7 @@ fn load_progress(path: &PathBuf) -> TutorialProgress {
 }
 
 fn save_progress_from_state(
-    path: &PathBuf,
+    path: &Path,
     existing: &TutorialProgress,
     state: &TutorialState,
 ) -> anyhow::Result<()> {
@@ -96,7 +96,7 @@ fn save_progress_from_state(
     }
 
     let json = serde_json::to_string_pretty(&progress)?;
-    std::fs::write(path, json).context("failed to write progress file")?;
+    crate::util::atomic_write(path, json.as_bytes()).context("failed to write progress file")?;
 
     Ok(())
 }

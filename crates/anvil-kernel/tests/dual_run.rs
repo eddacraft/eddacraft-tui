@@ -19,6 +19,7 @@ fn run_dual(root: &std::path::Path, arch_config: Option<PathBuf>) -> DualRunResu
         root: root.to_path_buf(),
         architecture_config: arch_config,
         filter: None,
+        plan: None,
     };
 
     let rust_result = run_embedded(&config).expect("rust kernel should succeed");
@@ -119,6 +120,7 @@ fn results_can_be_serialised_for_comparison() {
         root: tmp.path().to_path_buf(),
         architecture_config: None,
         filter: None,
+        plan: None,
     };
 
     let result = run_embedded(&config).unwrap();

@@ -93,7 +93,7 @@ fn workspace_root() -> PathBuf {
 pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
     let workspace_root = workspace_root();
 
-    let _patterns: Vec<String> = if let Some(ref p) = args.patterns {
+    let patterns: Vec<String> = if let Some(ref p) = args.patterns {
         p.split(',').map(|s| s.trim().to_string()).collect()
     } else if args.all || (args.source && args.plans) {
         DEFAULT_WATCH_PATTERNS
@@ -110,7 +110,7 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
             .collect()
     };
 
-    let _exclude: Vec<String> = args.exclude.as_ref().map_or_else(
+    let exclude: Vec<String> = args.exclude.as_ref().map_or_else(
         || DEFAULT_EXCLUDE.iter().map(ToString::to_string).collect(),
         |s| s.split(',').map(|s| s.trim().to_string()).collect(),
     );
@@ -132,6 +132,8 @@ pub fn run(args: &WatchArgs, global: &GlobalArgs) -> Result<()> {
         root: workspace_root.clone(),
         architecture_config: arch_config.clone(),
         watcher: watcher_config,
+        include_patterns: patterns,
+        exclude_patterns: exclude,
     };
 
     let (event_tx, event_rx) = mpsc::channel();

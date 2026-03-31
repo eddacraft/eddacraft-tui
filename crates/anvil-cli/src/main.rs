@@ -2,6 +2,7 @@ mod auth;
 mod commands;
 mod output;
 mod tui;
+mod util;
 
 use std::process::ExitCode;
 

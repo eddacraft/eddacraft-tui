@@ -118,7 +118,8 @@ fn generate_config(config: &AnvilConfig, root: &Path) -> anyhow::Result<()> {
         "yaml" => yaml_serialise(config),
         _ => serde_json::to_string_pretty(config).context("failed to serialise config")?,
     };
-    fs::write(root.join(".anvilrc"), content).context("failed to write .anvilrc")?;
+    crate::util::atomic_write(&root.join(".anvilrc"), content.as_bytes())
+        .context("failed to write .anvilrc")?;
 
     fs::create_dir_all(root.join(".anvil/cache")).context("failed to create .anvil/cache/")?;
 
