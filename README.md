@@ -119,7 +119,8 @@ and tooling.
 - **Node.js** >= 24
 - **pnpm** >= 10.20.0
 - **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
-- **cargo-llvm-cov** (optional, for Rust coverage) — `cargo install cargo-llvm-cov`
+- **cargo-llvm-cov** (optional, for Rust coverage) —
+  `cargo install cargo-llvm-cov`
 
 ### Setup
 

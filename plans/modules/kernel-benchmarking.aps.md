@@ -324,8 +324,9 @@ Change status to **Ready** when:
 ### BENCH-020: Add Criterion benchmarks to Rust CI pipeline
 
 - **Status:** Complete
-- **Intent:** Run Criterion benchmarks on every PR touching Rust code, uploading
-  HTML reports as CI artefacts for regression detection
+- **Intent:** Run Criterion benchmarks on PRs touching kernel, checks, bench, or
+  kernel-types crates, or changing `Cargo.toml`/`Cargo.lock`, uploading HTML
+  reports as CI artefacts for regression detection
 - **Expected Outcome:** CI workflow includes `cargo bench --bench kernel` step,
   Criterion HTML report uploaded as artefact
 - **Validation:** Open a PR changing kernel code, verify benchmark artefact
@@ -378,5 +379,5 @@ Change status to **Ready** when:
 | ----- | ----- | ------ |
 | 1 — Micro-Benchmark Extensions | 6 | Complete (6/6) |
 | 2 — Stress Test Harness | 8 | Complete (code landed via PR #681; needs validation runs) |
-| 3 — CI Integration | 2 | Ready |
-| **Total** | **16** | **14 complete, 2 ready** |
+| 3 — CI Integration | 2 | 1/2 complete |
+| **Total** | **16** | **15 complete, 1 ready** |
