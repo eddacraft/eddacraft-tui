@@ -11,7 +11,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 petgraph = { workspace = true }
 tempfile = "3"
-rand = "0.8"
+rand = "0.10"
 
 [dev-dependencies]
 criterion = { workspace = true }
