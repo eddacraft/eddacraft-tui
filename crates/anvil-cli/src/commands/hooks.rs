@@ -607,6 +607,9 @@ mod tests {
 
     #[test]
     fn managed_detection_on_missing_file() {
-        assert!(!is_anvil_managed(Path::new("/nonexistent/path")));
+        let dir = tempfile::tempdir().unwrap();
+        let missing_path = dir.path().join("definitely-does-not-exist");
+        assert!(!missing_path.exists());
+        assert!(!is_anvil_managed(&missing_path));
     }
 }

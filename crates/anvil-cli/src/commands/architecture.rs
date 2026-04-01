@@ -260,7 +260,9 @@ mod tests {
 
     #[test]
     fn resolve_arch_config_explicit_file_missing() {
-        let err = resolve_arch_config(Some("/nonexistent/arch.yaml")).unwrap_err();
+        let dir = tempfile::tempdir().unwrap();
+        let missing_file = dir.path().join("arch.yaml");
+        let err = resolve_arch_config(Some(missing_file.to_str().unwrap())).unwrap_err();
         assert!(err.to_string().contains("not found"));
     }
 

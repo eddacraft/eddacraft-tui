@@ -344,9 +344,13 @@ mod tests {
 
     #[test]
     fn credentials_dir_respects_xdg() {
-        temp_env::with_var("XDG_CONFIG_HOME", Some("/tmp/test-xdg"), || {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let xdg_config_home = tmp_dir.path().to_str().unwrap();
+
+        temp_env::with_var("XDG_CONFIG_HOME", Some(xdg_config_home), || {
             let dir = credentials_dir().unwrap();
-            assert_eq!(dir, PathBuf::from("/tmp/test-xdg/anvil"));
+            let expected = tmp_dir.path().join("anvil");
+            assert_eq!(dir, expected);
         });
     }
 }

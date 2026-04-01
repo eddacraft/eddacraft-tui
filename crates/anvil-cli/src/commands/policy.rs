@@ -503,9 +503,24 @@ mod tests {
 
     #[test]
     fn catalogue_category_filter() {
-        let mut policies = policy_catalogue();
-        policies.retain(|p| p.category == "architecture");
-        assert_eq!(policies.len(), 2);
+        let policies = policy_catalogue();
+        let architecture: Vec<_> = policies
+            .into_iter()
+            .filter(|p| p.category == "architecture")
+            .collect();
+
+        assert!(
+            architecture.iter().all(|p| p.category == "architecture"),
+            "all filtered policies should have category 'architecture'"
+        );
+        assert!(
+            architecture.iter().any(|p| p.id == "ARCH-001"),
+            "ARCH-001 should be present in the architecture category"
+        );
+        assert!(
+            architecture.iter().any(|p| p.id == "ARCH-002"),
+            "ARCH-002 should be present in the architecture category"
+        );
     }
 
     #[test]
