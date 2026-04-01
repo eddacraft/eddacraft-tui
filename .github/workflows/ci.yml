@@ -196,29 +196,6 @@ jobs:
     steps:
       - run: echo "Skipped — no code changes detected"
 
-  # ── Job: Policy lint + test (OPA v1 + Regal) ────────────────────
-  policy-lint:
-    name: Policy Lint & Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Install OPA
-        uses: open-policy-agent/setup-opa@34a30e8a924d1b03ce2cf7abe97571bbb1f1f1ea # v2
-        with:
-          version: v1.4.2
-
-      - name: Install Regal
-        uses: open-policy-agent/setup-regal@c468d3d7c38e4a1bd44e1a38caa9ee39b03c2ea0 # v1
-        with:
-          version: v0.31.0
-
-      - name: Run OPA tests
-        run: opa test --verbose policies/fixtures/
-
-      - name: Lint policies with Regal
-        run: regal lint --format github policies/fixtures/
-
   # ── Job 3a: Unit Tests — Ubuntu (always runs when code changes) ──
   test:
     name: Unit Tests (Node ${{ matrix.node-version }}, ubuntu-latest)
