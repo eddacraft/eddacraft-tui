@@ -152,3 +152,254 @@ impl AnvilClient {
         Ok(result.approved.into_iter().map(|e| e.email).collect())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{body_json_string, header, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// Create a client pointing at the given mock server URL.
+    fn mock_client(base_url: &str, token: Option<&str>) -> AnvilClient {
+        let http = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(5))
+            .build()
+            .unwrap();
+        AnvilClient {
+            http,
+            api_url: base_url.to_string(),
+            token: token.map(String::from),
+        }
+    }
+
+    // --- whoami ---
+
+    #[tokio::test]
+    async fn whoami_valid_with_user() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "user": {
+                    "email": "dev@example.com",
+                    "plan": "pro"
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("test-token"));
+        let result = client.whoami().await.unwrap();
+        assert_eq!(result.email, "dev@example.com");
+        assert_eq!(result.plan.as_deref(), Some("pro"));
+    }
+
+    #[tokio::test]
+    async fn whoami_valid_without_user() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "user": null
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("test-token"));
+        let result = client.whoami().await.unwrap();
+        assert_eq!(result.email, "unknown");
+        assert!(result.plan.is_none());
+    }
+
+    #[tokio::test]
+    async fn whoami_invalid_credentials() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": false
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("bad-token"));
+        let err = client.whoami().await.unwrap_err();
+        assert!(err.to_string().contains("invalid or expired"));
+    }
+
+    #[tokio::test]
+    async fn whoami_without_token_errors() {
+        let client = mock_client("http://localhost:1", None);
+        let err = client.whoami().await.unwrap_err();
+        assert!(err.to_string().contains("Not authenticated"));
+    }
+
+    #[tokio::test]
+    async fn whoami_sends_bearer_auth() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .and(header("authorization", "Bearer my-secret"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "user": { "email": "a@b.com" }
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("my-secret"));
+        let result = client.whoami().await.unwrap();
+        assert_eq!(result.email, "a@b.com");
+    }
+
+    // --- approve_user ---
+
+    #[tokio::test]
+    async fn approve_user_success() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/approve"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "approved": [{"email": "user@example.com"}]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        client.approve_user("user@example.com").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn approve_user_empty_result_errors() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/approve"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "approved": []
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let err = client.approve_user("nobody@example.com").await.unwrap_err();
+        assert!(err.to_string().contains("No users approved"));
+    }
+
+    // --- approve_batch ---
+
+    #[tokio::test]
+    async fn approve_batch_returns_emails() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/approve"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "approved": [
+                    {"email": "a@example.com"},
+                    {"email": "b@example.com"}
+                ]
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let emails = client.approve_batch(2).await.unwrap();
+        assert_eq!(emails, vec!["a@example.com", "b@example.com"]);
+    }
+
+    #[tokio::test]
+    async fn approve_batch_empty_returns_empty_vec() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/approve"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "approved": []
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("admin-key"));
+        let emails = client.approve_batch(5).await.unwrap();
+        assert!(emails.is_empty());
+    }
+
+    // --- HTTP error handling ---
+
+    #[tokio::test]
+    async fn post_propagates_http_errors() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("tok"));
+        let err = client.whoami().await.unwrap_err();
+        assert!(err.to_string().contains("API response"));
+    }
+
+    #[tokio::test]
+    async fn post_propagates_401() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/admin/approve"))
+            .respond_with(ResponseTemplate::new(401))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("bad-key"));
+        assert!(client.approve_user("x@y.com").await.is_err());
+    }
+
+    // --- URL construction ---
+
+    #[tokio::test]
+    async fn url_construction_includes_api_prefix() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "user": { "email": "test@test.com" }
+            })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("tok"));
+        client.whoami().await.unwrap();
+        // If the mock received exactly 1 request at /api/v1/auth/verify, URL is correct
+    }
+
+    // --- WhoamiResponse ---
+
+    #[test]
+    fn whoami_response_deserialises() {
+        let json = r#"{"email": "a@b.com", "plan": "free", "created_at": "2024-01-01"}"#;
+        let resp: WhoamiResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.email, "a@b.com");
+        assert_eq!(resp.plan.as_deref(), Some("free"));
+    }
+
+    #[test]
+    fn whoami_response_optional_fields() {
+        let json = r#"{"email": "a@b.com"}"#;
+        let resp: WhoamiResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.email, "a@b.com");
+        assert!(resp.plan.is_none());
+        assert!(resp.created_at.is_none());
+    }
+}
