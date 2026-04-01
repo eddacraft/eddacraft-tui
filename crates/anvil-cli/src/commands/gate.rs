@@ -36,10 +36,6 @@ pub struct GateArgs {
     /// List available gate profiles
     #[arg(long)]
     list_profiles: bool,
-
-    /// Disable caching (reserved for future use; currently has no effect)
-    #[arg(long)]
-    no_cache: bool,
 }
 
 const PROFILES: &[(&str, &str, &[&str])] = &[
@@ -955,7 +951,6 @@ pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
         fail_fast: false,
         progress: false,
         list_profiles: false,
-        no_cache: false,
     };
     let checks = run_checks(&default_args).unwrap_or_default();
 
@@ -1667,5 +1662,143 @@ rules: []
             "location should include pattern name in brackets, got: {}",
             locations[0]
         );
+    }
+
+    // ── Dead flag removal (TCOV-006) ──────────────────────────────────
+
+    #[test]
+    fn no_cache_flag_removed() {
+        // --no-cache was dead code (never read). Confirm it's no longer accepted.
+        let result = Wrapper::try_parse_from(["test", "--no-cache"]);
+        assert!(result.is_err(), "--no-cache should no longer be accepted");
+    }
+
+    // ── Validate check names ──────────────────────────────────────────
+
+    #[test]
+    fn validate_check_names_accepts_known() {
+        let names: std::collections::HashSet<&str> = ["lint", "secret"].into_iter().collect();
+        assert!(validate_check_names(&names).is_ok());
+    }
+
+    #[test]
+    fn validate_check_names_rejects_unknown() {
+        let names: std::collections::HashSet<&str> = ["lint", "bogus"].into_iter().collect();
+        let err = validate_check_names(&names).unwrap_err();
+        assert!(err.to_string().contains("bogus"));
+    }
+
+    #[test]
+    fn validate_check_names_empty_is_ok() {
+        let names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        assert!(validate_check_names(&names).is_ok());
+    }
+
+    // ── GateResult serialisation ──────────────────────────────────────
+
+    #[test]
+    fn gate_result_serialises_to_json() {
+        let result = GateResult {
+            overall: true,
+            score: 100.0,
+            checks: vec![CheckResult {
+                name: "secret".to_string(),
+                passed: true,
+                score: 100.0,
+                message: "clean".to_string(),
+            }],
+            duration_ms: 42,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["overall"], true);
+        assert_eq!(parsed["checks"][0]["name"], "secret");
+        assert_eq!(parsed["duration_ms"], 42);
+    }
+
+    // ── run_single_check unknown ─────────────────────────────────────
+
+    #[test]
+    fn unknown_check_fails() {
+        let ctx = GateContext {
+            profile: None,
+            plan_files: std::collections::HashSet::new(),
+            plan_path: None,
+        };
+        let result = run_single_check("nonexistent", &ctx);
+        assert!(!result.passed);
+        assert!(result.message.contains("Unknown check"));
+    }
+
+    // ── Plan-scoped policy input filtering ────────────────────────────
+
+    #[test]
+    fn build_policy_input_filters_by_plan_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("included.ts"), "export const x = 1;").unwrap();
+        std::fs::write(src.join("excluded.ts"), "export const y = 2;").unwrap();
+
+        let mut plan_files = std::collections::HashSet::new();
+        plan_files.insert("src/included.ts".to_string());
+
+        let input = build_policy_input(tmp.path(), None, None, &plan_files);
+        let files: Vec<&str> = input["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+
+        assert!(files.contains(&"src/included.ts"));
+        assert!(!files.contains(&"src/excluded.ts"));
+    }
+
+    // ── Extract plan files multi-line ─────────────────────────────────
+
+    #[test]
+    fn extract_plan_files_multi_line_continuation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plan = tmp.path().join("test.aps.md");
+        std::fs::write(
+            &plan,
+            "- **Files:** `src/a.ts`,\n  `src/b.ts`, `src/c.ts`\n- **Status:** Done\n",
+        )
+        .unwrap();
+
+        let files = extract_plan_files(&plan);
+        assert!(files.contains("src/a.ts"));
+        assert!(files.contains("src/b.ts"));
+        assert!(files.contains("src/c.ts"));
+    }
+
+    // ── Coverage edge cases ──────────────────────────────────────────
+
+    #[test]
+    fn coverage_lcov_empty_report_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cov_dir = tmp.path().join("coverage");
+        std::fs::create_dir_all(&cov_dir).unwrap();
+        std::fs::write(cov_dir.join("lcov.info"), "SF:src/main.rs\nLF:0\nLH:0\nend_of_record\n")
+            .unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
+        assert!(result.passed);
+        assert!(result.message.contains("empty"));
+    }
+
+    #[test]
+    fn coverage_cobertura_unparseable_rate() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cov_dir = tmp.path().join("coverage");
+        std::fs::create_dir_all(&cov_dir).unwrap();
+        std::fs::write(
+            cov_dir.join("cobertura.xml"),
+            r#"<?xml version="1.0"?><coverage></coverage>"#,
+        )
+        .unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
+        assert!(!result.passed);
+        assert!(result.message.contains("Failed to parse"));
     }
 }
