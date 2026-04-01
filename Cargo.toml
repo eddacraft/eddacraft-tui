@@ -1,0 +1,15 @@
+[package]
+name = "eddacraft-tui"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Shared Ratatui component library for the EddaCraft product family"
+repository = "https://github.com/EddaCraft/eddacraft-tui"
+
+[dependencies]
+ratatui = "0.30"
+crossterm = "0.29"
+unicode-width = "0.2"
+
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
