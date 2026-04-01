@@ -470,4 +470,143 @@ mod tests {
         let installed = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
         assert!(installed.contains(ANVIL_HOOK_MARKER));
     }
+
+    #[test]
+    fn install_hook_creates_new_hook() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = install_hook(dir.path(), "pre-commit", PRE_COMMIT_HOOK, false).unwrap();
+        assert_eq!(result.action, "created");
+
+        let content = std::fs::read_to_string(dir.path().join("pre-commit")).unwrap();
+        assert!(content.contains(ANVIL_HOOK_MARKER));
+    }
+
+    #[test]
+    fn install_hook_skips_existing_unmanaged() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("pre-commit"), "#!/bin/sh\necho custom").unwrap();
+
+        let result = install_hook(dir.path(), "pre-commit", PRE_COMMIT_HOOK, false).unwrap();
+        assert_eq!(result.action, "skipped");
+        assert!(result.message.contains("--force"));
+    }
+
+    #[test]
+    fn install_hook_skips_existing_managed() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("pre-commit"), PRE_COMMIT_HOOK).unwrap();
+
+        let result = install_hook(dir.path(), "pre-commit", PRE_COMMIT_HOOK, false).unwrap();
+        assert_eq!(result.action, "skipped");
+        assert!(result.message.contains("already installed"));
+    }
+
+    #[test]
+    fn uninstall_hook_removes_managed() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("pre-commit"), PRE_COMMIT_HOOK).unwrap();
+
+        let result = uninstall_hook(dir.path(), "pre-commit").unwrap();
+        assert_eq!(result.action, "removed");
+        assert!(!dir.path().join("pre-commit").exists());
+    }
+
+    #[test]
+    fn uninstall_hook_skips_unmanaged() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("pre-commit"), "#!/bin/sh\necho custom").unwrap();
+
+        let result = uninstall_hook(dir.path(), "pre-commit").unwrap();
+        assert_eq!(result.action, "skipped");
+        assert!(
+            dir.path().join("pre-commit").exists(),
+            "should not delete unmanaged hook"
+        );
+    }
+
+    #[test]
+    fn uninstall_hook_missing_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let result = uninstall_hook(dir.path(), "pre-commit").unwrap();
+        assert_eq!(result.action, "none");
+    }
+
+    #[test]
+    fn resolve_git_dir_standard() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".git")).unwrap();
+        let result = resolve_git_dir(dir.path()).unwrap();
+        assert_eq!(result, dir.path().join(".git"));
+    }
+
+    #[test]
+    fn resolve_git_dir_worktree() {
+        let dir = tempfile::tempdir().unwrap();
+        let actual_git = dir.path().join("actual-git-dir");
+        std::fs::create_dir_all(&actual_git).unwrap();
+        std::fs::write(
+            dir.path().join(".git"),
+            format!("gitdir: {}", actual_git.display()),
+        )
+        .unwrap();
+
+        let result = resolve_git_dir(dir.path()).unwrap();
+        assert_eq!(result, actual_git);
+    }
+
+    #[test]
+    fn resolve_git_dir_not_a_repo() {
+        let dir = tempfile::tempdir().unwrap();
+        let err = resolve_git_dir(dir.path()).unwrap_err();
+        assert!(err.to_string().contains("Not a Git repository"));
+    }
+
+    #[test]
+    fn detect_husky_with_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join(".husky")).unwrap();
+
+        let (detected, husky_dir) = detect_husky(dir.path());
+        assert!(detected);
+        assert!(husky_dir.is_some());
+    }
+
+    #[test]
+    fn detect_husky_with_package_json_dep() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"devDependencies": {"husky": "^9.0.0"}}"#,
+        )
+        .unwrap();
+
+        let (detected, _) = detect_husky(dir.path());
+        assert!(detected);
+    }
+
+    #[test]
+    fn no_husky_in_plain_node_project() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("package.json"),
+            r#"{"devDependencies": {"vitest": "^1.0.0"}}"#,
+        )
+        .unwrap();
+
+        let (detected, husky_dir) = detect_husky(dir.path());
+        assert!(!detected);
+        assert!(husky_dir.is_none());
+    }
+
+    #[test]
+    fn no_husky_when_empty_dir() {
+        let dir = tempfile::tempdir().unwrap();
+        let (detected, _) = detect_husky(dir.path());
+        assert!(!detected);
+    }
+
+    #[test]
+    fn managed_detection_on_missing_file() {
+        assert!(!is_anvil_managed(Path::new("/nonexistent/path")));
+    }
 }

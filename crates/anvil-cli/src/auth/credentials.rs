@@ -165,3 +165,188 @@ pub fn is_expired(creds: &Credentials) -> bool {
         },
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_creds(license: &str) -> Credentials {
+        Credentials {
+            license: license.to_string(),
+            refresh_token: None,
+            email: None,
+            expires_at: None,
+        }
+    }
+
+    #[test]
+    fn not_expired_when_no_expiry() {
+        let creds = make_creds("tok");
+        assert!(!is_expired(&creds));
+    }
+
+    #[test]
+    fn expired_when_in_the_past() {
+        let creds = Credentials {
+            expires_at: Some("2020-01-01T00:00:00Z".to_string()),
+            ..make_creds("tok")
+        };
+        assert!(is_expired(&creds));
+    }
+
+    #[test]
+    fn not_expired_when_in_the_future() {
+        let creds = Credentials {
+            expires_at: Some("2099-12-31T23:59:59Z".to_string()),
+            ..make_creds("tok")
+        };
+        assert!(!is_expired(&creds));
+    }
+
+    #[test]
+    fn expired_when_unparseable_date() {
+        let creds = Credentials {
+            expires_at: Some("not-a-date".to_string()),
+            ..make_creds("tok")
+        };
+        assert!(is_expired(&creds));
+    }
+
+    #[test]
+    fn serde_roundtrip_full() {
+        let creds = Credentials {
+            license: "lic-123".to_string(),
+            refresh_token: Some("refresh-456".to_string()),
+            email: Some("user@example.com".to_string()),
+            expires_at: Some("2099-12-31T23:59:59Z".to_string()),
+        };
+        let json = serde_json::to_string(&creds).unwrap();
+        let parsed: Credentials = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed.license, "lic-123");
+        assert_eq!(parsed.refresh_token.as_deref(), Some("refresh-456"));
+        assert_eq!(parsed.email.as_deref(), Some("user@example.com"));
+    }
+
+    #[test]
+    fn serde_camel_case_field_names() {
+        let creds = Credentials {
+            license: "tok".to_string(),
+            refresh_token: Some("rt".to_string()),
+            email: None,
+            expires_at: Some("2099-01-01T00:00:00Z".to_string()),
+        };
+        let json = serde_json::to_string(&creds).unwrap();
+        assert!(json.contains("refreshToken"), "should use camelCase");
+        assert!(json.contains("expiresAt"), "should use camelCase");
+        assert!(!json.contains("refresh_token"), "should not use snake_case");
+    }
+
+    #[test]
+    fn serde_skips_none_fields() {
+        let creds = make_creds("tok");
+        let json = serde_json::to_string(&creds).unwrap();
+        assert!(!json.contains("refreshToken"));
+        assert!(!json.contains("email"));
+        assert!(!json.contains("expiresAt"));
+    }
+
+    #[test]
+    fn serde_accepts_token_alias() {
+        let json = r#"{"token": "my-token"}"#;
+        let creds: Credentials = serde_json::from_str(json).unwrap();
+        assert_eq!(creds.license, "my-token");
+    }
+
+    #[test]
+    fn save_load_clear_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(dir.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", None),
+            ],
+            || {
+                let loaded = load().unwrap();
+                assert!(loaded.is_none());
+
+                let creds = Credentials {
+                    license: "test-lic".to_string(),
+                    refresh_token: Some("test-refresh".to_string()),
+                    email: Some("test@example.com".to_string()),
+                    expires_at: Some("2099-01-01T00:00:00Z".to_string()),
+                };
+                save(&creds).unwrap();
+
+                let loaded = load().unwrap().expect("should find saved credentials");
+                assert_eq!(loaded.license, "test-lic");
+                assert_eq!(loaded.email.as_deref(), Some("test@example.com"));
+
+                clear().unwrap();
+                let loaded = load().unwrap();
+                assert!(loaded.is_none());
+            },
+        );
+    }
+
+    #[test]
+    fn load_from_env_var() {
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(dir.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", Some("env-token")),
+            ],
+            || {
+                let loaded = load().unwrap().expect("should load from env var");
+                assert_eq!(loaded.license, "env-token");
+                assert!(loaded.refresh_token.is_none());
+            },
+        );
+    }
+
+    #[test]
+    fn load_empty_env_var_returns_none() {
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(dir.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", Some("  ")),
+            ],
+            || {
+                let loaded = load().unwrap();
+                assert!(loaded.is_none());
+            },
+        );
+    }
+
+    #[test]
+    fn file_credentials_take_priority_over_env() {
+        let dir = tempfile::tempdir().unwrap();
+        temp_env::with_vars(
+            [
+                ("XDG_CONFIG_HOME", Some(dir.path().to_str().unwrap())),
+                ("ANVIL_LICENSE", Some("env-token")),
+            ],
+            || {
+                let creds = Credentials {
+                    license: "file-token".to_string(),
+                    refresh_token: None,
+                    email: None,
+                    expires_at: None,
+                };
+                save(&creds).unwrap();
+
+                let loaded = load().unwrap().expect("should find credentials");
+                assert_eq!(loaded.license, "file-token");
+            },
+        );
+    }
+
+    #[test]
+    fn credentials_dir_respects_xdg() {
+        temp_env::with_var("XDG_CONFIG_HOME", Some("/tmp/test-xdg"), || {
+            let dir = credentials_dir().unwrap();
+            assert_eq!(dir, PathBuf::from("/tmp/test-xdg/anvil"));
+        });
+    }
+}

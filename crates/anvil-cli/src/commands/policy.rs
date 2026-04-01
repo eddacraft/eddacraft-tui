@@ -435,4 +435,109 @@ mod tests {
         let w = Wrapper::try_parse_from(["test", "test"]).unwrap();
         let _ = format!("{:?}", w.inner);
     }
+
+    #[test]
+    fn args_parses_test_with_path() {
+        let w = Wrapper::try_parse_from(["test", "test", "my/policies"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_parses_test_list_files() {
+        let w = Wrapper::try_parse_from(["test", "test", "--list-files"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_parses_list_with_category() {
+        let w = Wrapper::try_parse_from(["test", "list", "--category", "security"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_parses_list_enabled() {
+        let w = Wrapper::try_parse_from(["test", "list", "--enabled"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_parses_validate_with_file() {
+        let w = Wrapper::try_parse_from(["test", "validate", "my-policy.yaml"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn catalogue_includes_architecture_policies() {
+        let policies = policy_catalogue();
+        let arch_001 = policies.iter().find(|p| p.id == "ARCH-001");
+        assert!(arch_001.is_some(), "should include ARCH-001");
+        let arch_002 = policies.iter().find(|p| p.id == "ARCH-002");
+        assert!(arch_002.is_some(), "should include ARCH-002");
+    }
+
+    #[test]
+    fn catalogue_architecture_policies_are_enabled() {
+        let policies = policy_catalogue();
+        for p in policies.iter().filter(|p| p.category == "architecture") {
+            assert!(p.enabled, "{} should be enabled", p.id);
+        }
+    }
+
+    #[test]
+    fn catalogue_is_non_empty() {
+        let policies = policy_catalogue();
+        assert!(policies.len() >= 2, "should have at least the ARCH policies");
+    }
+
+    #[test]
+    fn catalogue_entries_have_required_fields() {
+        let policies = policy_catalogue();
+        for p in &policies {
+            assert!(!p.id.is_empty(), "id should not be empty");
+            assert!(!p.name.is_empty(), "name should not be empty");
+            assert!(!p.category.is_empty(), "category should not be empty");
+            assert!(!p.description.is_empty(), "description should not be empty");
+            assert!(!p.severity.is_empty(), "severity should not be empty");
+        }
+    }
+
+    #[test]
+    fn catalogue_category_filter() {
+        let mut policies = policy_catalogue();
+        policies.retain(|p| p.category == "architecture");
+        assert_eq!(policies.len(), 2);
+    }
+
+    #[test]
+    fn catalogue_enabled_filter() {
+        let all = policy_catalogue();
+        let mut enabled = policy_catalogue();
+        enabled.retain(|p| p.enabled);
+        assert!(enabled.len() >= 2);
+        assert!(enabled.len() <= all.len());
+    }
+
+    #[test]
+    fn diff_result_serialises() {
+        let result = PolicyDiffResult {
+            added: vec!["line-a".to_string()],
+            removed: vec!["line-b".to_string()],
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        assert!(json.contains("line-a"));
+        assert!(json.contains("line-b"));
+    }
+
+    #[test]
+    fn validation_result_serialises() {
+        let result = ValidationResult {
+            valid: false,
+            errors: vec!["err1".to_string()],
+            warnings: vec!["warn1".to_string()],
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["valid"], false);
+        assert_eq!(parsed["errors"][0], "err1");
+    }
 }

@@ -236,4 +236,141 @@ mod tests {
         let w = Wrapper::try_parse_from(["test", "show"]).unwrap();
         let _ = format!("{:?}", w.inner);
     }
+
+    #[test]
+    fn args_parses_validate_with_file() {
+        let w = Wrapper::try_parse_from(["test", "validate", "--file", "arch.yaml"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn args_parses_show_with_file() {
+        let w = Wrapper::try_parse_from(["test", "show", "-f", "arch.yaml"]).unwrap();
+        let _ = format!("{:?}", w.inner);
+    }
+
+    #[test]
+    fn resolve_arch_config_explicit_file_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(&file, "template: custom").unwrap();
+        let result = resolve_arch_config(Some(file.to_str().unwrap())).unwrap();
+        assert_eq!(result, file);
+    }
+
+    #[test]
+    fn resolve_arch_config_explicit_file_missing() {
+        let err = resolve_arch_config(Some("/nonexistent/arch.yaml")).unwrap_err();
+        assert!(err.to_string().contains("not found"));
+    }
+
+    #[test]
+    fn parse_minimal_architecture() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(&file, "template: layered\n").unwrap();
+
+        let def = parse_architecture(&file).unwrap();
+        assert_eq!(def.template, "layered");
+        assert!(def.layers.is_empty());
+        assert_eq!(def.rules_count, 0);
+    }
+
+    #[test]
+    fn parse_architecture_with_layers() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: layered\nlayers:\n  ui:\n    patterns:\n      - \"src/ui/**\"\n    depends_on:\n      - domain\n  domain:\n    patterns:\n      - \"src/domain/**\"\n",
+        )
+        .unwrap();
+
+        let def = parse_architecture(&file).unwrap();
+        assert_eq!(def.template, "layered");
+        assert_eq!(def.layers.len(), 2);
+
+        let ui = def.layers.iter().find(|l| l.name == "ui").unwrap();
+        assert_eq!(ui.patterns, vec!["src/ui/**"]);
+        assert_eq!(ui.depends_on, vec!["domain"]);
+
+        let domain = def.layers.iter().find(|l| l.name == "domain").unwrap();
+        assert!(domain.depends_on.is_empty());
+    }
+
+    #[test]
+    fn parse_architecture_with_rules() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: custom\nrules:\n  - name: no-cross-import\n  - name: no-circular\n",
+        )
+        .unwrap();
+
+        let def = parse_architecture(&file).unwrap();
+        assert_eq!(def.rules_count, 2);
+    }
+
+    #[test]
+    fn parse_architecture_defaults_unknown_template() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(&file, "layers: {}").unwrap();
+
+        let def = parse_architecture(&file).unwrap();
+        assert_eq!(def.template, "unknown");
+    }
+
+    #[test]
+    fn parse_architecture_invalid_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(&file, ": [invalid yaml {{").unwrap();
+
+        assert!(parse_architecture(&file).is_err());
+    }
+
+    #[test]
+    fn validate_valid_architecture() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: layered\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: [domain]\n  domain:\n    patterns: [\"src/domain/**\"]\n",
+        )
+        .unwrap();
+
+        let result = validate_architecture(&file).unwrap();
+        assert!(result.valid);
+        assert!(result.issues.is_empty());
+        assert_eq!(result.layers, 2);
+    }
+
+    #[test]
+    fn validate_detects_unknown_dependency() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(
+            &file,
+            "template: layered\nlayers:\n  ui:\n    patterns: [\"src/ui/**\"]\n    depends_on: [nonexistent]\n",
+        )
+        .unwrap();
+
+        let result = validate_architecture(&file).unwrap();
+        assert!(!result.valid);
+        assert_eq!(result.issues.len(), 1);
+        assert!(result.issues[0].contains("nonexistent"));
+    }
+
+    #[test]
+    fn validate_no_layers_is_valid() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("arch.yaml");
+        std::fs::write(&file, "template: empty\n").unwrap();
+
+        let result = validate_architecture(&file).unwrap();
+        assert!(result.valid);
+        assert_eq!(result.layers, 0);
+    }
 }
