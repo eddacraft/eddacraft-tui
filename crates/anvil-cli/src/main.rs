@@ -69,6 +69,9 @@ enum Commands {
     Admin(commands::admin::AdminArgs),
     /// Run gate checks against the current project.
     Gate(commands::gate::GateArgs),
+    /// Configure gate check settings and thresholds.
+    #[command(name = "gate-config")]
+    GateConfig(commands::gate_config::GateConfigArgs),
     /// Start file-watching mode with live gate checks.
     Watch(commands::watch::WatchArgs),
     /// Export constraints and configuration.
@@ -106,6 +109,7 @@ fn requires_auth(cmd: &Commands) -> bool {
         | Commands::Status(_)
         | Commands::Admin(_)
         | Commands::Gate(_)
+        | Commands::GateConfig(_)
         | Commands::Watch(_)
         | Commands::Export(_)
         | Commands::Architecture(_)
@@ -218,6 +222,7 @@ fn main() -> ExitCode {
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
         Commands::Auth(args) => commands::auth::run(args, &cli.global),
         Commands::Gate(_) => unreachable!("handled above"),
+        Commands::GateConfig(args) => commands::gate_config::run(args, &cli.global),
         Commands::Watch(args) => commands::watch::run(args, &cli.global),
         Commands::Export(args) => commands::export::run(args, &cli.global),
         Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
@@ -266,6 +271,11 @@ mod tests {
     #[test]
     fn requires_auth_drift() {
         assert!(requires_auth(&parse_command(&["drift", "list"])));
+    }
+
+    #[test]
+    fn requires_auth_gate_config() {
+        assert!(requires_auth(&parse_command(&["gate-config", "--list"])));
     }
 
     #[test]

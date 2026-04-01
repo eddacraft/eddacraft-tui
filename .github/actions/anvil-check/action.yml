@@ -330,7 +330,7 @@ runs:
             state = 'failure';
             description = `${warnings} warning(s) found (blocking mode)`;
           } else if (warnings > 0) {
-            // Note: GitHub commit status doesn't have 'neutral', so we use 'success' 
+            // Note: GitHub commit status doesn't have 'neutral', so we use 'success'
             // with a descriptive message. The Check Run (step 9) handles neutral state.
             state = 'success';
             description = `${warnings} warning(s) — non-blocking`;
@@ -408,8 +408,8 @@ runs:
             conclusion = 'failure';
           }
 
-          const title = errors > 0 
-            ? `${errors} error(s), ${warnings} warning(s)` 
+          const title = errors > 0
+            ? `${errors} error(s), ${warnings} warning(s)`
             : `${warnings} warning(s)`;
 
           const summary = violations.length > 50

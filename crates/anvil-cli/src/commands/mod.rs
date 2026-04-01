@@ -7,6 +7,7 @@ pub mod doctor;
 pub mod drift;
 pub mod export;
 pub mod gate;
+pub mod gate_config;
 pub mod hooks;
 pub mod init;
 pub mod new;
