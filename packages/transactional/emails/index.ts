@@ -6,3 +6,8 @@ export {
 } from './waitlist-confirmation.js';
 
 export { OtpCode, default as OtpCodeDefault } from './otp-code.js';
+
+export {
+  WaitlistMigration,
+  default as WaitlistMigrationDefault,
+} from './waitlist-migration.js';

@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { BetaInvite, OtpCode, WaitlistConfirmation } from '@eddacraft/transactional';
+import { BetaInvite, OtpCode, WaitlistConfirmation, WaitlistMigration } from '@eddacraft/transactional';
 
 let client: Resend | null = null;
 
@@ -129,6 +129,70 @@ export async function sendOtpCode(email: string, code: string): Promise<EmailDel
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Unexpected OTP email delivery error:', message);
+    return { sent: false, code: 'unexpected_error', message };
+  }
+}
+
+export async function sendWaitlistMigration(
+  email: string,
+  name?: string
+): Promise<EmailDeliveryResult> {
+  const resend = getResendClient();
+  if (!resend) {
+    console.warn('RESEND_API_KEY not configured — skipping migration email');
+    return { sent: false, code: 'resend_not_configured', message: 'Resend is not configured' };
+  }
+
+  const subject = encodeURIComponent('Unsubscribe');
+  const body = encodeURIComponent(`Please remove ${email} from communications.`);
+  const unsubscribeMailto = `mailto:anvil@updates.eddacraft.ai?subject=${subject}&body=${body}`;
+
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_ADDRESS,
+      replyTo: REPLY_TO,
+      to: email,
+      subject: "Anvil has a new home — and you're on the beta waitlist",
+      headers: {
+        'List-Unsubscribe': `<${unsubscribeMailto}>`,
+      },
+      react: WaitlistMigration({ email, name, unsubscribeMailto }),
+      text: `$ anvil :: status update
+
+[ INFO ] Platform update
+
+${name ? `${name}, you` : 'You'} signed up for early notifications on Anvil. A lot has changed since then.
+
+What's new:
+
+New website — We've rebuilt eddacraft.ai from the ground up. It's faster, cleaner, and reflects where the product is heading.
+
+Documentation — Full docs are now live at docs.eddacraft.ai. Architecture guides, CLI reference, and getting started walkthroughs are all there.
+
+Beta waitlist — Your email ${email} has been moved to the formal beta waitlist. You don't need to sign up again. When your cohort opens, you'll receive an invite with activation instructions.
+
+We're onboarding engineering teams in controlled cohorts to keep quality high. Capacity is limited — early signups like yours are prioritised.
+
+Questions or feedback? Just reply to this email — I personally read and respond to every one.
+
+— Josh
+Founder, eddacraft
+
+anvil :: eddacraft.ai
+
+To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}`,
+      tags: [{ name: 'category', value: 'waitlist-migration' }],
+    });
+
+    if (error) {
+      console.error('Failed to send migration email:', error.message);
+      return { sent: false, code: 'provider_error', message: error.message };
+    }
+
+    return { sent: true };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Unexpected migration email delivery error:', message);
     return { sent: false, code: 'unexpected_error', message };
   }
 }

@@ -6,7 +6,7 @@ import { adminAuth } from '../middleware/admin-auth.js';
 import { getClient } from '../db/client.js';
 import { findUserWithTokens } from '../db/queries.js';
 import { generateToken, hashToken } from '../lib/token.js';
-import { sendBetaInvite } from '../lib/email.js';
+import { sendBetaInvite, sendWaitlistMigration } from '../lib/email.js';
 import { createDebugger } from '../lib/debug.js';
 import { moveToApprovedAudience, removeFromBetaAudience } from '../lib/audience.js';
 
@@ -292,6 +292,60 @@ admin.get('/user/:email', async (c) => {
       created_at: t.created_at,
     })),
   });
+});
+
+/**
+ * POST /admin/send-migration
+ *
+ * Send migration email to imported waitlist users.
+ * Optional `source` filter (default: 'import').
+ * Optional `dryRun` to preview without sending.
+ */
+const migrationSchema = z.object({
+  source: z.enum(['import', 'website', 'manual']).default('import'),
+  dryRun: z.boolean().default(false),
+  limit: z.number().int().min(1).max(100).default(20),
+});
+
+admin.post('/send-migration', zValidator('json', migrationSchema), async (c) => {
+  const sql = getClient();
+  const actor = resolveAdminActor(c);
+
+  const { source, dryRun, limit } = c.req.valid('json');
+
+  const rows = (await sql`
+    SELECT email, name FROM waitlist WHERE source = ${source}
+    ORDER BY created_at ASC
+    LIMIT ${limit}
+  `) as { email: string; name: string | null }[];
+
+  if (dryRun) {
+    return c.json({
+      dryRun: true,
+      source,
+      count: rows.length,
+      recipients: rows.map((r) => ({ email: r.email, name: r.name })),
+    });
+  }
+
+  const results: { email: string; sent: boolean; error?: string }[] = [];
+
+  for (const row of rows) {
+    const delivery = await sendWaitlistMigration(row.email, row.name ?? undefined);
+    results.push({
+      email: row.email,
+      sent: delivery.sent,
+      error: delivery.sent ? undefined : delivery.message,
+    });
+  }
+
+  const sent = results.filter((r) => r.sent).length;
+  const failed = results.filter((r) => !r.sent).length;
+
+  await sql`INSERT INTO audit_log (action, actor, metadata)
+    VALUES (${'migration.email.sent'}, ${actor}, ${JSON.stringify({ source, sent, failed })})`;
+
+  return c.json({ source, total: rows.length, sent, failed, results });
 });
 
 export { admin };
