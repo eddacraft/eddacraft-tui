@@ -1687,6 +1687,7 @@ Validate the export command.
         let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
         assert_eq!(parsed["title"], "Test Plan");
         assert!(parsed["phases"][0]["items"].is_array());
+        assert_eq!(parsed["phases"][0]["items"][0]["id"], "TST-001");
     }
 
     #[test]
@@ -1836,6 +1837,9 @@ Validate the export command.
         )
         .unwrap();
         assert!(out.exists());
+        let content = std::fs::read_to_string(&out).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["title"], "Test Plan");
     }
 
     // =========================================================================
@@ -1933,13 +1937,18 @@ Validate the export command.
     }
 
     #[test]
-    fn export_constraints_errors_on_unknown_format() {
-        let err = export_constraints("excel", None, &default_global())
-            .unwrap_err()
-            .to_string();
-        assert!(
-            err.contains("Unsupported format"),
-            "should reject unknown format, got: {err}"
-        );
+    fn export_constraints_normalises_format_alias() {
+        // "llms" normalises to "llms.txt" — exercises the happy path of
+        // normalize_constraint_format rather than duplicating the error path.
+        // This will attempt to write to the workspace root, so we only verify
+        // it does NOT fail with "Unsupported format".
+        let result = export_constraints("llms", None, &default_global());
+        match result {
+            Err(e) => assert!(
+                !e.to_string().contains("Unsupported format"),
+                "llms should normalise to llms.txt, got: {e}"
+            ),
+            Ok(()) => {} // success is fine — it wrote the file
+        }
     }
 }
