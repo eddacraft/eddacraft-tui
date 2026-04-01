@@ -46,6 +46,8 @@ struct Cli {
 enum Commands {
     /// Run a full project audit.
     Audit(commands::audit::AuditArgs),
+    /// Analyse files for architecture violations and anti-patterns (planless mode).
+    Check(commands::check::CheckArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
     /// Show project status and health.
@@ -95,6 +97,7 @@ fn requires_auth(cmd: &Commands) -> bool {
     match cmd {
         // Auth-gated commands
         Commands::Audit(_)
+        | Commands::Check(_)
         | Commands::Status(_)
         | Commands::Admin(_)
         | Commands::Gate(_)
@@ -197,6 +200,7 @@ fn main() -> ExitCode {
 
     let result = match &cli.command {
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
+        Commands::Check(args) => commands::check::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
         Commands::Status(args) => commands::status::run(args, &cli.global),
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
@@ -245,6 +249,11 @@ mod tests {
     }
 
     // ── requires_auth: commands that MUST require auth ──────────────
+
+    #[test]
+    fn requires_auth_check() {
+        assert!(requires_auth(&parse_command(&["check", "--all"])));
+    }
 
     #[test]
     fn requires_auth_gate() {
