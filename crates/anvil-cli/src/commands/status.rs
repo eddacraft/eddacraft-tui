@@ -746,7 +746,7 @@ mod tests {
         });
         let result = parse_gate_entry("gate:plan.md:1710000000", &val).unwrap();
         assert!(result.passed);
-        assert_eq!(result.score, 0.95);
+        assert!((result.score - 0.95).abs() < f64::EPSILON);
         assert_eq!(result.checks_run, 5);
         assert_eq!(result.checks_passed, 5);
         assert_eq!(result.duration_ms, 1200);
@@ -755,24 +755,24 @@ mod tests {
     #[test]
     fn parse_gate_entry_fallback_to_created_at() {
         let val = serde_json::json!({
-            "created_at": 1710000000000_i64,
+            "created_at": 1_710_000_000_000_i64,
             "passed": false,
             "score": 0.5
         });
         // Key has no parseable timestamp suffix
         let result = parse_gate_entry("gate:check:secret:abcdef", &val).unwrap();
         assert!(!result.passed);
-        assert_eq!(result.score, 0.5);
+        assert!((result.score - 0.5).abs() < f64::EPSILON);
     }
 
     #[test]
     fn parse_gate_entry_defaults_missing_fields() {
         let val = serde_json::json!({
-            "created_at": 1710000000000_i64
+            "created_at": 1_710_000_000_000_i64
         });
         let result = parse_gate_entry("gate:no-data:xxx", &val).unwrap();
         assert!(!result.passed);
-        assert_eq!(result.score, 0.0);
+        assert!(result.score.abs() < f64::EPSILON);
         assert_eq!(result.checks_run, 0);
         assert_eq!(result.checks_passed, 0);
         assert_eq!(result.duration_ms, 0);
@@ -814,11 +814,7 @@ mod tests {
         let dir = make_temp_dir();
         let git_dir = dir.join("real-git-dir");
         std::fs::create_dir_all(&git_dir).unwrap();
-        std::fs::write(
-            dir.join(".git"),
-            format!("gitdir: {}", git_dir.display()),
-        )
-        .unwrap();
+        std::fs::write(dir.join(".git"), format!("gitdir: {}", git_dir.display())).unwrap();
         let result = resolve_git_dir(&dir);
         assert_eq!(result, git_dir);
         cleanup(&dir);
