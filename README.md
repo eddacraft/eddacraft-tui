@@ -76,8 +76,8 @@ and tooling.
 | `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
 | `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
 | `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
-| `packages/json-render`          | `@eddacraft/json-render`               | JSON-driven dashboard renderer                    |
-| `packages/transactional`        | `@eddacraft/transactional`             | Shared transactional email templates              |
+| `packages/json-render`          | `@eddacraft/json-render`                | JSON-driven dashboard renderer                    |
+| `packages/transactional`        | `@eddacraft/transactional`              | Shared transactional email templates              |
 
 ### Packages — Tooling
 
@@ -102,9 +102,9 @@ and tooling.
 
 ### Infrastructure
 
-| Directory | Package                   | Description                          |
-| --------- | ------------------------- | ------------------------------------ |
-| `infra`   | `@eddacraft/anvil-infra`  | Pulumi IaC (Vercel, DNS, cloud)      |
+| Directory | Package                  | Description                     |
+| --------- | ------------------------ | ------------------------------- |
+| `infra`   | `@eddacraft/anvil-infra` | Pulumi IaC (Vercel, DNS, cloud) |
 
 ### Tools
 
@@ -175,8 +175,8 @@ tests run separately via `apps/e2e/` and do not contribute to line coverage.
 
 | Project                                 |     Lines |    Branch | Test Files | Types             |
 | --------------------------------------- | --------: | --------: | ---------: | ----------------- |
-| `contracts`                             |     100%  |     100%  |          1 | Unit              |
-| `platform-config`                       |     100%  |     100%  |          2 | Unit              |
+| `contracts`                             |      100% |      100% |          1 | Unit              |
+| `platform-config`                       |      100% |      100% |          2 | Unit              |
 | `@eddacraft/anvil-aps`                  |     96.8% |     85.7% |          8 | Unit              |
 | `platform-storage`                      |     95.0% |     87.5% |          1 | Unit              |
 | `@eddacraft/anvil-mcp-server`           |     88.7% |     75.4% |         12 | Unit              |
