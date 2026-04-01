@@ -111,8 +111,18 @@ describe('Plan Lifecycle › Hash Integrity', () => {
   });
 
   it('changing intent changes the hash', () => {
-    const plan1 = makePlan({ intent: 'Intent A' });
-    const plan2 = makePlan({ intent: 'Intent B' });
+    const shared = {
+      id: 'aps-hash-test' as const,
+      provenance: {
+        timestamp: '2026-01-01T00:00:00.000Z',
+        author: 'e2e-harness',
+        source: 'cli' as const,
+        version: '0.1.0',
+      },
+      proposed_changes: [makeChange()],
+    };
+    const plan1 = makePlan({ ...shared, intent: 'Intent A' });
+    const plan2 = makePlan({ ...shared, intent: 'Intent B' });
     const { hash: _h1, id: _i1, ...data1 } = plan1;
     const { hash: _h2, id: _i2, ...data2 } = plan2;
     expect(generateHash(data1)).not.toBe(generateHash(data2));
