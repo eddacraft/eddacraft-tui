@@ -4,10 +4,10 @@ Purpose: ship the Rust `anvil` binary safely and consistently via cargo-dist.
 
 ## Release policy (current)
 
-- **Distribution:** pre-built binaries via GitHub Releases on
-  `EddaCraft/anvil-releases` (public).
+- **Distribution:** pre-built binaries via GitHub Releases on `EddaCraft/anvil`
+  (public).
 - **Install method:** shell installer script (`curl ... | sh`).
-- **Targets:** x86_64 + aarch64 for Linux and macOS.
+- **Targets:** x86_64 + aarch64 for Linux, macOS, and Windows.
 - **Workflow source of truth:** `.github/workflows/release.yml` (auto-generated
   by cargo-dist).
 - **Configuration:** `dist-workspace.toml`.
@@ -86,7 +86,7 @@ git push origin vX.Y.Z
 ```
 
 Pushing the tag triggers `release.yml` (cargo-dist) which builds binaries for
-all 4 targets and creates a GitHub Release automatically (pre-release for
+all 6 targets and creates a GitHub Release automatically (pre-release for
 beta/alpha/rc tags).
 
 For beta releases, either format works:
@@ -124,9 +124,10 @@ gh run view <run-id> --repo EddaCraft/anvil-001 --log-failed
 Expected behaviour:
 
 - `plan` job succeeds and identifies the release.
-- `build-local-artifacts` jobs compile for all 4 targets.
-- `build-global-artifacts` job produces shell installer.
-- `host` job creates the GitHub Release with all artefacts.
+- `build-local-artifacts` jobs compile for all 6 targets.
+- `build-global-artifacts` job produces shell and PowerShell installers.
+- `host` job creates the GitHub Release on `EddaCraft/anvil` (public) with all
+  artefacts. A copy is also retained on the private repo.
 - `announce` job posts release notes.
 
 ---
@@ -137,7 +138,7 @@ Install on a clean machine (or container):
 
 ```bash
 curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil-releases/releases/latest/download/anvil-cli-installer.sh | sh
+  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
 
 anvil --version
 anvil doctor
@@ -145,10 +146,10 @@ anvil auth login
 anvil gate
 ```
 
-Verify all 4 platform binaries are present in the GitHub Release:
+Verify all 6 platform binaries are present in the GitHub Release:
 
 ```bash
-gh release view vX.Y.Z --repo EddaCraft/anvil-releases
+gh release view vX.Y.Z --repo EddaCraft/anvil
 ```
 
 Expected artefacts:
@@ -157,7 +158,10 @@ Expected artefacts:
 - `anvil-cli-x86_64-apple-darwin.tar.xz`
 - `anvil-cli-aarch64-unknown-linux-gnu.tar.xz`
 - `anvil-cli-x86_64-unknown-linux-gnu.tar.xz`
+- `anvil-cli-x86_64-pc-windows-msvc.zip`
+- `anvil-cli-aarch64-pc-windows-msvc.zip`
 - `anvil-cli-installer.sh`
+- `anvil-cli-installer.ps1`
 
 ---
 
@@ -177,6 +181,51 @@ export ANVIL_API_URL=https://eddacraft-api.vercel.app
 1. Check the build log for that target in the release workflow.
 2. Fix and cut a patch release (vX.Y.Z+1).
 
+### If public release publish fails (partial release)
+
+The workflow creates the private release first (`dist host`), then publishes to
+`EddaCraft/anvil`. If the public step fails:
+
+1. Download artefacts from the private release:
+
+```bash
+gh release download vX.Y.Z --repo EddaCraft/anvil-001 --dir ./artifacts
+```
+
+2. Remove manifests (the automated pipeline does this before publishing):
+
+```bash
+rm -f artifacts/*-dist-manifest.json
+```
+
+3. Ensure the tag exists on the public repo (mirrors the automated pipeline's
+   tag-creation step to prevent tag drift):
+
+```bash
+if gh api repos/EddaCraft/anvil/git/ref/tags/vX.Y.Z >/dev/null 2>&1; then
+  echo "Tag vX.Y.Z already exists on EddaCraft/anvil; skipping."
+else
+  PUBLIC_HEAD=$(gh api repos/EddaCraft/anvil/git/ref/heads/main -q '.object.sha')
+  gh api repos/EddaCraft/anvil/git/refs \
+    -f ref="refs/tags/vX.Y.Z" \
+    -f sha="$PUBLIC_HEAD"
+fi
+```
+
+4. Manually publish to the public repo:
+
+```bash
+gh release create vX.Y.Z \
+  --repo EddaCraft/anvil \
+  --verify-tag \
+  --title "Anvil CLI vX.Y.Z" \
+  --notes "See changelog in private repo" \
+  artifacts/*
+```
+
+5. If the `ANVIL_RELEASES_TOKEN` was the issue, check the secret in repo
+   settings and re-run the failed workflow job.
+
 ### If a bad version needs to be retracted
 
 1. Delete the git tag locally and remotely:
@@ -186,10 +235,11 @@ git tag -d vX.Y.Z
 git push origin :refs/tags/vX.Y.Z
 ```
 
-2. Delete the GitHub Release:
+2. Delete the GitHub Release from both repos:
 
 ```bash
-gh release delete vX.Y.Z --repo EddaCraft/anvil-releases --yes
+gh release delete vX.Y.Z --repo EddaCraft/anvil --yes
+gh release delete vX.Y.Z --repo EddaCraft/anvil-001 --yes
 ```
 
 3. Fix the issue, bump to a new version, and re-release.
@@ -206,6 +256,12 @@ gh release delete vX.Y.Z --repo EddaCraft/anvil-releases --yes
   `cargo dist init` re-runs.
 - **Cross-compilation:** aarch64-linux uses cross-compilation in CI. If it
   fails, check the cross toolchain setup in the workflow.
+- **Dual release:** The workflow creates releases on both the private repo (via
+  `dist host`) and the public `EddaCraft/anvil` (via `gh release create`). The
+  private release is for internal traceability; the public one is for
+  distribution.
+- **ANVIL_RELEASES_TOKEN:** A PAT/fine-grained token with `contents: write` on
+  `EddaCraft/anvil`. Must be set as a repository secret on `anvil-001`.
 
 ---
 
@@ -221,6 +277,6 @@ Example:
 
 ```text
 Anvil CLI vX.Y.Z is live.
-Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil-releases/releases/latest/download/anvil-cli-installer.sh | sh
+Install: curl --proto '=https' --tlsv1.2 -LsSf https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
 Login: anvil auth login
 ```

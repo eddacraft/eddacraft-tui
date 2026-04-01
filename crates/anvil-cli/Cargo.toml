@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Anvil CLI — structural governance for AI-assisted development"
-repository.workspace = true
+repository = "https://github.com/EddaCraft/anvil"
 
 [package.metadata.dist]
 dist = true

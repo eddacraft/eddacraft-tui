@@ -75,9 +75,11 @@ missing_errors_doc = "allow"
 missing_panics_doc = "allow"
 
 [profile.release]
-lto = "thin"
+lto = true
+codegen-units = 1
+panic = "abort"
 
 # The profile that 'dist' will build with
 [profile.dist]
 inherits = "release"
-strip = true
+strip = "symbols"
