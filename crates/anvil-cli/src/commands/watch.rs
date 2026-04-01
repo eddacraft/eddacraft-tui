@@ -556,6 +556,17 @@ mod tests {
     }
 
     #[test]
+    fn normalise_path_via_ancestors_success_non_existent_target() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::create_dir_all(tmp.path().join("a/b")).unwrap();
+        // Path traverses up from a/b then into non-existent "c"
+        let input = tmp.path().join("a/b/../../c");
+        let result = normalise_path_via_ancestors(&input);
+        let expected = tmp.path().canonicalize().unwrap().join("c");
+        assert_eq!(result, expected);
+    }
+
+    #[test]
     fn build_action_command_sets_correct_args() {
         let exe = PathBuf::from("/usr/bin/anvil");
         let ws = PathBuf::from("/project");
@@ -591,24 +602,15 @@ mod tests {
     fn build_filter_sanitises_deep_paths() {
         let filter = build_filter(&["apps/foo/vendor".to_string()]);
         assert!(filter.should_ignore(std::path::Path::new("vendor/lib.ts")));
+        // Full deep path also matches because FileFilter checks each component
+        assert!(filter.should_ignore(std::path::Path::new("apps/foo/vendor/lib.ts")));
     }
 
-    #[test]
-    fn concurrency_guard_prevents_double_dispatch() {
-        use std::sync::Arc;
-        use std::sync::atomic::{AtomicBool, Ordering};
-
-        let guard = Arc::new(AtomicBool::new(false));
-
-        // First swap should succeed
-        assert!(!guard.swap(true, Ordering::SeqCst));
-        // Second swap should return true (already running), so dispatch is skipped
-        assert!(guard.swap(true, Ordering::SeqCst));
-
-        // After clearing, should succeed again
-        guard.store(false, Ordering::SeqCst);
-        assert!(!guard.swap(true, Ordering::SeqCst));
-    }
+    // The concurrency guard (action_running/action_pending AtomicBool pair) is
+    // tested indirectly via the watch integration flow. Direct unit testing is
+    // impractical because the guard is coupled to thread spawning and the
+    // dispatch loop in run(). The previous test here only exercised
+    // AtomicBool::swap semantics in isolation, which is tautological.
 
     // --- normalise_path_via_ancestors ---
 
@@ -645,6 +647,19 @@ mod tests {
         let input = sub.join("..").join("shallow");
         let result = normalise_path_via_ancestors(&input);
         let expected = tmp.path().canonicalize().unwrap().join("shallow");
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn normalise_path_via_ancestors_success_non_existent_target() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let sub = tmp.path().join("a").join("b");
+        std::fs::create_dir_all(&sub).unwrap();
+
+        // a/b/../../c where c does not exist — ancestors resolve, c is appended
+        let input = sub.join("..").join("..").join("c");
+        let result = normalise_path_via_ancestors(&input);
+        let expected = tmp.path().canonicalize().unwrap().join("c");
         assert_eq!(result, expected);
     }
 
