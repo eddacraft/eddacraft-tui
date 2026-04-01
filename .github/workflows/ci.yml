@@ -105,7 +105,7 @@ jobs:
             }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Set Nx SHAs
-        uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
 
       - name: Build ESLint plugin (required by lint rules)
         run: pnpm exec nx run eslint-plugin-anvil:build
@@ -156,7 +156,7 @@ jobs:
             }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Set Nx SHAs
-        uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
 
       - name: Run type check (affected on PRs, all on push)
         run: |
@@ -235,7 +235,7 @@ jobs:
             }}","tenantId":"${{ secrets.ARM_TENANT_ID }}"}'
 
       - name: Set Nx SHAs
-        uses: nrwl/nx-set-shas@3e9ad7370203c1e93d109be57f3b72eb0eb511b1 # v4
+        uses: nrwl/nx-set-shas@afb73a62d26e41464e9254689e1fd6122ee683c1 # v5.0.1
 
       - name: Build test dependencies
         run: pnpm exec nx run-many -t build --projects=@eddacraft/transactional
