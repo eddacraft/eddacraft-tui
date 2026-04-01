@@ -4,6 +4,7 @@ pub mod audit;
 pub mod auth;
 pub mod check;
 pub mod doctor;
+pub mod drift;
 pub mod export;
 pub mod gate;
 pub mod hooks;

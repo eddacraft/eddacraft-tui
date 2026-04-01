@@ -50,6 +50,8 @@ enum Commands {
     Check(commands::check::CheckArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
+    /// Track architecture drift over time.
+    Drift(commands::drift::DriftArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
     /// Interactive guided tutorial.
@@ -100,6 +102,7 @@ fn requires_auth(cmd: &Commands) -> bool {
         // Auth-gated commands
         Commands::Audit(_)
         | Commands::Check(_)
+        | Commands::Drift(_)
         | Commands::Status(_)
         | Commands::Admin(_)
         | Commands::Gate(_)
@@ -205,6 +208,7 @@ fn main() -> ExitCode {
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
         Commands::Check(args) => commands::check::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
+        Commands::Drift(args) => commands::drift::run(args, &cli.global),
         Commands::Status(args) => commands::status::run(args, &cli.global),
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
@@ -257,6 +261,11 @@ mod tests {
     #[test]
     fn requires_auth_check() {
         assert!(requires_auth(&parse_command(&["check", "--all"])));
+    }
+
+    #[test]
+    fn requires_auth_drift() {
+        assert!(requires_auth(&parse_command(&["drift", "list"])));
     }
 
     #[test]

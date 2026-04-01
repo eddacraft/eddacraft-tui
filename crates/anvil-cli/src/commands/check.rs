@@ -19,10 +19,21 @@ use crate::output::{self, OutputMode};
 const CHECK_OUTPUT_VERSION: &str = "1.0.0";
 
 /// Default directories to ignore during file scanning.
-///
-/// Aligned with the workspace walk ignore list used by other commands
-/// (see `commands::gate::WALK_IGNORE_DIRS`) to ensure consistent scan scope.
-const IGNORE_DIRS: &[&str] = super::gate::WALK_IGNORE_DIRS;
+const IGNORE_DIRS: &[&str] = &[
+    "node_modules",
+    "dist",
+    "build",
+    ".git",
+    "target",
+    ".anvil",
+    ".next",
+    ".turbo",
+    ".nx",
+    "coverage",
+    "__pycache__",
+    ".turbo",
+    ".nx",
+];
 
 // TODO(RCLI2): The following Node.js CLI flags are intentionally deferred:
 //   --no-cache       (caching infrastructure not yet ported)
