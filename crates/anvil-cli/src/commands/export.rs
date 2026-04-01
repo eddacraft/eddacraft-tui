@@ -1542,4 +1542,404 @@ mod tests {
             "malformed date should be treated as expired"
         );
     }
+
+    // =========================================================================
+    // export_plan — end-to-end file I/O tests
+    // =========================================================================
+
+    fn default_global() -> GlobalArgs {
+        GlobalArgs {
+            json: false,
+            no_tui: true,
+            verbose: false,
+        }
+    }
+
+    fn sample_aps_markdown() -> &'static str {
+        "\
+<!--
+APS Module: Test
+Scopes: TST
+-->
+
+# Test Plan
+
+| ID  | Name | Status      | Progress |
+| --- | ---- | ----------- | -------- |
+| TST | Test | In Progress | 1/3      |
+
+## Purpose
+
+Validate the export command.
+
+## Phase 1 — Foundation
+
+### TST-001: scaffold project
+
+- **Status:** Complete
+- **Intent:** Create the project scaffold
+- **Priority:** High
+- **Files:** `src/main.rs`, `Cargo.toml`
+
+---
+
+### TST-002: add tests
+
+- **Status:** Proposed
+- **Intent:** Write unit tests
+"
+    }
+
+    #[test]
+    fn export_plan_to_json() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let out = tmp.path().join("plan.aps.json");
+        export_plan(
+            src.to_str().unwrap(),
+            "json",
+            Some(out.to_str().unwrap()),
+            None,
+            false,
+            &default_global(),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&out).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["title"], "Test Plan");
+        assert!(parsed["phases"].is_array());
+        assert_eq!(parsed["phases"][0]["items"][0]["id"], "TST-001");
+        // Pretty-printed JSON should contain newlines
+        assert!(content.contains('\n'));
+    }
+
+    #[test]
+    fn export_plan_to_json_compact() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let out = tmp.path().join("plan.compact.json");
+        export_plan(
+            src.to_str().unwrap(),
+            "json",
+            Some(out.to_str().unwrap()),
+            None,
+            true,
+            &default_global(),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&out).unwrap();
+        // Compact JSON should be a single line (no embedded newlines)
+        assert!(!content.contains('\n'));
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["title"], "Test Plan");
+    }
+
+    #[test]
+    fn export_plan_to_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let out = tmp.path().join("plan.aps.yaml");
+        export_plan(
+            src.to_str().unwrap(),
+            "yaml",
+            Some(out.to_str().unwrap()),
+            None,
+            false,
+            &default_global(),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&out).unwrap();
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&content).unwrap();
+        assert_eq!(
+            parsed["title"].as_str(),
+            Some("Test Plan"),
+            "YAML output should contain title"
+        );
+    }
+
+    #[test]
+    fn export_plan_to_aps_format() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let out = tmp.path().join("plan.aps.json");
+        export_plan(
+            src.to_str().unwrap(),
+            "aps",
+            Some(out.to_str().unwrap()),
+            None,
+            false,
+            &default_global(),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&out).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["title"], "Test Plan");
+        assert!(parsed["phases"][0]["items"].is_array());
+    }
+
+    #[test]
+    fn export_plan_default_output_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("mymod.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        // No explicit output path — should derive from source
+        export_plan(
+            src.to_str().unwrap(),
+            "json",
+            None,
+            None,
+            false,
+            &default_global(),
+        )
+        .unwrap();
+
+        let expected = tmp.path().join("mymod.aps.json");
+        assert!(expected.exists(), "default output path should be created");
+    }
+
+    #[test]
+    fn export_plan_errors_on_missing_source() {
+        let result = export_plan(
+            "/nonexistent/file.md",
+            "json",
+            None,
+            None,
+            false,
+            &default_global(),
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Source file not found"),
+            "should report missing source, got: {err}"
+        );
+    }
+
+    #[test]
+    fn export_plan_errors_on_from_override() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let result = export_plan(
+            src.to_str().unwrap(),
+            "json",
+            None,
+            Some("yaml"),
+            false,
+            &default_global(),
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("--from override is not yet supported"),
+            "should reject --from, got: {err}"
+        );
+    }
+
+    #[test]
+    fn export_plan_errors_on_unsupported_format() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let result = export_plan(
+            src.to_str().unwrap(),
+            "xml",
+            None,
+            None,
+            false,
+            &default_global(),
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("Unsupported target format"),
+            "should reject unsupported format, got: {err}"
+        );
+    }
+
+    #[test]
+    fn export_plan_non_markdown_json_to_yaml() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("data.json");
+        std::fs::write(&src, r#"{"key": "value", "count": 42}"#).unwrap();
+
+        let out = tmp.path().join("data.aps.yaml");
+        export_plan(
+            src.to_str().unwrap(),
+            "yaml",
+            Some(out.to_str().unwrap()),
+            None,
+            false,
+            &default_global(),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&out).unwrap();
+        let parsed: serde_yaml::Value = serde_yaml::from_str(&content).unwrap();
+        assert_eq!(parsed["key"].as_str(), Some("value"));
+    }
+
+    #[test]
+    fn export_plan_non_markdown_yaml_to_json() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("data.yaml");
+        std::fs::write(&src, "key: value\ncount: 42\n").unwrap();
+
+        let out = tmp.path().join("data.aps.json");
+        export_plan(
+            src.to_str().unwrap(),
+            "json",
+            Some(out.to_str().unwrap()),
+            None,
+            false,
+            &default_global(),
+        )
+        .unwrap();
+
+        let content = std::fs::read_to_string(&out).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["key"], "value");
+    }
+
+    #[test]
+    fn export_plan_json_output_mode() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let out = tmp.path().join("plan.aps.json");
+        let global = GlobalArgs {
+            json: true,
+            no_tui: true,
+            verbose: false,
+        };
+        // Should not panic — the JSON output goes to stdout
+        export_plan(
+            src.to_str().unwrap(),
+            "json",
+            Some(out.to_str().unwrap()),
+            None,
+            false,
+            &global,
+        )
+        .unwrap();
+        assert!(out.exists());
+    }
+
+    // =========================================================================
+    // run — dispatch logic tests
+    // =========================================================================
+
+    #[test]
+    fn run_errors_when_neither_format_nor_to_specified() {
+        let args = ExportArgs {
+            source: None,
+            to: None,
+            format: None,
+            output: None,
+            from: None,
+            compact: false,
+        };
+        let err = run(&args, &default_global()).unwrap_err().to_string();
+        assert!(
+            err.contains("--format or --to must be specified"),
+            "should require --format or --to, got: {err}"
+        );
+    }
+
+    #[test]
+    fn run_errors_when_to_without_source() {
+        let args = ExportArgs {
+            source: None,
+            to: Some("json".to_string()),
+            format: None,
+            output: None,
+            from: None,
+            compact: false,
+        };
+        let err = run(&args, &default_global()).unwrap_err().to_string();
+        assert!(
+            err.contains("Source file path is required"),
+            "should require source for --to, got: {err}"
+        );
+    }
+
+    #[test]
+    fn run_routes_to_plan_export() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let out = tmp.path().join("plan.aps.json");
+        let args = ExportArgs {
+            source: Some(src.to_str().unwrap().to_string()),
+            to: Some("json".to_string()),
+            format: None,
+            output: Some(out.to_str().unwrap().to_string()),
+            from: None,
+            compact: false,
+        };
+        run(&args, &default_global()).unwrap();
+
+        let content = std::fs::read_to_string(&out).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&content).unwrap();
+        assert_eq!(parsed["title"], "Test Plan");
+    }
+
+    #[test]
+    fn run_normalises_yml_target() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("plan.aps.md");
+        std::fs::write(&src, sample_aps_markdown()).unwrap();
+
+        let out = tmp.path().join("plan.aps.yaml");
+        let args = ExportArgs {
+            source: Some(src.to_str().unwrap().to_string()),
+            to: Some("yml".to_string()),
+            format: None,
+            output: Some(out.to_str().unwrap().to_string()),
+            from: None,
+            compact: false,
+        };
+        run(&args, &default_global()).unwrap();
+        assert!(out.exists(), "yml should normalise to yaml");
+    }
+
+    // =========================================================================
+    // export_constraints — error path tests
+    // =========================================================================
+
+    #[test]
+    fn export_constraints_errors_on_unsupported_format() {
+        let err = export_constraints("csv", None, &default_global())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("Unsupported format: csv"),
+            "should reject unsupported constraint format, got: {err}"
+        );
+    }
+
+    #[test]
+    fn export_constraints_errors_on_unknown_format() {
+        let err = export_constraints("excel", None, &default_global())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("Unsupported format"),
+            "should reject unknown format, got: {err}"
+        );
+    }
 }
