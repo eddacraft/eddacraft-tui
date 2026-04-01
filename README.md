@@ -76,6 +76,8 @@ and tooling.
 | `packages/kindling-integration` | `@eddacraft/anvil-kindling-integration` | Kindling memory integration contracts             |
 | `packages/edda-stack`           | `@eddacraft/anvil-edda-stack`           | Observation, proposal, and memory lifecycle stack |
 | `packages/mcp-server`           | `@eddacraft/anvil-mcp-server`           | MCP tools, resources, and prompts                 |
+| `packages/json-render`          | `@eddacraft/json-render`               | JSON-driven dashboard renderer                    |
+| `packages/transactional`        | `@eddacraft/transactional`             | Shared transactional email templates              |
 
 ### Packages — Tooling
 
@@ -91,10 +93,18 @@ and tooling.
 | `crates/anvil-cli`          | Native CLI binary (cross-platform: macOS, Linux, Windows) |
 | `crates/anvil-kernel`       | Rust kernel — watcher, parser, semantic graph, policy     |
 | `crates/anvil-kernel-types` | Shared types for the Rust kernel (events, graph, trust)   |
-| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer)   |
+| `crates/anvil-architecture` | Architecture rule evaluation                              |
+| `crates/anvil-bench`        | Stress-test harness for capacity discovery                |
 | `crates/anvil-checks`       | Gate checks ported to Rust (secret scan, anti-pattern)    |
-| `crates/eddacraft-tui`      | Shared Ratatui component library                          |
+| `crates/anvil-policy`       | OPA/policy evaluation engine                              |
+| `crates/anvil-tui`          | Ratatui TUI surfaces (dashboard, wizard, gate explorer)   |
 | `crates/spike`              | Validation spikes for tree-sitter, notify-rs, petgraph    |
+
+### Infrastructure
+
+| Directory | Package                   | Description                          |
+| --------- | ------------------------- | ------------------------------------ |
+| `infra`   | `@eddacraft/anvil-infra`  | Pulumi IaC (Vercel, DNS, cloud)      |
 
 ### Tools
 
@@ -103,6 +113,7 @@ and tooling.
 | `tools/scripts`    | Build and utility scripts |
 | `tools/generators` | NX code generators        |
 | `tools/codemods`   | Codemod transformations   |
+| `tools/test-utils` | Shared test utilities     |
 
 ### Plans
 
@@ -153,8 +164,8 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> TS percentages last measured: 2026-02-26 · commit `8663d83` (stale — re-run
-> needed). Rust percentages and all file counts measured 2026-03-31. Run
+> Last measured: 2026-04-01 · commit `e08aa44d`. `eddacraft-tui` is now an
+> external git dependency and excluded from the Rust table. Run
 > `pnpm test:coverage` for current numbers across both stacks.
 
 Coverage reflects unit and integration tests only (v8 / llvm-cov providers). E2E
@@ -164,41 +175,44 @@ tests run separately via `apps/e2e/` and do not contribute to line coverage.
 
 | Project                                 |     Lines |    Branch | Test Files | Types             |
 | --------------------------------------- | --------: | --------: | ---------: | ----------------- |
-| `@eddacraft/anvil-api`                  |     77.9% |     58.1% |          6 | Unit              |
-| `@eddacraft/anvil-aps`                  |     96.6% |     85.0% |          8 | Unit              |
-| `@eddacraft/anvil-adapters`             |     83.4% |     70.9% |         13 | Unit              |
-| `@eddacraft/anvil-edda-stack`           |     42.8% |     25.8% |         33 | Unit              |
-| `@eddacraft/anvil-kindling-integration` |     43.8% |     23.4% |          1 | Unit              |
-| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |         12 | Unit              |
-| `anvil-vscode`                          |     62.5% |     43.9% |          7 | Unit              |
+| `contracts`                             |     100%  |     100%  |          1 | Unit              |
+| `platform-config`                       |     100%  |     100%  |          2 | Unit              |
+| `@eddacraft/anvil-aps`                  |     96.8% |     85.7% |          8 | Unit              |
+| `platform-storage`                      |     95.0% |     87.5% |          1 | Unit              |
+| `@eddacraft/anvil-mcp-server`           |     88.7% |     75.4% |         12 | Unit              |
+| `@eddacraft/anvil-adapters`             |     87.0% |     76.4% |         13 | Unit              |
+| `core`                                  |     83.6% |     73.8% |         37 | Unit              |
+| `@eddacraft/anvil-edda-stack`           |     77.2% |     65.3% |         33 | Unit              |
+| `policy`                                |     75.9% |     67.5% |          5 | Unit              |
+| `runtime`                               |     71.2% |     63.1% |   27u + 2i | Unit, Integration |
+| `anvil-vscode`                          |     62.5% |     43.1% |          7 | Unit              |
+| `@eddacraft/anvil-api`                  |     62.0% |     54.6% |          6 | Unit              |
+| `json-render`                           |     44.8% |     20.8% |          2 | Unit              |
+| `@eddacraft/anvil-kindling-integration` |     19.9% |      6.4% |          1 | Unit              |
 | `eslint-plugin-anvil`                   |    --[^1] |    --[^1] |          3 | Unit              |
-| `json-render`                           |    --[^4] |    --[^4] |          1 | Unit              |
-| `contracts`                             |      100% |      100% |          1 | Unit              |
-| `ports`                                 |   N/A[^2] |   N/A[^2] |          0 | --                |
-| `core`                                  |     83.4% |     73.3% |         37 | Unit              |
-| `runtime`                               |     60.3% |     53.0% |   27u + 2i | Unit, Integration |
-| `policy`                                |     76.4% |     67.2% |          5 | Unit              |
-| `platform-config`                       |      100% |      100% |          2 | Unit              |
-| `platform-storage`                      |     90.5% |     79.2% |          1 | Unit              |
-| `platform-crypto`                       |    0%[^3] |    0%[^3] |          0 | --                |
 | `infra`                                 |    --[^4] |    --[^4] |          3 | Unit              |
-| **TS total**                            | **64.0%** | **53.8%** |    **162** |                   |
+| `ports`                                 |   N/A[^2] |   N/A[^2] |          0 | --                |
+| `platform-crypto`                       |    0%[^3] |    0%[^3] |          0 | --                |
+| `anvil-website`                         |    --[^5] |    --[^5] |          0 | --                |
+| `transactional`                         |    --[^5] |    --[^5] |          0 | --                |
+| `docs-site`                             |    --[^5] |    --[^5] |          0 | --                |
+| `anvil-generators`                      |    --[^5] |    --[^5] |          0 | --                |
+| **TS total**                            | **77.2%** | **67.0%** |    **163** |                   |
 
 #### Rust
 
 | Crate                |     Lines | Test Modules |
 | -------------------- | --------: | -----------: |
 | `anvil-kernel-types` |     99.4% |            5 |
+| `anvil-kernel`       |     94.7% |           23 |
 | `anvil-bench`        |     94.3% |            8 |
-| `anvil-kernel`       |     94.0% |           23 |
-| `anvil-architecture` |     92.7% |            5 |
-| `anvil-checks`       |     91.6% |           17 |
-| `anvil-tui`          |     89.6% |           29 |
+| `anvil-architecture` |     93.4% |            5 |
+| `anvil-checks`       |     91.7% |           17 |
+| `anvil-tui`          |     90.0% |           29 |
 | `anvil-policy`       |     77.6% |            8 |
-| `eddacraft-tui`      |     59.6% |           16 |
-| `anvil-cli`          |     49.9% |           19 |
+| `anvil-cli`          |     54.5% |           22 |
 | `spike`              |      0.0% |            0 |
-| **Rust total**       | **78.8%** |      **130** |
+| **Rust total**       | **79.8%** |      **117** |
 
 [^1]:
     `eslint-plugin` tests run via NX project-level config, not the root vitest
@@ -210,14 +224,16 @@ tests run separately via `apps/e2e/` and do not contribute to line coverage.
 
 [^4]: Coverage not yet measured for this project.
 
+[^5]: No tests — not included in coverage totals.
+
 ### Test type breakdown
 
 | Type            | Files | Description                                            |
 | --------------- | ----: | ------------------------------------------------------ |
-| TS Unit         |   160 | Co-located `*.test.ts` — mocked deps, fast             |
+| TS Unit         |   161 | Co-located `*.test.ts` — mocked deps, fast             |
 | TS Integration  |     2 | `*-integration.test.ts` — multi-module, in-process     |
 | TS E2E          |    10 | `*.e2e.test.ts` in `apps/e2e/` — cross-package testing |
-| Rust Unit/Integ |   130 | `#[cfg(test)]` modules — inline and integration tests  |
+| Rust Unit/Integ |   117 | `#[cfg(test)]` modules — inline and integration tests  |
 | Rust Benchmarks |     — | Criterion micro-benchmarks (`cargo bench`, see below)  |
 
 ### Running coverage
