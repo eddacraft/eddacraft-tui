@@ -123,8 +123,8 @@ describe('Plan Lifecycle › Hash Integrity', () => {
     };
     const plan1 = makePlan({ ...shared, intent: 'Intent A' });
     const plan2 = makePlan({ ...shared, intent: 'Intent B' });
-    const { hash: _h1, id: _i1, ...data1 } = plan1;
-    const { hash: _h2, id: _i2, ...data2 } = plan2;
+    const { hash: _h1, ...data1 } = plan1;
+    const { hash: _h2, ...data2 } = plan2;
     expect(generateHash(data1)).not.toBe(generateHash(data2));
   });
 });
