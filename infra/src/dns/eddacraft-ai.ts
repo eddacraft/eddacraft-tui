@@ -52,5 +52,12 @@ export const eddacraftAi = new DnsZone('eddacraft-ai', {
       recordType: 'TXT',
       txtRecords: [{ value: ['v=spf1 include:amazonses.com ~all'] }],
     },
+
+    // install.eddacraft.ai — GitHub Pages (Anvil CLI install scripts)
+    'install-cname-eddacraft-ai': {
+      relativeRecordSetName: 'install',
+      recordType: 'CNAME',
+      cnameRecord: { cname: 'eddacraft.github.io' },
+    },
   },
 });
