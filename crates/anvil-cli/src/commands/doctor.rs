@@ -718,11 +718,14 @@ mod tests {
             auto_fixable: false,
         };
         let json: serde_json::Value = serde_json::to_value(&check).unwrap();
-        assert!(json.get("details").is_none(), "details should be omitted when None");
+        assert!(
+            json.get("details").is_none(),
+            "details should be omitted when None"
+        );
         assert_eq!(json["auto_fixable"], false);
     }
 
-    /// Convert a DiagnosticCheck to a JsonCheck using the same mapping as print_json.
+    /// Convert a [`DiagnosticCheck`] to a [`JsonCheck`] using the same mapping as `print_json`.
     fn to_json_check(c: &DiagnosticCheck) -> JsonCheck {
         JsonCheck {
             name: c.name.clone(),
@@ -860,13 +863,9 @@ mod tests {
     fn all_check_names_are_unique() {
         let checks = run_all_checks();
         let mut names: Vec<&str> = checks.iter().map(|c| c.name.as_str()).collect();
-        names.sort();
+        names.sort_unstable();
         names.dedup();
-        assert_eq!(
-            names.len(),
-            checks.len(),
-            "duplicate check names found"
-        );
+        assert_eq!(names.len(), checks.len(), "duplicate check names found");
     }
 
     fn make_check_with_details(
@@ -887,10 +886,22 @@ mod tests {
     #[test]
     fn failed_checks_have_details() {
         let checks = vec![
-            make_check_with_details("fail-with-details", CheckStatus::Fail, Some("detail text".to_string())),
+            make_check_with_details(
+                "fail-with-details",
+                CheckStatus::Fail,
+                Some("detail text".to_string()),
+            ),
             make_check_with_details("pass-no-details", CheckStatus::Pass, None),
-            make_check_with_details("warn-with-details", CheckStatus::Warn, Some("warning detail".to_string())),
-            make_check_with_details("fail-with-details-2", CheckStatus::Fail, Some("another detail".to_string())),
+            make_check_with_details(
+                "warn-with-details",
+                CheckStatus::Warn,
+                Some("warning detail".to_string()),
+            ),
+            make_check_with_details(
+                "fail-with-details-2",
+                CheckStatus::Fail,
+                Some("another detail".to_string()),
+            ),
         ];
         for check in &checks {
             if check.status == CheckStatus::Fail {
