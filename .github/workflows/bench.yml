@@ -2,16 +2,7 @@ name: Benchmarks
 
 on:
   push:
-    branches: [main, dev]
-    paths:
-      - 'crates/anvil-bench/**'
-      - 'crates/anvil-kernel/**'
-      - 'crates/anvil-kernel-types/**'
-      - 'crates/anvil-checks/**'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - '.github/workflows/bench.yml'
-  pull_request:
+    branches: [main]
     paths:
       - 'crates/anvil-bench/**'
       - 'crates/anvil-kernel/**'
