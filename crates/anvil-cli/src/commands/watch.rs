@@ -609,4 +609,152 @@ mod tests {
         guard.store(false, Ordering::SeqCst);
         assert!(!guard.swap(true, Ordering::SeqCst));
     }
+
+    // --- normalise_path_via_ancestors ---
+
+    #[test]
+    fn normalise_path_resolves_dotdot_traversal() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let sub = tmp.path().join("a").join("b");
+        std::fs::create_dir_all(&sub).unwrap();
+
+        // a/b/../../c should resolve to <tmp>/c
+        let input = sub.join("..").join("..").join("c");
+        let result = normalise_path_via_ancestors(&input);
+        let expected = tmp.path().canonicalize().unwrap().join("c");
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn normalise_path_handles_absolute_existing_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("exists.txt");
+        std::fs::write(&file, "").unwrap();
+
+        let result = normalise_path_via_ancestors(&file);
+        assert_eq!(result, file.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn normalise_path_handles_relative_components() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let sub = tmp.path().join("deep");
+        std::fs::create_dir(&sub).unwrap();
+
+        // deep/../shallow should resolve to <tmp>/shallow
+        let input = sub.join("..").join("shallow");
+        let result = normalise_path_via_ancestors(&input);
+        let expected = tmp.path().canonicalize().unwrap().join("shallow");
+        assert_eq!(result, expected);
+    }
+
+    // --- WatchEvent serialisation ---
+
+    #[test]
+    fn watch_event_serialises_to_json() {
+        let event = WatchEvent {
+            timestamp: "2026-04-01T00:00:00Z".to_string(),
+            event_type: "Snapshot".to_string(),
+            detail: "10 nodes".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["timestamp"], "2026-04-01T00:00:00Z");
+        assert_eq!(parsed["event_type"], "Snapshot");
+        assert_eq!(parsed["detail"], "10 nodes");
+    }
+
+    #[test]
+    fn watch_event_uses_snake_case_keys() {
+        let event = WatchEvent {
+            timestamp: "t".to_string(),
+            event_type: "Progress".to_string(),
+            detail: "d".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"event_type\""));
+        assert!(!json.contains("\"eventType\""));
+    }
+
+    // --- build_filter with empty excludes ---
+
+    #[test]
+    fn build_filter_empty_excludes_returns_default() {
+        let filter = build_filter(&[]);
+        // Default filter should still ignore standard dirs like node_modules
+        assert!(filter.should_ignore(std::path::Path::new("node_modules/x.ts")));
+        // But not arbitrary dirs
+        assert!(!filter.should_ignore(std::path::Path::new("src/main.rs")));
+    }
+
+    // --- Pattern selection logic ---
+
+    fn collect_patterns(args: &[&str]) -> Vec<String> {
+        let w = Wrapper::try_parse_from(args).unwrap();
+        if let Some(ref p) = w.inner.patterns {
+            p.split(',').map(|s| s.trim().to_string()).collect()
+        } else if w.inner.all || (w.inner.source && w.inner.plans) {
+            DEFAULT_WATCH_PATTERNS
+                .iter()
+                .chain(SOURCE_PATTERNS.iter())
+                .map(ToString::to_string)
+                .collect()
+        } else if w.inner.source {
+            SOURCE_PATTERNS.iter().map(ToString::to_string).collect()
+        } else {
+            DEFAULT_WATCH_PATTERNS
+                .iter()
+                .map(ToString::to_string)
+                .collect()
+        }
+    }
+
+    #[test]
+    fn pattern_selection_source_picks_source_patterns() {
+        let patterns = collect_patterns(&["test", "--source"]);
+        let expected: Vec<String> = SOURCE_PATTERNS.iter().map(ToString::to_string).collect();
+        assert_eq!(patterns, expected);
+    }
+
+    #[test]
+    fn pattern_selection_all_picks_both() {
+        let patterns = collect_patterns(&["test", "--all"]);
+        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
+            .iter()
+            .chain(SOURCE_PATTERNS.iter())
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(patterns, expected);
+    }
+
+    #[test]
+    fn pattern_selection_source_and_plans_picks_both() {
+        let patterns = collect_patterns(&["test", "--source", "--plans"]);
+        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
+            .iter()
+            .chain(SOURCE_PATTERNS.iter())
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(patterns, expected);
+    }
+
+    #[test]
+    fn pattern_selection_default_picks_default_watch_patterns() {
+        let patterns = collect_patterns(&["test"]);
+        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(patterns, expected);
+    }
+
+    #[test]
+    fn pattern_selection_plans_alone_picks_default() {
+        let patterns = collect_patterns(&["test", "--plans"]);
+        let expected: Vec<String> = DEFAULT_WATCH_PATTERNS
+            .iter()
+            .map(ToString::to_string)
+            .collect();
+        assert_eq!(patterns, expected);
+    }
 }
