@@ -40,6 +40,10 @@ CREATE TABLE audit_log (
 CREATE TABLE waitlist (
   id         serial PRIMARY KEY,
   email      citext UNIQUE NOT NULL,
+  name       text,
+  company    text,
+  role       text,
+  use_case   text,
   source     text NOT NULL DEFAULT 'website',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
