@@ -648,6 +648,14 @@ mod tests {
         assert!(!contains_marker("// just a normal comment"));
     }
 
+    #[test]
+    fn contains_marker_todo_in_string_literal() {
+        // The heuristic flags this as a false positive because it sees both
+        // "TODO" and "//" in the line, even though the marker is inside a
+        // string literal rather than an actual comment.
+        assert!(contains_marker(r#"console.log("// TODO done")"#));
+    }
+
     // --- scan_line ---
 
     #[test]

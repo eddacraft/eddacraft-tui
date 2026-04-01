@@ -156,7 +156,7 @@ impl AnvilClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{header, method, path};
+    use wiremock::matchers::{body_json, header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     /// Create a client pointing at the given mock server URL.
@@ -233,6 +233,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn whoami_user_missing_email_field() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/verify"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "valid": true,
+                "user": {}
+            })))
+            .mount(&server)
+            .await;
+
+        let client = mock_client(&server.uri(), Some("test-token"));
+        let err = client.whoami().await.unwrap_err();
+        assert!(err.to_string().contains("parsing response"));
+    }
+
+    #[tokio::test]
     async fn whoami_without_token_errors() {
         let client = mock_client("http://localhost:1", None);
         let err = client.whoami().await.unwrap_err();
@@ -266,6 +284,7 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/v1/admin/approve"))
+            .and(body_json(serde_json::json!({"email": "user@example.com"})))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "approved": [{"email": "user@example.com"}]
             })))
@@ -301,6 +320,7 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/v1/admin/approve"))
+            .and(body_json(serde_json::json!({"batch": 2})))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "approved": [
                     {"email": "a@example.com"},
@@ -321,6 +341,7 @@ mod tests {
 
         Mock::given(method("POST"))
             .and(path("/api/v1/admin/approve"))
+            .and(body_json(serde_json::json!({"batch": 5})))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "approved": []
             })))
@@ -360,7 +381,8 @@ mod tests {
             .await;
 
         let client = mock_client(&server.uri(), Some("bad-key"));
-        assert!(client.approve_user("x@y.com").await.is_err());
+        let err = client.approve_user("x@y.com").await.unwrap_err();
+        assert!(err.to_string().contains("API response"));
     }
 
     // --- URL construction ---
@@ -381,7 +403,6 @@ mod tests {
 
         let client = mock_client(&server.uri(), Some("tok"));
         client.whoami().await.unwrap();
-        // If the mock received exactly 1 request at /api/v1/auth/verify, URL is correct
     }
 
     // --- WhoamiResponse ---

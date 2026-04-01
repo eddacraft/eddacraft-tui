@@ -716,6 +716,17 @@ mod tests {
     }
 
     #[test]
+    fn parse_checks_toml_unquoted_mixed() {
+        // Mixed quoting: "a" is quoted, b is bare. The split-on-quote parser
+        // extracts both but preserves a leading space on the unquoted segment
+        // because only bracket/comma chars are trimmed from the edges, not
+        // whitespace between the comma and the bare value.
+        let text = "schema_version = 1\nchecks = [\"a\", b]\n";
+        let checks = parse_checks_from_text(text);
+        assert_eq!(checks, vec!["a", " b"]);
+    }
+
+    #[test]
     fn parse_checks_no_checks_section() {
         let text = "schemaVersion: 1\nprofile: dev\n";
         let checks = parse_checks_from_text(text);
