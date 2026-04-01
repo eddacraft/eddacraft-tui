@@ -1663,15 +1663,6 @@ rules: []
         );
     }
 
-    // ── Dead flag removal (TCOV-006) ──────────────────────────────────
-
-    #[test]
-    fn no_cache_flag_removed() {
-        // --no-cache was dead code (never read). Confirm it's no longer accepted.
-        let result = Wrapper::try_parse_from(["test", "--no-cache"]);
-        assert!(result.is_err(), "--no-cache should no longer be accepted");
-    }
-
     // ── Validate check names ──────────────────────────────────────────
 
     #[test]
@@ -1779,8 +1770,11 @@ rules: []
         let tmp = tempfile::TempDir::new().unwrap();
         let cov_dir = tmp.path().join("coverage");
         std::fs::create_dir_all(&cov_dir).unwrap();
-        std::fs::write(cov_dir.join("lcov.info"), "SF:src/main.rs\nLF:0\nLH:0\nend_of_record\n")
-            .unwrap();
+        std::fs::write(
+            cov_dir.join("lcov.info"),
+            "SF:src/main.rs\nLF:0\nLH:0\nend_of_record\n",
+        )
+        .unwrap();
         let result = run_check_coverage(tmp.path(), 80.0);
         assert!(result.passed);
         assert!(result.message.contains("empty"));
