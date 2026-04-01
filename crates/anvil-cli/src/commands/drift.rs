@@ -169,6 +169,7 @@ struct ComparisonMetrics {
     boundary_violations: MetricDelta,
     antipattern_count: MetricDelta,
     suppression_count: MetricDelta,
+    expired_suppressions: MetricDelta,
     files_analysed: MetricDelta,
 }
 
@@ -521,7 +522,7 @@ fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
         return Ok(Vec::new());
     }
 
-    let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)?
+    let files: Vec<PathBuf> = std::fs::read_dir(&dir)?
         .filter_map(std::result::Result::ok)
         .map(|e| e.path())
         .filter(|p| {
@@ -534,12 +535,18 @@ fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
     // Sort by the `created_at` timestamp embedded in each snapshot's JSON
     // (descending — newest first). Named snapshots don't encode a timestamp
     // in their filename, so sorting by filename alone breaks chronological
-    // order in mixed sets. Falls back to filename for unparseable dates.
-    files.sort_by(|a, b| {
-        let ts_a = read_created_at(a);
-        let ts_b = read_created_at(b);
+    // order in mixed sets. Cache timestamps to avoid O(n log n) file reads.
+    let mut keyed: Vec<(PathBuf, Option<chrono::DateTime<chrono::FixedOffset>>)> = files
+        .into_iter()
+        .map(|p| {
+            let ts = read_created_at(&p);
+            (p, ts)
+        })
+        .collect();
+
+    keyed.sort_by(|(a, ts_a), (b, ts_b)| {
         if let (Some(ta), Some(tb)) = (ts_a, ts_b) {
-            tb.cmp(&ta)
+            tb.cmp(ta)
         } else {
             let na = a
                 .file_name()
@@ -552,6 +559,8 @@ fn list_snapshot_files(workspace: &Path) -> Result<Vec<PathBuf>> {
             nb.cmp(&na)
         }
     });
+
+    let files: Vec<PathBuf> = keyed.into_iter().map(|(p, _)| p).collect();
 
     Ok(files)
 }
@@ -604,6 +613,10 @@ fn compare_snapshots(before: &DriftSnapshot, after: &DriftSnapshot) -> Compariso
         before.metrics.suppression_count,
         after.metrics.suppression_count,
     );
+    let exp_delta = metric_delta(
+        before.metrics.expired_suppressions,
+        after.metrics.expired_suppressions,
+    );
     let files_delta = metric_delta(before.metrics.files_analysed, after.metrics.files_analysed);
 
     let total_delta = viol_delta.delta + ap_delta.delta;
@@ -648,6 +661,7 @@ fn compare_snapshots(before: &DriftSnapshot, after: &DriftSnapshot) -> Compariso
             boundary_violations: viol_delta,
             antipattern_count: ap_delta,
             suppression_count: sup_delta,
+            expired_suppressions: exp_delta,
             files_analysed: files_delta,
         },
         net_change: NetChange {
@@ -674,8 +688,8 @@ fn metric_delta(before: usize, after: usize) -> MetricDelta {
     let delta =
         i64::try_from(after).unwrap_or(i64::MAX) - i64::try_from(before).unwrap_or(i64::MAX);
     let trend = match delta.cmp(&0) {
-        Ordering::Less => "increasing",
-        Ordering::Greater => "decreasing",
+        Ordering::Less => "decreasing",
+        Ordering::Greater => "increasing",
         Ordering::Equal => "stable",
     };
     MetricDelta {
@@ -791,8 +805,8 @@ fn get_git_ref() -> Option<String> {
 
 fn trend_icon(trend: &str) -> &str {
     match trend {
-        "increasing" | "improving" => "\u{2713}",
-        "decreasing" | "degrading" => "\u{26a0}",
+        "decreasing" | "improving" => "\u{2713}",
+        "increasing" | "degrading" => "\u{26a0}",
         _ => "\u{2500}",
     }
 }
@@ -854,14 +868,14 @@ mod tests {
     fn metric_delta_improving() {
         let d = metric_delta(10, 5);
         assert_eq!(d.delta, -5);
-        assert_eq!(d.trend, "increasing");
+        assert_eq!(d.trend, "decreasing");
     }
 
     #[test]
     fn metric_delta_degrading() {
         let d = metric_delta(5, 10);
         assert_eq!(d.delta, 5);
-        assert_eq!(d.trend, "decreasing");
+        assert_eq!(d.trend, "increasing");
     }
 
     #[test]
