@@ -3,9 +3,6 @@
 
 package anvil.policies.security_baseline
 
-import future.keywords.if
-import future.keywords.in
-
 # Sensitive path patterns (configurable via input.config)
 default sensitive_patterns := [
   "**/auth/**",
@@ -27,7 +24,7 @@ is_sensitive(path) if {
 }
 
 # Violation when changing sensitive files without security-review tag
-violation[msg] {
+violation contains msg if {
   change := input.plan.proposed_changes[_]
   is_sensitive(change.path)
   not has_security_review
@@ -44,7 +41,7 @@ has_security_review if {
 }
 
 # Warning for files that look like they might contain secrets
-warning[msg] {
+warning contains msg if {
   change := input.plan.proposed_changes[_]
   looks_like_secret_file(change.path)
   not is_sensitive(change.path)

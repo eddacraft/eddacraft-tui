@@ -1,0 +1,33 @@
+# Regal configuration for Anvil policy linting
+# https://github.com/open-policy-agent/regal
+
+rules:
+  style:
+    # Enforce consistent formatting
+    opa-fmt:
+      level: error
+    # Allow longer lines for sprintf messages
+    line-length:
+      max-line-length: 120
+      level: warning
+    # TODO comments are acceptable in fixture policies
+    todo-comment:
+      level: ignore
+
+  idiomatic:
+    # Enforce v1 syntax (no future.keywords imports)
+    use-rego-v1:
+      level: error
+
+  imports:
+    # Enforce sorted imports
+    import-sorting:
+      level: warning
+
+  bugs:
+    # All bug rules enabled at default levels
+
+# Package naming convention: anvil.policies.*
+project:
+  roots:
+    - policies

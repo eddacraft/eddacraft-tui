@@ -2,7 +2,6 @@
 
 package anvil.policies.coverage_min_test
 
-import future.keywords.if
 import data.anvil.policies.coverage_min
 
 # Test that low coverage triggers violation

@@ -2,7 +2,6 @@
 
 package anvil.policies.security_baseline_test
 
-import future.keywords.if
 import data.anvil.policies.security_baseline
 
 # Test that sensitive file without review triggers violation

@@ -2,7 +2,6 @@
 
 package anvil.policies.change_scope_test
 
-import future.keywords.if
 import data.anvil.policies.change_scope
 
 # Test that too many files triggers violation
