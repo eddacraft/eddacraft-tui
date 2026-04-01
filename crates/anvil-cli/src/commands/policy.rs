@@ -486,7 +486,10 @@ mod tests {
     #[test]
     fn catalogue_is_non_empty() {
         let policies = policy_catalogue();
-        assert!(policies.len() >= 2, "should have at least the ARCH policies");
+        assert!(
+            policies.len() >= 2,
+            "should have at least the ARCH policies"
+        );
     }
 
     #[test]
