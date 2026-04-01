@@ -605,4 +605,293 @@ mod tests {
         assert!(data.historical_scores.is_empty());
         cleanup(&dir);
     }
+
+    // --- contains_marker ---
+
+    #[test]
+    fn contains_marker_todo_in_comment() {
+        assert!(contains_marker("// TODO: fix later"));
+    }
+
+    #[test]
+    fn contains_marker_fixme_in_comment() {
+        assert!(contains_marker("// FIXME: broken"));
+    }
+
+    #[test]
+    fn contains_marker_hack_in_comment() {
+        assert!(contains_marker("// HACK: workaround"));
+    }
+
+    #[test]
+    fn contains_marker_hash_comment() {
+        assert!(contains_marker("# TODO: python style"));
+    }
+
+    #[test]
+    fn contains_marker_block_comment() {
+        assert!(contains_marker("/* TODO: block */"));
+    }
+
+    #[test]
+    fn contains_marker_jsdoc_style() {
+        assert!(contains_marker("* TODO: inside jsdoc"));
+    }
+
+    #[test]
+    fn contains_marker_no_comment_context() {
+        assert!(!contains_marker("const TODO = 'not a comment';"));
+    }
+
+    #[test]
+    fn contains_marker_no_marker() {
+        assert!(!contains_marker("// just a normal comment"));
+    }
+
+    // --- scan_line ---
+
+    #[test]
+    fn scan_line_detects_console_log() {
+        let mut issues = Vec::new();
+        scan_line("ts", "console.log('hello');", 1, "app.ts", &mut issues);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].message.contains("console statement"));
+        assert!(issues[0].fixable);
+    }
+
+    #[test]
+    fn scan_line_detects_console_error() {
+        let mut issues = Vec::new();
+        scan_line("js", "console.error('fail');", 5, "app.js", &mut issues);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].message.contains("console statement"));
+    }
+
+    #[test]
+    fn scan_line_ignores_console_in_rust() {
+        let mut issues = Vec::new();
+        scan_line("rs", "console.log('not js');", 1, "lib.rs", &mut issues);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn scan_line_detects_todo_marker() {
+        let mut issues = Vec::new();
+        scan_line("rs", "// TODO: implement", 10, "lib.rs", &mut issues);
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].category, "Documentation");
+        assert!(issues[0].message.contains("TODO"));
+    }
+
+    #[test]
+    fn scan_line_detects_fixme_marker() {
+        let mut issues = Vec::new();
+        scan_line("ts", "// FIXME: broken", 3, "app.ts", &mut issues);
+        assert_eq!(issues.len(), 1);
+        assert!(issues[0].message.contains("FIXME"));
+    }
+
+    #[test]
+    fn scan_line_console_and_marker_same_line() {
+        let mut issues = Vec::new();
+        scan_line(
+            "ts",
+            "console.log('x'); // TODO: remove",
+            1,
+            "app.ts",
+            &mut issues,
+        );
+        assert_eq!(issues.len(), 2);
+    }
+
+    #[test]
+    fn scan_line_clean_line_no_issues() {
+        let mut issues = Vec::new();
+        scan_line("ts", "const x = 1;", 1, "app.ts", &mut issues);
+        assert!(issues.is_empty());
+    }
+
+    // --- check_env_file ---
+
+    #[test]
+    fn check_env_flags_dotenv() {
+        let dir = make_temp_dir();
+        let path = dir.join(".env");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, ".env", &mut issues);
+        assert_eq!(issues.len(), 1);
+        assert!(matches!(issues[0].severity, IssueSeverity::High));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_flags_dotenv_local() {
+        let dir = make_temp_dir();
+        let path = dir.join(".env.local");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, ".env.local", &mut issues);
+        assert_eq!(issues.len(), 1);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_flags_dotenv_production() {
+        let dir = make_temp_dir();
+        let path = dir.join(".env.production");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, ".env.production", &mut issues);
+        assert_eq!(issues.len(), 1);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_skips_example() {
+        let dir = make_temp_dir();
+        let path = dir.join(".env.example");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, ".env.example", &mut issues);
+        assert!(issues.is_empty());
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn check_env_skips_non_env() {
+        let dir = make_temp_dir();
+        let path = dir.join("config.toml");
+        std::fs::write(&path, "").unwrap();
+        let mut issues = Vec::new();
+        check_env_file(&path, "config.toml", &mut issues);
+        assert!(issues.is_empty());
+        cleanup(&dir);
+    }
+
+    // --- generate_next_steps ---
+
+    #[test]
+    fn next_steps_empty_issues() {
+        let steps = generate_next_steps(&[]);
+        assert_eq!(steps.len(), 1);
+        assert!(steps[0].contains("clean"));
+    }
+
+    #[test]
+    fn next_steps_high_severity_only() {
+        let issues = vec![AuditIssue {
+            severity: IssueSeverity::High,
+            category: "Security".to_string(),
+            message: "env file leak".to_string(),
+            file: ".env".to_string(),
+            line: 0,
+            fixable: false,
+        }];
+        let steps = generate_next_steps(&issues);
+        assert!(steps.iter().any(|s| s.contains("high/critical")));
+        assert!(!steps.iter().any(|s| s.contains("console")));
+    }
+
+    #[test]
+    fn next_steps_console_only() {
+        let issues = vec![AuditIssue {
+            severity: IssueSeverity::Low,
+            category: "Quality".to_string(),
+            message: "console statement found".to_string(),
+            file: "app.ts".to_string(),
+            line: 1,
+            fixable: true,
+        }];
+        let steps = generate_next_steps(&issues);
+        assert!(steps.iter().any(|s| s.contains("console")));
+        assert!(!steps.iter().any(|s| s.contains("high/critical")));
+    }
+
+    #[test]
+    fn next_steps_large_files_only() {
+        let issues = vec![AuditIssue {
+            severity: IssueSeverity::Medium,
+            category: "Quality".to_string(),
+            message: "File has 600 lines (>500)".to_string(),
+            file: "big.rs".to_string(),
+            line: 600,
+            fixable: false,
+        }];
+        let steps = generate_next_steps(&issues);
+        assert!(steps.iter().any(|s| s.contains("large file")));
+    }
+
+    #[test]
+    fn next_steps_todo_only() {
+        let issues = vec![AuditIssue {
+            severity: IssueSeverity::Info,
+            category: "Documentation".to_string(),
+            message: "TODO comment".to_string(),
+            file: "lib.rs".to_string(),
+            line: 10,
+            fixable: false,
+        }];
+        let steps = generate_next_steps(&issues);
+        assert!(steps.iter().any(|s| s.contains("TODO/FIXME/HACK")));
+    }
+
+    #[test]
+    fn next_steps_mixed_issues() {
+        let issues = vec![
+            AuditIssue {
+                severity: IssueSeverity::High,
+                category: "Security".to_string(),
+                message: "env file".to_string(),
+                file: ".env".to_string(),
+                line: 0,
+                fixable: false,
+            },
+            AuditIssue {
+                severity: IssueSeverity::Low,
+                category: "Quality".to_string(),
+                message: "console statement found".to_string(),
+                file: "a.ts".to_string(),
+                line: 1,
+                fixable: true,
+            },
+            AuditIssue {
+                severity: IssueSeverity::Info,
+                category: "Documentation".to_string(),
+                message: "TODO comment".to_string(),
+                file: "b.rs".to_string(),
+                line: 5,
+                fixable: false,
+            },
+        ];
+        let steps = generate_next_steps(&issues);
+        assert!(steps.len() >= 3);
+        assert!(steps.iter().any(|s| s.contains("high/critical")));
+        assert!(steps.iter().any(|s| s.contains("console")));
+        assert!(steps.iter().any(|s| s.contains("TODO/FIXME/HACK")));
+    }
+
+    #[test]
+    fn next_steps_counts_multiple_issues() {
+        let issues = vec![
+            AuditIssue {
+                severity: IssueSeverity::Low,
+                category: "Quality".to_string(),
+                message: "console statement found".to_string(),
+                file: "a.ts".to_string(),
+                line: 1,
+                fixable: true,
+            },
+            AuditIssue {
+                severity: IssueSeverity::Low,
+                category: "Quality".to_string(),
+                message: "console statement found".to_string(),
+                file: "b.ts".to_string(),
+                line: 3,
+                fixable: true,
+            },
+        ];
+        let steps = generate_next_steps(&issues);
+        assert!(steps.iter().any(|s| s.contains("2 console")));
+    }
 }

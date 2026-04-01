@@ -156,7 +156,7 @@ impl AnvilClient {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wiremock::matchers::{body_json_string, header, method, path};
+    use wiremock::matchers::{header, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     /// Create a client pointing at the given mock server URL.

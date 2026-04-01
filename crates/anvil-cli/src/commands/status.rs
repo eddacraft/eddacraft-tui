@@ -685,6 +685,142 @@ mod tests {
         assert_eq!(formatted, "2024-03-10 00:00");
     }
 
+    // --- parse_checks_from_text ---
+
+    #[test]
+    fn parse_checks_yaml_list() {
+        let text = "schemaVersion: 1\nchecks:\n  - secret-detection\n  - import-boundaries\n";
+        let checks = parse_checks_from_text(text);
+        assert_eq!(checks, vec!["secret-detection", "import-boundaries"]);
+    }
+
+    #[test]
+    fn parse_checks_yaml_quoted() {
+        let text = "schemaVersion: 1\nchecks:\n  - \"secret-detection\"\n  - \"antipattern\"\n";
+        let checks = parse_checks_from_text(text);
+        assert_eq!(checks, vec!["secret-detection", "antipattern"]);
+    }
+
+    #[test]
+    fn parse_checks_toml_inline() {
+        let text = "schema_version = 1\nchecks = [\"secret-detection\", \"antipattern\"]\n";
+        let checks = parse_checks_from_text(text);
+        assert_eq!(checks, vec!["secret-detection", "antipattern"]);
+    }
+
+    #[test]
+    fn parse_checks_empty_list() {
+        let text = "schemaVersion: 1\nchecks:\nother: value\n";
+        let checks = parse_checks_from_text(text);
+        assert!(checks.is_empty());
+    }
+
+    #[test]
+    fn parse_checks_no_checks_section() {
+        let text = "schemaVersion: 1\nprofile: dev\n";
+        let checks = parse_checks_from_text(text);
+        assert!(checks.is_empty());
+    }
+
+    // --- parse_gate_entry ---
+
+    #[test]
+    fn parse_gate_entry_from_key_timestamp() {
+        let val = serde_json::json!({
+            "passed": true,
+            "score": 0.95,
+            "checksRun": 5,
+            "checksPassed": 5,
+            "durationMs": 1200
+        });
+        let result = parse_gate_entry("gate:plan.md:1710000000", &val).unwrap();
+        assert!(result.passed);
+        assert_eq!(result.score, 0.95);
+        assert_eq!(result.checks_run, 5);
+        assert_eq!(result.checks_passed, 5);
+        assert_eq!(result.duration_ms, 1200);
+    }
+
+    #[test]
+    fn parse_gate_entry_fallback_to_created_at() {
+        let val = serde_json::json!({
+            "created_at": 1710000000000_i64,
+            "passed": false,
+            "score": 0.5
+        });
+        // Key has no parseable timestamp suffix
+        let result = parse_gate_entry("gate:check:secret:abcdef", &val).unwrap();
+        assert!(!result.passed);
+        assert_eq!(result.score, 0.5);
+    }
+
+    #[test]
+    fn parse_gate_entry_defaults_missing_fields() {
+        let val = serde_json::json!({
+            "created_at": 1710000000000_i64
+        });
+        let result = parse_gate_entry("gate:no-data:xxx", &val).unwrap();
+        assert!(!result.passed);
+        assert_eq!(result.score, 0.0);
+        assert_eq!(result.checks_run, 0);
+        assert_eq!(result.checks_passed, 0);
+        assert_eq!(result.duration_ms, 0);
+    }
+
+    #[test]
+    fn parse_gate_entry_no_timestamp_returns_none() {
+        let val = serde_json::json!({"passed": true});
+        let result = parse_gate_entry("no-timestamp-key", &val);
+        assert!(result.is_none());
+    }
+
+    // --- format_unix_timestamp ---
+
+    #[test]
+    fn format_epoch_zero() {
+        assert_eq!(format_unix_timestamp(0), "1970-01-01 00:00");
+    }
+
+    #[test]
+    fn format_known_date() {
+        // 2024-01-01 12:00:00 UTC = 1704110400
+        assert_eq!(format_unix_timestamp(1_704_110_400), "2024-01-01 12:00");
+    }
+
+    // --- resolve_git_dir ---
+
+    #[test]
+    fn resolve_git_dir_standard_directory() {
+        let dir = make_temp_dir();
+        std::fs::create_dir_all(dir.join(".git")).unwrap();
+        let result = resolve_git_dir(&dir);
+        assert_eq!(result, dir.join(".git"));
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn resolve_git_dir_worktree_file() {
+        let dir = make_temp_dir();
+        let git_dir = dir.join("real-git-dir");
+        std::fs::create_dir_all(&git_dir).unwrap();
+        std::fs::write(
+            dir.join(".git"),
+            format!("gitdir: {}", git_dir.display()),
+        )
+        .unwrap();
+        let result = resolve_git_dir(&dir);
+        assert_eq!(result, git_dir);
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn resolve_git_dir_missing_returns_dot_git() {
+        let dir = make_temp_dir();
+        let result = resolve_git_dir(&dir);
+        assert_eq!(result, dir.join(".git"));
+        cleanup(&dir);
+    }
+
     #[test]
     fn truncates_to_five_runs() {
         use std::fmt::Write;
