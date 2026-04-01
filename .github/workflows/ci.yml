@@ -343,7 +343,8 @@ jobs:
       - name: Build all packages
         run: pnpm run build
 
-  # NOTE: Removed unused CI jobs (re-add when needed):
-  # - e2e-tests (Playwright): no tests written yet
-  # - e2e-harness: disabled (TFIX-001 fixture drift)
-  # - tui-tests: was running cargo test in Node — covered by rust.yml
+  # NOTE: Playwright E2E (e2e-tests), cross-surface E2E harness (e2e-harness),
+  # and TUI E2E (tui-tests) jobs removed — not in use before beta.
+  # Playwright: no tests written yet. Re-add when website E2E tests exist.
+  # E2E harness: disabled (TFIX-001 fixture drift). Re-add after stabilisation.
+  # TUI tests: were running cargo test in a Node job — covered by rust.yml.

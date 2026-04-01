@@ -50,6 +50,7 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
 
       - name: Install OPA
+<<<<<<< HEAD
         uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
         with:
           version: latest
@@ -58,6 +59,17 @@ jobs:
         uses: open-policy-agent/setup-regal@b01ac9f4bece22d1066ed2ca8f91a3e89b57013f # v1
         with:
           version: latest
+||||||| parent of f10f1228 (chore(ci): remove unused Playwright, e2e-harness, and tui-tests jobs)
+=======
+        uses: open-policy-agent/setup-opa@34a30e8a924d1b03ce2cf7abe97571bbb1f1f1ea # v2
+        with:
+          version: v1.4.2
+
+      - name: Install Regal
+        uses: open-policy-agent/setup-regal@c468d3d7c38e4a1bd44e1a38caa9ee39b03c2ea0 # v1
+        with:
+          version: v0.31.0
+>>>>>>> f10f1228 (chore(ci): remove unused Playwright, e2e-harness, and tui-tests jobs)
 
       - name: Run OPA policy tests
         run: opa test --verbose policies/fixtures/
@@ -66,6 +78,8 @@ jobs:
         run: regal lint --format github policies/fixtures/
 
       - run: cargo test --workspace
+        env:
+          ANVIL_OPA_PATH: opa
 
   clippy:
     name: Clippy
