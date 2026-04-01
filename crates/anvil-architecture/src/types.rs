@@ -249,13 +249,25 @@ pub fn create_violation_id(from_file: &str, to_file: &str, line: u32) -> String 
 }
 
 /// Check if a violation exists in the baseline.
+///
+/// Matches first by the current (line-aware) ID, then falls back to the legacy
+/// `line: 0` ID so that baselines created before line numbers were tracked
+/// continue to suppress their violations without a forced regeneration.
 pub fn is_existing_violation(violation: &BoundaryViolation, baseline: &BaselineSnapshot) -> bool {
     let id = create_violation_id(
         &violation.edge.from,
         &violation.edge.to,
         violation.edge.line,
     );
-    baseline.violations.iter().any(|v| v.id == id)
+    if baseline.violations.iter().any(|v| v.id == id) {
+        return true;
+    }
+    // Backward compat: baselines generated with line=0 should still match.
+    if violation.edge.line != 0 {
+        let legacy_id = create_violation_id(&violation.edge.from, &violation.edge.to, 0);
+        return baseline.violations.iter().any(|v| v.id == legacy_id);
+    }
+    false
 }
 
 /// Create default layer structure for common patterns.

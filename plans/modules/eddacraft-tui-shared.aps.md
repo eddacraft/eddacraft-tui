@@ -9,7 +9,7 @@ See: plans/aps-rules.md
 
 | ID        | Owner | Status    |
 | --------- | ----- | --------- |
-| TUIEXTRACT | —     | Draft |
+| TUIEXTRACT | —     | In Progress |
 
 ## Purpose
 
@@ -26,8 +26,8 @@ EddaCraft projects from using it.
 
 ## In Scope
 
-- **Repository extraction:** Move eddacraft-tui to `eddacraft/eddacraft-tui`
-  (separate repo or workspace)
+- **Repository extraction:** Move eddacraft-tui to `eddacraft/eddacraft`
+  (separate repo)
 - **API surface stabilisation:** Define public API, mark internal items
 - **Documentation:** Widget catalogue, theme customisation guide, examples
 - **Publish strategy:** crates.io publish, versioning
@@ -60,10 +60,20 @@ EddaCraft projects from using it.
 
 ## Tasks
 
-- TUIEXTRACT-001: Audit eddacraft-tui for Anvil-specific imports
-- TUIEXTRACT-002: Create separate repo/workspace for eddacraft-tui
-- TUIEXTRACT-003: Stabilise public API surface (pub items, feature flags)
-- TUIEXTRACT-004: Write widget catalogue documentation
-- TUIEXTRACT-005: Set up crates.io publish pipeline
-- TUIEXTRACT-006: Update Anvil to use published eddacraft-tui
-- TUIEXTRACT-007: Theme customisation guide and examples
+- [x] TUIEXTRACT-001: Audit eddacraft-tui for Anvil-specific imports
+  - **Result:** Zero Anvil-specific imports found. Only deps are ratatui,
+    crossterm, unicode-width. The `Surface` trait and `render_shell` function
+    referenced `EddaCraftTheme` concretely rather than the `Theme` trait — fixed
+    by genericising both.
+- [x] TUIEXTRACT-002: Create separate repo/workspace for eddacraft-tui
+  - **Result:** Extracted to `eddacraft/eddacraft` on GitHub. Standalone
+    Cargo.toml with pinned deps (no workspace refs). All 54 tests pass. Apache-2.0
+    licence.
+- [x] TUIEXTRACT-003: Stabilise public API surface (pub items, feature flags)
+  - **Result:** `Surface<T: Theme = EddaCraftTheme>` is now generic with
+    backward-compatible default. `render_shell` accepts any `Theme`. Crate-level
+    rustdoc added. Cargo.toml updated with publishing metadata.
+- [ ] TUIEXTRACT-004: Write widget catalogue documentation
+- [ ] TUIEXTRACT-005: Set up crates.io publish pipeline
+- [ ] TUIEXTRACT-006: Update Anvil to use published eddacraft-tui
+- [ ] TUIEXTRACT-007: Theme customisation guide and examples

@@ -2,7 +2,7 @@
 
 | ID | Owner | Status |
 |----|-------|--------|
-| TUIDASH | — | Draft |
+| TUIDASH | — | Ready |
 
 ## Purpose
 
@@ -101,15 +101,19 @@ Change status to **Ready** when:
 - [x] Purpose and scope are clear
 - [x] Dependencies identified
 - [x] Decisions resolved
-- [ ] DASHAI-002 (component catalogue registration) is at least Ready, so the
-  catalogue schema is known
-- [ ] json-render spec format is stable (currently pre-1.0)
+- [x] Catalogue schema known — `packages/json-render/src/catalog-registry.ts`
+  defines 12 components with Zod schemas (DASHAI-002 dependency satisfied)
+- [x] json-render spec format usable — `@json-render/core` v0.15.0 installed,
+  spec structure documented and tested
 - [x] At least one task defined
+- [x] Template dashboard specs authored (PR #701 — 3 specs: gate-summary,
+  watch-session, architecture-health)
 
 ## Wave
 
-**Wave 5** — Begins after DASHAI (Wave 4) ships the web renderer and catalogue.
-Can be pulled earlier if the spec format stabilises sooner.
+**Wave 3** — Unblocked. json-render spec format and catalogue schema already
+exist in `packages/json-render/`. DASHAI (web dashboard) is a parallel
+workstream, not a prerequisite. TUI can consume the same specs independently.
 
 ---
 

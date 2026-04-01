@@ -42,6 +42,14 @@ pub struct WatchConfig {
     pub root: PathBuf,
     pub architecture_config: Option<PathBuf>,
     pub watcher: WatcherConfig,
+    /// Include glob patterns. These are currently wired through on
+    /// `WatchConfig` but are not yet consumed by the watch loop, so they
+    /// do not affect which files trigger re-evaluation.
+    pub include_patterns: Vec<String>,
+    /// Exclude glob patterns. These are also wired through but are not yet
+    /// enforced by the watch loop, so matching files are not currently
+    /// skipped based on this filter.
+    pub exclude_patterns: Vec<String>,
 }
 
 pub struct WatchHandle {
@@ -416,6 +424,8 @@ mod tests {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
             },
+            include_patterns: Vec::new(),
+            exclude_patterns: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();
@@ -437,6 +447,8 @@ mod tests {
                 root: tmp.path().to_path_buf(),
                 ..Default::default()
             },
+            include_patterns: Vec::new(),
+            exclude_patterns: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();
@@ -464,6 +476,8 @@ mod tests {
                 tick_interval: std::time::Duration::from_millis(10),
                 ..Default::default()
             },
+            include_patterns: Vec::new(),
+            exclude_patterns: Vec::new(),
         };
 
         let handle = run_watch(&config, event_tx).unwrap();

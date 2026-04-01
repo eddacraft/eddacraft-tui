@@ -435,6 +435,7 @@ mod tests {
             imports: vec![ImportEdge {
                 from_file: "src/api.ts".to_string(),
                 to_source: "axios".to_string(),
+                line: 0,
             }],
         };
 
@@ -474,6 +475,7 @@ mod tests {
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
                 to_source: "./utils".to_string(),
+                line: 0,
             }],
         };
 
@@ -503,6 +505,7 @@ mod tests {
             imports: vec![ImportEdge {
                 from_file: "src/setup.ts".to_string(),
                 to_source: "polyfill".to_string(),
+                line: 0,
             }],
         };
 
@@ -534,6 +537,7 @@ mod tests {
             imports: vec![ImportEdge {
                 from_file: "src/api.ts".to_string(),
                 to_source: "axios".to_string(),
+                line: 0,
             }],
         };
         let delta1 = update_file(&mut g, syms);
@@ -556,6 +560,7 @@ mod tests {
             imports: vec![ImportEdge {
                 from_file: "src/api.ts".to_string(),
                 to_source: "axios".to_string(),
+                line: 0,
             }],
         };
         let delta2 = update_file(&mut g, syms2);
@@ -603,6 +608,7 @@ mod tests {
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
                 to_source: "./utils".to_string(),
+                line: 0,
             }],
         };
 
@@ -635,6 +641,7 @@ mod tests {
             imports: vec![ImportEdge {
                 from_file: "src/main.ts".to_string(),
                 to_source: "./utils".to_string(),
+                line: 0,
             }],
         };
         let delta1 = update_file(&mut g, main_syms);
@@ -664,6 +671,7 @@ mod tests {
         let all_imports = vec![ImportEdge {
             from_file: "src/main.ts".to_string(),
             to_source: "./utils".to_string(),
+            line: 0,
         }];
         re_resolve_imports(&mut g, &all_imports);
 

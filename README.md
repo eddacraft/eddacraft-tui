@@ -39,13 +39,13 @@ and tooling.
 
 ### Apps
 
-| Directory        | Package                    | Description                              | Deployment          |
-| ---------------- | -------------------------- | ---------------------------------------- | ------------------- |
+| Directory        | Package                    | Description                                                                   | Deployment          |
+| ---------------- | -------------------------- | ----------------------------------------------------------------------------- | ------------------- |
 | `apps/anvil-cli` | `@eddacraft/anvil-cli`     | CLI application (Commander.js, legacy — see `crates/anvil-cli/` for Rust CLI) | npm (`publish.yml`) |
-| `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site            | Vercel              |
-| `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)              | Vercel              |
-| `apps/anvil-api` | —                          | API service                              | Vercel              |
-| `apps/e2e`       | —                          | End-to-end test suites (Playwright)      | —                   |
+| `apps/docs-site` | `@eddacraft/docs-site`     | Docusaurus documentation site                                                 | Vercel              |
+| `apps/website`   | `@eddacraft/anvil-website` | Marketing website (Next.js)                                                   | Vercel              |
+| `apps/anvil-api` | —                          | API service                                                                   | Vercel              |
+| `apps/e2e`       | —                          | End-to-end test suites (Playwright)                                           | —                   |
 
 ### Packages — Anvil Core
 
@@ -118,6 +118,9 @@ and tooling.
 
 - **Node.js** >= 24
 - **pnpm** >= 10.20.0
+- **Rust toolchain** (for crates) — install via [rustup](https://rustup.rs/)
+- **cargo-llvm-cov** (optional, for Rust coverage) —
+  `cargo install cargo-llvm-cov`
 
 ### Setup
 
@@ -150,32 +153,52 @@ targeted builds, affected-only runs, and task graph visualisation.
 
 ## Test Coverage
 
-> Last measured: 2026-02-26 · commit `8663d83` — percentages below may be stale;
-> run `pnpm nx run-many -t test --coverage` for current numbers.
+> TS percentages last measured: 2026-02-26 · commit `8663d83` (stale — re-run
+> needed). Rust percentages and all file counts measured 2026-03-31. Run
+> `pnpm test:coverage` for current numbers across both stacks.
 
-Coverage reflects unit and integration tests only (v8 provider). E2E tests (CLI
-E2E, TUI E2E) run separately and do not contribute to line coverage.
+Coverage reflects unit and integration tests only (v8 / llvm-cov providers). E2E
+tests run separately via `apps/e2e/` and do not contribute to line coverage.
 
-| Project                                 |     Lines |    Branch |                     Test Files | Types                  |
-| --------------------------------------- | --------: | --------: | -----------------------------: | ---------------------- |
-| `@eddacraft/anvil-cli`                  |     52.5% |     45.3% | 63 unit, 3 integ, 5 e2e, 3 tui | Unit, Integration, E2E |
-| `@eddacraft/anvil-api`                  |     77.9% |     58.1% |                              3 | Unit                   |
-| `@eddacraft/anvil-aps`                  |     96.6% |     85.0% |                              8 | Unit                   |
-| `@eddacraft/anvil-adapters`             |     83.4% |     70.9% |                             12 | Unit                   |
-| `@eddacraft/anvil-edda-stack`           |     42.8% |     25.8% |                              5 | Unit                   |
-| `@eddacraft/anvil-kindling-integration` |     43.8% |     23.4% |                              1 | Unit                   |
-| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |                             12 | Unit                   |
-| `anvil-vscode`                          |     62.5% |     43.9% |                              7 | Unit                   |
-| `eslint-plugin-anvil`                   |    --[^1] |    --[^1] |                              3 | Unit                   |
-| `contracts`                             |      100% |      100% |                              1 | Unit                   |
-| `ports`                                 |   N/A[^2] |   N/A[^2] |                              0 | --                     |
-| `core`                                  |     83.4% |     73.3% |                             35 | Unit                   |
-| `runtime`                               |     60.3% |     53.0% |               24 unit, 2 integ | Unit, Integration      |
-| `policy`                                |     76.4% |     67.2% |                              5 | Unit                   |
-| `platform-config`                       |      100% |      100% |                              2 | Unit                   |
-| `platform-storage`                      |     90.5% |     79.2% |                              1 | Unit                   |
-| `platform-crypto`                       |    0%[^3] |    0%[^3] |                              0 | --                     |
-| **Monorepo total**                      | **64.0%** | **53.8%** |                        **176** |                        |
+#### TypeScript
+
+| Project                                 |     Lines |    Branch | Test Files | Types             |
+| --------------------------------------- | --------: | --------: | ---------: | ----------------- |
+| `@eddacraft/anvil-api`                  |     77.9% |     58.1% |          6 | Unit              |
+| `@eddacraft/anvil-aps`                  |     96.6% |     85.0% |          8 | Unit              |
+| `@eddacraft/anvil-adapters`             |     83.4% |     70.9% |         13 | Unit              |
+| `@eddacraft/anvil-edda-stack`           |     42.8% |     25.8% |         33 | Unit              |
+| `@eddacraft/anvil-kindling-integration` |     43.8% |     23.4% |          1 | Unit              |
+| `@eddacraft/anvil-mcp-server`           |     43.5% |     36.6% |         12 | Unit              |
+| `anvil-vscode`                          |     62.5% |     43.9% |          7 | Unit              |
+| `eslint-plugin-anvil`                   |    --[^1] |    --[^1] |          3 | Unit              |
+| `json-render`                           |    --[^4] |    --[^4] |          1 | Unit              |
+| `contracts`                             |      100% |      100% |          1 | Unit              |
+| `ports`                                 |   N/A[^2] |   N/A[^2] |          0 | --                |
+| `core`                                  |     83.4% |     73.3% |         37 | Unit              |
+| `runtime`                               |     60.3% |     53.0% |   27u + 2i | Unit, Integration |
+| `policy`                                |     76.4% |     67.2% |          5 | Unit              |
+| `platform-config`                       |      100% |      100% |          2 | Unit              |
+| `platform-storage`                      |     90.5% |     79.2% |          1 | Unit              |
+| `platform-crypto`                       |    0%[^3] |    0%[^3] |          0 | --                |
+| `infra`                                 |    --[^4] |    --[^4] |          3 | Unit              |
+| **TS total**                            | **64.0%** | **53.8%** |    **162** |                   |
+
+#### Rust
+
+| Crate                |     Lines | Test Modules |
+| -------------------- | --------: | -----------: |
+| `anvil-kernel-types` |     99.4% |            5 |
+| `anvil-bench`        |     94.3% |            8 |
+| `anvil-kernel`       |     94.0% |           23 |
+| `anvil-architecture` |     92.7% |            5 |
+| `anvil-checks`       |     91.6% |           17 |
+| `anvil-tui`          |     89.6% |           29 |
+| `anvil-policy`       |     77.6% |            8 |
+| `eddacraft-tui`      |     59.6% |           16 |
+| `anvil-cli`          |     49.9% |           19 |
+| `spike`              |      0.0% |            0 |
+| **Rust total**       | **78.8%** |      **130** |
 
 [^1]:
     `eslint-plugin` tests run via NX project-level config, not the root vitest
@@ -185,23 +208,32 @@ E2E, TUI E2E) run separately and do not contribute to line coverage.
 
 [^3]: `platform-crypto` has no tests yet.
 
+[^4]: Coverage not yet measured for this project.
+
 ### Test type breakdown
 
-| Type        | Files | Description                                            |
-| ----------- | ----: | ------------------------------------------------------ |
-| Unit        |   171 | Co-located `*.test.ts` — mocked deps, fast             |
-| Integration |     5 | `*-integration.test.ts` — multi-module, in-process     |
-| CLI E2E     |     5 | `*.e2e.test.ts` — `execFile`/`spawn`-based CLI testing |
-| TUI E2E     |     — | Migrated to Ratatui snapshot tests (`crates/anvil-tui/`) |
+| Type            | Files | Description                                            |
+| --------------- | ----: | ------------------------------------------------------ |
+| TS Unit         |   160 | Co-located `*.test.ts` — mocked deps, fast             |
+| TS Integration  |     2 | `*-integration.test.ts` — multi-module, in-process     |
+| TS E2E          |    10 | `*.e2e.test.ts` in `apps/e2e/` — cross-package testing |
+| Rust Unit/Integ |   130 | `#[cfg(test)]` modules — inline and integration tests  |
+| Rust Benchmarks |     — | Criterion micro-benchmarks (`cargo bench`, see below)  |
 
 ### Running coverage
 
 ```bash
-# Per project (via Nx)
-pnpm nx test <project-name> --coverage
+# Full monorepo (TypeScript + Rust)
+pnpm test:coverage
 
-# Full monorepo (via Nx — runs all project-level vitest configs)
-pnpm nx run-many -t test --coverage
+# TypeScript only (via Nx — runs all project-level vitest configs)
+pnpm test:coverage:ts
+
+# Rust only (cargo-llvm-cov → target/llvm-cov/html/)
+pnpm test:coverage:rust
+
+# Per TS project (via Nx)
+pnpm nx test <project-name> --coverage
 
 # Root vitest config only (excludes eslint-plugin-anvil — see ^1)
 pnpm vitest run --coverage

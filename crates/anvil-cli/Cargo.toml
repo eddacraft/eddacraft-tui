@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Anvil CLI — structural governance for AI-assisted development"
-repository.workspace = true
+repository = "https://github.com/EddaCraft/anvil"
 
 [package.metadata.dist]
 dist = true
@@ -19,7 +19,8 @@ anvil-kernel = { path = "../anvil-kernel" }
 anvil-kernel-types = { path = "../anvil-kernel-types" }
 anvil-policy = { path = "../anvil-policy" }
 anvil-architecture = { path = "../anvil-architecture" }
-eddacraft-tui = { path = "../eddacraft-tui" }
+anvil-checks = { path = "../anvil-checks" }
+eddacraft-tui = { workspace = true }
 clap = { workspace = true }
 reqwest = { workspace = true }
 tokio = { workspace = true }
@@ -36,7 +37,12 @@ dirs = { workspace = true }
 tempfile = "3"
 walkdir = { workspace = true }
 regex = { workspace = true }
+sha2 = "0.11"
+hex = "0.4"
 ctrlc = "3"
+
+[dev-dependencies]
+temp-env = "0.3"
 
 [lints]
 workspace = true

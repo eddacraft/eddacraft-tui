@@ -52,7 +52,9 @@ We're onboarding engineering teams in controlled cohorts. You'll hear from us wh
 
 If you have any questions or feedback, just reply to this email — I personally respond to each one.
 
-—
+— Josh
+Founder, eddacraft
+
 anvil :: eddacraft.ai
 
 To unsubscribe, reply with "unsubscribe" or visit: ${unsubscribeMailto}`,

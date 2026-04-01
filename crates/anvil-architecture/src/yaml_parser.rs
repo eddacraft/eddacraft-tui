@@ -11,6 +11,7 @@ use crate::definition::{
     get_default_options,
 };
 use crate::types::Layer;
+use crate::util::atomic_write;
 
 /// File name for the architecture definition.
 pub const ARCHITECTURE_YAML_FILENAME: &str = "architecture.yaml";
@@ -117,7 +118,7 @@ pub fn write_architecture_yaml(
     let content = serde_yaml::to_string(definition)
         .map_err(|e| YamlParseError::InvalidYaml(e.to_string()))?;
 
-    std::fs::write(&yaml_path, content).map_err(|e| YamlParseError::WriteIo {
+    atomic_write(&yaml_path, content.as_bytes()).map_err(|e| YamlParseError::WriteIo {
         path: yaml_str,
         source: e,
     })?;

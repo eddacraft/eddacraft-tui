@@ -9,6 +9,7 @@ use crate::types::{
     ArchitectureBaseline, BaselineSnapshot, BaselineViolation, Boundary, EntryPoint, Layers,
     create_default_boundaries, create_default_layers,
 };
+use crate::util::atomic_write;
 
 /// Baseline file name.
 pub const BASELINE_FILENAME: &str = "architecture.json";
@@ -79,7 +80,7 @@ pub fn save_baseline(
     let content = serde_json::to_string_pretty(baseline)
         .map_err(|e| BaselineError::InvalidJson(e.to_string()))?;
 
-    std::fs::write(&path, format!("{content}\n")).map_err(|e| BaselineError::Io {
+    atomic_write(&path, format!("{content}\n").as_bytes()).map_err(|e| BaselineError::Io {
         path: path_str,
         source: e,
     })?;

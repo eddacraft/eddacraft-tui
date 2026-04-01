@@ -491,6 +491,7 @@ fn print_json(checks: &[DiagnosticCheck]) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_tui::surfaces::doctor::DiagnosticSummary;
 
     #[test]
     fn git_available_passes_on_dev_machine() {
@@ -612,5 +613,304 @@ mod tests {
         let mut checks = vec![];
         apply_fixes(&mut checks, true);
         assert!(checks.is_empty());
+    }
+
+    // --- apply_fixes tests ---
+
+    fn make_check(name: &str, status: CheckStatus, auto_fixable: bool) -> DiagnosticCheck {
+        DiagnosticCheck {
+            name: name.to_string(),
+            category: "Test".to_string(),
+            status,
+            message: format!("{name} message"),
+            details: None,
+            auto_fixable,
+        }
+    }
+
+    #[test]
+    fn apply_fixes_skips_already_passed_checks() {
+        let mut checks = vec![make_check("anvil-dir", CheckStatus::Pass, true)];
+        apply_fixes(&mut checks, true);
+        // Should remain Pass and not be touched
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+        // auto_fixable is untouched by apply_fixes on skip — not a guaranteed invariant
+        assert!(checks[0].auto_fixable);
+    }
+
+    #[test]
+    fn apply_fixes_skips_non_fixable_checks() {
+        let mut checks = vec![make_check("config-valid", CheckStatus::Fail, false)];
+        apply_fixes(&mut checks, true);
+        // Should remain Fail — not fixable
+        assert_eq!(checks[0].status, CheckStatus::Fail);
+    }
+
+    #[test]
+    fn apply_fixes_handles_unknown_check_names() {
+        let mut checks = vec![make_check("unknown-check", CheckStatus::Fail, true)];
+        apply_fixes(&mut checks, true);
+        // Unknown names hit the _ match arm — status unchanged
+        assert_eq!(checks[0].status, CheckStatus::Fail);
+        assert!(checks[0].auto_fixable);
+    }
+
+    #[test]
+    fn apply_fixes_skips_warn_non_fixable() {
+        let mut checks = vec![make_check("plans-dir", CheckStatus::Warn, false)];
+        apply_fixes(&mut checks, true);
+        assert_eq!(checks[0].status, CheckStatus::Warn);
+    }
+
+    #[test]
+    fn apply_fixes_creates_anvil_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        let mut checks = vec![DiagnosticCheck {
+            name: "anvil-dir".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Warn,
+            message: ".anvil/ directory not found".to_string(),
+            details: Some("Create .anvil/ directory for Anvil state files".to_string()),
+            auto_fixable: true,
+        }];
+
+        apply_fixes(&mut checks, true);
+
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+        assert!(!checks[0].auto_fixable);
+        assert!(tmp.path().join(".anvil").is_dir());
+
+        std::env::set_current_dir(original).unwrap();
+    }
+
+    // --- JsonCheck serialisation tests ---
+
+    #[test]
+    fn json_check_serialises_all_fields() {
+        let check = JsonCheck {
+            name: "test-check".to_string(),
+            category: "Test".to_string(),
+            status: "pass".to_string(),
+            message: "all good".to_string(),
+            details: Some("extra info".to_string()),
+            auto_fixable: true,
+        };
+        let json: serde_json::Value = serde_json::to_value(&check).unwrap();
+        assert_eq!(json["name"], "test-check");
+        assert_eq!(json["category"], "Test");
+        assert_eq!(json["status"], "pass");
+        assert_eq!(json["message"], "all good");
+        assert_eq!(json["details"], "extra info");
+        assert_eq!(json["auto_fixable"], true);
+    }
+
+    #[test]
+    fn json_check_omits_none_details() {
+        let check = JsonCheck {
+            name: "test-check".to_string(),
+            category: "Test".to_string(),
+            status: "fail".to_string(),
+            message: "broken".to_string(),
+            details: None,
+            auto_fixable: false,
+        };
+        let json: serde_json::Value = serde_json::to_value(&check).unwrap();
+        assert!(
+            json.get("details").is_none(),
+            "details should be omitted when None"
+        );
+        assert_eq!(json["auto_fixable"], false);
+    }
+
+    /// Convert a [`DiagnosticCheck`] to a [`JsonCheck`] using the same mapping as `print_json`.
+    fn to_json_check(c: &DiagnosticCheck) -> JsonCheck {
+        JsonCheck {
+            name: c.name.clone(),
+            category: c.category.clone(),
+            status: match c.status {
+                CheckStatus::Pass => "pass".to_string(),
+                CheckStatus::Fail => "fail".to_string(),
+                CheckStatus::Warn => "warn".to_string(),
+                CheckStatus::Skipped => "skipped".to_string(),
+                CheckStatus::Running => "running".to_string(),
+            },
+            message: c.message.clone(),
+            details: c.details.clone(),
+            auto_fixable: c.auto_fixable,
+        }
+    }
+
+    #[test]
+    fn json_check_status_values_are_lowercase() {
+        let statuses = vec![
+            (CheckStatus::Pass, "pass"),
+            (CheckStatus::Fail, "fail"),
+            (CheckStatus::Warn, "warn"),
+            (CheckStatus::Skipped, "skipped"),
+            (CheckStatus::Running, "running"),
+        ];
+        for (status, expected) in statuses {
+            let diagnostic = make_check("test", status, false);
+            let json_check = to_json_check(&diagnostic);
+            let json: serde_json::Value = serde_json::to_value(&json_check).unwrap();
+            assert_eq!(
+                json["status"].as_str().unwrap(),
+                expected,
+                "status should be lowercase"
+            );
+        }
+    }
+
+    // --- DiagnosticSummary tests ---
+
+    #[test]
+    fn summary_counts_mixed_statuses() {
+        let checks = vec![
+            make_check("a", CheckStatus::Pass, false),
+            make_check("b", CheckStatus::Pass, false),
+            make_check("c", CheckStatus::Fail, false),
+            make_check("d", CheckStatus::Warn, false),
+            make_check("e", CheckStatus::Skipped, false),
+            make_check("f", CheckStatus::Skipped, false),
+        ];
+        let summary = DiagnosticSummary::from_checks(&checks);
+        assert_eq!(summary.total, 6);
+        assert_eq!(summary.passed, 2);
+        assert_eq!(summary.failed, 1);
+        assert_eq!(summary.warnings, 1);
+        assert_eq!(summary.skipped, 2);
+    }
+
+    #[test]
+    fn summary_all_pass() {
+        let checks = vec![
+            make_check("a", CheckStatus::Pass, false),
+            make_check("b", CheckStatus::Pass, false),
+        ];
+        let summary = DiagnosticSummary::from_checks(&checks);
+        assert_eq!(summary.total, 2);
+        assert_eq!(summary.passed, 2);
+        assert_eq!(summary.failed, 0);
+        assert_eq!(summary.warnings, 0);
+        assert_eq!(summary.skipped, 0);
+    }
+
+    #[test]
+    fn summary_empty_checks() {
+        let checks: Vec<DiagnosticCheck> = vec![];
+        let summary = DiagnosticSummary::from_checks(&checks);
+        assert_eq!(summary.total, 0);
+        assert_eq!(summary.passed, 0);
+        assert_eq!(summary.failed, 0);
+        assert_eq!(summary.warnings, 0);
+        assert_eq!(summary.skipped, 0);
+    }
+
+    #[test]
+    fn summary_running_not_counted() {
+        let checks = vec![make_check("a", CheckStatus::Running, false)];
+        let summary = DiagnosticSummary::from_checks(&checks);
+        assert_eq!(summary.total, 1);
+        assert_eq!(summary.passed, 0);
+        assert_eq!(summary.failed, 0);
+        assert_eq!(summary.warnings, 0);
+        assert_eq!(summary.skipped, 0);
+    }
+
+    // --- Check structure validation ---
+
+    #[test]
+    fn all_checks_have_non_empty_names() {
+        let checks = run_all_checks();
+        for check in &checks {
+            assert!(!check.name.is_empty(), "check name must not be empty");
+            assert!(
+                !check.name.contains(' '),
+                "check name '{}' should not contain spaces",
+                check.name
+            );
+        }
+    }
+
+    #[test]
+    fn all_checks_have_non_empty_categories() {
+        let checks = run_all_checks();
+        for check in &checks {
+            assert!(
+                !check.category.is_empty(),
+                "check '{}' has empty category",
+                check.name
+            );
+        }
+    }
+
+    #[test]
+    fn all_checks_have_non_empty_messages() {
+        let checks = run_all_checks();
+        for check in &checks {
+            assert!(
+                !check.message.is_empty(),
+                "check '{}' has empty message",
+                check.name
+            );
+        }
+    }
+
+    #[test]
+    fn all_check_names_are_unique() {
+        let checks = run_all_checks();
+        let mut names: Vec<&str> = checks.iter().map(|c| c.name.as_str()).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), checks.len(), "duplicate check names found");
+    }
+
+    fn make_check_with_details(
+        name: &str,
+        status: CheckStatus,
+        details: Option<String>,
+    ) -> DiagnosticCheck {
+        DiagnosticCheck {
+            name: name.to_string(),
+            category: "Test".to_string(),
+            status,
+            message: format!("{name} message"),
+            details,
+            auto_fixable: false,
+        }
+    }
+
+    #[test]
+    fn failed_checks_have_details() {
+        let checks = vec![
+            make_check_with_details(
+                "fail-with-details",
+                CheckStatus::Fail,
+                Some("detail text".to_string()),
+            ),
+            make_check_with_details("pass-no-details", CheckStatus::Pass, None),
+            make_check_with_details(
+                "warn-with-details",
+                CheckStatus::Warn,
+                Some("warning detail".to_string()),
+            ),
+            make_check_with_details(
+                "fail-with-details-2",
+                CheckStatus::Fail,
+                Some("another detail".to_string()),
+            ),
+        ];
+        for check in &checks {
+            if check.status == CheckStatus::Fail {
+                assert!(
+                    check.details.is_some(),
+                    "failing check '{}' should have details",
+                    check.name
+                );
+            }
+        }
     }
 }

@@ -164,6 +164,7 @@ fn bench_cold_graph_build(c: &mut Criterion) {
                         root: fixture.path().to_path_buf(),
                         architecture_config: None,
                         filter: None,
+                        plan: None,
                     };
                     let result = run_embedded(black_box(&config)).unwrap();
                     black_box(&result.stats);

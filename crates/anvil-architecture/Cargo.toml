@@ -12,12 +12,12 @@ serde_yaml = { workspace = true }
 thiserror = { workspace = true }
 walkdir = { workspace = true }
 glob = "0.3"
-sha2 = "0.10"
+sha2 = "0.11"
 hex = "0.4"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std", "serde"] }
+tempfile = "3"
 
 [dev-dependencies]
-tempfile = "3"
 
 [lints]
 workspace = true

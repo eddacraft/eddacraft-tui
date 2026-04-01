@@ -24,6 +24,9 @@ pnpm-lock.yaml
 # Ignore archived documents (legacy format, not worth fixing)
 archive/**
 
+# Ignore APS plans (internal planning content with its own conventions)
+plans/**
+
 # Ignore auto-generated TypeScript declaration files
 *.d.ts
 

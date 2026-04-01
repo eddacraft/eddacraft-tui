@@ -13,6 +13,7 @@ export const website = new VercelApp('website', {
   rootDirectory: 'apps/website',
   gitRepo,
   domains: ['eddacraft.ai'],
+  skipPreviewDeploys: true,
   envVars: {
     NEXT_PUBLIC_API_URL: 'https://api.eddacraft.ai',
   },
@@ -25,6 +26,7 @@ export const api = new VercelApp('anvil-api', {
   rootDirectory: 'apps/anvil-api',
   gitRepo,
   domains: ['api.eddacraft.ai'],
+  skipPreviewDeploys: true,
   extraWatchPaths: ['packages/transactional'],
   envVars: {
     DATABASE_URL: databaseUrl,
@@ -48,5 +50,6 @@ export const docsSite = new VercelApp('docs-site', {
   rootDirectory: 'apps/docs-site',
   gitRepo,
   domains: ['docs.eddacraft.ai'],
+  skipPreviewDeploys: true,
   extraWatchPaths: ['docs/public'],
 });

@@ -2,7 +2,7 @@
 
 | ID | Owner | Status | Progress |
 |----|-------|--------|----------|
-| MAINT | @team | In Progress | 9/11 |
+| MAINT | @team | In Progress | 10/11 |
 
 ## Purpose
 
@@ -294,5 +294,8 @@ When working on any task across the codebase, note repeated patterns:
   - `packages/vscode-extension/tsconfig.json` (remove esModuleInterop)
 - **Confidence:** high
 - **Priority:** High
-- **Status:** In Progress
+- **Status:** Complete
+- **Completed:** 2026-03-29 (PR #679)
 - **Origin:** TypeScript 6.0 release (2026-03-17), TS 7.0 Go rewrite on horizon
+- **Notes:** TypeScript ~6.0.2 configured with nodenext module resolution.
+  `baseUrl` and `esModuleInterop` removed from all tsconfigs

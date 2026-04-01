@@ -177,10 +177,13 @@ runs:
     # Step 5: Install Anvil CLI (Rust binary via cargo-dist installer)
     - name: Install Anvil CLI
       shell: bash
-      run:
-        curl --proto '=https' --tlsv1.2 -LsSf
-        https://github.com/EddaCraft/anvil-releases/releases/latest/download/anvil-cli-installer.sh
-        | sh
+      run: |
+        TMPFILE=$(mktemp)
+        trap 'rm -f "$TMPFILE"' EXIT
+        curl --proto '=https' --tlsv1.2 -LsSf \
+          https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh \
+          -o "$TMPFILE"
+        sh "$TMPFILE"
 
     # Step 6: Run Anvil check (skip if no files to check)
     - name: Run Anvil check
@@ -274,7 +277,7 @@ runs:
             }
           }
 
-          body += '\n---\n*Powered by [Anvil](https://github.com/EddaCraft/anvil-001)*';
+          body += '\n---\n*Powered by [Anvil](https://github.com/EddaCraft/anvil)*';
 
           // Find and update existing comment or create new one
           const { data: comments } = await github.rest.issues.listComments({
@@ -327,7 +330,7 @@ runs:
             state = 'failure';
             description = `${warnings} warning(s) found (blocking mode)`;
           } else if (warnings > 0) {
-            // Note: GitHub commit status doesn't have 'neutral', so we use 'success' 
+            // Note: GitHub commit status doesn't have 'neutral', so we use 'success'
             // with a descriptive message. The Check Run (step 9) handles neutral state.
             state = 'success';
             description = `${warnings} warning(s) — non-blocking`;
@@ -405,8 +408,8 @@ runs:
             conclusion = 'failure';
           }
 
-          const title = errors > 0 
-            ? `${errors} error(s), ${warnings} warning(s)` 
+          const title = errors > 0
+            ? `${errors} error(s), ${warnings} warning(s)`
             : `${warnings} warning(s)`;
 
           const summary = violations.length > 50

@@ -125,6 +125,7 @@ mod tests {
         let imports = vec![ImportEdge {
             from_file: "a.ts".to_string(),
             to_source: "express".to_string(),
+            line: 0,
         }];
         annotate_trust(&mut g, &imports);
 
@@ -140,6 +141,7 @@ mod tests {
         let imports = vec![ImportEdge {
             from_file: "a.ts".to_string(),
             to_source: "node:fs".to_string(),
+            line: 0,
         }];
         annotate_trust(&mut g, &imports);
 
@@ -155,6 +157,7 @@ mod tests {
         let imports = vec![ImportEdge {
             from_file: "a.ts".to_string(),
             to_source: "fsevents".to_string(),
+            line: 0,
         }];
         annotate_trust(&mut g, &imports);
 
@@ -174,6 +177,7 @@ mod tests {
         let imports = vec![ImportEdge {
             from_file: "a.ts".to_string(),
             to_source: "http-errors".to_string(),
+            line: 0,
         }];
         annotate_trust(&mut g, &imports);
 
@@ -193,6 +197,7 @@ mod tests {
         let imports = vec![ImportEdge {
             from_file: "a.ts".to_string(),
             to_source: "node:fs/promises".to_string(),
+            line: 0,
         }];
         annotate_trust(&mut g, &imports);
 
@@ -240,6 +245,7 @@ mod tests {
         let imports = vec![ImportEdge {
             from_file: "a.ts".to_string(),
             to_source: "./utils".to_string(),
+            line: 0,
         }];
         annotate_trust(&mut g, &imports);
 

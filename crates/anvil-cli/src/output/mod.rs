@@ -1,6 +1,19 @@
 pub mod json;
 pub mod plain;
 
+/// Sentinel error: the command already printed its output and only needs
+/// `main` to exit with `EXIT_ERROR` without reprinting the message.
+#[derive(Debug)]
+pub struct AlreadyReported;
+
+impl std::fmt::Display for AlreadyReported {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("output already reported")
+    }
+}
+
+impl std::error::Error for AlreadyReported {}
+
 /// Determines how command output is rendered.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OutputMode {

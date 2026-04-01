@@ -8,12 +8,12 @@
 
 - PBLU: post-beta-launch-uplift (57/57) — Complete
 - CRB: code-review-backlog (29/29) — Complete
-- MAINT: codebase-maintenance (9/11) — In Progress
+- MAINT: codebase-maintenance (10/11) — In Progress
 - ANVFMT: anvil-file-format (Phase 1 patterns authored, compiler not started) —
   In Progress
 - SECB: security-review-backlog (8/8) — Complete
 - BMAD4: bmad-v4-backward-compat (0/8) — Proposed
-- RCLI: rust-cli (32/62) — In Progress
+- RCLI: rust-cli (43/64) — In Progress
 - TUTOR: interactive-tutorial (0/13) — Draft
 - RCLI2: rust-cli-tier2 (0/8) — Proposed
 - RCLI3: rust-cli-tier3 (0/18) — Proposed
@@ -34,7 +34,7 @@
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (4/6) — In Progress
+- RENG: rust-core-engine (5/6) — In Progress
 - KERN: rust-kernel (22/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
 - RATS: ratatui-tui (7/7) — Complete
@@ -42,12 +42,19 @@
 - OPENSPEC: open-spec-adapter — Draft
 - RTVS: real-time-validation-simplified — Draft
 - RTVF: real-time-validation-full — Draft
-- IAC: pulumi-iac (12/20) — In Progress
+- IAC: pulumi-iac (20/20) — Complete
+
 - AGOV: agent-governance-patterns (0/7) — Draft
-- BENCH: kernel-benchmarking (6/16) — In Progress
-- TUIDASH: tui-dashboard-render (0/12) — Draft
+- BENCH: kernel-benchmarking (14/16) — In Progress
+- TUIDASH: tui-dashboard-render (0/12) — Ready
 - CPACKS: compliance-policy-packs (0/28) — Draft
+- DIST: distribution-pipeline (0/8) — Ready
+- TUIEXTRACT: eddacraft-tui-shared (3/7) — In Progress
 - DOCSYNC: documentation-sync (6/14) — In Progress
+- TFIX: test-infrastructure-fix (0/10) — Ready
+- TCOV: test-coverage-uplift (0/25) — Draft
+- TINT: test-integration-surface (0/15) — Draft
+- TEXT: test-external-services (0/10) — Draft
 
 ## Conventions
 
@@ -508,4 +515,61 @@ docs/public/anvil/tutorials/ci.md: DOCSYNC-009
 docs/public/anvil/integrations/github.md: DOCSYNC-009
 docs/public/anvil/guides/team-flow.md: DOCSYNC-009
 crates/*/README.md: DOCSYNC-006
+# TFIX: Test Infrastructure Fix
+.github/workflows/ci.yml: TFIX-001, TFIX-002, TFIX-003, TFIX-005, TFIX-006, TFIX-008, TFIX-009
+.github/workflows/rust.yml: TFIX-004, TFIX-005, TFIX-007
+packages/anvil/policy/src/opa-binary-manager.ts: TFIX-003
+apps/e2e/src/helpers/cli-runner.ts: TFIX-001, TINT-001
+apps/e2e/src/smoke/smoke.e2e.test.ts: TFIX-001
+apps/e2e/src/cli/commands.e2e.test.ts: TFIX-001
+apps/e2e/src/cli/gate-workflow.e2e.test.ts: TFIX-001
+apps/e2e/src/adapters/format-roundtrip.e2e.test.ts: TFIX-001
+apps/e2e/vitest.config.ts: TFIX-009
+AGENTS.md: TFIX-010
+# TCOV: Test Coverage Uplift
+crates/anvil-cli/src/commands/hooks.rs: TCOV-001
+crates/anvil-cli/src/commands/admin.rs: TCOV-002
+crates/anvil-cli/src/commands/export.rs: TCOV-003
+crates/anvil-cli/src/commands/architecture.rs: TCOV-004
+crates/anvil-cli/src/commands/policy.rs: TCOV-005
+crates/anvil-cli/src/commands/gate.rs: TCOV-006
+crates/anvil-cli/src/commands/watch.rs: TCOV-007
+crates/anvil-cli/src/auth/device_flow.rs: TCOV-008
+packages/anvil/policy/src/opa-executor.test.ts: TCOV-009
+crates/anvil-policy/src/opa.rs: TCOV-010
+packages/anvil/runtime/src/gate/__fixtures__/policies/*_test.rego: TCOV-011
+.github/workflows/ci.yml: TCOV-011
+packages/anvil/runtime/src/gate/integration.test.ts: TCOV-012
+packages/anvil/runtime/src/gate/checks/policy.check.ts: TCOV-012
+docs/guides/opa-policy-testing.md: TCOV-013
+packages/edda-stack/src/contracts/: TCOV-014, TCOV-015
+packages/edda-stack/src/edda/store-interfaces.ts: TCOV-016
+packages/edda-stack/src/edda/migration/: TCOV-016
+packages/kindling-integration/src/emitters/*-emitter.ts: TCOV-017
+packages/kindling-integration/src/kindling-service.ts: TCOV-018
+packages/kindling-integration/src/adapter.ts: TCOV-018
+packages/kindling-integration/src/config.ts: TCOV-018
+packages/kindling-integration/src/query-service.ts: TCOV-018
+packages/kindling-integration/src/retention.ts: TCOV-018
+packages/kindling-integration/src/status.ts: TCOV-018
+packages/mcp-server/src/resources/: TCOV-019
+packages/mcp-server/src/config/: TCOV-020
+packages/mcp-server/src/transports/streamable-http.ts: TCOV-021
+packages/mcp-server/src/bin.ts: TCOV-021
+packages/mcp-server/src/bin-http.ts: TCOV-021
+crates/eddacraft-tui/src/widgets/: TCOV-022
+crates/eddacraft-tui/src/shell.rs: TCOV-023
+crates/eddacraft-tui/src/theme/: TCOV-023
+crates/eddacraft-tui/src/keyboard/handler.rs: TCOV-024
+crates/eddacraft-tui/src/surface.rs: TCOV-025
+# TINT: Test Integration Surface
+apps/e2e/src/cli/: TINT-001, TINT-002, TINT-003, TINT-004, TINT-006, TINT-007, TINT-008, TINT-009, TINT-011
+.github/workflows/ci.yml: TINT-005
+crates/anvil-tui/src/snapshots/: TINT-010
+apps/e2e/src/helpers/daemon-harness.ts: TINT-012
+apps/e2e/src/daemon/: TINT-012, TINT-013, TINT-014, TINT-015
+# TEXT: Test External Services
+packages/transactional/emails/: TEXT-004, TEXT-005
+apps/anvil-api/: TEXT-004
+infra/src/: TEXT-006, TEXT-007, TEXT-008, TEXT-009
 ```

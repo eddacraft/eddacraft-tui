@@ -36,6 +36,9 @@ pub struct EmbeddedConfig {
     pub root: PathBuf,
     pub architecture_config: Option<PathBuf>,
     pub filter: Option<FileFilter>,
+    /// Optional plan file path — passed through from the CLI for future
+    /// plan-scoped filtering (not yet consumed by `run_embedded`).
+    pub plan: Option<PathBuf>,
 }
 
 pub struct EmbeddedResult {
@@ -272,6 +275,7 @@ layers:
             root: tmp.path().to_path_buf(),
             architecture_config: None,
             filter: None,
+            plan: None,
         };
 
         let result = run_embedded(&config).unwrap();
@@ -297,6 +301,7 @@ layers:
             root: tmp.path().to_path_buf(),
             architecture_config: None,
             filter: None,
+            plan: None,
         };
 
         let result = run_embedded(&config).unwrap();
@@ -326,6 +331,7 @@ layers:
             root: tmp.path().to_path_buf(),
             architecture_config: Some(config_path),
             filter: None,
+            plan: None,
         };
 
         let result = run_embedded(&config).unwrap();
@@ -342,6 +348,7 @@ layers:
             root: nonexistent,
             architecture_config: None,
             filter: None,
+            plan: None,
         };
 
         let result = run_embedded(&config);
@@ -357,6 +364,7 @@ layers:
             root: tmp.path().to_path_buf(),
             architecture_config: Some(nonexistent_config),
             filter: None,
+            plan: None,
         };
 
         let result = run_embedded(&config);
@@ -371,6 +379,7 @@ layers:
             root: tmp.path().to_path_buf(),
             architecture_config: None,
             filter: None,
+            plan: None,
         };
 
         let result = run_embedded(&config).unwrap();

@@ -53,6 +53,16 @@ impl IssueSeverity {
             Self::Info => "INFO",
         }
     }
+
+    pub fn label_full(self) -> &'static str {
+        match self {
+            Self::Critical => "Critical",
+            Self::High => "High",
+            Self::Medium => "Medium",
+            Self::Low => "Low",
+            Self::Info => "Info",
+        }
+    }
 }
 
 /// A single audit issue.
@@ -150,12 +160,16 @@ impl AuditState {
                 self.expanded = false;
             }
             Action::Select => {
-                if self.focused_panel == AuditPanel::Issues {
+                if self.focused_panel == AuditPanel::Issues && !self.data.issues.is_empty() {
                     self.expanded = !self.expanded;
                 }
             }
             Action::Back => {
-                self.wants_back = true;
+                if self.expanded {
+                    self.expanded = false;
+                } else {
+                    self.wants_back = true;
+                }
             }
             Action::Quit => {
                 self.should_quit = true;
@@ -171,7 +185,11 @@ impl crate::surface::Surface for AuditState {
     }
 
     fn help_text(&self) -> &'static str {
-        "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
+        if self.expanded {
+            "j/k navigate  h/l switch panel  esc collapse  q quit"
+        } else {
+            "j/k navigate  h/l switch panel  enter expand  esc back  q quit"
+        }
     }
 
     fn handle_key(&mut self, action: Action) {
@@ -342,6 +360,45 @@ mod tests {
     fn expand_only_works_on_issues_panel() {
         let mut state = AuditState::new(sample_data());
         state.focused_panel = AuditPanel::Project;
+        state.handle_key(Action::Select);
+        assert!(!state.expanded);
+    }
+
+    #[test]
+    fn back_collapses_expansion_first() {
+        let mut state = AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Issues;
+        state.handle_key(Action::Select);
+        assert!(state.expanded);
+        assert!(!state.wants_back);
+
+        state.handle_key(Action::Back);
+        assert!(!state.expanded);
+        assert!(!state.wants_back); // collapsed, didn't navigate back
+
+        state.handle_key(Action::Back);
+        assert!(state.wants_back); // now navigates back
+    }
+
+    #[test]
+    fn back_navigates_immediately_from_non_issues_panel() {
+        let mut state = AuditState::new(sample_data());
+        state.focused_panel = AuditPanel::Project;
+        state.handle_key(Action::Back);
+        assert!(state.wants_back);
+    }
+
+    #[test]
+    fn expand_ignored_on_empty_issues() {
+        let data = AuditData {
+            project_name: "empty".to_string(),
+            total_files: 0,
+            issues: vec![],
+            historical_scores: vec![],
+            next_steps: vec![],
+        };
+        let mut state = AuditState::new(data);
+        state.focused_panel = AuditPanel::Issues;
         state.handle_key(Action::Select);
         assert!(!state.expanded);
     }

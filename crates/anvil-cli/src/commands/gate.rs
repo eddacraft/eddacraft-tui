@@ -7,11 +7,10 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Default, Args)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct GateArgs {
     /// Plan file to run gates against (omit for full codebase scan)
-    #[allow(dead_code)] // scaffold: plan-scoped gating not yet wired
     plan: Option<String>,
 
     /// Gate profile: dev, ci, production
@@ -37,11 +36,6 @@ pub struct GateArgs {
     /// List available gate profiles
     #[arg(long)]
     list_profiles: bool,
-
-    /// Disable caching
-    #[arg(long)]
-    #[allow(dead_code)] // scaffold: cache bypass not yet wired
-    no_cache: bool,
 }
 
 const PROFILES: &[(&str, &str, &[&str])] = &[
@@ -82,6 +76,92 @@ struct CheckResult {
     passed: bool,
     score: f64,
     message: String,
+}
+
+/// Extract file paths referenced in a `.aps.md` plan file.
+///
+/// Parses `- **Files:** ...` lines and returns deduplicated paths.
+/// Returns an empty set (and emits a warning) if the file cannot be read.
+fn extract_plan_files(plan_path: &Path) -> std::collections::HashSet<String> {
+    let content = match std::fs::read_to_string(plan_path) {
+        Ok(content) => content,
+        Err(err) => {
+            eprintln!(
+                "Warning: failed to read plan file '{}': {err}. Falling back to full codebase scan.",
+                plan_path.display()
+            );
+            return std::collections::HashSet::new();
+        }
+    };
+
+    let file_re = Regex::new(r"`([^`]+)`").expect("valid regex");
+    let mut files = std::collections::HashSet::new();
+
+    // Track whether we're in a Files: continuation (multi-line entries).
+    let mut in_files_block = false;
+
+    for line in content.lines() {
+        let trimmed = line.trim_start_matches([' ', '-']);
+        if trimmed.starts_with("**Files:**") {
+            in_files_block = true;
+            for cap in file_re.captures_iter(trimmed) {
+                let path = cap[1].to_string();
+                if path.contains('/') || path.contains('.') {
+                    files.insert(path);
+                }
+            }
+        } else if in_files_block {
+            // Continuation lines: indented lines with backticked paths.
+            let has_backticks = trimmed.contains('`');
+            let is_continuation =
+                has_backticks && !trimmed.starts_with("**") && !trimmed.starts_with('#');
+            if is_continuation {
+                for cap in file_re.captures_iter(trimmed) {
+                    let path = cap[1].to_string();
+                    if path.contains('/') || path.contains('.') {
+                        files.insert(path);
+                    }
+                }
+            } else {
+                in_files_block = false;
+            }
+        }
+    }
+
+    files
+}
+
+/// Resolve a plan argument to a path: either an absolute path, or relative to
+/// the workspace root. Searches `plans/modules/` if not found directly.
+fn resolve_plan_path(plan_arg: &str) -> Option<PathBuf> {
+    let direct = PathBuf::from(plan_arg);
+    if direct.exists() {
+        return Some(direct);
+    }
+
+    let root = workspace_root();
+
+    // Try relative to workspace root.
+    let relative = root.join(plan_arg);
+    if relative.exists() {
+        return Some(relative);
+    }
+
+    // Try in plans/modules/.
+    let in_modules = root.join("plans/modules").join(plan_arg);
+    if in_modules.exists() {
+        return Some(in_modules);
+    }
+
+    // Try with .aps.md extension.
+    let with_ext = root
+        .join("plans/modules")
+        .join(format!("{plan_arg}.aps.md"));
+    if with_ext.exists() {
+        return Some(with_ext);
+    }
+
+    None
 }
 
 /// Best-effort workspace root detection via `git rev-parse`.
@@ -162,6 +242,23 @@ fn run_check_test(name: &str) -> CheckResult {
     }
 }
 
+/// Directories to skip when walking the workspace for source files.
+/// Aligned with kernel `FileFilter::default_patterns` in
+/// `crates/anvil-kernel/src/watcher/filter.rs`.
+pub(crate) const WALK_IGNORE_DIRS: &[&str] = &[
+    "node_modules",
+    ".git",
+    "target",
+    "dist",
+    "build",
+    ".next",
+    ".turbo",
+    ".nx",
+    "coverage",
+    ".anvil",
+    "__pycache__",
+];
+
 const SECRET_SCAN_IGNORE: &[&str] = &[
     "node_modules",
     "dist",
@@ -172,19 +269,21 @@ const SECRET_SCAN_IGNORE: &[&str] = &[
     "coverage",
 ];
 
-fn run_check_secret(name: &str) -> CheckResult {
-    let root = workspace_root();
-    let mut found = Vec::new();
-    let secret_patterns: Vec<Regex> = [
-        r"AKIA[0-9A-Z]{16}",
-        r"sk-[a-zA-Z0-9]{48}",
-        r"ghp_[a-zA-Z0-9]{36}",
-    ]
-    .iter()
-    .filter_map(|p| Regex::new(p).ok())
-    .collect();
+/// Maximum directory depth for the secret scan walk. Prevents runaway
+/// recursion into deeply nested or symlink-heavy trees.
+const SECRET_SCAN_MAX_DEPTH: usize = 20;
 
-    for entry in walkdir::WalkDir::new(&root)
+fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) -> CheckResult {
+    let root = workspace_root();
+    let mut files_to_scan: Vec<String> = Vec::new();
+
+    let mut walker = walkdir::WalkDir::new(&root);
+    // Only cap depth for full-codebase scans; plan-scoped runs must reach
+    // explicitly referenced files regardless of nesting depth.
+    if plan_files.is_empty() {
+        walker = walker.max_depth(SECRET_SCAN_MAX_DEPTH);
+    }
+    for entry in walker
         .into_iter()
         .filter_entry(|e| {
             let name = e.file_name().to_string_lossy();
@@ -194,6 +293,25 @@ fn run_check_secret(name: &str) -> CheckResult {
         .filter(|e| e.file_type().is_file())
     {
         let path = entry.path();
+
+        // Plan scoping: skip files not referenced in the plan.
+        if !plan_files.is_empty() {
+            let rel = path
+                .strip_prefix(&root)
+                .unwrap_or(path)
+                .to_string_lossy()
+                .replace('\\', "/");
+            if !plan_files.iter().any(|pf| {
+                if pf.ends_with('/') || root.join(pf).is_dir() {
+                    rel.starts_with(pf.as_str())
+                } else {
+                    rel == pf.as_str()
+                }
+            }) {
+                continue;
+            }
+        }
+
         let file_name = path.file_name().map(|f| f.to_string_lossy());
 
         // Check extension-based files and dotfiles like .env*
@@ -213,17 +331,15 @@ fn run_check_secret(name: &str) -> CheckResult {
             continue;
         }
 
-        if let Ok(content) = std::fs::read_to_string(path) {
-            for (line_no, line) in content.lines().enumerate() {
-                for re in &secret_patterns {
-                    if re.is_match(line) {
-                        found.push(format!("{}:{}", path.display(), line_no + 1));
-                    }
-                }
-            }
-        }
+        files_to_scan.push(path.to_string_lossy().into_owned());
     }
-    if found.is_empty() {
+
+    let file_refs: Vec<&str> = files_to_scan.iter().map(String::as_str).collect();
+    let config = anvil_checks::secret::SecretCheckConfig::default();
+    let root_str = root.to_string_lossy();
+    let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+
+    if result.passed {
         CheckResult {
             name: name.to_string(),
             passed: true,
@@ -231,14 +347,19 @@ fn run_check_secret(name: &str) -> CheckResult {
             message: "No hardcoded secrets found".to_string(),
         }
     } else {
+        let locations: Vec<String> = result
+            .findings
+            .iter()
+            .map(|f| format!("{}:{} [{}]", f.file, f.line, f.pattern_name))
+            .collect();
         CheckResult {
             name: name.to_string(),
             passed: false,
-            score: 0.0,
+            score: f64::from(result.score),
             message: format!(
                 "Potential secrets found in {} location(s):\n{}",
-                found.len(),
-                found.join("\n")
+                result.findings.len(),
+                locations.join("\n")
             ),
         }
     }
@@ -407,6 +528,107 @@ fn run_check_dependency(project_root: &Path) -> CheckResult {
     }
 }
 
+/// Extract import edges from source files using the kernel's tree-sitter parser.
+///
+/// Walks source files, parses each with the kernel parser, resolves relative
+/// import specifiers to workspace-relative file paths.
+fn extract_import_edges(project_root: &Path) -> Vec<anvil_architecture::ImportEdge> {
+    let mut parser = anvil_kernel::parser::Parser::new();
+    let mut edges = Vec::new();
+
+    let include_extensions = ["ts", "tsx", "js", "jsx", "mjs", "cjs"];
+
+    let walker = walkdir::WalkDir::new(project_root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            if e.file_type().is_dir() {
+                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
+            }
+            true
+        });
+
+    for entry in walker.flatten() {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+        let path = entry.path();
+        let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+        if !include_extensions.contains(&ext) {
+            continue;
+        }
+
+        let rel_path = path
+            .strip_prefix(project_root)
+            .unwrap_or(path)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        let Ok(content) = std::fs::read(path) else {
+            continue;
+        };
+
+        let Ok(parse_result) = parser.parse_bytes(path, &content) else {
+            continue;
+        };
+
+        let file_symbols =
+            anvil_kernel::parser::extract::extract_symbols(&parse_result.tree, &content, path, 0);
+
+        for import in &file_symbols.imports {
+            // Only resolve relative imports (starting with . or ..).
+            if !import.to_source.starts_with('.') {
+                continue;
+            }
+
+            if let Some(resolved) = resolve_import(&rel_path, &import.to_source) {
+                edges.push(anvil_architecture::ImportEdge {
+                    from_file: rel_path.clone(),
+                    to_file: resolved,
+                    line: import.line,
+                });
+            }
+        }
+    }
+
+    edges
+}
+
+/// Resolve a relative import specifier to a workspace-relative path.
+///
+/// Given `from_file = "src/app/service.ts"` and `specifier = "../core/entity"`,
+/// returns `"src/core/entity"`. Does not verify the file exists on disk;
+/// the validator matches against assigned files by prefix.
+fn resolve_import(from_file: &str, specifier: &str) -> Option<String> {
+    let from_dir = from_file.rsplit_once('/').map_or("", |(dir, _)| dir);
+
+    // Combine from_dir with the specifier and normalise.
+    let combined = if from_dir.is_empty() {
+        specifier.to_string()
+    } else {
+        format!("{from_dir}/{specifier}")
+    };
+
+    // Normalise path segments (resolve .. and .).
+    let mut parts: Vec<&str> = Vec::new();
+    for segment in combined.split('/') {
+        match segment {
+            "." | "" => {}
+            ".." => {
+                parts.pop()?;
+            }
+            s => parts.push(s),
+        }
+    }
+
+    if parts.is_empty() {
+        return None;
+    }
+
+    Some(parts.join("/"))
+}
+
 fn run_check_architecture(project_root: &Path) -> CheckResult {
     let config_path = project_root.join(".anvil/architecture.yaml");
 
@@ -432,7 +654,9 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
         }
     };
 
-    match anvil_architecture::validate(project_root, &definition) {
+    let edges = extract_import_edges(project_root);
+
+    match anvil_architecture::validate_with_edges(project_root, &definition, &edges) {
         Ok(result) => {
             if result.valid {
                 CheckResult {
@@ -476,7 +700,119 @@ fn run_check_architecture(project_root: &Path) -> CheckResult {
     }
 }
 
-fn run_check_policy(project_root: &Path) -> CheckResult {
+/// Collect changed files from git status (unstaged + staged).
+fn git_changed_files(project_root: &Path) -> Vec<String> {
+    std::process::Command::new("git")
+        .args(["status", "--porcelain", "-u"])
+        .current_dir(project_root)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| {
+            String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .filter_map(|line| {
+                    // porcelain format: XY filename
+                    // Renamed/copied files: XY old -> new
+                    let trimmed = line.get(3..)?;
+                    if trimmed.contains(" -> ") {
+                        trimmed.rsplit_once(" -> ").map(|(_, new)| new.to_string())
+                    } else {
+                        Some(trimmed.to_string())
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Build policy input with project context so policies can reference
+/// `input.workspace`, `input.files`, `input.changed_files`, etc.
+fn build_policy_input(
+    project_root: &Path,
+    profile: Option<&str>,
+    plan_path: Option<&str>,
+    plan_files: &std::collections::HashSet<String>,
+) -> serde_json::Value {
+    let source_files: Vec<String> = walkdir::WalkDir::new(project_root)
+        .follow_links(false)
+        .into_iter()
+        .filter_entry(|e| {
+            let name = e.file_name().to_string_lossy();
+            if e.file_type().is_dir() {
+                return !WALK_IGNORE_DIRS.contains(&name.as_ref());
+            }
+            true
+        })
+        .filter_map(std::result::Result::ok)
+        .filter(|e| e.file_type().is_file())
+        .filter(|e| {
+            e.path()
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .is_some_and(|ext| {
+                    matches!(
+                        ext,
+                        "ts" | "tsx"
+                            | "js"
+                            | "jsx"
+                            | "mjs"
+                            | "cjs"
+                            | "rs"
+                            | "json"
+                            | "yaml"
+                            | "yml"
+                    )
+                })
+        })
+        .filter_map(|e| {
+            e.path()
+                .strip_prefix(project_root)
+                .ok()
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+        })
+        .collect();
+
+    let changed_files = git_changed_files(project_root);
+
+    // When plan-scoped, filter files to only those referenced in the plan.
+    let files = if plan_files.is_empty() {
+        source_files
+    } else {
+        source_files
+            .into_iter()
+            .filter(|f| {
+                plan_files.iter().any(|pf| {
+                    if pf.ends_with('/') {
+                        f.starts_with(pf.as_str())
+                    } else {
+                        f == pf.as_str()
+                    }
+                })
+            })
+            .collect()
+    };
+
+    let mut input = serde_json::json!({
+        "workspace": project_root.to_string_lossy(),
+        "files": files,
+        "changed_files": changed_files,
+        "profile": profile.unwrap_or("default"),
+    });
+
+    if let Some(plan) = plan_path {
+        input["plan_path"] = serde_json::Value::String(plan.to_string());
+    }
+
+    input
+}
+
+fn run_check_policy(
+    project_root: &Path,
+    profile: Option<&str>,
+    plan_path: Option<&str>,
+    plan_files: &std::collections::HashSet<String>,
+) -> CheckResult {
     let policy_dir = project_root.join(".anvil/policies");
 
     if !policy_dir.exists() || !policy_dir.is_dir() {
@@ -489,7 +825,7 @@ fn run_check_policy(project_root: &Path) -> CheckResult {
     }
 
     let evaluator = anvil_policy::evaluator::Evaluator::new(None);
-    let input = serde_json::json!({});
+    let input = build_policy_input(project_root, profile, plan_path, plan_files);
 
     match evaluator.evaluate(project_root, &input, None) {
         Ok(result) => {
@@ -533,16 +869,21 @@ fn run_check_policy(project_root: &Path) -> CheckResult {
     }
 }
 
-fn run_single_check(name: &str) -> CheckResult {
+fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     let root = workspace_root();
     match name {
         "lint" => run_check_lint(name),
         "test" => run_check_test(name),
-        "secret" => run_check_secret(name),
+        "secret" => run_check_secret(name, &ctx.plan_files),
         "coverage" => run_check_coverage(&root, DEFAULT_COVERAGE_THRESHOLD),
         "dependency" => run_check_dependency(&root),
         "architecture" => run_check_architecture(&root),
-        "policy" => run_check_policy(&root),
+        "policy" => run_check_policy(
+            &root,
+            ctx.profile.as_deref(),
+            ctx.plan_path.as_deref(),
+            &ctx.plan_files,
+        ),
         _ => CheckResult {
             name: name.to_string(),
             passed: false,
@@ -602,16 +943,7 @@ fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
 /// Run all gate checks with default settings and return TUI-ready data.
 pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
     let start = std::time::Instant::now();
-    let default_args = GateArgs {
-        plan: None,
-        profile: None,
-        skip_checks: None,
-        only_checks: None,
-        fail_fast: false,
-        progress: false,
-        list_profiles: false,
-        no_cache: false,
-    };
+    let default_args = GateArgs::default();
     let checks = run_checks(&default_args).unwrap_or_default();
 
     let passed_count = checks.iter().filter(|c| c.passed).count();
@@ -647,13 +979,22 @@ pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
         .collect();
 
     anvil_tui::surfaces::gate::GateResult {
-        plan_id: "default".to_string(),
+        plan_id: "cli".to_string(),
         overall_passed: overall,
         score,
         checks: tui_checks,
         duration_ms: u64::try_from(elapsed).unwrap_or(u64::MAX),
         timestamp: chrono::Utc::now().to_rfc3339(),
     }
+}
+
+/// Resolved gate context from CLI arguments.
+struct GateContext {
+    profile: Option<String>,
+    /// Files referenced by the plan (empty = full codebase scan).
+    plan_files: std::collections::HashSet<String>,
+    /// Path to the plan file, if provided.
+    plan_path: Option<String>,
 }
 
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
@@ -676,6 +1017,34 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
         validate_check_names(only_s)?;
     }
 
+    // Resolve plan-scoped file set.
+    let (plan_files, plan_path) = if let Some(ref plan_arg) = args.plan {
+        match resolve_plan_path(plan_arg) {
+            Some(path) => {
+                let files = extract_plan_files(&path);
+                if args.progress {
+                    eprintln!(
+                        "  \u{2139} plan scope: {} files from {}",
+                        files.len(),
+                        path.display()
+                    );
+                }
+                (files, Some(path.to_string_lossy().to_string()))
+            }
+            None => {
+                bail!("plan file not found: {plan_arg}");
+            }
+        }
+    } else {
+        (std::collections::HashSet::new(), None)
+    };
+
+    let ctx = GateContext {
+        profile: args.profile.clone(),
+        plan_files,
+        plan_path,
+    };
+
     let mut checks = Vec::new();
     for check_name in AVAILABLE_CHECKS {
         if skip_set.contains(check_name) {
@@ -691,7 +1060,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
             eprintln!("  \u{25b6} {check_name} running...");
         }
 
-        let result = run_single_check(check_name);
+        let result = run_single_check(check_name, &ctx);
 
         if args.progress {
             let icon = if result.passed {
@@ -702,9 +1071,10 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
             eprintln!("  {icon} {check_name}");
         }
 
+        let failed = !result.passed;
         checks.push(result);
 
-        if args.fail_fast && !checks.last().unwrap().passed {
+        if args.fail_fast && failed {
             break;
         }
     }
@@ -821,6 +1191,13 @@ mod tests {
     fn args_parses_list_profiles() {
         let w = Wrapper::try_parse_from(["test", "--list-profiles"]).unwrap();
         assert!(w.inner.list_profiles);
+    }
+
+    // Regression guard: ensures --no-cache is not re-introduced (was dead code, removed in TCOV-006).
+    #[test]
+    fn no_cache_flag_removed() {
+        let result = Wrapper::try_parse_from(["test", "--no-cache"]);
+        assert!(result.is_err(), "--no-cache should not be accepted");
     }
 
     #[test]
@@ -971,7 +1348,7 @@ mod tests {
     #[test]
     fn policy_no_bundle_skips() {
         let tmp = tempfile::TempDir::new().unwrap();
-        let result = run_check_policy(tmp.path());
+        let result = run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new());
         assert!(result.passed);
         assert!(result.message.contains("Skipping"));
     }
@@ -982,12 +1359,439 @@ mod tests {
         let policy_dir = tmp.path().join(".anvil/policies");
         std::fs::create_dir_all(&policy_dir).unwrap();
         std::fs::write(policy_dir.join("test.rego"), "package test\n").unwrap();
-        let result = run_check_policy(tmp.path());
+        let result = run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new());
         // OPA is not installed in test environment, so it should skip gracefully
         assert!(result.passed);
         assert!(
             result.message.contains("OPA not installed")
                 || result.message.contains("policies evaluated")
         );
+    }
+
+    // ── Policy input context tests ─────────────────────────────────────
+
+    #[test]
+    fn build_policy_input_populates_workspace() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let input = build_policy_input(
+            tmp.path(),
+            Some("ci"),
+            None,
+            &std::collections::HashSet::new(),
+        );
+        assert_eq!(
+            input["workspace"].as_str().unwrap(),
+            tmp.path().to_string_lossy()
+        );
+        assert_eq!(input["profile"].as_str().unwrap(), "ci");
+        assert!(input["files"].as_array().is_some());
+        assert!(input["changed_files"].as_array().is_some());
+    }
+
+    #[test]
+    fn build_policy_input_includes_source_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("main.ts"), "export const x = 1;").unwrap();
+        std::fs::write(src.join("readme.md"), "# Hi").unwrap();
+
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
+        let files: Vec<&str> = input["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+
+        assert!(files.contains(&"src/main.ts"));
+        assert!(!files.iter().any(|f| f.contains("readme.md")));
+    }
+
+    #[test]
+    fn build_policy_input_defaults_profile() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
+        assert_eq!(input["profile"].as_str().unwrap(), "default");
+    }
+
+    // ── Import resolution tests ────────────────────────────────────────
+
+    #[test]
+    fn resolve_import_sibling() {
+        let resolved = resolve_import("src/app/service.ts", "./helper");
+        assert_eq!(resolved.as_deref(), Some("src/app/helper"));
+    }
+
+    #[test]
+    fn resolve_import_parent() {
+        let resolved = resolve_import("src/app/service.ts", "../core/entity");
+        assert_eq!(resolved.as_deref(), Some("src/core/entity"));
+    }
+
+    #[test]
+    fn resolve_import_escapes_root() {
+        let resolved = resolve_import("src/main.ts", "../../outside");
+        assert!(resolved.is_none());
+    }
+
+    #[test]
+    fn resolve_import_from_root_file() {
+        let resolved = resolve_import("index.ts", "./src/lib");
+        assert_eq!(resolved.as_deref(), Some("src/lib"));
+    }
+
+    // ── Architecture boundary detection tests ──────────────────────────
+
+    #[test]
+    fn architecture_detects_violations_with_edges() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let anvil_dir = tmp.path().join(".anvil");
+        std::fs::create_dir_all(&anvil_dir).unwrap();
+
+        // Set up layers: core has no deps, app depends on core.
+        // A core→app import is forbidden.
+        std::fs::write(
+            anvil_dir.join("architecture.yaml"),
+            r#"
+schema_version: "0.1.0"
+template: custom
+layers:
+  core:
+    patterns: ["src/core/**"]
+    depends_on: []
+  app:
+    patterns: ["src/app/**"]
+    depends_on: ["core"]
+rules: []
+"#,
+        )
+        .unwrap();
+
+        // Create source files that produce an import edge.
+        let core_dir = tmp.path().join("src/core");
+        let app_dir = tmp.path().join("src/app");
+        std::fs::create_dir_all(&core_dir).unwrap();
+        std::fs::create_dir_all(&app_dir).unwrap();
+        std::fs::write(
+            core_dir.join("entity.ts"),
+            "import { service } from '../app/service';\nexport const x = 1;\n",
+        )
+        .unwrap();
+        std::fs::write(app_dir.join("service.ts"), "export const service = 1;\n").unwrap();
+
+        let edges = extract_import_edges(tmp.path());
+        assert!(!edges.is_empty(), "should extract at least one import edge");
+
+        let definition = anvil_architecture::parse_architecture_definition(tmp.path()).unwrap();
+        let result =
+            anvil_architecture::validate_with_edges(tmp.path(), &definition, &edges).unwrap();
+
+        assert!(
+            !result.violations.is_empty(),
+            "core importing from app should produce a boundary violation"
+        );
+        assert!(!result.valid);
+    }
+
+    // ── Plan scoping tests ─────────────────────────────────────────────
+
+    #[test]
+    fn extract_plan_files_parses_files_lines() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plan = tmp.path().join("test.aps.md");
+        std::fs::write(
+            &plan,
+            r"
+### ITEM-001: do something
+
+- **Status:** In Progress
+- **Intent:** Some work
+- **Files:** `src/core/entity.ts`, `src/app/service.ts`
+- **Confidence:** high
+",
+        )
+        .unwrap();
+
+        let files = extract_plan_files(&plan);
+        assert!(files.contains("src/core/entity.ts"));
+        assert!(files.contains("src/app/service.ts"));
+        assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn extract_plan_files_skips_non_path_backticks() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plan = tmp.path().join("test.aps.md");
+        std::fs::write(
+            &plan,
+            "- **Files:** `src/main.ts`\n\nSome text with `inline code` here.\n",
+        )
+        .unwrap();
+
+        let files = extract_plan_files(&plan);
+        assert!(files.contains("src/main.ts"));
+        assert!(!files.contains("inline code"));
+    }
+
+    #[test]
+    fn extract_plan_files_returns_empty_for_missing_file() {
+        let files = extract_plan_files(Path::new("/nonexistent/plan.aps.md"));
+        assert!(files.is_empty());
+    }
+
+    #[test]
+    fn resolve_plan_path_finds_in_modules() {
+        let root = workspace_root();
+        let modules_dir = root.join("plans/modules");
+        if modules_dir.exists() {
+            // Only run on actual workspace with plans.
+            if let Some(path) = resolve_plan_path("rust-cli") {
+                assert!(path.to_string_lossy().ends_with(".aps.md"));
+            }
+        }
+    }
+
+    #[test]
+    fn build_policy_input_includes_plan_path() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let input = build_policy_input(
+            tmp.path(),
+            None,
+            Some("/plans/test.aps.md"),
+            &std::collections::HashSet::new(),
+        );
+        assert_eq!(input["plan_path"].as_str().unwrap(), "/plans/test.aps.md");
+    }
+
+    #[test]
+    fn build_policy_input_omits_plan_when_none() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let input = build_policy_input(tmp.path(), None, None, &std::collections::HashSet::new());
+        assert!(input.get("plan_path").is_none());
+    }
+
+    // ── Secret check integration tests ────────────────────────────────
+    //
+    // These exercise the anvil-checks wiring that gate.rs delegates to,
+    // using temp files to avoid coupling to the real workspace.
+
+    #[test]
+    fn secret_check_clean_file_passes() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("clean.ts");
+        std::fs::write(&file, "export const x = 1;\n").unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
+
+        assert!(result.passed);
+        assert_eq!(result.findings.len(), 0);
+    }
+
+    #[test]
+    fn secret_check_detects_aws_secret_key() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("creds.ts");
+        let secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
+        std::fs::write(&file, format!("aws_secret_access_key='{secret}'")).unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
+
+        assert!(!result.passed);
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|f| f.pattern_name == "AWS Secret Key"),
+            "should detect AWS Secret Key pattern"
+        );
+    }
+
+    #[test]
+    fn secret_check_detects_stripe_key_with_pattern_name() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("billing.ts");
+        let stripe = format!("sk_live_{}", "1234567890abcdefghijABCD");
+        std::fs::write(&file, format!("const secret = '{stripe}';")).unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, None);
+
+        assert!(!result.passed);
+        assert!(
+            result
+                .findings
+                .iter()
+                .any(|f| f.pattern_name.contains("Stripe")),
+            "should detect Stripe key pattern by name"
+        );
+    }
+
+    #[test]
+    fn secret_check_result_maps_to_check_result_format() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let file = tmp.path().join("leak.ts");
+        let secret = "abcdabcdabcdabcdabcdabcdabcdabcdabcdabcd";
+        std::fs::write(&file, format!("aws_secret_access_key='{secret}'")).unwrap();
+
+        let files = [file.to_string_lossy().to_string()];
+        let file_refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let config = anvil_checks::secret::SecretCheckConfig::default();
+        let root_str = tmp.path().to_string_lossy().to_string();
+        let result = anvil_checks::secret::run_secret_check(&file_refs, &config, Some(&root_str));
+
+        // Verify the mapping logic used in run_check_secret produces the
+        // expected format with pattern name in brackets.
+        let locations: Vec<String> = result
+            .findings
+            .iter()
+            .map(|f| format!("{}:{} [{}]", f.file, f.line, f.pattern_name))
+            .collect();
+        assert!(!locations.is_empty());
+        assert!(
+            locations[0].contains("[AWS Secret Key]"),
+            "location should include pattern name in brackets, got: {}",
+            locations[0]
+        );
+    }
+
+    // ── Validate check names ──────────────────────────────────────────
+
+    #[test]
+    fn validate_check_names_accepts_known() {
+        let names: std::collections::HashSet<&str> = ["lint", "secret"].into_iter().collect();
+        assert!(validate_check_names(&names).is_ok());
+    }
+
+    #[test]
+    fn validate_check_names_rejects_unknown() {
+        let names: std::collections::HashSet<&str> = ["lint", "bogus"].into_iter().collect();
+        let err = validate_check_names(&names).unwrap_err();
+        assert!(err.to_string().contains("bogus"));
+    }
+
+    #[test]
+    fn validate_check_names_empty_is_ok() {
+        let names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        assert!(validate_check_names(&names).is_ok());
+    }
+
+    // ── GateResult serialisation ──────────────────────────────────────
+
+    #[test]
+    fn gate_result_serialises_to_json() {
+        let result = GateResult {
+            overall: true,
+            score: 100.0,
+            checks: vec![CheckResult {
+                name: "secret".to_string(),
+                passed: true,
+                score: 100.0,
+                message: "clean".to_string(),
+            }],
+            duration_ms: 42,
+        };
+        let json = serde_json::to_string(&result).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["overall"], true);
+        assert_eq!(parsed["checks"][0]["name"], "secret");
+        assert_eq!(parsed["duration_ms"], 42);
+    }
+
+    // ── run_single_check unknown ─────────────────────────────────────
+
+    #[test]
+    fn unknown_check_fails() {
+        let ctx = GateContext {
+            profile: None,
+            plan_files: std::collections::HashSet::new(),
+            plan_path: None,
+        };
+        let result = run_single_check("nonexistent", &ctx);
+        assert!(!result.passed);
+        assert!(result.message.contains("Unknown check"));
+    }
+
+    // ── Plan-scoped policy input filtering ────────────────────────────
+
+    #[test]
+    fn build_policy_input_filters_by_plan_files() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let src = tmp.path().join("src");
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("included.ts"), "export const x = 1;").unwrap();
+        std::fs::write(src.join("excluded.ts"), "export const y = 2;").unwrap();
+
+        let mut plan_files = std::collections::HashSet::new();
+        plan_files.insert("src/included.ts".to_string());
+
+        let input = build_policy_input(tmp.path(), None, None, &plan_files);
+        let files: Vec<&str> = input["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v.as_str())
+            .collect();
+
+        assert!(files.contains(&"src/included.ts"));
+        assert!(!files.contains(&"src/excluded.ts"));
+    }
+
+    // ── Extract plan files multi-line ─────────────────────────────────
+
+    #[test]
+    fn extract_plan_files_multi_line_continuation() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let plan = tmp.path().join("test.aps.md");
+        std::fs::write(
+            &plan,
+            "- **Files:** `src/a.ts`,\n  `src/b.ts`, `src/c.ts`\n- **Status:** Done\n",
+        )
+        .unwrap();
+
+        let files = extract_plan_files(&plan);
+        assert!(files.contains("src/a.ts"));
+        assert!(files.contains("src/b.ts"));
+        assert!(files.contains("src/c.ts"));
+    }
+
+    // ── Coverage edge cases ──────────────────────────────────────────
+
+    #[test]
+    fn coverage_lcov_empty_report_skips() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cov_dir = tmp.path().join("coverage");
+        std::fs::create_dir_all(&cov_dir).unwrap();
+        std::fs::write(
+            cov_dir.join("lcov.info"),
+            "SF:src/main.rs\nLF:0\nLH:0\nend_of_record\n",
+        )
+        .unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
+        assert!(result.passed);
+        assert!(result.message.contains("empty"));
+    }
+
+    #[test]
+    fn coverage_cobertura_unparseable_rate() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let cov_dir = tmp.path().join("coverage");
+        std::fs::create_dir_all(&cov_dir).unwrap();
+        std::fs::write(
+            cov_dir.join("cobertura.xml"),
+            r#"<?xml version="1.0"?><coverage></coverage>"#,
+        )
+        .unwrap();
+        let result = run_check_coverage(tmp.path(), 80.0);
+        assert!(!result.passed);
+        assert!(result.message.contains("Failed to parse"));
     }
 }

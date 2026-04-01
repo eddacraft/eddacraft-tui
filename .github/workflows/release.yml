@@ -284,19 +284,47 @@ jobs:
         run: |
           # Remove the granular manifests
           rm -f artifacts/*-dist-manifest.json
-      - name: Create GitHub Release
+      - name: Publish release to EddaCraft/anvil (public)
         env:
+          GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN }}
           PRERELEASE_FLAG:
             "${{ fromJson(steps.host.outputs.manifest).announcement_is_prerelease && '--prerelease'
             || '' }}"
           ANNOUNCEMENT_TITLE: '${{ fromJson(steps.host.outputs.manifest).announcement_title }}'
           ANNOUNCEMENT_BODY: '${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}'
-          RELEASE_COMMIT: '${{ github.sha }}'
+          RELEASE_TAG: '${{ needs.plan.outputs.tag }}'
         run: |
-          # Write and read notes from a file to avoid quoting breaking things
-          echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "Error: GH_TOKEN is not set. Please configure the ANVIL_RELEASES_TOKEN secret for this repository." >&2
+            exit 1
+          fi
 
-          gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+          echo "$ANNOUNCEMENT_BODY" > "$RUNNER_TEMP/notes.txt"
+
+          # Create the tag on the public repo first so gh release create
+          # does not auto-create it from the default branch tip.
+          # Uses the GitHub API to create a lightweight tag pointing at
+          # the public repo's HEAD. This tag is just a public version marker;
+          # any "Source code (zip/tar.gz)" archives on the Release are the
+          # public repo snapshot for this tag, not necessarily the commit used
+          # to build the published binaries.
+          PUBLIC_HEAD=$(gh api repos/EddaCraft/anvil/git/ref/heads/main -q '.object.sha')
+
+          if gh api repos/EddaCraft/anvil/git/ref/tags/"$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Tag $RELEASE_TAG already exists on EddaCraft/anvil; skipping tag creation."
+          else
+            gh api repos/EddaCraft/anvil/git/refs \
+              -f ref="refs/tags/$RELEASE_TAG" \
+              -f sha="$PUBLIC_HEAD"
+          fi
+
+          gh release create "$RELEASE_TAG" \
+            --repo EddaCraft/anvil \
+            --verify-tag \
+            ${PRERELEASE_FLAG:+"$PRERELEASE_FLAG"} \
+            --title "$ANNOUNCEMENT_TITLE" \
+            --notes-file "$RUNNER_TEMP/notes.txt" \
+            artifacts/*
 
   announce:
     needs:

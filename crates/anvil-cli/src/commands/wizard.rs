@@ -141,7 +141,8 @@ fn scaffold_project(state: &WizardState) -> anyhow::Result<()> {
         "checks": checks,
     });
     let anvilrc_content = serde_json::to_string_pretty(&config)?;
-    std::fs::write(&anvilrc_path, &anvilrc_content).context("failed to write .anvilrc")?;
+    crate::util::atomic_write(&anvilrc_path, anvilrc_content.as_bytes())
+        .context("failed to write .anvilrc")?;
 
     println!();
     println!("  Project scaffolded successfully!");

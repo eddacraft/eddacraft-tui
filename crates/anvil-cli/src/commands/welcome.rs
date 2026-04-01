@@ -1,5 +1,5 @@
 use std::io::IsTerminal;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anvil_tui::surfaces::welcome::{QuickStartOption, WelcomeState};
@@ -162,7 +162,7 @@ fn first_run_marker_path() -> PathBuf {
     PathBuf::from(".anvil").join("first-run")
 }
 
-fn create_first_run_marker(path: &PathBuf) -> anyhow::Result<()> {
+fn create_first_run_marker(path: &Path) -> anyhow::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).context("failed to create .anvil directory")?;
     }
@@ -179,7 +179,7 @@ fn create_first_run_marker(path: &PathBuf) -> anyhow::Result<()> {
     };
 
     let json = serde_json::to_string_pretty(&marker)?;
-    std::fs::write(path, json).context("failed to write first-run marker")?;
+    crate::util::atomic_write(path, json.as_bytes()).context("failed to write first-run marker")?;
 
     Ok(())
 }

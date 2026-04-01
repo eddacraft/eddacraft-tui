@@ -2,10 +2,8 @@ use std::fmt::Write;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use rand::Rng;
-use rand::SeedableRng;
-use rand::distributions::Alphanumeric;
 use rand::rngs::StdRng;
+use rand::{RngExt, SeedableRng, distr::Alphanumeric};
 
 /// Language distribution weights for synthetic repo generation.
 #[derive(Debug, Clone)]
@@ -165,7 +163,7 @@ pub fn generate_repo(spec: &RepoSpec, base_dir: &Path) -> std::io::Result<Synthe
         let depth = if spec.max_depth == 0 {
             0
         } else {
-            rng.gen_range(0..=spec.max_depth)
+            rng.random_range(0..=spec.max_depth)
         };
 
         let mut dir = root.clone();
@@ -175,7 +173,7 @@ pub fn generate_repo(spec: &RepoSpec, base_dir: &Path) -> std::io::Result<Synthe
         }
         fs::create_dir_all(&dir)?;
 
-        let roll = rng.gen_range(0..total_weight);
+        let roll = rng.random_range(0..total_weight);
         let ext = spec.language_mix.extension_for(roll);
 
         let name_suffix: String = (0..6).map(|_| rng.sample(Alphanumeric) as char).collect();

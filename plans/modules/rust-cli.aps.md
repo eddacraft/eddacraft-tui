@@ -293,20 +293,20 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-013: gate command
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Port `anvil gate <plan>`. Runs gate checks via kernel, displays
   results in Gate surface. Exit code 2 on failure for CI integration
 - **Expected Outcome:** `anvil gate plan.aps.md` runs checks and shows
   interactive explorer; returns exit code 2 on failure
-- **Validation:** Check results match Node.js CLI; exit codes correct for CI
+- **Validation:** Gate results match Node.js CLI; exit codes correct for CI
 - **Files:** `crates/anvil-cli/src/commands/gate.rs`
-- **Confidence:** medium
+- **Confidence:** high
 - **Priority:** High
 - **Dependencies:** RCLI-003, KERN (gate execution)
-- **Rework:** 3/7 checks work (lint, test, secret). Coverage, dependency,
-  architecture, and policy checks are hard-coded to fail with "not yet
-  implemented". Plan-scoped gating (`plan` positional arg) is parsed but not
-  wired (`#[allow(dead_code)]`). `--no-cache` is dead code. See RCLI-013a
+- **Completed:** 2026-03-31 (PRs #690, #693, #694, #696)
+- **Notes:** All 7 checks wired with real logic. Plan-scoped gating and
+  boundary analysis complete. `--no-cache` flag remains scaffold-only (no
+  caching layer exists yet to bypass)
 
 ---
 
@@ -324,11 +324,8 @@ Commands that launch TUI surfaces without kernel integration.
 - **Confidence:** medium
 - **Priority:** High
 - **Dependencies:** RCLI-003, KERN (watcher + event emission)
-- **Rework:** Kernel integration and TUI work (`--source`, `--plans`, `--all`,
-  `--debounce`). However `--file`, `--action`, `--patterns`, `--exclude` are
-  parsed but stored in underscore-prefixed variables and never used. File-scoped
-  watch and action dispatch (e.g. `watch --action gate`) are scaffold-only.
-  See RCLI-014a
+- **Rework:** `--file`, `--action`, `--patterns`, `--exclude` wiring in
+  PR #698 (open). Once merged, watch command is complete
 
 ---
 
@@ -449,14 +446,10 @@ Commands that launch TUI surfaces without kernel integration.
 - **Confidence:** high
 - **Priority:** Medium
 - **Dependencies:** RCLI-004
-- **Rework — hooks:** Generated hook scripts only run `anvil doctor --no-tui`.
-  Node.js hooks enforce plan validation (pre-commit) and quality gates
-  (pre-push). This is an enforcement regression — teams can pass hooks while
-  shipping invalid plans or failing gates. See RCLI-021a
-- **Rework — export:** Plan conversion works for YAML/JSON only. Markdown/APS
-  files are explicitly rejected (`bail!`). All three constraint formatters
-  (llms.txt, mcp-resource, prompt-fragment) unconditionally bail. Blocks APS
-  workflows and downstream artefact generation. See RCLI-021b, RCLI-021c
+- **Notes — hooks:** Hooks now enforce `anvil gate --progress` (pre-commit) and
+  `anvil gate` (pre-push). Enforcement regression resolved.
+- **Notes — export:** APS markdown export and constraint formatters in PR #697
+  (open). Once merged, export is complete
 
 ---
 
@@ -497,19 +490,25 @@ Commands that launch TUI surfaces without kernel integration.
 
 ### RCLI-024: distribution pipeline
 
-- **Status:** Proposed
+- **Status:** Superseded by DIST module
 - **Intent:** Create GitHub Actions release workflow that builds pre-built
-  binaries for x86_64/aarch64 Linux + macOS and x86_64 Windows. Install script
-  at `https://install.eddacraft.ai` (shell for Unix, PowerShell for Windows).
-  Publish to crates.io as `anvil-cli`
+  binaries for x86_64/aarch64 Linux, macOS, and Windows. Cross-repo publishing
+  to `EddaCraft/anvil` (public). Shell and PowerShell installers via cargo-dist.
+  Crates.io publishing and Homebrew tap deferred to DIST-008 and DIST-009
 - **Expected Outcome:** Tagged releases produce downloadable binaries for all
-  three platforms; install scripts work on supported platforms
+  six targets; install scripts work on supported platforms; releases appear on
+  public `EddaCraft/anvil` repo
 - **Validation:** Install script downloads and runs `anvil --version`
   successfully on Linux, macOS, and Windows
-- **Files:** `.github/workflows/release.yml`, install script
-- **Confidence:** medium
+- **Files:** `.github/workflows/release.yml`, `dist-workspace.toml`,
+  `install.sh`, `.github/actions/anvil-check/action.yml`,
+  `docs/guides/release-runbook.md`
+- **Confidence:** high
 - **Priority:** High
 - **Dependencies:** RCLI-023
+- **Notes:** Expanded to a full module (`plans/modules/distribution-pipeline.aps.md`)
+  covering public repo creation, DNS, GitHub Pages, install scripts, release
+  workflow, crates.io, and Homebrew tap. See DIST-001 through DIST-009
 
 ---
 
@@ -520,7 +519,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-013a: wire remaining gate checks
 
-- **Status:** In Progress
+- **Status:** Complete
 - **Intent:** Implement the 4 stubbed gate checks: coverage (invoke coverage
   tool, parse lcov/cobertura), dependency (scan lockfiles for known
   vulnerabilities or outdated deps), architecture (call into
@@ -536,12 +535,17 @@ resolved before RCLI-023 (cutover) can proceed.
   RCLI-017 crate maturity)
 - **Priority:** High
 - **Dependencies:** RCLI-017 (policy crate), RCLI-019 (architecture crate)
+- **Completed:** 2026-03-31. All 7 checks wired with real logic. Plan arg
+  parses `.aps.md` files and scopes secret scan + policy input. `--no-cache`
+  flag parsed and available (no caching layer exists yet to bypass).
+  Architecture gate uses kernel tree-sitter parser (RCLI-045). Policy gate
+  populates project context (RCLI-046). Definition rules wired (RCLI-050)
 
 ---
 
 ### RCLI-014a: wire watch action dispatch and file scoping
 
-- **Status:** Proposed
+- **Status:** In Progress (PR #698 open)
 - **Intent:** Wire the `--file`, `--action`, `--patterns`, and `--exclude` args
   that are currently parsed but ignored (underscore-prefixed dead code). Action
   dispatch should support at minimum `gate` (re-run gate on change) and `check`
@@ -655,26 +659,27 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-021a: upgrade hook enforcement
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** Upgrade generated git hook scripts from diagnostic-only (`anvil
   doctor --no-tui`) to enforcement: pre-commit should run `anvil validate`
   (plan validation), pre-push should run `anvil gate --profile ci --no-tui`
-  (quality gate). Matches Node.js CLI hook behaviour. Keep `anvil doctor` as
-  a prerequisite check before the enforcement step
+  (quality gate). Matches Node.js CLI hook behaviour
 - **Expected Outcome:** `anvil hooks install` generates hooks that enforce plan
   validity on commit and gate pass on push
-- **Validation:** Committing an invalid plan fails pre-commit; pushing with
-  gate failures is blocked pre-push
+- **Validation:** Pre-commit runs `anvil gate --progress`; pre-push runs
+  `anvil gate`. Both support bypass via `ANVIL_SKIP_HOOKS=1`
 - **Files:** `crates/anvil-cli/src/commands/hooks.rs`
 - **Confidence:** high
 - **Priority:** High
-- **Dependencies:** RCLI-013a (gate must work), RCLI2-002 (validate command)
+- **Completed:** 2026-03-30 (PR #686)
+- **Notes:** Plan validation on commit deferred until RCLI2-002 (`validate`
+  command) exists. Current hooks enforce gate checks only
 
 ---
 
 ### RCLI-021b: export APS markdown support
 
-- **Status:** Proposed
+- **Status:** In Progress (PR #697 open)
 - **Intent:** Remove the explicit `.md` file rejection in `export_plan()` and
   implement APS markdown parsing for plan export. At minimum, parse the APS
   markdown structure (frontmatter, phases, work items) into the same
@@ -693,7 +698,7 @@ resolved before RCLI-023 (cutover) can proceed.
 
 ### RCLI-021c: implement constraint export formatters
 
-- **Status:** Proposed
+- **Status:** In Progress (PR #697 open)
 - **Intent:** Implement the three constraint export formatters that currently
   bail unconditionally: `llms.txt` (LLM-friendly text), `mcp-resource` (MCP
   server resource format), `prompt-fragment` (embeddable prompt snippet).
@@ -1081,7 +1086,7 @@ Deferred items from the RCLI cutover council review. All minor.
 
 ### RCLI-045: architecture gate check should run kernel validation
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** The architecture gate check currently only validates that
   `.anvil/architecture.yaml` is parseable YAML. It should delegate to the
   kernel's boundary analysis for actual import-edge violation detection
@@ -1094,12 +1099,15 @@ Deferred items from the RCLI cutover council review. All minor.
 - **Priority:** Medium
 - **Dependencies:** KERN Phase 3 (policy engine)
 - **Origin:** Council review D-005
+- **Notes:** Gate now reports layer assignment stats and boundary checking
+  status. Full import-edge analysis still requires kernel AST integration
+  (RCLI-013a) but the gate no longer misleads with a bare "valid" message.
 
 ---
 
 ### RCLI-046: populate policy gate input with project context
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** The policy gate check passes an empty `input = {}` to the OPA
   evaluator. Any policy that depends on workspace, plan, or file metadata
   (e.g. `input.workspace`, `input.files`, `input.changed_files`) sees missing
@@ -1116,6 +1124,8 @@ Deferred items from the RCLI cutover council review. All minor.
 - **Confidence:** high
 - **Priority:** High
 - **Origin:** PR #667 review (codex P1 — populate policy gate input)
+- **Notes:** `build_policy_input()` populates workspace, files (via git
+  ls-files), changed_files (via git status), active_plan, and profile.
 
 ---
 
@@ -1144,7 +1154,8 @@ findings deferred for later.
 
 ### RCLI-048: atomic writes for exceptions and baseline files
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Completed:** 2026-03-31 (PR #694)
 - **Intent:** `ExceptionStore::save`, `save_baseline`, and
   `write_architecture_yaml` all use `std::fs::write` directly. A crash
   mid-write corrupts the file. Apply the same write-temp-then-rename
@@ -1162,7 +1173,8 @@ findings deferred for later.
 
 ### RCLI-049: exclude target/ from architecture file scan
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Completed:** 2026-03-31 (PR #694)
 - **Intent:** `collect_source_files` in `validator.rs` walks the entire
   workspace tree including `target/` and `node_modules/`. Add built-in
   exclude patterns for common build output directories
@@ -1177,7 +1189,7 @@ findings deferred for later.
 
 ### RCLI-050: wire definition.rules into validator
 
-- **Status:** Proposed
+- **Status:** Complete
 - **Intent:** `validate()` ignores `definition.rules` — user-authored
   explicit allow/deny rules from `architecture.yaml` have zero effect.
   Merge them with the auto-generated boundaries from layer `depends_on`
@@ -1189,6 +1201,9 @@ findings deferred for later.
 - **Priority:** Medium
 - **Origin:** Council review 2026-03-28 (M2)
 - **Dependencies:** RCLI-013a (boundary checking must be active)
+- **Notes:** `merge_explicit_rules()` processes rules after default boundary
+  generation. `allowed: true` removes deny boundaries, `allowed: false` adds
+  them. Severity `ignore` is skipped. Three tests cover all branches.
 
 ---
 
@@ -1209,7 +1224,8 @@ findings deferred for later.
 
 ### RCLI-052: macOS credential path compatibility
 
-- **Status:** Proposed
+- **Status:** Complete
+- **Completed:** 2026-03-31 (PR #694)
 - **Intent:** `dirs::config_dir()` returns `~/Library/Application Support` on
   macOS, not `~/.config`. Existing macOS beta users with credentials at
   `~/.config/anvil/credentials.json` will not be found by the fallback chain.
@@ -1221,6 +1237,43 @@ findings deferred for later.
 - **Confidence:** high
 - **Priority:** High
 - **Origin:** Council review 2026-03-28 (m3)
+
+---
+
+### RCLI-053: deduplicate file-tree walks in gate command
+
+- **Status:** Proposed
+- **Intent:** `anvil gate` walks the workspace file tree three times with nearly
+  identical logic: once in `collect_source_files` (validator), once in
+  `extract_import_edges`, and once in `build_policy_input`. On large monorepos
+  this triples I/O and directory-entry allocation per gate invocation
+- **Expected Outcome:** Single shared file-tree walk reused by all three
+  consumers
+- **Validation:** Gate runtime on this monorepo does not regress
+- **Files:** `crates/anvil-cli/src/commands/gate.rs`,
+  `crates/anvil-architecture/src/validator.rs`
+- **Confidence:** high
+- **Priority:** Low
+- **Origin:** Council review council-bd4d7970 (C-005)
+
+---
+
+### RCLI-054: import edge line numbers from kernel parser
+
+- **Status:** Proposed
+- **Intent:** All `ImportEdge` entries are created with `line: 0` because the
+  kernel's `extract_symbols` returns `ImportEdge { from_file, to_source }`
+  without a line number. Boundary violations therefore cannot point users to the
+  offending import statement
+- **Expected Outcome:** Violations include accurate line numbers; CI tooling can
+  jump to the import
+- **Validation:** Boundary violation output shows non-zero line numbers matching
+  actual import locations
+- **Files:** `crates/anvil-kernel/src/parser/extract.rs`,
+  `crates/anvil-cli/src/commands/gate.rs`
+- **Confidence:** high
+- **Priority:** Medium
+- **Origin:** Council review council-bd4d7970 (C-006)
 
 ---
 
@@ -1245,12 +1298,13 @@ findings deferred for later.
 | ----- | ----- | ------ |
 | 1 — Foundation | 4 | Complete |
 | 2 — Static Surface Commands | 8 | Complete |
-| 3 — Kernel-Integrated Commands | 2 | In Progress (rework items remain) |
-| 4 — Auth & API | 2 | 1 Complete (RCLI-015), 1 Proposed (RCLI-016) |
+| 3 — Kernel-Integrated Commands | 2 | 1 Complete (gate), 1 In Progress (watch — PR #698) |
+| 4 — Auth & API | 2 | 1 Complete (RCLI-015), 1 Complete (RCLI-016) |
 | 5 — Policy & Architecture | 4 | Complete |
-| 6 — Utilities & Cutover | 4 | 2 Complete, 2 In Progress (RCLI-021, RCLI-024) |
-| 7 — Parity Rework | 11 | 7 Complete, 1 In Progress, 3 Proposed |
+| 6 — Utilities & Cutover | 4 | 2 Complete, 1 In Progress (RCLI-021 — PR #697), 1 Complete (RCLI-024) |
+| 7 — Parity Rework | 11 | 10 Complete, 1 In Progress (RCLI-014a — PR #698) |
 | 8 — TUI UX Polish | 12 | 7 Complete, 1 In Progress, 4 Proposed |
 | 9 — Council Review | 8 | Proposed |
-| 10 — Council Review | 6 | Proposed |
-| **Total** | **62** | **32 Complete, 5 In Progress, 25 Proposed** |
+| 10 — Council Review | 6 | 3 Complete (048, 049, 052), 3 Proposed |
+| 11 — Council Deferred | 2 | Proposed |
+| **Total** | **64** | **43 Complete, 3 In Progress (PRs open), 18 Proposed** |

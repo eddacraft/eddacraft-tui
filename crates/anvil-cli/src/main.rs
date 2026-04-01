@@ -2,6 +2,7 @@ mod auth;
 mod commands;
 mod output;
 mod tui;
+mod util;
 
 use std::process::ExitCode;
 
@@ -45,8 +46,12 @@ struct Cli {
 enum Commands {
     /// Run a full project audit.
     Audit(commands::audit::AuditArgs),
+    /// Analyse files for architecture violations and anti-patterns (planless mode).
+    Check(commands::check::CheckArgs),
     /// Run diagnostic checks on your environment.
     Doctor(commands::doctor::DoctorArgs),
+    /// Track architecture drift over time.
+    Drift(commands::drift::DriftArgs),
     /// Show project status and health.
     Status(commands::status::StatusArgs),
     /// Interactive guided tutorial.
@@ -64,6 +69,9 @@ enum Commands {
     Admin(commands::admin::AdminArgs),
     /// Run gate checks against the current project.
     Gate(commands::gate::GateArgs),
+    /// Configure gate check settings and thresholds.
+    #[command(name = "gate-config")]
+    GateConfig(commands::gate_config::GateConfigArgs),
     /// Start file-watching mode with live gate checks.
     Watch(commands::watch::WatchArgs),
     /// Export constraints and configuration.
@@ -76,6 +84,8 @@ enum Commands {
     Auth(commands::auth::AuthArgs),
     /// Manage and evaluate policies.
     Policy(commands::policy::PolicyArgs),
+    /// Validate an APS plan file (structure, task format, hash integrity).
+    Validate(commands::validate::ValidateArgs),
     /// Log in to Anvil (alias for `auth login`).
     #[command(hide = true)]
     Login(commands::auth::LoginArgs),
@@ -94,9 +104,12 @@ fn requires_auth(cmd: &Commands) -> bool {
     match cmd {
         // Auth-gated commands
         Commands::Audit(_)
+        | Commands::Check(_)
+        | Commands::Drift(_)
         | Commands::Status(_)
         | Commands::Admin(_)
         | Commands::Gate(_)
+        | Commands::GateConfig(_)
         | Commands::Watch(_)
         | Commands::Export(_)
         | Commands::Architecture(_)
@@ -114,6 +127,7 @@ fn requires_auth(cmd: &Commands) -> bool {
         | Commands::New(_)
         | Commands::Wizard(_)
         | Commands::Hooks(_)
+        | Commands::Validate(_)
         | Commands::Login(_)
         | Commands::Logout(_) => false,
     }
@@ -196,7 +210,9 @@ fn main() -> ExitCode {
 
     let result = match &cli.command {
         Commands::Audit(args) => commands::audit::run(args, &cli.global),
+        Commands::Check(args) => commands::check::run(args, &cli.global),
         Commands::Doctor(args) => commands::doctor::run(args, &cli.global),
+        Commands::Drift(args) => commands::drift::run(args, &cli.global),
         Commands::Status(args) => commands::status::run(args, &cli.global),
         Commands::Tutorial(args) => commands::tutorial::run(args, &cli.global),
         Commands::Welcome(args) => commands::welcome::run(args, &cli.global),
@@ -206,11 +222,13 @@ fn main() -> ExitCode {
         Commands::Admin(args) => commands::admin::run(args, &cli.global),
         Commands::Auth(args) => commands::auth::run(args, &cli.global),
         Commands::Gate(_) => unreachable!("handled above"),
+        Commands::GateConfig(args) => commands::gate_config::run(args, &cli.global),
         Commands::Watch(args) => commands::watch::run(args, &cli.global),
         Commands::Export(args) => commands::export::run(args, &cli.global),
         Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
         Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
         Commands::Policy(args) => commands::policy::run(args, &cli.global),
+        Commands::Validate(args) => commands::validate::run(args, &cli.global),
         Commands::Login(args) => commands::auth::run_login(args, &cli.global),
         Commands::Logout(args) => commands::auth::run_logout(args, &cli.global),
         Commands::Whoami(args) => commands::auth::run_whoami(args, &cli.global),
@@ -219,6 +237,9 @@ fn main() -> ExitCode {
     match result {
         Ok(()) => ExitCode::from(EXIT_OK),
         Err(err) => {
+            if err.is::<output::AlreadyReported>() {
+                return ExitCode::from(EXIT_ERROR);
+            }
             if cli.global.json {
                 eprintln!("{}", serde_json::json!({ "error": format!("{err:#}") }));
             } else {
@@ -241,6 +262,21 @@ mod tests {
     }
 
     // ── requires_auth: commands that MUST require auth ──────────────
+
+    #[test]
+    fn requires_auth_check() {
+        assert!(requires_auth(&parse_command(&["check", "--all"])));
+    }
+
+    #[test]
+    fn requires_auth_drift() {
+        assert!(requires_auth(&parse_command(&["drift", "list"])));
+    }
+
+    #[test]
+    fn requires_auth_gate_config() {
+        assert!(requires_auth(&parse_command(&["gate-config", "--list"])));
+    }
 
     #[test]
     fn requires_auth_gate() {
@@ -329,6 +365,11 @@ mod tests {
     #[test]
     fn bypass_auth_hooks() {
         assert!(!requires_auth(&parse_command(&["hooks", "install"])));
+    }
+
+    #[test]
+    fn bypass_auth_validate() {
+        assert!(!requires_auth(&parse_command(&["validate", "plan.aps.md"])));
     }
 
     #[test]

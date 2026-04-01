@@ -41,7 +41,7 @@ describe('DNS resources', () => {
   it('creates DNS RecordSet resources for eddacraft.ai', () => {
     const recordSets = resources.filter((r) => r.type === 'azure-native:dns:RecordSet');
 
-    expect(recordSets.length).toBe(6);
+    expect(recordSets.length).toBe(7);
 
     const names = recordSets.map((r) => r.name);
     expect(names).toContain('root-txt-eddacraft-ai');
@@ -50,6 +50,7 @@ describe('DNS resources', () => {
     expect(names).toContain('resend-dkim-eddacraft-ai');
     expect(names).toContain('mx-send-updates-eddacraft-ai');
     expect(names).toContain('txt-send-updates-eddacraft-ai');
+    expect(names).toContain('install-cname-eddacraft-ai');
   });
 
   it('creates all RecordSets as children of the DnsZone component', () => {
@@ -58,7 +59,7 @@ describe('DNS resources', () => {
 
     // Verify the component exists and all expected records were registered
     expect(zones.length).toBe(1);
-    expect(recordSets.length).toBe(6);
+    expect(recordSets.length).toBe(7);
 
     // Pulumi mocks don't expose parent in MockResourceArgs, so we verify
     // the component structure indirectly: the DnsZone constructor is the

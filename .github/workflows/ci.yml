@@ -5,22 +5,10 @@ on:
     branches:
       - main
       - dev
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'plans/**'
-      - '.claude/**'
-      - 'LICENSE'
   pull_request:
     branches:
       - main
       - dev
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - 'plans/**'
-      - '.claude/**'
-      - 'LICENSE'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
