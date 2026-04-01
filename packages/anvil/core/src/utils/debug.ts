@@ -88,8 +88,14 @@ export function isDebugEnabled(namespace?: DebugNamespace): boolean {
  * @returns The sanitized string with secrets replaced by [REDACTED]
  */
 export function sanitizeForLog(value: string): string {
+  // Strip control characters that enable log injection (newlines, carriage returns)
+  let sanitized = value.replace(/[\r\n]/g, '\u23CE');
+
+  // Strip ANSI escape sequences that could forge coloured output
+  sanitized = sanitized.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+
   // Redact strings starting with common secret prefixes
-  let sanitized = value.replace(/\b(sk-|ghp_|ghu_)[A-Za-z0-9_-]+/g, '[REDACTED]');
+  sanitized = sanitized.replace(/\b(sk-|ghp_|ghu_)[A-Za-z0-9_-]+/g, '[REDACTED]');
 
   // Redact "Bearer <token>" patterns
   sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9_.+/=-]+/g, 'Bearer [REDACTED]');

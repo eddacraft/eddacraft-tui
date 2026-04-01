@@ -23,6 +23,16 @@ function isDebugEnabled(): boolean {
   return false;
 }
 
+/**
+ * Sanitise a string for safe log output.
+ *
+ * Strips newlines/carriage returns (log injection) and ANSI escape sequences
+ * (log forging) before the value reaches console.debug.
+ */
+function sanitiseForLog(value: string): string {
+  return value.replace(/[\r\n]/g, '\u23CE').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+}
+
 function debug(namespace: DebugNamespace, message: string, data?: unknown): void {
   if (!isDebugEnabled()) {
     return;
@@ -30,19 +40,22 @@ function debug(namespace: DebugNamespace, message: string, data?: unknown): void
 
   const timestamp = new Date().toISOString();
   const prefix = `[${timestamp}] [anvil:${namespace}]`;
+  const sanitisedMessage = sanitiseForLog(message);
 
   /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
-      console.debug('%s %s: %s', prefix, message, data.message);
+      console.debug('%s %s: %s', prefix, sanitisedMessage, sanitiseForLog(data.message));
       if (data.stack) {
-        console.debug('%s Stack: %s', prefix, data.stack);
+        console.debug('%s Stack: %s', prefix, sanitiseForLog(data.stack));
       }
+    } else if (typeof data === 'string') {
+      console.debug('%s %s: %s', prefix, sanitisedMessage, sanitiseForLog(data));
     } else {
-      console.debug('%s %s:', prefix, message, data);
+      console.debug('%s %s:', prefix, sanitisedMessage, data);
     }
   } else {
-    console.debug('%s %s', prefix, message);
+    console.debug('%s %s', prefix, sanitisedMessage);
   }
   /* eslint-enable no-console */
 }
