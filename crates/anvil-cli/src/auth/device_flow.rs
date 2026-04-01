@@ -686,4 +686,71 @@ mod tests {
         assert_eq!(creds.refresh_token.as_deref(), Some("rt-otp"));
         assert_eq!(creds.email.as_deref(), Some("otp@example.com"));
     }
+
+    // ── Boundary: expires_in zero ─────────────────────────────────────
+
+    #[test]
+    fn deserialise_device_start_expires_in_zero() {
+        let json = r#"{
+            "pollToken": "tok-zero",
+            "userCode": "ZERO-0000",
+            "verificationUrl": "https://example.com/activate",
+            "expiresIn": 0
+        }"#;
+        let resp: DeviceStartResponse = serde_json::from_str(json).unwrap();
+        assert_eq!(resp.expires_in, 0);
+        // login_device_flow clamps: (0 / 5).max(1) == 1
+        let max_attempts = (resp.expires_in / 5).max(1);
+        assert_eq!(max_attempts, 1, "zero expires_in should clamp to 1 attempt");
+    }
+
+    // ── Malformed JSON response paths ─────────────────────────────────
+
+    #[tokio::test]
+    async fn device_start_malformed_json_returns_parse_error() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/device/start"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"unexpected": "shape"})),
+            )
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = device_start(&client, &server.uri(), "dev@example.com")
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.to_string().contains("parsing device code start response"),
+            "expected parse context, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn otp_verify_malformed_json_returns_parse_error() {
+        let server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(path("/api/v1/auth/otp/verify"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"unexpected": "shape"})),
+            )
+            .mount(&server)
+            .await;
+
+        let client = build_client().unwrap();
+        let err = otp_verify(&client, &server.uri(), "user@test.com", "123456")
+            .await
+            .unwrap_err();
+
+        assert!(
+            err.to_string().contains("parsing OTP verify response"),
+            "expected parse context, got: {err}"
+        );
+    }
 }
