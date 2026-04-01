@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::GlobalArgs;
 
-#[derive(Debug, Args)]
+#[derive(Debug, Default, Args)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct GateArgs {
     /// Plan file to run gates against (omit for full codebase scan)
@@ -943,15 +943,7 @@ fn validate_check_names(names: &std::collections::HashSet<&str>) -> Result<()> {
 /// Run all gate checks with default settings and return TUI-ready data.
 pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
     let start = std::time::Instant::now();
-    let default_args = GateArgs {
-        plan: None,
-        profile: None,
-        skip_checks: None,
-        only_checks: None,
-        fail_fast: false,
-        progress: false,
-        list_profiles: false,
-    };
+    let default_args = GateArgs::default();
     let checks = run_checks(&default_args).unwrap_or_default();
 
     let passed_count = checks.iter().filter(|c| c.passed).count();
@@ -1199,6 +1191,13 @@ mod tests {
     fn args_parses_list_profiles() {
         let w = Wrapper::try_parse_from(["test", "--list-profiles"]).unwrap();
         assert!(w.inner.list_profiles);
+    }
+
+    // Regression guard: ensures --no-cache is not re-introduced (was dead code, removed in TCOV-006).
+    #[test]
+    fn no_cache_flag_removed() {
+        let result = Wrapper::try_parse_from(["test", "--no-cache"]);
+        assert!(result.is_err(), "--no-cache should not be accepted");
     }
 
     #[test]
