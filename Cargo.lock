@@ -841,7 +841,7 @@ dependencies = [
 [[package]]
 name = "eddacraft-tui"
 version = "0.1.0"
-source = "git+https://github.com/eddacraft/eddacraft-tui.git?branch=main#f00d548204838ef73bebb956e89be20355b5ae7e"
+source = "git+https://github.com/eddacraft/eddacraft-tui.git?rev=f00d548204838ef73bebb956e89be20355b5ae7e#f00d548204838ef73bebb956e89be20355b5ae7e"
 dependencies = [
  "crossterm",
  "ratatui",

@@ -37,7 +37,7 @@ serde_yaml = "0.9"
 toml = "1"
 
 # TUI
-eddacraft-tui = { git = "https://github.com/eddacraft/eddacraft-tui.git", branch = "main" }
+eddacraft-tui = { git = "https://github.com/eddacraft/eddacraft-tui.git", rev = "f00d548204838ef73bebb956e89be20355b5ae7e" }
 ratatui = "0.30"
 crossterm = "0.29"
 
