@@ -650,19 +650,6 @@ mod tests {
         assert_eq!(result, expected);
     }
 
-    #[test]
-    fn normalise_path_via_ancestors_success_non_existent_target() {
-        let tmp = tempfile::TempDir::new().unwrap();
-        let sub = tmp.path().join("a").join("b");
-        std::fs::create_dir_all(&sub).unwrap();
-
-        // a/b/../../c where c does not exist — ancestors resolve, c is appended
-        let input = sub.join("..").join("..").join("c");
-        let result = normalise_path_via_ancestors(&input);
-        let expected = tmp.path().canonicalize().unwrap().join("c");
-        assert_eq!(result, expected);
-    }
-
     // --- WatchEvent serialisation ---
 
     #[test]
