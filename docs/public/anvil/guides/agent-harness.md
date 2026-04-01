@@ -140,7 +140,13 @@ fi
 
 ### Pattern 4: Plan-First Workflow
 
-Require a plan before agent execution:
+:::info Planned
+
+Plan and session commands (`anvil plan create`, `anvil session start/end`) are
+planned for a future release. The pattern below illustrates the intended
+workflow.
+
+:::
 
 ```bash
 # 1. Create plan

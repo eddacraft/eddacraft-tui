@@ -18,7 +18,7 @@
 │                                                             │
 │  ┌──────────────┐  ┌──────────┐  ┌───────────┐  ┌───────┐  │
 │  │  anvil-cli   │  │ Website  │  │ MCP Server│  │VS Code│  │
-│  │  (TS + Ink)  │  │ (Next.js)│  │   (TS)    │  │  Ext  │  │
+│  │(Rust+Ratatui)│  │ (Next.js)│  │   (TS)    │  │  Ext  │  │
 │  └──────┬───────┘  └────┬─────┘  └─────┬─────┘  └───┬───┘  │
 └─────────┼───────────────┼──────────────┼────────────┼───────┘
           │               │              │            │
@@ -105,13 +105,13 @@
 
 ### Applications
 
-| Package          | Purpose                       | Status        |
-| ---------------- | ----------------------------- | ------------- |
-| `apps/anvil-cli` | CLI + Ink TUI (30+ commands)  | **[CURRENT]** |
-| `apps/website`   | Next.js dashboard + marketing | **[CURRENT]** |
-| `apps/anvil-api` | API server                    | **[CURRENT]** |
-| `apps/docs-site` | Documentation site            | **[CURRENT]** |
-| `apps/e2e`       | End-to-end test suite         | **[CURRENT]** |
+| Package            | Purpose                             | Status        |
+| ------------------ | ----------------------------------- | ------------- |
+| `crates/anvil-cli` | CLI + Ratatui TUI (Rust, 20+ commands) | **[CURRENT]** |
+| `apps/website`     | Next.js dashboard + marketing       | **[CURRENT]** |
+| `apps/anvil-api`   | API server                          | **[CURRENT]** |
+| `apps/docs-site`   | Documentation site                  | **[CURRENT]** |
+| `apps/e2e`         | End-to-end test suite               | **[CURRENT]** |
 
 ### Core Libraries
 
@@ -256,7 +256,7 @@ File System (chokidar) ──► FileWatcher ──► Debouncer ──► Watch
                                                                │
                                                     ┌──────────┼──────────┐
                                                     ▼          ▼          ▼
-                                              GateRunner  GitStatus   Ink TUI
+                                              GateRunner  GitStatus   Ratatui
                                               (full run)  Tracker    Dashboard
 ```
 
@@ -336,47 +336,34 @@ File System (notify-rs) ──► Watcher ──► Debounce/Merge Queue
 
 ## 6. TUI Surfaces
 
-### Current Ink TUI (React-based) [CURRENT]
+### Ratatui TUI (Rust) [CURRENT]
 
-Located in `apps/anvil-cli/src/tui/`:
+Located in `crates/eddacraft-tui/` (shared design system) + `crates/anvil-tui/`
+(Anvil-specific surfaces):
 
 **Shared Components:** Header, Container, Divider, Spinner, StatusBadge,
-Confirm, Select, TextInput, ProgressBar, LogPanel, ParallelProgress,
-QuickWinsPanel, ResultsDashboard, MermaidDiagram, ErrorBoundary
-
-**Command Surfaces:**
-
-| Surface  | Components                                   | Complexity |
-| -------- | -------------------------------------------- | ---------- |
-| Welcome  | `Welcome.tsx`                                | Simple     |
-| Doctor   | `Diagnostics.tsx`                            | Simple     |
-| Status   | `StatusDashboard.tsx` + 3 panels             | Medium     |
-| Init     | `InitWizard.tsx` + 5 step components         | Medium     |
-| Audit    | `AuditResults.tsx`                           | Medium     |
-| New      | `TemplateBrowser.tsx`                        | Medium     |
-| Gate     | `GateExplorer.tsx` + 3 panels                | Complex    |
-| Watch    | `WatchDashboard.tsx` + 4 panels              | Complex    |
-| Tutorial | `Tutorial.tsx` + Picker + 4 paths (23 steps) | Complex    |
-
-### Proposed Ratatui TUI (Rust) [PROPOSED]
-
-Located in `crates/eddacraft-tui/` (shared) + `crates/anvil-tui/` (planned):
-
-**Shared Components (Done):** Header, Container, Divider, Spinner, StatusBadge,
 Confirm, Select, TextInput, ProgressBar, StatusBar, LogPanel, ParallelProgress,
 QuickWinsPanel, ResultsDashboard
 
-**Planned Surfaces:** 1:1 port of all Ink surfaces above (PORT module, 15
-items), plus new kernel-native surfaces (RATS module, 7 items)
+**Command Surfaces (all ported from Ink, PORT 15/15 complete, RATS 7/7 complete):**
 
-### Migration Path
+| Surface  | Location                              | Complexity |
+| -------- | ------------------------------------- | ---------- |
+| Welcome  | `crates/anvil-tui/src/surfaces/welcome/`  | Simple     |
+| Doctor   | `crates/anvil-tui/src/surfaces/doctor/`   | Simple     |
+| Status   | `crates/anvil-tui/src/surfaces/status/`   | Medium     |
+| Init     | `crates/anvil-tui/src/surfaces/init/`     | Medium     |
+| Audit    | `crates/anvil-tui/src/surfaces/audit/`    | Medium     |
+| Browser  | `crates/anvil-tui/src/surfaces/browser/`  | Medium     |
+| Gate     | `crates/anvil-tui/src/surfaces/gate/`     | Complex    |
+| Watch    | `crates/anvil-tui/src/surfaces/watch/`    | Complex    |
+| Tutorial | `crates/anvil-tui/src/surfaces/tutorial/` | Complex    |
+| Wizard   | `crates/anvil-tui/src/surfaces/wizard/`   | Medium     |
 
-```
-Phase 1 (Coexistence):   Ink TUI (default)  │  Ratatui (--tui=ratatui)
-Phase 2 (Validation):    Ink TUI (default)  │  Ratatui (validated)
-Phase 3 (Cutover):       Ratatui (default)  │  Ink (--tui=ink fallback)
-Phase 4 (Removal):       Ratatui only       │  Node.js dependency removed
-```
+### Legacy Ink TUI (React-based) [REMOVED]
+
+The original Ink TUI (`apps/anvil-cli/src/tui/`) has been fully replaced by
+Ratatui. The Node.js CLI package (`@eddacraft/anvil-cli`) is deprecated.
 
 ---
 
@@ -450,8 +437,7 @@ Phase 4 (Removal):       Ratatui only       │  Node.js dependency removed
 | Interactive gate | Rust (embedded)   | Ratatui TUI | `anvil gate` interactive explorer      |
 | Watch mode       | Rust (foreground) | Ratatui TUI | `anvil watch` live dashboard           |
 | Daemon mode      | Rust (background) | Any client  | VS Code, MCP, dashboard consume events |
-| Legacy mode      | TypeScript        | Ink TUI     | `--engine legacy` fallback             |
-| Dual-run mode    | Both              | CLI diff    | `--engine dual` parity validation      |
+| Legacy mode      | TypeScript        | _Removed_   | _Deprecated — Node.js CLI retired_     |
 
 ---
 

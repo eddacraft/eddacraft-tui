@@ -112,7 +112,7 @@ Anvil's primary function: analysing your codebase for issues.
 **Commands to try:**
 
 ```bash
-anvil check              # Run a full scan
+anvil check --all        # Scan for anti-patterns and violations
 anvil watch              # Watch mode — re-scans on file changes
 ```
 

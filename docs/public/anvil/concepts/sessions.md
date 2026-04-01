@@ -99,7 +99,7 @@ Status: PASS
 | ----------- | ------------------------ | --------------------- |
 | Watch       | File save                | Inline terminal       |
 | Interactive | `anvil check --all`      | Full terminal UI      |
-| CI          | `anvil check --all --ci` | Machine-readable JSON |
+| CI          | `anvil gate --profile ci`| Structured exit codes |
 
 ## Artefacts
 

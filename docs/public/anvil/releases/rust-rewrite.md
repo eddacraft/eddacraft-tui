@@ -81,10 +81,18 @@ doesn't do so automatically.
 Most commands remain the same. `anvil watch`, `anvil init`, `anvil tutorial` —
 everything works identically from a user's perspective.
 
-:::note Command rename
+:::note Command changes
 
-`anvil check` has been renamed to `anvil gate` in the Rust CLI. The behaviour is
-identical — run all quality gates against the current project.
+The Node.js `anvil check` command has been split into two focused commands:
+
+- **`anvil check`** — static analysis: scans files for anti-patterns and
+  architecture violations. Use for quick file-level scanning.
+- **`anvil gate`** — quality gate: runs all check categories (lint, test,
+  coverage, dependency, secret, architecture, policy) with configurable
+  profiles (`dev`, `ci`, `production`).
+
+CI workflows that used `anvil check --all --ci` should migrate to
+`anvil gate --profile ci`.
 
 :::
 

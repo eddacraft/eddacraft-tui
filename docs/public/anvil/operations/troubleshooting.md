@@ -246,9 +246,9 @@ Anvil passing when it should fail.
 
 **Check:**
 
-- `--ci` flag is present
-- `failOnWarnings` setting if using warnings
-- Config is being read (check logs)
+- Using `anvil gate --profile ci` (not bare `anvil gate`)
+- Config is being read (check `anvil gate --list-profiles`)
+- Exit code `2` indicates gate failure (not `1`, which is a general error)
 
 ### GitHub Action Timeout
 

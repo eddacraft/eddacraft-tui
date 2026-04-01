@@ -49,20 +49,18 @@ jobs:
 
       - name: Run Anvil
         run: anvil gate --profile ci
-        env:
-          ANVIL_CI: true
 ```
 
 ### CI Mode Behaviour
 
-`--ci` flag changes behaviour:
+The `ci` profile adjusts behaviour for pipeline environments:
 
-| Aspect    | Interactive | CI Mode          |
-| --------- | ----------- | ---------------- |
-| Output    | Terminal UI | JSON lines       |
-| Colours   | Yes         | No               |
-| Exit code | 0/1         | 0/1/2 (warn)     |
-| Caching   | Enabled     | Disabled (clean) |
+| Aspect    | Interactive      | CI (`--profile ci`) |
+| --------- | ---------------- | ------------------- |
+| Output    | Terminal UI      | Plain text          |
+| Colours   | Yes              | No                  |
+| Exit code | 0 (pass) / 1    | 0 / 1 / 2 (fail)   |
+| Checks    | Profile-dependent| All checks enabled  |
 
 ### Exit Codes
 

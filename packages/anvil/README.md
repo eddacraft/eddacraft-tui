@@ -11,7 +11,7 @@ anvil/
 ├── core/        # @eddacraft/anvil-core - Pure domain logic (no I/O)
 ├── runtime/     # @eddacraft/anvil-runtime - Orchestration and I/O
 ├── policy/      # @eddacraft/anvil-policy - OPA/Rego policy wrappers
-└── sdk/         # @eddacraft/anvil-sdk - Client SDK (future)
+└── sdk/         # @eddacraft/anvil-sdk - Client SDK (planned, not yet created)
 ```
 
 ## Packages
@@ -89,6 +89,6 @@ apps → runtime → core → ports → contracts
 | core      | Scaffold | core/src/antipattern/, etc.   |
 | runtime   | Scaffold | core/src/gate/, cache/, watch |
 | policy    | Scaffold | core/src/gate/policy/         |
-| sdk       | Pending  | New package                   |
+| sdk       | Planned  | Not yet created               |
 
 Note: Scaffolds are in place. File migration to be completed.

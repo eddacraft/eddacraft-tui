@@ -67,11 +67,10 @@ anvil/
 
 | Component | Current              | Target                | Status   |
 | --------- | -------------------- | --------------------- | -------- |
-| CLI       | `apps/anvil-cli/`    | `apps/anvil-cli/`     | In place |
+| CLI       | `crates/anvil-cli/`  | `crates/anvil-cli/`   | In place |
 | Core      | `packages/anvil/*`   | `packages/anvil/*`    | In place |
 | Adapters  | `packages/adapters/` | `packages/adapters/*` | In place |
 | API       | `apps/anvil-api/`    | `apps/anvil-api/`     | In place |
-| UI        | `apps/anvil-ui/`     | `apps/anvil-ui/`      | In place |
 | Website   | `apps/website/`      | `apps/website/`       | In place |
 | Docs site | `apps/docs-site/`    | `apps/docs-site/`     | In place |
 | E2E       | `apps/e2e/`          | `apps/e2e/*`          | In place |

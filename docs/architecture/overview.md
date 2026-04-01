@@ -85,14 +85,13 @@ contracts (zero deps)
 
 ### Apps
 
-| App               | Purpose                                              |
-| ----------------- | ---------------------------------------------------- |
-| `apps/anvil-cli/` | CLI (Commander.js + Ink TUI) -- primary entry point. |
-| `apps/anvil-api/` | REST API (Hono + Vercel + Neon Postgres).            |
-| `apps/anvil-ui/`  | Web dashboard (in development).                      |
-| `apps/website/`   | Marketing site (Next.js).                            |
-| `apps/docs-site/` | Documentation (Docusaurus).                          |
-| `apps/e2e/`       | Playwright E2E tests.                                |
+| App                  | Purpose                                              |
+| -------------------- | ---------------------------------------------------- |
+| `crates/anvil-cli/`  | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
+| `apps/anvil-api/`    | REST API (Hono + Vercel + Neon Postgres).            |
+| `apps/website/`      | Marketing site + dashboard (Next.js).                |
+| `apps/docs-site/`    | Documentation (Docusaurus).                          |
+| `apps/e2e/`          | Playwright E2E tests.                                |
 
 ### Dependency Diagram
 
@@ -107,9 +106,8 @@ graph TD
     aps["aps<br/><small>APS parser/validator</small>"]
     mcp["mcp-server<br/><small>MCP tools & resources</small>"]
     vscode["vscode-extension<br/><small>Real-time diagnostics</small>"]
-    cli["anvil-cli<br/><small>Commander.js + Ink</small>"]
+    cli["anvil-cli<br/><small>Rust + clap + Ratatui</small>"]
     api["anvil-api<br/><small>Hono + Vercel</small>"]
-    ui["anvil-ui<br/><small>Web dashboard</small>"]
     kindling["kindling-integration<br/><small>Memory contracts</small>"]
 
     ports --> contracts
@@ -133,7 +131,6 @@ graph TD
     api --> runtime
     api --> core
     api --> contracts
-    ui --> api
     vscode --> runtime
     vscode --> core
     kindling --> contracts
@@ -147,7 +144,7 @@ graph TD
     class contracts,ports foundation
     class core,policy domain
     class runtime orchestration
-    class cli,api,ui,mcp,vscode surface
+    class cli,api,mcp,vscode surface
     class adapters,aps,kindling support
 ```
 
@@ -237,7 +234,7 @@ adapter over the same core runtime -- no surface contains domain logic.
 
 | Surface               | Technology                              | Primary Use                                                                   |
 | --------------------- | --------------------------------------- | ----------------------------------------------------------------------------- |
-| **CLI**               | Commander.js + Ink TUI                  | Developer workflow, CI/CD                                                     |
+| **CLI**               | Rust + clap + Ratatui TUI               | Developer workflow, CI/CD                                                     |
 | **VS Code Extension** | VS Code API                             | Real-time diagnostics on save                                                 |
 | **MCP Server**        | MCP protocol                            | AI code generation tools (check, gate, fix, suppress, status, query-boundary) |
 | **REST API**          | Hono + Vercel                           | Dashboard consumption                                                         |
@@ -250,7 +247,7 @@ adapter over the same core runtime -- no surface contains domain logic.
 graph LR
     runtime["runtime<br/>GateRunner + core"]
 
-    cli["CLI<br/>Commander.js + Ink"]
+    cli["CLI<br/>Rust + clap + Ratatui"]
     vscode["VS Code Extension<br/>on-save diagnostics"]
     mcp["MCP Server<br/>AI tools & resources"]
     api["REST API<br/>Hono + Vercel"]
@@ -526,8 +523,8 @@ sequenceDiagram
 | Runtime           | Node.js                 | >= 20    | Execution environment                              |
 | Package manager   | pnpm                    | >= 10.20 | Workspace management, strict isolation             |
 | Monorepo          | NX                      | 22.5     | Task orchestration, caching, dependency graph      |
-| CLI framework     | Commander.js            | --       | Command parsing and routing                        |
-| TUI               | Ink                     | 5.x      | Terminal UI components (React-based)               |
+| CLI framework     | clap (Rust)             | 4.x      | Command parsing and routing                        |
+| TUI               | Ratatui                 | --       | Terminal UI (native Rust)                          |
 | HTTP framework    | Hono                    | --       | REST API (Vercel-deployable)                       |
 | Testing           | Vitest                  | 4.x      | Unit and integration tests                         |
 | E2E testing       | Playwright              | --       | End-to-end browser and CLI tests                   |
@@ -555,7 +552,7 @@ All decisions are recorded as ADRs in [`plans/decisions/`](../plans/decisions/).
 | [D-002](../plans/decisions/002-warnings-over-blocks.md) | Warnings over blocks | Warnings do not block by default. Exit code 0 for warnings. CI opt-in for `fail-on-warnings: true`.                            |
 | [D-003](../plans/decisions/003-new-edges-only.md)       | New edges only       | Existing violations are baselined. Only new violations introduced after the baseline generate warnings.                        |
 | [D-004](../plans/decisions/004-suppression-syntax.md)   | Suppression syntax   | `@anvil-ignore WARNING-ID: reason` with optional `-until DATE` for time-boxed suppressions.                                    |
-| [D-005](../plans/decisions/005-ink-over-opentui.md)     | Ink over OpenTUI     | Ink for TUI -- production-ready, Node.js native, no Bun dependency. Re-evaluate when OpenTUI reaches 1.0 with Node.js support. |
+| [D-005](../plans/decisions/005-ink-over-opentui.md)     | Ink over OpenTUI     | _Superseded by Rust + Ratatui migration (see D-011a)._ Originally chose Ink; now replaced by native Ratatui TUI. |
 | [D-006](../plans/decisions/006-hybrid-dc-opa.md)        | Hybrid DC + OPA      | dependency-cruiser for static analysis, OPA for policy evaluation, with DC results fed into OPA input.                         |
 | [D-007](../plans/decisions/007-pulumi-iac.md)           | Pulumi for IaC       | TypeScript-native IaC using Pulumi open source. Manages Vercel, GitHub, and Azure DNS.                                         |
 

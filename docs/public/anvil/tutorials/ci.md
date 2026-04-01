@@ -151,16 +151,14 @@ CI runners use these exit codes to pass or fail the pipeline step.
 
 ## CI-Specific Options
 
-The `--ci` flag adjusts behaviour for pipeline environments:
+The `ci` profile adjusts behaviour for pipeline environments:
 
-- Outputs machine-readable JSON alongside human-readable text
+- Runs all check categories with strict thresholds
 - Disables watch mode and interactive prompts
-- Writes evidence files to `.anvil/evidence/`
-
-Override via environment variables:
+- Produces structured exit codes for pipeline integration
 
 ```bash
-ANVIL_CI=true ANVIL_FAIL_ON_WARNINGS=true anvil check --all
+anvil gate --profile ci
 ```
 
 ## Layered Protection Diagram

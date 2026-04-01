@@ -219,18 +219,18 @@ Create `.anvilrc.local` (gitignored):
 
 ### Environment Variables
 
-Override via environment:
+| Variable        | Description                    |
+| --------------- | ------------------------------ |
+| `ANVIL_CONFIG`  | Path to config file (.anvilrc) |
+| `ANVIL_DISABLE` | Disable Anvil entirely         |
 
-```bash
-ANVIL_FAIL_ON_WARNINGS=true anvil check --all
-```
+:::note Legacy variables
 
-| Variable                 | Description                    |
-| ------------------------ | ------------------------------ |
-| `ANVIL_CONFIG`           | Path to config file (.anvilrc) |
-| `ANVIL_CI`               | Force CI mode                  |
-| `ANVIL_FAIL_ON_WARNINGS` | Fail on warnings               |
-| `ANVIL_DISABLE`          | Disable Anvil entirely         |
+`ANVIL_CI` and `ANVIL_FAIL_ON_WARNINGS` were supported by the Node.js CLI
+but are not read by the Rust CLI. Use `anvil gate --profile ci` for CI mode
+and `anvil check --severity warning` to fail on warnings.
+
+:::
 
 ## Full Example
 
