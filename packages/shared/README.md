@@ -1,21 +1,26 @@
 # Shared Packages
 
-> **Status:** Placeholder for v1.1+
+Cross-cutting infrastructure packages used across the Anvil monorepo. Introduced
+by [ADR-015](../../plans/decisions/015-shared-packages.md) to break circular
+dependencies and provide a clean dependency floor beneath domain packages.
 
-Shared utilities used across all packages.
+## Status
 
-## Structure
+Active
 
-```
-shared/
-├── util/        # General utilities (strings, arrays, etc.)
-├── testing/     # Test helpers, fixtures, mocks
-└── brand/       # Branded types and type utilities
-```
+## Sub-packages
+
+| Package | Description |
+| --- | --- |
+| `shared/auth` | Authentication helpers |
+| `shared/storage` | `IStorageProvider` implementation with path traversal protection |
+| `shared/telemetry` | Telemetry utilities |
+| `shared/testing` | Test helpers, fixtures, mocks |
+| `shared/types` | Branded types and type utilities |
 
 ## Guidelines
 
-- No dependencies on other @eddacraft/anvil-\* packages
+- No dependencies on `@eddacraft/anvil-*` domain packages
 - Pure functions preferred
 - Minimal external dependencies
 - Well-documented and tested

@@ -1,8 +1,0 @@
-{
-  "name": "platform-crypto",
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/platform/crypto/src",
-  "projectType": "library",
-  "tags": ["scope:platform"],
-  "targets": {}
-}

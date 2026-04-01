@@ -1,8 +1,0 @@
-{
-  "name": "platform-storage",
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "packages/platform/storage/src",
-  "projectType": "library",
-  "tags": ["scope:platform"],
-  "targets": {}
-}
