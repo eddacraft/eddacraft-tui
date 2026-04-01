@@ -79,6 +79,8 @@ enum Commands {
     Auth(commands::auth::AuthArgs),
     /// Manage and evaluate policies.
     Policy(commands::policy::PolicyArgs),
+    /// Validate an APS plan file (structure, task format, hash integrity).
+    Validate(commands::validate::ValidateArgs),
     /// Log in to Anvil (alias for `auth login`).
     #[command(hide = true)]
     Login(commands::auth::LoginArgs),
@@ -118,6 +120,7 @@ fn requires_auth(cmd: &Commands) -> bool {
         | Commands::New(_)
         | Commands::Wizard(_)
         | Commands::Hooks(_)
+        | Commands::Validate(_)
         | Commands::Login(_)
         | Commands::Logout(_) => false,
     }
@@ -216,6 +219,7 @@ fn main() -> ExitCode {
         Commands::Hooks(args) => commands::hooks::run(args, &cli.global),
         Commands::Architecture(args) => commands::architecture::run(args, &cli.global),
         Commands::Policy(args) => commands::policy::run(args, &cli.global),
+        Commands::Validate(args) => commands::validate::run(args, &cli.global),
         Commands::Login(args) => commands::auth::run_login(args, &cli.global),
         Commands::Logout(args) => commands::auth::run_logout(args, &cli.global),
         Commands::Whoami(args) => commands::auth::run_whoami(args, &cli.global),
@@ -342,6 +346,11 @@ mod tests {
     #[test]
     fn bypass_auth_hooks() {
         assert!(!requires_auth(&parse_command(&["hooks", "install"])));
+    }
+
+    #[test]
+    fn bypass_auth_validate() {
+        assert!(!requires_auth(&parse_command(&["validate", "plan.aps.md"])));
     }
 
     #[test]

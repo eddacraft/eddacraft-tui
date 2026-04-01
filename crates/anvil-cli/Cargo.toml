@@ -37,6 +37,8 @@ dirs = { workspace = true }
 tempfile = "3"
 walkdir = { workspace = true }
 regex = { workspace = true }
+sha2 = "0.11"
+hex = "0.4"
 ctrlc = "3"
 
 [lints]

@@ -249,7 +249,7 @@ fn run_check_test(name: &str) -> CheckResult {
 /// Directories to skip when walking the workspace for source files.
 /// Aligned with kernel `FileFilter::default_patterns` in
 /// `crates/anvil-kernel/src/watcher/filter.rs`.
-const WALK_IGNORE_DIRS: &[&str] = &[
+pub(crate) const WALK_IGNORE_DIRS: &[&str] = &[
     "node_modules",
     ".git",
     "target",
@@ -260,6 +260,7 @@ const WALK_IGNORE_DIRS: &[&str] = &[
     ".nx",
     "coverage",
     ".anvil",
+    "__pycache__",
 ];
 
 const SECRET_SCAN_IGNORE: &[&str] = &[
