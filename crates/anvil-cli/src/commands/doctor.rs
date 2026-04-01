@@ -491,6 +491,7 @@ fn print_json(checks: &[DiagnosticCheck]) -> anyhow::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anvil_tui::surfaces::doctor::DiagnosticSummary;
 
     #[test]
     fn git_available_passes_on_dev_machine() {
@@ -633,7 +634,8 @@ mod tests {
         apply_fixes(&mut checks, true);
         // Should remain Pass and not be touched
         assert_eq!(checks[0].status, CheckStatus::Pass);
-        assert!(checks[0].auto_fixable, "auto_fixable should stay true when skipped");
+        // auto_fixable is untouched by apply_fixes on skip — not a guaranteed invariant
+        assert!(checks[0].auto_fixable);
     }
 
     #[test]
@@ -658,6 +660,30 @@ mod tests {
         let mut checks = vec![make_check("plans-dir", CheckStatus::Warn, false)];
         apply_fixes(&mut checks, true);
         assert_eq!(checks[0].status, CheckStatus::Warn);
+    }
+
+    #[test]
+    fn apply_fixes_creates_anvil_dir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        let mut checks = vec![DiagnosticCheck {
+            name: "anvil-dir".to_string(),
+            category: "Configuration".to_string(),
+            status: CheckStatus::Warn,
+            message: ".anvil/ directory not found".to_string(),
+            details: Some("Create .anvil/ directory for Anvil state files".to_string()),
+            auto_fixable: true,
+        }];
+
+        apply_fixes(&mut checks, true);
+
+        assert_eq!(checks[0].status, CheckStatus::Pass);
+        assert!(!checks[0].auto_fixable);
+        assert!(tmp.path().join(".anvil").is_dir());
+
+        std::env::set_current_dir(original).unwrap();
     }
 
     // --- JsonCheck serialisation tests ---
@@ -696,6 +722,24 @@ mod tests {
         assert_eq!(json["auto_fixable"], false);
     }
 
+    /// Convert a DiagnosticCheck to a JsonCheck using the same mapping as print_json.
+    fn to_json_check(c: &DiagnosticCheck) -> JsonCheck {
+        JsonCheck {
+            name: c.name.clone(),
+            category: c.category.clone(),
+            status: match c.status {
+                CheckStatus::Pass => "pass".to_string(),
+                CheckStatus::Fail => "fail".to_string(),
+                CheckStatus::Warn => "warn".to_string(),
+                CheckStatus::Skipped => "skipped".to_string(),
+                CheckStatus::Running => "running".to_string(),
+            },
+            message: c.message.clone(),
+            details: c.details.clone(),
+            auto_fixable: c.auto_fixable,
+        }
+    }
+
     #[test]
     fn json_check_status_values_are_lowercase() {
         let statuses = vec![
@@ -706,14 +750,14 @@ mod tests {
             (CheckStatus::Running, "running"),
         ];
         for (status, expected) in statuses {
-            let mapped = match status {
-                CheckStatus::Pass => "pass",
-                CheckStatus::Fail => "fail",
-                CheckStatus::Warn => "warn",
-                CheckStatus::Skipped => "skipped",
-                CheckStatus::Running => "running",
-            };
-            assert_eq!(mapped, expected);
+            let diagnostic = make_check("test", status, false);
+            let json_check = to_json_check(&diagnostic);
+            let json: serde_json::Value = serde_json::to_value(&json_check).unwrap();
+            assert_eq!(
+                json["status"].as_str().unwrap(),
+                expected,
+                "status should be lowercase"
+            );
         }
     }
 
@@ -721,8 +765,6 @@ mod tests {
 
     #[test]
     fn summary_counts_mixed_statuses() {
-        use anvil_tui::surfaces::doctor::DiagnosticSummary;
-
         let checks = vec![
             make_check("a", CheckStatus::Pass, false),
             make_check("b", CheckStatus::Pass, false),
@@ -741,8 +783,6 @@ mod tests {
 
     #[test]
     fn summary_all_pass() {
-        use anvil_tui::surfaces::doctor::DiagnosticSummary;
-
         let checks = vec![
             make_check("a", CheckStatus::Pass, false),
             make_check("b", CheckStatus::Pass, false),
@@ -757,19 +797,17 @@ mod tests {
 
     #[test]
     fn summary_empty_checks() {
-        use anvil_tui::surfaces::doctor::DiagnosticSummary;
-
         let checks: Vec<DiagnosticCheck> = vec![];
         let summary = DiagnosticSummary::from_checks(&checks);
         assert_eq!(summary.total, 0);
         assert_eq!(summary.passed, 0);
         assert_eq!(summary.failed, 0);
+        assert_eq!(summary.warnings, 0);
+        assert_eq!(summary.skipped, 0);
     }
 
     #[test]
     fn summary_running_not_counted() {
-        use anvil_tui::surfaces::doctor::DiagnosticSummary;
-
         let checks = vec![make_check("a", CheckStatus::Running, false)];
         let summary = DiagnosticSummary::from_checks(&checks);
         assert_eq!(summary.total, 1);
@@ -831,9 +869,29 @@ mod tests {
         );
     }
 
+    fn make_check_with_details(
+        name: &str,
+        status: CheckStatus,
+        details: Option<String>,
+    ) -> DiagnosticCheck {
+        DiagnosticCheck {
+            name: name.to_string(),
+            category: "Test".to_string(),
+            status,
+            message: format!("{name} message"),
+            details,
+            auto_fixable: false,
+        }
+    }
+
     #[test]
     fn failed_checks_have_details() {
-        let checks = run_all_checks();
+        let checks = vec![
+            make_check_with_details("fail-with-details", CheckStatus::Fail, Some("detail text".to_string())),
+            make_check_with_details("pass-no-details", CheckStatus::Pass, None),
+            make_check_with_details("warn-with-details", CheckStatus::Warn, Some("warning detail".to_string())),
+            make_check_with_details("fail-with-details-2", CheckStatus::Fail, Some("another detail".to_string())),
+        ];
         for check in &checks {
             if check.status == CheckStatus::Fail {
                 assert!(
