@@ -26,6 +26,19 @@ Implements the EddaCraft Terminal Standard:
 | Brick Red   | `rgb(201, 74, 74)`   |
 | Dull Amber  | `rgb(208, 140, 56)`  |
 
-## Part of
+## Usage
 
-[EddaCraft Anvil](../../README.md) monorepo (`crates/eddacraft-tui`).
+```toml
+[dependencies]
+eddacraft-tui = "0.1"
+```
+
+```rust
+use eddacraft_tui::prelude::*;
+
+let theme = EddaCraftTheme;
+```
+
+## Licence
+
+Apache-2.0

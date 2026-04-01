@@ -2,11 +2,15 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 
 use crate::keyboard::Action;
-use crate::theme::EddaCraftTheme;
+use crate::theme::{EddaCraftTheme, Theme};
 
 /// Trait implemented by every TUI surface, providing a uniform interface
 /// for the CLI event loop to render and interact with any screen.
-pub trait Surface {
+///
+/// The type parameter `T` controls which theme the surface renders with.
+/// It defaults to [`EddaCraftTheme`] so existing code that writes
+/// `impl Surface for MyState` continues to work unchanged.
+pub trait Surface<T: Theme = EddaCraftTheme> {
     /// Short name shown in the shell chrome header.
     fn surface_name(&self) -> &'static str;
     /// One-line help text shown in the bottom bar.
@@ -25,7 +29,7 @@ pub trait Surface {
     /// Reset the surface for re-entry (e.g. after returning from a sub-surface).
     fn reset(&mut self) {}
     /// Render the surface content into the given area.
-    fn render(&self, frame: &mut Frame, area: Rect, theme: &EddaCraftTheme);
+    fn render(&self, frame: &mut Frame, area: Rect, theme: &T);
 }
 
 #[cfg(test)]

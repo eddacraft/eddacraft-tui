@@ -6,7 +6,7 @@ use ratatui::widgets::Paragraph;
 
 use unicode_width::UnicodeWidthStr;
 
-use crate::theme::{EddaCraftTheme, Theme};
+use crate::theme::Theme;
 
 /// Render branded shell chrome around a surface content area.
 ///
@@ -17,7 +17,7 @@ pub fn render_shell(
     brand: &str,
     surface_name: &str,
     help_text: &str,
-    theme: &EddaCraftTheme,
+    theme: &impl Theme,
 ) -> Rect {
     let chunks = Layout::vertical([
         Constraint::Length(1), // Header
@@ -77,6 +77,7 @@ pub fn render_shell(
 mod tests {
     use super::*;
     use crate::test_utils::snapshot::buffer_to_string;
+    use crate::theme::EddaCraftTheme;
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
