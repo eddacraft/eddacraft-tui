@@ -1,5 +1,10 @@
 import { Resend } from 'resend';
-import { BetaInvite, OtpCode, WaitlistConfirmation, WaitlistMigration } from '@eddacraft/transactional';
+import {
+  BetaInvite,
+  OtpCode,
+  WaitlistConfirmation,
+  WaitlistMigration,
+} from '@eddacraft/transactional';
 
 let client: Resend | null = null;
 
