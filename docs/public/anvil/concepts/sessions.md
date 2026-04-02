@@ -95,11 +95,11 @@ Status: PASS
 
 ### Run Modes
 
-| Mode        | Trigger                  | Output                |
-| ----------- | ------------------------ | --------------------- |
-| Watch       | File save                | Inline terminal       |
-| Interactive | `anvil check --all`      | Full terminal UI      |
-| CI          | `anvil gate --profile ci`| Structured exit codes |
+| Mode        | Trigger                   | Output                |
+| ----------- | ------------------------- | --------------------- |
+| Watch       | File save                 | Inline terminal       |
+| Interactive | `anvil check --all`       | Full terminal UI      |
+| CI          | `anvil gate --profile ci` | Structured exit codes |
 
 ## Artefacts
 

@@ -55,12 +55,12 @@ jobs:
 
 The `ci` profile adjusts behaviour for pipeline environments:
 
-| Aspect    | Interactive      | CI (`--profile ci`) |
-| --------- | ---------------- | ------------------- |
-| Output    | Terminal UI      | Plain text          |
-| Colours   | Yes              | No                  |
-| Exit code | 0 (pass) / 1    | 0 / 1 / 2 (fail)   |
-| Checks    | Profile-dependent| All checks enabled  |
+| Aspect    | Interactive       | CI (`--profile ci`) |
+| --------- | ----------------- | ------------------- |
+| Output    | Terminal UI       | Plain text          |
+| Colours   | Yes               | No                  |
+| Exit code | 0 (pass) / 1      | 0 / 1 / 2 (fail)    |
+| Checks    | Profile-dependent | All checks enabled  |
 
 ### Exit Codes
 
@@ -197,7 +197,7 @@ Regular export for compliance:
 # .github/workflows/audit.yml
 on:
   schedule:
-    - cron: '0 0 * * 0' # Weekly
+    - cron: "0 0 * * 0" # Weekly
 
 jobs:
   audit:

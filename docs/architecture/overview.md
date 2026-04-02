@@ -85,13 +85,13 @@ contracts (zero deps)
 
 ### Apps
 
-| App                  | Purpose                                              |
-| -------------------- | ---------------------------------------------------- |
-| `crates/anvil-cli/`  | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
-| `apps/anvil-api/`    | REST API (Hono + Vercel + Neon Postgres).            |
-| `apps/website/`      | Marketing site + dashboard (Next.js).                |
-| `apps/docs-site/`    | Documentation (Docusaurus).                          |
-| `apps/e2e/`          | Playwright E2E tests.                                |
+| App                 | Purpose                                                 |
+| ------------------- | ------------------------------------------------------- |
+| `crates/anvil-cli/` | CLI (Rust + clap + Ratatui TUI) -- primary entry point. |
+| `apps/anvil-api/`   | REST API (Hono + Vercel + Neon Postgres).               |
+| `apps/website/`     | Marketing site + dashboard (Next.js).                   |
+| `apps/docs-site/`   | Documentation (Docusaurus).                             |
+| `apps/e2e/`         | Playwright E2E tests.                                   |
 
 ### Dependency Diagram
 
@@ -344,9 +344,9 @@ architecture styles:
 template: hexagonal
 layers:
   domain:
-    paths: ['src/domain/**']
+    paths: ["src/domain/**"]
   infrastructure:
-    paths: ['src/infrastructure/**']
+    paths: ["src/infrastructure/**"]
     depends_on: [domain]
 ```
 
@@ -546,15 +546,15 @@ sequenceDiagram
 
 All decisions are recorded as ADRs in [`plans/decisions/`](../plans/decisions/).
 
-| ID                                                      | Decision             | Summary                                                                                                                        |
-| ------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| [D-001](../plans/decisions/001-planless-first.md)       | Planless-first       | Anvil delivers value without requiring plans or configuration. The codebase is the source of truth.                            |
-| [D-002](../plans/decisions/002-warnings-over-blocks.md) | Warnings over blocks | Warnings do not block by default. Exit code 0 for warnings. CI opt-in for `fail-on-warnings: true`.                            |
-| [D-003](../plans/decisions/003-new-edges-only.md)       | New edges only       | Existing violations are baselined. Only new violations introduced after the baseline generate warnings.                        |
-| [D-004](../plans/decisions/004-suppression-syntax.md)   | Suppression syntax   | `@anvil-ignore WARNING-ID: reason` with optional `-until DATE` for time-boxed suppressions.                                    |
+| ID                                                      | Decision             | Summary                                                                                                          |
+| ------------------------------------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| [D-001](../plans/decisions/001-planless-first.md)       | Planless-first       | Anvil delivers value without requiring plans or configuration. The codebase is the source of truth.              |
+| [D-002](../plans/decisions/002-warnings-over-blocks.md) | Warnings over blocks | Warnings do not block by default. Exit code 0 for warnings. CI opt-in for `fail-on-warnings: true`.              |
+| [D-003](../plans/decisions/003-new-edges-only.md)       | New edges only       | Existing violations are baselined. Only new violations introduced after the baseline generate warnings.          |
+| [D-004](../plans/decisions/004-suppression-syntax.md)   | Suppression syntax   | `@anvil-ignore WARNING-ID: reason` with optional `-until DATE` for time-boxed suppressions.                      |
 | [D-005](../plans/decisions/005-ink-over-opentui.md)     | Ink over OpenTUI     | _Superseded by Rust + Ratatui migration (see D-011a)._ Originally chose Ink; now replaced by native Ratatui TUI. |
-| [D-006](../plans/decisions/006-hybrid-dc-opa.md)        | Hybrid DC + OPA      | dependency-cruiser for static analysis, OPA for policy evaluation, with DC results fed into OPA input.                         |
-| [D-007](../plans/decisions/007-pulumi-iac.md)           | Pulumi for IaC       | TypeScript-native IaC using Pulumi open source. Manages Vercel, GitHub, and Azure DNS.                                         |
+| [D-006](../plans/decisions/006-hybrid-dc-opa.md)        | Hybrid DC + OPA      | dependency-cruiser for static analysis, OPA for policy evaluation, with DC results fed into OPA input.           |
+| [D-007](../plans/decisions/007-pulumi-iac.md)           | Pulumi for IaC       | TypeScript-native IaC using Pulumi open source. Manages Vercel, GitHub, and Azure DNS.                           |
 
 ---
 

@@ -105,13 +105,13 @@
 
 ### Applications
 
-| Package            | Purpose                             | Status        |
-| ------------------ | ----------------------------------- | ------------- |
+| Package            | Purpose                                | Status        |
+| ------------------ | -------------------------------------- | ------------- |
 | `crates/anvil-cli` | CLI + Ratatui TUI (Rust, 20+ commands) | **[CURRENT]** |
-| `apps/website`     | Next.js dashboard + marketing       | **[CURRENT]** |
-| `apps/anvil-api`   | API server                          | **[CURRENT]** |
-| `apps/docs-site`   | Documentation site                  | **[CURRENT]** |
-| `apps/e2e`         | End-to-end test suite               | **[CURRENT]** |
+| `apps/website`     | Next.js dashboard + marketing          | **[CURRENT]** |
+| `apps/anvil-api`   | API server                             | **[CURRENT]** |
+| `apps/docs-site`   | Documentation site                     | **[CURRENT]** |
+| `apps/e2e`         | End-to-end test suite                  | **[CURRENT]** |
 
 ### Core Libraries
 
@@ -347,8 +347,8 @@ QuickWinsPanel, ResultsDashboard
 
 **Command Surfaces (all ported from Ink, PORT 15/15 complete, RATS 7/7 complete):**
 
-| Surface  | Location                              | Complexity |
-| -------- | ------------------------------------- | ---------- |
+| Surface  | Location                                  | Complexity |
+| -------- | ----------------------------------------- | ---------- |
 | Welcome  | `crates/anvil-tui/src/surfaces/welcome/`  | Simple     |
 | Doctor   | `crates/anvil-tui/src/surfaces/doctor/`   | Simple     |
 | Status   | `crates/anvil-tui/src/surfaces/status/`   | Medium     |
