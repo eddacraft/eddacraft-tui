@@ -19,9 +19,6 @@ rules:
     use-rego-v1:
       level: error
 
-  bugs:
-    # All bug-category rules at default levels
-
 # Package naming convention: anvil.policies.*
 project:
   roots:
