@@ -78,6 +78,6 @@ test_env_file if {
       ],
       "tags": []
     },
-    "config": {"sensitive_patterns": ["**/*.env*"]}
+    "config": {"sensitive_patterns": [".env*", "**/.env*"]}
   }
 }
