@@ -4,8 +4,8 @@ File system storage provider implementing the `IStorageProvider` interface from
 `@eddacraft/anvil-ports`. Provides path traversal protection and symlink escape
 detection out of the box.
 
-Extracted from `@eddacraft/anvil-runtime` as part of ADR-015 to allow shared
-infrastructure packages to use storage without pulling in the full runtime.
+Moved from `packages/platform/storage` as part of ADR-015 to consolidate
+cross-cutting infrastructure under `packages/shared/`.
 
 ## Status
 

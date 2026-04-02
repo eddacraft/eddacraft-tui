@@ -48,7 +48,9 @@ Retire `packages/platform/`. Consolidate cross-cutting shared code into
 ### Target layout
 
 ```
-packages/shared/                 # Cross-cutting, no @eddacraft/anvil-* deps
+packages/shared/                 # Cross-cutting, no @eddacraft/anvil-* domain deps
+                                 # (port/contract packages like anvil-ports are
+                                 #  allowed as interface boundaries)
 ├── auth/                        # Token validation, RBAC types, session contracts
 ├── storage/                     # IStorageProvider impl (from platform/storage)
 ├── telemetry/                   # Structured logging, metrics, OTel protocol

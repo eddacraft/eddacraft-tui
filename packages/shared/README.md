@@ -1,7 +1,7 @@
 # Shared Packages
 
 Cross-cutting infrastructure packages used across the Anvil monorepo. Introduced
-by [ADR-015](../../plans/decisions/015-shared-packages.md) to break circular
+by [ADR-015](../../plans/decisions/015-shared-packages-restructure.md) to break circular
 dependencies and provide a clean dependency floor beneath domain packages.
 
 ## Status
@@ -20,7 +20,8 @@ Active
 
 ## Guidelines
 
-- No dependencies on `@eddacraft/anvil-*` domain packages
+- No dependencies on `@eddacraft/anvil-*` domain packages (port/contract
+  packages like `@eddacraft/anvil-ports` are allowed as interface boundaries)
 - Pure functions preferred
 - Minimal external dependencies
 - Well-documented and tested

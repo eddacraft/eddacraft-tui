@@ -8,8 +8,6 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
-      - 'policies/**'
-      - '.regal/**'
       - '.github/workflows/rust.yml'
   pull_request:
     paths:
@@ -17,8 +15,6 @@ on:
       - 'Cargo.toml'
       - 'Cargo.lock'
       - 'rust-toolchain.toml'
-      - 'policies/**'
-      - '.regal/**'
       - '.github/workflows/rust.yml'
 
 permissions:
@@ -49,6 +45,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
 
+<<<<<<< HEAD
       - name: Install OPA
 <<<<<<< HEAD
         uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
@@ -77,9 +74,26 @@ jobs:
       - name: Lint policies with Regal
         run: regal lint --format github policies/fixtures/
 
+||||||| parent of 771e79fa (fix: address PR review feedback and CI failures)
+      - name: Install OPA
+        uses: open-policy-agent/setup-opa@34a30e8a924d1b03ce2cf7abe97571bbb1f1f1ea # v2
+        with:
+          version: v1.4.2
+
+      - name: Install Regal
+        uses: open-policy-agent/setup-regal@c468d3d7c38e4a1bd44e1a38caa9ee39b03c2ea0 # v1
+        with:
+          version: v0.31.0
+
+      - name: Run OPA policy tests
+        run: opa test --verbose policies/fixtures/
+
+      - name: Lint policies with Regal
+        run: regal lint --format github policies/fixtures/
+
+=======
+>>>>>>> 771e79fa (fix: address PR review feedback and CI failures)
       - run: cargo test --workspace
-        env:
-          ANVIL_OPA_PATH: opa
 
   clippy:
     name: Clippy
