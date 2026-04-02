@@ -66,8 +66,6 @@ jobs:
         run: regal lint --format github policies/fixtures/
 
       - run: cargo test --workspace
-        env:
-          ANVIL_OPA_PATH: opa
 
   clippy:
     name: Clippy
