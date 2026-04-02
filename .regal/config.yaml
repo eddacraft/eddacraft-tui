@@ -19,12 +19,8 @@ rules:
     use-rego-v1:
       level: error
 
-  imports:
-    # Enforce sorted imports
-    import-sorting:
-      level: warning
-
-# Bug rules use default levels (no overrides needed)
+  bugs:
+    # All bug-category rules at default levels
 
 # Package naming convention: anvil.policies.*
 project:
