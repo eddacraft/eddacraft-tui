@@ -24,6 +24,14 @@ rules:
     # Fixture files don't need to mirror package directory structure
     directory-package-mismatch:
       level: ignore
+    # Entrypoint annotations are for bundle optimisation, not needed for fixtures
+    no-defined-entrypoint:
+      level: ignore
+
+  performance:
+    # Non-loop expressions are acceptable in simple fixture policies
+    non-loop-expression:
+      level: warning
 
   bugs:
     # Redundant existence checks are common in config override patterns
