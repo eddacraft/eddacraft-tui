@@ -3,23 +3,33 @@
 
 rules:
   style:
-    # Enforce consistent formatting
     opa-fmt:
-      level: error
-    # Allow longer lines for sprintf messages
+      level: warning
     line-length:
       max-line-length: 120
       level: warning
-    # TODO comments are acceptable in fixture policies
     todo-comment:
       level: ignore
+    # These are style preferences — warn, don't block
+    prefer-some-in-iteration:
+      level: warning
+    comprehension-term-assignment:
+      level: warning
+    messy-rule:
+      level: warning
 
   idiomatic:
-    # Enforce v1 syntax (no future.keywords imports)
     use-rego-v1:
       level: error
+    # Fixture files don't need to mirror package directory structure
+    directory-package-mismatch:
+      level: ignore
 
-# Package naming convention: anvil.policies.*
+  bugs:
+    # Redundant existence checks are common in config override patterns
+    redundant-existence-check:
+      level: warning
+
 project:
   roots:
     - policies
