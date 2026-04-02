@@ -1354,13 +1354,19 @@ mod tests {
     }
 
     #[test]
-    fn policy_with_bundle_but_no_opa_skips() {
+    fn policy_with_bundle_evaluates_or_skips() {
         let tmp = tempfile::TempDir::new().unwrap();
         let policy_dir = tmp.path().join(".anvil/policies");
         std::fs::create_dir_all(&policy_dir).unwrap();
-        std::fs::write(policy_dir.join("test.rego"), "package test\n").unwrap();
+        // Use a valid policy under the anvil.policies namespace
+        std::fs::write(
+            policy_dir.join("noop.rego"),
+            "package anvil.policies.noop\n",
+        )
+        .unwrap();
         let result = run_check_policy(tmp.path(), None, None, &std::collections::HashSet::new());
-        // OPA is not installed in test environment, so it should skip gracefully
+        // With OPA installed: evaluates and passes (no violations in noop policy)
+        // Without OPA: skips gracefully
         assert!(result.passed);
         assert!(
             result.message.contains("OPA not installed")
