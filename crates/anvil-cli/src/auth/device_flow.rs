@@ -367,9 +367,10 @@ mod tests {
         let req = DevicePollRequest {
             poll_token: "tok-abc",
         };
-        let json = serde_json::to_string(&req).unwrap();
-        assert!(json.contains("pollToken"), "should use camelCase");
-        assert!(!json.contains("poll_token"), "should not use snake_case");
+        let json = serde_json::to_value(&req).unwrap();
+        let obj = json.as_object().expect("expected JSON object");
+        assert!(obj.contains_key("pollToken"), "should use camelCase");
+        assert!(!obj.contains_key("poll_token"), "should not use snake_case");
     }
 
     #[test]
