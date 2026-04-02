@@ -52,7 +52,7 @@ jobs:
       - name: Install OPA
         uses: open-policy-agent/setup-opa@34a30e8a924d1b03ce2cf7abe97571bbb1f1f1ea # v2
         with:
-          version: v1.4.2
+          version: latest
 
       - name: Install Regal
         uses: open-policy-agent/setup-regal@c468d3d7c38e4a1bd44e1a38caa9ee39b03c2ea0 # v1
