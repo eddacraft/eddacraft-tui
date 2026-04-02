@@ -60,8 +60,3 @@ looks_like_secret_file(path) if {
 looks_like_secret_file(path) if {
   contains(lower(path), "password")
 }
-
-# Helper to convert to lowercase
-lower(s) := result if {
-  result := strings.lower(s)
-}
