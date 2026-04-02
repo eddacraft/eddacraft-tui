@@ -11,13 +11,17 @@ Active
 
 ```js
 // eslint.config.mjs
-import { baseConfig, typescriptConfig, reactConfig } from '@eddacraft/anvil-eslint-config';
+import {
+  baseConfig,
+  typescriptConfig,
+  reactConfig,
+} from '@eddacraft/anvil-eslint-config';
 import typescriptEslint from 'typescript-eslint';
 
 export default typescriptEslint.config(
   ...baseConfig,
   ...typescriptConfig,
-  ...reactConfig, // optional, for React packages
+  ...reactConfig // optional, for React packages
 );
 ```
 
@@ -31,12 +35,12 @@ export default defaultConfig;
 
 ## API Surface
 
-| Export | Description |
-| --- | --- |
-| `@eddacraft/anvil-eslint-config` | Default config (base + TypeScript) |
-| `@eddacraft/anvil-eslint-config/base` | Base linting rules |
-| `@eddacraft/anvil-eslint-config/typescript` | TypeScript-specific rules |
-| `@eddacraft/anvil-eslint-config/react` | React-specific rules |
+| Export                                      | Description                        |
+| ------------------------------------------- | ---------------------------------- |
+| `@eddacraft/anvil-eslint-config`            | Default config (base + TypeScript) |
+| `@eddacraft/anvil-eslint-config/base`       | Base linting rules                 |
+| `@eddacraft/anvil-eslint-config/typescript` | TypeScript-specific rules          |
+| `@eddacraft/anvil-eslint-config/react`      | React-specific rules               |
 
 ## Consumers
 

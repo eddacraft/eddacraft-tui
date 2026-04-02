@@ -28,8 +28,8 @@ const files = await storage.list('.');
 
 - **`FileStorage`** — Class implementing `IStorageProvider` with `read`,
   `readBuffer`, `write`, `exists`, `delete`, `list`, and `mkdir` methods.
-- **`createFileStorage(baseDir?)`** — Factory function returning a
-  `FileStorage` instance.
+- **`createFileStorage(baseDir?)`** — Factory function returning a `FileStorage`
+  instance.
 
 All path operations are sandboxed to the configured `baseDir`. Attempts to
 traverse outside it (via `../` or symlinks) throw an error.

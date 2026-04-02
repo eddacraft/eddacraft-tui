@@ -10,12 +10,12 @@ remains in use by the TypeScript runtime and MCP server.
 
 ## API Surface
 
-| Interface | Description |
-| --- | --- |
+| Interface          | Description                                                        |
+| ------------------ | ------------------------------------------------------------------ |
 | `IStorageProvider` | File system abstraction (read, write, exists, delete, list, mkdir) |
-| `ICacheProvider` | Cache abstraction (get, set, has, delete, clear) |
-| `ICheckRunner` | Gate check execution interface |
-| `IConfigProvider` | Configuration loading interface |
+| `ICacheProvider`   | Cache abstraction (get, set, has, delete, clear)                   |
+| `ICheckRunner`     | Gate check execution interface                                     |
+| `IConfigProvider`  | Configuration loading interface                                    |
 
 ## Consumers
 

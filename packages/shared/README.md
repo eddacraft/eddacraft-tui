@@ -1,8 +1,9 @@
 # Shared Packages
 
 Cross-cutting infrastructure packages used across the Anvil monorepo. Introduced
-by [ADR-015](../../plans/decisions/015-shared-packages-restructure.md) to break circular
-dependencies and provide a clean dependency floor beneath domain packages.
+by [ADR-015](../../plans/decisions/015-shared-packages-restructure.md) to break
+circular dependencies and provide a clean dependency floor beneath domain
+packages.
 
 ## Status
 
@@ -10,13 +11,13 @@ Active
 
 ## Sub-packages
 
-| Package | Description |
-| --- | --- |
-| `shared/auth` | Authentication helpers |
-| `shared/storage` | `IStorageProvider` implementation with path traversal protection |
-| `shared/telemetry` | Telemetry utilities |
-| `shared/testing` | Test helpers, fixtures, mocks |
-| `shared/types` | Branded types and type utilities |
+| Package            | Description                                                      |
+| ------------------ | ---------------------------------------------------------------- |
+| `shared/auth`      | Authentication helpers                                           |
+| `shared/storage`   | `IStorageProvider` implementation with path traversal protection |
+| `shared/telemetry` | Telemetry utilities                                              |
+| `shared/testing`   | Test helpers, fixtures, mocks                                    |
+| `shared/types`     | Branded types and type utilities                                 |
 
 ## Guidelines
 

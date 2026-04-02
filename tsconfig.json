@@ -34,13 +34,7 @@
       "path": "./packages/kindling-integration"
     },
     {
-      "path": "./packages/platform/storage"
-    },
-    {
-      "path": "./packages/platform/config"
-    },
-    {
-      "path": "./packages/platform/crypto"
+      "path": "./packages/shared/storage"
     },
     {
       "path": "./tools/generators"
@@ -64,7 +58,7 @@
       "path": "./packages/transactional"
     },
     {
-      "path": "./packages/json-render"
+      "path": "./packages/libs/render"
     }
   ]
 }

@@ -15,19 +15,19 @@ and e2e tests.
 
 Subpath exports for targeted imports:
 
-| Export | Description |
-| --- | --- |
-| `@eddacraft/anvil-core` | Everything below |
-| `@eddacraft/anvil-core/antipattern` | Antipattern detection |
+| Export                               | Description                                                  |
+| ------------------------------------ | ------------------------------------------------------------ |
+| `@eddacraft/anvil-core`              | Everything below                                             |
+| `@eddacraft/anvil-core/antipattern`  | Antipattern detection                                        |
 | `@eddacraft/anvil-core/architecture` | Architecture analysis (boundaries, file rules, import rules) |
-| `@eddacraft/anvil-core/crypto` | Hashing and integrity utilities |
-| `@eddacraft/anvil-core/drift` | Drift detection |
-| `@eddacraft/anvil-core/explain` | Human-readable explanations for warnings |
-| `@eddacraft/anvil-core/provenance` | Provenance tracking |
-| `@eddacraft/anvil-core/suppression` | Suppression management |
-| `@eddacraft/anvil-core/validation` | Schema validation |
-| `@eddacraft/anvil-core/warnings` | Warning utilities |
-| `@eddacraft/anvil-core/utils` | General utilities |
+| `@eddacraft/anvil-core/crypto`       | Hashing and integrity utilities                              |
+| `@eddacraft/anvil-core/drift`        | Drift detection                                              |
+| `@eddacraft/anvil-core/explain`      | Human-readable explanations for warnings                     |
+| `@eddacraft/anvil-core/provenance`   | Provenance tracking                                          |
+| `@eddacraft/anvil-core/suppression`  | Suppression management                                       |
+| `@eddacraft/anvil-core/validation`   | Schema validation                                            |
+| `@eddacraft/anvil-core/warnings`     | Warning utilities                                            |
+| `@eddacraft/anvil-core/utils`        | General utilities                                            |
 
 Also re-exports all contracts (schemas, types, events) formerly in
 `@eddacraft/anvil-contracts` and platform config from

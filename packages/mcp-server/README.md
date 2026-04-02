@@ -66,7 +66,10 @@ const config = generateMcpConfig('claude-code');
 
 ```ts
 import { createAnvilMcpServer } from '@eddacraft/anvil-mcp-server';
-import { generateMcpConfig, SUPPORTED_TARGETS } from '@eddacraft/anvil-mcp-server/config';
+import {
+  generateMcpConfig,
+  SUPPORTED_TARGETS,
+} from '@eddacraft/anvil-mcp-server/config';
 import { startHttpServer } from '@eddacraft/anvil-mcp-server';
 ```
 

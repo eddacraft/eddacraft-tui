@@ -9,13 +9,13 @@ Active
 
 ## Configurations
 
-| Config | Description |
-| --- | --- |
-| `base.json` | Strict base settings shared by all packages |
-| `lib.json` | Library packages (declaration emit, ESM output) |
-| `app.json` | Application packages (apps/, no declaration emit) |
-| `node.json` | Node.js targets (CLI tools, API servers) |
-| `react.json` | React packages (JSX transform, DOM types) |
+| Config       | Description                                       |
+| ------------ | ------------------------------------------------- |
+| `base.json`  | Strict base settings shared by all packages       |
+| `lib.json`   | Library packages (declaration emit, ESM output)   |
+| `app.json`   | Application packages (apps/, no declaration emit) |
+| `node.json`  | Node.js targets (CLI tools, API servers)          |
+| `react.json` | React packages (JSX transform, DOM types)         |
 
 ## Usage
 
@@ -25,9 +25,9 @@ Active
   "extends": "@eddacraft/anvil-tsconfig/lib.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src"
+    "rootDir": "src",
   },
-  "include": ["src"]
+  "include": ["src"],
 }
 ```
 

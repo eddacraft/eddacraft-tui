@@ -18,11 +18,11 @@ Requires `eslint >= 8.0.0` as a peer dependency.
 
 ## Rules
 
-| Rule | Description | Default |
-| --- | --- | --- |
-| `anvil/no-any-in-tests` | Disallow `any` type assertions in test files | warn |
-| `anvil/require-mock-cleanup` | Require `vi.restoreAllMocks()` or equivalent cleanup | warn |
-| `anvil/require-cwd-restoration` | Require `process.chdir` restoration after tests that change cwd | warn |
+| Rule                            | Description                                                     | Default |
+| ------------------------------- | --------------------------------------------------------------- | ------- |
+| `anvil/no-any-in-tests`         | Disallow `any` type assertions in test files                    | warn    |
+| `anvil/require-mock-cleanup`    | Require `vi.restoreAllMocks()` or equivalent cleanup            | warn    |
+| `anvil/require-cwd-restoration` | Require `process.chdir` restoration after tests that change cwd | warn    |
 
 ## Usage
 

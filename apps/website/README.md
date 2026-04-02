@@ -17,12 +17,12 @@ Active
 
 ## Routes
 
-| Route | Description |
-| --- | --- |
-| `/` | Landing page |
+| Route            | Description          |
+| ---------------- | -------------------- |
+| `/`              | Landing page         |
 | `/auth/activate` | Beta activation flow |
-| `/privacy` | Privacy policy |
-| `/security` | Security policy |
+| `/privacy`       | Privacy policy       |
+| `/security`      | Security policy      |
 
 OG images are generated dynamically via `next/og`.
 

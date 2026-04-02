@@ -9,12 +9,12 @@ Active
 
 ## Templates
 
-| Template | Description |
-| --- | --- |
-| `beta-invite` | Beta programme invitation email |
-| `otp-code` | One-time password for authentication |
-| `waitlist-confirmation` | Waitlist sign-up confirmation |
-| `waitlist-migration` | Notification when migrating waitlist users |
+| Template                | Description                                |
+| ----------------------- | ------------------------------------------ |
+| `beta-invite`           | Beta programme invitation email            |
+| `otp-code`              | One-time password for authentication       |
+| `waitlist-confirmation` | Waitlist sign-up confirmation              |
+| `waitlist-migration`    | Notification when migrating waitlist users |
 
 ## Usage
 

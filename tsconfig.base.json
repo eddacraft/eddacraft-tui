@@ -33,8 +33,8 @@
       "@eddacraft/transactional": ["./packages/transactional/dist/emails/index.d.ts"],
       "@eddacraft/anvil-eslint-config": ["./packages/tooling/eslint-config/index.mjs"],
       "@eddacraft/anvil-tsconfig/*": ["./packages/tooling/tsconfig/*"],
-      "@eddacraft/anvil-platform/*": ["./packages/platform/*/dist/index.d.ts"],
-      "@eddacraft/anvil-shared/*": ["./packages/shared/*/dist/index.d.ts"]
+      "@eddacraft/anvil-shared/*": ["./packages/shared/*/dist/index.d.ts"],
+      "@eddacraft/render": ["./packages/libs/render/dist/index.d.ts"]
     }
   },
   "exclude": [

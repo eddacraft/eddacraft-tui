@@ -10,12 +10,12 @@ Active
 
 ## Modules
 
-| Module | Description |
-| --- | --- |
-| `fixture` | Synthetic repo generation with configurable file counts and language weights |
-| `measure` | Timing and memory measurement (RSS/VM via `/proc/self/status`) |
-| `report` | Structured `ScenarioResult` output (JSON, human-readable) |
-| `scenarios` | Stress test scenarios |
+| Module      | Description                                                                  |
+| ----------- | ---------------------------------------------------------------------------- |
+| `fixture`   | Synthetic repo generation with configurable file counts and language weights |
+| `measure`   | Timing and memory measurement (RSS/VM via `/proc/self/status`)               |
+| `report`    | Structured `ScenarioResult` output (JSON, human-readable)                    |
+| `scenarios` | Stress test scenarios                                                        |
 
 ## Scenarios
 
