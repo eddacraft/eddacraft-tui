@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn deserialise_otp_request_response_without_message() {
-        let json = r#"{}"#;
+        let json = r"{}";
         let resp: OtpRequestResponse = serde_json::from_str(json).unwrap();
         assert!(resp.message.is_none());
     }
@@ -470,9 +470,7 @@ mod tests {
             .await;
 
         let client = build_client().unwrap();
-        let resp = device_poll(&client, &server.uri(), "tok-1")
-            .await
-            .unwrap();
+        let resp = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
 
         assert_eq!(resp.status, "confirmed");
         assert_eq!(resp.license.as_deref(), Some("lic-confirmed"));
@@ -486,16 +484,13 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/api/v1/auth/device/poll"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(serde_json::json!({"status": "pending"})),
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "pending"})),
             )
             .mount(&server)
             .await;
 
         let client = build_client().unwrap();
-        let resp = device_poll(&client, &server.uri(), "tok-1")
-            .await
-            .unwrap();
+        let resp = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
 
         assert_eq!(resp.status, "pending");
         assert!(resp.license.is_none());
@@ -508,16 +503,13 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/api/v1/auth/device/poll"))
             .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(serde_json::json!({"status": "expired"})),
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({"status": "expired"})),
             )
             .mount(&server)
             .await;
 
         let client = build_client().unwrap();
-        let resp = device_poll(&client, &server.uri(), "tok-1")
-            .await
-            .unwrap();
+        let resp = device_poll(&client, &server.uri(), "tok-1").await.unwrap();
 
         assert_eq!(resp.status, "expired");
     }
@@ -661,10 +653,7 @@ mod tests {
         assert_eq!(creds.license, "lic-dev");
         assert_eq!(creds.refresh_token.as_deref(), Some("rt-dev"));
         assert_eq!(creds.email.as_deref(), Some("dev@example.com"));
-        assert_eq!(
-            creds.expires_at.as_deref(),
-            Some("2099-01-01T00:00:00Z")
-        );
+        assert_eq!(creds.expires_at.as_deref(), Some("2099-01-01T00:00:00Z"));
     }
 
     #[test]
@@ -725,7 +714,8 @@ mod tests {
             .unwrap_err();
 
         assert!(
-            err.to_string().contains("parsing device code start response"),
+            err.to_string()
+                .contains("parsing device code start response"),
             "expected parse context, got: {err}"
         );
     }
