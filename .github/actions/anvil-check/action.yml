@@ -249,11 +249,23 @@ runs:
     - name: Post PR comment
       if: github.event_name == 'pull_request' && steps.anvil.outputs.exit-code != ''
       uses: actions/github-script@v7
+      env:
+        WARNINGS_COUNT: ${{ steps.anvil.outputs.warnings-count }}
+        ERRORS_COUNT: ${{ steps.anvil.outputs.errors-count }}
+        RESULT_JSON: ${{ steps.anvil.outputs.result-json }}
+        FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
       with:
         script: |
-          const warnings = parseInt('${{ steps.anvil.outputs.warnings-count }}') || 0;
-          const errors = parseInt('${{ steps.anvil.outputs.errors-count }}') || 0;
-          const skipped = '${{ steps.anvil.outputs.result-json }}'.includes('"skipped":true');
+          const warnings = parseInt(process.env.WARNINGS_COUNT) || 0;
+          const errors = parseInt(process.env.ERRORS_COUNT) || 0;
+
+          let skipped = false;
+          try {
+            const parsed = JSON.parse(process.env.RESULT_JSON || '{}');
+            skipped = parsed && typeof parsed.skipped === 'boolean' ? parsed.skipped : false;
+          } catch {
+            console.warn('Failed to parse RESULT_JSON for skipped detection');
+          }
 
           // Build comment body
           const marker = '<!-- anvil-check-results -->';
@@ -270,7 +282,7 @@ runs:
             body += '\n';
             if (errors > 0) {
               body += '❌ **Action required** — Please fix the errors above.\n';
-            } else if ('${{ inputs.fail-on-warnings }}' === 'true') {
+            } else if (process.env.FAIL_ON_WARNINGS === 'true') {
               body += '⚠️ **Blocking mode** — Warnings must be resolved.\n';
             } else {
               body += '💡 Warnings are informational and do not block this PR.\n';
@@ -310,12 +322,24 @@ runs:
     - name: Set commit status
       if: always() && steps.anvil.outputs.exit-code != ''
       uses: actions/github-script@v7
+      env:
+        WARNINGS_COUNT: ${{ steps.anvil.outputs.warnings-count }}
+        ERRORS_COUNT: ${{ steps.anvil.outputs.errors-count }}
+        FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
+        RESULT_JSON: ${{ steps.anvil.outputs.result-json }}
       with:
         script: |
-          const warnings = parseInt('${{ steps.anvil.outputs.warnings-count }}') || 0;
-          const errors = parseInt('${{ steps.anvil.outputs.errors-count }}') || 0;
-          const failOnWarnings = '${{ inputs.fail-on-warnings }}' === 'true';
-          const skipped = '${{ steps.anvil.outputs.result-json }}'.includes('"skipped":true');
+          const warnings = parseInt(process.env.WARNINGS_COUNT) || 0;
+          const errors = parseInt(process.env.ERRORS_COUNT) || 0;
+          const failOnWarnings = process.env.FAIL_ON_WARNINGS === 'true';
+
+          let skipped = false;
+          try {
+            const parsed = JSON.parse(process.env.RESULT_JSON || '{}');
+            skipped = parsed && typeof parsed.skipped === 'boolean' ? parsed.skipped : false;
+          } catch {
+            console.warn('Failed to parse RESULT_JSON for skipped detection');
+          }
 
           let state = 'success';
           let description = 'All checks passed';
@@ -353,23 +377,29 @@ runs:
       if:
         always() && steps.anvil.outputs.exit-code != '' && steps.anvil.outputs.warnings-count != '0'
       uses: actions/github-script@v7
+      env:
+        WARNINGS_COUNT: ${{ steps.anvil.outputs.warnings-count }}
+        ERRORS_COUNT: ${{ steps.anvil.outputs.errors-count }}
+        FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
+        RESULT_JSON: ${{ steps.anvil.outputs.result-json }}
+        CHECK_TYPE: ${{ inputs.check-type }}
       with:
         script: |
-          const warnings = parseInt('${{ steps.anvil.outputs.warnings-count }}') || 0;
-          const errors = parseInt('${{ steps.anvil.outputs.errors-count }}') || 0;
-          const failOnWarnings = '${{ inputs.fail-on-warnings }}' === 'true';
+          const warnings = parseInt(process.env.WARNINGS_COUNT) || 0;
+          const errors = parseInt(process.env.ERRORS_COUNT) || 0;
+          const failOnWarnings = process.env.FAIL_ON_WARNINGS === 'true';
 
           // Parse result JSON safely
           let result;
           try {
-            result = JSON.parse(`${{ steps.anvil.outputs.result-json }}`);
+            result = JSON.parse(process.env.RESULT_JSON);
           } catch (e) {
             console.log('Could not parse result JSON, skipping annotations');
             return;
           }
 
           // Get items to annotate based on check-type
-          const checkType = '${{ inputs.check-type }}';
+          const checkType = process.env.CHECK_TYPE;
           let items = [];
 
           if (checkType === 'gate') {
@@ -412,9 +442,9 @@ runs:
             ? `${errors} error(s), ${warnings} warning(s)`
             : `${warnings} warning(s)`;
 
-          const summary = violations.length > 50
-            ? `Showing first 50 of ${violations.length} issues. See full output for details.`
-            : `Found ${violations.length} issue(s) to review.`;
+          const summary = items.length > 50
+            ? `Showing first 50 of ${items.length} issues. See full output for details.`
+            : `Found ${items.length} issue(s) to review.`;
 
           await github.rest.checks.create({
             owner: context.repo.owner,
