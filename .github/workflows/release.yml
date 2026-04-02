@@ -238,7 +238,8 @@ jobs:
       'success') && (needs.build-local-artifacts.result == 'skipped' ||
       needs.build-local-artifacts.result == 'success') }}
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # ANVIL_RELEASES_TOKEN has cross-repo write access for homebrew tap publishing
+      GH_TOKEN: ${{ secrets.ANVIL_RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
     runs-on: 'ubuntu-22.04'
     outputs:
       val: ${{ steps.host.outputs.manifest }}
