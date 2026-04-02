@@ -566,4 +566,4 @@ Just enable the check with defaults:
 ## Related
 
 - [Command Safety User Guide](./command-safety.md)
-- [Gate Configuration](../../crates/anvil-cli/README.md#configuration)
+- [Gate Configuration](../../crates/anvil-cli/README.md)

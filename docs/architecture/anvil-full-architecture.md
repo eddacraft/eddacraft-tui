@@ -345,7 +345,7 @@ Located in `crates/eddacraft-tui/` (shared design system) + `crates/anvil-tui/`
 Confirm, Select, TextInput, ProgressBar, StatusBar, LogPanel, ParallelProgress,
 QuickWinsPanel, ResultsDashboard
 
-**Command Surfaces (all ported from Ink, PORT 15/15 complete, RATS 7/7 complete):**
+**Command Surfaces (all ported from Ink — PORT and RATS modules complete):**
 
 | Surface  | Location                                  | Complexity |
 | -------- | ----------------------------------------- | ---------- |

@@ -219,16 +219,19 @@ Create `.anvilrc.local` (gitignored):
 
 ### Environment Variables
 
-| Variable        | Description                    |
-| --------------- | ------------------------------ |
-| `ANVIL_CONFIG`  | Path to config file (.anvilrc) |
-| `ANVIL_DISABLE` | Disable Anvil entirely         |
+The following environment variables are planned and may not be available in all
+CLI versions.
+
+| Variable        | Description                                                                  |
+| --------------- | ---------------------------------------------------------------------------- |
+| `ANVIL_CONFIG`  | \[Planned\] Path to config file (`.anvilrc`). Not yet supported by Rust CLI. |
+| `ANVIL_DISABLE` | \[Planned\] Disable Anvil entirely. Not yet supported by Rust CLI.           |
 
 :::note Legacy variables
 
 `ANVIL_CI` and `ANVIL_FAIL_ON_WARNINGS` were supported by the Node.js CLI
 but are not read by the Rust CLI. Use `anvil gate --profile ci` for CI mode
-and `anvil check --severity warning` to fail on warnings.
+and `anvil check --all --severity warning` to fail on warnings.
 
 :::
 

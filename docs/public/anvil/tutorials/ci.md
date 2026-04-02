@@ -151,11 +151,10 @@ CI runners use these exit codes to pass or fail the pipeline step.
 
 ## CI-Specific Options
 
-The `ci` profile adjusts behaviour for pipeline environments:
-
-- Runs all check categories with strict thresholds
-- Disables watch mode and interactive prompts
-- Produces structured exit codes for pipeline integration
+The `ci` profile runs all check categories (no skips). Output mode and
+interactivity are controlled separately by TTY detection, `--json`, and
+`--progress` flags — the profile itself selects which checks to run and
+which thresholds to apply.
 
 ```bash
 anvil gate --profile ci

@@ -83,7 +83,8 @@ everything works identically from a user's perspective.
 
 :::note Command changes
 
-The Node.js `anvil check` command has been split into two focused commands:
+Both the legacy Node.js CLI and the Rust CLI expose separate `anvil check` and
+`anvil gate` commands:
 
 - **`anvil check`** — static analysis: scans files for anti-patterns and
   architecture violations. Use for quick file-level scanning.
