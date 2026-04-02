@@ -30,7 +30,12 @@ function isDebugEnabled(): boolean {
  * (log forging) before the value reaches console.debug.
  */
 function sanitiseForLog(value: string): string {
-  return value.replace(/[\r\n]/g, '\u23CE').replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+  return (
+    value
+      .replace(/[\r\n]/g, '\u23CE')
+      // eslint-disable-next-line no-control-regex -- intentional ESC match for ANSI stripping
+      .replace(/\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '')
+  );
 }
 
 function debug(namespace: DebugNamespace, message: string, data?: unknown): void {
@@ -42,7 +47,7 @@ function debug(namespace: DebugNamespace, message: string, data?: unknown): void
   const prefix = `[${timestamp}] [anvil:${namespace}]`;
   const sanitisedMessage = sanitiseForLog(message);
 
-  /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
+  /* eslint-disable no-console -- debug utility; independently verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
       console.debug('%s %s: %s', prefix, sanitisedMessage, sanitiseForLog(data.message));

@@ -77,22 +77,28 @@ export function isDebugEnabled(namespace?: DebugNamespace): boolean {
  */
 
 /**
- * Redact values that look like tokens, keys, or secrets before logging.
+ * Sanitise a string for safe log output.
  *
- * Patterns redacted:
+ * Performs three layers of sanitisation:
+ * 1. Strips CR/LF (log injection) — replaced with visual ⏎ (U+23CE)
+ * 2. Strips ANSI escape sequences (CSI and OSC) to prevent log forging
+ * 3. Redacts values that look like tokens, keys, or secrets
+ *
+ * Secret patterns redacted:
  * - Hex tokens (40+ hex characters, e.g. SHA tokens, API keys)
  * - Base64 tokens (20+ chars of base64 alphabet)
  * - Common secret prefixes: sk-, ghp_, ghu_, Bearer
  *
  * @param value - The string to sanitize
- * @returns The sanitized string with secrets replaced by [REDACTED]
+ * @returns The sanitized string with control chars stripped and secrets replaced by [REDACTED]
  */
 export function sanitizeForLog(value: string): string {
   // Strip control characters that enable log injection (newlines, carriage returns)
   let sanitized = value.replace(/[\r\n]/g, '\u23CE');
 
-  // Strip ANSI escape sequences that could forge coloured output
-  sanitized = sanitized.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+  // Strip ANSI escape sequences (CSI and OSC) that could forge coloured output
+  // eslint-disable-next-line no-control-regex -- intentional ESC match for ANSI stripping
+  sanitized = sanitized.replace(/\x1B\[[0-?]*[ -/]*[@-~]|\x1B\][^\x07\x1B]*(?:\x07|\x1B\\)/g, '');
 
   // Redact strings starting with common secret prefixes
   sanitized = sanitized.replace(/\b(sk-|ghp_|ghu_)[A-Za-z0-9_-]+/g, '[REDACTED]');
@@ -118,7 +124,7 @@ export function debug(namespace: DebugNamespace, message: string, data?: unknown
   const prefix = `[${timestamp}] [anvil:${namespace}]`;
   const sanitizedMessage = sanitizeForLog(message);
 
-  /* eslint-disable no-console -- debug utility; independantly verified by codex 20260205 */
+  /* eslint-disable no-console -- debug utility; independently verified by codex 20260205 */
   if (data !== undefined) {
     if (data instanceof Error) {
       console.debug('%s %s: %s', prefix, sanitizedMessage, sanitizeForLog(data.message));
