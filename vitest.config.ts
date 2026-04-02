@@ -54,7 +54,8 @@ export default defineConfig({
         __dirname,
         './packages/kindling-integration/src'
       ),
-      '@eddacraft/anvil-platform-config': resolve(__dirname, './packages/platform/config/src'),
+      '@eddacraft/shared-storage': resolve(__dirname, './packages/shared/storage/src'),
+      '@eddacraft/render': resolve(__dirname, './packages/libs/render/src'),
       vscode: resolve(__dirname, './packages/vscode-extension/src/__mocks__/vscode.ts'),
     },
   },

@@ -1,9 +1,9 @@
 /**
- * @eddacraft/anvil-platform-storage
+ * @eddacraft/shared-storage
  *
- * File system and persistence abstractions.
+ * Storage abstraction with path traversal protection.
  *
- * @module @eddacraft/anvil-platform-storage
+ * @module @eddacraft/shared-storage
  */
 
 export * from './file-storage.js';

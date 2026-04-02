@@ -10,14 +10,13 @@ packages:
   - packages/aps
   - packages/edda-stack
   - packages/eslint-plugin-anvil
-  - packages/json-render
   - packages/kindling-integration
   - packages/mcp-server
   - packages/vscode-extension
-  # Platform packages
-  - packages/platform/*
-  # Shared packages
+  # Shared infrastructure (ADR-015)
   - packages/shared/*
+  # Shared libraries (ADR-015)
+  - packages/libs/*
   # Transactional email templates
   - packages/transactional
   # Tooling packages
