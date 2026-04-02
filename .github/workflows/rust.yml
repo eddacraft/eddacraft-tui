@@ -50,14 +50,14 @@ jobs:
       - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1
 
       - name: Install OPA
-        uses: open-policy-agent/setup-opa@34a30e8a924d1b03ce2cf7abe97571bbb1f1f1ea # v2
+        uses: open-policy-agent/setup-opa@950f159a49aa91f9323f36f1de81c7f6b5de9576 # v2.3.0
         with:
           version: latest
 
       - name: Install Regal
-        uses: open-policy-agent/setup-regal@c468d3d7c38e4a1bd44e1a38caa9ee39b03c2ea0 # v1
+        uses: open-policy-agent/setup-regal@b01ac9f4bece22d1066ed2ca8f91a3e89b57013f # v1
         with:
-          version: v0.31.0
+          version: latest
 
       - name: Run OPA policy tests
         run: opa test --verbose policies/fixtures/
