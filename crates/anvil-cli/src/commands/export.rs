@@ -1713,8 +1713,15 @@ Validate the export command.
 
     #[test]
     fn export_plan_errors_on_missing_source() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        let missing = tmp.path().join("nonexistent.md");
+        assert!(
+            !missing.exists(),
+            "test setup error: expected missing source file to not exist"
+        );
+
         let result = export_plan(
-            "/nonexistent/file.md",
+            missing.to_str().unwrap(),
             "json",
             None,
             None,
@@ -1938,17 +1945,12 @@ Validate the export command.
 
     #[test]
     fn export_constraints_normalises_format_alias() {
-        // "llms" normalises to "llms.txt" — exercises the happy path of
-        // normalize_constraint_format rather than duplicating the error path.
-        // This will attempt to write to the workspace root, so we only verify
-        // it does NOT fail with "Unsupported format".
-        let result = export_constraints("llms", None, &default_global());
-        match result {
-            Err(e) => assert!(
-                !e.to_string().contains("Unsupported format"),
-                "llms should normalise to llms.txt, got: {e}"
-            ),
-            Ok(()) => {} // success is fine — it wrote the file
-        }
+        // "llms" normalises to "llms.txt" — exercise normalize_constraint_format
+        // directly so we don't write files into the workspace root.
+        let normalised = normalize_constraint_format("llms");
+        assert_eq!(
+            normalised, "llms.txt",
+            "llms should normalise to llms.txt, got: {normalised}"
+        );
     }
 }
