@@ -229,9 +229,9 @@ CLI versions.
 
 :::note Legacy variables
 
-`ANVIL_CI` and `ANVIL_FAIL_ON_WARNINGS` were supported by the Node.js CLI
-but are not read by the Rust CLI. Use `anvil gate --profile ci` for CI mode
-and `anvil check --all --severity warning` to fail on warnings.
+`ANVIL_CI` and `ANVIL_FAIL_ON_WARNINGS` were supported by the Node.js CLI but
+are not read by the Rust CLI. Use `anvil gate --profile ci` for CI mode and
+`anvil check --all --severity warning` to fail on warnings.
 
 :::
 

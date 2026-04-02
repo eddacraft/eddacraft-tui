@@ -344,9 +344,9 @@ architecture styles:
 template: hexagonal
 layers:
   domain:
-    paths: ["src/domain/**"]
+    paths: ['src/domain/**']
   infrastructure:
-    paths: ["src/infrastructure/**"]
+    paths: ['src/infrastructure/**']
     depends_on: [domain]
 ```
 

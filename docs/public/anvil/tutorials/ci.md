@@ -153,8 +153,8 @@ CI runners use these exit codes to pass or fail the pipeline step.
 
 The `ci` profile runs all check categories (no skips). Output mode and
 interactivity are controlled separately by TTY detection, `--json`, and
-`--progress` flags — the profile itself selects which checks to run and
-which thresholds to apply.
+`--progress` flags — the profile itself selects which checks to run and which
+thresholds to apply.
 
 ```bash
 anvil gate --profile ci

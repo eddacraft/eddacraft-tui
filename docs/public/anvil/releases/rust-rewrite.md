@@ -89,8 +89,8 @@ Both the legacy Node.js CLI and the Rust CLI expose separate `anvil check` and
 - **`anvil check`** — static analysis: scans files for anti-patterns and
   architecture violations. Use for quick file-level scanning.
 - **`anvil gate`** — quality gate: runs all check categories (lint, test,
-  coverage, dependency, secret, architecture, policy) with configurable
-  profiles (`dev`, `ci`, `production`).
+  coverage, dependency, secret, architecture, policy) with configurable profiles
+  (`dev`, `ci`, `production`).
 
 CI workflows that used `anvil check --all --ci` should migrate to
 `anvil gate --profile ci`.

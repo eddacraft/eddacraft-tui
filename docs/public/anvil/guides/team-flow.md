@@ -197,7 +197,7 @@ Regular export for compliance:
 # .github/workflows/audit.yml
 on:
   schedule:
-    - cron: "0 0 * * 0" # Weekly
+    - cron: '0 0 * * 0' # Weekly
 
 jobs:
   audit:

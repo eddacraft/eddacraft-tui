@@ -246,7 +246,8 @@ Anvil passing when it should fail.
 
 **Check:**
 
-- Prefer `anvil gate --profile ci` so CI-specific profile settings are applied (bare `anvil gate` runs all checks by default)
+- Prefer `anvil gate --profile ci` so CI-specific profile settings are applied
+  (bare `anvil gate` runs all checks by default)
 - Config is being read (check `anvil gate --list-profiles`)
 - Exit code `2` indicates gate failure (not `1`, which is a general error)
 
