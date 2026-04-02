@@ -24,8 +24,7 @@ rules:
     import-sorting:
       level: warning
 
-  bugs:
-    # All bug rules enabled at default levels
+# Bug rules use default levels (no overrides needed)
 
 # Package naming convention: anvil.policies.*
 project:
