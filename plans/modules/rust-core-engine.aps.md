@@ -11,7 +11,7 @@ Scopes: RENG (main)
 
 | ID   | Owner | Status      |
 | ---- | ----- | ----------- |
-| RENG | —     | In Progress |
+| RENG | —     | Complete    |
 
 ## Purpose
 
@@ -128,7 +128,7 @@ Change status to **Ready** when:
 
 ### RENG-004: Validate architecture check parity with kernel invariants
 
-- **Status:** In Progress
+- **Status:** Done
 - **Intent:** Validate that the kernel's policy engine (KERN-032 invariants)
   produces equivalent architecture violation results to the current JS
   architecture check. RENG-004 owns the parity validation and gap analysis —
@@ -138,10 +138,18 @@ Change status to **Ready** when:
   gaps documented and tracked
 - **Validation:** Dual-run comparison on test fixture repos with known
   architecture violations, zero unexplained discrepancies
-- **Files:** Part of KERN-032 (kernel invariants), not a separate crate
+- **Files:** `crates/anvil-kernel/tests/architecture_parity.rs`
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** KERN-032 (H1 invariants)
+- **Completed:** 2026-04-03
+- **Notes:** 21 parity tests validate all four kernel invariants
+  (cross-layer-violation, public-api-expansion, privilege-expansion,
+  new-dependency-introduction) against JS ARCH-001..004 equivalents.
+  Baseline suppression tested via `previously_*` fields. Two intentional
+  gaps documented: circular dependency (ARCH-001) and orphan detection
+  (ARCH-002) are not in the H1 invariant set — the kernel graph supports
+  them but invariants are deferred to a future wave.
 
 ---
 
@@ -206,7 +214,7 @@ Change status to **Ready** when:
 | RENG-001 Secret scan | Done |
 | RENG-002 Anti-pattern detection | Done |
 | RENG-003 Command safety | Done |
-| RENG-004 Architecture check merge | In Progress (invariants done, parity validation pending) |
+| RENG-004 Architecture check merge | Done |
 | RENG-005 Benchmarks | Done |
 | RENG-006 Feature flag + dual-run | Done (Legacy/Dual dropped; Rust-only) |
-| **Total** | **6 items (5/6 done)** |
+| **Total** | **6 items (6/6 done)** |

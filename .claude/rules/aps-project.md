@@ -34,7 +34,7 @@
 - EERB: edda-ember-review (16/16) — Complete
 - EDDA: edda (19/19) — Complete
 - STACK: edda-stack-integration (19/19) — Complete
-- RENG: rust-core-engine (5/6) — In Progress
+- RENG: rust-core-engine (6/6) — Complete
 - KERN: rust-kernel (22/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
 - RATS: ratatui-tui (7/7) — Complete
