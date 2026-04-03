@@ -143,11 +143,13 @@ Change status to **Ready** when:
 - **Priority:** High
 - **Dependencies:** KERN-032 (H1 invariants)
 - **Completed:** 2026-04-03
-- **Notes:** 21 parity tests validate all four kernel invariants
-  (cross-layer-violation, public-api-expansion, privilege-expansion,
-  new-dependency-introduction) against JS ARCH-001..004 equivalents.
-  Baseline suppression tested via `previously_*` fields. Two intentional
-  gaps documented: circular dependency (ARCH-001) and orphan detection
+- **Notes:** 22 tests total in `architecture_parity.rs`. The
+  cross-layer-violation invariant has direct JS parity (ARCH-003/004).
+  Three invariants — public-api-expansion, privilege-expansion,
+  new-dependency-introduction — are Rust-only (no JS equivalent); their
+  tests validate kernel behaviour rather than JS parity. Baseline
+  suppression tested via `previously_*` fields. Two intentional gaps
+  documented: circular dependency (ARCH-001) and orphan detection
   (ARCH-002) are not in the H1 invariant set — the kernel graph supports
   them but invariants are deferred to a future wave.
 
