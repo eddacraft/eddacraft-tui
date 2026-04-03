@@ -122,7 +122,7 @@ validation:
 
 The agent can then:
 
-- Query allowed files for a task via `anvil://boundaries`
+- Query architecture layer and boundary rules via `anvil://boundaries`
 - Validate changes before proposing via `anvil_check`
 - Check current violations via `anvil_status`
 

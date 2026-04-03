@@ -21,18 +21,9 @@ Anvil uses two configuration files and CLI flags for runtime options.
 
 Created by `anvil init`. Supports JSON, YAML, and TOML formats.
 
-### JSON (default)
+### YAML (default)
 
-```json
-{
-  "schemaVersion": "1.0.0",
-  "planningDir": "plans",
-  "format": "yaml",
-  "checks": ["secret-detection", "import-boundaries"]
-}
-```
-
-### YAML
+`anvil init` generates a YAML `.anvilrc` by default.
 
 ```yaml
 schemaVersion: '1.0.0'
@@ -41,6 +32,17 @@ format: yaml
 checks:
   - secret-detection
   - import-boundaries
+```
+
+### JSON
+
+```json
+{
+  "schemaVersion": "1.0.0",
+  "planningDir": "plans",
+  "format": "yaml",
+  "checks": ["secret-detection", "import-boundaries"]
+}
 ```
 
 ### TOML
@@ -259,7 +261,7 @@ Suppressions are managed via inline comments in your source files.
 ### Inline
 
 ```typescript
-// @anvil-ignore AP-003 Legacy parser uses any, migration planned Q2
+// @anvil-ignore AP-003 -- Legacy parser uses any, migration planned Q2
 export function parse(input: any): Record<string, unknown> { ... }
 ```
 
@@ -333,9 +335,20 @@ anvil --json gate                                # JSON output (global flag)
 
 :::note
 
-The Rust CLI does not currently read environment variables for configuration.
-Use CLI flags and config files instead. Legacy Node.js environment variables
-(`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are not supported.
+The Rust CLI does not support environment variables for selecting or configuring
+`.anvilrc`, gate checks, or other project configuration. Use CLI flags and
+config files for those settings.
+
+The Rust CLI does read some environment variables for auth and API-related
+configuration, including:
+
+- `ANVIL_API_URL` — custom API endpoint
+- `ANVIL_LICENSE` — licence key for CI environments
+- `ANVIL_ADMIN_KEY` — admin command authentication
+- `ANVIL_TEMPLATES_DIR` — custom template directory
+
+Legacy Node.js environment variables (`ANVIL_CI`, `ANVIL_FAIL_ON_WARNINGS`) are
+not supported.
 
 :::
 

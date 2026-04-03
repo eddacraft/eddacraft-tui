@@ -139,7 +139,7 @@ import { UserService } from '../services/user.service';
 If the violation is intentional, add a suppression:
 
 ```typescript
-// @anvil-ignore ARCH-001 Legacy pattern, will refactor in Q2
+// @anvil-ignore ARCH-001: Legacy pattern, will refactor in Q2
 import { UserRepo } from '../repositories/user.repo';
 ```
 
