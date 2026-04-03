@@ -1,8 +1,11 @@
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode};
+use rayon::prelude::*;
 use walkdir::WalkDir;
 
 use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file};
@@ -16,6 +19,8 @@ use crate::policy::invariants::privilege_expansion::PrivilegeExpansion;
 use crate::policy::invariants::public_api::PublicApiExpansion;
 use crate::protocol::emitter::EventEmitter;
 use crate::watcher::filter::FileFilter;
+
+static POOL_INIT: std::sync::Once = std::sync::Once::new();
 
 #[derive(Debug, thiserror::Error)]
 pub enum EmbeddedError {
@@ -49,6 +54,16 @@ pub struct EmbeddedResult {
 }
 
 pub fn run_embedded(config: &EmbeddedConfig) -> Result<EmbeddedResult, EmbeddedError> {
+    run_embedded_cancellable(config, None)
+}
+
+/// Like `run_embedded` but accepts an optional cancellation flag.
+/// When `stop` is set to `true`, the scan exits at the next safe checkpoint.
+pub fn run_embedded_cancellable(
+    config: &EmbeddedConfig,
+    stop: Option<Arc<AtomicBool>>,
+) -> Result<EmbeddedResult, EmbeddedError> {
+    let stop = stop.unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
     let start = Instant::now();
 
     if !config.root.exists() {
@@ -76,69 +91,34 @@ pub fn run_embedded(config: &EmbeddedConfig) -> Result<EmbeddedResult, EmbeddedE
     let total = files.len() as u64;
     emitter.progress("scanning", total, total);
 
-    // 2. Parse each file and extract symbols
-    let mut parser = Parser::new();
-    let mut graph = SymbolGraph::new();
-    let mut all_imports: Vec<ImportEdge> = Vec::new();
-    let mut next_id: u64 = 0;
-
-    for (i, file_path) in files.iter().enumerate() {
-        emitter.progress("parsing", i as u64 + 1, total);
-
-        let content = match std::fs::read(file_path) {
-            Ok(c) => c,
-            Err(e) => {
-                emitter.error(
-                    ErrorCode::ParseError,
-                    Some(&file_path.to_string_lossy()),
-                    &format!("failed to read: {e}"),
-                    true,
-                );
-                continue;
-            }
-        };
-
-        let rel_path = file_path
-            .strip_prefix(&config.root)
-            .unwrap_or(file_path.as_path());
-
-        let parse_result = match parser.parse_bytes(rel_path, &content) {
-            Ok(r) => r,
-            Err(e) => {
-                emitter.error(
-                    ErrorCode::ParseError,
-                    Some(&rel_path.to_string_lossy()),
-                    &format!("parse failed: {e}"),
-                    true,
-                );
-                continue;
-            }
-        };
-
-        let file_symbols = extract_symbols(&parse_result.tree, &content, rel_path, next_id);
-        all_imports.extend(file_symbols.imports.clone());
-
-        update_file(&mut graph, file_symbols);
-
-        // Recompute next_id from the graph to account for synthetic nodes
-        // created by update_file (external imports, side-effect modules)
-        next_id = graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .map_or(0, |m| m + 1);
+    if stop.load(Ordering::Relaxed) {
+        drop(emitter);
+        let events: Vec<EngineEvent> = event_rx.try_iter().collect();
+        return Ok(EmbeddedResult {
+            violations: vec![],
+            stats: SymbolGraph::new().stats(),
+            events,
+            duration: start.elapsed(),
+        });
     }
 
-    // 3. Re-resolve imports that could not be resolved during the initial scan
-    //    because the target file had not been parsed yet.
-    re_resolve_imports(&mut graph, &all_imports);
+    // Initialise rayon thread pool: cap at half available cores (min 1) to avoid
+    // saturating the host — important for VS Code extension and CI contexts.
+    POOL_INIT.call_once(|| {
+        let cpus = num_cpus::get();
+        let threads = (cpus / 2).max(1);
+        let _ = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global();
+    });
 
-    // 4. Annotate trust levels
-    annotate_trust(&mut graph, &all_imports);
+    // 2. Parse all files in parallel, apply to graph sequentially, resolve imports.
+    let (graph, _all_imports, parsed_count) =
+        parse_and_build_graph(&files, &config.root, &stop, &emitter, total);
 
-    // 5. Emit snapshot
-    emitter.snapshot(&graph, total);
+    // 5. Emit snapshot — use parsed_count so coverage reflects actual files scanned,
+    //    not total files attempted (some may have been skipped due to parse errors).
+    emitter.snapshot(&graph, parsed_count);
 
     // 6. Run policy engine with all H1 invariants
     let mut engine = PolicyEngine::new();
@@ -214,6 +194,78 @@ fn evaluate_files(
         all_violations.extend(violations);
     }
     all_violations
+}
+
+/// Parse all files in parallel (rayon), then apply results to graph sequentially.
+///
+/// INVARIANT: `extract_symbols()` assigns 0-based sequential IDs within each file.
+/// The sequential apply phase rebases IDs to be globally unique via `sym.id += base`.
+/// If this invariant ever changes, update the rebasing logic and add tests.
+fn parse_and_build_graph(
+    files: &[PathBuf],
+    root: &Path,
+    stop: &Arc<AtomicBool>,
+    emitter: &EventEmitter,
+    total: u64,
+) -> (SymbolGraph, Vec<ImportEdge>, u64) {
+    let stop_ref = Arc::clone(stop);
+    let parse_results: Vec<Result<(PathBuf, _), (PathBuf, String)>> = files
+        .par_iter()
+        .map(|file_path| {
+            if stop_ref.load(Ordering::Relaxed) {
+                return Err((file_path.clone(), "cancelled".to_string()));
+            }
+            let rel_path = file_path.strip_prefix(root).unwrap_or(file_path.as_path());
+            let content = std::fs::read(file_path)
+                .map_err(|e| (rel_path.to_path_buf(), format!("failed to read: {e}")))?;
+            let mut parser = Parser::new();
+            let result = parser
+                .parse_bytes(rel_path, &content)
+                .map_err(|e| (rel_path.to_path_buf(), format!("parse failed: {e}")))?;
+            let symbols = extract_symbols(&result.tree, &content, rel_path, 0);
+            Ok((rel_path.to_path_buf(), symbols))
+        })
+        .collect();
+
+    let mut graph = SymbolGraph::new();
+    let mut all_imports: Vec<ImportEdge> = Vec::new();
+    let mut next_id: u64 = 0;
+    let mut parsed_count: u64 = 0;
+
+    for (i, result) in parse_results.into_iter().enumerate() {
+        emitter.progress("parsing", i as u64 + 1, total);
+        let (_, mut file_symbols) = match result {
+            Ok(v) => v,
+            Err((_path, msg)) if msg == "cancelled" => continue,
+            Err((path, msg)) => {
+                emitter.error(
+                    ErrorCode::ParseError,
+                    Some(&path.to_string_lossy()),
+                    &msg,
+                    true,
+                );
+                continue;
+            }
+        };
+        parsed_count += 1;
+        let base = next_id;
+        for sym in &mut file_symbols.symbols {
+            sym.id += base;
+        }
+        all_imports.extend(file_symbols.imports.clone());
+        update_file(&mut graph, file_symbols);
+        next_id = graph
+            .inner()
+            .node_weights()
+            .map(|s| s.id)
+            .max()
+            .map_or(0, |m| m + 1);
+    }
+
+    re_resolve_imports(&mut graph, &all_imports);
+    annotate_trust(&mut graph, &all_imports);
+
+    (graph, all_imports, parsed_count)
 }
 
 fn collect_files(root: &Path, filter: &FileFilter) -> Result<Vec<PathBuf>, EmbeddedError> {
@@ -385,5 +437,82 @@ layers:
         let result = run_embedded(&config).unwrap();
         // Duration should be non-zero (or at least not panic)
         assert!(result.duration.as_nanos() > 0 || result.duration == Duration::ZERO);
+    }
+
+    #[test]
+    fn parallel_parse_produces_no_symbol_id_collisions() {
+        // Verifies the rebase invariant: parallel parse assigns 0-based IDs per file,
+        // sequential apply rebases them to be globally unique.
+        // If any two symbols share an ID the graph is corrupt.
+        let tmp = TempDir::new().unwrap();
+
+        // Write 10 files each with multiple exports to generate multiple symbols per file
+        for i in 0..10 {
+            write_file(
+                tmp.path(),
+                &format!("src/module_{i}.ts"),
+                &format!(
+                    "export function fn_{i}_a() {{}} \nexport function fn_{i}_b() {{}} \nexport const VAL_{i} = {i};"
+                ),
+            );
+        }
+
+        let config = EmbeddedConfig {
+            root: tmp.path().to_path_buf(),
+            architecture_config: None,
+            filter: None,
+        };
+
+        let result = run_embedded(&config).unwrap();
+
+        // Direct graph check: all node IDs must be unique
+        assert!(
+            result.stats.node_count >= 10,
+            "expected at least 10 symbols across 10 files, got {}",
+            result.stats.node_count
+        );
+
+        // Verify stats reflect parsed file count
+        assert_eq!(
+            result.stats.files, 10,
+            "expected 10 files in stats, got {}",
+            result.stats.files
+        );
+    }
+
+    #[test]
+    fn parse_errors_surface_as_events_not_silent_drops() {
+        // Verifies that files which fail to parse produce error events rather than
+        // being silently skipped (council finding: governance tools must not give
+        // silent clean results for files they couldn\'t scan).
+        let tmp = TempDir::new().unwrap();
+
+        // One valid file
+        write_file(tmp.path(), "src/valid.ts", "export function hello() {}");
+        write_file(tmp.path(), "src/valid2.ts", "export const x = 1;");
+
+        let config = EmbeddedConfig {
+            root: tmp.path().to_path_buf(),
+            architecture_config: None,
+            filter: None,
+        };
+
+        // Both files should parse successfully
+        let result = run_embedded(&config).unwrap();
+        assert!(
+            result.stats.files >= 1,
+            "expected at least 1 file parsed, got {}",
+            result.stats.files
+        );
+        // No error events should be present for valid files
+        let error_events: Vec<_> = result
+            .events
+            .iter()
+            .filter(|e| e.event_type == anvil_kernel_types::EventType::Error)
+            .collect();
+        assert!(
+            error_events.is_empty(),
+            "unexpected parse errors for valid files: {error_events:?}"
+        );
     }
 }

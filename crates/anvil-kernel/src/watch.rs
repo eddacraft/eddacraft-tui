@@ -5,6 +5,7 @@ use std::sync::mpsc;
 use std::thread;
 
 use anvil_kernel_types::{EngineEvent, EngineId, ErrorCode};
+use rayon::prelude::*;
 use walkdir::WalkDir;
 
 use crate::graph::{SymbolGraph, annotate_trust, re_resolve_imports, update_file};
@@ -20,6 +21,8 @@ use crate::protocol::emitter::EventEmitter;
 use crate::watcher::events::ChangeKind;
 use crate::watcher::filter::FileFilter;
 use crate::watcher::{WatcherConfig, start_watcher};
+
+static POOL_INIT: std::sync::Once = std::sync::Once::new();
 
 #[derive(Debug, thiserror::Error)]
 pub enum WatchError {
@@ -94,51 +97,6 @@ impl WatchState {
             file_count: 0,
         }
     }
-
-    fn parse_and_update(
-        &mut self,
-        abs_path: &Path,
-        rel_path: &Path,
-        emitter: &EventEmitter,
-    ) -> bool {
-        let content = match std::fs::read(abs_path) {
-            Ok(c) => c,
-            Err(e) => {
-                emitter.error(
-                    ErrorCode::ParseError,
-                    Some(&abs_path.to_string_lossy()),
-                    &format!("failed to read: {e}"),
-                    true,
-                );
-                return false;
-            }
-        };
-
-        let parse_result = match self.parser.parse_bytes(rel_path, &content) {
-            Ok(r) => r,
-            Err(e) => {
-                emitter.error(
-                    ErrorCode::ParseError,
-                    Some(&rel_path.to_string_lossy()),
-                    &format!("parse failed: {e}"),
-                    true,
-                );
-                return false;
-            }
-        };
-
-        let file_symbols = extract_symbols(&parse_result.tree, &content, rel_path, self.next_id);
-        self.all_imports.extend(file_symbols.imports.clone());
-        update_file(&mut self.graph, file_symbols);
-        self.next_id = self
-            .graph
-            .inner()
-            .node_weights()
-            .map(|s| s.id)
-            .max()
-            .map_or(0, |m| m + 1);
-        true
-    }
 }
 
 fn initial_scan(
@@ -151,21 +109,17 @@ fn initial_scan(
 ) {
     let mut scanned_files: Vec<PathBuf> = Vec::new();
 
-    let walker = WalkDir::new(root).into_iter().filter_entry(|e| {
-        // Prune ignored directories at the walk level so we never descend
-        // into coverage/, node_modules/, .git, target, etc.
-        if e.file_type().is_dir() {
-            return !filter.should_ignore(e.path());
-        }
-        true
-    });
-
-    for result in walker {
-        if stop.load(Ordering::Relaxed) {
-            return;
-        }
-        let entry = match result {
-            Ok(e) => e,
+    // Collect all file paths first (walk is sequential — cheap)
+    let all_paths: Vec<PathBuf> = WalkDir::new(root)
+        .into_iter()
+        .filter_map(|r| match r {
+            Ok(e) => {
+                if e.file_type().is_file() && filter.should_process(e.path()) {
+                    Some(e.path().to_path_buf())
+                } else {
+                    None
+                }
+            }
             Err(e) => {
                 let path_str = e
                     .path()
@@ -181,25 +135,97 @@ fn initial_scan(
                     &format!("walk error: {e}"),
                     true,
                 );
+                None
+            }
+        })
+        .collect();
+
+    if stop.load(Ordering::Relaxed) {
+        return;
+    }
+
+    // Phase 1: parse all files in parallel (embarrassingly parallel — no shared state).
+    // Errors are collected as Err variants and surfaced via emitter after the parallel phase.
+    // INVARIANT: extract_symbols() assigns 0-based sequential IDs per file; rebasing below
+    // relies on this. If the extractor changes, update rebasing logic accordingly.
+    //
+    // Thread pool: capped at half available cores to avoid saturating VS Code extension host.
+    POOL_INIT.call_once(|| {
+        let threads = (num_cpus::get() / 2).max(1);
+        let _ = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global();
+    });
+
+    let parse_results: Vec<Result<(PathBuf, _), (PathBuf, String)>> = all_paths
+        .par_iter()
+        .map(|abs_path| {
+            // Check cancellation at start of each closure for responsive shutdown
+            if stop.load(Ordering::Relaxed) {
+                return Err((abs_path.clone(), "cancelled".to_string()));
+            }
+            let rel_path = abs_path.strip_prefix(root).unwrap_or(abs_path);
+            let content = std::fs::read(abs_path)
+                .map_err(|e| (rel_path.to_path_buf(), format!("failed to read: {e}")))?;
+            let mut parser = Parser::new();
+            let result = parser
+                .parse_bytes(rel_path, &content)
+                .map_err(|e| (rel_path.to_path_buf(), format!("parse failed: {e}")))?;
+            let symbols = extract_symbols(&result.tree, &content, rel_path, 0);
+            Ok((rel_path.to_path_buf(), symbols))
+        })
+        .collect();
+
+    // Phase 2: apply parsed results to graph sequentially (graph requires &mut).
+    // Surface errors so callers know which files were skipped.
+    for result in parse_results {
+        let (rel_path, mut file_symbols) = match result {
+            Ok(v) => v,
+            Err((_, msg)) if msg == "cancelled" => continue,
+            Err((path, msg)) => {
+                emitter.error(
+                    ErrorCode::ParseError,
+                    Some(&path.to_string_lossy()),
+                    &msg,
+                    true,
+                );
                 continue;
             }
         };
-        if !entry.file_type().is_file() || !filter.should_process(entry.path()) {
-            continue;
+        // Assign unique symbol IDs
+        let base_id = state.next_id;
+        for sym in &mut file_symbols.symbols {
+            sym.id += base_id;
         }
-        let rel_path = entry.path().strip_prefix(root).unwrap_or(entry.path());
-        if state.parse_and_update(entry.path(), rel_path, emitter) {
-            state.file_count += 1;
-            scanned_files.push(rel_path.to_path_buf());
-        }
+        state.all_imports.extend(file_symbols.imports.clone());
+        update_file(&mut state.graph, file_symbols);
+        state.next_id = state
+            .graph
+            .inner()
+            .node_weights()
+            .map(|s| s.id)
+            .max()
+            .map_or(0, |m| m + 1);
+        state.file_count += 1;
+        scanned_files.push(rel_path);
     }
 
     re_resolve_imports(&mut state.graph, &state.all_imports);
     annotate_trust(&mut state.graph, &state.all_imports);
 
-    // Run baseline policy evaluation so the first snapshot reflects real
-    // invariant results rather than an empty 0/0 checks placeholder.
-    for rel_path in &scanned_files {
+    evaluate_baseline(&scanned_files, state, arch_config, emitter);
+    emitter.snapshot(&state.graph, state.file_count);
+}
+
+/// Run baseline policy evaluation so the first snapshot reflects real
+/// invariant results rather than an empty 0/0 checks placeholder.
+fn evaluate_baseline(
+    scanned_files: &[PathBuf],
+    state: &mut WatchState,
+    arch_config: &ArchitectureConfig,
+    emitter: &EventEmitter,
+) {
+    for rel_path in scanned_files {
         let rel_str = rel_path.to_string_lossy().to_string();
         let symbols_in_file: Vec<u64> = state
             .graph
@@ -230,8 +256,6 @@ fn initial_scan(
             emitter.violation(v);
         }
     }
-
-    emitter.snapshot(&state.graph, state.file_count);
 }
 
 fn watch_loop(

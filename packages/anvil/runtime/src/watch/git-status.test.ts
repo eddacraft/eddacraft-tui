@@ -1,3 +1,4 @@
+import { join, resolve } from 'node:path';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { GitStatusChecker, getChangedFiles } from './git-status.js';
 
@@ -30,9 +31,10 @@ describe('GitStatusChecker', () => {
       const checker = new GitStatusChecker('/repo');
       const status = await checker.getFileStatus('/repo/src/file.ts');
 
-      expect(mockGitExec).toHaveBeenCalledWith(['status', '--porcelain', '--', 'src/file.ts'], {
-        cwd: '/repo',
-      });
+      expect(mockGitExec).toHaveBeenCalledWith(
+        ['status', '--porcelain', '--', join('src', 'file.ts')],
+        { cwd: '/repo' }
+      );
       expect(status).toEqual({
         path: 'src/file.ts',
         isTracked: true,
@@ -63,13 +65,18 @@ describe('GitStatusChecker', () => {
         gitResult(' M src/live.ts\n?? "new file.ts"\nM  staged-only.ts\n')
       );
 
-      const checker = new GitStatusChecker('/repo');
+      const root = resolve('/repo');
+      const checker = new GitStatusChecker(root);
       const files = await checker.filterUnstaged(
-        ['/repo/src/live.ts', '/repo/new file.ts', '/repo/staged-only.ts'],
+        [
+          resolve(root, 'src/live.ts'),
+          resolve(root, 'new file.ts'),
+          resolve(root, 'staged-only.ts'),
+        ],
         true
       );
 
-      expect(files).toEqual(['/repo/src/live.ts', '/repo/new file.ts']);
+      expect(files).toEqual([resolve(root, 'src/live.ts'), resolve(root, 'new file.ts')]);
     });
   });
 });
@@ -88,13 +95,14 @@ describe('getChangedFiles', () => {
       gitResult('R  "old name.ts" -> "new name.ts"\n?? docs/readme.md\n M src/live.ts\n')
     );
 
-    const files = await getChangedFiles('/repo', {
+    const root = resolve('/repo');
+    const files = await getChangedFiles(root, {
       staged: true,
       unstaged: true,
       untracked: true,
       extensions: ['.ts'],
     });
 
-    expect(files).toEqual(['/repo/new name.ts', '/repo/src/live.ts']);
+    expect(files).toEqual([resolve(root, 'new name.ts'), resolve(root, 'src/live.ts')]);
   });
 });

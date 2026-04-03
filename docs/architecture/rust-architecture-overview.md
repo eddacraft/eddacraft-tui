@@ -110,18 +110,20 @@ crates/
 
 ### Workspace Dependencies
 
-| Dependency             | Purpose                  | Used By                          |
-| ---------------------- | ------------------------ | -------------------------------- |
-| tree-sitter            | Incremental parsing      | anvil-kernel                     |
-| tree-sitter-typescript | TS/JS grammar            | anvil-kernel                     |
-| tree-sitter-javascript | JS grammar               | anvil-kernel                     |
-| notify                 | File system watching     | anvil-kernel                     |
-| petgraph               | In-memory semantic graph | anvil-kernel                     |
-| serde, serde_json      | Serialisation            | anvil-kernel-types, anvil-kernel |
-| ratatui                | Terminal UI framework    | eddacraft-tui, anvil-tui         |
-| crossterm              | Terminal backend         | eddacraft-tui, anvil-tui         |
-| tokio                  | Async runtime            | anvil-kernel                     |
-| insta                  | Snapshot testing         | all crates                       |
+| Dependency             | Purpose                        | Used By                          |
+| ---------------------- | ------------------------------ | -------------------------------- |
+| tree-sitter            | Incremental parsing            | anvil-kernel                     |
+| tree-sitter-typescript | TS/JS grammar                  | anvil-kernel                     |
+| tree-sitter-javascript | JS grammar                     | anvil-kernel                     |
+| notify                 | File system watching           | anvil-kernel                     |
+| petgraph               | In-memory semantic graph       | anvil-kernel                     |
+| rayon                  | Parallel parse (cold start)    | anvil-kernel                     |
+| num_cpus               | Core count for thread pool cap | anvil-kernel                     |
+| serde, serde_json      | Serialisation                  | anvil-kernel-types, anvil-kernel |
+| ratatui                | Terminal UI framework          | eddacraft-tui, anvil-tui         |
+| crossterm              | Terminal backend               | eddacraft-tui, anvil-tui         |
+| tokio                  | Async runtime                  | anvil-kernel                     |
+| insta                  | Snapshot testing               | all crates                       |
 
 ### Workspace Policies
 
@@ -185,14 +187,37 @@ Four structural invariants ship in the first release:
 
 ### Performance Targets
 
-| Metric                           | Target     |
-| -------------------------------- | ---------- |
-| Cold graph build (100k LOC)      | <3 seconds |
-| Incremental update (single file) | <100ms     |
-| Event emission overhead          | <10ms      |
-| Memory footprint (medium repo)   | <500MB     |
-| File detection latency (p99)     | <20ms      |
-| tree-sitter parse (single file)  | <1ms       |
+_Targets updated 2026-04-03 to reflect rayon parallel parse implementation (PR
+#746)._
+
+| Metric                           | Target     | Actual (benchmarked)      |
+| -------------------------------- | ---------- | ------------------------- |
+| Cold graph build (100 files)     | <3 seconds | **14.5 ms** (rayon)       |
+| Cold graph build (1,000 files)   | <3 seconds | **~565 ms** (estimated)   |
+| Incremental update (single file) | <100ms     | **10 µs**                 |
+| Policy evaluation (all H1)       | <10ms      | **799 ns**                |
+| Event emission (1,000 events)    | <10ms      | **408 µs**                |
+| Memory footprint (medium repo)   | <500MB     | Not yet measured at scale |
+| File detection latency (p99)     | <20ms      | Unchanged (notify-rs)     |
+| tree-sitter parse (single file)  | <1ms       | **< 1ms** ✓               |
+| Concurrent burst (10 files)      | —          | **693 µs** (rayon)        |
+| Concurrent burst (50 files)      | —          | **3.5 ms** (rayon)        |
+
+#### Parallelism Architecture
+
+The parse phase of both `run_embedded` (CLI one-shot) and `initial_scan` (watch
+mode) runs in parallel using rayon. The thread pool is capped at
+`max(1, cpus/2)` to avoid saturating VS Code extension host and CI runners.
+Graph updates remain sequential (`SymbolGraph` requires `&mut`).
+
+Key implementation notes:
+
+- `extract_symbols()` assigns 0-based sequential IDs per file; IDs are rebased
+  to be globally unique in the sequential apply phase
+- Parse errors surface as `EngineEvent::Error` events — not silently dropped
+- Cancellation is supported via
+  `run_embedded_cancellable(stop: Arc<AtomicBool>)`
+- Stop flag checked inside each rayon closure for responsive shutdown
 
 ---
 

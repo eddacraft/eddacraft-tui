@@ -439,6 +439,8 @@ Change status to **Ready** when:
 ### KERN-043: Performance benchmarks against spec targets
 
 - **Status:** Done
+- **Completed:** 2026-03-16
+- **Updated:** 2026-04-03 (rayon parallel parse, PR #746)
 - **Intent:** Benchmark the kernel against all performance targets from the spec:
   cold build <3s, incremental <100ms, event overhead <10ms, memory <500MB
 - **Expected Outcome:** Benchmark report confirming all targets are met (or
@@ -448,6 +450,23 @@ Change status to **Ready** when:
 - **Confidence:** high
 - **Priority:** High
 - **Dependencies:** KERN-041
+
+#### Benchmark Results (2026-04-03, rayon parallel parse)
+
+| Metric | Before | After | Notes |
+|---|---|---|---|
+| Cold build, 10 files | 1.51 ms | 978 µs | 1.5x via rayon |
+| Cold build, 50 files | 9.70 ms | 5.56 ms | 1.7x via rayon |
+| Cold build, 100 files | 24.5 ms | 14.5 ms | 1.7x via rayon |
+| Incremental save | 10 µs | 10 µs | Unchanged |
+| Policy evaluation (H1) | 799 ns | 799 ns | Unchanged |
+| Secret scan (small file) | — | 4.07 ms | |
+| Command safety (simple) | — | 507 ns | |
+| Burst, 10 files | 1,924 µs | 693 µs | 2.8x via rayon |
+| Burst, 50 files | 10,449 µs | 3,460 µs | 3.0x via rayon |
+
+All spec targets met. Cold build well under 3s at any realistic codebase size.
+Incrementalupdate at 10µs is 10,000x under the 100ms target.
 
 ---
 
