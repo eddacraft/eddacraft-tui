@@ -133,13 +133,11 @@ fn extract_plan_files(plan_path: &Path) -> std::collections::HashSet<String> {
 
 /// Resolve a plan argument to a path: either an absolute path, or relative to
 /// the workspace root. Searches `plans/modules/` if not found directly.
-fn resolve_plan_path(plan_arg: &str) -> Option<PathBuf> {
+fn resolve_plan_path(plan_arg: &str, root: &Path) -> Option<PathBuf> {
     let direct = PathBuf::from(plan_arg);
     if direct.exists() {
         return Some(direct);
     }
-
-    let root = crate::util::workspace_root().ok()?;
 
     // Try relative to workspace root.
     let relative = root.join(plan_arg);
@@ -164,21 +162,10 @@ fn resolve_plan_path(plan_arg: &str) -> Option<PathBuf> {
     None
 }
 
-fn run_check_lint(name: &str) -> CheckResult {
-    let root = match crate::util::workspace_root() {
-        Ok(r) => r,
-        Err(e) => {
-            return CheckResult {
-                name: name.to_string(),
-                passed: false,
-                score: 0.0,
-                message: format!("Failed to determine workspace root: {e}"),
-            };
-        }
-    };
+fn run_check_lint(name: &str, root: &Path) -> CheckResult {
     let output = std::process::Command::new("pnpm")
         .args(["lint:check"])
-        .current_dir(&root)
+        .current_dir(root)
         .output();
     match output {
         Ok(o) if o.status.success() => CheckResult {
@@ -206,21 +193,10 @@ fn run_check_lint(name: &str) -> CheckResult {
     }
 }
 
-fn run_check_test(name: &str) -> CheckResult {
-    let root = match crate::util::workspace_root() {
-        Ok(r) => r,
-        Err(e) => {
-            return CheckResult {
-                name: name.to_string(),
-                passed: false,
-                score: 0.0,
-                message: format!("Failed to determine workspace root: {e}"),
-            };
-        }
-    };
+fn run_check_test(name: &str, root: &Path) -> CheckResult {
     let output = std::process::Command::new("pnpm")
         .args(["test"])
-        .current_dir(&root)
+        .current_dir(root)
         .output();
     match output {
         Ok(o) if o.status.success() => CheckResult {
@@ -279,21 +255,14 @@ const SECRET_SCAN_IGNORE: &[&str] = &[
 /// recursion into deeply nested or symlink-heavy trees.
 const SECRET_SCAN_MAX_DEPTH: usize = 20;
 
-fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) -> CheckResult {
-    let root = match crate::util::workspace_root() {
-        Ok(r) => r,
-        Err(e) => {
-            return CheckResult {
-                name: name.to_string(),
-                passed: false,
-                score: 0.0,
-                message: format!("Failed to determine workspace root: {e}"),
-            };
-        }
-    };
+fn run_check_secret(
+    name: &str,
+    root: &Path,
+    plan_files: &std::collections::HashSet<String>,
+) -> CheckResult {
     let mut files_to_scan: Vec<String> = Vec::new();
 
-    let mut walker = walkdir::WalkDir::new(&root);
+    let mut walker = walkdir::WalkDir::new(root).follow_links(false);
     // Only cap depth for full-codebase scans; plan-scoped runs must reach
     // explicitly referenced files regardless of nesting depth.
     if plan_files.is_empty() {
@@ -313,7 +282,7 @@ fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) 
         // Plan scoping: skip files not referenced in the plan.
         if !plan_files.is_empty() {
             let rel = path
-                .strip_prefix(&root)
+                .strip_prefix(root)
                 .unwrap_or(path)
                 .to_string_lossy()
                 .replace('\\', "/");
@@ -886,26 +855,16 @@ fn run_check_policy(
 }
 
 fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
-    let root = match crate::util::workspace_root() {
-        Ok(r) => r,
-        Err(e) => {
-            return CheckResult {
-                name: name.to_string(),
-                passed: false,
-                score: 0.0,
-                message: format!("Failed to determine workspace root: {e}"),
-            };
-        }
-    };
+    let root = &ctx.workspace_root;
     match name {
-        "lint" => run_check_lint(name),
-        "test" => run_check_test(name),
-        "secret" => run_check_secret(name, &ctx.plan_files),
-        "coverage" => run_check_coverage(&root, DEFAULT_COVERAGE_THRESHOLD),
-        "dependency" => run_check_dependency(&root),
-        "architecture" => run_check_architecture(&root),
+        "lint" => run_check_lint(name, root),
+        "test" => run_check_test(name, root),
+        "secret" => run_check_secret(name, root, &ctx.plan_files),
+        "coverage" => run_check_coverage(root, DEFAULT_COVERAGE_THRESHOLD),
+        "dependency" => run_check_dependency(root),
+        "architecture" => run_check_architecture(root),
         "policy" => run_check_policy(
-            &root,
+            root,
             ctx.profile.as_deref(),
             ctx.plan_path.as_deref(),
             &ctx.plan_files,
@@ -1016,6 +975,7 @@ pub fn collect_gate_data() -> anvil_tui::surfaces::gate::GateResult {
 
 /// Resolved gate context from CLI arguments.
 struct GateContext {
+    workspace_root: PathBuf,
     profile: Option<String>,
     /// Files referenced by the plan (empty = full codebase scan).
     plan_files: std::collections::HashSet<String>,
@@ -1024,6 +984,8 @@ struct GateContext {
 }
 
 fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
+    let root = crate::util::workspace_root()?;
+
     let profile_skips = resolve_profile_skips(args.profile.as_deref())?;
 
     let mut skip_set: std::collections::HashSet<&str> = args
@@ -1045,7 +1007,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
 
     // Resolve plan-scoped file set.
     let (plan_files, plan_path) = if let Some(ref plan_arg) = args.plan {
-        match resolve_plan_path(plan_arg) {
+        match resolve_plan_path(plan_arg, &root) {
             Some(path) => {
                 let files = extract_plan_files(&path);
                 if args.progress {
@@ -1066,6 +1028,7 @@ fn run_checks(args: &GateArgs) -> Result<Vec<CheckResult>> {
     };
 
     let ctx = GateContext {
+        workspace_root: root,
         profile: args.profile.clone(),
         plan_files,
         plan_path,
@@ -1580,7 +1543,7 @@ rules: []
         let modules_dir = root.join("plans/modules");
         if modules_dir.exists() {
             // Only run on actual workspace with plans.
-            if let Some(path) = resolve_plan_path("rust-cli") {
+            if let Some(path) = resolve_plan_path("rust-cli", &root) {
                 assert!(path.to_string_lossy().ends_with(".aps.md"));
             }
         }
@@ -1744,7 +1707,9 @@ rules: []
 
     #[test]
     fn unknown_check_fails() {
+        let dir = tempfile::tempdir().unwrap();
         let ctx = GateContext {
+            workspace_root: dir.path().to_path_buf(),
             profile: None,
             plan_files: std::collections::HashSet::new(),
             plan_path: None,
