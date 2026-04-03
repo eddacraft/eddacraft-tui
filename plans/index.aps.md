@@ -249,6 +249,22 @@ graph data.
 | ------ | ----- | ---------- | ------------ |
 | [config-intelligence](./modules/config-intelligence.aps.md) | CFGINT | 7 | architecture-safety |
 
+### Intercept Loop (Draft)
+
+Host-local enforcement daemon that detects policy violations from AI agent file
+changes and interrupts the correct session via process-group control. Shell-first,
+single-host initially, proving the core enforcement thesis. See
+[design spec](./specs/anvil-driver-framework/) for the broader driver framework
+vision.
+
+| Module | Scope | Status | Progress | Dependencies |
+| ------ | ----- | ------ | -------- | ------------ |
+| [intercept-daemon](./modules/intercept-daemon.aps.md) | INTD | Draft | 0/11 | anvil-checks, anvil-kernel (watcher), INTR, INTL |
+| [intercept-launcher](./modules/intercept-launcher.aps.md) | INTL | Draft | 0/8 | INTD |
+| [intercept-rules](./modules/intercept-rules.aps.md) | INTR | Draft | 0/7 | anvil-checks |
+
+**Architecture Decision:** [D-015: Intercept Loop Enforcement](./decisions/015-intercept-loop-enforcement.md)
+
 ### Future
 
 | Feature | Description | Status |
@@ -322,6 +338,7 @@ Active module themes:
 | Web Dashboard | [dashboard-foundation](./modules/dashboard-foundation.aps.md), [dashboard-core-views](./modules/dashboard-core-views.aps.md), [dashboard-architecture-views](./modules/dashboard-architecture-views.aps.md), [dashboard-ops-views](./modules/dashboard-ops-views.aps.md), [dashboard-ai-builder](./modules/dashboard-ai-builder.aps.md) |
 | Policy Governance | [opa-enhancements](./modules/opa-enhancements.aps.md) + 16 more (see release plan) |
 | Engineering Platform | [api-governance](./modules/api-governance.aps.md), [security](./modules/security.aps.md), [testing-strategy](./modules/testing-strategy.aps.md), [release-management](./modules/release-management.aps.md), [documentation-sync](./modules/documentation-sync.aps.md), [schema-contracts](./modules/schema-contracts.aps.md), [eddacraft-tui-shared](./modules/eddacraft-tui-shared.aps.md) |
+| Intercept Loop | [intercept-daemon](./modules/intercept-daemon.aps.md), [intercept-launcher](./modules/intercept-launcher.aps.md), [intercept-rules](./modules/intercept-rules.aps.md) |
 | Multi-Language | [lang-python](./modules/lang-python.aps.md) + 9 more (see release plan) |
 
 ### Superseded
@@ -770,6 +787,9 @@ Tasks will be defined when each module moves from Draft to Ready status.
 | ~~Temper creates bad fixes~~        | ~~high~~   | ~~low~~        | ~~Archived — Temper removed~~                       |
 | ~~Deferred findings pile up~~       | ~~medium~~ | ~~medium~~     | ~~Archived — Forge/Temper replaced by Council~~     |
 | ~~Bot review wars in CI~~           | ~~medium~~ | ~~low~~        | ~~Archived — Temper removed~~                       |
+| PGID TOCTOU race in intercept      | high   | medium     | Verify PGID ownership before signalling; fence on failure (D-015 AD-7) |
+| Intercept v1 scope creep           | medium | medium     | Strict out-of-scope list; binary allow/interrupt; no driver framework in v1 |
+| Shell wrapper bypass               | medium | medium     | Hook side-channel + fence-on-unknown fallback (D-015 AD-2) |
 
 ## Decisions
 
@@ -805,6 +825,9 @@ Tasks will be defined when each module moves from Draft to Ready status.
 - **D-012:** Eval Harness Adoption — adopt external eval framework behind Anvil
   adapter contracts for CI-native trust regression testing
   ([ADR](./decisions/012-eval-harness-adoption.md))
+- **D-015:** Intercept Loop Enforcement — driver-based host-local enforcement
+  daemon with process-group control, configurable enforcement policy, and
+  fence persistence ([ADR](./decisions/015-intercept-loop-enforcement.md))
 
 ## Open Questions
 

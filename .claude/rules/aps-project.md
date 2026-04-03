@@ -56,6 +56,9 @@
 - TCOV: test-coverage-uplift (0/25) — Draft
 - TINT: test-integration-surface (0/15) — Draft
 - TEXT: test-external-services (0/10) — Draft
+- INTD: intercept-daemon (0/11) — Draft
+- INTL: intercept-launcher (0/8) — Draft
+- INTR: intercept-rules (0/7) — Draft
 
 ## Conventions
 
@@ -610,4 +613,33 @@ crates/anvil-tui/src/surfaces/tutorial/watch_demo_render.rs: WELCOME-014
 crates/anvil-tui/src/surfaces/onboarding/hooks.rs: WELCOME-015
 crates/anvil-cli/src/commands/tutorial.rs: WELCOME-016
 crates/anvil-tui/src/surfaces/onboarding/complete.rs: WELCOME-017
+# INTD: Intercept Daemon
+crates/anvil-intercept/src/main.rs: INTD-001
+crates/anvil-intercept/src/ipc/: INTD-002
+crates/anvil-intercept/src/registry/: INTD-003
+crates/anvil-intercept/src/watcher/: INTD-004
+crates/anvil-intercept/src/enforcement/: INTD-005, INTD-006
+crates/anvil-intercept/src/fence/: INTD-007
+crates/anvil-intercept/src/config/: INTD-008
+crates/anvil-intercept/src/embedded.rs: INTD-009
+crates/anvil-intercept/src/unregistered.rs: INTD-010
+crates/anvil-intercept/src/status.rs: INTD-011
+# INTL: Intercept Launcher
+crates/anvil-run/src/main.rs: INTL-001
+crates/anvil-run/src/preflight.rs: INTL-002
+crates/anvil-run/src/register.rs: INTL-003
+crates/anvil-run/src/spawn.rs: INTL-004
+crates/anvil-run/src/cleanup.rs: INTL-005
+shell/anvil.zsh: INTL-006
+shell/anvil.bash: INTL-006
+crates/anvil-run/src/hook.rs: INTL-007
+crates/anvil-run/src/ux.rs: INTL-008
+# INTR: Intercept Rules
+crates/anvil-intercept-rules/src/lib.rs: INTR-001
+crates/anvil-intercept-rules/src/secret.rs: INTR-002
+crates/anvil-intercept-rules/src/antipattern.rs: INTR-003
+crates/anvil-intercept-rules/src/path_deny.rs: INTR-004
+crates/anvil-intercept-rules/src/regex_content.rs: INTR-005
+crates/anvil-intercept-rules/src/registry.rs: INTR-006
+crates/anvil-intercept-rules/src/config.rs: INTR-007
 ```
