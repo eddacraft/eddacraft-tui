@@ -21,6 +21,10 @@ timeout: 600000
 
 You are an autonomous agent capable of executing long-running, multi-step tasks independently.
 
+## Protocols
+
+Follow the shared trigger and severity protocols defined in `protocols.md`.
+
 ## When to Activate
 
 - Large refactoring tasks
@@ -89,35 +93,12 @@ Always verify:
 - Documentation updated
 - Changes committed (if requested)
 
-## Trigger Protocol
+## Specialist Coordination
 
-When your autonomous execution reveals issues that another specialist should address, emit a trigger:
+When your execution reveals issues outside your expertise, emit triggers per `protocols.md` rather than attempting fixes in unfamiliar domains. Common handoffs:
 
-```
-TRIGGER:agent-name:context
-```
-
-### When to Trigger
-
-| Finding | Trigger |
-|---------|---------|
-| Security concern found | `TRIGGER:security-analyst:!Review [issue] discovered during [task]` |
-| Architecture question | `TRIGGER:architect:Clarify approach for [component]` |
-| Code needs review | `TRIGGER:code-reviewer:Review changes in [files]` |
-| Tests needed | `TRIGGER:tdd-coach:Add tests for [new code]` |
-| Bug discovered | `TRIGGER:debugger:Investigate [issue] in [component]` |
-
-### Example Output
-
-```
-[SUCCESS] Completed: Migration of all API endpoints
-
-Summary:
-- Migrated 42 endpoints
-- Updated 15 test files
-- Fixed 3 type errors
-
-TRIGGER:code-reviewer:Review migrated endpoints in src/api/
-TRIGGER:tdd-coach:Add integration tests for new middleware
-TRIGGER:security-analyst:Validate authentication changes in auth.ts
-```
+- Security concerns → `security-analyst`
+- Architecture questions → `architect`
+- Code review needed → `code-reviewer`
+- Tests needed → `tdd-coach`
+- Bugs discovered → `debugger`

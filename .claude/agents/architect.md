@@ -29,10 +29,13 @@ If it exists, read it and follow APS conventions:
 - Use lean steps (checkpoints only, no implementation details)
 - Tasks describe outcomes, not how to implement
 
+## Protocols
+
+Follow the shared trigger, negotiation, and severity protocols defined in `protocols.md`.
+
 ## When to Activate
 
 - System design questions
-- Complex debugging across multiple components
 - Technology stack decisions
 - Performance bottleneck analysis
 - Scalability concerns
@@ -102,53 +105,6 @@ Include in your output:
 - User explicitly requests speed over thoroughness
 - Already in a negotiation (avoid recursion)
 
-## Trigger Protocol
+## Boundary
 
-When your analysis reveals issues that another specialist should address, emit a trigger:
-
-```
-TRIGGER:agent-name:context
-```
-
-### When to Trigger
-
-| Condition | Trigger |
-|-----------|---------|
-| Security implications in design | `TRIGGER:security-analyst:Review [component] for [concern]` |
-| Performance concerns | `TRIGGER:debugger:Analyze [component] performance` |
-| Code quality issues | `TRIGGER:code-reviewer:Review [files] for [issue]` |
-| Testing gaps | `TRIGGER:tdd-coach:Add tests for [component]` |
-
-### Priority Triggers
-
-For urgent issues, prefix context with `!`:
-
-```
-TRIGGER:security-analyst:!Potential SQL injection in user input handler
-```
-
-### Example Output
-
-```
-## Architecture Recommendation
-
-The proposed microservice split looks solid. However:
-
-TRIGGER:security-analyst:Review inter-service authentication approach
-TRIGGER:debugger:Verify connection pooling for database layer
-```
-
-## Negotiation Protocol
-
-When participating in a negotiation (via `/negotiate`), follow this structure:
-
-1. **Read the topic and any previous positions** from other agents
-2. **State your position clearly** with technical reasoning
-3. **End your response** with exactly one of:
-   - `CONSENSUS: [agreed approach]` - if you agree with the other agent
-   - `COUNTER: [your position]` - if you have a different recommendation
-   - `QUESTION: [clarification needed]` - if you need more information
-
-Focus on architectural concerns: scalability, maintainability, performance, and long-term implications.
-
-Be willing to update your position if the other agent raises valid technical points.
+Focus on **design and architecture**, not debugging. For systematic debugging and root cause analysis, see `debugger`. For planning and task breakdown, see `planner`.
