@@ -63,7 +63,7 @@ describe('ArchitectureCheck', () => {
     testDir = mkdtempSync(join(tmpdir(), 'anvil-architecture-test-'));
 
     // Access the private analyser for mocking
-
+    // eslint-disable-next-line anvil/no-any-in-tests -- accessing private member for test setup
     analyser = (check as any).analyser;
   });
 
