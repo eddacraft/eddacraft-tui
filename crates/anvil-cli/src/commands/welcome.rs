@@ -159,7 +159,9 @@ fn open_docs_message() -> String {
 }
 
 fn first_run_marker_path() -> anyhow::Result<PathBuf> {
-    Ok(crate::util::workspace_root()?.join(".anvil").join("first-run"))
+    Ok(crate::util::workspace_root()?
+        .join(".anvil")
+        .join("first-run"))
 }
 
 fn create_first_run_marker(path: &Path) -> anyhow::Result<()> {
@@ -206,7 +208,10 @@ mod tests {
     #[test]
     fn first_run_marker_path_is_anchored() {
         let path = first_run_marker_path().unwrap();
-        assert!(path.is_absolute(), "marker path should be absolute, got: {path:?}");
+        assert!(
+            path.is_absolute(),
+            "marker path should be absolute, got: {path:?}"
+        );
         assert!(path.ends_with(".anvil/first-run"));
     }
 

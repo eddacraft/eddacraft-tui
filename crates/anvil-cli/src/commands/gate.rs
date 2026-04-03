@@ -167,12 +167,14 @@ fn resolve_plan_path(plan_arg: &str) -> Option<PathBuf> {
 fn run_check_lint(name: &str) -> CheckResult {
     let root = match crate::util::workspace_root() {
         Ok(r) => r,
-        Err(e) => return CheckResult {
-            name: name.to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Failed to determine workspace root: {e}"),
-        },
+        Err(e) => {
+            return CheckResult {
+                name: name.to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Failed to determine workspace root: {e}"),
+            };
+        }
     };
     let output = std::process::Command::new("pnpm")
         .args(["lint:check"])
@@ -207,12 +209,14 @@ fn run_check_lint(name: &str) -> CheckResult {
 fn run_check_test(name: &str) -> CheckResult {
     let root = match crate::util::workspace_root() {
         Ok(r) => r,
-        Err(e) => return CheckResult {
-            name: name.to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Failed to determine workspace root: {e}"),
-        },
+        Err(e) => {
+            return CheckResult {
+                name: name.to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Failed to determine workspace root: {e}"),
+            };
+        }
     };
     let output = std::process::Command::new("pnpm")
         .args(["test"])
@@ -278,12 +282,14 @@ const SECRET_SCAN_MAX_DEPTH: usize = 20;
 fn run_check_secret(name: &str, plan_files: &std::collections::HashSet<String>) -> CheckResult {
     let root = match crate::util::workspace_root() {
         Ok(r) => r,
-        Err(e) => return CheckResult {
-            name: name.to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Failed to determine workspace root: {e}"),
-        },
+        Err(e) => {
+            return CheckResult {
+                name: name.to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Failed to determine workspace root: {e}"),
+            };
+        }
     };
     let mut files_to_scan: Vec<String> = Vec::new();
 
@@ -882,12 +888,14 @@ fn run_check_policy(
 fn run_single_check(name: &str, ctx: &GateContext) -> CheckResult {
     let root = match crate::util::workspace_root() {
         Ok(r) => r,
-        Err(e) => return CheckResult {
-            name: name.to_string(),
-            passed: false,
-            score: 0.0,
-            message: format!("Failed to determine workspace root: {e}"),
-        },
+        Err(e) => {
+            return CheckResult {
+                name: name.to_string(),
+                passed: false,
+                score: 0.0,
+                message: format!("Failed to determine workspace root: {e}"),
+            };
+        }
     };
     match name {
         "lint" => run_check_lint(name),

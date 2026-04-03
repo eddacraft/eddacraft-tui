@@ -5,26 +5,49 @@ use anyhow::{Context, Result};
 
 /// Resolve the workspace root via `git rev-parse --show-toplevel`.
 ///
-/// Canonicalises the result to collapse symlinks. Falls back to the
-/// current directory. Returns an error only when no usable path can
-/// be determined.
+/// Canonicalises the git result to collapse symlinks. Falls back to
+/// the current directory (returned as-is, not canonicalised). Returns
+/// an error only when no usable path can be determined.
 pub fn workspace_root() -> Result<PathBuf> {
-    if let Some(root) = std::process::Command::new("git")
+    let git_failure = match std::process::Command::new("git")
         .args(["rev-parse", "--show-toplevel"])
         .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| PathBuf::from(s.trim()))
     {
-        if let Ok(canonical) = root.canonicalize() {
-            return Ok(canonical);
-        }
-        return Ok(root);
-    }
+        Ok(output) if output.status.success() => {
+            if let Ok(stdout) = String::from_utf8(output.stdout) {
+                let root = PathBuf::from(stdout.trim());
+                if let Ok(canonical) = root.canonicalize() {
+                    return Ok(canonical);
+                }
+                return Ok(root);
+            }
 
-    std::env::current_dir()
-        .context("failed to determine workspace root: git not available and current directory unresolvable")
+            Some("git rev-parse returned non-UTF-8 output".to_string())
+        }
+        Ok(output) => {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            if stderr.is_empty() {
+                Some(format!(
+                    "git rev-parse failed with status {}",
+                    output.status
+                ))
+            } else {
+                Some(format!(
+                    "git rev-parse failed with status {}: {}",
+                    output.status, stderr
+                ))
+            }
+        }
+        Err(err) => Some(format!("failed to run git rev-parse: {err}")),
+    };
+
+    std::env::current_dir().with_context(|| {
+        if let Some(reason) = &git_failure {
+            format!("failed to determine workspace root: {reason}; current directory unresolvable")
+        } else {
+            "failed to determine workspace root: current directory unresolvable".to_string()
+        }
+    })
 }
 
 /// Write `data` to `path` atomically by writing to a uniquely-named temporary
@@ -121,7 +144,10 @@ mod tests {
     #[test]
     fn workspace_root_returns_absolute_path() {
         let root = workspace_root().unwrap();
-        assert!(root.is_absolute(), "workspace root should be absolute, got: {root:?}");
+        assert!(
+            root.is_absolute(),
+            "workspace root should be absolute, got: {root:?}"
+        );
     }
 
     #[test]
