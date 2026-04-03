@@ -75,13 +75,17 @@ runs:
         INPUT_NODE_VERSION_FILE: ${{ inputs.node-version-file }}
       run: |
         if [[ -n "$INPUT_NODE_VERSION" ]]; then
+          # Sanitise: strip newlines to prevent GITHUB_OUTPUT injection
+          SAFE_VERSION="${INPUT_NODE_VERSION//$'\n'/}"
           echo "source=explicit" >> $GITHUB_OUTPUT
-          echo "version=$INPUT_NODE_VERSION" >> $GITHUB_OUTPUT
-          echo "::notice::Using explicit node-version: $INPUT_NODE_VERSION"
+          echo "version=$SAFE_VERSION" >> $GITHUB_OUTPUT
+          echo "::notice::Using explicit node-version: $SAFE_VERSION"
         elif [[ -n "$INPUT_NODE_VERSION_FILE" ]]; then
+          # Sanitise: strip newlines to prevent GITHUB_OUTPUT injection
+          SAFE_FILE="${INPUT_NODE_VERSION_FILE//$'\n'/}"
           echo "source=file" >> $GITHUB_OUTPUT
-          echo "file=$INPUT_NODE_VERSION_FILE" >> $GITHUB_OUTPUT
-          echo "::notice::Using node-version-file: $INPUT_NODE_VERSION_FILE"
+          echo "file=$SAFE_FILE" >> $GITHUB_OUTPUT
+          echo "::notice::Using node-version-file: $SAFE_FILE"
         elif [[ -f ".node-version" ]]; then
           echo "source=auto" >> $GITHUB_OUTPUT
           echo "file=.node-version" >> $GITHUB_OUTPUT
@@ -135,7 +139,10 @@ runs:
           fi
         fi
 
-        echo "files=$FILES" >> $GITHUB_OUTPUT
+        # Use heredoc form to safely handle newlines in file paths
+        echo "files<<ANVIL_FILES_EOF" >> $GITHUB_OUTPUT
+        echo "$FILES" >> $GITHUB_OUTPUT
+        echo "ANVIL_FILES_EOF" >> $GITHUB_OUTPUT
 
     # Step 4: Filter to analysable files
     - name: Filter analysable files
@@ -148,7 +155,10 @@ runs:
       run: |
         # Use explicit files if provided
         if [[ -n "$INPUT_FILES" ]]; then
-          echo "files=$INPUT_FILES" >> $GITHUB_OUTPUT
+          # Use heredoc form to safely handle newlines in input
+          echo "files<<ANVIL_RESOLVE_EOF" >> $GITHUB_OUTPUT
+          echo "$INPUT_FILES" >> $GITHUB_OUTPUT
+          echo "ANVIL_RESOLVE_EOF" >> $GITHUB_OUTPUT
           echo "::notice::Using explicitly provided files"
           exit 0
         fi
@@ -177,7 +187,9 @@ runs:
         # Trim leading space
         FILTERED=$(echo "$FILTERED" | xargs)
 
-        echo "files=$FILTERED" >> $GITHUB_OUTPUT
+        echo "files<<ANVIL_FILTER_EOF" >> $GITHUB_OUTPUT
+        echo "$FILTERED" >> $GITHUB_OUTPUT
+        echo "ANVIL_FILTER_EOF" >> $GITHUB_OUTPUT
 
         if [[ -z "$FILTERED" ]]; then
           echo "::notice::No analysable files in changeset (filtered from $(echo "$CHANGED" | wc -w) files)"
@@ -220,8 +232,18 @@ runs:
           exit 0
         fi
 
+        # Build args array: flags before files, -- separator to prevent
+        # filenames starting with '-' being parsed as CLI flags
+        ANVIL_ARGS=("$INPUT_CHECK_TYPE" "--json")
+        if [[ -n "$FILES" ]]; then
+          ANVIL_ARGS+=("--")
+          for f in $FILES; do
+            ANVIL_ARGS+=("$f")
+          done
+        fi
+
         set +e
-        RESULT=$(anvil "$INPUT_CHECK_TYPE" $FILES --json 2>&1)
+        RESULT=$(anvil "${ANVIL_ARGS[@]}" 2>&1)
         EXIT_CODE=$?
         set -e
 
