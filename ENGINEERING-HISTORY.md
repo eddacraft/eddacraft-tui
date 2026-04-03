@@ -17,6 +17,17 @@ work without disclosing exploit mechanics.
 Product changelog: Rust CLI, beta auth, Ratatui TUI, Rust kernel, json-render
 package, kernel benchmarks, TypeScript 6.0 migration.
 
+### Deferred to Next Release (Edda Stack CLI — RCLI3)
+
+The following Node.js CLI features shipped in v0.2.1-beta but are not included
+in the Rust CLI beta. They will be ported as part of RCLI3 (Tier 3):
+
+- **Edda canonical memories** (`EDDA`) — `anvil edda list`, `show`, `promote`,
+  `retire`, `trace`
+- **Ember candidate proposals** (`EMBER`) — `anvil ember list`, `show`,
+  `promote`
+- **Stack health monitoring** (`STACK`) — `anvil stack status`, `validate`
+
 ### Features
 
 - **Rust CLI rewrite** — full port of all 16 CLI subcommands from Node.js

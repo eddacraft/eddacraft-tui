@@ -11,9 +11,10 @@ engineering maintenance are recorded in the
 ### Added
 
 - **Rust CLI** — full native rewrite of the CLI in Rust using clap, replacing
-  the Node.js/Commander.js implementation (`RCLI`)
-  - 16 subcommands ported: check, watch, gate, init, wizard, new, status,
-    doctor, tutorial, welcome, audit, hooks, export, auth, admin, policy
+  the Node.js/Commander.js implementation (`RCLI`, `RCLI2`)
+  - 20 subcommands: check, watch, gate, gate-config, init, wizard, new, status,
+    doctor, tutorial, welcome, audit, hooks, export, auth, admin, policy,
+    architecture, validate, drift
   - `anvil policy evaluate` and `anvil architecture validate` wired to real OPA
     executor and config loader
   - `anvil auth login` — device-code authentication flow
@@ -21,8 +22,10 @@ engineering maintenance are recorded in the
   - `anvil new` — template browser for project scaffolding
   - `anvil wizard` — interactive setup with template scaffolding
   - `anvil audit` — repository scanning for security findings
+  - `anvil drift` — architecture drift tracking (snapshot, compare, report, list)
+  - `anvil validate` — APS plan file validation (structure, format, hashes)
+  - `anvil gate-config` — gate check configuration and thresholds
   - `--json` output mode across all commands with structured error reporting
-  - `--confidence` and `--since` filters for `anvil edda list`
 - **Beta authentication system** — passwordless device-code and OTP
   authentication for beta users (`BAUTH`)
   - Device code start, confirm, and poll endpoints
@@ -66,9 +69,24 @@ engineering maintenance are recorded in the
   declarative UI specs
 - **Rust engine checks** — native secret detection, anti-pattern detection, and
   command safety validation ported to Rust (`RENG`)
+- **Distribution pipeline** — cross-platform binary releases via cargo-dist
+  (`DIST`)
+  - Binaries for Linux (x86_64, aarch64), macOS (x86_64, aarch64), and Windows
+    (x86_64, aarch64)
+  - Shell and PowerShell installers served from `install.eddacraft.ai`
+  - Homebrew tap (`brew install eddacraft/tap/anvil`)
+  - Built-in self-updater (`anvil-update`)
+  - Cross-repo release workflow publishing to `EddaCraft/anvil`
+- **OPA v1 and Regal linting in CI** — Rego policies migrated to OPA v1 syntax,
+  Regal linter added to Rust workflow (`TFIX-003`, `TFIX-004`)
+- **Waitlist migration email** — bulk invite existing waitlist users with
+  migration email template
 
 ### Improved
 
+- Shared packages restructured per ADR-015 (flattened `packages/shared/` into
+  `packages/platform/`)
+- eddacraft-tui extracted to external git dependency for reuse across projects
 - TUI welcome screen layout adapts to small terminals (24-row minimum)
 - TUI position indicator only shown when Issues panel is focused
 - TUI audit list viewport scrolling
@@ -97,6 +115,9 @@ engineering maintenance are recorded in the
   refresh
 - Licence signing guards against NaN TTL values
 - API returns 500 on refresh signing errors instead of `valid:false`
+- Log inputs sanitised to prevent log injection
+- GitHub Action expression injection sanitised in anvil-check action
+- All GitHub Actions pinned to commit SHAs
 - Dependency patches:
   - fast-xml-parser >= 5.5.6 (`CVE-2026-33036`)
   - picomatch and smol-toml overrides for CVE fixes
@@ -110,33 +131,16 @@ engineering maintenance are recorded in the
 - Rust toolchain bumped to 1.94.0 with Windows and macOS cross-compilation
 - oxlint adopted as first-pass linter, oxfmt replaces prettier
 - Criterion benchmarks added for kernel critical paths
+- GitHub Actions bumped: checkout v6, setup-node v6, download-artifact v8,
+  nx-set-shas v5
+- Unused CI jobs removed (Playwright, e2e-harness, tui-tests)
+- Benchmarks restricted to main pushes and manual dispatch
 
-## [0.2.1-beta] — Edda Stack
+## [0.2.1-beta] — Project Memory & Pattern Detection
 
-Anvil gains a memory system. Edda Stack introduces three layers — observation,
-interpretation, and canonical memory — that let the platform learn from your
-codebase over time.
-
-### Added
-
-- **Edda canonical memories** — persistent, version-tracked knowledge store for
-  project patterns and decisions (`EDDA`)
-  - `anvil edda list` — list memories with filtering by type, confidence, and
-    age
-  - `anvil edda show <id>` — display full memory details including provenance
-    chain
-  - `anvil edda promote` — promote an Ember candidate to canonical memory
-  - `anvil edda retire` — retire an outdated memory
-  - `anvil edda trace` — trace evolution chain and provenance for a memory
-- **Ember candidate proposals** — interpretive layer that surfaces patterns from
-  observations (`EMBER`)
-  - `anvil ember list` — list proposals with filtering by status and type
-  - `anvil ember show <id>` — display full proposal details
-  - `anvil ember promote` — mark a proposal as promoted
-- **Stack health monitoring** — coordination and status for the memory system
-  (`STACK`)
-  - `anvil stack status` — show Edda Stack health and component status
-  - `anvil stack validate` — validate configuration and provenance integrity
+See [Engineering History](./ENGINEERING-HISTORY.md) for full technical details.
+Edda/Ember/Stack CLI commands shipped in the Node.js CLI; Rust CLI ports are
+deferred to a future release (RCLI3).
 
 ## [0.1.3]
 
@@ -261,7 +265,8 @@ violations and anti-patterns at save time.
 - Credential storage hardened with restrictive permissions
 - API response validation strengthened throughout
 
-[Unreleased]: https://github.com/EddaCraft/anvil-001/compare/v0.2.1-beta...HEAD
+[Unreleased]:
+  https://github.com/EddaCraft/anvil-001/compare/v0.2.1-beta.0...HEAD
 [0.2.1-beta]:
   https://github.com/EddaCraft/anvil-001/compare/v0.1.3...v0.2.1-beta
 [0.1.3]: https://github.com/EddaCraft/anvil-001/compare/v0.1.2-beta...v0.1.3
