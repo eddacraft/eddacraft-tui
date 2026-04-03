@@ -190,17 +190,15 @@ Anvil flagging code that's actually fine.
    // @anvil-ignore AP-003 Using any for JSON.parse result
    ```
 
-2. Add pattern suppression in config:
+2. Add pattern suppression in `.anvil/suppressions.json`:
    ```json
-   {
-     "suppressions": [
-       {
-         "pattern": "src/types/external.ts",
-         "checks": ["AP-003"],
-         "reason": "External type definitions"
-       }
-     ]
-   }
+   [
+     {
+       "pattern": "src/types/external.ts",
+       "checks": ["AP-003"],
+       "reason": "External type definitions"
+     }
+   ]
    ```
 
 ### Missing Issues
@@ -363,12 +361,6 @@ Run with verbose output:
 
 ```bash
 anvil check --all --verbose
-```
-
-For even more detail, pass `--verbose` twice:
-
-```bash
-anvil check --all --verbose --verbose
 ```
 
 ### Log Collection

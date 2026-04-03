@@ -10,7 +10,7 @@ sidebar_position: 6
 :::caution CLI commands planned
 The `anvil suppress` CLI commands shown in this tutorial (e.g. `--all`,
 `--list`, `--count`) are planned for a future release. Inline `@anvil-ignore`
-comments and `.anvilrc` file-level suppressions work today.
+comments and `.anvil/suppressions.json` file-level suppressions work today.
 :::
 <!-- prettier-ignore-end -->
 
@@ -69,24 +69,22 @@ Suppress multiple rules on the same line by separating them with commas:
 
 ## File-Level Suppression
 
-For files where many lines trigger the same rule, suppress at the file level in
-`.anvilrc`:
+For files where many lines trigger the same rule, add entries to
+`.anvil/suppressions.json`:
 
 ```json
-{
-  "suppressions": [
-    {
-      "pattern": "src/legacy/**",
-      "checks": ["AP-003", "AP-006"],
-      "reason": "Legacy code, migration planned Q2"
-    },
-    {
-      "pattern": "src/generated/**",
-      "checks": ["*"],
-      "reason": "Auto-generated from protobuf definitions"
-    }
-  ]
-}
+[
+  {
+    "pattern": "src/legacy/**",
+    "checks": ["AP-003", "AP-006"],
+    "reason": "Legacy code, migration planned Q2"
+  },
+  {
+    "pattern": "src/generated/**",
+    "checks": ["*"],
+    "reason": "Auto-generated from protobuf definitions"
+  }
+]
 ```
 
 | Field     | Description                                 |
@@ -98,19 +96,17 @@ For files where many lines trigger the same rule, suppress at the file level in
 ## Bulk Suppression for Existing Codebases
 
 When adopting Anvil in a large project, you may have hundreds of existing
-violations. Add file-level suppressions to your `.anvilrc` grouped by directory
-and rule, then work through them incrementally:
+violations. Add file-level suppressions to `.anvil/suppressions.json` grouped by
+directory and rule, then work through them incrementally:
 
 ```json
-{
-  "suppressions": [
-    {
-      "pattern": "src/**",
-      "checks": ["AP-003", "AP-006"],
-      "reason": "Baseline: pre-Anvil adoption"
-    }
-  ]
-}
+[
+  {
+    "pattern": "src/**",
+    "checks": ["AP-003", "AP-006"],
+    "reason": "Baseline: pre-Anvil adoption"
+  }
+]
 ```
 
 Run `anvil check --all` to confirm a clean baseline. New code is held to the
@@ -127,7 +123,7 @@ you fix issues.
 ## Tracking Suppressions Over Time
 
 Review suppressions periodically by searching your codebase for inline comments
-and checking the `suppressions` array in `.anvilrc`:
+and checking `.anvil/suppressions.json`:
 
 ```bash
 # Find inline suppressions

@@ -14,8 +14,8 @@ All notable changes to Anvil are documented here.
 ### Changed
 
 - **Native Rust binary** — Anvil is now distributed as a single static binary
-  with no runtime dependencies. The Node.js package (`@eddacraft/anvil-cli`) is
-  deprecated and will not receive further updates. See
+  with no Node.js runtime required. The Node.js package (`@eddacraft/anvil-cli`)
+  is deprecated and will not receive further updates. See
   [The Switch to Rust](./rust-rewrite.md) for migration instructions.
 - **Installation** — `curl -fsSL https://install.eddacraft.ai | sh` (macOS /
   Linux) or `irm https://install.eddacraft.ai/windows | iex` (Windows). Also
@@ -36,8 +36,7 @@ All notable changes to Anvil are documented here.
   architecture parity tests, and benchmarks all ported to Rust.
 - **Cross-platform auth** — device-flow authentication with secure credential
   storage via the OS keychain.
-- **MCP config generation** —
-  `npx @eddacraft/anvil-mcp-server --generate-config` generates MCP server
+- **MCP config generation** — library functions for generating MCP server
   configuration for Claude Code, Cursor, Windsurf, and VS Code.
 - **Kernel benchmarks** — criterion benchmarks for watcher, parser, graph, and
   policy evaluation.

@@ -40,7 +40,7 @@ anvil drift list
 
 ```
 Snapshots:
-  baseline    2025-06-15T10:32:00Z    4 modules, 16 edges
+  baseline    2026-04-01  4 modules, 12 edges
 ```
 
 ## 3. Make Changes

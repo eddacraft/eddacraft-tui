@@ -150,8 +150,7 @@ line of code is written.
 ### 1. Install & Initialise
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
+curl -fsSL https://install.eddacraft.ai | sh
 anvil init
 ```
 

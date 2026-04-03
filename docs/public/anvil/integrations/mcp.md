@@ -44,22 +44,27 @@ Add Anvil to your MCP configuration:
 }
 ```
 
-For HTTP transport (e.g. remote or multi-client setups):
+For HTTP transport (e.g. remote or multi-client setups), start the HTTP server
+and configure your client to connect via URL:
 
 ```json
 {
   "mcpServers": {
     "anvil": {
-      "command": "npx",
-      "args": [
-        "--package", "@eddacraft/anvil-mcp-server",
-        "anvil-mcp-server-http"
-      ],
-      "cwd": "/path/to/your/project"
+      "url": "http://localhost:3000/mcp"
     }
   }
 }
 ```
+
+Start the server separately:
+
+```bash
+ANVIL_MCP_PORT=3000 npx --package @eddacraft/anvil-mcp-server anvil-mcp-server-http
+```
+
+Configure the port and host with `ANVIL_MCP_PORT` (default: 3000) and
+`ANVIL_MCP_HOST` (default: localhost).
 
 ## Available Tools
 
@@ -171,16 +176,16 @@ Check whether an import between two files is allowed by architecture rules:
 
 The MCP server exposes read-only resources:
 
-| Resource                         | Description                                   |
-| -------------------------------- | --------------------------------------------- |
-| `anvil://config`                 | Current gate configuration and enabled checks |
-| `anvil://baseline`               | Architecture baseline snapshot                |
-| `anvil://boundaries`             | Architecture boundary rules                   |
-| `anvil://constraints`            | Aggregated constraints for AI consumption     |
-| `anvil://drift`                  | Current architecture drift status             |
-| `anvil://file/{path}/warnings`   | Warnings for a specific file (template)       |
-| `anvil://patterns`               | Anti-pattern catalogue                        |
-| `anvil://suppressions`           | Active suppressions with expiry dates         |
+| Resource                       | Description                                   |
+| ------------------------------ | --------------------------------------------- |
+| `anvil://config`               | Current gate configuration and enabled checks |
+| `anvil://baseline`             | Architecture baseline snapshot                |
+| `anvil://boundaries`           | Architecture boundary rules                   |
+| `anvil://constraints`          | Aggregated constraints for AI consumption     |
+| `anvil://drift`                | Current architecture drift status             |
+| `anvil://file/{path}/warnings` | Warnings for a specific file (template)       |
+| `anvil://patterns`             | Anti-pattern catalogue                        |
+| `anvil://suppressions`         | Active suppressions with expiry dates         |
 
 ## Example: Agent Loop
 

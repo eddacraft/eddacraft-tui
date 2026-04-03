@@ -45,11 +45,12 @@ For Windows runners, use the PowerShell installer:
 
 ### Exit Codes
 
-| Code | Meaning          | Action      |
-| ---- | ---------------- | ----------- |
-| `0`  | All gates passed | Continue    |
-| `1`  | General error    | Investigate |
-| `2`  | Gate failure     | Block merge |
+| Code | Meaning          | Action            |
+| ---- | ---------------- | ----------------- |
+| `0`  | All gates passed | Continue          |
+| `1`  | General error    | Investigate       |
+| `2`  | Gate failure     | Block merge       |
+| `3`  | Auth required    | Check credentials |
 
 ## PR Comments
 
