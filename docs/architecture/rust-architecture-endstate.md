@@ -1,6 +1,6 @@
 # Anvil Rust Architecture — End State Specification
 
-> **Date:** 2026-03-13 **Status:** Reference — synthesised from KERN, RENG,
+> **Date:** 2026-04-03 **Status:** Reference — synthesised from KERN, RENG,
 > RATS, PORT, RSTLAN modules and architecture specifications
 >
 > Legend: **[DONE]** = shipped, **[DRAFT]** = planned, **[DEFERRED]** = post-H1
@@ -16,13 +16,13 @@ latency (2.9s → 200ms).
 
 The Rust stack is organised into five APS modules totalling ~58 work items:
 
-| Module     | Name                  | Items | Status       | Purpose                                        |
-| ---------- | --------------------- | ----- | ------------ | ---------------------------------------------- |
-| **KERN**   | Rust Kernel           | 25    | Phase 0 Done | Watcher, parser, semantic graph, policy engine |
-| **RENG**   | Engine Ports          | 6     | 4 Done       | Port existing TS checks to Rust                |
-| **RATS**   | Ratatui TUI           | 7     | 1 Done       | New TUI surfaces consuming kernel events       |
-| **PORT**   | Ink-to-Ratatui Port   | 15    | 2 Done       | 1:1 port of existing Ink surfaces              |
-| **RSTLAN** | Rust Language Support | ~5    | Placeholder  | Extend analysis to Rust codebases              |
+| Module     | Name                  | Items | Status          | Purpose                                        |
+| ---------- | --------------------- | ----- | --------------- | ---------------------------------------------- |
+| **KERN**   | Rust Kernel           | 25    | 22/25 Done      | Watcher, parser, semantic graph, policy engine |
+| **RENG**   | Engine Ports          | 6     | **Complete**    | Port existing TS checks to Rust                |
+| **RATS**   | Ratatui TUI           | 7     | **Complete**    | New TUI surfaces consuming kernel events       |
+| **PORT**   | Ink-to-Ratatui Port   | 15    | **Complete**    | 1:1 port of existing Ink surfaces              |
+| **RSTLAN** | Rust Language Support | ~5    | Placeholder     | Extend analysis to Rust codebases              |
 
 ---
 
@@ -70,6 +70,7 @@ crates/
 │   └── src/lib.rs                  EngineId (Rust | Legacy)
 │
 ├── eddacraft-tui/                  [DONE] RATS-001, PORT-001, PORT-002
+│   │                               # External git dep — not in workspace
 │   ├── src/keyboard/               KeyHandler, Action types
 │   ├── src/theme/                  EddaCraft dark theme
 │   └── src/widgets/                15+ shared widgets
@@ -109,9 +110,9 @@ crates/
 │   │   └── types.rs                Result types
 │   └── benches/                    Criterion benchmarks
 │
-│  ── PLANNED ───────────────────────────────────────────────
+│  ── IN PROGRESS ──────────────────────────────────────────
 │
-├── anvil-kernel/                   [DRAFT] KERN Phases 1-4
+├── anvil-kernel/                   [IN PROGRESS] KERN (22/25)
 │   ├── src/watcher/                File system watching (notify-rs)
 │   │   ├── watcher.rs              Recursive directory watcher
 │   │   ├── debounce.rs             50-100ms debounce window
@@ -144,28 +145,34 @@ crates/
 │       ├── watch.rs                Long-lived foreground mode
 │       └── daemon.rs               [DEFERRED] Unix socket server
 │
-├── anvil-tui/                      [DRAFT] RATS Phase 2-3, PORT Phase 2-4
+├── anvil-tui/                      [DONE] RATS (7/7), PORT (15/15)
 │   └── src/surfaces/
-│       ├── welcome.rs              Welcome screen
-│       ├── doctor.rs               Diagnostics
-│       ├── status.rs               Status dashboard
+│       ├── welcome/                Welcome screen
+│       ├── doctor/                 Diagnostics
+│       ├── status/                 Status dashboard
 │       ├── init/                   Init wizard (multi-step)
-│       ├── audit.rs                Audit results
-│       ├── template.rs             Template browser
-│       ├── gate.rs                 Gate explorer
-│       ├── watch.rs                Watch dashboard
+│       ├── audit/                  Audit results
+│       ├── browser/                Template browser
+│       ├── gate/                   Gate explorer
+│       ├── watch/                  Watch dashboard
+│       ├── wizard/                 APS onboarding wizard
 │       └── tutorial/               Tutorial paths
-│           ├── picker.rs           Tutorial selection
-│           ├── policy.rs           Policy tutorial (6 steps)
-│           ├── architecture.rs     Architecture tutorial (6 steps)
-│           ├── drift.rs            Drift tutorial (5 steps)
-│           └── ci.rs               CI tutorial (6 steps)
+│           ├── mod.rs              Tutorial orchestrator + picker
+│           └── paths.rs            Policy, architecture, drift, CI paths
 │
-├── eddacraft-kindling/             [DRAFT] RENG-018
+├── anvil-policy/                   [DONE] KERN-031
+│   └── src/                        OPA evaluation, library loading, policy lifecycle
+│
+├── anvil-architecture/             [DONE] Architecture enforcement
+│   └── src/                        Boundary definitions, import rules, drift detection
+│
+├── anvil-bench/                    [DONE] BENCH stress-test harness
+│   └── src/                        Repo generation, memory measurement, scenario runners
+│
+├── eddacraft-kindling/             [DRAFT] Kindling Rust integration
 │   └── src/query.rs                Kindling query integration
 │
-└── bench/                          [DRAFT] RENG-008
-    └── Cross-crate performance benchmarks
+└── (retired)                       bench/ was renamed to anvil-bench (see above)
 ```
 
 ---
@@ -246,7 +253,7 @@ crates/
 | KERN-004 | Cargo workspace configuration | Edition 2024, lints         |
 | KERN-005 | Rust CI pipeline              | Draft (pending monorepo CI) |
 
-#### Phase 1 — Watcher + Parser [DRAFT]
+#### Phase 1 — Watcher + Parser [DONE]
 
 | ID       | Description                                    | Dependencies |
 | -------- | ---------------------------------------------- | ------------ |
@@ -255,7 +262,7 @@ crates/
 | KERN-012 | Symbol extraction (fn, class, module, export)  | KERN-011     |
 | KERN-013 | Ignore patterns + git-aware filtering          | KERN-010     |
 
-#### Phase 2 — Semantic Graph [DRAFT]
+#### Phase 2 — Semantic Graph [DONE]
 
 | ID       | Description                                          | Dependencies       |
 | -------- | ---------------------------------------------------- | ------------------ |
@@ -264,7 +271,7 @@ crates/
 | KERN-022 | Trust metadata on nodes (TrustLevel enum)            | KERN-020           |
 | KERN-023 | Incremental graph update (reparse → update subgraph) | KERN-020, KERN-011 |
 
-#### Phase 3 — Policy Engine + Events [DRAFT]
+#### Phase 3 — Policy Engine + Events [DONE]
 
 | ID       | Description                                                 | Dependencies |
 | -------- | ----------------------------------------------------------- | ------------ |
@@ -273,7 +280,7 @@ crates/
 | KERN-032 | H1 invariants (cross-layer, new dep, public API, privilege) | KERN-031     |
 | KERN-033 | Event emission (Progress, Snapshot, Violation, Error)       | KERN-031     |
 
-#### Phase 4 — Integration & Validation [DRAFT]
+#### Phase 4 — Integration & Validation [DONE]
 
 | ID       | Description                                      | Dependencies       |
 | -------- | ------------------------------------------------ | ------------------ |
@@ -375,12 +382,15 @@ semantic graph. They operate on file content directly.
 | RENG-003 | Command safety | 100-500ms  | 5-20ms       | **25x** | 36 rules (17 git + 19 fs) |
 | RENG-005 | Benchmarks     | —          | —            | —       | Criterion harness         |
 
-### Remaining Items
+### Additional Items
 
-| ID       | Description                                               | Dependencies       | Status      |
-| -------- | --------------------------------------------------------- | ------------------ | ----------- |
-| RENG-004 | Validate architecture check parity with kernel invariants | KERN-032           | **[DRAFT]** |
-| RENG-006 | Feature flag + dual-run for ported checks                 | RENG-005, KERN-042 | **[DRAFT]** |
+| ID       | Description                                               | Dependencies       | Status     |
+| -------- | --------------------------------------------------------- | ------------------ | ---------- |
+| RENG-004 | Validate architecture check parity with kernel invariants | KERN-032           | **[DONE]** |
+| RENG-006 | Feature flag + dual-run for ported checks                 | RENG-005, KERN-042 | **[DONE]** |
+
+> RENG-006: Legacy/Dual modes were dropped when the TypeScript engine was
+> retired. The Rust engine is the only engine.
 
 ---
 
@@ -430,37 +440,37 @@ semantic graph. They operate on file content directly.
 └─────────────────────────────────────────────────────┘
 ```
 
-### RATS Work Items
+### RATS Work Items (Complete — 7/7)
 
-| ID       | Description                               | Dependencies                 | Status      |
-| -------- | ----------------------------------------- | ---------------------------- | ----------- |
-| RATS-001 | eddacraft-tui shared crate                | —                            | **[DONE]**  |
-| RATS-002 | Watch dashboard (live gate results)       | RATS-001, PORT-030, KERN-033 | **[DRAFT]** |
-| RATS-003 | Gate result viewer (interactive)          | RATS-001, PORT-023, KERN-040 | **[DRAFT]** |
-| RATS-004 | APS onboarding wizard                     | RATS-001                     | **[DRAFT]** |
-| RATS-005 | Ink-to-Ratatui migration path             | RATS-002, PORT-023, PORT-030 | **[DRAFT]** |
-| RATS-006 | Terminal platform compatibility           | RATS-001, RATS-002           | **[DRAFT]** |
-| RATS-007 | `anvil watch` TUI integration entry point | RATS-002, KERN-041           | **[DRAFT]** |
+| ID       | Description                               | Dependencies                 | Status     |
+| -------- | ----------------------------------------- | ---------------------------- | ---------- |
+| RATS-001 | eddacraft-tui shared crate                | —                            | **[DONE]** |
+| RATS-002 | Watch dashboard (live gate results)       | RATS-001, PORT-030, KERN-033 | **[DONE]** |
+| RATS-003 | Gate result viewer (interactive)          | RATS-001, PORT-023, KERN-040 | **[DONE]** |
+| RATS-004 | APS onboarding wizard                     | RATS-001                     | **[DONE]** |
+| RATS-005 | Ink-to-Ratatui migration path             | RATS-002, PORT-023, PORT-030 | **[DONE]** |
+| RATS-006 | Terminal platform compatibility           | RATS-001, RATS-002           | **[DONE]** |
+| RATS-007 | `anvil watch` TUI integration entry point | RATS-002, KERN-041           | **[DONE]** |
 
-### PORT Work Items
+### PORT Work Items (Complete — 15/15)
 
-| ID       | Description                        | Ink Source                            | Status      |
-| -------- | ---------------------------------- | ------------------------------------- | ----------- |
-| PORT-001 | Shared layout + display components | Header, Container, Divider, etc.      | **[DONE]**  |
-| PORT-002 | Composite display components       | LogPanel, ParallelProgress, etc.      | **[DONE]**  |
-| PORT-010 | Welcome surface                    | `Welcome.tsx`                         | **[DRAFT]** |
-| PORT-011 | Doctor surface                     | `Diagnostics.tsx`                     | **[DRAFT]** |
-| PORT-012 | Status dashboard                   | `StatusDashboard.tsx` + 3 panels      | **[DRAFT]** |
-| PORT-020 | Init wizard                        | `InitWizard.tsx` + 5 steps            | **[DRAFT]** |
-| PORT-021 | Audit results                      | `AuditResults.tsx`                    | **[DRAFT]** |
-| PORT-022 | Template browser                   | `TemplateBrowser.tsx`                 | **[DRAFT]** |
-| PORT-023 | Gate explorer                      | `GateExplorer.tsx` + 3 panels         | **[DRAFT]** |
-| PORT-030 | Watch dashboard                    | `WatchDashboard.tsx` + 4 panels       | **[DRAFT]** |
-| PORT-040 | Tutorial orchestrator + picker     | `Tutorial.tsx` + `TutorialPicker.tsx` | **[DRAFT]** |
-| PORT-041 | Policy tutorial path               | 6 step components                     | **[DRAFT]** |
-| PORT-042 | Architecture tutorial path         | 6 step components                     | **[DRAFT]** |
-| PORT-043 | Drift tutorial path                | 5 step components                     | **[DRAFT]** |
-| PORT-044 | CI tutorial path                   | 6 step components                     | **[DRAFT]** |
+| ID       | Description                        | Ink Source                            | Status     |
+| -------- | ---------------------------------- | ------------------------------------- | ---------- |
+| PORT-001 | Shared layout + display components | Header, Container, Divider, etc.      | **[DONE]** |
+| PORT-002 | Composite display components       | LogPanel, ParallelProgress, etc.      | **[DONE]** |
+| PORT-010 | Welcome surface                    | `Welcome.tsx`                         | **[DONE]** |
+| PORT-011 | Doctor surface                     | `Diagnostics.tsx`                     | **[DONE]** |
+| PORT-012 | Status dashboard                   | `StatusDashboard.tsx` + 3 panels      | **[DONE]** |
+| PORT-020 | Init wizard                        | `InitWizard.tsx` + 5 steps            | **[DONE]** |
+| PORT-021 | Audit results                      | `AuditResults.tsx`                    | **[DONE]** |
+| PORT-022 | Template browser                   | `TemplateBrowser.tsx`                 | **[DONE]** |
+| PORT-023 | Gate explorer                      | `GateExplorer.tsx` + 3 panels         | **[DONE]** |
+| PORT-030 | Watch dashboard                    | `WatchDashboard.tsx` + 4 panels       | **[DONE]** |
+| PORT-040 | Tutorial orchestrator + picker     | `Tutorial.tsx` + `TutorialPicker.tsx` | **[DONE]** |
+| PORT-041 | Policy tutorial path               | 6 step components                     | **[DONE]** |
+| PORT-042 | Architecture tutorial path         | 6 step components                     | **[DONE]** |
+| PORT-043 | Drift tutorial path                | 5 step components                     | **[DONE]** |
+| PORT-044 | CI tutorial path                   | 6 step components                     | **[DONE]** |
 
 ---
 
@@ -601,36 +611,39 @@ These can proceed independently of the kernel critical path:
 
 ---
 
-## 11. Migration Strategy
+## 11. Migration Status
 
-### Phase 1 — Coexistence
+The Rust migration has reached Phase 4 (Standalone). The Rust binary is the
+primary distribution — shipped via cargo-dist as a single static binary for all
+six platform targets (x86_64 + aarch64 for Linux, macOS, Windows). Node.js is no
+longer required to run the CLI.
 
-- Rust binary ships alongside Node.js CLI
-- `--engine rust` flag selects kernel (hidden/opt-in)
-- `--tui=ratatui` flag selects TUI
-- Ink TUI and TS engine remain defaults
-- Dual-run mode validates output parity
+### Phase 1 — Coexistence [DONE]
 
-### Phase 2 — Validation
+- Rust binary shipped alongside Node.js CLI
+- `--engine rust` flag selected kernel (hidden/opt-in)
+- Dual-run mode validated output parity
+
+### Phase 2 — Validation [DONE]
 
 - All ported checks validated via dual-run diffing
-- Ratatui surfaces feature-complete and tested
-- Performance benchmarks confirm targets met
-- Beta users opt in to Rust engine
+- Ratatui surfaces feature-complete and tested (RATS 7/7, PORT 15/15)
+- Performance benchmarks confirmed targets met
 
-### Phase 3 — Cutover
+### Phase 3 — Cutover [DONE]
 
-- Rust becomes default engine
-- Ratatui becomes default TUI
-- `--engine legacy` and `--tui=ink` remain as fallbacks
+- Rust became default engine
+- Ratatui became default TUI
 - Watch mode uses persistent graph by default
 
-### Phase 4 — Standalone
+### Phase 4 — Standalone [CURRENT]
 
 - Single Rust binary, no Node.js required
-- npm thin wrapper (optional) for npm-based install
-- Legacy TS engine removed
-- Ink TUI removed
+- Installed via `curl | sh` or GitHub Releases
+- Node.js `@eddacraft/anvil-cli` package deprecated
+- Ink TUI removed; Ratatui is the only TUI
+- The 3 remaining KERN items are Phase 5 daemon-mode tasks (KERN-050–052),
+  deferred post-H1: Unix socket transport, JSON-RPC protocol, session management
 
 ---
 

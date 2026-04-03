@@ -9,17 +9,9 @@ sidebar_position: 1
 
 Anvil integrates with GitHub for CI/CD validation and PR feedback.
 
-## GitHub Action
+## CI Setup
 
-The official Anvil GitHub Action:
-
-```yaml
-- uses: eddacraft/anvil-action@v1
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-```
-
-### Full Example
+Install the Anvil binary and run the gate check in your workflow:
 
 ```yaml
 name: Anvil CI
@@ -36,30 +28,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: eddacraft/anvil-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          comment: true
-          fail_on_warnings: false
+      - name: Install Anvil
+        run: curl -fsSL https://install.eddacraft.ai | sh
+
+      - name: Run Anvil
+        run: anvil gate --profile ci
 ```
 
-### Action Inputs
+For Windows runners, use the PowerShell installer:
 
-| Input              | Description                | Default    |
-| ------------------ | -------------------------- | ---------- |
-| `github_token`     | Token for PR comments      | Required   |
-| `comment`          | Post results as PR comment | `true`     |
-| `fail_on_warnings` | Fail workflow on warnings  | `false`    |
-| `config`           | Path to config file        | `.anvilrc` |
+```yaml
+      - name: Install Anvil
+        shell: pwsh
+        run: irm https://install.eddacraft.ai/windows | iex
+```
 
-### Action Outputs
+### Exit Codes
 
-| Output        | Description               |
-| ------------- | ------------------------- |
-| `status`      | `pass`, `warn`, or `fail` |
-| `errors`      | Number of errors          |
-| `warnings`    | Number of warnings        |
-| `evidence_id` | ID of generated evidence  |
+| Code | Meaning          | Action       |
+| ---- | ---------------- | ------------ |
+| `0`  | All gates passed | Continue     |
+| `1`  | General error    | Investigate  |
+| `2`  | Gate failure     | Block merge  |
 
 ## PR Comments
 
@@ -158,7 +148,7 @@ Anvil creates GitHub Check Runs for detailed inline feedback:
 
 ## Monorepo Support
 
-For monorepos, run Anvil per-package:
+For monorepos, run Anvil per-package using a matrix:
 
 ```yaml
 jobs:
@@ -170,10 +160,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: eddacraft/anvil-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          working_directory: packages/${{ matrix.package }}
+      - name: Install Anvil
+        run: curl -fsSL https://install.eddacraft.ai | sh
+
+      - name: Run Anvil
+        working-directory: packages/${{ matrix.package }}
+        run: anvil gate --profile ci
 ```
 
 ## Caching

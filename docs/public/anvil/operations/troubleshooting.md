@@ -170,16 +170,11 @@ Out of memory errors.
 
 **Solutions:**
 
-```bash
-# Increase Node memory
-NODE_OPTIONS="--max-old-space-size=4096" anvil watch
-```
-
-Check for:
-
-- Very large files being scanned
-- Many files in watch scope
-- Circular dependencies causing infinite loops
+- Reduce watch scope by adding patterns to `.anvilignore`
+- Exclude large generated directories (`node_modules`, `dist`, `.next`)
+- Check for very large files being scanned
+- Check `inotify` limits on Linux (see File Watching section above)
+- If RSS exceeds expected bounds (~30-50MB for a medium project), file a bug
 
 ## Gate Check Issues
 
@@ -364,16 +359,22 @@ Anvil works in both native Windows (PowerShell/cmd) and WSL. If using WSL:
 
 ### Debug Mode
 
-Run with debug output:
+Run with verbose output:
 
 ```bash
 # macOS / Linux
-DEBUG=anvil:* anvil check --all
+RUST_LOG=debug anvil check --all
 ```
 
 ```powershell
 # Windows (PowerShell)
-$env:DEBUG="anvil:*"; anvil check --all
+$env:RUST_LOG="debug"; anvil check --all
+```
+
+For even more detail, use trace-level logging:
+
+```bash
+RUST_LOG=anvil=trace anvil check --all
 ```
 
 ### Log Collection

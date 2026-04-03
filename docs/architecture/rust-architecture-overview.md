@@ -1,4 +1,4 @@
-# Proposed Rust Architecture — Full Overview
+# Rust Architecture — Full Overview
 
 > Compiled from APS modules KERN, RENG, RATS, PORT, RSTLAN, TUI (superseded),
 > and supporting architecture documents. This is a reference document — not a
@@ -6,12 +6,11 @@
 
 ## Executive Summary
 
-The Rust architecture replaces Anvil's Node.js-based analysis engine with a
-standalone Rust binary that provides 10-40x performance improvements. The
-migration is incremental: existing TypeScript checks continue to work via a
-dual-run mode while Rust equivalents are validated for parity. The end state is
-a single `anvil` binary that watches files, builds a semantic graph, evaluates
-policies, and renders a terminal UI — all in one process with zero IPC overhead.
+The Rust architecture has replaced Anvil's Node.js-based analysis engine with a
+standalone Rust binary that provides 10-40x performance improvements. The `anvil`
+binary watches files, builds a semantic graph, evaluates policies, and renders a
+terminal UI — all in one process with zero IPC overhead. It is distributed as a
+single static binary via cargo-dist for all six platform targets.
 
 ## Module Map
 
@@ -34,61 +33,35 @@ TUI (superseded)            — Original OpenTUI/Ink approach, replaced by RATS.
 
 ## Crate Layout
 
-### Current State (in monorepo)
+### Workspace Crates
 
 ```
-Cargo.toml                          # Workspace root
+Cargo.toml                          # Workspace root (edition 2024, unsafe_code = "forbid")
 crates/
-  anvil-kernel-types/               # Shared types: events, graph nodes, trust levels
+  anvil-cli/                        # CLI binary — primary entry point (clap + Ratatui)
+  anvil-kernel/                     # KERN — watcher, parser, semantic graph, policy engine
     src/
-      lib.rs
-      events.rs                     # EngineEvent envelope contract
-      graph.rs                      # SymbolNode, SymbolEdge types
-      trust.rs                      # TrustLevel enum
-  eddacraft-tui/                    # Shared Ratatui component library (RATS-001, done)
-    src/
-      lib.rs
-      keyboard/                     # Key handler, conventions (j/k, space, esc, q)
-      theme/                        # EddaCraft dark theme, trait system
-      widgets/                      # Select, TextInput, ProgressBar, StatusBar
-  spike/                            # Phase 0 validation spikes (done)
-    src/
-      treesitter.rs                 # Parse speed validation (<1ms/file)
-      notify.rs                     # File detection latency (<20ms p99)
-      petgraph.rs                   # Memory validation (<500MB for 2000 nodes)
-```
-
-### Planned Crates (from KERN, RENG, RATS, PORT modules)
-
-```
-crates/
-  anvil-kernel/                     # KERN — core engine
-    src/
-      lib.rs                        # Embedded mode API (KERN-040)
-      watch.rs                      # Foreground watch mode (KERN-041)
-      watcher/                      # notify-rs integration (KERN-010)
-        filter.rs                   # .gitignore + ignore patterns (KERN-013)
-      parser/                       # tree-sitter integration (KERN-011)
-        queries/                    # .scm query files for symbol extraction
-        extract.rs                  # Symbol extraction (KERN-012)
-      graph/                        # Semantic graph (KERN-020)
-        dependency.rs               # Module-level dependency graph (KERN-021)
-        trust.rs                    # TrustLevel annotation (KERN-022)
-        incremental.rs              # Incremental subgraph update (KERN-023)
-      policy/                       # Policy engine (KERN-031)
-        config.rs                   # Architecture YAML loader (KERN-030)
-        engine.rs                   # Invariant evaluation framework (KERN-031)
-        invariants/                 # H1 invariants (KERN-032)
+      watcher/                      # notify-rs integration (KERN-010, KERN-013)
+      parser/                       # tree-sitter integration (KERN-011, KERN-012)
+      graph/                        # Semantic graph (KERN-020..023)
+        symbol_graph.rs
+        dependency.rs
+        trust.rs
+        incremental.rs
+      policy/                       # Policy engine (KERN-030..032)
+        config.rs
+        engine.rs
+        invariants/
       protocol/                     # Event emission (KERN-033)
-      transport/                    # Daemon mode (KERN-050–052, deferred)
+        emitter.rs
+      embedded.rs                   # One-shot library API (KERN-040)
+      watch.rs                      # Foreground watch mode (KERN-041)
     tests/
-      dual_run/                     # Parity harness vs TS engine (KERN-042)
+      dual_run.rs                   # Parity harness vs TS engine (KERN-042)
     benches/
-      checks.rs                     # criterion.rs benchmarks (KERN-043, RENG-005)
-
-  anvil-kernel-types/               # Already exists — shared type contract
-
-  anvil-tui/                        # RATS + PORT — Anvil-specific TUI surfaces
+      kernel.rs                     # criterion.rs benchmarks (KERN-043)
+  anvil-kernel-types/               # Shared types: events, graph nodes, trust levels
+  anvil-tui/                        # RATS + PORT — all TUI surfaces (complete)
     src/
       surfaces/
         welcome/                    # PORT-010
@@ -96,17 +69,22 @@ crates/
         status/                     # PORT-012
         init/                       # PORT-020
         audit/                      # PORT-021
-        new/                        # PORT-022
+        browser/                    # PORT-022
         gate/                       # PORT-023 + RATS-003
         watch/                      # PORT-030 + RATS-002
+        wizard/                     # RATS-004
         tutorial/                   # PORT-040–044
-          policy/
-          architecture/
-          drift/
-          ci/
-
-  eddacraft-tui/                    # Already exists — shared widget library
+  anvil-checks/                     # RENG — ported gate checks (secret, antipattern, command safety)
+  anvil-policy/                     # OPA policy evaluation engine
+  anvil-architecture/               # Architecture enforcement (boundaries, drift)
+  anvil-bench/                      # Stress-test harness and benchmarks
+  spike/                            # Phase 0 validation spikes (done)
 ```
+
+### External Dependencies
+
+`eddacraft-tui` (shared Ratatui component library — theme, keyboard, widgets) is
+an external git dependency, not part of the workspace.
 
 ### Workspace Dependencies
 
@@ -157,12 +135,12 @@ governance events.
 
 | Phase | Name                   | Items | Status           | Key Deliverables                                                                                  |
 | ----- | ---------------------- | ----- | ---------------- | ------------------------------------------------------------------------------------------------- |
-| 0     | Spike                  | 5     | Done             | tree-sitter <1ms, notify <20ms, petgraph <500MB, Cargo+pnpm coexistence                           |
-| 1     | Watcher + Parser       | 4     | Draft            | File watching with debounce/backpressure, incremental parsing, symbol extraction, ignore patterns |
-| 2     | Semantic Graph         | 4     | Draft            | Symbol graph (petgraph), dependency graph, trust metadata, incremental update with GraphDelta     |
-| 3     | Policy Engine + Events | 4     | Draft            | Architecture config loader, invariant framework, 4 H1 invariants, event emission                  |
-| 4     | Integration            | 5     | Draft            | Embedded mode, watch mode, dual-run harness, benchmarks, cross-compilation                        |
-| 5     | Daemon Mode            | 3     | Draft (deferred) | Unix socket transport, JSON-RPC protocol, session management                                      |
+| 0     | Spike                  | 5     | **Done**         | tree-sitter <1ms, notify <20ms, petgraph <500MB, Cargo+pnpm coexistence                           |
+| 1     | Watcher + Parser       | 4     | **Done**         | File watching with debounce/backpressure, incremental parsing, symbol extraction, ignore patterns |
+| 2     | Semantic Graph         | 4     | **Done**         | Symbol graph (petgraph), dependency graph, trust metadata, incremental update with GraphDelta     |
+| 3     | Policy Engine + Events | 4     | **Done**         | Architecture config loader, invariant framework, 4 H1 invariants, event emission                  |
+| 4     | Integration            | 5     | **Done**         | Embedded mode, watch mode, dual-run harness, benchmarks, cross-compilation                        |
+| 5     | Daemon Mode            | 3     | Deferred         | Unix socket transport, JSON-RPC protocol, session management                                      |
 
 ### H1 Invariants (KERN-032)
 
@@ -237,27 +215,17 @@ JS — the goal is identical results at 10-40x the speed.
 
 ### Work Items
 
-| ID       | Title                              | Status | Dependencies       |
-| -------- | ---------------------------------- | ------ | ------------------ |
-| RENG-001 | Port secret scan                   | Draft  | None               |
-| RENG-002 | Port anti-pattern detection        | Draft  | KERN-011           |
-| RENG-003 | Port command safety check          | Draft  | None               |
-| RENG-004 | Validate architecture check parity | Draft  | KERN-032           |
-| RENG-005 | Benchmark all ported checks vs JS  | Draft  | RENG-001–003       |
-| RENG-006 | Feature flag + dual-run mode       | Draft  | RENG-005, KERN-042 |
+| ID       | Title                              | Status     | Dependencies       |
+| -------- | ---------------------------------- | ---------- | ------------------ |
+| RENG-001 | Port secret scan                   | **Done**   | None               |
+| RENG-002 | Port anti-pattern detection        | **Done**   | KERN-011           |
+| RENG-003 | Port command safety check          | **Done**   | None               |
+| RENG-004 | Validate architecture check parity | **Done**   | KERN-032           |
+| RENG-005 | Benchmark all ported checks vs JS  | **Done**   | RENG-001–003       |
+| RENG-006 | Feature flag + dual-run mode       | **Done**   | RENG-005, KERN-042 |
 
-### Rollout Strategy
-
-The `--engine` CLI flag controls which engine runs:
-
-- `--engine legacy` — JS only (current behaviour)
-- `--engine rust` — Rust only
-- `--engine dual` — Both engines run, results are diffed for parity validation
-
-Each check is independently feature-flagged. Secret scan and command safety can
-be ported immediately (no AST dependency). Anti-pattern detection waits for KERN
-Phase 1 (tree-sitter). Architecture check merges into the kernel's invariant
-framework rather than being a separate port.
+All ported checks are shipped in the Rust binary and are the only engine.
+Legacy/Dual modes were dropped when the TypeScript engine was retired.
 
 ---
 
@@ -267,23 +235,23 @@ New TUI surfaces built on Ratatui, consuming kernel events in-process.
 
 ### Phases
 
-| Phase | Name              | Items | Status          |
-| ----- | ----------------- | ----- | --------------- |
-| 1     | Shared Components | 1     | Done (RATS-001) |
-| 2     | Core Surfaces     | 3     | Draft           |
-| 3     | Integration       | 3     | Draft           |
+| Phase | Name              | Items | Status       |
+| ----- | ----------------- | ----- | ------------ |
+| 1     | Shared Components | 1     | **Done**     |
+| 2     | Core Surfaces     | 3     | **Done**     |
+| 3     | Integration       | 3     | **Done**     |
 
 ### Key Surfaces
 
-| ID       | Surface                        | Description                                                          | Key Dependencies             |
-| -------- | ------------------------------ | -------------------------------------------------------------------- | ---------------------------- |
-| RATS-001 | eddacraft-tui shared crate     | Theme, keyboard, widgets (Select, TextInput, ProgressBar, StatusBar) | None — **Done**              |
-| RATS-002 | Watch dashboard                | Live gate results, file status, violations — 4-panel layout          | PORT-030, KERN-033           |
-| RATS-003 | Gate result viewer             | Interactive violation browser with detail panes                      | PORT-023, KERN-040           |
-| RATS-004 | APS onboarding wizard          | Multi-step project init wizard                                       | RATS-001                     |
-| RATS-005 | Ink-to-Ratatui migration path  | `--tui=ink` / `--tui=ratatui` flag, feature flags per surface        | RATS-002, PORT-023, PORT-030 |
-| RATS-006 | Terminal compatibility testing | Cross-terminal validation (iTerm2, WezTerm, GNOME, Windows Terminal) | RATS-001, RATS-002           |
-| RATS-007 | `anvil watch` TUI entry point  | Wire Ratatui dashboard into `anvil` binary                           | RATS-002, KERN-041           |
+| ID       | Surface                        | Description                                                          | Status     |
+| -------- | ------------------------------ | -------------------------------------------------------------------- | ---------- |
+| RATS-001 | eddacraft-tui shared crate     | Theme, keyboard, widgets (Select, TextInput, ProgressBar, StatusBar) | **Done**   |
+| RATS-002 | Watch dashboard                | Live gate results, file status, violations — 4-panel layout          | **Done**   |
+| RATS-003 | Gate result viewer             | Interactive violation browser with detail panes                      | **Done**   |
+| RATS-004 | APS onboarding wizard          | Multi-step project init wizard                                       | **Done**   |
+| RATS-005 | Ink-to-Ratatui migration path  | Ratatui is now the only TUI — Ink removed                            | **Done**   |
+| RATS-006 | Terminal compatibility testing | Cross-terminal validation (iTerm2, WezTerm, GNOME, Windows Terminal) | **Done**   |
+| RATS-007 | `anvil watch` TUI entry point  | Wire Ratatui dashboard into `anvil` binary                           | **Done**   |
 
 ### Design Constraints
 
@@ -408,27 +376,29 @@ These can start immediately without waiting for KERN:
 
 ---
 
-## Migration Strategy
+## Migration Status
 
-### Phase 1: Coexistence
+The migration has reached Phase 3 (Cutover, complete) and is now in standalone
+mode. The Rust binary is the primary distribution — Node.js is no longer required
+to run the CLI.
 
-- Rust binary ships alongside Node.js CLI
-- `--engine` flag selects which engine runs checks
-- Dual-run mode validates parity
-- Ink TUI remains default
+### Phase 1: Coexistence [DONE]
 
-### Phase 2: Validation
+- Rust binary shipped alongside Node.js CLI
+- `--engine` flag selected which engine ran checks
+- Dual-run mode validated parity
+
+### Phase 2: Validation [DONE]
 
 - All ported checks validated via dual-run diffing
-- Ratatui surfaces available via `--tui=ratatui` flag
-- Performance benchmarks confirm speedup targets
+- Ratatui surfaces completed (RATS 7/7, PORT 15/15)
+- Performance benchmarks confirmed speedup targets
 
-### Phase 3: Cutover
+### Phase 3: Cutover [DONE]
 
-- Rust becomes default engine
-- Ratatui becomes default TUI
-- `--engine legacy` and `--tui=ink` remain as fallbacks
-- Node.js dependency eventually removed (long-term)
+- Rust is the default (and only) engine
+- Ratatui is the default (and only) TUI
+- Node.js CLI deprecated; single Rust binary distributed via cargo-dist
 
 ---
 
@@ -446,23 +416,19 @@ dated 2026-03-05 (not included in this repository):
 
 ### Still Open
 
-- Watch cycle speedup claimed as 14x in ADR but calculated as 8.5x — needs
-  reconciliation
 - CI action versions are unpinned in workflow files
-- Spike crate has zero tests (acceptable for spikes, but should not carry
-  forward)
-- `insta` is a workspace dependency but unused in any test currently
+- Spike crate has zero tests (acceptable for spikes, not carried forward)
 - MermaidDiagram port is likely infeasible in terminal — ASCII fallback needed
 
 ---
 
 ## Total Work Item Count
 
-| Module                         | Items   | Status                   |
-| ------------------------------ | ------- | ------------------------ |
-| KERN (Rust Kernel)             | 25      | Phase 0 Done, rest Draft |
-| RENG (Engine Ports)            | 6       | Draft                    |
-| RATS (Ratatui TUI)             | 7       | 1 Done, rest Draft       |
-| PORT (Ink-to-Ratatui Port)     | 15      | Draft                    |
-| RSTLAN (Rust Language Support) | ~5      | Placeholder              |
-| **Total**                      | **~58** | —                        |
+| Module                         | Items   | Done  | Status          |
+| ------------------------------ | ------- | ----- | --------------- |
+| KERN (Rust Kernel)             | 25      | 22    | In Progress     |
+| RENG (Engine Ports)            | 6       | 6     | **Complete**    |
+| RATS (Ratatui TUI)             | 7       | 7     | **Complete**    |
+| PORT (Ink-to-Ratatui Port)     | 15      | 15    | **Complete**    |
+| RSTLAN (Rust Language Support) | ~5      | 0     | Placeholder     |
+| **Total**                      | **~58** | **50**| —               |

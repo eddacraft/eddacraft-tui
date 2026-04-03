@@ -104,16 +104,14 @@ anvil check --all
 You might see existing violations:
 
 ```
-🔨 Anvil Check
-
 Checking architecture...
-  ✗ ARCH-001: Boundary violation
+  ARCH-001: Boundary violation
     src/api/handlers/user.ts imports from src/repositories/user.repo.ts
     Rule: api-layer denies imports from src/repositories/**
 
 Checking anti-patterns...
-  ⚠️  AP-003: Explicit 'any' type
-      src/services/parser.ts:42:10
+  [AP-003] Explicit 'any' type
+    src/services/parser.ts:42:10
 
 1 error, 1 warning found.
 Gate status: FAIL

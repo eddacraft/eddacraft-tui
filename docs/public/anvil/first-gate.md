@@ -25,7 +25,7 @@ anvil watch
 You see:
 
 ```
-🔨 Anvil Watch
+Anvil Watch
 
 Watching for changes...
 Press Ctrl+C to stop.
@@ -59,10 +59,10 @@ export async function deleteUser(req: Request, res: Response) {
 The moment you save, Anvil responds:
 
 ```
-🔨 Change detected: src/api/handlers/delete-user.ts
+Change detected: src/api/handlers/delete-user.ts
 
 Checking architecture...
-  ✗ ARCH-001: Boundary violation
+  ARCH-001: Boundary violation
     src/api/handlers/delete-user.ts:2
     imports from ../../repositories/db
     Rule: api-layer denies imports from src/repositories/**
@@ -70,10 +70,10 @@ Checking architecture...
     API handlers should use services, not repositories directly.
 
 Checking anti-patterns...
-  ⚠️  AP-006: Empty catch block
-      src/api/handlers/delete-user.ts:10:5
+  [AP-006] Empty catch block
+    src/api/handlers/delete-user.ts:10:5
 
-      Empty catch blocks hide errors. Log the error or re-throw.
+    Empty catch blocks hide errors. Log the error or re-throw.
 
 1 error, 1 warning found.
 Gate status: FAIL
@@ -106,10 +106,10 @@ export async function deleteUser(req: Request, res: Response) {
 Save again:
 
 ```
-🔨 Change detected: src/api/handlers/delete-user.ts
+Change detected: src/api/handlers/delete-user.ts
 
-Checking architecture... ✓
-Checking anti-patterns... ✓
+Checking architecture... done
+Checking anti-patterns... done
 
 All gates passed.
 ```

@@ -152,23 +152,25 @@
 
 ### Rust Crates
 
-| Crate                       | Purpose                                                   | Status         |
-| --------------------------- | --------------------------------------------------------- | -------------- |
-| `crates/spike`              | Phase 0 validation spikes (tree-sitter, notify, petgraph) | **[CURRENT]**  |
-| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts                   | **[CURRENT]**  |
-| `crates/eddacraft-tui`      | Shared Ratatui component library                          | **[CURRENT]**  |
-| `crates/anvil-checks`       | Ported checks: secret, antipattern, command safety        | **[CURRENT]**  |
-| `crates/anvil-kernel`       | Core kernel: watcher, parser, graph, policy engine        | **[PROPOSED]** |
-| `crates/anvil-tui`          | Anvil-specific TUI surfaces                               | **[PROPOSED]** |
-| `crates/anvil-napi`         | N-API bridge for Node.js CLI integration                  | **[PROPOSED]** |
-| `crates/eddacraft-kindling` | Kindling Rust integration                                 | **[PROPOSED]** |
-| `crates/bench`              | Cross-crate performance benchmarks                        | **[PROPOSED]** |
+| Crate                       | Purpose                                                   | Status          |
+| --------------------------- | --------------------------------------------------------- | --------------- |
+| `crates/anvil-cli`          | CLI binary (clap + Ratatui) — primary entry point         | **[CURRENT]**   |
+| `crates/anvil-kernel`       | Core kernel: watcher, parser, graph, policy engine        | **[CURRENT]**   |
+| `crates/anvil-kernel-types` | Shared event/graph/trust type contracts                   | **[CURRENT]**   |
+| `crates/anvil-tui`          | Anvil-specific TUI surfaces (all ported)                  | **[CURRENT]**   |
+| `crates/anvil-checks`       | Ported checks: secret, antipattern, command safety        | **[CURRENT]**   |
+| `crates/anvil-policy`       | OPA policy evaluation engine                              | **[CURRENT]**   |
+| `crates/anvil-architecture` | Architecture enforcement (boundaries, drift)              | **[CURRENT]**   |
+| `crates/anvil-bench`        | Stress-test harness and benchmarks                        | **[CURRENT]**   |
+| `crates/spike`              | Phase 0 validation spikes (tree-sitter, notify, petgraph) | **[CURRENT]**   |
+| `eddacraft-tui` (external)  | Shared Ratatui component library (git dependency)         | **[EXTERNAL]**  |
+| `crates/eddacraft-kindling` | Kindling Rust integration                                 | **[PROPOSED]**  |
 
-> **Note:** Watcher, gate, and engine responsibilities are consolidated into
-> `anvil-kernel` as internal modules — see `rust-architecture-endstate.md` for
-> the detailed crate map. Earlier planning documents referenced separate
-> `anvil-gate`, `anvil-watcher`, and `anvil-engine` crates; those have been
-> folded into the kernel to reduce cross-crate complexity.
+> **Note:** `eddacraft-tui` is an external git dependency, not part of the
+> Cargo workspace. `anvil-napi` (N-API bridge) was superseded by the standalone
+> Rust binary approach — the CLI is distributed directly via cargo-dist. Watcher,
+> gate, and engine responsibilities are consolidated into `anvil-kernel` as
+> internal modules.
 
 ---
 
@@ -177,18 +179,18 @@
 The gate is Anvil's core enforcement mechanism — it runs a configurable set of
 checks against repository state and produces pass/fail/warn results.
 
-### Current Gate Checks (TypeScript)
+### Gate Checks
 
-| Check                | What It Does                             | External Deps      | Rust Port                 |
-| -------------------- | ---------------------------------------- | ------------------ | ------------------------- |
-| `SecretCheck`        | Entropy + pattern-based secret detection | None               | **Done** (RENG-001)       |
-| `AntipatternCheck`   | Detects code anti-patterns (13 patterns) | None               | **Done** (RENG-002)       |
-| `CommandSafetyCheck` | Validates shell commands (36 rules)      | None               | **Done** (RENG-003)       |
-| `ArchitectureCheck`  | Layer violations via dependency analysis | dependency-cruiser | **[PROPOSED]** (RENG-004) |
-| `DependencyCheck`    | New/changed dependency detection         | dependency-cruiser | **[PROPOSED]**            |
-| `PolicyCheck`        | OPA Rego policy evaluation               | OPA binary         | **[PROPOSED]**            |
-| `ESLintCheck`        | ESLint rule violations                   | ESLint             | Stays TS                  |
-| `CoverageCheck`      | Test coverage thresholds                 | Jest/Vitest        | Stays TS                  |
+| Check                | What It Does                             | Engine     | Status              |
+| -------------------- | ---------------------------------------- | ---------- | ------------------- |
+| `SecretCheck`        | Entropy + pattern-based secret detection | Rust       | **Done** (RENG-001) |
+| `AntipatternCheck`   | Detects code anti-patterns (13 patterns) | Rust       | **Done** (RENG-002) |
+| `CommandSafetyCheck` | Validates shell commands (36 rules)      | Rust       | **Done** (RENG-003) |
+| `ArchitectureCheck`  | Layer violations via dependency analysis | Rust       | **Done** (RENG-004) |
+| `PolicyCheck`        | OPA Rego policy evaluation               | Rust       | **Done** (KERN-031) |
+| `DependencyCheck`    | New/changed dependency detection         | TypeScript | Current             |
+| `ESLintCheck`        | ESLint rule violations                   | TypeScript | Stays TS            |
+| `CoverageCheck`      | Test coverage thresholds                 | TypeScript | Stays TS            |
 
 ### Gate Pipeline Flow
 
@@ -338,8 +340,8 @@ File System (notify-rs) ──► Watcher ──► Debounce/Merge Queue
 
 ### Ratatui TUI (Rust) [CURRENT]
 
-Located in `crates/eddacraft-tui/` (shared design system) + `crates/anvil-tui/`
-(Anvil-specific surfaces):
+The shared Ratatui component library (`eddacraft-tui`) is an external git
+dependency. Anvil-specific TUI surfaces live in `crates/anvil-tui/`:
 
 **Shared Components:** Header, Container, Divider, Spinner, StatusBadge,
 Confirm, Select, TextInput, ProgressBar, StatusBar, LogPanel, ParallelProgress,
@@ -369,7 +371,7 @@ Ratatui. The Node.js CLI package (`@eddacraft/anvil-cli`) is deprecated.
 
 ## 7. CLI Command Surface
 
-**Status: [CURRENT]** — 30+ commands in `apps/anvil-cli/src/commands/`
+**Status: [CURRENT]** — 30+ commands in `crates/anvil-cli/src/commands/`
 
 | Domain           | Commands                                                                                                       |
 | ---------------- | -------------------------------------------------------------------------------------------------------------- |

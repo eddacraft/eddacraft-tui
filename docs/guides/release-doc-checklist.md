@@ -8,7 +8,11 @@ tick items as they are completed.
 
 ---
 
-## Node.js CLI Release (`@eddacraft/anvil-cli`)
+## Node.js CLI Release (`@eddacraft/anvil-cli`) — DEPRECATED
+
+> **Note:** The Node.js CLI has been replaced by the Rust binary distributed via
+> cargo-dist. This section is retained for reference only. New releases use the
+> Rust Crate Release section below.
 
 ### Pre-release: changelog and version files
 
@@ -136,6 +140,7 @@ Only update packages that changed in this release.
 
 ### Pre-release: CI and deployment
 
+- [ ] `.github/workflows/release.yml` — cargo-dist publish pipeline changes
 - [ ] `.github/workflows/rust.yml` — Rust CI changes
 - [ ] `.github/workflows/ci-nightly.yml` — nightly build changes
 
@@ -147,10 +152,11 @@ Only update packages that changed in this release.
 
 ---
 
-## Combined Release (Node.js + Rust)
+## Combined Release (Node.js + Rust) — DEPRECATED
 
-When shipping both surfaces in the same release, complete both sections above
-plus:
+> **Note:** Combined releases are no longer applicable. The Node.js CLI has been
+> deprecated in favour of the Rust binary. This section is retained for
+> historical reference only.
 
 - [ ] `docs/architecture/anvil-architecture-evolution.md` — cross-surface
       architecture alignment

@@ -13,17 +13,16 @@ all in about 10 minutes.
 
 :::info Beta release
 
-This is **pre-release software** (0.2.1-beta). APIs and behaviour may change
-between releases. Your feedback directly shapes the product before public
-launch.
+This is **pre-release software** (0.3.0-beta). The CLI is now a native Rust
+binary — no Node.js required. APIs and behaviour may change between releases.
+Your feedback directly shapes the product before public launch.
 
 :::
 
 ## Prerequisites
 
-- **Node.js** >= 20.19.0
-- A package manager: **pnpm**, **npm**, **yarn**, or **bun**
 - A TypeScript or JavaScript project to test with
+- **macOS**, **Linux**, or **Windows** (x86_64 or aarch64)
 
 ## Install
 
@@ -35,26 +34,18 @@ join the next beta cohort.
 :::
 
 ```bash
-# Using pnpm (recommended)
-pnpm add -D @eddacraft/anvil-cli
+# macOS / Linux
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
 
-# Using npm
-npm install -D @eddacraft/anvil-cli
-
-# Using yarn
-yarn add -D @eddacraft/anvil-cli
-
-# Using bun
-bun add -D @eddacraft/anvil-cli
-
-# Or run without installing
-npx @eddacraft/anvil-cli --help
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.ps1 | iex"
 ```
 
 Verify the installation:
 
 ```bash
-npx anvil --version
+anvil --version
 ```
 
 ## Step 1 -- Run the Interactive Tutorial
@@ -63,7 +54,7 @@ The fastest way to learn Anvil. It takes about 5 minutes and walks you through
 scanning, watching, and fixing issues in a sandbox project.
 
 ```bash
-npx anvil tutorial
+anvil tutorial
 ```
 
 The tutorial covers:
@@ -74,17 +65,17 @@ The tutorial covers:
 4. **Next steps** -- where to go from here
 
 ```bash
-npx anvil tutorial --list      # See all available tutorials
-npx anvil tutorial --reset     # Start fresh if you have run it before
+anvil tutorial --list      # See all available tutorials
+anvil tutorial --reset     # Start fresh if you have run it before
 ```
 
 **Advanced tutorials** (after the core tutorial):
 
 ```bash
-npx anvil tutorial policies       # Write custom OPA/Rego rules
-npx anvil tutorial architecture   # Define architecture boundaries
-npx anvil tutorial drift          # Track architecture drift over time
-npx anvil tutorial ci             # Set up CI integration
+anvil tutorial policies       # Write custom OPA/Rego rules
+anvil tutorial architecture   # Define architecture boundaries
+anvil tutorial drift          # Track architecture drift over time
+anvil tutorial ci             # Set up CI integration
 ```
 
 ## Step 2 -- Log In
@@ -92,7 +83,7 @@ npx anvil tutorial ci             # Set up CI integration
 Authenticate with your beta access token (provided with your invite):
 
 ```bash
-npx anvil login
+anvil auth login
 ```
 
 You will be prompted for your token. Once authenticated, all CLI commands are
@@ -104,7 +95,7 @@ Try Anvil on a real codebase:
 
 ```bash
 cd your-project
-npx anvil init
+anvil init
 ```
 
 The setup wizard will:
@@ -135,7 +126,7 @@ Created files:
 Run a full scan to see what Anvil catches:
 
 ```bash
-npx anvil check --all
+anvil check --all
 ```
 
 Most projects have something. Here is typical output:
@@ -159,17 +150,17 @@ Checking anti-patterns...
 **Other scan options:**
 
 ```bash
-npx anvil check --changed            # Only changed files (git-aware)
-npx anvil check --changed --staged   # Only staged files
-npx anvil check --verbose            # Detailed explanations
+anvil check --changed            # Only changed files (git-aware)
+anvil check --changed --staged   # Only staged files
+anvil check --verbose            # Detailed explanations
 ```
 
 **Understand a warning:**
 
 ```bash
-npx anvil explain AP-003                    # What does AP-003 mean?
-npx anvil explain AP-003-src/file.ts:42     # Explain with file context
-npx anvil explain --rules                   # List all explainable rules
+anvil explain AP-003                    # What does AP-003 mean?
+anvil explain AP-003-src/file.ts:42     # Explain with file context
+anvil explain --rules                   # List all explainable rules
 ```
 
 ## Step 5 -- Watch Mode
@@ -177,15 +168,15 @@ npx anvil explain --rules                   # List all explainable rules
 Start real-time validation as you code:
 
 ```bash
-npx anvil watch --source
+anvil watch --source
 ```
 
 Save a file and see Anvil catch it immediately.
 
 ```bash
-npx anvil watch --plans        # Watch planning documents only
-npx anvil watch --all          # Watch both source and plans
-npx anvil watch --profile dev  # Development mode (skips coverage checks)
+anvil watch --plans        # Watch planning documents only
+anvil watch --all          # Watch both source and plans
+anvil watch --profile dev  # Development mode (skips coverage checks)
 ```
 
 Press `Ctrl+C` to stop.
@@ -202,25 +193,25 @@ Run watch mode in a dedicated terminal pane or use the
 If something is not working, run the doctor:
 
 ```bash
-npx anvil doctor
+anvil doctor
 ```
 
-This checks Node.js version, Git configuration, Anvil configuration validity,
-and hook installation status.
+This checks Git configuration, Anvil configuration validity, and hook
+installation status.
 
 ```bash
-npx anvil doctor --fix    # Auto-fix common issues
+anvil doctor --fix    # Auto-fix common issues
 ```
 
 ## More Commands Worth Testing
 
 ```bash
-npx anvil status              # Current configuration and state
-npx anvil gate                # Full codebase scan via quality gates
-npx anvil gate myplan.md      # Validate a specific plan file
-npx anvil gate --profile dev  # Development mode
-npx anvil start               # Welcome screen with guided options
-npx anvil --help              # See all commands
+anvil status              # Current configuration and state
+anvil gate                # Full codebase scan via quality gates
+anvil gate myplan.md      # Validate a specific plan file
+anvil gate --profile dev  # Development mode
+anvil start               # Welcome screen with guided options
+anvil --help              # See all commands
 ```
 
 ---
@@ -259,22 +250,22 @@ Found a bug or have feedback?
 **When reporting, include:**
 
 - The commands you ran and what happened
-- Your environment (OS, Node version, terminal)
+- Your environment (OS, terminal, `anvil --version` output)
 - Steps to reproduce the issue
 
 ## Quick Reference
 
-| Command                    | Purpose                         |
-| -------------------------- | ------------------------------- |
-| `npx anvil tutorial`       | Interactive guided tutorial     |
-| `npx anvil init`           | Set up Anvil in a project       |
-| `npx anvil check --all`    | Scan entire codebase            |
-| `npx anvil watch --source` | Real-time validation            |
-| `npx anvil doctor`         | Diagnostics and troubleshooting |
-| `npx anvil explain <rule>` | Understand a warning            |
-| `npx anvil status`         | Check configuration and state   |
-| `npx anvil gate`           | Run quality gates               |
-| `npx anvil --help`         | See all commands                |
+| Command                | Purpose                         |
+| ---------------------- | ------------------------------- |
+| `anvil tutorial`       | Interactive guided tutorial     |
+| `anvil init`           | Set up Anvil in a project       |
+| `anvil check --all`    | Scan entire codebase            |
+| `anvil watch --source` | Real-time validation            |
+| `anvil doctor`         | Diagnostics and troubleshooting |
+| `anvil explain <rule>` | Understand a warning            |
+| `anvil status`         | Check configuration and state   |
+| `anvil gate`           | Run quality gates               |
+| `anvil --help`         | See all commands                |
 
 ## Next Steps
 

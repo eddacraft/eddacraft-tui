@@ -1,16 +1,25 @@
 # Testing Best Practices
 
 This guide covers testing conventions and best practices for the Anvil monorepo.
-We use **Vitest** as our test framework.
+TypeScript packages use **Vitest**; Rust crates use **cargo test** with **insta**
+(snapshot testing) and **criterion** (benchmarks).
 
 ## Quick Reference
 
 ```bash
+# TypeScript
 pnpm test                    # Run all unit tests
 pnpm test:coverage           # With coverage reports
 pnpm test:e2e                # Playwright E2E tests
 npx nx test core             # Test specific package
 npx nx test adapters --testNamePattern="BMAD"  # Run matching tests
+
+# Rust
+cargo test --workspace       # Run all Rust tests
+cargo test -p anvil-kernel   # Test specific crate
+cargo test -p anvil-checks -- secret  # Filter by test name
+cargo insta review           # Review snapshot changes
+cargo bench -p anvil-checks  # Run criterion benchmarks
 ```
 
 ---
@@ -210,7 +219,7 @@ Have a small number of tests that:
 For deterministic hashing verification, use golden files:
 
 ```typescript
-// core/src/golden-files.test.ts
+// packages/anvil/core/src/golden-files.test.ts
 import { goldenPlans } from './__fixtures__/golden-plans/index.js';
 
 describe('Golden Files', () => {
@@ -302,7 +311,7 @@ describe('Filesystem Operations', () => {
 
 ## Package-Specific Guidance
 
-### Core (`core/`)
+### Core (`packages/anvil/core/`)
 
 - **Focus:** Schema validation, hashing, gate checks
 - **Pattern:** Heavy use of fixtures, determinism verification
@@ -336,10 +345,13 @@ it('should detect valid spec with high confidence', async () => {
 });
 ```
 
-### CLI (`cli/`)
+### CLI (`apps/anvil-cli/` — legacy TypeScript)
 
 - **Focus:** Command structure, argument parsing, user interaction
 - **Pattern:** Mock external deps (inquirer, ora, chalk), use test workspaces
+
+> **Note:** The primary CLI is now the Rust binary at `crates/anvil-cli/`. This
+> section covers the deprecated Node.js CLI.
 
 ```typescript
 // Testing CLI commands
@@ -350,6 +362,56 @@ vi.mock('inquirer', () => ({
 vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 vi.spyOn(console, 'log').mockImplementation(() => {});
 ```
+
+---
+
+## Rust Testing
+
+### Running Tests
+
+```bash
+cargo test --workspace                      # All crates
+cargo test -p anvil-kernel                  # Single crate
+cargo test -p anvil-checks -- secret        # Filter by name
+INSTA_UPDATE=1 cargo test -p anvil-kernel   # Update snapshots
+cargo insta review                          # Interactive snapshot review
+```
+
+### Snapshot Testing (insta)
+
+Rust crates use [insta](https://insta.rs/) for snapshot testing. Snapshots are
+stored alongside test files and committed to version control.
+
+```rust
+use insta::assert_yaml_snapshot;
+
+#[test]
+fn parses_symbol_graph() {
+    let graph = parse_file("fixtures/sample.ts");
+    assert_yaml_snapshot!(graph);
+}
+```
+
+When a snapshot changes, `cargo insta review` launches an interactive TUI to
+accept or reject the diff.
+
+### Benchmarks (criterion)
+
+Performance-critical crates (`anvil-checks`, `anvil-kernel`, `anvil-bench`) use
+[criterion](https://bheisler.github.io/criterion.rs/) for benchmarks.
+
+```bash
+cargo bench -p anvil-checks                 # Run check benchmarks
+cargo bench -p anvil-kernel                 # Run kernel benchmarks
+```
+
+Benchmark results are output as HTML reports in `target/criterion/`.
+
+### Workspace Policies
+
+- `unsafe_code = "forbid"` — no unsafe code allowed
+- `clippy all = "deny"` — all clippy warnings are errors
+- All kernel errors are structured events — no panics across boundaries
 
 ---
 

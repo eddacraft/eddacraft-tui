@@ -9,6 +9,46 @@ sidebar_position: 1
 
 All notable changes to Anvil are documented here.
 
+## [0.3.0-beta] - 2026-04-01
+
+### Changed
+
+- **Native Rust binary** — Anvil is now distributed as a single static binary
+  with no runtime dependencies. The Node.js package (`@eddacraft/anvil-cli`) is
+  deprecated and will not receive further updates. See
+  [The Switch to Rust](./rust-rewrite.md) for migration instructions.
+- **Installation** — `curl -fsSL https://install.eddacraft.ai | sh` (macOS /
+  Linux) or `irm https://install.eddacraft.ai/windows | iex` (Windows). Also
+  available via Homebrew: `brew install eddacraft/tap/anvil`.
+- **Platform support** — builds for x86_64 and aarch64 on macOS, Linux, and
+  Windows (6 targets via cargo-dist).
+- **Ratatui TUI** — all 15 interactive surfaces (tutorial, watch, wizard,
+  status, doctor, welcome, init, audit, browser, gate) rebuilt using Ratatui
+  with the EddaCraft Terminal Standard design system.
+- **Structured exit codes** — `0` (pass), `1` (general error), `2` (gate
+  failure). Codes `3` (auth required) and `4` (config error) reserved for future
+  use.
+
+### Added
+
+- **Kernel engine** — persistent daemon mode with incremental tree-sitter
+  parsing and a real-time semantic dependency graph (petgraph).
+- **Rust check ports** — secret scan, anti-pattern detection, command safety,
+  architecture parity tests, and benchmarks all ported to Rust.
+- **Cross-platform auth** — device-flow authentication with secure credential
+  storage via the OS keychain.
+- **MCP config generation** — `anvil mcp-config` generates MCP server
+  configuration for Claude Code, Cursor, Windsurf, and VS Code.
+- **Kernel benchmarks** — criterion benchmarks for watcher, parser, graph, and
+  policy evaluation (crates/anvil-bench).
+
+### Performance
+
+- 5-10x faster scanning on typical projects.
+- 80% less memory in watch mode (~30-50MB vs ~400MB for a 5,000-file monorepo).
+- Cold start under 10ms (vs 200-400ms with Node.js).
+- Tree-sitter parse throughput ~15,000 files/second.
+
 ## [0.2.1-beta] - 2026-03-26
 
 ### Added

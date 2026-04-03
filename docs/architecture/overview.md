@@ -517,14 +517,29 @@ sequenceDiagram
 
 ## Technology Stack
 
+### Rust (CLI + Engine)
+
+| Category        | Technology              | Version | Purpose                                        |
+| --------------- | ----------------------- | ------- | ---------------------------------------------- |
+| Language        | Rust                    | Ed.2024 | CLI binary, kernel, gate checks, TUI           |
+| CLI framework   | clap                    | 4.x     | Command parsing and routing                    |
+| TUI             | Ratatui                 | 0.30    | Terminal UI (native Rust)                      |
+| TUI backend     | crossterm               | 0.29    | Terminal backend                               |
+| AST parsing     | tree-sitter             | 0.26    | Incremental parsing (<1ms/file)                |
+| File watching   | notify                  | 8       | File system events (<20ms p99)                 |
+| Graph           | petgraph                | 0.8     | Semantic graph (symbol, dependency, trust)      |
+| Async           | tokio                   | 1       | Async runtime (full features)                  |
+| Testing         | insta + criterion       | --      | Snapshot testing + benchmarks                  |
+| Distribution    | cargo-dist              | --      | Cross-platform binary releases (6 targets)     |
+
+### TypeScript (Domain Packages + Services)
+
 | Category          | Technology              | Version  | Purpose                                            |
 | ----------------- | ----------------------- | -------- | -------------------------------------------------- |
-| Language          | TypeScript              | 5.9      | All source code, strict mode, ESM only             |
-| Runtime           | Node.js                 | >= 20    | Execution environment                              |
+| Language          | TypeScript              | 5.9      | Domain packages, API, website (strict mode, ESM)   |
+| Runtime           | Node.js                 | >= 20    | TypeScript execution environment                   |
 | Package manager   | pnpm                    | >= 10.20 | Workspace management, strict isolation             |
 | Monorepo          | NX                      | 22.5     | Task orchestration, caching, dependency graph      |
-| CLI framework     | clap (Rust)             | 4.x      | Command parsing and routing                        |
-| TUI               | Ratatui                 | --       | Terminal UI (native Rust)                          |
 | HTTP framework    | Hono                    | --       | REST API (Vercel-deployable)                       |
 | Testing           | Vitest                  | 4.x      | Unit and integration tests                         |
 | E2E testing       | Playwright              | --       | End-to-end browser and CLI tests                   |
@@ -533,7 +548,6 @@ sequenceDiagram
 | Policy engine     | OPA / Rego              | --       | Policy-as-code evaluation                          |
 | Linting           | ESLint                  | 9.x      | Code quality and style enforcement                 |
 | Formatting        | Prettier                | 3.x      | Code formatting                                    |
-| Bundling          | esbuild                 | --       | CLI distribution bundling                          |
 | IaC               | Pulumi (TypeScript)     | --       | Vercel, GitHub, Azure DNS management               |
 | Database          | Neon Postgres           | --       | API persistence layer                              |
 | Deployment        | Vercel                  | --       | Website, docs-site, API hosting                    |

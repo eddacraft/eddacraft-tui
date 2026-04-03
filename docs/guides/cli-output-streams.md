@@ -1,7 +1,8 @@
 # CLI Output Stream Policy
 
 All Anvil CLI commands follow a strict stdout/stderr split so that piped output
-is always machine-parseable.
+is always machine-parseable. This policy applies to both the Rust binary
+(`crates/anvil-cli/`) and the legacy TypeScript CLI (`apps/anvil-cli/`).
 
 ## Rules
 
@@ -12,7 +13,11 @@ is always machine-parseable.
 | Progress indicators (spinners, status lines)       | **stderr** | Already correct via `ora`                   |
 | Status messages (`success()`, `info()`, `error()`) | **stderr** | Diagnostics, not data                       |
 
-## Using `output.ts`
+## TypeScript Helpers (`output.ts`)
+
+> **Note:** This section covers the legacy TypeScript CLI helpers at
+> `apps/anvil-cli/src/utils/output.ts`. The Rust CLI implements the same
+> stdout/stderr split natively via clap and direct `eprintln!`/`println!` calls.
 
 Import helpers from `../utils/output.js`:
 
@@ -46,7 +51,17 @@ This ensures `anvil check --json | jq .` always produces valid JSON.
 
 ## Adding a new command
 
+### TypeScript (legacy CLI)
+
 1. Use `success()`, `info()`, `error()`, `warning()` for all human output.
 2. Use `data()` or `console.log(JSON.stringify(...))` for structured output.
 3. Never use bare `console.log()` for diagnostics or progress text.
 4. Use `process.stderr.write()` for custom progress indicators.
+
+### Rust CLI
+
+1. Use `eprintln!()` for all human output (diagnostics, status, progress).
+2. Use `println!()` for structured data (JSON output).
+3. With `--json`, suppress all `eprintln!` output and emit exactly one JSON
+   document via `println!`.
+4. Use `clap`'s built-in output for help and version text.

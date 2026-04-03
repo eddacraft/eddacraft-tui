@@ -150,7 +150,8 @@ line of code is written.
 ### 1. Install & Initialise
 
 ```bash
-pnpm add -D @eddacraft/anvil-cli
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EddaCraft/anvil/releases/latest/download/anvil-cli-installer.sh | sh
 anvil init
 ```
 
@@ -188,7 +189,7 @@ Add Anvil to CI with a single step. A reusable GitHub Action is provided:
 
 | Surface            | Description                                                    |
 | ------------------ | -------------------------------------------------------------- |
-| **CLI**            | Full-featured terminal interface (Commander.js + Ink TUI)      |
+| **CLI**            | Full-featured terminal interface (Rust + clap + Ratatui TUI)   |
 | **VS Code**        | Real-time in-editor diagnostics and warnings                   |
 | **MCP Server**     | Model Context Protocol integration for AI tools                |
 | **GitHub Actions** | CI/CD gate checks and PR annotations                           |
@@ -230,11 +231,12 @@ structural problems.
 
 ## Technology
 
-- **TypeScript/Node.js** core with a **Rust** high-performance engine for AST
-  parsing, secret scanning, and real-time file watching
+- **Rust** native binary — single static binary, zero runtime dependencies,
+  10-40x faster than the previous Node.js implementation
+- **Tree-sitter** for incremental AST parsing (<1ms per file)
+- **Ratatui** for a native terminal UI with real-time watch dashboard
 - **OPA/Rego** policy engine for custom rule authoring
-- **Zod** schemas for type-safe contracts
-- **Tree-sitter** for incremental AST parsing
+- **Zod** schemas for type-safe contracts (TypeScript domain packages)
 - Designed for **monorepos** (NX, Turborepo, pnpm workspaces)
 
 ---
@@ -245,8 +247,8 @@ Anvil is currently in **closed beta**. Request access at
 **[eddacraft.ai](https://eddacraft.ai/#waitlist)**.
 
 - Open-source core (Apache-2.0)
-- TypeScript and JavaScript projects supported
-- Node.js 20+ required
+- TypeScript and JavaScript projects supported (Rust language support planned)
+- Ships as a single binary — no runtime dependencies
 
 ---
 

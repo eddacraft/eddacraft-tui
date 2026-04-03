@@ -67,8 +67,8 @@ The `ci` profile adjusts behaviour for pipeline environments:
 | Code | Meaning          | Action       |
 | ---- | ---------------- | ------------ |
 | 0    | All gates passed | Continue     |
-| 1    | Gate failure     | Block merge  |
-| 2    | Warnings only    | Configurable |
+| 1    | General error    | Investigate  |
+| 2    | Gate failure     | Block merge  |
 
 Configure warning behaviour:
 

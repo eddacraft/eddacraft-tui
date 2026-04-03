@@ -9,12 +9,12 @@ sidebar_position: 3
 
 Anvil provides an MCP (Model Context Protocol) server for AI agent integration.
 
-:::info
+:::info Node.js package required
 
-The `anvil mcp-config` command generates MCP server configuration for various
-editors (Claude Code, Cursor, Windsurf, VS Code). A built-in MCP server
-(`anvil mcp serve`) is planned for a future release. The tools and resources
-described below reflect the intended MCP server design.
+The MCP server is a separate Node.js package (`@eddacraft/anvil-mcp-server`),
+not part of the Rust CLI binary. You need Node.js and npx (or a package manager)
+to run it. A built-in `anvil mcp serve` command is planned for a future release
+of the Rust CLI.
 
 :::
 
@@ -23,18 +23,10 @@ described below reflect the intended MCP server design.
 MCP is a protocol for providing context to AI models. Anvil's MCP server
 exposes:
 
-- Current project configuration
-- Active gates and their status
-- Task constraints and scope
-- Validation endpoints
-
-## Generating MCP Configuration
-
-```bash
-anvil mcp-config
-```
-
-This generates MCP server configuration for your editor.
+- Current project configuration and status
+- Architecture boundaries and drift snapshots
+- Validation tools for files, gates, and boundaries
+- Prompts for architecture review and violation fixes
 
 ## Configuration
 
@@ -52,139 +44,114 @@ Add Anvil to your MCP configuration:
 }
 ```
 
-## Available Tools
-
-### anvil_validate
-
-Validate a file or set of files:
+For HTTP transport (e.g. remote or multi-client setups):
 
 ```json
 {
-  "tool": "anvil_validate",
+  "mcpServers": {
+    "anvil": {
+      "command": "npx",
+      "args": ["anvil-mcp-server-http"],
+      "cwd": "/path/to/your/project"
+    }
+  }
+}
+```
+
+## Available Tools
+
+### anvil_check
+
+Validate files against architecture rules and anti-patterns:
+
+```json
+{
+  "tool": "anvil_check",
   "arguments": {
     "files": ["src/auth/login.ts"]
   }
 }
 ```
 
-Response:
+### anvil_gate
+
+Run the full gate pipeline (lint, test, coverage, architecture, policy):
 
 ```json
 {
-  "status": "pass",
-  "checks": [
-    { "name": "architecture", "status": "pass" },
-    { "name": "anti-patterns", "status": "pass" }
-  ]
-}
-```
-
-### anvil_get_constraints
-
-Get constraints for a task:
-
-```json
-{
-  "tool": "anvil_get_constraints",
-  "arguments": {
-    "task": "AUTH-001"
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "task": "AUTH-001",
-  "outcome": "Users can log in with email/password",
-  "allowed_files": ["src/auth/**"],
-  "forbidden_patterns": ["src/payments/**"],
-  "validation_command": "pnpm test src/auth/"
-}
-```
-
-### anvil_check_scope
-
-Check if a file is within task scope:
-
-```json
-{
-  "tool": "anvil_check_scope",
-  "arguments": {
-    "task": "AUTH-001",
-    "file": "src/auth/login.ts"
-  }
-}
-```
-
-Response:
-
-```json
-{
-  "in_scope": true,
-  "reason": "File matches pattern src/auth/**"
-}
-```
-
-### anvil_get_issues
-
-Get current issues in the project:
-
-```json
-{
-  "tool": "anvil_get_issues",
+  "tool": "anvil_gate",
   "arguments": {}
 }
 ```
 
-Response:
+### anvil_fix
+
+Auto-fix a specific violation:
 
 ```json
 {
-  "issues": [
-    {
-      "file": "src/utils/parser.ts",
-      "line": 42,
-      "code": "AP-003",
-      "message": "Explicit 'any' type"
-    }
-  ]
+  "tool": "anvil_fix",
+  "arguments": {
+    "file": "src/auth/login.ts",
+    "code": "AP-003"
+  }
+}
+```
+
+### anvil_suppress
+
+Suppress a warning with an explanation:
+
+```json
+{
+  "tool": "anvil_suppress",
+  "arguments": {
+    "file": "src/auth/login.ts",
+    "code": "AP-003",
+    "reason": "Third-party API returns untyped data"
+  }
+}
+```
+
+### anvil_status
+
+Get the current workspace validation status:
+
+```json
+{
+  "tool": "anvil_status",
+  "arguments": {}
+}
+```
+
+### anvil_query_boundary
+
+Query architecture boundary rules for a file or module:
+
+```json
+{
+  "tool": "anvil_query_boundary",
+  "arguments": {
+    "file": "src/api/handlers/user.ts"
+  }
 }
 ```
 
 ## Resources
 
-The MCP server exposes resources:
+The MCP server exposes read-only resources:
 
-### anvil://config
-
-Current Anvil configuration:
-
-```json
-{
-  "uri": "anvil://config",
-  "content": {
-    "version": "1.0",
-    "gates": { ... }
-  }
-}
-```
-
-### anvil://status
-
-Current validation status:
-
-```json
-{
-  "uri": "anvil://status",
-  "content": {
-    "last_run": "2024-01-15T10:30:00Z",
-    "status": "pass",
-    "issues_count": 0
-  }
-}
-```
+| Resource                  | Description                            |
+| ------------------------- | -------------------------------------- |
+| `anvil://config`          | Current `.anvilrc` configuration       |
+| `anvil://status`          | Last validation status                 |
+| `anvil://baseline`        | Current baseline snapshot              |
+| `anvil://boundaries`      | Architecture boundary definitions      |
+| `anvil://constraints`     | Active task constraints and scope      |
+| `anvil://drift`           | Drift snapshots                        |
+| `anvil://file-warnings`   | Per-file warning list                  |
+| `anvil://patterns`        | Anti-pattern definitions               |
+| `anvil://suppressions`    | Active suppressions                    |
 
 ## Example: Agent Loop
 
@@ -218,20 +185,12 @@ if result["status"] != "pass":
 
 The MCP server provides helpful prompts:
 
-### anvil_explain_issue
-
-Explain an issue code:
-
-```json
-{
-  "prompt": "anvil_explain_issue",
-  "arguments": {
-    "code": "AP-003"
-  }
-}
-```
-
-Response includes explanation, examples, and fix suggestions.
+| Prompt                  | Description                                   |
+| ----------------------- | --------------------------------------------- |
+| `architecture-review`   | Review a file's architecture boundary context |
+| `fix-violation`         | Explain a violation and suggest a fix         |
+| `pre-generation`        | Provide constraints before generating code    |
+| `suppress-violation`    | Guide suppression with a proper explanation   |
 
 ---
 

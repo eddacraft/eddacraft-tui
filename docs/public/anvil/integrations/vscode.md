@@ -11,18 +11,22 @@ The Anvil VS Code extension provides real-time feedback directly in your editor.
 
 ## Installation
 
-### From Marketplace
+:::info Closed beta
 
-1. Open VS Code
-2. Go to Extensions (Ctrl+Shift+X / Cmd+Shift+X)
-3. Search for "Anvil"
-4. Click Install
+The VS Code extension is not yet published to the VS Code Marketplace. During
+the closed beta, install it from the `.vsix` file included with your beta
+distribution.
 
-### From CLI
+:::
+
+### From VSIX File
 
 ```bash
-code --install-extension eddacraft.anvil-vscode
+code --install-extension anvil-vscode-0.1.0.vsix
 ```
+
+Or in VS Code: **Extensions** (Ctrl+Shift+X / Cmd+Shift+X) → **⋯** menu →
+**Install from VSIX…** → select the file.
 
 ## Features
 

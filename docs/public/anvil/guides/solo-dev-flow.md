@@ -112,11 +112,9 @@ Recommended config for solo development:
 
 ## VS Code Integration
 
-Install the Anvil VS Code extension for in-editor feedback:
-
-```bash
-code --install-extension eddacraft.anvil-vscode
-```
+Install the Anvil VS Code extension for in-editor feedback (see
+[VS Code integration](/anvil/integrations/vscode) for installation
+instructions).
 
 Benefits:
 
