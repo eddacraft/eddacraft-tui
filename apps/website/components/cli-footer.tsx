@@ -363,7 +363,7 @@ export function CLIFooter() {
 
             {/* Modal Content */}
             <div className="space-y-4">
-              <h3 className="text-lg sm:text-xl text-anvil uppercase tracking-tight">
+              <h3 className="text-lg sm:text-xl text-anvil tracking-tight">
                 anvil is in pre-release
               </h3>
               <p className="text-sm text-text-muted leading-relaxed">
