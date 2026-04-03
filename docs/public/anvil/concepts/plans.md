@@ -3,7 +3,7 @@ id: plans
 title: Plans
 description:
   Understanding APS plans as the foundation for deterministic validation.
-sidebar_position: 1
+sidebar_position: 4
 ---
 
 # Plans

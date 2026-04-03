@@ -3,7 +3,7 @@ id: gates
 title: Gates
 description:
   Quality gates that validate code changes against deterministic rules.
-sidebar_position: 2
+sidebar_position: 1
 ---
 
 # Gates

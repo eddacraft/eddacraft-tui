@@ -39,8 +39,8 @@ For full details, see [The Switch to Rust](./rust-rewrite.md).
   semantic graph updates.
 - **Ratatui TUI** — rebuilt interactive surfaces with the EddaCraft Terminal
   Standard design system.
-- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail). Codes
-  `3` (auth required) and `4` (config error) are reserved for future use.
+- **Structured exit codes** — `0` (pass), `1` (error), `2` (gate fail), `3`
+  (auth required), `4` (config error).
 - **Cross-platform auth** — device-flow authentication with OS keychain storage.
 
 ### Breaking Changes
@@ -57,8 +57,8 @@ required.
 
 ### What's New in 0.2.1
 
-- **Project memory** — Anvil now tracks patterns and decisions in your codebase.
-  New commands: `anvil edda`, `anvil ember`, `anvil stack`.
+- **Project memory** — Anvil now tracks patterns and decisions in your codebase
+  via the Edda memory system and Ember proposal engine.
 - **Security hardening** — input validation and subprocess execution
   improvements across the platform.
 - **Dependency patches** — minimatch, axios, svgo, tar, and others.
@@ -110,3 +110,8 @@ If you encounter upgrade issues:
    - New version
    - Error message
    - Steps to reproduce
+
+---
+
+**See also:** [Changelog](/anvil/releases/changelog),
+[The Switch to Rust](/anvil/releases/rust-rewrite)

@@ -76,7 +76,7 @@ Harness: Reject change
 Agent: "Understood. I'll find another approach."
 ```
 
-## Implementation Patterns
+## Patterns That Work Today
 
 ### Pattern 1: Wrapper Script
 
@@ -104,14 +104,8 @@ kill $ANVIL_PID
 
 ### Pattern 2: MCP Integration
 
-Use Anvil via MCP (Model Context Protocol):
-
-:::info Planned
-
-A built-in MCP server (`anvil mcp serve`) is planned for a future release. In
-the meantime, add the MCP server configuration to your editor manually.
-
-:::
+Use Anvil's MCP server to give agents real-time access to architecture rules and
+validation:
 
 ```json
 {
@@ -125,13 +119,14 @@ the meantime, add the MCP server configuration to your editor manually.
 }
 ```
 
-See [MCP Integration](/anvil/integrations/mcp) for full configuration details.
-
 The agent can then:
 
-- Query allowed files for a task
-- Validate changes before proposing
-- Check current violations
+- Query allowed files for a task via `anvil://boundaries`
+- Validate changes before proposing via `anvil_check`
+- Check current violations via `anvil_status`
+
+See [MCP Integration](/anvil/integrations/mcp) for full configuration and tool
+reference.
 
 ### Pattern 3: Pre-commit Hook
 
@@ -148,105 +143,28 @@ if [ $? -ne 0 ]; then
 fi
 ```
 
-### Pattern 4: Plan-First Workflow
-
-:::info Planned
-
-Plan and session commands (`anvil plan create`, `anvil session start/end`) are
-planned for a future release. The pattern below illustrates the intended
-workflow.
-
-:::
-
-```bash
-# 1. Create plan
-anvil plan create --task "Add user authentication"
-
-# 2. Review and approve plan
-cat plans/execution/AUTH-001.steps.md
-# Edit if needed
-
-# 3. Run agent within plan
-anvil session start --task AUTH-001
-your-agent-cli "Implement AUTH-001"
-anvil session end
-```
-
-## Example: Claude + Anvil
-
-Using Claude with Anvil harness:
-
-:::info Planned
-
-The `@eddacraft/anvil-client` SDK is planned for a future release. The example
-below illustrates the intended integration pattern.
-
-:::
-
-```typescript
-import { AnvilClient } from '@eddacraft/anvil-client';
-import { Anthropic } from '@anthropic-ai/sdk';
-
-const anvil = new AnvilClient();
-const claude = new Anthropic();
-
-async function runWithHarness(task: string) {
-  // Start Anvil session
-  const session = await anvil.startSession({ task });
-
-  // Get task constraints
-  const constraints = await anvil.getTaskConstraints(task);
-
-  // Run Claude with constraints in prompt
-  const response = await claude.messages.create({
-    model: 'claude-sonnet-4-6',
-    messages: [
-      {
-        role: 'user',
-        content: `
-        Task: ${constraints.outcome}
-
-        Allowed files: ${constraints.allowedFiles.join(', ')}
-        Forbidden: ${constraints.forbiddenPatterns.join(', ')}
-
-        Implement this task.
-      `,
-      },
-    ],
-  });
-
-  // Validate Claude's output
-  const validation = await anvil.validate(response.content);
-
-  if (validation.status === 'fail') {
-    // Rejection flow
-    return await runWithHarness(task); // Retry with feedback
-  }
-
-  await anvil.endSession(session.id);
-  return response;
-}
-```
-
 ## Telemetry and Learning
 
-Track agent behaviour over time:
-
-:::info Planned
-
-Evidence querying commands are planned for a future release.
-
-:::
-
-```bash
-anvil evidence list --agent claude --since 30d
-```
-
-Analyse:
+Track agent behaviour over time by reviewing validation results:
 
 - **Violation rate** — how often does the agent drift?
 - **Common violations** — what patterns recur?
 - **Improvement over time** — is the agent learning from rejections?
+
+Use `anvil check --all --json` to capture structured results for analysis.
+
+## Coming Soon
+
+The following features are planned to make agent harnesses more powerful:
+
+- **`anvil mcp serve`** — built-in MCP server in the Rust binary (currently
+  requires the separate `@eddacraft/anvil-mcp-server` Node.js package)
+- **Plan-first workflow** — `anvil plan create` and `anvil session start/end`
+  commands for structured agent task scoping
+- **`@eddacraft/anvil-client` SDK** — TypeScript client for programmatic
+  session management, constraint queries, and validation
+- **Evidence querying** — `anvil evidence list` for analysing agent behaviour
+  patterns over time
 
 ---
 

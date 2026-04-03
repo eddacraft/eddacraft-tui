@@ -163,3 +163,8 @@ Anvil follows [Semantic Versioning](https://semver.org/):
 ## Upgrading
 
 See [Upgrade Notes](/anvil/releases/upgrade-notes) for migration guides.
+
+---
+
+**See also:** [Upgrade notes](/anvil/releases/upgrade-notes),
+[The Switch to Rust](/anvil/releases/rust-rewrite)

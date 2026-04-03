@@ -2,7 +2,7 @@
 id: sessions
 title: Sessions and Runs
 description: Understanding Anvil's execution model and artefact management.
-sidebar_position: 3
+sidebar_position: 2
 ---
 
 # Sessions and Runs

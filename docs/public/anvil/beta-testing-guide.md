@@ -4,7 +4,7 @@ title: Beta Testing Guide
 description:
   Everything you need to get started testing Anvil during the closed beta,
   including setup, what to test, and how to report issues.
-sidebar_position: 2
+sidebar_position: 6
 ---
 
 # Beta Testing Guide
@@ -254,3 +254,9 @@ data.
 **How often should I upgrade?** We recommend upgrading before each testing
 session. Beta releases are frequent and often include fixes for issues reported
 by testers.
+
+---
+
+**Next:** [Set up your first project →](/anvil/first-project) |
+**See also:** [Quickstart](/anvil/quickstart),
+[Changelog](/anvil/releases/changelog)

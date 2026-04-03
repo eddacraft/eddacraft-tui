@@ -18,13 +18,16 @@ self-contained -- you can follow any of them independently.
 
 ## Feature Tutorials
 
-| Tutorial                                                 | Description                                                     |
-| -------------------------------------------------------- | --------------------------------------------------------------- |
-| [Custom Policies](/anvil/tutorials/policies)             | Write OPA/Rego rules to enforce your team's standards           |
-| [Architecture Boundaries](/anvil/tutorials/architecture) | Define layers, choose a template, and enforce module boundaries |
-| [Drift Detection](/anvil/tutorials/drift)                | Capture snapshots and track architectural drift over time       |
-| [CI Integration](/anvil/tutorials/ci)                    | Add Anvil to GitHub Actions, GitLab CI, and git hooks           |
-| [Suppressions](/anvil/tutorials/suppressions)            | Suppress warnings for legacy code and intentional decisions     |
+We recommend following these in order — each builds on concepts from the
+previous one:
+
+| #   | Tutorial                                                 | Description                                                     | Prerequisites       |
+| --- | -------------------------------------------------------- | --------------------------------------------------------------- | -------------------- |
+| 1   | [Architecture Boundaries](/anvil/tutorials/architecture) | Define layers and enforce module boundaries                     | `anvil init`         |
+| 2   | [Custom Policies](/anvil/tutorials/policies)             | Write OPA/Rego rules to enforce your team's standards           | OPA binary installed |
+| 3   | [Drift Detection](/anvil/tutorials/drift)                | Capture snapshots and track architectural drift over time       | Architecture set up  |
+| 4   | [CI Integration](/anvil/tutorials/ci)                    | Add Anvil to GitHub Actions, GitLab CI, and git hooks           | —                    |
+| 5   | [Suppressions](/anvil/tutorials/suppressions)            | Suppress warnings for legacy code and intentional decisions     | —                    |
 
 ---
 

@@ -52,47 +52,48 @@ anvil init
 
 ## Step 2: Define Architecture Boundaries
 
-Edit `.anvilrc` to add boundary rules:
+Create `.anvil/architecture.yaml` to define your layer rules:
 
-```json
-{
-  "version": "1.0",
-  "gates": {
-    "architecture": {
-      "enabled": true,
-      "boundaries": [
-        {
-          "name": "api-layer",
-          "pattern": "src/api/**",
-          "allow": ["src/services/**", "src/utils/**"],
-          "deny": ["src/repositories/**"]
-        },
-        {
-          "name": "service-layer",
-          "pattern": "src/services/**",
-          "allow": ["src/repositories/**", "src/utils/**"],
-          "deny": ["src/api/**"]
-        },
-        {
-          "name": "repository-layer",
-          "pattern": "src/repositories/**",
-          "allow": ["src/utils/**"],
-          "deny": ["src/api/**", "src/services/**"]
-        },
-        {
-          "name": "utils",
-          "pattern": "src/utils/**",
-          "allow": [],
-          "deny": ["src/api/**", "src/services/**", "src/repositories/**"]
-        }
-      ]
-    },
-    "antiPatterns": {
-      "enabled": true,
-      "patterns": ["AP-001", "AP-003", "AP-004", "AP-006"]
-    }
-  }
-}
+```yaml
+version: '1.0'
+layers:
+  - name: api-layer
+    pattern: 'src/api/**'
+    allow:
+      - service-layer
+      - utils
+    deny:
+      - repository-layer
+
+  - name: service-layer
+    pattern: 'src/services/**'
+    allow:
+      - repository-layer
+      - utils
+    deny:
+      - api-layer
+
+  - name: repository-layer
+    pattern: 'src/repositories/**'
+    allow:
+      - utils
+    deny:
+      - api-layer
+      - service-layer
+
+  - name: utils
+    pattern: 'src/utils/**'
+    allow: []
+    deny:
+      - api-layer
+      - service-layer
+      - repository-layer
+```
+
+Validate the definition:
+
+```bash
+anvil architecture validate
 ```
 
 ## Step 3: Run Initial Check
@@ -197,6 +198,7 @@ appropriate exit codes.
 
 ---
 
+**Previous:** [Quickstart](/anvil/quickstart) |
 **Next:** [Experience your first gate moment →](/anvil/first-gate)
 
 **Learn more:**

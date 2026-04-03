@@ -2,7 +2,7 @@
 id: audit-trail
 title: Audit Trail
 description: Understanding Anvil's provenance and trust model.
-sidebar_position: 4
+sidebar_position: 3
 ---
 
 # Audit Trail
