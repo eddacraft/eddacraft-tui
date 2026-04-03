@@ -225,3 +225,104 @@ Phase 3: INTL (9 tasks)  ← launcher, depends on INTD IPC
 ```
 
 28 work items total across 3 APS modules. All Draft.
+
+---
+
+## Impact on Existing Anvil
+
+### What Works Without the Intercept Loop
+
+Everything. The intercept loop is **additive** -- it does not change or replace
+any existing functionality.
+
+| Feature | How It Works Today | Changed? |
+|---------|-------------------|----------|
+| Save-time watch (`anvil watch`) | CLI spawns kernel in-process, watcher detects changes, parser + graph + policy engine evaluate, violations emitted to TUI | No |
+| Gate checks (`anvil gate`) | One-shot embedded analysis -- lint, test, coverage, dependency, secret, architecture, policy | No |
+| Git hooks (`anvil hooks install`) | Pre-commit/pre-push run `anvil gate` | No |
+| Architecture validation | Boundary definitions, import rules, layer assignments | No |
+| Policy engine | OPA-based policy evaluation, policy packs, compliance | No |
+| Edda/Ember (memory + proposals) | Observation recording, evolution, promotion | No |
+| TUI surfaces | Watch, gate, audit, status, browser, doctor, etc. | No |
+| Rust CLI (`crates/anvil-cli/`) | All 21 commands | No |
+| MCP server | Resources, tools, transports | No |
+| Auth/API | Device flow, licence, admin | No |
+
+### The Gap the Intercept Loop Fills
+
+Today's Anvil **tells you** about violations. It cannot **stop them**.
+
+```
+TODAY:
+  agent writes bad code → watcher detects → TUI shows warning → human reads it
+  (agent keeps writing)
+
+WITH INTERCEPT LOOP:
+  agent writes bad code → daemon detects → daemon kills the agent's process group
+  (agent stops immediately)
+```
+
+The difference is the enforcement boundary. Currently:
+
+- `anvil watch` runs in the same terminal as the developer -- informational
+- `anvil gate` runs at commit/push time -- the damage is already done
+- Claude Code hooks (PreToolUse) can block individual tool calls -- but only for
+  Claude Code, and they are advisory
+
+The intercept loop adds:
+
+- A **background daemon** watching independently of the agent's terminal
+- **Process-group control** to actually stop the agent
+- **Worktree fencing** to prevent relaunch after a violation
+- **Session tracking** to know which agent to stop
+
+### What the Intercept Loop Reuses
+
+| Existing Crate | What Is Reused |
+|----------------|---------------|
+| anvil-kernel (watcher) | `start_watcher()` returns `mpsc::Receiver<ChangeBatch>` -- the daemon consumes this directly. Same notify-based watcher with debounce. |
+| anvil-checks (secret) | `SecretScanner` and `PatternMatcher` -- wrapped as `InterceptRule` implementations. Same regex patterns, same entropy detection. |
+| anvil-checks (antipattern) | `AntipatternScanner` -- wrapped as `InterceptRule`. Same pattern definitions. |
+| anvil-kernel-types | `EngineEvent`, `ChangeKind`, `FileChange` -- shared event vocabulary. |
+
+### What Is Genuinely New
+
+- Daemon process with signal handling and PID file
+- IPC listener (NDJSON over UDS / named pipes)
+- Session registry
+- Process-group lifecycle (`setpgid`, Job Objects)
+- Fence persistence
+- `anvil-run` launcher binary
+- Shell integration functions
+- Enforcement decision pipeline (rule output mapped through config to action)
+
+### Relationship to Active APS Modules
+
+| Module | Impact |
+|--------|--------|
+| KERN (22/25) | Intercept loop depends on kernel's watcher. KERN completion helps -- stable `ChangeBatch` API. No conflicts. |
+| RCLI (43/64) | Adds new binaries alongside `anvil-cli`. No command overlap. Gate/watch commands continue as-is. |
+| BENCH (14/16) | Can pause. Intercept loop will need its own benchmarks eventually but not for v1. |
+| RENG (5/6) | Intercept loop wraps the checks RENG ported to Rust. Completing RENG-006 useful but not blocking. |
+| DOCSYNC (6/14) | Can pause. Docs for the intercept loop are a separate concern. |
+| TUIEXTRACT (3/7) | Independent. TUI work continues separately. |
+
+### The Two Modes After This Ships
+
+```
+Anvil Today (passive):
+  watch → detect → warn → human decides
+
+Anvil + Intercept Loop (active):
+  watch → detect → evaluate → stop agent → fence worktree → human reviews
+```
+
+Both modes coexist. The intercept loop does not replace `anvil watch` or
+`anvil gate` -- it adds a parallel enforcement path that operates at a lower
+level (process control rather than information display). Teams choose their
+enforcement mode via `.anvil.yaml`:
+
+- `observe_only: true` -- same as today, with better session tracking
+- `mode: warn` -- same as today with structured violation logging
+- `mode: fence` -- blocks the worktree, prevents relaunch, does not kill
+- `mode: interrupt` -- the full loop: detect, verify, signal, fence
