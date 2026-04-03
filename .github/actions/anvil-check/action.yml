@@ -106,7 +106,7 @@ runs:
 
     # Step 2: Setup Node.js with detected or explicit version
     - name: Setup Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
       with:
         node-version: ${{ steps.detect-node.outputs.version || '' }}
         node-version-file: ${{ steps.detect-node.outputs.file || '' }}
@@ -287,7 +287,7 @@ runs:
     # Step 7: Post PR comment with results summary
     - name: Post PR comment
       if: github.event_name == 'pull_request' && steps.anvil.outputs.exit-code != ''
-      uses: actions/github-script@v7
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
       env:
         WARNINGS_COUNT: ${{ steps.anvil.outputs.warnings-count }}
         ERRORS_COUNT: ${{ steps.anvil.outputs.errors-count }}
@@ -360,7 +360,7 @@ runs:
     # Step 8: Set commit status
     - name: Set commit status
       if: always() && steps.anvil.outputs.exit-code != ''
-      uses: actions/github-script@v7
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
       env:
         WARNINGS_COUNT: ${{ steps.anvil.outputs.warnings-count }}
         ERRORS_COUNT: ${{ steps.anvil.outputs.errors-count }}
@@ -415,7 +415,7 @@ runs:
     - name: Create check run with annotations
       if:
         always() && steps.anvil.outputs.exit-code != '' && steps.anvil.outputs.warnings-count != '0'
-      uses: actions/github-script@v7
+      uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
       env:
         WARNINGS_COUNT: ${{ steps.anvil.outputs.warnings-count }}
         ERRORS_COUNT: ${{ steps.anvil.outputs.errors-count }}

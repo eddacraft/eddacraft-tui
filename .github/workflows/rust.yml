@@ -51,7 +51,7 @@ jobs:
           version: latest
 
       - name: Install Regal
-        uses: open-policy-agent/setup-regal@b01ac9f4bece22d1066ed2ca8f91a3e89b57013f # v1
+        uses: open-policy-agent/setup-regal@33a142b1189004e0f14bf42b15972c67eecce776 # v1
         with:
           version: latest
 
