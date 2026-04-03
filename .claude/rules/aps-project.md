@@ -37,6 +37,7 @@
 - RENG: rust-core-engine (6/6) — Complete
 - KERN: rust-kernel (22/25) — In Progress
 - BAUTH: beta-auth-streamline (20/20) — Complete
+- DOCSAUTH: docs-auth-gating (0/7) — Ready
 - RATS: ratatui-tui (7/7) — Complete
 - PORT: ink-to-ratatui-port (15/15) — Complete
 - OPENSPEC: open-spec-adapter — Draft
@@ -269,8 +270,16 @@ crates/anvil-tui/src/surfaces/watch/: PORT-030
 crates/anvil-tui/src/surfaces/tutorial/mod.rs: PORT-040
 crates/anvil-tui/src/surfaces/tutorial/paths.rs: PORT-041, PORT-042, PORT-043, PORT-044
 apps/anvil-api/src/routes/auth-device.ts: BAUTH-006, BAUTH-007, BAUTH-008
+apps/anvil-api/src/routes/auth-github.ts: DOCSAUTH-001
 apps/anvil-api/src/routes/auth-otp.ts: BAUTH-009, BAUTH-010
 apps/anvil-api/src/routes/auth-session.ts: BAUTH-011
+# DOCSAUTH: Docs Auth Gating
+apps/docs-site/middleware/index.ts: DOCSAUTH-002
+apps/docs-site/api/auth/login.ts: DOCSAUTH-003
+apps/docs-site/api/auth/callback.ts: DOCSAUTH-003, DOCSAUTH-007
+apps/docs-site/api/auth/logout.ts: DOCSAUTH-003
+apps/docs-site/vercel.json: DOCSAUTH-005
+infra/src/vercel.ts: DOCSAUTH-006
 apps/anvil-api/src/routes/admin.ts: BAUTH-012, BAUTH-013
 apps/anvil-api/src/routes/waitlist.ts: BAUTH-013
 apps/anvil-api/src/routes/cron.ts: BAUTH-020

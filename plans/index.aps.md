@@ -105,17 +105,21 @@ systematically (PORT). See
 [Architecture Evolution](../docs/architecture/anvil-architecture-evolution.md)
 for the phased rollout plan.
 
-### Beta Auth (Complete)
+### Auth & Access (In Progress)
 
 Streamline beta access: device code + email OTP activation flows, JWT session
 model with rotating refresh tokens, admin CLI approval, Resend audience
-management. 20 tasks across 7 phases.
+management. Docs auth gating adds GitHub OAuth as a third activation mechanism
+and gates `/anvil` docs behind it via Vercel Edge.
 
 | Module | Scope | Status | Progress | Dependencies |
 | ------ | ----- | ------ | -------- | ------------ |
 | [beta-auth-streamline](./archive/modules/beta-auth-streamline.aps.md) | BAUTH | Complete | 20/20 | — |
+| [docs-auth-gating](./modules/docs-auth-gating.aps.md) | DOCSAUTH | Ready | 0/7 | BAUTH, IAC |
 
-**Design spec:** `docs/specs/2026-03-15-beta-auth-streamline-design.md`
+**Design specs:**
+- `docs/specs/2026-03-15-beta-auth-streamline-design.md`
+- `plans/specs/2026-04-03-docs-auth-gating-design.md`
 
 ### Observability Foundation (Draft)
 
