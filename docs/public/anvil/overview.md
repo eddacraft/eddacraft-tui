@@ -52,7 +52,7 @@ anvil watch
 When files change, Anvil runs quality gates:
 
 - **Architecture boundaries** — catches new dependency edges crossing contexts
-- **Anti-pattern detection** — identifies 7 high-signal patterns
+- **Anti-pattern detection** — 13 built-in patterns (4 default, 9 opt-in)
 - **Policy evaluation** — custom rules via OPA/Rego
 - **Secret detection** — pattern + entropy analysis
 
@@ -62,7 +62,8 @@ Issues surface instantly in your terminal or editor—not in a PR comment hours
 later.
 
 ```
-⚠️  AP-003: Explicit 'any' type at src/utils/parser.ts:42
+  ⚠ [AP-003] Explicit any type usage
+    src/utils/parser.ts:42
     Consider using a more specific type or generic.
 ```
 
@@ -76,7 +77,7 @@ failed, and when.
 | Feature                  | Description                                         |
 | ------------------------ | --------------------------------------------------- |
 | **Architecture Safety**  | Detects dependency violations using import analysis |
-| **Anti-Pattern Library** | 7 built-in patterns (AP-001 through AP-007)         |
+| **Anti-Pattern Library** | 13 built-in patterns (4 on by default, 9 opt-in)   |
 | **Watch Mode**           | Real-time validation on file save                   |
 | **Suppression System**   | Allow exceptions with mandatory explanations        |
 | **GitHub Integration**   | PR checks and inline comments                       |
@@ -84,17 +85,30 @@ failed, and when.
 
 ## Anti-Patterns Detected
 
+### Default patterns (enabled out of the box)
+
 | ID     | Pattern                      | Severity |
 | ------ | ---------------------------- | -------- |
 | AP-001 | Broad `/* eslint-disable */` | warning  |
 | AP-003 | Explicit `any` type          | warning  |
 | AP-004 | `@ts-ignore` directive       | warning  |
 | AP-006 | Empty catch block            | warning  |
-| AP-007 | Console in production code   | info     |
 
-> AP-002 (rule-specific `eslint-disable`) and AP-005 (`@ts-expect-error`
-> directive) are implemented opt-in patterns. They are disabled by default to
-> reduce noise, but can be enabled explicitly in your Anvil configuration.
+### Opt-in patterns
+
+Enable these in your `.anvilrc` when relevant to your project.
+
+| ID     | Pattern                       | Category     | Severity |
+| ------ | ----------------------------- | ------------ | -------- |
+| AP-002 | Rule-specific `eslint-disable`| escape hatch | info     |
+| AP-005 | `@ts-expect-error` directive  | type safety  | info     |
+| AP-007 | Console in production code    | code quality | info     |
+| AP-008 | Inline `style` attribute      | HTML         | warning  |
+| AP-009 | Inline `<script>` block       | HTML         | warning  |
+| AP-010 | Inline event handler          | HTML         | warning  |
+| AP-011 | Deprecated HTML tag           | HTML         | warning  |
+| AP-012 | `!important` in CSS           | CSS          | warning  |
+| AP-013 | CSS `@import`                 | CSS          | info     |
 
 ## What Anvil Doesn't Do
 

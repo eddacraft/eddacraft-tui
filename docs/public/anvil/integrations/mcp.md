@@ -51,7 +51,10 @@ For HTTP transport (e.g. remote or multi-client setups):
   "mcpServers": {
     "anvil": {
       "command": "npx",
-      "args": ["@eddacraft/anvil-mcp-server"],
+      "args": [
+        "--package", "@eddacraft/anvil-mcp-server",
+        "anvil-mcp-server-http"
+      ],
       "cwd": "/path/to/your/project"
     }
   }
@@ -68,7 +71,21 @@ Validate files against architecture rules and anti-patterns:
 {
   "tool": "anvil_check",
   "arguments": {
-    "files": ["src/auth/login.ts"]
+    "files": ["src/auth/login.ts"],
+    "workspaceRoot": "/absolute/path/to/project"
+  }
+}
+```
+
+Optional `checks` parameter limits which checks run (default: all):
+
+```json
+{
+  "tool": "anvil_check",
+  "arguments": {
+    "files": ["src/auth/login.ts"],
+    "checks": ["architecture", "antipattern"],
+    "workspaceRoot": "/absolute/path/to/project"
   }
 }
 ```
@@ -80,9 +97,14 @@ Run the full gate pipeline (lint, test, coverage, architecture, policy):
 ```json
 {
   "tool": "anvil_gate",
-  "arguments": {}
+  "arguments": {
+    "workspaceRoot": "/absolute/path/to/project"
+  }
 }
 ```
+
+Optional parameters: `targetFiles` (specific files), `skipChecks` (checks to
+skip), `failFast` (stop on first failure).
 
 ### anvil_fix
 
@@ -92,8 +114,9 @@ Auto-fix a specific violation:
 {
   "tool": "anvil_fix",
   "arguments": {
-    "file": "src/auth/login.ts",
-    "code": "AP-003"
+    "filePath": "src/auth/login.ts",
+    "warningId": "AP-003",
+    "line": 42
   }
 }
 ```
@@ -106,12 +129,15 @@ Suppress a warning with an explanation:
 {
   "tool": "anvil_suppress",
   "arguments": {
-    "file": "src/auth/login.ts",
-    "code": "AP-003",
+    "filePath": "src/auth/login.ts",
+    "warningId": "AP-003",
+    "line": 42,
     "reason": "Third-party API returns untyped data"
   }
 }
 ```
+
+Optional `expiryDays` parameter sets when the suppression expires (default: 30).
 
 ### anvil_status
 
@@ -120,19 +146,23 @@ Get the current workspace validation status:
 ```json
 {
   "tool": "anvil_status",
-  "arguments": {}
+  "arguments": {
+    "workspaceRoot": "/absolute/path/to/project"
+  }
 }
 ```
 
 ### anvil_query_boundary
 
-Query architecture boundary rules for a file or module:
+Check whether an import between two files is allowed by architecture rules:
 
 ```json
 {
   "tool": "anvil_query_boundary",
   "arguments": {
-    "file": "src/api/handlers/user.ts"
+    "sourceFile": "src/api/handlers/user.ts",
+    "targetFile": "src/repositories/user.repo.ts",
+    "workspaceRoot": "/absolute/path/to/project"
   }
 }
 ```
@@ -141,43 +171,47 @@ Query architecture boundary rules for a file or module:
 
 The MCP server exposes read-only resources:
 
-| Resource                | Description                       |
-| ----------------------- | --------------------------------- |
-| `anvil://config`        | Current `.anvilrc` configuration  |
-| `anvil://status`        | Last validation status            |
-| `anvil://baseline`      | Current baseline snapshot         |
-| `anvil://boundaries`    | Architecture boundary definitions |
-| `anvil://constraints`   | Active task constraints and scope |
-| `anvil://drift`         | Drift snapshots                   |
-| `anvil://file-warnings` | Per-file warning list             |
-| `anvil://patterns`      | Anti-pattern definitions          |
-| `anvil://suppressions`  | Active suppressions               |
+| Resource                         | Description                                   |
+| -------------------------------- | --------------------------------------------- |
+| `anvil://config`                 | Current gate configuration and enabled checks |
+| `anvil://baseline`               | Architecture baseline snapshot                |
+| `anvil://boundaries`             | Architecture boundary rules                   |
+| `anvil://constraints`            | Aggregated constraints for AI consumption     |
+| `anvil://drift`                  | Current architecture drift status             |
+| `anvil://file/{path}/warnings`   | Warnings for a specific file (template)       |
+| `anvil://patterns`               | Anti-pattern catalogue                        |
+| `anvil://suppressions`           | Active suppressions with expiry dates         |
 
 ## Example: Agent Loop
 
 An AI agent using Anvil MCP:
 
 ```python
+# Pseudocode — adapt to your agent framework
 from mcp import Client
 
 anvil = Client("anvil")
+root = "/absolute/path/to/project"
 
-# 1. Get task constraints
-constraints = anvil.call("anvil_get_constraints", task="AUTH-001")
+# 1. Read boundary rules before generating code
+boundaries = anvil.read("anvil://boundaries")
 
-# 2. Generate code within constraints
-code = generate_code(constraints)
+# 2. Generate code respecting boundaries
+code = generate_code(boundaries)
 
 # 3. Write to file
 write_file("src/auth/login.ts", code)
 
-# 4. Validate
-result = anvil.call("anvil_validate", files=["src/auth/login.ts"])
+# 4. Validate against architecture and anti-patterns
+result = anvil.call("anvil_check", {
+    "files": ["src/auth/login.ts"],
+    "workspaceRoot": root
+})
 
 if result["status"] != "pass":
-    # Retry with feedback
-    issues = result["checks"]
-    code = regenerate_code(constraints, issues)
+    # Retry with feedback from validation warnings
+    warnings = result["warnings"]
+    code = regenerate_code(warnings)
     # ...
 ```
 

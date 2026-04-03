@@ -97,14 +97,9 @@ Anvil can post results as PR comments:
       // Post formatted comment
 ```
 
-Or use the Anvil GitHub Action:
-
-```yaml
-- uses: eddacraft/anvil-action@v1
-  with:
-    github_token: ${{ secrets.GITHUB_TOKEN }}
-    comment: true
-```
+For automated PR comments, use the `actions/github-script` approach above or a
+custom workflow step that parses `anvil-results.json` and posts via the GitHub
+API.
 
 ## Branch Protection
 

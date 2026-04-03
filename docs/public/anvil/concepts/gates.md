@@ -61,13 +61,28 @@ Validates that imports respect defined boundaries.
 
 Detects known problematic patterns:
 
+**Default patterns** (enabled out of the box):
+
 | ID     | Pattern                | Why it matters        |
 | ------ | ---------------------- | --------------------- |
 | AP-001 | Broad `eslint-disable` | Hides multiple issues |
 | AP-003 | Explicit `any`         | Defeats type safety   |
 | AP-004 | `@ts-ignore`           | Masks type errors     |
 | AP-006 | Empty catch block      | Swallows errors       |
-| AP-007 | Console in production  | Debug code leaked     |
+
+**Opt-in patterns** (enable via `.anvilrc` or `--include-opt-in`):
+
+| ID     | Pattern                        | Why it matters           |
+| ------ | ------------------------------ | ------------------------ |
+| AP-002 | Rule-specific `eslint-disable` | Granular but still hides |
+| AP-005 | `@ts-expect-error`             | Masks type errors        |
+| AP-007 | Console in production          | Debug code leaked        |
+| AP-008 | Inline `style` attribute       | Style/content mixing     |
+| AP-009 | Inline `<script>` block        | Security risk            |
+| AP-010 | Inline event handler           | Security risk            |
+| AP-011 | Deprecated HTML tag            | Standards compliance     |
+| AP-012 | `!important` in CSS            | Specificity escalation   |
+| AP-013 | CSS `@import`                  | Performance impact       |
 
 ### Secret Detection
 

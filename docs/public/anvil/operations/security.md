@@ -175,14 +175,12 @@ Use CODEOWNERS:
 
 ### Track Suppressions
 
-List all suppressions (planned — not yet available in the CLI):
+Search for `@anvil-ignore` comments and review the `suppressions` array in
+`.anvilrc` to audit active suppressions:
 
 ```bash
-anvil suppress --list
+grep -rn "@anvil-ignore" src/
 ```
-
-In the meantime, search for `@anvil-ignore` comments and review the
-`suppressions` array in `.anvilrc` to audit active suppressions.
 
 ## CI Security
 
@@ -232,14 +230,12 @@ For platforms serving multiple customers:
 
 ### Compliance Reporting
 
-Generate compliance reports:
+:::caution Planned
 
-```bash
-anvil evidence export \
-  --since 30d \
-  --format compliance \
-  --output audit-report.json
-```
+Evidence export commands are planned for a future release. For now, copy the
+`.anvil/evidence/` directory directly for compliance archival.
+
+:::
 
 ---
 
