@@ -1,6 +1,6 @@
 // Architecture definition schema — templates, layers, bounded contexts, rules.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -48,7 +48,7 @@ pub type LayerDefinition = Layer;
 pub struct BoundedContext {
     /// Layer overrides for this context.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub layers: Option<HashMap<String, LayerDefinition>>,
+    pub layers: Option<BTreeMap<String, LayerDefinition>>,
     /// Contexts this one is allowed to depend on.
     #[serde(default)]
     pub allowed_dependencies: Vec<String>,
@@ -136,10 +136,10 @@ pub struct ArchitectureDefinition {
     pub template: ArchitectureTemplate,
     /// Layer definitions.
     #[serde(default)]
-    pub layers: HashMap<String, LayerDefinition>,
+    pub layers: BTreeMap<String, LayerDefinition>,
     /// Bounded contexts (optional, for DDD-style projects).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub bounded_contexts: Option<HashMap<String, BoundedContext>>,
+    pub bounded_contexts: Option<BTreeMap<String, BoundedContext>>,
     /// Explicit architecture rules.
     #[serde(default)]
     pub rules: Vec<ArchitectureRule>,
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn validate_definition_accepts_valid() {
-        let mut layers = HashMap::new();
+        let mut layers = BTreeMap::new();
         layers.insert(
             "core".into(),
             LayerDefinition {
@@ -311,7 +311,7 @@ mod tests {
 
     #[test]
     fn validate_definition_rejects_unknown_dep() {
-        let mut layers = HashMap::new();
+        let mut layers = BTreeMap::new();
         layers.insert(
             "app".into(),
             LayerDefinition {
@@ -343,7 +343,7 @@ mod tests {
         let def = ArchitectureDefinition {
             schema_version: "99.0.0".into(),
             template: ArchitectureTemplate::Custom,
-            layers: HashMap::new(),
+            layers: BTreeMap::new(),
             bounded_contexts: None,
             rules: vec![],
             options: None,

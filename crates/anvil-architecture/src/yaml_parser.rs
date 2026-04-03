@@ -3,7 +3,7 @@
 // Reads and writes `.anvil/architecture.yaml`, applies template defaults,
 // and merges user overrides with template layer structures.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use crate::definition::{
@@ -19,7 +19,7 @@ pub const ARCHITECTURE_YAML_FILENAME: &str = "architecture.yaml";
 /// Standard Anvil configuration directory.
 pub const ANVIL_DIR: &str = ".anvil";
 
-type LayersRecord = HashMap<String, Layer>;
+type LayersRecord = BTreeMap<String, Layer>;
 
 /// Errors that can occur during YAML parsing.
 #[derive(Debug, thiserror::Error)]
@@ -596,7 +596,7 @@ mod tests {
         let def = ArchitectureDefinition {
             schema_version: ARCHITECTURE_DEFINITION_VERSION.into(),
             template: ArchitectureTemplate::Hexagonal,
-            layers: HashMap::new(),
+            layers: BTreeMap::new(),
             bounded_contexts: None,
             rules: vec![],
             options: None,
@@ -610,7 +610,7 @@ mod tests {
 
     #[test]
     fn merge_with_template_preserves_user_layers() {
-        let mut user_layers = HashMap::new();
+        let mut user_layers = BTreeMap::new();
         user_layers.insert(
             "my_layer".into(),
             Layer {

@@ -145,11 +145,13 @@ pub fn find_new_violations(
 ) -> Vec<BaselineViolation> {
     let baseline_ids: std::collections::HashSet<&str> =
         baseline.iter().map(|v| v.id.as_str()).collect();
-    current
+    let mut result: Vec<BaselineViolation> = current
         .iter()
         .filter(|v| !baseline_ids.contains(v.id.as_str()))
         .cloned()
-        .collect()
+        .collect();
+    result.sort_by(|a, b| a.id.cmp(&b.id));
+    result
 }
 
 /// Find violations that were FIXED (in baseline but not in current).
@@ -159,11 +161,13 @@ pub fn find_fixed_violations(
 ) -> Vec<BaselineViolation> {
     let current_ids: std::collections::HashSet<&str> =
         current.iter().map(|v| v.id.as_str()).collect();
-    baseline
+    let mut result: Vec<BaselineViolation> = baseline
         .iter()
         .filter(|v| !current_ids.contains(v.id.as_str()))
         .cloned()
-        .collect()
+        .collect();
+    result.sort_by(|a, b| a.id.cmp(&b.id));
+    result
 }
 
 #[cfg(test)]
@@ -233,12 +237,15 @@ mod tests {
     }
 
     #[test]
-    fn merge_violations_deduplicates() {
-        let existing = vec![make_violation("v1"), make_violation("v2")];
-        let new = vec![make_violation("v2"), make_violation("v3")];
+    fn merge_violations_deduplicates_and_sorts_by_id() {
+        let existing = vec![make_violation("v2"), make_violation("v1")];
+        let new = vec![make_violation("v3"), make_violation("v2")];
 
         let merged = merge_violations(&existing, &new);
         assert_eq!(merged.len(), 3);
+        assert_eq!(merged[0].id, "v1");
+        assert_eq!(merged[1].id, "v2");
+        assert_eq!(merged[2].id, "v3");
     }
 
     #[test]

@@ -365,13 +365,13 @@ fn collect_source_files(workspace_root: &Path, definition: &ArchitectureDefiniti
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
 
     use super::*;
     use crate::types::Layer;
 
     fn sample_layers() -> Layers {
-        let mut layers = HashMap::new();
+        let mut layers = BTreeMap::new();
         layers.insert(
             "core".into(),
             Layer {
@@ -441,7 +441,7 @@ mod tests {
         std::fs::create_dir_all(&src_dir).unwrap();
         std::fs::write(src_dir.join("entity.ts"), "export class Foo {}").unwrap();
 
-        let mut layers = HashMap::new();
+        let mut layers = BTreeMap::new();
         layers.insert(
             "core".into(),
             Layer {
@@ -701,7 +701,7 @@ mod tests {
     fn validate_respects_explicit_rules() {
         let tmp = tempfile::TempDir::new().unwrap();
 
-        let mut layers = HashMap::new();
+        let mut layers = BTreeMap::new();
         layers.insert(
             "core".into(),
             Layer {
@@ -772,7 +772,7 @@ mod tests {
         let def = crate::definition::ArchitectureDefinition {
             schema_version: "0.1.0".into(),
             template: crate::definition::ArchitectureTemplate::Custom,
-            layers: HashMap::new(),
+            layers: BTreeMap::new(),
             bounded_contexts: None,
             rules: vec![],
             options: Some(crate::definition::get_default_options()),
@@ -797,7 +797,7 @@ mod tests {
         let def = crate::definition::ArchitectureDefinition {
             schema_version: "0.1.0".into(),
             template: crate::definition::ArchitectureTemplate::Custom,
-            layers: HashMap::new(),
+            layers: BTreeMap::new(),
             bounded_contexts: None,
             rules: vec![],
             options: Some(crate::definition::get_default_options()),

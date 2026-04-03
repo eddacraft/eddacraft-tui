@@ -1,6 +1,6 @@
 // Core architecture types — entry points, layers, boundaries, violations, baselines.
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -63,7 +63,7 @@ pub struct Layer {
 }
 
 /// Map of layer name to layer definition.
-pub type Layers = HashMap<String, Layer>;
+pub type Layers = BTreeMap<String, Layer>;
 
 // =============================================================================
 // Boundary types
